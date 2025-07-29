@@ -26,25 +26,25 @@ extern "C" {
 #endif
 
 // Forward declarations
-class TensorOptimizer;
+class Optimizer;
 
 // Forward declaration for BLAS optimized layers
-namespace tensor_layers {
-template <typename T> class BLASTensorDenseLayer;
+namespace layers {
+template <typename T> class BLASDenseLayer;
 }
 
-namespace tensor_layers {
+namespace layers {
 // Convenience function for creating tensor activation functions
 template <typename T = float>
-std::unique_ptr<TensorActivationFunction<T>>
-create_tensor_activation(const std::string &name) {
+std::unique_ptr<ActivationFunction<T>>
+create_activation(const std::string &name) {
   // Ensure factory has default activations registered
-  TensorActivationFactory<T>::register_defaults();
-  return TensorActivationFactory<T>::create(name);
+  ActivationFactory<T>::register_defaults();
+  return ActivationFactory<T>::create(name);
 }
 
-// Base configuration for all Tensor<T> layers
-struct TensorLayerConfig {
+// Base configuration for all layers
+struct LayerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
@@ -62,10 +62,10 @@ struct TensorLayerConfig {
   }
 };
 
-// Abstract base Tensor<T> layer interface
-template <typename T = float> class TensorLayer {
+// Abstract base layer interface
+template <typename T = float> class Layer {
 public:
-  virtual ~TensorLayer() = default;
+  virtual ~Layer() = default;
 
   // Core forward/backward operations
   virtual Tensor<T> forward(const Tensor<T> &input) = 0;
@@ -80,8 +80,8 @@ public:
 
   // Configuration and introspection
   virtual std::string type() const = 0;
-  virtual TensorLayerConfig get_config() const = 0;
-  virtual std::unique_ptr<TensorLayer<T>> clone() const = 0;
+  virtual LayerConfig get_config() const = 0;
+  virtual std::unique_ptr<Layer<T>> clone() const = 0;
 
   // Training state
   virtual void set_training(bool training) { is_training_ = training; }
@@ -93,7 +93,7 @@ public:
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
   // Optional: custom parameter update (for layers that need special handling)
-  virtual void update_parameters(const TensorOptimizer &optimizer) {}
+  virtual void update_parameters(const Optimizer &optimizer) {}
 
 protected:
   bool is_training_ = true;
@@ -102,9 +102,9 @@ protected:
 
 // Base class for layers without parameters (activation, pooling, etc.)
 template <typename T = float>
-class StatelessTensorLayer : public TensorLayer<T> {
+class StatelessLayer : public Layer<T> {
 public:
-  explicit StatelessTensorLayer(const std::string &name = "") {
+  explicit StatelessLayer(const std::string &name = "") {
     this->name_ = name;
   }
 
@@ -117,9 +117,9 @@ public:
 
 // Base class for layers with parameters (dense, conv, etc.)
 template <typename T = float>
-class ParameterizedTensorLayer : public TensorLayer<T> {
+class ParameterizedLayer : public Layer<T> {
 public:
-  explicit ParameterizedTensorLayer(const std::string &name = "") {
+  explicit ParameterizedLayer(const std::string &name = "") {
     this->name_ = name;
   }
 
@@ -137,26 +137,26 @@ public:
 
   bool has_parameters() const override { return true; }
 
-  void update_parameters(const TensorOptimizer &optimizer) override {
+  void update_parameters(const Optimizer &optimizer) override {
     update_parameters_impl(optimizer);
   }
 
 protected:
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  virtual void update_parameters_impl(const TensorOptimizer &optimizer) = 0;
+  virtual void update_parameters_impl(const Optimizer &optimizer) = 0;
 
   Tensor<T> last_input_; // Cache for gradient computation
 };
 
-// Dense/Fully Connected Layer for Tensors
+// Dense/Fully Connected Layer
 template <typename T = float>
-class TensorDenseLayer : public ParameterizedTensorLayer<T> {
+class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
   size_t output_features_;
   bool use_bias_;
-  std::unique_ptr<TensorActivationFunction<T>> activation_;
+  std::unique_ptr<ActivationFunction<T>> activation_;
   Tensor<T> weights_;
   Tensor<T> bias_;
   Tensor<T> weight_gradients_;
@@ -164,11 +164,11 @@ private:
   Tensor<T> pre_activation_output_;
 
 public:
-  TensorDenseLayer(
+  DenseLayer(
       size_t input_features, size_t output_features,
-      std::unique_ptr<TensorActivationFunction<T>> activation = nullptr,
-      bool use_bias = true, const std::string &name = "tensor_dense")
-      : ParameterizedTensorLayer<T>(name), input_features_(input_features),
+      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+      bool use_bias = true, const std::string &name = "dense")
+      : ParameterizedLayer<T>(name), input_features_(input_features),
         output_features_(output_features), use_bias_(use_bias),
         activation_(std::move(activation)) {
     // Initialize weight tensor: [output_features, input_features, 1, 1] for CHW
@@ -207,7 +207,7 @@ public:
       printf("Input shape: %zu features, expected: %zu features\n",
              total_input_features, input_features_);
       throw std::invalid_argument(
-          "Input feature size mismatch in TensorDenseLayer");
+          "Input feature size mismatch in DenseLayer");
     }
 
     input.reshape({batch_size, input_features_, 1,
@@ -332,10 +332,10 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "tensor_dense"; }
+  std::string type() const override { return "dense"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["input_features"] = input_features_;
     config.parameters["output_features"] = output_features_;
@@ -345,9 +345,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
+  std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<TensorDenseLayer<T>>(
+    return std::make_unique<DenseLayer<T>>(
         input_features_, output_features_, std::move(activation_clone),
         use_bias_, this->name_);
   }
@@ -355,7 +355,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("TensorDenseLayer expects 4D input");
+      throw std::invalid_argument("DenseLayer expects 4D input");
     }
     return {input_shape[0], output_features_, 1, 1};
   }
@@ -375,19 +375,19 @@ protected:
     }
   }
 
-  void update_parameters_impl(const TensorOptimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
 
-// BLAS-optimized Dense/Fully Connected Layer for Tensors
+// BLAS-optimized Dense/Fully Connected Layer
 template <typename T = float>
-class BLASTensorDenseLayer : public ParameterizedTensorLayer<T> {
+class BLASDenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
   size_t output_features_;
   bool use_bias_;
-  std::unique_ptr<TensorActivationFunction<T>> activation_;
+  std::unique_ptr<ActivationFunction<T>> activation_;
   Tensor<T> weights_;
   Tensor<T> bias_;
   Tensor<T> weight_gradients_;
@@ -442,8 +442,8 @@ private:
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
                   input_features, batch_size, 1.0, grad_output_data,
-                  output_features, input_data, input_features, 0.0,
-                  weight_grad_data, input_features);
+                  output_features, input_data, input_features, 0.0, weight_grad_data,
+                  input_features);
 #else
       fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
                                 batch_size, input_features, output_features);
@@ -579,11 +579,11 @@ private:
   }
 
 public:
-  BLASTensorDenseLayer(
+  BLASDenseLayer(
       size_t input_features, size_t output_features,
-      std::unique_ptr<TensorActivationFunction<T>> activation = nullptr,
-      bool use_bias = true, const std::string &name = "blas_tensor_dense")
-      : ParameterizedTensorLayer<T>(name), input_features_(input_features),
+      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+      bool use_bias = true, const std::string &name = "blas_dense")
+      : ParameterizedLayer<T>(name), input_features_(input_features),
         output_features_(output_features), use_bias_(use_bias),
         activation_(std::move(activation)) {
     weights_ =
@@ -616,7 +616,7 @@ public:
       printf("Input shape: %zu features, expected: %zu features\n",
              total_input_features, input_features_);
       throw std::invalid_argument(
-          "Input feature size mismatch in BLASTensorDenseLayer");
+          "Input feature size mismatch in BLASDenseLayer");
     }
 
     Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
@@ -725,10 +725,10 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "blas_tensor_dense"; }
+  std::string type() const override { return "blas_dense"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["input_features"] = input_features_;
     config.parameters["output_features"] = output_features_;
@@ -739,9 +739,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
+  std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASTensorDenseLayer<T>>(
+    return std::make_unique<BLASDenseLayer<T>>(
         input_features_, output_features_, std::move(activation_clone),
         use_bias_, this->name_);
   }
@@ -749,7 +749,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASTensorDenseLayer expects 4D input");
+      throw std::invalid_argument("BLASDenseLayer expects 4D input");
     }
     return {input_shape[0], output_features_, 1, 1};
   }
@@ -769,25 +769,25 @@ protected:
     }
   }
 
-  void update_parameters_impl(const TensorOptimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer &optimizer) override {
     // To be implemented with optimizer interface
   }
 
-  static std::unique_ptr<TensorLayer<T>>
-  create_from_config(const TensorLayerConfig &config) {
+  static std::unique_ptr<Layer<T>>
+  create_from_config(const LayerConfig &config) {
     size_t input_features = config.get<size_t>("input_features");
     size_t output_features = config.get<size_t>("output_features");
     bool use_bias = config.get<bool>("use_bias");
     std::string activation_name = config.get<std::string>("activation");
 
-    std::unique_ptr<TensorActivationFunction<T>> activation;
+    std::unique_ptr<ActivationFunction<T>> activation;
     if (activation_name != "none") {
       // Ensure factory has default activations registered
-      TensorActivationFactory<T>::register_defaults();
-      activation = TensorActivationFactory<T>::create(activation_name);
+      ActivationFactory<T>::register_defaults();
+      activation = ActivationFactory<T>::create(activation_name);
     }
 
-    return std::make_unique<BLASTensorDenseLayer<T>>(
+    return std::make_unique<BLASDenseLayer<T>>(
         input_features, output_features, std::move(activation), use_bias,
         config.name);
   }
@@ -795,7 +795,7 @@ protected:
 
 // Convolutional Layer for 2D tensors
 template <typename T = double>
-class TensorConv2DLayer : public ParameterizedTensorLayer<T> {
+class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -806,7 +806,7 @@ private:
   size_t pad_h_;
   size_t pad_w_;
   bool use_bias_;
-  std::unique_ptr<TensorActivationFunction<T>> activation_;
+  std::unique_ptr<ActivationFunction<T>> activation_;
 
   Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
   Tensor<T> bias_;    // [out_channels, 1, 1, 1]
@@ -815,13 +815,13 @@ private:
   Tensor<T> pre_activation_output_;
 
 public:
-  TensorConv2DLayer(
+  Conv2DLayer(
       size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
       size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
       size_t pad_w = 0, bool use_bias = true,
-      std::unique_ptr<TensorActivationFunction<T>> activation = nullptr,
-      const std::string &name = "tensor_conv2d")
-      : ParameterizedTensorLayer<T>(name), in_channels_(in_channels),
+      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+      const std::string &name = "conv2d")
+      : ParameterizedLayer<T>(name), in_channels_(in_channels),
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
         use_bias_(use_bias), activation_(std::move(activation)) {
@@ -848,7 +848,7 @@ public:
     // Expect input shape: [batch_size, in_channels, height, width]
     if (input.channels() != in_channels_) {
       throw std::invalid_argument(
-          "Input channel size mismatch in TensorConv2DLayer");
+          "Input channel size mismatch in Conv2DLayer");
     }
 
     this->last_input_ = input;
@@ -1027,10 +1027,10 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "tensor_conv2d"; }
+  std::string type() const override { return "conv2d"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["in_channels"] = in_channels_;
     config.parameters["out_channels"] = out_channels_;
@@ -1046,9 +1046,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
+  std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<TensorConv2DLayer<T>>(
+    return std::make_unique<Conv2DLayer<T>>(
         in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
         pad_h_, pad_w_, use_bias_, std::move(activation_clone), this->name_);
   }
@@ -1056,7 +1056,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("TensorConv2DLayer expects 4D input");
+      throw std::invalid_argument("Conv2DLayer expects 4D input");
     }
 
     size_t output_h = (input_shape[2] + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
@@ -1080,23 +1080,23 @@ protected:
     }
   }
 
-  void update_parameters_impl(const TensorOptimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
 
-// Activation Layer (stateless) for Tensors
+// Activation Layer (stateless)
 template <typename T = double>
-class TensorActivationLayer : public StatelessTensorLayer<T> {
+class ActivationLayer : public StatelessLayer<T> {
 private:
-  std::unique_ptr<TensorActivationFunction<T>> activation_;
+  std::unique_ptr<ActivationFunction<T>> activation_;
   Tensor<T> last_input_;
 
 public:
-  explicit TensorActivationLayer(
-      std::unique_ptr<TensorActivationFunction<T>> activation,
-      const std::string &name = "tensor_activation")
-      : StatelessTensorLayer<T>(name), activation_(std::move(activation)) {
+  explicit ActivationLayer(
+      std::unique_ptr<ActivationFunction<T>> activation,
+      const std::string &name = "activation")
+      : StatelessLayer<T>(name), activation_(std::move(activation)) {
     if (!activation_) {
       throw std::invalid_argument("Activation function cannot be null");
     }
@@ -1113,17 +1113,17 @@ public:
     return activation_->compute_gradient(last_input_, &grad_output);
   }
 
-  std::string type() const override { return "tensor_activation"; }
+  std::string type() const override { return "activation"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["activation"] = activation_->name();
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
-    return std::make_unique<TensorActivationLayer<T>>(activation_->clone(),
+  std::unique_ptr<Layer<T>> clone() const override {
+    return std::make_unique<ActivationLayer<T>>(activation_->clone(),
                                                       this->name_);
   }
 
@@ -1135,7 +1135,7 @@ public:
 
 // BLAS-optimized 2D Convolutional Layer using im2col + GEMM
 template <typename T = double>
-class BLASTensorConv2DLayer : public ParameterizedTensorLayer<T> {
+class BLASConv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -1146,7 +1146,7 @@ private:
   size_t pad_h_;
   size_t pad_w_;
   bool use_bias_;
-  std::unique_ptr<TensorActivationFunction<T>> activation_;
+  std::unique_ptr<ActivationFunction<T>> activation_;
 
   Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
   Tensor<T> bias_;    // [out_channels, 1, 1, 1]
@@ -1321,26 +1321,26 @@ private:
   }
 
 public:
-  BLASTensorConv2DLayer(
+  BLASConv2DLayer(
       size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
       size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
       size_t pad_w = 0, bool use_bias = true,
-      std::unique_ptr<TensorActivationFunction<T>> activation = nullptr,
-      const std::string &name = "blas_tensor_conv2d")
-      : ParameterizedTensorLayer<T>(name), in_channels_(in_channels),
+      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+      const std::string &name = "blas_conv2d")
+      : ParameterizedLayer<T>(name), in_channels_(in_channels),
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
         use_bias_(use_bias), activation_(std::move(activation)),
         im2col_cached_(false) {
-    weights_ = Tensor<T>(
-        std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
-    weight_gradients_ = Tensor<T>(
-        std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+    weights_ =
+        Tensor<T>(std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+    weight_gradients_ =
+        Tensor<T>(std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
 
     if (use_bias_) {
       bias_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
       bias_gradients_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
-      bias_.fill(T(0));
+      bias_.fill(0.0);
     }
 
     // Xavier/Glorot initialization
@@ -1356,7 +1356,7 @@ public:
       printf("Input shape: %zu channels, expected: %zu channels\n",
              input.channels(), in_channels_);
       throw std::invalid_argument(
-          "Input channel size mismatch in BLASTensorConv2DLayer");
+          "Input channel size mismatch in BLASConv2DLayer");
     }
 
     this->last_input_ = input;
@@ -1468,15 +1468,6 @@ public:
     // Flatten gradient output for BLAS
     std::vector<T> grad_output_flat(out_channels_ * output_size);
 
-    // making sure they are same shape
-    // printf("batch_size: %zu, out_channels: %zu, output_h: %zu, output_w:
-    // %zu\n total output size: %zu\n",
-    //        batch_size, out_channels_, output_h, output_w, batch_size *
-    //        out_channels_ * output_h * output_w);
-
-    // printf("grad output flat size: %zu\n",
-    //        grad_output_flat.size());
-
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4)
 #endif
@@ -1484,9 +1475,8 @@ public:
       for (size_t oc = 0; oc < out_channels_; ++oc) {
         for (size_t oh = 0; oh < output_h; ++oh) {
           for (size_t ow = 0; ow < output_w; ++ow) {
-            size_t flat_idx = oc * output_size + n * (output_h * output_w) +
-                              oh * output_w + ow;
-            grad_output_flat[flat_idx] = current_grad(n, oc, oh, ow);
+            grad_output_flat[oc * output_size + n * (output_h * output_w) +
+                             oh * output_w + ow] = current_grad(n, oc, oh, ow);
           }
         }
       }
@@ -1496,7 +1486,7 @@ public:
     std::vector<T> col_data(kernel_size * output_size);
     for (size_t i = 0; i < kernel_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
-        col_data[i * output_size + j] = cached_im2col_matrix_(i, j, 0);
+        col_data[i * output_size + j] = cached_im2col_matrix_(i, j);
       }
     }
 
@@ -1532,10 +1522,10 @@ public:
                               out_channels_);
 
     // Convert col_grad back to Matrix format
-    Matrix<T> col_grad_matrix(kernel_size, output_size, 1);
+    Matrix<T> col_grad_matrix(kernel_size, output_size);
     for (size_t i = 0; i < kernel_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
-        col_grad_matrix(i, j, 0) = col_grad_flat[i * output_size + j];
+        col_grad_matrix(i, j) = col_grad_flat[i * output_size + j];
       }
     }
 
@@ -1547,10 +1537,10 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "blas_tensor_conv2d"; }
+  std::string type() const override { return "blas_conv2d"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["in_channels"] = in_channels_;
     config.parameters["out_channels"] = out_channels_;
@@ -1567,9 +1557,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
+  std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASTensorConv2DLayer<T>>(
+    return std::make_unique<BLASConv2DLayer<T>>(
         in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
         pad_h_, pad_w_, use_bias_, std::move(activation_clone), this->name_);
   }
@@ -1577,7 +1567,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASTensorConv2DLayer expects 4D input");
+      throw std::invalid_argument("BLASConv2DLayer expects 4D input");
     }
 
     size_t output_h = (input_shape[2] + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
@@ -1601,14 +1591,14 @@ protected:
     }
   }
 
-  void update_parameters_impl(const TensorOptimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
 
 // MaxPooling Layer for 2D tensors
 template <typename T = double>
-class TensorMaxPool2DLayer : public StatelessTensorLayer<T> {
+class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -1621,10 +1611,10 @@ private:
   Tensor<T> last_input_; // Store input for backward pass
 
 public:
-  TensorMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
+  MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
                        size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
-                       const std::string &name = "tensor_maxpool2d")
-      : StatelessTensorLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
+                       const std::string &name = "maxpool2d")
+      : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
         stride_h_(stride_h == 0 ? pool_h : stride_h),
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
         pad_w_(pad_w) {}
@@ -1754,10 +1744,10 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "tensor_maxpool2d"; }
+  std::string type() const override { return "maxpool2d"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["pool_h"] = pool_h_;
     config.parameters["pool_w"] = pool_w_;
@@ -1768,15 +1758,15 @@ public:
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
-    return std::make_unique<TensorMaxPool2DLayer<T>>(
+  std::unique_ptr<Layer<T>> clone() const override {
+    return std::make_unique<MaxPool2DLayer<T>>(
         pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, this->name_);
   }
 
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("TensorMaxPool2DLayer expects 4D input");
+      throw std::invalid_argument("MaxPool2DLayer expects 4D input");
     }
 
     size_t output_h = (input_shape[2] + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
@@ -1786,18 +1776,18 @@ public:
   }
 };
 
-// Dropout Layer for Tensors
+// Dropout Layer
 template <typename T = double>
-class TensorDropoutLayer : public StatelessTensorLayer<T> {
+class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
   Tensor<T> mask_; // Dropout mask
   mutable std::mt19937 generator_;
 
 public:
-  explicit TensorDropoutLayer(T dropout_rate,
-                              const std::string &name = "tensor_dropout")
-      : StatelessTensorLayer<T>(name), dropout_rate_(dropout_rate),
+  explicit DropoutLayer(T dropout_rate,
+                              const std::string &name = "dropout")
+      : StatelessLayer<T>(name), dropout_rate_(dropout_rate),
         generator_(std::random_device{}()) {
     if (dropout_rate < T(0) || dropout_rate >= T(1)) {
       throw std::invalid_argument("Dropout rate must be in [0, 1)");
@@ -1842,6 +1832,7 @@ public:
             } else {
               mask_(n, c, h, w) = scale;
               output(n, c, h, w) *= scale;
+                      
             }
           }
         }
@@ -1874,17 +1865,17 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "tensor_dropout"; }
+  std::string type() const override { return "dropout"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     config.parameters["dropout_rate"] = dropout_rate_;
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
-    return std::make_unique<TensorDropoutLayer<T>>(dropout_rate_, this->name_);
+  std::unique_ptr<Layer<T>> clone() const override {
+    return std::make_unique<DropoutLayer<T>>(dropout_rate_, this->name_);
   }
 
   std::vector<size_t>
@@ -1896,13 +1887,13 @@ public:
 // Flatten Layer for converting from 4D to 2D tensors (for compatibility with
 // dense layers)
 template <typename T = double>
-class TensorFlattenLayer : public StatelessTensorLayer<T> {
+class FlattenLayer : public StatelessLayer<T> {
 private:
   std::vector<size_t> original_shape_; // Store for backward pass
 
 public:
-  explicit TensorFlattenLayer(const std::string &name = "tensor_flatten")
-      : StatelessTensorLayer<T>(name) {}
+  explicit FlattenLayer(const std::string &name = "flatten")
+      : StatelessLayer<T>(name) {}
 
   Tensor<T> forward(const Tensor<T> &input) override {
     original_shape_ = input.shape();
@@ -1957,22 +1948,22 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "tensor_flatten"; }
+  std::string type() const override { return "flatten"; }
 
-  TensorLayerConfig get_config() const override {
-    TensorLayerConfig config;
+  LayerConfig get_config() const override {
+    LayerConfig config;
     config.name = this->name_;
     return config;
   }
 
-  std::unique_ptr<TensorLayer<T>> clone() const override {
-    return std::make_unique<TensorFlattenLayer<T>>(this->name_);
+  std::unique_ptr<Layer<T>> clone() const override {
+    return std::make_unique<FlattenLayer<T>>(this->name_);
   }
 
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("TensorFlattenLayer expects 4D input");
+      throw std::invalid_argument("FlattenLayer expects 4D input");
     }
 
     size_t features = input_shape[1] * input_shape[2] * input_shape[3];
@@ -1980,85 +1971,85 @@ public:
   }
 };
 
-// Layer Factory for Tensor<T> Layers
-template <typename T = double> class TensorLayerFactory {
+// Layer Factory
+template <typename T = double> class LayerFactory {
 private:
   static std::unordered_map<
       std::string,
-      std::function<std::unique_ptr<TensorLayer<T>>(const TensorLayerConfig &)>>
+      std::function<std::unique_ptr<Layer<T>>(const LayerConfig &)>>
       creators_;
 
 public:
   static void register_layer(
       const std::string &type,
-      std::function<std::unique_ptr<TensorLayer<T>>(const TensorLayerConfig &)>
+      std::function<std::unique_ptr<Layer<T>>(const LayerConfig &)>
           creator) {
     creators_[type] = creator;
   }
 
-  static std::unique_ptr<TensorLayer<T>>
-  create(const std::string &type, const TensorLayerConfig &config) {
+  static std::unique_ptr<Layer<T>>
+  create(const std::string &type, const LayerConfig &config) {
     auto it = creators_.find(type);
     if (it != creators_.end()) {
       return it->second(config);
     }
-    throw std::invalid_argument("Unknown Tensor<T> layer type: " + type);
+    throw std::invalid_argument("Unknown layer type: " + type);
   }
 
-  static std::unique_ptr<TensorLayer<T>>
-  create(const TensorLayerConfig &config) {
+  static std::unique_ptr<Layer<T>>
+  create(const LayerConfig &config) {
     return create(config.get<std::string>("type"), config);
   }
 
   static void register_defaults() {
     // Dense layer
     register_layer(
-        "tensor_dense",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "dense",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
           size_t output_features = config.get<size_t>("output_features");
           bool use_bias = config.get<bool>("use_bias", true);
           std::string activation_name =
               config.get<std::string>("activation", "none");
 
-          std::unique_ptr<TensorActivationFunction<T>> activation = nullptr;
+          std::unique_ptr<ActivationFunction<T>> activation = nullptr;
           if (activation_name != "none") {
-            auto factory = TensorActivationFactory<T>();
+            auto factory = ActivationFactory<T>();
             factory.register_defaults();
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<TensorDenseLayer<T>>(
+          return std::make_unique<DenseLayer<T>>(
               input_features, output_features, std::move(activation), use_bias,
               config.name);
         });
 
     // BLAS-optimized Dense layer
     register_layer(
-        "blas_tensor_dense",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "blas_dense",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
           size_t output_features = config.get<size_t>("output_features");
           bool use_bias = config.get<bool>("use_bias", true);
           std::string activation_name =
               config.get<std::string>("activation", "none");
 
-          std::unique_ptr<TensorActivationFunction<T>> activation = nullptr;
+          std::unique_ptr<ActivationFunction<T>> activation = nullptr;
           if (activation_name != "none") {
-            auto factory = TensorActivationFactory<T>();
+            auto factory = ActivationFactory<T>();
             factory.register_defaults();
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASTensorDenseLayer<T>>(
+          return std::make_unique<BLASDenseLayer<T>>(
               input_features, output_features, std::move(activation), use_bias,
               config.name);
         });
 
     // Conv2D layer
     register_layer(
-        "tensor_conv2d",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "conv2d",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
           size_t out_channels = config.get<size_t>("out_channels");
           size_t kernel_h = config.get<size_t>("kernel_h");
@@ -2071,22 +2062,22 @@ public:
           std::string activation_name =
               config.get<std::string>("activation", "none");
 
-          std::unique_ptr<TensorActivationFunction<T>> activation = nullptr;
+          std::unique_ptr<ActivationFunction<T>> activation = nullptr;
           if (activation_name != "none") {
-            auto factory = TensorActivationFactory<T>();
+            auto factory = ActivationFactory<T>();
             factory.register_defaults();
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<TensorConv2DLayer<T>>(
+          return std::make_unique<Conv2DLayer<T>>(
               in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
               pad_h, pad_w, use_bias, std::move(activation), config.name);
         });
 
     // BLAS-optimized Conv2D layer
     register_layer(
-        "blas_tensor_conv2d",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "blas_conv2d",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
           size_t out_channels = config.get<size_t>("out_channels");
           size_t kernel_h = config.get<size_t>("kernel_h");
@@ -2099,38 +2090,38 @@ public:
           std::string activation_name =
               config.get<std::string>("activation", "none");
 
-          std::unique_ptr<TensorActivationFunction<T>> activation = nullptr;
+          std::unique_ptr<ActivationFunction<T>> activation = nullptr;
           if (activation_name != "none") {
-            auto factory = TensorActivationFactory<T>();
+            auto factory = ActivationFactory<T>();
             factory.register_defaults();
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASTensorConv2DLayer<T>>(
+          return std::make_unique<BLASConv2DLayer<T>>(
               in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
               pad_h, pad_w, use_bias, std::move(activation), config.name);
         });
 
     // Activation layer
     register_layer(
-        "tensor_activation",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "activation",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           std::string activation_name = config.get<std::string>("activation");
-          auto factory = TensorActivationFactory<T>();
+          auto factory = ActivationFactory<T>();
           factory.register_defaults();
           auto activation = factory.create(activation_name);
           if (!activation) {
             throw std::invalid_argument("Failed to create activation: " +
                                         activation_name);
           }
-          return std::make_unique<TensorActivationLayer<T>>(
+          return std::make_unique<ActivationLayer<T>>(
               std::move(activation), config.name);
         });
 
     // MaxPool2D layer
     register_layer(
-        "tensor_maxpool2d",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "maxpool2d",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t pool_h = config.get<size_t>("pool_h");
           size_t pool_w = config.get<size_t>("pool_w");
           size_t stride_h = config.get<size_t>("stride_h", 0);
@@ -2138,24 +2129,24 @@ public:
           size_t pad_h = config.get<size_t>("pad_h", 0);
           size_t pad_w = config.get<size_t>("pad_w", 0);
 
-          return std::make_unique<TensorMaxPool2DLayer<T>>(
+          return std::make_unique<MaxPool2DLayer<T>>(
               pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, config.name);
         });
 
     // Dropout layer
     register_layer(
-        "tensor_dropout",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
+        "dropout",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           T dropout_rate = config.get<T>("dropout_rate");
-          return std::make_unique<TensorDropoutLayer<T>>(dropout_rate,
+          return std::make_unique<DropoutLayer<T>>(dropout_rate,
                                                          config.name);
         });
 
     // Flatten layer
     register_layer(
-        "tensor_flatten",
-        [](const TensorLayerConfig &config) -> std::unique_ptr<TensorLayer<T>> {
-          return std::make_unique<TensorFlattenLayer<T>>(config.name);
+        "flatten",
+        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+          return std::make_unique<FlattenLayer<T>>(config.name);
         });
   }
 
@@ -2169,125 +2160,125 @@ public:
 };
 
 template <typename T>
-std::unordered_map<std::string, std::function<std::unique_ptr<TensorLayer<T>>(
-                                    const TensorLayerConfig &)>>
-    TensorLayerFactory<T>::creators_;
+std::unordered_map<std::string, std::function<std::unique_ptr<Layer<T>>(
+                                    const LayerConfig &)>>
+    LayerFactory<T>::creators_;
 
-} // namespace tensor_layers
+} // namespace layers
 
-// Convenience functions for creating Tensor<T> layers
-namespace TensorLayers {
+// Convenience functions for creating layers
+namespace Layers {
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 dense(size_t input_features, size_t output_features,
       const std::string &activation = "none", bool use_bias = true,
-      const std::string &name = "tensor_dense") {
-  std::unique_ptr<TensorActivationFunction<T>> act = nullptr;
+      const std::string &name = "dense") {
+  std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
-    auto factory = TensorActivationFactory<T>();
+    auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<tensor_layers::TensorDenseLayer<T>>(
+  return std::make_unique<layers::DenseLayer<T>>(
       input_features, output_features, std::move(act), use_bias, name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 blas_dense(size_t input_features, size_t output_features,
            const std::string &activation = "none", bool use_bias = true,
-           const std::string &name = "blas_tensor_dense") {
-  std::unique_ptr<TensorActivationFunction<T>> act = nullptr;
+           const std::string &name = "blas_dense") {
+  std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
-    auto factory = TensorActivationFactory<T>();
+    auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
 
-  return std::make_unique<tensor_layers::BLASTensorDenseLayer<T>>(
+  return std::make_unique<layers::BLASDenseLayer<T>>(
       input_features, output_features, std::move(act), use_bias, name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
        size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
        size_t pad_h = 0, size_t pad_w = 0,
        const std::string &activation = "none", bool use_bias = true,
-       const std::string &name = "tensor_conv2d") {
-  std::unique_ptr<TensorActivationFunction<T>> act = nullptr;
+       const std::string &name = "conv2d") {
+  std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
-    auto factory = TensorActivationFactory<T>();
+    auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<tensor_layers::TensorConv2DLayer<T>>(
+  return std::make_unique<layers::Conv2DLayer<T>>(
       in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h,
       pad_w, use_bias, std::move(act), name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 blas_conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
             size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
             size_t pad_h = 0, size_t pad_w = 0,
             const std::string &activation = "none", bool use_bias = true,
-            const std::string &name = "blas_tensor_conv2d") {
-  std::unique_ptr<TensorActivationFunction<T>> act = nullptr;
+            const std::string &name = "blas_conv2d") {
+  std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
-    auto factory = TensorActivationFactory<T>();
+    auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<tensor_layers::BLASTensorConv2DLayer<T>>(
+  return std::make_unique<layers::BLASConv2DLayer<T>>(
       in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h,
       pad_w, use_bias, std::move(act), name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 activation(const std::string &activation_name,
-           const std::string &name = "tensor_activation") {
-  auto factory = TensorActivationFactory<T>();
+           const std::string &name = "activation") {
+  auto factory = ActivationFactory<T>();
   factory.register_defaults();
   auto act = factory.create(activation_name);
-  return std::make_unique<tensor_layers::TensorActivationLayer<T>>(
+  return std::make_unique<layers::ActivationLayer<T>>(
       std::move(act), name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
+std::unique_ptr<layers::Layer<T>>
 maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
           size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
-          const std::string &name = "tensor_maxpool2d") {
-  return std::make_unique<tensor_layers::TensorMaxPool2DLayer<T>>(
+          const std::string &name = "maxpool2d") {
+  return std::make_unique<layers::MaxPool2DLayer<T>>(
       pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
-dropout(T dropout_rate, const std::string &name = "tensor_dropout") {
-  return std::make_unique<tensor_layers::TensorDropoutLayer<T>>(dropout_rate,
+std::unique_ptr<layers::Layer<T>>
+dropout(T dropout_rate, const std::string &name = "dropout") {
+  return std::make_unique<layers::DropoutLayer<T>>(dropout_rate,
                                                                 name);
 }
 
 template <typename T = double>
-std::unique_ptr<tensor_layers::TensorLayer<T>>
-flatten(const std::string &name = "tensor_flatten") {
-  return std::make_unique<tensor_layers::TensorFlattenLayer<T>>(name);
+std::unique_ptr<layers::Layer<T>>
+flatten(const std::string &name = "flatten") {
+  return std::make_unique<layers::FlattenLayer<T>>(name);
 }
-} // namespace TensorLayers
+} // namespace Layers
 
 /* Usage Examples:
 
 // Method 1: Using factory
-auto factory = tensor_layers::TensorLayerFactory<double>();
+auto factory = layers::LayerFactory<double>();
 factory.register_defaults();
 
-tensor_layers::TensorLayerConfig config;
+layers::LayerConfig config;
 config.name = "conv1";
-config.parameters["type"] = std::string("tensor_conv2d");
+config.parameters["type"] = std::string("conv2d");
 config.parameters["in_channels"] = size_t(3);
 config.parameters["out_channels"] = size_t(32);
 config.parameters["kernel_h"] = size_t(3);
@@ -2296,18 +2287,18 @@ config.parameters["stride_h"] = size_t(1);
 config.parameters["stride_w"] = size_t(1);
 config.parameters["pad_h"] = size_t(1);
 config.parameters["pad_w"] = size_t(1);
-config.parameters["activation"] = std::string("tensor_relu");
+config.parameters["activation"] = std::string("relu");
 
 auto conv_layer = factory.create(config);
 
 // Method 2: Using convenience functions
-auto conv2d_layer = TensorLayers::conv2d<double>(3, 32, 3, 3, 1, 1, 1, 1,
-"tensor_relu", true, "conv1"); auto maxpool_layer =
-TensorLayers::maxpool2d<double>(2, 2, 2, 2, 0, 0, "pool1"); auto flatten_layer =
-TensorLayers::flatten<double>("flatten1"); auto dense_layer =
-TensorLayers::dense<double>(32*16*16, 128, "tensor_relu", true, "fc1"); auto
-dropout_layer = TensorLayers::dropout<double>(0.5, "dropout1"); auto
-output_layer = TensorLayers::dense<double>(128, 10, "tensor_softmax", true,
+auto conv2d_layer = Layers::conv2d<double>(3, 32, 3, 3, 1, 1, 1, 1,
+"relu", true, "conv1"); auto maxpool_layer =
+Layers::maxpool2d<double>(2, 2, 2, 2, 0, 0, "pool1"); auto flatten_layer =
+Layers::flatten<double>("flatten1"); auto dense_layer =
+Layers::dense<double>(32*16*16, 128, "relu", true, "fc1"); auto
+dropout_layer = Layers::dropout<double>(0.5, "dropout1"); auto
+output_layer = Layers::dense<double>(128, 10, "softmax", true,
 "output");
 
 // Forward pass example
@@ -2338,7 +2329,7 @@ Tensor<T> grad_conv = conv2d_layer->backward(grad_pool);
 
 Example usage of BLAS-optimized convolution layer:
 // Create a BLAS-optimized convolution layer
-auto blas_conv = std::make_unique<tensor_layers::BLASTensorConv2DLayer<float>>(
+auto blas_conv = std::make_unique<layers::BLASConv2DLayer<float>>(
     3, 32, 3, 3, 1, 1, 1, 1, true, nullptr, "conv1");
 
 // Use it in a network

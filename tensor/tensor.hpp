@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
-
+#include <span>
 #include "../matrix/matrix.hpp"
 
 enum Layout {
@@ -36,11 +36,8 @@ template <> struct LayoutTraits<NDHWC> {
   static constexpr size_t dims = 5;
 };
 
-// 4D/5D Tensor template class for CNN operations
-// Supports NCHW (Batch, Channels, Height, Width) layout primarily for 4D
-// Also supports NHWC layout for compatibility
-// Supports NCDHW (Batch, Channels, Depth, Height, Width) and NDHWC for 5D
-// Template parameter T can be float, double, or other numeric types
+// 4D/5D Tensor template class for CNN operations, supporting various layouts
+// but primarily NCHW and NCDHW.
 template <typename T = float, Layout layout = NCHW> class Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
@@ -51,8 +48,8 @@ public:
   static constexpr size_t dims = LayoutTraits<layout>::dims;
 
 private:
-  size_t shape_[dims]; // Raw array: [batch, channels, height, width] for 4D or
-                       // [batch, channels, depth, height, width] for 5D
+  size_t shape_[dims]; // Shape of the tensor (e.g., {batch, channels, height,
+                       // width} for 4D)
   std::unique_ptr<T[]>
       data_;         // Contiguous raw array storage for better performance
   size_t data_size_; // Total number of elements
@@ -298,6 +295,7 @@ public:
   }
 
   // Accessors for 4D tensors
+
   T &operator()(size_t n, size_t c, size_t h, size_t w) {
     return data_[compute_index(n, c, h, w)];
   }
@@ -462,7 +460,7 @@ public:
     result.fill(value);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(4) schedule(static, 1)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -522,7 +520,7 @@ public:
     Tensor<T, layout> result(batch_size(), channels(), new_height, new_width);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(4) schedule(static, 1)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -583,7 +581,7 @@ public:
     if constexpr (dims == 4) {
       Tensor<T, layout> result(new_batch_size, channels(), height(), width());
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(3) schedule(static, 1)
 #endif
       for (size_t n = 0; n < new_batch_size; ++n) {
         for (size_t c = 0; c < channels(); ++c) {
@@ -628,7 +626,7 @@ public:
       Tensor<T, layout> result(batch_size(), new_channels, height(), width());
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(4) schedule(static, 1)
 #endif
       for (size_t n = 0; n < batch_size(); ++n) {
         for (size_t c = 0; c < new_channels; ++c) {
@@ -705,29 +703,17 @@ public:
 
     if constexpr (dims == 4) {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for schedule(static, 1)
 #endif
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              result(n, c, h, w) = (*this)(n, c, h, w) + other(n, c, h, w);
-            }
-          }
-        }
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        result.data_[idx] = data_[idx] + other.data_[idx];
       }
     } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                result(n, c, d, h, w) =
-                    (*this)(n, c, d, h, w) + other(n, c, d, h, w);
-              }
-            }
-          }
-        }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, 1)
+#endif
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        result.data_[idx] = data_[idx] + other.data_[idx];
       }
     } else {
       throw std::runtime_error(
@@ -749,29 +735,17 @@ public:
 
     if constexpr (dims == 4) {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for schedule(static, 1)
 #endif
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              result(n, c, h, w) = (*this)(n, c, h, w) - other(n, c, h, w);
-            }
-          }
-        }
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        result.data_[idx] = data_[idx] - other.data_[idx];
       }
     } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                result(n, c, d, h, w) =
-                    (*this)(n, c, d, h, w) - other(n, c, d, h, w);
-              }
-            }
-          }
-        }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, 1)
+#endif
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        result.data_[idx] = data_[idx] - other.data_[idx];
       }
     } else {
       throw std::runtime_error(
@@ -784,7 +758,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
     Tensor<T, layout> result(shape_vec);
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, 1)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] * scalar;
@@ -800,7 +774,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
     Tensor<T, layout> result(shape_vec);
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, 1)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] / scalar;
@@ -818,30 +792,17 @@ public:
 
     if constexpr (dims == 4) {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for schedule(static, 1)
 #endif
-      // Element-wise addition using logical indexing to handle different
-      // layouts
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              (*this)(n, c, h, w) += other(n, c, h, w);
-            }
-          }
-        }
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] += other.data_[idx];
       }
     } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                (*this)(n, c, d, h, w) += other(n, c, d, h, w);
-              }
-            }
-          }
-        }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, 1)
+#endif
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] += other.data_[idx];
       }
     } else {
       throw std::runtime_error(
@@ -860,28 +821,17 @@ public:
 
     if constexpr (dims == 4) {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for schedule(static, 1)
 #endif
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              (*this)(n, c, h, w) -= other(n, c, h, w);
-            }
-          }
-        }
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] -= other.data_[idx];
       }
     } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                (*this)(n, c, d, h, w) -= other(n, c, d, h, w);
-              }
-            }
-          }
-        }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, 1)
+#endif
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] -= other.data_[idx];
       }
     } else {
       throw std::runtime_error(
@@ -901,28 +851,17 @@ public:
 
     if constexpr (dims == 4) {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for schedule(static, 1)
 #endif
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              (*this)(n, c, h, w) *= other(n, c, h, w);
-            }
-          }
-        }
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] *= other.data_[idx];
       }
     } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                (*this)(n, c, d, h, w) *= other(n, c, d, h, w);
-              }
-            }
-          }
-        }
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static, 1)
+#endif
+      for (size_t idx = 0; idx < data_size_; ++idx) {
+        data_[idx] *= other.data_[idx];
       }
     } else {
       throw std::runtime_error(
@@ -933,7 +872,7 @@ public:
 
   Tensor<T, layout> &operator*=(T scalar) {
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, 1)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] *= scalar;
@@ -947,7 +886,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, 1)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] /= scalar;
@@ -958,6 +897,9 @@ public:
   // Statistical operations
   T mean() const {
     T sum = T(0);
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+ : sum) schedule(static, 1)
+#endif
     for (size_t i = 0; i < data_size_; ++i) {
       sum += data_[i];
     }
@@ -967,6 +909,9 @@ public:
   T variance() const {
     T m = mean();
     T sum_sq_diff = T(0);
+#ifdef _OPENMP
+#pragma omp parallel for reduction(+ : sum_sq_diff) schedule(static, 1)
+#endif
     for (size_t i = 0; i < data_size_; ++i) {
       T diff = data_[i] - m;
       sum_sq_diff += diff * diff;
@@ -1064,186 +1009,6 @@ public:
     std::copy(vec.begin(), vec.end(), data_.get());
   }
 
-  // Conversion to/from Matrix (for compatibility with existing layers)
-  Matrix<T> to_matrix() const {
-    size_t batch = batch_size();
-    size_t features;
-
-    if constexpr (dims == 4) {
-      features = channels() * height() * width();
-    } else if constexpr (dims == 5) {
-      features = channels() * depth() * height() * width();
-    } else {
-      throw std::runtime_error(
-          "Unsupported tensor dimensionality for matrix conversion");
-    }
-
-    Matrix<T> result(batch, features, 1);
-
-    for (size_t n = 0; n < batch; ++n) {
-      size_t feature_idx = 0;
-
-      if constexpr (dims == 4) {
-        // Layout-aware flattening for 4D
-        if (layout == NCHW) {
-          // NCHW: iterate channels first, then height, then width (C H W order)
-          for (size_t c = 0; c < channels(); ++c) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                result(n, feature_idx++, 0) =
-                    static_cast<double>((*this)(n, c, h, w));
-              }
-            }
-          }
-        } else { // NHWC
-          // NHWC: iterate height first, then width, then channels (H W C order)
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              for (size_t c = 0; c < channels(); ++c) {
-                result(n, feature_idx++, 0) =
-                    static_cast<double>((*this)(n, c, h, w));
-              }
-            }
-          }
-        }
-      } else if constexpr (dims == 5) {
-        // Layout-aware flattening for 5D
-        if (layout == NCDHW) {
-          // NCDHW: iterate channels first, then depth, height, width (C D H W
-          // order)
-          for (size_t c = 0; c < channels(); ++c) {
-            for (size_t d = 0; d < depth(); ++d) {
-              for (size_t h = 0; h < height(); ++h) {
-                for (size_t w = 0; w < width(); ++w) {
-                  result(n, feature_idx++, 0) =
-                      static_cast<double>((*this)(n, c, d, h, w));
-                }
-              }
-            }
-          }
-        } else { // NDHWC
-          // NDHWC: iterate depth, height, width, then channels (D H W C order)
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                for (size_t c = 0; c < channels(); ++c) {
-                  result(n, feature_idx++, 0) =
-                      static_cast<double>((*this)(n, c, d, h, w));
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return result;
-  }
-
-  static Tensor<T, layout> from_matrix(const Matrix<T> &matrix, size_t channels,
-                                       size_t height, size_t width) {
-    size_t batch = matrix.rows;
-    size_t expected_features = channels * height * width;
-
-    if ((size_t)matrix.cols != expected_features || matrix.channels != 1) {
-      throw std::invalid_argument(
-          "Matrix dimensions incompatible with 4D tensor shape");
-    }
-
-    if (layout == NCDHW || layout == NDHWC) {
-      throw std::invalid_argument(
-          "5D layout specified for 4D tensor reconstruction");
-    }
-
-    Tensor<T, layout> result(batch, channels, height, width);
-
-    for (size_t n = 0; n < batch; ++n) {
-      size_t feature_idx = 0;
-
-      // Layout-aware reconstruction
-      if (layout == NCHW) {
-        // NCHW: iterate channels first, then height, then width (C H W order)
-        for (size_t c = 0; c < channels; ++c) {
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              result(n, c, h, w) = matrix(n, feature_idx++, 0);
-            }
-          }
-        }
-      } else if (layout == NHWC) { // NHWC
-        // NHWC: iterate height first, then width, then channels (H W C order)
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            for (size_t c = 0; c < channels; ++c) {
-              result(n, c, h, w) = matrix(n, feature_idx++, 0);
-            }
-          }
-        }
-      } else {
-        throw std::runtime_error(
-            "Unsupported layout for conversion from Matrix");
-      }
-    }
-
-    return result;
-  }
-
-  // 5D tensor reconstruction from matrix
-  static Tensor<T, layout> from_matrix_5d(const Matrix<T> &matrix,
-                                          size_t channels, size_t depth,
-                                          size_t height, size_t width) {
-    size_t batch = matrix.rows;
-    size_t expected_features = channels * depth * height * width;
-
-    if ((size_t)matrix.cols != expected_features || matrix.channels != 1) {
-      throw std::invalid_argument(
-          "Matrix dimensions incompatible with 5D tensor shape");
-    }
-
-    if (layout == NCHW || layout == NHWC) {
-      throw std::invalid_argument(
-          "4D layout specified for 5D tensor reconstruction");
-    }
-
-    Tensor<T, layout> result(batch, channels, depth, height, width);
-
-    for (size_t n = 0; n < batch; ++n) {
-      size_t feature_idx = 0;
-
-      // Layout-aware reconstruction
-      if (layout == NCDHW) {
-        // NCDHW: iterate channels, depth, height, width (C D H W order)
-        for (size_t c = 0; c < channels; ++c) {
-          for (size_t d = 0; d < depth; ++d) {
-            for (size_t h = 0; h < height; ++h) {
-              for (size_t w = 0; w < width; ++w) {
-                result(n, c, d, h, w) =
-                    static_cast<T>(matrix(n, feature_idx++, 0));
-              }
-            }
-          }
-        }
-      } else if (layout == NDHWC) { // NDHWC
-        // NDHWC: iterate depth, height, width, channels (D H W C order)
-        for (size_t d = 0; d < depth; ++d) {
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              for (size_t c = 0; c < channels; ++c) {
-                result(n, c, d, h, w) =
-                    static_cast<T>(matrix(n, feature_idx++, 0));
-              }
-            }
-          }
-        }
-      } else {
-        throw std::runtime_error(
-            "Unsupported layout for 5D conversion from Matrix");
-      }
-    }
-
-    return result;
-  }
-
   // CNN-specific operations (to be implemented with convolution layers)
 
   // Optimized im2col operation for efficient convolution
@@ -1256,7 +1021,7 @@ public:
     size_t col_height = channels() * kernel_h * kernel_w;
     size_t col_width = batch_size() * output_h * output_w;
 
-    Matrix<T> col_matrix(col_height, col_width, 1);
+    Matrix<T> col_matrix(col_height, col_width);
     col_matrix.fill(0.0);
 
     // Apply padding if needed - avoid copy when no padding
@@ -1297,7 +1062,7 @@ public:
                   size_t w_idx = w_start + kw;
 
                   if (w_idx < input_tensor.width()) {
-                    col_matrix(row_idx, col_idx, 0) =
+                    col_matrix(row_idx, col_idx) =
                         input_tensor(n, c, h_idx, w_idx);
                   }
                   ++row_idx;
@@ -1361,7 +1126,7 @@ public:
 #pragma omp atomic
 #endif
                   padded_result(n, c, h_idx, w_idx) +=
-                      col_matrix(row_idx, col_idx, 0);
+                      col_matrix(row_idx, col_idx);
                 }
                 ++row_idx;
               }
@@ -1502,32 +1267,52 @@ public:
     }
   }
 
-    // Serialization
-  void save(std::ofstream &file) const {
-    if (!file.is_open()) {
+  // Get the index of the maximum value in a specific channel for a given batch,
+  // height, and width.
+  int argmax_channel(size_t n, size_t h, size_t w) const {
+    if (n >= batch_size() || h >= height() || w >= width()) {
+      throw std::out_of_range("Index out of range in argmax_channel");
+    }
+
+    T max_val = -std::numeric_limits<T>::infinity();
+    int max_idx = -1;
+
+    for (size_t c = 0; c < channels(); ++c) {
+      T val = operator()(n, c, h, w);
+      if (val > max_val) {
+        max_val = val;
+        max_idx = c;
+      }
+    }
+    return max_idx;
+  }
+
+  // Serialization methods
+  void save(std::ofstream &out) const {
+    if (!out.is_open()) {
       throw std::runtime_error("File is not open for writing");
     }
     // Write shape
-    file.write(reinterpret_cast<const char *>(shape_), dims * sizeof(size_t));
+    out.write(reinterpret_cast<const char *>(shape_), dims * sizeof(size_t));
     // Write data
-    file.write(reinterpret_cast<const char *>(data_.get()),
+    out.write(reinterpret_cast<const char *>(data_.get()),
                data_size_ * sizeof(T));
   }
 
-  static Tensor<T, layout> load(std::ifstream &file) {
-    if (!file.is_open()) {
+  static Tensor<T, layout> load(std::ifstream &in) {
+    if (!in.is_open()) {
       throw std::runtime_error("File is not open for reading");
     }
     std::vector<size_t> shape(dims);
-    file.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
-    if (file.gcount() != dims * sizeof(size_t)) {
+    in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
+    if (in.gcount() != dims * sizeof(size_t)) {
       throw std::runtime_error("Failed to read tensor shape from file");
     }
 
     Tensor<T, layout> tensor(shape);
-    file.read(reinterpret_cast<char *>(tensor.data()),
+    in.read(reinterpret_cast<char *>(tensor.data()),
               tensor.size() * sizeof(T));
-    if (file.gcount() != tensor.size() * sizeof(T)) {
+    if (in.gcount() != tensor.size() * sizeof(T)) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
     return tensor;

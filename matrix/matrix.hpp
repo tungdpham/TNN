@@ -4,20 +4,19 @@
 #include <iostream>
 #include <random>
 
-// Channel-Major layout Matrix class
-// C-H-W Layout
+// Matrix class without channels
 template <typename T = float> struct Matrix {
-  int rows, cols, channels;
+  int rows, cols;
   T *data;
 
   // Default constructor
-  Matrix() : rows(0), cols(0), channels(0), data(nullptr) {}
+  Matrix() : rows(0), cols(0), data(nullptr) {}
 
-  Matrix(int rows, int cols, int channels = 1, T *initialData = nullptr)
-      : rows(rows), cols(cols), channels(channels) {
-    data = new T[rows * cols * channels]();
+  Matrix(int rows, int cols, T *initialData = nullptr)
+      : rows(rows), cols(cols) {
+    data = new T[rows * cols]();
     if (initialData != nullptr) {
-      memcpy(data, initialData, rows * cols * channels * sizeof(T));
+      memcpy(data, initialData, rows * cols * sizeof(T));
     } else {
       // Initialize with zeros if no initial data provided
       (*this).fill(0.0);
@@ -25,19 +24,17 @@ template <typename T = float> struct Matrix {
   }
 
   Matrix(const Matrix &other)
-      : rows(other.rows), cols(other.cols), channels(other.channels) {
-    data = new T[rows * cols * channels];
-    memcpy(data, other.data, rows * cols * channels * sizeof(T));
+      : rows(other.rows), cols(other.cols) {
+    data = new T[rows * cols];
+    memcpy(data, other.data, rows * cols * sizeof(T));
   }
 
   // Move Constructor
   Matrix(Matrix &&other) noexcept
-      : rows(other.rows), cols(other.cols), channels(other.channels),
-        data(other.data) {
+      : rows(other.rows), cols(other.cols), data(other.data) {
     // Steal the data pointer from the temporary object
     other.rows = 0;
     other.cols = 0;
-    other.channels = 0;
     other.data = nullptr;
   }
 
@@ -49,13 +46,11 @@ template <typename T = float> struct Matrix {
       // Steal data and dimensions from the other object
       rows = other.rows;
       cols = other.cols;
-      channels = other.channels;
       data = other.data;
 
       // Leave the other object in a valid but empty state
       other.rows = 0;
       other.cols = 0;
-      other.channels = 0;
       other.data = nullptr;
     }
     return *this;
@@ -65,104 +60,94 @@ template <typename T = float> struct Matrix {
     delete[] data; // delete[] nullptr is safe in C++
   }
 
-  T &operator()(int row, int col, int channel = 0) {
-    return data[channel * (rows * cols) + row * cols + col];
+  T &operator()(int row, int col) {
+    return data[row * cols + col];
   }
 
-  const T &operator()(int row, int col, int channel = 0) const {
-    return data[channel * (rows * cols) + row * cols + col];
+  const T &operator()(int row, int col) const {
+    return data[row * cols + col];
   }
 
   void fill(T value) {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] = value;
     }
   }
 
   void print() const {
-    for (int ch = 0; ch < channels; ++ch) {
-      std::cout << "Channel " << ch << ":" << std::endl;
-      for (int r = 0; r < rows; ++r) {
-        for (int c = 0; c < cols; ++c) {
-          std::cout << (*this)(r, c, ch) << " ";
-        }
-        std::cout << std::endl;
+    for (int r = 0; r < rows; ++r) {
+      for (int c = 0; c < cols; ++c) {
+        std::cout << (*this)(r, c) << " ";
       }
-      if (ch < channels - 1) {
-        std::cout << std::endl;
-      }
+      std::cout << std::endl;
     }
   }
 
   inline Matrix operator+(const Matrix &other) const {
-    if (rows != other.rows || cols != other.cols ||
-        channels != other.channels) {
+    if (rows != other.rows || cols != other.cols) {
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
-    Matrix result(rows, cols, channels);
+    Matrix result(rows, cols);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       result.data[i] = data[i] + other.data[i];
     }
     return result;
   }
 
   inline Matrix operator+=(const Matrix &other) {
-    if (rows != other.rows || cols != other.cols ||
-        channels != other.channels) {
+    if (rows != other.rows || cols != other.cols) {
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] += other.data[i];
     }
     return *this;
   }
 
   inline Matrix operator-(const Matrix &other) const {
-    if (rows != other.rows || cols != other.cols ||
-        channels != other.channels) {
+    if (rows != other.rows || cols != other.cols) {
       throw std::invalid_argument(
           "Matrix dimensions must match for subtraction.");
     }
-    Matrix result(rows, cols, channels);
+    Matrix result(rows, cols);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       result.data[i] = data[i] - other.data[i];
     }
     return result;
   }
 
   inline Matrix operator-=(const Matrix &other) {
-    if (rows != other.rows || cols != other.cols ||
-        channels != other.channels) {
+    if (rows != other.rows || cols != other.cols) {
       throw std::invalid_argument(
           "Matrix dimensions must match for subtraction.");
     }
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] -= other.data[i];
     }
     return *this;
   }
 
   inline Matrix operator*(T scalar) const {
-    Matrix result(rows, cols, channels);
+    Matrix result(rows, cols);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       result.data[i] = data[i] * scalar;
     }
     return result;
@@ -172,7 +157,7 @@ template <typename T = float> struct Matrix {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] *= scalar;
     }
     return *this;
@@ -182,11 +167,11 @@ template <typename T = float> struct Matrix {
     if (scalar == 0) {
       throw std::invalid_argument("Division by zero.");
     }
-    Matrix result(rows, cols, channels);
+    Matrix result(rows, cols);
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       result.data[i] = data[i] / scalar;
     }
     return result;
@@ -199,30 +184,28 @@ template <typename T = float> struct Matrix {
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] /= scalar;
     }
     return *this;
   }
 
   inline Matrix operator*(const Matrix &other) const {
-    if (cols != other.rows || channels != other.channels) {
+    if (cols != other.rows) {
       throw std::invalid_argument(
           "Matrix dimensions must match for multiplication.");
     }
-    Matrix result(rows, other.cols, channels);
+    Matrix result(rows, other.cols);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2) schedule(static, 1)
 #endif
     for (int r = 0; r < rows; ++r) {
       for (int c = 0; c < other.cols; ++c) {
-        for (int ch = 0; ch < channels; ++ch) {
-          T sum = 0.0;
-          for (int k = 0; k < cols; ++k) {
-            sum += (*this)(r, k, ch) * other(k, c, ch);
-          }
-          result(r, c, ch) = sum;
+        T sum = 0.0;
+        for (int k = 0; k < cols; ++k) {
+          sum += (*this)(r, k) * other(k, c);
         }
+        result(r, c) = sum;
       }
     }
     return result;
@@ -230,53 +213,48 @@ template <typename T = float> struct Matrix {
 
   inline Matrix &operator=(const Matrix &other) {
     if (this != &other) {
-      if (rows * cols * channels != other.rows * other.cols * other.channels) {
+      if (rows * cols != other.rows * other.cols) {
         delete[] data;
-        data = new T[other.rows * other.cols * other.channels];
+        data = new T[other.rows * other.cols];
       }
       rows = other.rows;
       cols = other.cols;
-      channels = other.channels;
 
-      memcpy(data, other.data, rows * cols * channels * sizeof(T));
+      memcpy(data, other.data, rows * cols * sizeof(T));
     }
     return *this;
   }
 
   Matrix transpose() const {
-    Matrix result(cols, rows, channels);
+    Matrix result(cols, rows);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static, 1)
 #endif
     for (int r = 0; r < rows; ++r) {
       for (int c = 0; c < cols; ++c) {
-        for (int ch = 0; ch < channels; ++ch) {
-          result(c, r, ch) = (*this)(r, c, ch);
-        }
+        result(c, r) = (*this)(r, c);
       }
     }
     return result;
   }
 
-  Matrix reshape(int newRows, int newCols, int newChannels = 1) const {
-    if (rows * cols * channels != newRows * newCols * newChannels) {
+  Matrix reshape(int newRows, int newCols) const {
+    if (rows * cols != newRows * newCols) {
       throw std::invalid_argument(
           "Total number of elements must remain the same for reshape.");
     }
-    return Matrix(newRows, newCols, newChannels, data);
+    return Matrix(newRows, newCols, data);
   }
 
   Matrix pad(int padRows, int padCols, T value = 0.0) const {
-    Matrix result(rows + 2 * padRows, cols + 2 * padCols, channels);
+    Matrix result(rows + 2 * padRows, cols + 2 * padCols);
     result.fill(value);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for schedule(static, 1)
 #endif
     for (int r = 0; r < rows; ++r) {
       for (int c = 0; c < cols; ++c) {
-        for (int ch = 0; ch < channels; ++ch) {
-          result(r + padRows, c + padCols, ch) = (*this)(r, c, ch);
-        }
+        result(r + padRows, c + padCols) = (*this)(r, c);
       }
     }
     return result;
@@ -287,26 +265,16 @@ template <typename T = float> struct Matrix {
         startRow >= endRow || startCol >= endCol) {
       throw std::invalid_argument("Invalid crop dimensions.");
     }
-    Matrix result(endRow - startRow + 1, endCol - startCol + 1, channels);
+    Matrix result(endRow - startRow + 1, endCol - startCol + 1);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for
 #endif
     for (int r = startRow; r <= endRow; ++r) {
       for (int c = startCol; c <= endCol; ++c) {
-        for (int ch = 0; ch < channels; ++ch) {
-          result(r - startRow, c - startCol, ch) = (*this)(r, c, ch);
-        }
+        result(r - startRow, c - startCol) = (*this)(r, c);
       }
     }
     return result;
-  }
-
-  Matrix get_chans(int startChan, int endChan) const {
-    if (startChan < 0 || endChan >= channels || startChan > endChan) {
-      throw std::invalid_argument("Invalid channel range.");
-    }
-    return Matrix(rows, cols, endChan - startChan + 1,
-                  data + startChan * rows * cols);
   }
 
   T mean() const {
@@ -314,33 +282,44 @@ template <typename T = float> struct Matrix {
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+ : sum)
 #endif
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       sum += data[i];
     }
-    return (sum / (1.0 * rows * cols * channels));
+    return (sum / (1.0 * rows * cols));
   }
 
-  T remove_mean(int channel) {
-    int s = rows * cols;
-    T mean = 0.0;
-    int offset = channel * s;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+ : mean)
-#endif
-    for (int i = 0; i < s; ++i) {
-      mean += data[offset + i];
+  int size() const { return rows * cols; }
+
+  void resize(int newRows, int newCols) {
+    if (newRows == rows && newCols == cols) {
+      return; // Nothing to do
     }
-    mean /= 1.0 * s;
-    for (int i = 0; i < s; ++i) {
-      data[offset + i] -= mean;
-    }
-    return mean;
+
+    delete[] data;
+    rows = newRows;
+    cols = newCols;
+
+    int size = rows * cols;
+    data = size > 0 ? new T[size]() : nullptr;
   }
 
-  void fill_random_uniform(T range) {
+  void dot(const Matrix &other, Matrix &result) const {
+    if (cols != other.rows) {
+      throw std::invalid_argument(
+          "Matrix dimensions must match for dot product.");
+    }
+    result = Matrix(rows, other.cols);
+    result = (*this) * other;
+  }
+
+  std::vector<T> to_vector() const {
+    return std::vector<T>(data, data + rows * cols);
+  }
+
+    void fill_random_uniform(T range) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<T> dis(-range, range);
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] = dis(gen);
     }
   }
@@ -349,37 +328,8 @@ template <typename T = float> struct Matrix {
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<T> dis(0, stddev);
-    for (int i = 0; i < rows * cols * channels; ++i) {
+    for (int i = 0; i < rows * cols; ++i) {
       data[i] = dis(gen);
     }
-  }
-
-  int size() const { return rows * cols * channels; }
-
-  void resize(int newRows, int newCols, int newChannels = 1) {
-    if (newRows == rows && newCols == cols && newChannels == channels) {
-      return; // Nothing to do
-    }
-
-    delete[] data;
-    rows = newRows;
-    cols = newCols;
-    channels = newChannels;
-
-    int size = rows * cols * channels;
-    data = size > 0 ? new T[size]() : nullptr;
-  }
-
-  void dot(const Matrix &other, Matrix &result) const {
-    if (cols != other.rows || channels != other.channels) {
-      throw std::invalid_argument(
-          "Matrix dimensions must match for dot product.");
-    }
-    result = Matrix(rows, other.cols, channels);
-    result = (*this) * other;
-  }
-
-  std::vector<T> to_vector() const {
-    return std::vector<T>(data, data + rows * cols * channels);
   }
 };

@@ -1,7 +1,0 @@
-Checks:
-  - bugprone
-  - cppcoreguidelines
-  - clang-analyzer
-  - modernize
-  - readability
-  - misc

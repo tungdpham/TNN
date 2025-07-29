@@ -11,9 +11,9 @@
 
 // Abstract base class for tensor-based activation functions
 // Designed for 4D tensors with NCHW layout (Batch, Channels, Height, Width)
-template <typename T = float> class TensorActivationFunction {
+template <typename T = float> class ActivationFunction {
 public:
-  virtual ~TensorActivationFunction() = default;
+  virtual ~ActivationFunction() = default;
 
   // Core activation methods
   virtual void apply(Tensor<T> &tensor) const = 0;
@@ -40,7 +40,7 @@ public:
 
   // Utility methods
   virtual std::string name() const = 0;
-  virtual std::unique_ptr<TensorActivationFunction<T>> clone() const = 0;
+  virtual std::unique_ptr<ActivationFunction<T>> clone() const = 0;
 
   // Optional: spatial-wise operations (apply to specific spatial locations)
   virtual void apply_spatial(Tensor<T> &tensor, int batch, int channel,
@@ -57,7 +57,7 @@ protected:
 
 // ReLU Activation for Tensors
 template <typename T = float>
-class TensorReLU : public TensorActivationFunction<T> {
+class TensorReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;
 
@@ -247,7 +247,7 @@ public:
     return negative_slope_ == T(0) ? "relu" : "leaky_relu";
   }
 
-  std::unique_ptr<TensorActivationFunction<T>> clone() const override {
+  std::unique_ptr<ActivationFunction<T>> clone() const override {
     return std::make_unique<TensorReLU<T>>(negative_slope_);
   }
 
@@ -263,7 +263,7 @@ protected:
 
 // Sigmoid Activation for Tensors
 template <typename T = float>
-class TensorSigmoid : public TensorActivationFunction<T> {
+class TensorSigmoid : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
@@ -449,7 +449,7 @@ public:
 
   std::string name() const override { return "sigmoid"; }
 
-  std::unique_ptr<TensorActivationFunction<T>> clone() const override {
+  std::unique_ptr<ActivationFunction<T>> clone() const override {
     return std::make_unique<TensorSigmoid<T>>();
   }
 
@@ -466,7 +466,7 @@ protected:
 
 // Softmax Activation for Tensors
 template <typename T = float>
-class TensorSoftmax : public TensorActivationFunction<T> {
+class TensorSoftmax : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     size_t batch_size = tensor.batch_size();
@@ -705,7 +705,7 @@ public:
 
   std::string name() const override { return "softmax"; }
 
-  std::unique_ptr<TensorActivationFunction<T>> clone() const override {
+  std::unique_ptr<ActivationFunction<T>> clone() const override {
     return std::make_unique<TensorSoftmax<T>>();
   }
 
@@ -754,7 +754,7 @@ private:
 
 // Linear (Identity) Activation for Tensors
 template <typename T = float>
-class TensorLinear : public TensorActivationFunction<T> {
+class TensorLinear : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     // Linear activation does nothing to the values
@@ -861,7 +861,7 @@ public:
 
   std::string name() const override { return "linear"; }
 
-  std::unique_ptr<TensorActivationFunction<T>> clone() const override {
+  std::unique_ptr<ActivationFunction<T>> clone() const override {
     return std::make_unique<TensorLinear<T>>();
   }
 
@@ -876,21 +876,21 @@ protected:
 };
 
 // Factory for creating tensor activation functions
-template <typename T = float> class TensorActivationFactory {
+template <typename T = float> class ActivationFactory {
 private:
   static std::unordered_map<
       std::string,
-      std::function<std::unique_ptr<TensorActivationFunction<T>>()>>
+      std::function<std::unique_ptr<ActivationFunction<T>>()>>
       creators_;
 
 public:
   static void register_activation(
       const std::string &name,
-      std::function<std::unique_ptr<TensorActivationFunction<T>>()> creator) {
+      std::function<std::unique_ptr<ActivationFunction<T>>()> creator) {
     creators_[name] = creator;
   }
 
-  static std::unique_ptr<TensorActivationFunction<T>>
+  static std::unique_ptr<ActivationFunction<T>>
   create(const std::string &name) {
     auto it = creators_.find(name);
     if (it != creators_.end()) {
@@ -924,8 +924,8 @@ public:
 
 template <typename T>
 std::unordered_map<
-    std::string, std::function<std::unique_ptr<TensorActivationFunction<T>>()>>
-    TensorActivationFactory<T>::creators_;
+    std::string, std::function<std::unique_ptr<ActivationFunction<T>>()>>
+    ActivationFactory<T>::creators_;
 
 // Convenience namespace for direct function calls
 namespace TensorActivations {
@@ -984,7 +984,7 @@ feature_maps.fill_random_normal(0.1f);
 TensorActivations::apply_relu(feature_maps);
 
 // Method 2: Using factory
-TensorActivationFactory<float> factory;
+ActivationFactory<float> factory;
 factory.register_defaults();
 auto relu = factory.create("relu");
 relu->apply(feature_maps);

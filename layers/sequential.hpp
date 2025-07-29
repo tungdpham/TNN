@@ -11,13 +11,12 @@
 
 #include "layers.hpp"
 
-namespace tensor_layers {
+namespace layers {
 
-// Sequential model for tensor layers (similar to your Sequential class for
-// matrices)
-template <typename T = double> class TensorSequential {
+// Sequential model for layers
+template <typename T = double> class Sequential {
 private:
-  std::vector<std::unique_ptr<TensorLayer<T>>> layers_;
+  std::vector<std::unique_ptr<Layer<T>>> layers_;
   std::string name_;
   bool is_training_;
 
@@ -31,11 +30,11 @@ private:
   std::vector<std::string> layer_names_;
 
 public:
-  explicit TensorSequential(const std::string &name = "tensor_sequential")
+  explicit Sequential(const std::string &name = "sequential")
       : name_(name), is_training_(true), enable_profiling_(false) {}
 
   // Copy constructor (deep copy)
-  TensorSequential(const TensorSequential &other)
+  Sequential(const Sequential &other)
       : name_(other.name_), is_training_(other.is_training_),
         enable_profiling_(other.enable_profiling_) {
     for (const auto &layer : other.layers_) {
@@ -44,7 +43,7 @@ public:
   }
 
   // Move constructor
-  TensorSequential(TensorSequential &&other) noexcept
+  Sequential(Sequential &&other) noexcept
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         is_training_(other.is_training_),
         layer_outputs_(std::move(other.layer_outputs_)),
@@ -54,7 +53,7 @@ public:
         layer_names_(std::move(other.layer_names_)) {}
 
   // Assignment operators
-  TensorSequential &operator=(const TensorSequential &other) {
+  Sequential &operator=(const Sequential &other) {
     if (this != &other) {
       layers_.clear();
       for (const auto &layer : other.layers_) {
@@ -71,7 +70,7 @@ public:
     return *this;
   }
 
-  TensorSequential &operator=(TensorSequential &&other) noexcept {
+  Sequential &operator=(Sequential &&other) noexcept {
     if (this != &other) {
       layers_ = std::move(other.layers_);
       name_ = std::move(other.name_);
@@ -86,7 +85,7 @@ public:
   }
 
   // Layer management
-  void add(std::unique_ptr<TensorLayer<T>> layer) {
+  void add(std::unique_ptr<Layer<T>> layer) {
     if (!layer) {
       throw std::invalid_argument("Cannot add null layer");
     }
@@ -100,7 +99,7 @@ public:
     add(std::move(layer));
   }
 
-  void insert(size_t index, std::unique_ptr<TensorLayer<T>> layer) {
+  void insert(size_t index, std::unique_ptr<Layer<T>> layer) {
     if (!layer) {
       throw std::invalid_argument("Cannot insert null layer");
     }
@@ -127,23 +126,23 @@ public:
   }
 
   // Access layers
-  TensorLayer<T> &operator[](size_t index) {
+  Layer<T> &operator[](size_t index) {
     if (index >= layers_.size()) {
       throw std::out_of_range("Layer index out of range");
     }
     return *layers_[index];
   }
 
-  const TensorLayer<T> &operator[](size_t index) const {
+  const Layer<T> &operator[](size_t index) const {
     if (index >= layers_.size()) {
       throw std::out_of_range("Layer index out of range");
     }
     return *layers_[index];
   }
 
-  TensorLayer<T> &at(size_t index) { return operator[](index); }
+  Layer<T> &at(size_t index) { return operator[](index); }
 
-  const TensorLayer<T> &at(size_t index) const { return operator[](index); }
+  const Layer<T> &at(size_t index) const { return operator[](index); }
 
   size_t size() const { return layers_.size(); }
 
@@ -375,7 +374,7 @@ public:
     size_t count = 0;
     for (const auto &layer : layers_) {
       if (layer->has_parameters()) {
-        auto params = const_cast<TensorLayer<T> *>(layer.get())->parameters();
+        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
         for (const auto &param : params) {
           count += param->size();
         }
@@ -438,7 +437,7 @@ public:
       // Count parameters
       size_t layer_params = 0;
       if (layer->has_parameters()) {
-        auto params = const_cast<TensorLayer<T> *>(layer.get())->parameters();
+        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
         for (const auto &param : params) {
           layer_params += param->size();
         }
@@ -476,7 +475,7 @@ public:
   }
 
   void print_config() const {
-    std::cout << "TensorSequential Configuration:\n";
+    std::cout << "Sequential Configuration:\n";
     std::cout << "Name: " << name_ << "\n";
     std::cout << "Training: " << (is_training_ ? "True" : "False") << "\n";
     std::cout << "Layers: " << layers_.size() << "\n\n";
@@ -563,7 +562,7 @@ public:
     for (const auto &layer : layers_) {
       if (layer->has_parameters()) {
         auto params =
-            const_cast<TensorLayer<T> *>(layer.get())->parameters();
+            const_cast<Layer<T> *>(layer.get())->parameters();
         for (const auto &param : params) {
           param->save(weights_file);
         }
@@ -572,7 +571,7 @@ public:
     weights_file.close();
   }
 
-  static TensorSequential<T> from_file(const std::string &path) {
+  static Sequential<T> from_file(const std::string &path) {
     // Load configuration from JSON
     std::ifstream config_file(path + ".json");
     if (!config_file.is_open()) {
@@ -583,15 +582,15 @@ public:
     config_file >> config_json;
     config_file.close();
 
-    TensorSequential<T> model(config_json["name"]);
+    Sequential<T> model(config_json["name"]);
     model.set_training(config_json["training"]);
     model.enable_profiling(config_json["profiling"]);
 
-    auto factory = TensorLayerFactory<T>();
+    auto factory = LayerFactory<T>();
     factory.register_defaults();
 
     for (const auto &layer_json : config_json["layers"]) {
-      TensorLayerConfig config;
+      LayerConfig config;
       config.name = layer_json["name"];
       for (auto it = layer_json.begin(); it != layer_json.end(); ++it) {
         if (it.key() != "type" && it.key() != "name") {
@@ -630,8 +629,8 @@ public:
   }
 
   // Serialization support (basic configuration)
-  std::vector<TensorLayerConfig> get_all_configs() const {
-    std::vector<TensorLayerConfig> configs;
+  std::vector<LayerConfig> get_all_configs() const {
+    std::vector<LayerConfig> configs;
     configs.reserve(layers_.size());
 
     for (const auto &layer : layers_) {
@@ -642,12 +641,12 @@ public:
   }
 
   // Static method to create from configs
-  static TensorSequential
-  from_configs(const std::vector<TensorLayerConfig> &configs,
-               const std::string &name = "tensor_sequential") {
-    TensorSequential model(name);
+  static Sequential
+  from_configs(const std::vector<LayerConfig> &configs,
+               const std::string &name = "sequential") {
+    Sequential model(name);
 
-    auto factory = TensorLayerFactory<T>();
+    auto factory = LayerFactory<T>();
     factory.register_defaults();
 
     for (const auto &config : configs) {
@@ -659,8 +658,8 @@ public:
   }
 
   // Clone the entire model
-  std::unique_ptr<TensorSequential> clone() const {
-    auto cloned = std::make_unique<TensorSequential>(name_);
+  std::unique_ptr<Sequential> clone() const {
+    auto cloned = std::make_unique<Sequential>(name_);
     cloned->set_training(is_training_);
 
     for (const auto &layer : layers_) {
@@ -696,46 +695,46 @@ public:
 };
 
 // Builder pattern for easy model construction
-template <typename T = double> class TensorSequentialBuilder {
+template <typename T = double> class SequentialBuilder {
 private:
-  TensorSequential<T> model_;
+  Sequential<T> model_;
 
 public:
-  explicit TensorSequentialBuilder(
-      const std::string &name = "tensor_sequential")
+  explicit SequentialBuilder(
+      const std::string &name = "sequential")
       : model_(name) {}
 
-  TensorSequentialBuilder &dense(size_t input_features, size_t output_features,
+  SequentialBuilder &dense(size_t input_features, size_t output_features,
                                  const std::string &activation = "none",
                                  bool use_bias = true,
                                  const std::string &name = "") {
-    auto layer = TensorLayers::dense<T>(
+    auto layer = Layers::dense<T>(
         input_features, output_features, activation, use_bias,
         name.empty() ? "dense_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &blas_dense(size_t input_features,
+  SequentialBuilder &blas_dense(size_t input_features,
                                       size_t output_features,
                                       const std::string &activation = "none",
                                       bool use_bias = true,
                                       const std::string &name = "") {
-    auto layer = TensorLayers::blas_dense<T>(
+    auto layer = Layers::blas_dense<T>(
         input_features, output_features, activation, use_bias,
         name.empty() ? "blas_dense_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &conv2d(size_t in_channels, size_t out_channels,
+  SequentialBuilder &conv2d(size_t in_channels, size_t out_channels,
                                   size_t kernel_h, size_t kernel_w,
                                   size_t stride_h = 1, size_t stride_w = 1,
                                   size_t pad_h = 0, size_t pad_w = 0,
                                   const std::string &activation = "none",
                                   bool use_bias = true,
                                   const std::string &name = "") {
-    auto layer = TensorLayers::conv2d<T>(
+    auto layer = Layers::conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
         pad_h, pad_w, activation, use_bias,
         name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
@@ -743,14 +742,14 @@ public:
     return *this;
   }
 
-  TensorSequentialBuilder &blas_conv2d(size_t in_channels, size_t out_channels,
+  SequentialBuilder &blas_conv2d(size_t in_channels, size_t out_channels,
                                        size_t kernel_h, size_t kernel_w,
                                        size_t stride_h = 1, size_t stride_w = 1,
                                        size_t pad_h = 0, size_t pad_w = 0,
                                        const std::string &activation = "none",
                                        bool use_bias = true,
                                        const std::string &name = "") {
-    auto layer = TensorLayers::blas_conv2d<T>(
+    auto layer = Layers::blas_conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
         pad_h, pad_w, activation, use_bias,
         name.empty() ? "blas_conv2d_" + std::to_string(model_.size()) : name);
@@ -758,50 +757,50 @@ public:
     return *this;
   }
 
-  TensorSequentialBuilder &activation(const std::string &activation_name,
+  SequentialBuilder &activation(const std::string &activation_name,
                                       const std::string &name = "") {
-    auto layer = TensorLayers::activation<T>(
+    auto layer = Layers::activation<T>(
         activation_name,
         name.empty() ? "activation_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w,
+  SequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w,
                                      size_t stride_h = 0, size_t stride_w = 0,
                                      size_t pad_h = 0, size_t pad_w = 0,
                                      const std::string &name = "") {
-    auto layer = TensorLayers::maxpool2d<T>(
+    auto layer = Layers::maxpool2d<T>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "maxpool2d_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &dropout(T dropout_rate,
+  SequentialBuilder &dropout(T dropout_rate,
                                    const std::string &name = "") {
-    auto layer = TensorLayers::dropout<T>(
+    auto layer = Layers::dropout<T>(
         dropout_rate,
         name.empty() ? "dropout_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &flatten(const std::string &name = "") {
-    auto layer = TensorLayers::flatten<T>(
+  SequentialBuilder &flatten(const std::string &name = "") {
+    auto layer = Layers::flatten<T>(
         name.empty() ? "flatten_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequentialBuilder &add_layer(std::unique_ptr<TensorLayer<T>> layer) {
+  SequentialBuilder &add_layer(std::unique_ptr<Layer<T>> layer) {
     model_.add(std::move(layer));
     return *this;
   }
 
-  TensorSequential<T> build() { return std::move(model_); }
+  Sequential<T> build() { return std::move(model_); }
 
-  TensorSequential<T> &get_model() { return model_; }
+  Sequential<T> &get_model() { return model_; }
 };
 
-} 
+}

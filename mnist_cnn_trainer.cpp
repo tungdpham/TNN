@@ -263,7 +263,7 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
 }
 
 // Training function for CNN tensor model
-void train_cnn_model(tensor_layers::TensorSequential<float> &model,
+void train_cnn_model(layers::Sequential<float> &model,
                      MNISTCNNDataLoader &train_loader,
                      MNISTCNNDataLoader &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
@@ -394,7 +394,7 @@ int main() {
               << std::endl;
 
     auto model =
-        tensor_layers::TensorSequentialBuilder<float>("mnist_cnn_classifier")
+        layers::SequentialBuilder<float>("mnist_cnn_classifier")
             // I1: input 28x28x1 (implicit - handled by data loader)
 
             // C1: convolution 5x5 kernel, stride 1, relu activation
