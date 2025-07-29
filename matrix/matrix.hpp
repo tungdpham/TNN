@@ -6,66 +6,73 @@
 
 // Matrix class without channels
 template <typename T = float> struct Matrix {
+private:
+  T *data_; 
+
+public:
   int rows, cols;
-  T *data;
 
   // Default constructor
-  Matrix() : rows(0), cols(0), data(nullptr) {}
+  Matrix() : rows(0), cols(0), data_(nullptr) {}
 
-  Matrix(int rows, int cols, T *initialData = nullptr)
+  Matrix(int rows, int cols, T *initialdata_ = nullptr)
       : rows(rows), cols(cols) {
-    data = new T[rows * cols]();
-    if (initialData != nullptr) {
-      memcpy(data, initialData, rows * cols * sizeof(T));
+    data_ = new T[rows * cols]();
+    if (initialdata_ != nullptr) {
+      memcpy(data_, initialdata_, rows * cols * sizeof(T));
     } else {
-      // Initialize with zeros if no initial data provided
+      // Initialize with zeros if no initial data_ provided
       (*this).fill(0.0);
     }
   }
 
   Matrix(const Matrix &other)
       : rows(other.rows), cols(other.cols) {
-    data = new T[rows * cols];
-    memcpy(data, other.data, rows * cols * sizeof(T));
+    data_ = new T[rows * cols];
+    memcpy(data_, other.data_, rows * cols * sizeof(T));
   }
 
   // Move Constructor
   Matrix(Matrix &&other) noexcept
-      : rows(other.rows), cols(other.cols), data(other.data) {
-    // Steal the data pointer from the temporary object
+      : rows(other.rows), cols(other.cols), data_(other.data_) {
+    // Steal the data_ pointer from the temporary object
     other.rows = 0;
     other.cols = 0;
-    other.data = nullptr;
+    other.data_ = nullptr;
   }
 
   // Move Assignment Operator
   Matrix &operator=(Matrix &&other) noexcept {
     if (this != &other) {
-      delete[] data; // Free existing memory
+      delete[] data_; // Free existing memory
 
-      // Steal data and dimensions from the other object
+      // Steal data_ and dimensions from the other object
       rows = other.rows;
       cols = other.cols;
-      data = other.data;
+      data_ = other.data_;
 
       // Leave the other object in a valid but empty state
       other.rows = 0;
       other.cols = 0;
-      other.data = nullptr;
+      other.data_ = nullptr;
     }
     return *this;
   }
 
   ~Matrix() {
-    delete[] data; // delete[] nullptr is safe in C++
+    delete[] data_; // delete[] nullptr is safe in C++
   }
 
   T &operator()(int row, int col) {
-    return data[row * cols + col];
+    return data_[row * cols + col];
   }
 
   const T &operator()(int row, int col) const {
-    return data[row * cols + col];
+    return data_[row * cols + col];
+  }
+
+  inline T* data(){
+    return data_;
   }
 
   void fill(T value) {
@@ -73,7 +80,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] = value;
+      data_[i] = value;
     }
   }
 
@@ -95,7 +102,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      result.data[i] = data[i] + other.data[i];
+      result.data_[i] = data_[i] + other.data_[i];
     }
     return result;
   }
@@ -108,7 +115,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] += other.data[i];
+      data_[i] += other.data_[i];
     }
     return *this;
   }
@@ -123,7 +130,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      result.data[i] = data[i] - other.data[i];
+      result.data_[i] = data_[i] - other.data_[i];
     }
     return result;
   }
@@ -137,7 +144,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] -= other.data[i];
+      data_[i] -= other.data_[i];
     }
     return *this;
   }
@@ -148,7 +155,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      result.data[i] = data[i] * scalar;
+      result.data_[i] = data_[i] * scalar;
     }
     return result;
   }
@@ -158,7 +165,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] *= scalar;
+      data_[i] *= scalar;
     }
     return *this;
   }
@@ -172,7 +179,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      result.data[i] = data[i] / scalar;
+      result.data_[i] = data_[i] / scalar;
     }
     return result;
   }
@@ -185,7 +192,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] /= scalar;
+      data_[i] /= scalar;
     }
     return *this;
   }
@@ -214,13 +221,13 @@ template <typename T = float> struct Matrix {
   inline Matrix &operator=(const Matrix &other) {
     if (this != &other) {
       if (rows * cols != other.rows * other.cols) {
-        delete[] data;
-        data = new T[other.rows * other.cols];
+        delete[] data_;
+        data_ = new T[other.rows * other.cols];
       }
       rows = other.rows;
       cols = other.cols;
 
-      memcpy(data, other.data, rows * cols * sizeof(T));
+      memcpy(data_, other.data_, rows * cols * sizeof(T));
     }
     return *this;
   }
@@ -243,7 +250,7 @@ template <typename T = float> struct Matrix {
       throw std::invalid_argument(
           "Total number of elements must remain the same for reshape.");
     }
-    return Matrix(newRows, newCols, data);
+    return Matrix(newRows, newCols, data_);
   }
 
   Matrix pad(int padRows, int padCols, T value = 0.0) const {
@@ -283,7 +290,7 @@ template <typename T = float> struct Matrix {
 #pragma omp parallel for reduction(+ : sum)
 #endif
     for (int i = 0; i < rows * cols; ++i) {
-      sum += data[i];
+      sum += data_[i];
     }
     return (sum / (1.0 * rows * cols));
   }
@@ -295,12 +302,12 @@ template <typename T = float> struct Matrix {
       return; // Nothing to do
     }
 
-    delete[] data;
+    delete[] data_;
     rows = newRows;
     cols = newCols;
 
     int size = rows * cols;
-    data = size > 0 ? new T[size]() : nullptr;
+    data_ = size > 0 ? new T[size]() : nullptr;
   }
 
   void dot(const Matrix &other, Matrix &result) const {
@@ -313,14 +320,14 @@ template <typename T = float> struct Matrix {
   }
 
   std::vector<T> to_vector() const {
-    return std::vector<T>(data, data + rows * cols);
+    return std::vector<T>(data_, data_ + rows * cols);
   }
 
     void fill_random_uniform(T range) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<T> dis(-range, range);
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] = dis(gen);
+      data_[i] = dis(gen);
     }
   }
 
@@ -329,7 +336,7 @@ template <typename T = float> struct Matrix {
     std::mt19937 gen(rd());
     std::normal_distribution<T> dis(0, stddev);
     for (int i = 0; i < rows * cols; ++i) {
-      data[i] = dis(gen);
+      data_[i] = dis(gen);
     }
   }
 };

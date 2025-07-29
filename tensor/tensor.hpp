@@ -9,6 +9,7 @@
 #include <type_traits>
 #include <vector>
 #include <span>
+#include <cassert>
 #include "../matrix/matrix.hpp"
 
 enum Layout {
@@ -18,22 +19,52 @@ enum Layout {
   NDHWC  // 5D: Batch, Depth, Height, Width, Channels (3D TensorFlow default)
 };
 
-template <Layout L> struct LayoutTraits;
+template <typename T, Layout L> struct LayoutTraits;
 
-template <> struct LayoutTraits<NCHW> {
+template <typename T> struct LayoutTraits<T, NCHW> {
   static constexpr size_t dims = 4;
+  
+  inline static void compute_strides(size_t *strides, const size_t *shape) {
+    strides[0] = shape[1] * shape[2] * shape[3]; // stride for batch
+    strides[1] = shape[2] * shape[3];           // stride for channels
+    strides[2] = shape[3];                      // stride for height
+    strides[3] = 1;                             // stride for width
+  }
 };
 
-template <> struct LayoutTraits<NHWC> {
+template <typename T> struct LayoutTraits<T, NHWC> {
   static constexpr size_t dims = 4;
+
+  inline static void compute_strides(size_t *strides, const size_t *shape) {
+    strides[0] = shape[2] * shape[3] * shape[1]; // stride for batch
+    strides[1] = shape[3] * shape[1];            // stride for height
+    strides[2] = shape[1];                       // stride for width
+    strides[3] = 1;                              // stride for channels
+  }
 };
 
-template <> struct LayoutTraits<NCDHW> {
+template <typename T> struct LayoutTraits<T, NCDHW> {
   static constexpr size_t dims = 5;
+
+  inline static void compute_strides(size_t *strides, const size_t *shape) {
+    strides[0] = shape[1] * shape[2] * shape[3] * shape[4]; // stride for batch
+    strides[1] = shape[2] * shape[3] * shape[4];           // stride for channels
+    strides[2] = shape[3] * shape[4];                      // stride for depth
+    strides[3] = shape[4];                                 // stride for height
+    strides[4] = 1;                                        // stride for width
+  }
 };
 
-template <> struct LayoutTraits<NDHWC> {
+template <typename T> struct LayoutTraits<T, NDHWC> {
   static constexpr size_t dims = 5;
+
+  inline static void compute_strides(size_t *strides, const size_t *shape) {
+    strides[0] = shape[2] * shape[3] * shape[4] * shape[1]; // stride for batch
+    strides[1] = shape[3] * shape[4] * shape[1];            // stride for depth
+    strides[2] = shape[4] * shape[1];                       // stride for height
+    strides[3] = shape[1];                                  // stride for width
+    strides[4] = 1;                                         // stride for channels
+  }
 };
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
@@ -44,121 +75,38 @@ template <typename T = float, Layout layout = NCHW> class Tensor {
                 "Tensor type must be floating point or integral");
 
 public:
-  // Inferred dimensionality based on layout
-  static constexpr size_t dims = LayoutTraits<layout>::dims;
 
 private:
+  using Traits = LayoutTraits<T, layout>;
+  static constexpr size_t dims = Traits::dims; // 4 for NCHW/NHWC, 5 for NCDHW/NDHWC
+
   size_t shape_[dims]; // Shape of the tensor (e.g., {batch, channels, height,
                        // width} for 4D)
+  size_t strides[dims]; // Strides for each dimension
   std::unique_ptr<T[]>
-      data_;         // Contiguous raw array storage for better performance
-  size_t data_size_; // Total number of elements
-  size_t stride_n;   // Strides between batches
-  size_t stride_c;   // Strides between channels
-  size_t stride_h;   // Strides between height
-  size_t stride_w;   // Strides between width
-  size_t stride_d;   // Strides between depth (only for 5D tensors)
+      data_;         // Contiguous raw array storage for better performance 
+  
+  size_t data_size_; // Total number of elements in the tensor
 
-  inline void compute_strides() { // Should be called after shape is set
-    if constexpr (dims == 4) {
-      if constexpr (layout == NCHW) {
-        stride_n = shape_[1] * shape_[2] * shape_[3];
-        stride_c = shape_[2] * shape_[3];
-        stride_h = shape_[3];
-        stride_w = 1;
-      } else if constexpr (layout == NHWC) {
-        stride_n = shape_[2] * shape_[3] * shape_[1];
-        stride_h = shape_[3] * shape_[1];
-        stride_w = shape_[1];
-        stride_c = 1;
-      } else {
-        throw std::runtime_error("Unsupported layout for 4D tensor");
+  inline void compute_strides() {
+    Traits::compute_strides(strides, shape_);
+  }
+
+  inline size_t compute_index(std::initializer_list<size_t> indices) const {
+    size_t index = 0;
+    for (size_t i=0;i<dims;++i){
+      if (i >= indices.size()) {
+        throw std::out_of_range("Index out of range for tensor dimensions");
       }
-    } else if constexpr (dims == 5) {
-      if constexpr (layout == NCDHW) {
-        stride_n = shape_[1] * shape_[2] * shape_[3] * shape_[4];
-        stride_c = shape_[2] * shape_[3] * shape_[4];
-        stride_d = shape_[3] * shape_[4];
-        stride_h = shape_[4];
-        stride_w = 1;
-      } else if constexpr (layout == NDHWC) {
-        stride_n = shape_[2] * shape_[3] * shape_[4] * shape_[1];
-        stride_d = shape_[3] * shape_[4] * shape_[1];
-        stride_h = shape_[4] * shape_[1];
-        stride_w = shape_[1];
-        stride_c = 1;
-      } else {
-        throw std::runtime_error("Unsupported layout for 5D tensor");
-      }
+      index += *(indices.begin() + i) * strides[i];
     }
-  }
-
-  inline size_t compute_index(size_t n, size_t c, size_t h, size_t w) const {
-    if constexpr (dims != 4) {
-      throw std::runtime_error("4D indexing called on non-4D tensor template");
-    }
-
-#ifdef NDEBUG
-    // Bounds checking
-    if (n >= shape_[0] || c >= shape_[1] || h >= shape_[2] || w >= shape_[3]) {
-      throw std::out_of_range("Tensor index out of bounds");
-    }
-#endif
-    if constexpr (layout == NCHW) {
-      return n * stride_n + c * stride_c + h * stride_h + w;
-    } else if constexpr (layout == NHWC) {
-      return n * stride_n + h * stride_h + w * stride_w + c;
-    } else {
-      throw std::runtime_error("Unsupported layout for 4D tensor");
-    }
-  }
-
-  inline size_t compute_index(size_t n, size_t c, size_t d, size_t h,
-                              size_t w) const {
-    if constexpr (dims != 5) {
-      throw std::runtime_error("5D indexing called on non-5D tensor template");
-    }
-
-#ifdef NDEBUG
-    if (n >= shape_[0] || c >= shape_[1] || d >= shape_[2] || h >= shape_[3] ||
-        w >= shape_[4]) {
-      throw std::out_of_range("Tensor index out of bounds");
-    }
-#endif
-
-    if constexpr (layout == NCDHW) {
-      return n * stride_n + c * stride_c + d * stride_d + h * stride_h + w;
-    } else if constexpr (layout == NDHWC) {
-      return n * stride_n + d * stride_d + h * stride_h + w * stride_w + c;
-    } else {
-      throw std::runtime_error("Unsupported layout for 5D tensor");
-    }
-  }
-
-  inline size_t compute_index(const std::vector<size_t> &indices) const {
-    if (indices.size() != dims) {
-      throw std::runtime_error(
-          "Index vector size doesn't match tensor dimensionality");
-    }
-
-    if constexpr (dims == 4) {
-      return compute_index(indices[0], indices[1], indices[2], indices[3]);
-    } else if constexpr (dims == 5) {
-      return compute_index(indices[0], indices[1], indices[2], indices[3],
-                           indices[4]);
-    } else {
-      throw std::runtime_error("Unsupported tensor dimensionality");
-    }
+    return index;
   }
 
 public:
   // Constructors
   Tensor() : data_size_(0) {
-    if constexpr (dims == 4) {
-      shape_[0] = shape_[1] = shape_[2] = shape_[3] = 0;
-    } else if constexpr (dims == 5) {
-      shape_[0] = shape_[1] = shape_[2] = shape_[3] = shape_[4] = 0;
-    }
+    std::fill(shape_, shape_ + dims, 0);
     data_ = nullptr;
     compute_strides();
   }
@@ -199,19 +147,7 @@ public:
   }
 
   Tensor(const std::vector<size_t> &shape) {
-    if (shape.size() != dims) {
-      throw std::invalid_argument(
-          "Shape dimensions don't match template parameter");
-    }
-    if constexpr (dims == 4) {
-      if (layout == NCDHW || layout == NDHWC) {
-        throw std::invalid_argument("5D layout specified for 4D tensor");
-      }
-    } else if constexpr (dims == 5) {
-      if (layout == NCHW || layout == NHWC) {
-        throw std::invalid_argument("4D layout specified for 5D tensor");
-      }
-    }
+    assert(shape.size() == dims && "Shape must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
@@ -222,19 +158,7 @@ public:
 
   // Constructor with initial data
   Tensor(const std::vector<size_t> &shape, const std::vector<T> &data) {
-    if (shape.size() != dims) {
-      throw std::invalid_argument(
-          "Shape dimensions don't match template parameter");
-    }
-    if constexpr (dims == 4) {
-      if (layout == NCDHW || layout == NDHWC) {
-        throw std::invalid_argument("5D layout specified for 4D tensor");
-      }
-    } else if constexpr (dims == 5) {
-      if (layout == NCHW || layout == NHWC) {
-        throw std::invalid_argument("4D layout specified for 5D tensor");
-      }
-    }
+    assert(shape.size() == dims && "Shape must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
@@ -295,22 +219,21 @@ public:
   }
 
   // Accessors for 4D tensors
-
   T &operator()(size_t n, size_t c, size_t h, size_t w) {
-    return data_[compute_index(n, c, h, w)];
+    return data_[compute_index({n, c, h, w})];
   }
 
   const T &operator()(size_t n, size_t c, size_t h, size_t w) const {
-    return data_[compute_index(n, c, h, w)];
+    return data_[compute_index({n, c, h, w})];
   }
 
   // Accessors for 5D tensors
   T &operator()(size_t n, size_t c, size_t d, size_t h, size_t w) {
-    return data_[compute_index(n, c, d, h, w)];
+    return data_[compute_index({n, c, d, h, w})];
   }
 
   const T &operator()(size_t n, size_t c, size_t d, size_t h, size_t w) const {
-    return data_[compute_index(n, c, d, h, w)];
+    return data_[compute_index({n, c, d, h, w})];
   }
 
   T &operator()(const std::vector<size_t> &indices) {
@@ -451,8 +374,9 @@ public:
 
   // Padding operations
   Tensor<T, layout> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
-    if constexpr (dims != 4) {
-      throw std::runtime_error("2D padding only supported for 4D tensors");
+    assert(dims == 4 && "Padding only supported for 4D tensors");
+    if(pad_h == 0 && pad_w == 0) {
+      return *this; // No padding needed
     }
 
     Tensor<T, layout> result(batch_size(), channels(), height() + 2 * pad_h,

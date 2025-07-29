@@ -430,26 +430,10 @@ public:
       current_grad = activation_grad;
     }
 
-    // Get flattened data for BLAS operations
-    std::vector<T> input_flat = this->last_input_.to_rm_vector();
-    std::vector<T> grad_output_flat = current_grad.to_rm_vector();
-
-    // Get weight data
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-
     // Compute weight gradients using BLAS
-    std::vector<T> weight_grad_flat(output_features_ * input_features_);
-    gemm_weight_gradients(input_flat.data(), grad_output_flat.data(),
-                          weight_grad_flat.data(), batch_size, input_features_,
+    gemm_weight_gradients(this->last_input_.data(), current_grad.data(),
+                          weight_gradients_.data(), batch_size, input_features_,
                           output_features_);
-
-    // Store weight gradients back to tensor
-    for (size_t out_f = 0; out_f < output_features_; ++out_f) {
-      for (size_t in_f = 0; in_f < input_features_; ++in_f) {
-        weight_gradients_(out_f, in_f, 0, 0) =
-            weight_grad_flat[out_f * input_features_ + in_f];
-      }
-    }
 
     // Compute bias gradients
     if (use_bias_) {
@@ -464,27 +448,9 @@ public:
     }
 
     // Compute input gradients using BLAS
-    std::vector<T> grad_input_flat(batch_size * input_features_);
-    gemm_input_gradients(grad_output_flat.data(), weight_flat.data(),
-                         grad_input_flat.data(), batch_size, input_features_,
+    gemm_input_gradients(current_grad.data(), weights_.data(),
+                         grad_input.data(), batch_size, input_features_,
                          output_features_);
-
-    // Convert input gradients back to tensor format (NCHW)
-    grad_input.fill(T(0));
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t feature_idx = 0;
-      for (size_t c = 0; c < this->last_input_.channels(); ++c) {
-        for (size_t h = 0; h < this->last_input_.height(); ++h) {
-          for (size_t w = 0; w < this->last_input_.width(); ++w) {
-            if (feature_idx < input_features_) {
-              grad_input(n, c, h, w) =
-                  grad_input_flat[n * input_features_ + feature_idx];
-              ++feature_idx;
-            }
-          }
-        }
-      }
-    }
 
     return grad_input;
   }
