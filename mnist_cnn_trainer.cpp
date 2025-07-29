@@ -11,46 +11,7 @@
 #include "layers/layers.hpp"
 #include "layers/sequential.hpp"
 #include "tensor/tensor.hpp"
-
-// Simple tensor optimizer implementation
-class TensorSGDOptimizer {
-private:
-  float learning_rate_;
-  float momentum_;
-  std::vector<Tensor<float>> velocities_;
-  bool initialized_;
-
-public:
-  TensorSGDOptimizer(float learning_rate = 0.01, float momentum = 0.9)
-      : learning_rate_(learning_rate), momentum_(momentum),
-        initialized_(false) {}
-
-  void update(std::vector<Tensor<float> *> &parameters,
-              std::vector<Tensor<float> *> &gradients) {
-    if (!initialized_) {
-      velocities_.resize(parameters.size());
-
-      for (size_t i = 0; i < parameters.size(); ++i) {
-        velocities_[i] = Tensor<float>(parameters[i]->shape());
-        velocities_[i].fill(0.0);
-      }
-      initialized_ = true;
-    }
-
-    for (size_t i = 0; i < parameters.size(); ++i) {
-      // Apply momentum: v = momentum * v - learning_rate * grad
-      velocities_[i] *= momentum_;
-      velocities_[i] -= (*gradients[i]) * learning_rate_;
-
-      // Update parameters: param += v
-      (*parameters[i]) += velocities_[i];
-    }
-  }
-
-  void set_learning_rate(float lr) { learning_rate_ = lr; }
-
-  float get_learning_rate() const { return learning_rate_; }
-};
+#include "layers/optimizers.hpp"
 
 // Enhanced data loader for MNIST CSV format adapted for CNN (2D images)
 class MNISTCNNDataLoader {
@@ -267,7 +228,7 @@ void train_cnn_model(layers::Sequential<float> &model,
                      MNISTCNNDataLoader &train_loader,
                      MNISTCNNDataLoader &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
-  TensorSGDOptimizer optimizer(learning_rate, 0.9);
+  layers::Adam<float> optimizer(learning_rate, 0.9);
 
   std::cout << "Starting CNN tensor model training..." << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
@@ -426,13 +387,13 @@ int main() {
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        1, 1, 28, 28}); // Show summary with single image input
+        32, 1, 28, 28}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting Mojo-style CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
-                    64, // batch_size (moderate batch size)
+                    32, // batch_size (moderate batch size)
                     0.01 // learning_rate (slightly higher for simpler model)
     );
 
