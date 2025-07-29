@@ -8,8 +8,8 @@
 #include <sstream>
 #include <vector>
 
-#include "layers/tensor_layers.hpp"
-#include "layers/tensor_sequential.hpp"
+#include "layers/layers.hpp"
+#include "layers/sequential.hpp"
 #include "tensor/tensor.hpp"
 
 // Simple tensor optimizer implementation
@@ -431,7 +431,7 @@ int main() {
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting Mojo-style CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
-                    2,  // epochs
+                    5,  // epochs
                     64, // batch_size (moderate batch size)
                     0.01 // learning_rate (slightly higher for simpler model)
     );

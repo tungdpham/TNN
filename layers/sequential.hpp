@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "tensor_layers.hpp"
+#include "layers.hpp"
 
 namespace tensor_layers {
 
@@ -804,104 +804,4 @@ public:
   TensorSequential<T> &get_model() { return model_; }
 };
 
-} // namespace tensor_layers
-
-/* Usage Examples:
-
-// Method 1: Manual construction
-tensor_layers::TensorSequential<double> model("cnn_classifier");
-
-model.add(TensorLayers::conv2d<double>(3, 32, 3, 3, 1, 1, 1, 1, "tensor_relu",
-true, "conv1")); model.add(TensorLayers::maxpool2d<double>(2, 2, 2, 2, 0, 0,
-"pool1")); model.add(TensorLayers::conv2d<double>(32, 64, 3, 3, 1, 1, 1, 1,
-"tensor_relu", true, "conv2")); model.add(TensorLayers::maxpool2d<double>(2, 2,
-2, 2, 0, 0, "pool2")); model.add(TensorLayers::flatten<double>("flatten"));
-model.add(TensorLayers::dense<double>(64*8*8, 128, "tensor_relu", true, "fc1"));
-model.add(TensorLayers::dropout<double>(0.5, "dropout"));
-model.add(TensorLayers::dense<double>(128, 10, "tensor_softmax", true,
-"output"));
-
-// Method 2: Builder pattern
-auto model2 = tensor_layers::TensorSequentialBuilder<double>("cnn_classifier")
-    .conv2d(3, 32, 3, 3, 1, 1, 1, 1, "tensor_relu", true, "conv1")
-    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
-    .conv2d(32, 64, 3, 3, 1, 1, 1, 1, "tensor_relu", true, "conv2")
-    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-    .flatten("flatten")
-    .dense(64*8*8, 128, "tensor_relu", true, "fc1")
-    .dropout(0.5, "dropout")
-    .dense(128, 10, "tensor_softmax", true, "output")
-    .build();
-
-// Method 3: Builder pattern with BLAS-optimized dense layers (requires
-tensor_layers_optimized.hpp) auto optimized_model =
-tensor_layers::TensorSequentialBuilder<float>("optimized_cnn") .conv2d(3, 32, 3,
-3, 1, 1, 1, 1, "tensor_relu", true, "conv1") .maxpool2d(2, 2, 2, 2, 0, 0,
-"pool1") .conv2d(32, 64, 3, 3, 1, 1, 1, 1, "tensor_relu", true, "conv2")
-    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-    .flatten("flatten")
-    .blas_dense(64*8*8, 128, "tensor_relu", true, "blas_fc1")  // BLAS-optimized
-    .dropout(0.5, "dropout")
-    .blas_dense(128, 10, "tensor_softmax", true, "blas_output")  //
-BLAS-optimized .build();
-
-// Training loop example
-Tensor<T> input({32, 3, 32, 32});  // Batch of 32 RGB images
-input.fill_random_normal(0.1);
-
-Tensor<T> target({32, 10, 1, 1});  // One-hot encoded targets
-target.fill_random_uniform(1.0);
-
-model.train();  // Set to training mode
-
-// Forward pass
-Tensor<T> output = model.forward(input);
-
-// Compute loss (simplified)
-Tensor<T> loss_grad({32, 10, 1, 1});
-loss_grad.fill(0.01);  // Simplified gradient
-
-// Backward pass
-Tensor<T> input_grad = model.backward(loss_grad);
-
-// Get all parameters for optimizer
-auto parameters = model.parameters();
-auto gradients = model.gradients();
-
-// Print model summary
-model.print_summary({1, 3, 32, 32});
-
-// Enable profiling to measure layer performance
-model.enable_profiling(true);
-
-// Training with profiling
-for (int epoch = 0; epoch < 10; ++epoch) {
-    // Forward pass (timed)
-    Tensor<T> output = model.forward(input);
-
-    // Backward pass (timed)
-    Tensor<T> input_grad = model.backward(loss_grad);
-
-    // Print profiling results every few epochs
-    if (epoch % 5 == 0) {
-        model.print_profiling_summary();
-    }
-}
-
-// Get raw profiling data
-auto forward_times = model.get_forward_times();  // Times in milliseconds
-auto backward_times = model.get_backward_times();
-auto layer_names = model.get_layer_names();
-
-// Disable profiling for production use
-model.enable_profiling(false);
-
-// Inference
-model.eval();  // Set to evaluation mode
-Tensor<T> prediction = model.predict(input);
-
-// Configuration and cloning
-auto configs = model.get_all_configs();
-auto cloned_model = model.clone();
-
-*/
+} 

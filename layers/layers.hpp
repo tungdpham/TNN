@@ -12,7 +12,7 @@
 #include <vector>
 
 #include "../tensor/tensor.hpp"
-#include "tensor_activations.hpp"
+#include "activations.hpp"
 
 // BLAS optimization support
 #ifdef USE_OPENBLAS
