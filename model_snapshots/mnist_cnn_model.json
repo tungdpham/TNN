@@ -12,7 +12,7 @@
             "pad_w": 0,
             "stride_h": 1,
             "stride_w": 1,
-            "type": "blas_tensor_conv2d",
+            "type": "blas_conv2d",
             "use_bias": true
         },
         {
@@ -23,7 +23,7 @@
             "pool_w": 3,
             "stride_h": 3,
             "stride_w": 3,
-            "type": "tensor_maxpool2d"
+            "type": "maxpool2d"
         },
         {
             "activation": "relu",
@@ -37,7 +37,7 @@
             "pad_w": 0,
             "stride_h": 1,
             "stride_w": 1,
-            "type": "blas_tensor_conv2d",
+            "type": "blas_conv2d",
             "use_bias": true
         },
         {
@@ -52,7 +52,7 @@
             "pad_w": 0,
             "stride_h": 1,
             "stride_w": 1,
-            "type": "blas_tensor_conv2d",
+            "type": "blas_conv2d",
             "use_bias": true
         },
         {
@@ -63,7 +63,7 @@
             "pool_w": 2,
             "stride_h": 2,
             "stride_w": 2,
-            "type": "tensor_maxpool2d"
+            "type": "maxpool2d"
         },
         {
             "activation": "linear",
@@ -71,7 +71,7 @@
             "name": "output",
             "optimized": "blas",
             "output_features": 10,
-            "type": "blas_tensor_dense",
+            "type": "blas_dense",
             "use_bias": true
         }
     ],

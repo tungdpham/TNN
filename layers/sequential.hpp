@@ -704,17 +704,6 @@ public:
       const std::string &name = "sequential")
       : model_(name) {}
 
-  SequentialBuilder &dense(size_t input_features, size_t output_features,
-                                 const std::string &activation = "none",
-                                 bool use_bias = true,
-                                 const std::string &name = "") {
-    auto layer = Layers::dense<T>(
-        input_features, output_features, activation, use_bias,
-        name.empty() ? "dense_" + std::to_string(model_.size()) : name);
-    model_.add(std::move(layer));
-    return *this;
-  }
-
   SequentialBuilder &blas_dense(size_t input_features,
                                       size_t output_features,
                                       const std::string &activation = "none",
@@ -723,21 +712,6 @@ public:
     auto layer = Layers::blas_dense<T>(
         input_features, output_features, activation, use_bias,
         name.empty() ? "blas_dense_" + std::to_string(model_.size()) : name);
-    model_.add(std::move(layer));
-    return *this;
-  }
-
-  SequentialBuilder &conv2d(size_t in_channels, size_t out_channels,
-                                  size_t kernel_h, size_t kernel_w,
-                                  size_t stride_h = 1, size_t stride_w = 1,
-                                  size_t pad_h = 0, size_t pad_w = 0,
-                                  const std::string &activation = "none",
-                                  bool use_bias = true,
-                                  const std::string &name = "") {
-    auto layer = Layers::conv2d<T>(
-        in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
-        pad_h, pad_w, activation, use_bias,
-        name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
