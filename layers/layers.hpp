@@ -96,12 +96,9 @@ protected:
 };
 
 // Base class for layers without parameters (activation, pooling, etc.)
-template <typename T = float>
-class StatelessLayer : public Layer<T> {
+template <typename T = float> class StatelessLayer : public Layer<T> {
 public:
-  explicit StatelessLayer(const std::string &name = "") {
-    this->name_ = name;
-  }
+  explicit StatelessLayer(const std::string &name = "") { this->name_ = name; }
 
   std::vector<Tensor<T> *> parameters() override { return {}; }
 
@@ -111,8 +108,7 @@ public:
 };
 
 // Base class for layers with parameters (dense, conv, etc.)
-template <typename T = float>
-class ParameterizedLayer : public Layer<T> {
+template <typename T = float> class ParameterizedLayer : public Layer<T> {
 public:
   explicit ParameterizedLayer(const std::string &name = "") {
     this->name_ = name;
@@ -206,8 +202,8 @@ private:
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
                   input_features, batch_size, 1.0, grad_output_data,
-                  output_features, input_data, input_features, 0.0, weight_grad_data,
-                  input_features);
+                  output_features, input_data, input_features, 0.0,
+                  weight_grad_data, input_features);
 #else
       fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
                                 batch_size, input_features, output_features);
@@ -343,10 +339,9 @@ private:
   }
 
 public:
-  BLASDenseLayer(
-      size_t input_features, size_t output_features,
-      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-      bool use_bias = true, const std::string &name = "blas_dense")
+  BLASDenseLayer(size_t input_features, size_t output_features,
+                 std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+                 bool use_bias = true, const std::string &name = "blas_dense")
       : ParameterizedLayer<T>(name), input_features_(input_features),
         output_features_(output_features), use_bias_(use_bias),
         activation_(std::move(activation)) {
@@ -517,9 +512,9 @@ protected:
       activation = ActivationFactory<T>::create(activation_name);
     }
 
-    return std::make_unique<BLASDenseLayer<T>>(
-        input_features, output_features, std::move(activation), use_bias,
-        config.name);
+    return std::make_unique<BLASDenseLayer<T>>(input_features, output_features,
+                                               std::move(activation), use_bias,
+                                               config.name);
   }
 };
 
@@ -531,9 +526,8 @@ private:
   Tensor<T> last_input_;
 
 public:
-  explicit ActivationLayer(
-      std::unique_ptr<ActivationFunction<T>> activation,
-      const std::string &name = "activation")
+  explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
+                           const std::string &name = "activation")
       : StatelessLayer<T>(name), activation_(std::move(activation)) {
     if (!activation_) {
       throw std::invalid_argument("Activation function cannot be null");
@@ -562,7 +556,7 @@ public:
 
   std::unique_ptr<Layer<T>> clone() const override {
     return std::make_unique<ActivationLayer<T>>(activation_->clone(),
-                                                      this->name_);
+                                                this->name_);
   }
 
   std::vector<size_t>
@@ -713,6 +707,7 @@ private:
   void fallback_conv_gemm_weight_gradients(
       const T *col_data, const T *grad_output_data, T *weight_grad_data,
       size_t output_size, size_t kernel_size, size_t out_channels) const {
+    // Add profiling information
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -759,21 +754,20 @@ private:
   }
 
 public:
-  BLASConv2DLayer(
-      size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
-      size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
-      size_t pad_w = 0, bool use_bias = true,
-      std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-      const std::string &name = "blas_conv2d")
+  BLASConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
+                  size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+                  size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
+                  std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+                  const std::string &name = "blas_conv2d")
       : ParameterizedLayer<T>(name), in_channels_(in_channels),
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
         use_bias_(use_bias), activation_(std::move(activation)),
         im2col_cached_(false) {
-    weights_ =
-        Tensor<T>(std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
-    weight_gradients_ =
-        Tensor<T>(std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+    weights_ = Tensor<T>(
+        std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+    weight_gradients_ = Tensor<T>(
+        std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
 
     if (use_bias_) {
       bias_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
@@ -1035,8 +1029,7 @@ protected:
 };
 
 // MaxPooling Layer for 2D tensors
-template <typename T = double>
-class MaxPool2DLayer : public StatelessLayer<T> {
+template <typename T = double> class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -1050,8 +1043,8 @@ private:
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
-                       size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
-                       const std::string &name = "maxpool2d")
+                 size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+                 const std::string &name = "maxpool2d")
       : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
         stride_h_(stride_h == 0 ? pool_h : stride_h),
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
@@ -1215,16 +1208,14 @@ public:
 };
 
 // Dropout Layer
-template <typename T = double>
-class DropoutLayer : public StatelessLayer<T> {
+template <typename T = double> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
   Tensor<T> mask_; // Dropout mask
   mutable std::mt19937 generator_;
 
 public:
-  explicit DropoutLayer(T dropout_rate,
-                              const std::string &name = "dropout")
+  explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout")
       : StatelessLayer<T>(name), dropout_rate_(dropout_rate),
         generator_(std::random_device{}()) {
     if (dropout_rate < T(0) || dropout_rate >= T(1)) {
@@ -1270,7 +1261,6 @@ public:
             } else {
               mask_(n, c, h, w) = scale;
               output(n, c, h, w) *= scale;
-                      
             }
           }
         }
@@ -1324,8 +1314,7 @@ public:
 
 // Flatten Layer for converting from 4D to 2D tensors (for compatibility with
 // dense layers)
-template <typename T = double>
-class FlattenLayer : public StatelessLayer<T> {
+template <typename T = double> class FlattenLayer : public StatelessLayer<T> {
 private:
   std::vector<size_t> original_shape_; // Store for backward pass
 
@@ -1420,13 +1409,12 @@ private:
 public:
   static void register_layer(
       const std::string &type,
-      std::function<std::unique_ptr<Layer<T>>(const LayerConfig &)>
-          creator) {
+      std::function<std::unique_ptr<Layer<T>>(const LayerConfig &)> creator) {
     creators_[type] = creator;
   }
 
-  static std::unique_ptr<Layer<T>>
-  create(const std::string &type, const LayerConfig &config) {
+  static std::unique_ptr<Layer<T>> create(const std::string &type,
+                                          const LayerConfig &config) {
     auto it = creators_.find(type);
     if (it != creators_.end()) {
       return it->second(config);
@@ -1434,8 +1422,7 @@ public:
     throw std::invalid_argument("Unknown layer type: " + type);
   }
 
-  static std::unique_ptr<Layer<T>>
-  create(const LayerConfig &config) {
+  static std::unique_ptr<Layer<T>> create(const LayerConfig &config) {
     return create(config.get<std::string>("type"), config);
   }
 
@@ -1491,51 +1478,48 @@ public:
         });
 
     // Activation layer
-    register_layer(
-        "activation",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-          std::string activation_name = config.get<std::string>("activation");
-          auto factory = ActivationFactory<T>();
-          factory.register_defaults();
-          auto activation = factory.create(activation_name);
-          if (!activation) {
-            throw std::invalid_argument("Failed to create activation: " +
-                                        activation_name);
-          }
-          return std::make_unique<ActivationLayer<T>>(
-              std::move(activation), config.name);
-        });
+    register_layer("activation",
+                   [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+                     std::string activation_name =
+                         config.get<std::string>("activation");
+                     auto factory = ActivationFactory<T>();
+                     factory.register_defaults();
+                     auto activation = factory.create(activation_name);
+                     if (!activation) {
+                       throw std::invalid_argument(
+                           "Failed to create activation: " + activation_name);
+                     }
+                     return std::make_unique<ActivationLayer<T>>(
+                         std::move(activation), config.name);
+                   });
 
     // MaxPool2D layer
-    register_layer(
-        "maxpool2d",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-          size_t pool_h = config.get<size_t>("pool_h");
-          size_t pool_w = config.get<size_t>("pool_w");
-          size_t stride_h = config.get<size_t>("stride_h", 0);
-          size_t stride_w = config.get<size_t>("stride_w", 0);
-          size_t pad_h = config.get<size_t>("pad_h", 0);
-          size_t pad_w = config.get<size_t>("pad_w", 0);
+    register_layer("maxpool2d",
+                   [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+                     size_t pool_h = config.get<size_t>("pool_h");
+                     size_t pool_w = config.get<size_t>("pool_w");
+                     size_t stride_h = config.get<size_t>("stride_h", 0);
+                     size_t stride_w = config.get<size_t>("stride_w", 0);
+                     size_t pad_h = config.get<size_t>("pad_h", 0);
+                     size_t pad_w = config.get<size_t>("pad_w", 0);
 
-          return std::make_unique<MaxPool2DLayer<T>>(
-              pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, config.name);
-        });
+                     return std::make_unique<MaxPool2DLayer<T>>(
+                         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                         config.name);
+                   });
 
     // Dropout layer
     register_layer(
-        "dropout",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+        "dropout", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           T dropout_rate = config.get<T>("dropout_rate");
-          return std::make_unique<DropoutLayer<T>>(dropout_rate,
-                                                         config.name);
+          return std::make_unique<DropoutLayer<T>>(dropout_rate, config.name);
         });
 
     // Flatten layer
-    register_layer(
-        "flatten",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-          return std::make_unique<FlattenLayer<T>>(config.name);
-        });
+    register_layer("flatten",
+                   [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+                     return std::make_unique<FlattenLayer<T>>(config.name);
+                   });
   }
 
   static std::vector<std::string> available_types() {
@@ -1548,8 +1532,8 @@ public:
 };
 
 template <typename T>
-std::unordered_map<std::string, std::function<std::unique_ptr<Layer<T>>(
-                                    const LayerConfig &)>>
+std::unordered_map<
+    std::string, std::function<std::unique_ptr<Layer<T>>(const LayerConfig &)>>
     LayerFactory<T>::creators_;
 
 } // namespace layers
@@ -1598,8 +1582,7 @@ activation(const std::string &activation_name,
   auto factory = ActivationFactory<T>();
   factory.register_defaults();
   auto act = factory.create(activation_name);
-  return std::make_unique<layers::ActivationLayer<T>>(
-      std::move(act), name);
+  return std::make_unique<layers::ActivationLayer<T>>(std::move(act), name);
 }
 
 template <typename T = double>
@@ -1612,15 +1595,13 @@ maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
 }
 
 template <typename T = double>
-std::unique_ptr<layers::Layer<T>>
-dropout(T dropout_rate, const std::string &name = "dropout") {
-  return std::make_unique<layers::DropoutLayer<T>>(dropout_rate,
-                                                                name);
+std::unique_ptr<layers::Layer<T>> dropout(T dropout_rate,
+                                          const std::string &name = "dropout") {
+  return std::make_unique<layers::DropoutLayer<T>>(dropout_rate, name);
 }
 
 template <typename T = double>
-std::unique_ptr<layers::Layer<T>>
-flatten(const std::string &name = "flatten") {
+std::unique_ptr<layers::Layer<T>> flatten(const std::string &name = "flatten") {
   return std::make_unique<layers::FlattenLayer<T>>(name);
 }
 } // namespace Layers

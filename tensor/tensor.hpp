@@ -960,7 +960,6 @@ public:
 
     const Tensor<T, layout> &input_tensor = *input_ptr;
 
-    // Optimize memory access patterns - vectorize inner loops when possible
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -1014,6 +1013,7 @@ public:
                                   size_t kernel_w, size_t stride_h = 1,
                                   size_t stride_w = 1, size_t pad_h = 0,
                                   size_t pad_w = 0) {
+    auto start_time = std::chrono::high_resolution_clock::now();
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
     size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
 
@@ -1025,7 +1025,7 @@ public:
 
     // Reconstruct from column matrix
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic, 1)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       size_t batch_offset = n * output_h * output_w;
@@ -1059,7 +1059,6 @@ public:
         }
       }
     }
-
     // Remove padding if it was applied
     if (pad_h > 0 || pad_w > 0) {
       return padded_result.crop(pad_h, pad_w, padded_h - pad_h - 1,
