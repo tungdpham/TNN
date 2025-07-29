@@ -8,8 +8,8 @@
 #include <sstream>
 #include <vector>
 
-#include "layers_v2/tensor_layers.hpp"
-#include "layers_v2/tensor_sequential.hpp"
+#include "layers/tensor_layers.hpp"
+#include "layers/tensor_sequential.hpp"
 #include "tensor/tensor.hpp"
 
 // Simple tensor optimizer implementation

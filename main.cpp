@@ -1,4 +1,4 @@
-#include "layers/activations.hpp"
+#include "linear_layers/activations.hpp"
 #include "matrix/matrix.hpp"
 using namespace std;
 
