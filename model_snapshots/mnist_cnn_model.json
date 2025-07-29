@@ -1,0 +1,81 @@
+{
+    "layers": [
+        {
+            "activation": "relu",
+            "in_channels": 1,
+            "kernel_h": 5,
+            "kernel_w": 5,
+            "name": "C1",
+            "optimized": "blas",
+            "out_channels": 8,
+            "pad_h": 0,
+            "pad_w": 0,
+            "stride_h": 1,
+            "stride_w": 1,
+            "type": "blas_tensor_conv2d",
+            "use_bias": true
+        },
+        {
+            "name": "P1",
+            "pad_h": 0,
+            "pad_w": 0,
+            "pool_h": 3,
+            "pool_w": 3,
+            "stride_h": 3,
+            "stride_w": 3,
+            "type": "tensor_maxpool2d"
+        },
+        {
+            "activation": "relu",
+            "in_channels": 8,
+            "kernel_h": 1,
+            "kernel_w": 1,
+            "name": "C2",
+            "optimized": "blas",
+            "out_channels": 16,
+            "pad_h": 0,
+            "pad_w": 0,
+            "stride_h": 1,
+            "stride_w": 1,
+            "type": "blas_tensor_conv2d",
+            "use_bias": true
+        },
+        {
+            "activation": "relu",
+            "in_channels": 16,
+            "kernel_h": 5,
+            "kernel_w": 5,
+            "name": "C2",
+            "optimized": "blas",
+            "out_channels": 48,
+            "pad_h": 0,
+            "pad_w": 0,
+            "stride_h": 1,
+            "stride_w": 1,
+            "type": "blas_tensor_conv2d",
+            "use_bias": true
+        },
+        {
+            "name": "P2",
+            "pad_h": 0,
+            "pad_w": 0,
+            "pool_h": 2,
+            "pool_w": 2,
+            "stride_h": 2,
+            "stride_w": 2,
+            "type": "tensor_maxpool2d"
+        },
+        {
+            "activation": "linear",
+            "input_features": 192,
+            "name": "output",
+            "optimized": "blas",
+            "output_features": 10,
+            "type": "blas_tensor_dense",
+            "use_bias": true
+        }
+    ],
+    "name": "mnist_cnn_classifier",
+    "profiling": true,
+    "training": false
+}

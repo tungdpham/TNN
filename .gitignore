@@ -1,0 +1,19 @@
+# editor configs
+/.vscode/
+/.direnv/
+/.envrc
+/**/*.sln
+/**/*.user
+
+# large files
+/data/
+/mojo/
+
+# build artifacts
+/**/*.o
+/main
+/mnist_cnn_trainer
+/mnist_trainer
+/activation_tests
+/test_activations
+/integration_test
