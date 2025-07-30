@@ -1,6 +1,11 @@
 #pragma once
 
-#include <memory>
+#include <future>
+#include <vector>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+#include <map>
 #include "../tensor/tensor.hpp"
 
 namespace pipeline {
@@ -12,36 +17,66 @@ template <typename T>
 class Communicator {
 public:
     virtual ~Communicator() = default;
-    virtual void send(const Tensor<T>& tensor, int destination_rank) = 0;
-    virtual Tensor<T> receive(int source_rank) = 0;
+    virtual void send(std::future<Tensor<T>> future, int source_stage_idx, int micro_batch_id) = 0;
+    virtual Tensor<T> receive(int source_stage_idx, int micro_batch_id) = 0;
+    virtual void send_grad(std::future<Tensor<T>> future, int dest_stage_idx, int micro_batch_id) = 0;
+    virtual Tensor<T> receive_grad(int dest_stage_idx, int micro_batch_id) = 0;
 };
 
 // A simple in-process communicator for demonstration purposes.
 // It uses a blocking queue to transfer tensors between threads.
 template <typename T>
 class InProcessCommunicator : public Communicator<T> {
+private:
+    using Queue = std::queue<Tensor<T>>;
+    using QueueMap = std::map<int, Queue>;
+
+    std::mutex forward_mutex_;
+    std::map<int, QueueMap> forward_queues_; // Key: micro_batch_id, Value: map of stage_idx to queue
+    std::condition_variable forward_cv_;
+
+    std::mutex backward_mutex_;
+    std::map<int, QueueMap> backward_queues_; // Key: micro_batch_id, Value: map of stage_idx to queue
+    std::condition_variable backward_cv_;
+
 public:
-    void send(const Tensor<T>& tensor, int destination_rank) override {
-        // In a real scenario, this would involve serialization and
-        // sending data over a network or through CUDA IPC.
-        // For this example, we'll just use a shared queue.
-        std::lock_guard<std::mutex> lock(queue_mutex_);
-        message_queue_.push(tensor);
-        cv_.notify_one();
+    void send(std::future<Tensor<T>> future, int source_stage_idx, int micro_batch_id) override {
+        Tensor<T> tensor = future.get();
+        std::lock_guard<std::mutex> lock(forward_mutex_);
+        forward_queues_[micro_batch_id][source_stage_idx].push(std::move(tensor));
+        forward_cv_.notify_all();
     }
 
-    Tensor<T> receive(int source_rank) override {
-        std::unique_lock<std::mutex> lock(queue_mutex_);
-        cv_.wait(lock, [this]{ return !message_queue_.empty(); });
-        Tensor<T> tensor = message_queue_.front();
-        message_queue_.pop();
+    Tensor<T> receive(int source_stage_idx, int micro_batch_id) override {
+        std::unique_lock<std::mutex> lock(forward_mutex_);
+        forward_cv_.wait(lock, [&] {
+            return forward_queues_.count(micro_batch_id) &&
+                   forward_queues_[micro_batch_id].count(source_stage_idx) &&
+                   !forward_queues_[micro_batch_id][source_stage_idx].empty();
+        });
+        Tensor<T> tensor = std::move(forward_queues_[micro_batch_id][source_stage_idx].front());
+        forward_queues_[micro_batch_id][source_stage_idx].pop();
         return tensor;
     }
 
-private:
-    std::queue<Tensor<T>> message_queue_;
-    std::mutex queue_mutex_;
-    std::condition_variable cv_;
+    void send_grad(std::future<Tensor<T>> future, int dest_stage_idx, int micro_batch_id) override {
+        Tensor<T> tensor = future.get();
+        std::lock_guard<std::mutex> lock(backward_mutex_);
+        backward_queues_[micro_batch_id][dest_stage_idx].push(std::move(tensor));
+        backward_cv_.notify_all();
+    }
+
+    Tensor<T> receive_grad(int dest_stage_idx, int micro_batch_id) override {
+        std::unique_lock<std::mutex> lock(backward_mutex_);
+        backward_cv_.wait(lock, [&] {
+            return backward_queues_.count(micro_batch_id) &&
+                   backward_queues_[micro_batch_id].count(dest_stage_idx) &&
+                   !backward_queues_[micro_batch_id][dest_stage_idx].empty();
+        });
+        Tensor<T> tensor = std::move(backward_queues_[micro_batch_id][dest_stage_idx].front());
+        backward_queues_[micro_batch_id][dest_stage_idx].pop();
+        return tensor;
+    }
 };
 
 } // namespace pipeline

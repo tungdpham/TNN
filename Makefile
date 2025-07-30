@@ -85,7 +85,7 @@ ifeq ($(OS),Windows_NT)
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
 	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer
 	rm -f $(TEST_PROGRAMS)
 	rm -f test_activations integration_test
 endif

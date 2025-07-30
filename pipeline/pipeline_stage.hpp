@@ -7,6 +7,10 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <chrono>
+#include <iostream>
+#include <iomanip>
+#include <map>
 
 #include "../layers/layers.hpp"
 #include "../tensor/tensor.hpp"
@@ -14,6 +18,14 @@
 #include "thread_pool.hpp"
 
 namespace pipeline {
+
+// A simple profiler to measure execution times
+struct StageProfiler {
+    std::chrono::high_resolution_clock::time_point forward_start;
+    std::chrono::high_resolution_clock::time_point forward_end;
+    std::chrono::high_resolution_clock::time_point backward_start;
+    std::chrono::high_resolution_clock::time_point backward_end;
+};
 
 template <typename T>
 class PipelineStage {
@@ -28,10 +40,12 @@ public:
     // Asynchronous forward pass for a micro-batch
     std::future<Tensor<T>> forward(Tensor<T> input, int micro_batch_id) {
         auto task = [this, input, micro_batch_id]() mutable {
+            profilers_[micro_batch_id].forward_start = std::chrono::high_resolution_clock::now();
             Tensor<T> current_tensor = input;
             for (auto& layer : layers_) {
                 current_tensor = layer->forward(current_tensor, micro_batch_id);
             }
+            profilers_[micro_batch_id].forward_end = std::chrono::high_resolution_clock::now();
             return current_tensor;
         };
         return pool_.enqueue(std::move(task));
@@ -40,6 +54,7 @@ public:
     // Asynchronous backward pass for a micro-batch
     std::future<Tensor<T>> backward(Tensor<T> grad_output, int micro_batch_id) {
         auto task = [this, grad_output, micro_batch_id]() mutable {
+            profilers_[micro_batch_id].backward_start = std::chrono::high_resolution_clock::now();
             Tensor<T> current_grad = grad_output;
             
             for (auto it = layers_.rbegin(); it != layers_.rend(); ++it) {
@@ -50,9 +65,56 @@ public:
             // These gradients need to be accumulated.
             accumulate_gradients();
 
+            
+            profilers_[micro_batch_id].backward_end = std::chrono::high_resolution_clock::now();
+
             return current_grad;
         };
         return pool_.enqueue(std::move(task));
+    }
+
+    void set_optimizer(std::unique_ptr<layers::Optimizer<T>> optimizer) {
+        optimizer_ = std::move(optimizer);
+    }
+
+    void apply_gradients(int num_micro_batches) {
+        if (!optimizer_) {
+            // It's possible for a stage to have no parameters
+            return;
+        }
+
+        std::lock_guard<std::mutex> lock(accumulation_mutex_);
+
+        if (accumulated_gradients_.empty()) {
+            return;
+        }
+
+        // Average the accumulated gradients and copy them to the layer's gradient tensors
+        for (auto const& [layer_ptr, acc_grads] : accumulated_gradients_) {
+            auto layer_grads_ptrs = layer_ptr->gradients();
+            for (size_t i = 0; i < acc_grads.size(); ++i) {
+                *layer_grads_ptrs[i] = acc_grads[i] / static_cast<T>(num_micro_batches);
+            }
+        }
+
+        optimizer_->step(); // Update weights
+
+        accumulated_gradients_.clear(); // Clear for next mini-batch
+    }
+
+    void print_profiling_info() const {
+        long long total_forward_us = 0;
+        long long total_backward_us = 0;
+        for (const auto& pair : profilers_) {
+            total_forward_us += std::chrono::duration_cast<std::chrono::microseconds>(pair.second.forward_end - pair.second.forward_start).count();
+            total_backward_us += std::chrono::duration_cast<std::chrono::microseconds>(pair.second.backward_end - pair.second.backward_start).count();
+        }
+        long long avg_forward_us = profilers_.empty() ? 0 : total_forward_us / profilers_.size();
+        long long avg_backward_us = profilers_.empty() ? 0 : total_backward_us / profilers_.size();
+
+        std::cout << "  Stage " << stage_id_ << " Profiling:" << std::endl;
+        std::cout << "    Average Forward Pass: " << std::fixed << std::setprecision(2) << avg_forward_us / 1000.0 << " ms" << std::endl;
+        std::cout << "    Average Backward Pass: " << std::fixed << std::setprecision(2) << avg_backward_us / 1000.0 << " ms" << std::endl;
     }
 
     std::vector<Tensor<T>*> parameters() {
@@ -78,6 +140,7 @@ public:
     }
 
     void accumulate_gradients() {
+        std::lock_guard<std::mutex> lock(accumulation_mutex_);
         for (size_t i = 0; i < layers_.size(); ++i) {
             if (layers_[i]->has_parameters()) {
                 auto* layer_params =
@@ -106,55 +169,17 @@ public:
         }
     }
 
-    void apply_gradients(layers::Optimizer<T>& optimizer) {
-        std::lock_guard<std::mutex> lock(gradient_mutex_);
-        // This is a simplified application of gradients. A real implementation
-        // might need to handle parameter-gradient mapping more carefully.
-        auto params = parameters();
-        // Debugging params
-        // for (auto& param : params) {
-        //     printf("Parameter shape: %s\n", param->shape_str().c_str());
-        // }
-        auto grads = gradients();
-
-        // We need to create a temporary list of gradient *values* for the optimizer,
-        // based on the accumulated gradients. This is a bit of a workaround given
-        // the current optimizer API.
-        std::vector<Tensor<T>> accumulated_grads_for_optim;
-        for (auto& layer : layers_) {
-            if(layer->has_parameters()){
-                auto* p_layer = dynamic_cast<layers::ParameterizedLayer<T>*>(layer.get());
-                if(accumulated_gradients_.count(p_layer)){
-                    for(const auto& grad_tensor : accumulated_gradients_.at(p_layer)){
-                        accumulated_grads_for_optim.push_back(grad_tensor);
-                    }
-                }
-            }
-        }
-        // The optimizer needs pointers, so we create a vector of pointers to the accumulated gradients.
-        std::vector<Tensor<T>*> grad_pointers;
-        for(auto& grad : accumulated_grads_for_optim){
-            grad_pointers.push_back(&grad);
-        }
-
-        if(!params.empty() && !grad_pointers.empty()){
-             optimizer.update(params, grad_pointers);
-        }
-
-        accumulated_gradients_.clear();
-    }
-
-
 private:
     int stage_id_;
-    int device_id_; // e.g., GPU id
+    int device_id_; // For future use with GPUs
     std::vector<std::unique_ptr<layers::Layer<T>>> layers_;
     ThreadPool pool_;
+    std::unique_ptr<layers::Optimizer<T>> optimizer_;
 
-    // For gradient accumulation
-    std::unordered_map<layers::ParameterizedLayer<T>*, std::vector<Tensor<T>>>
-        accumulated_gradients_;
-    std::mutex gradient_mutex_;
+    // Gradient accumulation
+    std::map<layers::ParameterizedLayer<T>*, std::vector<Tensor<T>>> accumulated_gradients_;
+    std::mutex accumulation_mutex_;
+    std::map<int, StageProfiler> profilers_;
 };
 
 } // namespace pipeline

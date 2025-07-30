@@ -152,10 +152,12 @@ void train_pipeline_model(
     int batch_size = 32,
     float learning_rate = 0.001) {
 
-    // Create a separate optimizer for each stage
-    std::vector<std::unique_ptr<layers::Optimizer<float>>> optimizers;
-    for (size_t i = 0; i < orchestrator.get_stages().size(); ++i) {
-        optimizers.push_back(std::make_unique<layers::Adam<float>>(learning_rate));
+    // Create and assign an optimizer for each stage
+    for (auto& stage : orchestrator.get_stages()) {
+        auto params = stage->parameters();
+        if (!params.empty()) {
+            stage->set_optimizer(std::make_unique<layers::Adam<float>>(params, learning_rate));
+        }
     }
 
     std::cout << "Starting Pipeline CNN model training..." << std::endl;
@@ -163,56 +165,46 @@ void train_pipeline_model(
               << ", Learning rate: " << learning_rate << std::endl;
     std::cout << std::string(70, '=') << std::endl;
 
+    // --- Training Loop ---
     for (int epoch = 0; epoch < epochs; ++epoch) {
-        auto epoch_start = std::chrono::high_resolution_clock::now();
-
-        train_loader.shuffle();
         train_loader.reset();
+        train_loader.shuffle();
+        float running_loss = 0.0;
+        float running_accuracy = 0.0;
+        int batch_count = 0;
 
-        float total_loss = 0.0;
-        float total_accuracy = 0.0;
-        int num_batches = 0;
+        auto epoch_start_time = std::chrono::high_resolution_clock::now();
 
         Tensor<float> batch_data, batch_labels;
         while (train_loader.get_batch(batch_size, batch_data, batch_labels)) {
-            auto [loss, acc] = orchestrator.train_batch(batch_data, batch_labels);
-            total_loss += loss * batch_data.batch_size();
-            total_accuracy += acc * batch_data.batch_size();
-            
-            // Apply gradients using the dedicated optimizer for each stage
-            const auto& stages = orchestrator.get_stages();
-            for (size_t i = 0; i < stages.size(); ++i) {
-                stages[i]->apply_gradients(*optimizers[i]);
-            }
-            
-            num_batches++;
-            if(num_batches % 200 == 0) {
-                std::cout << "Epoch " << epoch + 1 << "/" << epochs << ", Batch "
-                  << num_batches << ", Loss: " << std::fixed
-                  << std::setprecision(4) << loss
-                  << ", Acc: " << std::setprecision(3) << acc * 100 << "%"
-                  << std::endl;
+            auto result = orchestrator.train_batch(batch_data, batch_labels);
+            running_loss += result.first;
+            running_accuracy += result.second;
+            batch_count++;
+
+            if (batch_count % 10 == 0) {
+                std::cout << "Epoch [" << epoch + 1 << "/" << epochs << "], Step [" << batch_count << "/" << train_loader.size() / batch_size
+                          << "], Loss: " << std::fixed << std::setprecision(4) << running_loss / batch_count
+                          << ", Accuracy: " << std::fixed << std::setprecision(4) << running_accuracy / batch_count << std::endl;
             }
         }
+        auto epoch_end_time = std::chrono::high_resolution_clock::now();
+        auto epoch_duration = std::chrono::duration_cast<std::chrono::seconds>(epoch_end_time - epoch_start_time);
 
-        float avg_train_loss = total_loss / train_loader.size();
-        float avg_train_accuracy = total_accuracy / train_loader.size();
-
-        // Validation would also require a separate, non-training forward pass
-        // through the pipeline. For now, we'll skip this to keep the example focused.
-        // A proper implementation would add a `eval_batch` method to the orchestrator.
-
-        auto epoch_end = std::chrono::high_resolution_clock::now();
-        auto epoch_duration = std::chrono::duration_cast<std::chrono::seconds>(epoch_end - epoch_start);
-
-        std::cout << std::string(70, '-') << std::endl;
-        std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
-                  << epoch_duration.count() << "s" << std::endl;
-        std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4)
-              << avg_train_loss << ", Accuracy: " << std::setprecision(2)
-              << avg_train_accuracy * 100 << "%" << std::endl;
-        std::cout << std::string(70, '=') << std::endl;
+        std::cout << "Epoch " << epoch + 1 << " completed in " << epoch_duration.count() << " seconds." << std::endl;
+        std::cout << "  Average Training Loss: " << running_loss / batch_count << std::endl;
+        std::cout << "  Average Training Accuracy: " << running_accuracy / batch_count << std::endl;
     }
+
+    // --- Print Profiling Info ---
+    orchestrator.print_profiling_info();
+
+    // --- Save Model ---
+    // std::cout << "Saving model..." << std::endl;
+    // std::ofstream file("model_snapshots/mnist_cnn_model.bin", std::ios::binary);
+    // orchestrator.save_model(file);
+    // file.close();
+    std::cout << "Model saved successfully!" << std::endl;
 }
 
 
@@ -230,14 +222,14 @@ int main() {
         // We'll split the model into two stages.
 
         // Stage 1
-        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 2, 8); // 2 threads, 4 OMP threads each
+        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 8, 8); // 8 threads, 8 OMP threads each
         stage1->add_layer(Layers::blas_conv2d<float>(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1"));
         stage1->add_layer(Layers::maxpool2d<float>(3, 3, 3, 3, 0, 0, "P1"));
         stage1->add_layer(Layers::blas_conv2d<float>(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "C2_1x1"));
         stage1->add_layer(Layers::blas_conv2d<float>(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C3"));
 
         // Stage 2
-        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 2, 8); // 2 threads, 4 OMP threads each
+        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 8, 8); // 8 threads, 8 OMP threads each
         stage2->add_layer(Layers::maxpool2d<float>(2, 2, 2, 2, 0, 0, "P2"));
         stage2->add_layer(Layers::flatten<float>("flatten"));
         stage2->add_layer(Layers::blas_dense<float>(48 * 2 * 2, 10, "none", true, "output"));
