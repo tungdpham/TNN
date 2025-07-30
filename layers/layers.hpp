@@ -162,115 +162,96 @@ private:
   void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
                     size_t batch_size, size_t input_features,
                     size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
                   output_features, input_features, 1.0f, input_data,
                   input_features, weight_data, input_features, 0.0f,
                   output_data, output_features);
-#else
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
                   output_features, input_features, 1.0, input_data,
                   input_features, weight_data, input_features, 0.0, output_data,
                   output_features);
+    } else {
+      fallback_gemm(input_data, weight_data, output_data, batch_size,
+                    input_features, output_features);
+    } 
 #else
       fallback_gemm(input_data, weight_data, output_data, batch_size,
                     input_features, output_features);
 #endif
-    } else {
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-    }
   }
 
   void gemm_weight_gradients(const T *input_data, const T *grad_output_data,
                              T *weight_grad_data, size_t batch_size,
                              size_t input_features,
                              size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
                   input_features, batch_size, 1.0f, grad_output_data,
                   output_features, input_data, input_features, 0.0f,
                   weight_grad_data, input_features);
-#else
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
                   input_features, batch_size, 1.0, grad_output_data,
                   output_features, input_data, input_features, 0.0,
                   weight_grad_data, input_features);
-#else
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-#endif
     } else {
       fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
                                 batch_size, input_features, output_features);
     }
+#else
+    fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
+                              batch_size, input_features, output_features);
+#endif
   }
 
   void gemm_input_gradients(const T *grad_output_data, const T *weight_data,
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
                   input_features, output_features, 1.0f, grad_output_data,
                   output_features, weight_data, input_features, 0.0f,
                   grad_input_data, input_features);
-#else
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
                   input_features, output_features, 1.0, grad_output_data,
                   output_features, weight_data, input_features, 0.0,
                   grad_input_data, input_features);
-#else
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-#endif
     } else {
       fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
                                batch_size, input_features, output_features);
     }
+#else
+    fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
+                             batch_size, input_features, output_features);
+#endif
   }
 
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       for (size_t n = 0; n < batch_size; ++n) {
         cblas_saxpy(output_features, 1.0f, bias_data, 1,
                     output_data + n * output_features, 1);
       }
-#else
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       for (size_t n = 0; n < batch_size; ++n) {
         cblas_daxpy(output_features, 1.0, bias_data, 1,
                     output_data + n * output_features, 1);
       }
-#else
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-#endif
     } else {
       fallback_add_bias(output_data, bias_data, batch_size, output_features);
     }
+#else
+    fallback_add_bias(output_data, bias_data, batch_size, output_features);
+#endif
   }
 
   // Fallback implementations when BLAS is not available
@@ -629,94 +610,75 @@ private:
   void conv_gemm_forward(const T *col_data, const T *weight_data,
                          T *output_data, size_t output_size, size_t kernel_size,
                          size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      printf("Using BLAS for convolution forward\n");
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
                   output_size, kernel_size, 1.0f, weight_data, kernel_size,
                   col_data, output_size, 0.0f, output_data, output_size);
-#else
-      // printf("Using fallback for convolution forward\n");
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
                   output_size, kernel_size, 1.0, weight_data, kernel_size,
                   col_data, output_size, 0.0, output_data, output_size);
-#else
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-#endif
     } else {
       fallback_conv_gemm_forward(col_data, weight_data, output_data,
                                  output_size, kernel_size, out_channels);
     }
+#else
+    fallback_conv_gemm_forward(col_data, weight_data, output_data,
+                               output_size, kernel_size, out_channels);
+#endif
   }
 
   void conv_gemm_weight_gradients(const T *col_data, const T *grad_output_data,
                                   T *weight_grad_data, size_t output_size,
                                   size_t kernel_size,
                                   size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
                   kernel_size, output_size, 1.0f, grad_output_data, output_size,
                   col_data, output_size, 0.0f, weight_grad_data, kernel_size);
-#else
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
                   kernel_size, output_size, 1.0, grad_output_data, output_size,
                   col_data, output_size, 0.0, weight_grad_data, kernel_size);
-#else
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-#endif
     } else {
       fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
                                           weight_grad_data, output_size,
                                           kernel_size, out_channels);
     }
+#else
+    fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
+                                        weight_grad_data, output_size,
+                                        kernel_size, out_channels);
+#endif
   }
 
   void conv_gemm_input_gradients(const T *grad_output_data,
                                  const T *weight_data, T *col_grad_data,
                                  size_t output_size, size_t kernel_size,
                                  size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
 #if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
+    if constexpr (std::is_same_v<T, float>) {
       cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
                   output_size, out_channels, 1.0f, weight_data, kernel_size,
                   grad_output_data, output_size, 0.0f, col_grad_data,
                   output_size);
-#else
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-#endif
     } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
       cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
                   output_size, out_channels, 1.0, weight_data, kernel_size,
                   grad_output_data, output_size, 0.0, col_grad_data,
                   output_size);
-#else
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-#endif
     } else {
       fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
                                          col_grad_data, output_size,
                                          kernel_size, out_channels);
     }
+#else
+    fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
+                                       col_grad_data, output_size,
+                                       kernel_size, out_channels);
+#endif
   }
 
   // Fallback implementations when BLAS is not available
