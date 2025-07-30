@@ -127,6 +127,14 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
+# MNIST CNN pipeline trainer target
+mnist_cnn_pipeline_trainer: mnist_cnn_pipeline_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif	
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -152,4 +160,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer $(TEST_PROGRAMS)

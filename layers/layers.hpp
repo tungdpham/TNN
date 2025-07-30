@@ -63,8 +63,9 @@ public:
   virtual ~Layer() = default;
 
   // Core forward/backward operations
-  virtual Tensor<T> forward(const Tensor<T> &input) = 0;
-  virtual Tensor<T> backward(const Tensor<T> &grad_output) = 0;
+  virtual Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) = 0;
+  virtual Tensor<T> backward(const Tensor<T> &grad_output,
+                             int micro_batch_id = 0) = 0;
 
   // Parameter management
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
@@ -89,6 +90,8 @@ public:
 
   // Optional: custom parameter update (for layers that need special handling)
   virtual void update_parameters(const Optimizer &optimizer) {}
+
+  std::string name() const { return name_; }
 
 protected:
   bool is_training_ = true;
@@ -136,8 +139,6 @@ protected:
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
   virtual void update_parameters_impl(const Optimizer &optimizer) = 0;
-
-  Tensor<T> last_input_; // Cache for gradient computation
 };
 
 // BLAS-optimized Dense/Fully Connected Layer
@@ -152,7 +153,10 @@ private:
   Tensor<T> bias_;
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
-  Tensor<T> pre_activation_output_;
+
+  // Per-micro-batch state
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
 
   // BLAS helper functions
   void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
@@ -364,8 +368,8 @@ public:
     weights_.fill_random_normal(std_dev);
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    this->last_input_ = input;
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    micro_batch_inputs_[micro_batch_id] = input;
 
     size_t batch_size = input.batch_size();
     size_t total_input_features =
@@ -402,7 +406,7 @@ public:
     output.from_rm_vector(output_flat);
 
     // Store pre-activation output
-    pre_activation_output_ = output;
+    micro_batch_pre_activations_[micro_batch_id] = output;
 
     // Apply activation if provided
     if (activation_) {
@@ -412,21 +416,36 @@ public:
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    size_t batch_size = this->last_input_.batch_size();
-    Tensor<T> grad_input(this->last_input_.shape());
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      throw std::runtime_error("No cached input found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+    if (activation_ && it_pre_act == micro_batch_pre_activations_.end()) {
+      throw std::runtime_error(
+          "No cached pre-activation output found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
+    }
+
+    const Tensor<T> &last_input = it_input->second;
+    size_t batch_size = last_input.batch_size();
+    Tensor<T> grad_input(last_input.shape());
 
     Tensor<T> current_grad = grad_output;
 
     // Backprop through activation
     if (activation_) {
       Tensor<T> activation_grad =
-          activation_->compute_gradient(pre_activation_output_, &current_grad);
+          activation_->compute_gradient(it_pre_act->second, &current_grad);
       current_grad = activation_grad;
     }
 
     // Compute weight gradients using BLAS
-    gemm_weight_gradients(this->last_input_.data(), current_grad.data(),
+    gemm_weight_gradients(last_input.data(), current_grad.data(),
                           weight_gradients_.data(), batch_size, input_features_,
                           output_features_);
 
@@ -446,6 +465,12 @@ public:
     gemm_input_gradients(current_grad.data(), weights_.data(),
                          grad_input.data(), batch_size, input_features_,
                          output_features_);
+
+    // Clean up cached data for this micro-batch
+    micro_batch_inputs_.erase(it_input);
+    if (activation_) {
+      micro_batch_pre_activations_.erase(it_pre_act);
+    }
 
     return grad_input;
   }
@@ -523,7 +548,7 @@ template <typename T = double>
 class ActivationLayer : public StatelessLayer<T> {
 private:
   std::unique_ptr<ActivationFunction<T>> activation_;
-  Tensor<T> last_input_;
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
 
 public:
   explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
@@ -534,15 +559,25 @@ public:
     }
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    last_input_ = input;
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    micro_batch_inputs_[micro_batch_id] = input;
     Tensor<T> output = input; // Copy
     activation_->apply(output);
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    return activation_->compute_gradient(last_input_, &grad_output);
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it = micro_batch_inputs_.find(micro_batch_id);
+    if (it == micro_batch_inputs_.end()) {
+      throw std::runtime_error(
+          "No cached input found for micro-batch ID in ActivationLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    const Tensor<T> &last_input = it->second;
+    Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
+    micro_batch_inputs_.erase(it);
+    return grad;
   }
 
   std::string type() const override { return "activation"; }
@@ -580,15 +615,15 @@ private:
   bool use_bias_;
   std::unique_ptr<ActivationFunction<T>> activation_;
 
-  Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
-  Tensor<T> bias_;    // [out_channels, 1, 1, 1]
+  Tensor<T> weights_;          // [out_channels, in_channels, kernel_h, kernel_w]
+  Tensor<T> bias_;             // [out_channels, 1, 1, 1]
   Tensor<T> weight_gradients_; // Same shape as weights
   Tensor<T> bias_gradients_;   // Same shape as bias
-  Tensor<T> pre_activation_output_;
 
-  // Cached im2col matrix to avoid recomputation in backward pass
-  mutable Matrix<T> cached_im2col_matrix_;
-  mutable bool im2col_cached_;
+  // Per-micro-batch state
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
+  mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 
   // BLAS helper functions for convolution
   void conv_gemm_forward(const T *col_data, const T *weight_data,
@@ -763,7 +798,7 @@ public:
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
         use_bias_(use_bias), activation_(std::move(activation)),
-        im2col_cached_(false) {
+        micro_batch_im2col_matrices_() {
     weights_ = Tensor<T>(
         std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
     weight_gradients_ = Tensor<T>(
@@ -783,7 +818,7 @@ public:
   }
 
   // Forward and backward implementations moved from separate file
-  Tensor<T> forward(const Tensor<T> &input) override {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (input.channels() != in_channels_) {
       printf("Input shape: %zu channels, expected: %zu channels\n",
              input.channels(), in_channels_);
@@ -791,8 +826,7 @@ public:
           "Input channel size mismatch in BLASConv2DLayer");
     }
 
-    this->last_input_ = input;
-    im2col_cached_ = false;
+    micro_batch_inputs_[micro_batch_id] = input;
 
     size_t batch_size = input.batch_size();
     size_t input_h = input.height();
@@ -805,8 +839,8 @@ public:
     // Perform im2col transformation
     Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_,
                                         stride_w_, pad_h_, pad_w_);
-    cached_im2col_matrix_ = col_matrix; // Cache for backward pass
-    im2col_cached_ = true;
+    micro_batch_im2col_matrices_[micro_batch_id] =
+        col_matrix; // Cache for backward pass
 
     // Create output tensor
     Tensor<T> output(batch_size, out_channels_, output_h, output_w);
@@ -857,7 +891,7 @@ public:
     }
 
     // Store pre-activation output
-    pre_activation_output_ = output;
+    micro_batch_pre_activations_[micro_batch_id] = output;
 
     // Apply activation if provided
     if (activation_) {
@@ -867,15 +901,33 @@ public:
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    if (!im2col_cached_) {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
+    auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      throw std::runtime_error("No cached input found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+    if (it_im2col == micro_batch_im2col_matrices_.end()) {
       throw std::runtime_error(
-          "Forward pass must be called before backward pass");
+          "No cached im2col matrix found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
+    }
+    if (activation_ && it_pre_act == micro_batch_pre_activations_.end()) {
+      throw std::runtime_error(
+          "No cached pre-activation output found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
     }
 
-    size_t batch_size = this->last_input_.batch_size();
-    size_t input_h = this->last_input_.height();
-    size_t input_w = this->last_input_.width();
+    const Tensor<T> &last_input = it_input->second;
+    const Matrix<T> &cached_im2col_matrix = it_im2col->second;
+
+    size_t batch_size = last_input.batch_size();
+    size_t input_h = last_input.height();
+    size_t input_w = last_input.width();
     size_t output_h = grad_output.height();
     size_t output_w = grad_output.width();
 
@@ -884,7 +936,7 @@ public:
     // Backprop through activation
     if (activation_) {
       current_grad =
-          activation_->compute_gradient(pre_activation_output_, &current_grad);
+          activation_->compute_gradient(it_pre_act->second, &current_grad);
     }
 
     // Initialize gradients
@@ -918,7 +970,7 @@ public:
     std::vector<T> col_data(kernel_size * output_size);
     for (size_t i = 0; i < kernel_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
-        col_data[i * output_size + j] = cached_im2col_matrix_(i, j);
+        col_data[i * output_size + j] = cached_im2col_matrix(i, j);
       }
     }
 
@@ -965,6 +1017,13 @@ public:
     Tensor<T> grad_input = Tensor<T>::col2im(
         col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
         kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+
+    // Clean up cache
+    micro_batch_inputs_.erase(it_input);
+    micro_batch_im2col_matrices_.erase(it_im2col);
+    if (activation_) {
+      micro_batch_pre_activations_.erase(it_pre_act);
+    }
 
     return grad_input;
   }
@@ -1038,8 +1097,8 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  Tensor<T> mask_;       // For storing max indices during forward pass
-  Tensor<T> last_input_; // Store input for backward pass
+  std::unordered_map<int, Tensor<T>> micro_batch_masks_;
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
@@ -1050,9 +1109,9 @@ public:
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
         pad_w_(pad_w) {}
 
-  Tensor<T> forward(const Tensor<T> &input) override {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     // Store input for backward pass
-    last_input_ = input;
+    micro_batch_inputs_[micro_batch_id] = input;
 
     size_t batch_size = input.batch_size();
     size_t channels = input.channels();
@@ -1068,7 +1127,7 @@ public:
         std::vector<size_t>{batch_size, channels, output_h, output_w});
 
     // Create mask for backward pass (store which input position had max value)
-    mask_ = Tensor<T>(
+    Tensor<T> mask(
         std::vector<size_t>{batch_size, channels, output_h, output_w});
 
     // Apply padding if needed
@@ -1108,22 +1167,41 @@ public:
 
             output(n, c, out_h, out_w) = max_val;
             // Store flattened index of max position for backward pass
-            mask_(n, c, out_h, out_w) =
+            mask(n, c, out_h, out_w) =
                 static_cast<T>(max_h * padded_input.width() + max_w);
           }
         }
       }
     }
 
+    micro_batch_masks_[micro_batch_id] = mask;
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_mask = micro_batch_masks_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      throw std::runtime_error(
+          "No cached input found for micro-batch ID in MaxPool2DLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    if (it_mask == micro_batch_masks_.end()) {
+      throw std::runtime_error(
+          "No cached mask found for micro-batch ID in MaxPool2DLayer: " +
+          std::to_string(micro_batch_id));
+    }
+
+    const Tensor<T> &last_input = it_input->second;
+    const Tensor<T> &mask = it_mask->second;
+
     // Use stored input dimensions instead of trying to calculate them
-    size_t batch_size = last_input_.batch_size();
-    size_t channels = last_input_.channels();
-    size_t input_h = last_input_.height();
-    size_t input_w = last_input_.width();
+    size_t batch_size = last_input.batch_size();
+    size_t channels = last_input.channels();
+    size_t input_h = last_input.height();
+    size_t input_w = last_input.width();
     size_t output_h = grad_output.height();
     size_t output_w = grad_output.width();
 
@@ -1145,7 +1223,7 @@ public:
         for (size_t out_h = 0; out_h < output_h; ++out_h) {
           for (size_t out_w = 0; out_w < output_w; ++out_w) {
             // Get the position of the max value
-            size_t flat_idx = static_cast<size_t>(mask_(n, c, out_h, out_w));
+            size_t flat_idx = static_cast<size_t>(mask(n, c, out_h, out_w));
             size_t max_h = flat_idx / padded_grad_input.width();
             size_t max_w = flat_idx % padded_grad_input.width();
 
@@ -1171,6 +1249,10 @@ public:
     } else {
       grad_input = padded_grad_input;
     }
+
+    // Clean up cache
+    micro_batch_inputs_.erase(it_input);
+    micro_batch_masks_.erase(it_mask);
 
     return grad_input;
   }
@@ -1211,7 +1293,7 @@ public:
 template <typename T = double> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
-  Tensor<T> mask_; // Dropout mask
+  std::unordered_map<int, Tensor<T>> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
 public:
@@ -1223,12 +1305,12 @@ public:
     }
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (!this->is_training_) {
       return input; // No dropout during inference
     }
 
-    mask_ = Tensor<T>(input.shape());
+    Tensor<T> mask(input.shape());
     Tensor<T> output = input;
 
     std::uniform_real_distribution<T> distribution(T(0), T(1));
@@ -1256,10 +1338,10 @@ public:
 #else
             if (local_distribution(generator_) < dropout_rate_) {
 #endif
-              mask_(n, c, h, w) = T(0);
+              mask(n, c, h, w) = T(0);
               output(n, c, h, w) = T(0);
             } else {
-              mask_(n, c, h, w) = scale;
+              mask(n, c, h, w) = scale;
               output(n, c, h, w) *= scale;
             }
           }
@@ -1267,13 +1349,23 @@ public:
       }
     }
 
+    micro_batch_masks_[micro_batch_id] = mask;
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
     if (!this->is_training_) {
       return grad_output;
     }
+
+    auto it_mask = micro_batch_masks_.find(micro_batch_id);
+    if (it_mask == micro_batch_masks_.end()) {
+      throw std::runtime_error(
+          "No cached mask found for micro-batch ID in DropoutLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    const Tensor<T> &mask = it_mask->second;
 
     Tensor<T> grad_input = grad_output;
 
@@ -1284,12 +1376,13 @@ public:
       for (size_t c = 0; c < grad_output.channels(); ++c) {
         for (size_t h = 0; h < grad_output.height(); ++h) {
           for (size_t w = 0; w < grad_output.width(); ++w) {
-            grad_input(n, c, h, w) *= mask_(n, c, h, w);
+            grad_input(n, c, h, w) *= mask(n, c, h, w);
           }
         }
       }
     }
 
+    micro_batch_masks_.erase(it_mask);
     return grad_input;
   }
 
@@ -1316,14 +1409,14 @@ public:
 // dense layers)
 template <typename T = double> class FlattenLayer : public StatelessLayer<T> {
 private:
-  std::vector<size_t> original_shape_; // Store for backward pass
+  std::unordered_map<int, std::vector<size_t>> micro_batch_original_shapes_;
 
 public:
   explicit FlattenLayer(const std::string &name = "flatten")
       : StatelessLayer<T>(name) {}
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    original_shape_ = input.shape();
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
     size_t batch_size = input.batch_size();
     size_t features = input.channels() * input.height() * input.width();
@@ -1350,9 +1443,17 @@ public:
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it = micro_batch_original_shapes_.find(micro_batch_id);
+    if (it == micro_batch_original_shapes_.end()) {
+      throw std::runtime_error(
+          "No cached shape found for micro-batch ID in FlattenLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    const std::vector<size_t> &original_shape = it->second;
     // Reshape back to original shape
-    Tensor<T> grad_input(original_shape_);
+    Tensor<T> grad_input(original_shape);
 
     size_t batch_size = grad_input.batch_size();
 
@@ -1372,6 +1473,7 @@ public:
       }
     }
 
+    micro_batch_original_shapes_.erase(it);
     return grad_input;
   }
 

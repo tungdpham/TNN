@@ -73,6 +73,12 @@ public:
         : Optimizer<T>(learning_rate), beta1_(beta1), beta2_(beta2), epsilon_(epsilon), t_(0), initialized_(false) {}
 
     void update(std::vector<Tensor<T>*>& params, const std::vector<Tensor<T>*>& grads) override {
+        // for(auto& params : params) {
+        //     printf("Parameter shape: %s\n", params->shape_str().c_str());
+        // }
+        // for (auto& grad : grads) {
+        //     printf("Gradient shape: %s\n", grad->shape_str().c_str());
+        // }
         if (!initialized_) {
             m_.resize(params.size());
             v_.resize(params.size());

@@ -146,6 +146,20 @@ public:
     std::fill(data_.get(), data_.get() + data_size_, T(0));
   }
 
+  Tensor(const std::initializer_list<size_t> &shape) {
+    // Initialize from a initializer list of dimensions
+    if (shape.size() != dims) {
+      throw std::invalid_argument("Shape must have " + std::to_string(dims) +
+                                  " dimensions");
+    }
+    std::copy(shape.begin(), shape.end(), shape_);
+    compute_strides();
+    data_size_ = std::accumulate(shape_, shape_ + dims, 1UL,
+                                 std::multiplies<size_t>());
+    data_ = std::make_unique<T[]>(data_size_);
+    std::fill(data_.get(), data_.get() + data_size_, T(0));
+  }
+
   Tensor(const std::vector<size_t> &shape) {
     assert(shape.size() == dims && "Shape must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
@@ -249,6 +263,19 @@ public:
     return std::vector<size_t>(shape_, shape_ + dims);
   }
 
+  std::string shape_str() const {
+    std::ostringstream oss;
+    oss << "{";
+    for (size_t i = 0; i < dims; ++i) {
+      oss << shape_[i];
+      if (i < dims - 1) {
+        oss << ", ";
+      }
+    }
+    oss << "}";
+    return oss.str();
+  }
+  
   const size_t *shape_ptr() const { return shape_; }
 
   size_t batch_size() const { return shape_[0]; }
@@ -312,6 +339,13 @@ public:
 
   const T *data() const { return data_.get(); }
 
+  // Clone
+  Tensor<T, layout> clone() const {
+    return Tensor<T, layout>(std::vector<size_t>(shape_, shape_ + dims),
+                                      std::vector<T>(data_.get(),
+                                                     data_.get() + data_size_));
+  }
+  
   // Fill operations
   void fill(T value) {
     std::fill(data_.get(), data_.get() + data_size_, value);
@@ -618,6 +652,7 @@ public:
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
+        printf("Shape mismatch: %zu vs %zu\n", shape_[i], other.shape_[i]);
         throw std::invalid_argument("Tensor shapes must match for addition");
       }
     }
@@ -710,6 +745,7 @@ public:
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
+        printf("Shape mismatch: %zu vs %zu\n", shape_[i], other.shape_[i]);
         throw std::invalid_argument("Tensor shapes must match for addition");
       }
     }
@@ -883,6 +919,30 @@ public:
     }
 
     return means;
+  }
+  
+  std::vector<Tensor<T>> split(size_t num_splits) const {
+    if (num_splits == 0 || num_splits > batch_size()) {
+      throw std::invalid_argument("Invalid number of splits");
+    }
+
+    std::vector<Tensor<T, layout>> splits;
+    size_t split_size = batch_size() / num_splits;
+
+    for (size_t i = 0; i < num_splits; ++i) {
+      size_t start = i * split_size;
+      size_t end = (i == num_splits - 1) ? batch_size() : start + split_size;
+
+      if constexpr (dims == 4) {
+        splits.emplace_back(slice_batch(start, end - 1));
+      } else if constexpr (dims == 5) {
+        splits.emplace_back(slice_batch(start, end - 1));
+      } else {
+        throw std::runtime_error(
+            "Unsupported tensor dimensionality for splitting");
+      }
+    }
+    return splits;
   }
 
   // To row major vector (for NCHW it's the same as data)
