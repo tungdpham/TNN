@@ -14,9 +14,7 @@
 /main
 /mnist_cnn_trainer
 /mnist_trainer
-/activation_tests
-/test_activations
-/integration_test
+/mnist_cnn_pipeline_trainer
 /profile.json.gz
 
 

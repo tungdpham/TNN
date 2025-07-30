@@ -6,6 +6,7 @@ NVCC = nvcc
 ENABLE_OPENMP ?= 1
 ENABLE_CUDA ?= 0
 ENABLE_BLAS ?= 0
+ENABLE_DEBUG ?= 0
 
 # Source files
 CXX_SOURCES = $(wildcard matrix/*.cpp neural/*.cpp utils/*.cpp)
@@ -27,11 +28,19 @@ NVCCFLAGS = -std=c++20 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
 
+DEBUG_FLAGS = -g -O0
+
+ifeq ($(ENABLE_DEBUG),1)
+	CXXFLAGS += $(DEBUG_FLAGS)
+	NVCCFLAGS += $(DEBUG_FLAGS)
+	LDFLAGS += $(DEBUG_FLAGS)
+	CUDA_LDFLAGS += $(DEBUG_FLAGS)
+endif
+
 # Add OpenMP support
 ifeq ($(ENABLE_OPENMP), 1)
 	CXXFLAGS += -fopenmp
 	LDFLAGS += -fopenmp
-	# CUDA_LDFLAGS += -fopenmp
 endif
 
 # Add CUDA support

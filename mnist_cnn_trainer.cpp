@@ -394,7 +394,7 @@ int main() {
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
                     32, // batch_size (moderate batch size)
-                    0.01 // learning_rate (slightly higher for simpler model)
+                    0.02 // learning_rate (slightly higher for simpler model)
     );
 
     std::cout

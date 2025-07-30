@@ -5,9 +5,6 @@
 #include <utility>
 #include <cmath>
 #include <limits>
-#include <chrono>
-#include <iostream>
-#include <iomanip>
 #include "pipeline_stage.hpp"
 #include "../tensor/tensor.hpp"
 
@@ -66,7 +63,6 @@ public:
           num_micro_batches_(num_micro_batches) {}
 
     std::pair<float, float> train_batch(const Tensor<T>& input_batch, const Tensor<T>& target_batch) {
-        auto train_start_time = std::chrono::high_resolution_clock::now();
         // Split the batch into micro-batches
         std::vector<Tensor<T>> micro_batch_inputs = input_batch.split(num_micro_batches_);
         std::vector<Tensor<T>> micro_batch_targets = target_batch.split(num_micro_batches_);
@@ -76,7 +72,7 @@ public:
         std::vector<Tensor<T>> predictions(num_micro_batches_);
 
         // --- Asynchronous Pipeline Execution ---
-        auto warmup_start_time = std::chrono::high_resolution_clock::now();
+
         // 1. Warm-up: Fill the pipeline with forward passes
         for (int i = 0; i < stages_.size() - 1; ++i) {
             Tensor<T> current_input = micro_batch_inputs[i];
@@ -92,9 +88,7 @@ public:
                 }
             }
         }
-        auto warmup_end_time = std::chrono::high_resolution_clock::now();
 
-        auto steady_state_start_time = std::chrono::high_resolution_clock::now();
         // 2. Steady State: 1F1B (one forward, one backward pass)
         for (int i = 0; i < num_micro_batches_ - (stages_.size() - 1); ++i) {
             int forward_batch_idx = i + stages_.size() - 1;
@@ -129,9 +123,7 @@ public:
                 }
             }
         }
-        auto steady_state_end_time = std::chrono::high_resolution_clock::now();
 
-        auto cooldown_start_time = std::chrono::high_resolution_clock::now();
         // 3. Cool-down: Drain the pipeline with backward passes
         for (int i = num_micro_batches_ - (stages_.size() - 1); i < num_micro_batches_; ++i) {
             int backward_batch_idx = i;
@@ -149,10 +141,8 @@ public:
                 }
             }
         }
-        auto cooldown_end_time = std::chrono::high_resolution_clock::now();
 
         // --- Wait for all backward passes to complete and calculate metrics ---
-        auto wait_start_time = std::chrono::high_resolution_clock::now();
         float total_loss = 0.0f;
         float total_correct = 0.0f;
 
@@ -161,37 +151,8 @@ public:
             total_loss += TensorCrossEntropyLoss<T>::compute_loss(predictions[i], micro_batch_targets[i]);
             total_correct += calculate_tensor_accuracy<T>(predictions[i], micro_batch_targets[i]);
         }
-        auto wait_end_time = std::chrono::high_resolution_clock::now();
-
-        // --- Apply Gradients ---
-        for (auto& stage : stages_) {
-            stage->apply_gradients(num_micro_batches_);
-        }
-
-        auto train_end_time = std::chrono::high_resolution_clock::now();
-
-        // Store profiling data
-        warmup_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(warmup_end_time - warmup_start_time).count();
-        steady_state_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(steady_state_end_time - steady_state_start_time).count();
-        cooldown_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(cooldown_end_time - cooldown_start_time).count();
-        wait_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(wait_end_time - wait_start_time).count();
-        total_train_time_ms_ = std::chrono::duration_cast<std::chrono::milliseconds>(train_end_time - train_start_time).count();
 
         return {total_loss / input_batch.batch_size(), total_correct / input_batch.batch_size()};
-    }
-
-    void print_profiling_info() const {
-        std::cout << "--- Pipeline Orchestrator Profiling ---" << std::endl;
-        std::cout << "Total Training Time: " << std::fixed << std::setprecision(2) << total_train_time_ms_ / 1000.0 << " s" << std::endl;
-        std::cout << "  Warm-up Phase:     " << std::fixed << std::setprecision(2) << warmup_time_ms_ << " ms" << std::endl;
-        std::cout << "  Steady State Phase:  " << std::fixed << std::setprecision(2) << steady_state_time_ms_ << " ms" << std::endl;
-        std::cout << "  Cool-down Phase:   " << std::fixed << std::setprecision(2) << cooldown_time_ms_ << " ms" << std::endl;
-        std::cout << "  Result Wait Time:    " << std::fixed << std::setprecision(2) << wait_time_ms_ << " ms" << std::endl;
-        std::cout << "---------------------------------------" << std::endl;
-
-        for (const auto& stage : stages_) {
-            stage->print_profiling_info();
-        }
     }
 
     const std::vector<std::unique_ptr<PipelineStage<T>>>& get_stages() const {
@@ -207,12 +168,6 @@ private:
     std::vector<std::unique_ptr<PipelineStage<T>>> stages_;
     std::unique_ptr<Communicator<T>> communicator_;
     int num_micro_batches_;
-    // Profiling data
-    long long warmup_time_ms_ = 0;
-    long long steady_state_time_ms_ = 0;
-    long long cooldown_time_ms_ = 0;
-    long long wait_time_ms_ = 0;
-    long long total_train_time_ms_ = 0;
 };
 
 } // namespace pipeline
