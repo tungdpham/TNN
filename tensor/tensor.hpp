@@ -179,15 +179,6 @@ public:
     return data_[compute_index({n, c, h, w})];
   }
 
-  // Accessors for 5D tensors
-  T &operator()(size_t n, size_t c, size_t d, size_t h, size_t w) {
-    return data_[compute_index({n, c, d, h, w})];
-  }
-
-  const T &operator()(size_t n, size_t c, size_t d, size_t h, size_t w) const {
-    return data_[compute_index({n, c, d, h, w})];
-  }
-
   T &operator()(const std::vector<size_t> &indices) {
     return data_[compute_index(indices)];
   }
@@ -267,11 +258,7 @@ public:
 
   constexpr bool is_4d() const { return dims == 4; }
 
-  constexpr bool is_5d() const { return dims == 5; }
-
   static constexpr bool is_expected_4d() { return dims == 4; }
-
-  static constexpr bool is_expected_5d() { return dims == 5; }
 
   size_t size() const { return data_size_; }
 
@@ -312,11 +299,11 @@ public:
     }
   }
 
-  void fill_random_normal(T stddev) {
+  void fill_random_normal(T mean, T stddev) {
     static_assert(std::is_floating_point<T>::value,
                   "Normal distribution requires floating point type");
     std::mt19937 gen(std::random_device{}());
-    std::normal_distribution<T> dis(T(0), stddev);
+    std::normal_distribution<T> dis(mean, stddev);
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] = dis(gen);
     }
@@ -660,22 +647,6 @@ public:
         }
         means[c] = sum / static_cast<T>(channel_size);
       }
-    } else if constexpr (dims == 5) {
-      size_t channel_size = batch_size() * depth() * height() * width();
-
-      for (size_t c = 0; c < channels(); ++c) {
-        T sum = T(0);
-        for (size_t n = 0; n < batch_size(); ++n) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                sum += (*this)(n, c, d, h, w);
-              }
-            }
-          }
-        }
-        means[c] = sum / static_cast<T>(channel_size);
-      }
     } else {
       throw std::runtime_error(
           "Unsupported tensor dimensionality for channel statistics");
@@ -698,8 +669,6 @@ public:
 
       if constexpr (dims == 4) {
         splits.emplace_back(slice_batch(start, end - 1));
-      } else if constexpr (dims == 5) {
-        splits.emplace_back(slice_batch(start, end - 1));
       } else {
         throw std::runtime_error(
             "Unsupported tensor dimensionality for splitting");
@@ -709,55 +678,31 @@ public:
   }
 
   // To row major vector (for NCHW it's the same as data)
-  std::vector<T> to_rm_vector() const {
+  std::vector<T> to_vector() const {
     if constexpr (layout == NCHW) {
       return std::vector<T>(data_.get(), data_.get() + data_size_);
     } else {
-      // For NHWC, we need to flatten the tensor to a row-major vector
-      std::vector<T> result(data_size_);
-      size_t idx = 0;
-
-      if constexpr (dims == 4) {
-        for (size_t n = 0; n < batch_size(); ++n) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              for (size_t c = 0; c < channels(); ++c) {
-                result[idx++] = (*this)(n, c, h, w);
-              }
-            }
-          }
-        }
-      } else if constexpr (dims == 5) {
-        for (size_t n = 0; n < batch_size(); ++n) {
-          for (size_t d = 0; d < depth(); ++d) {
-            for (size_t h = 0; h < height(); ++h) {
-              for (size_t w = 0; w < width(); ++w) {
-                for (size_t c = 0; c < channels(); ++c) {
-                  result[idx++] = (*this)(n, c, d, h, w);
-                }
-              }
-            }
-          }
-        }
-      } else {
-        throw std::runtime_error("Unsupported tensor dimensionality for "
-                                 "row-major vector conversion");
-      }
-
-      return result;
+      throw std::runtime_error(
+          "to_vector is only supported for NCHW layout");
     }
   }
 
-  void from_rm_vector(const std::vector<T> &vec) {
+  // Load data from row major vector (for NCHW it's the same as data)
+  void from_vector(const std::vector<T> &vec) {
     if (vec.size() != data_size_) {
       throw std::invalid_argument("Vector size does not match tensor size");
+    }
+
+    if constexpr (layout != NCHW) {
+      throw std::runtime_error(
+          "from_vector is only supported for NCHW layout");
     }
 
     std::copy(std::execution::par_unseq, vec.begin(), vec.end(), data_.get());
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
-  Matrix<T> im2col_optimized(size_t kernel_h, size_t kernel_w,
+  Matrix<T> im2col(size_t kernel_h, size_t kernel_w,
                              size_t stride_h = 1, size_t stride_w = 1,
                              size_t pad_h = 0, size_t pad_w = 0) const {
     static_assert(dims == 4,
@@ -812,7 +757,7 @@ public:
   }
 
   static Tensor<T, layout>
-  col2im_optimized(const Matrix<T> &col_matrix, size_t batch_size,
+  col2im(const Matrix<T> &col_matrix, size_t batch_size,
                    size_t channels, size_t height, size_t width,
                    size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
                    size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {

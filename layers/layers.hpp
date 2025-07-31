@@ -344,7 +344,7 @@ public:
     T fan_in = static_cast<T>(input_features);
     T fan_out = static_cast<T>(output_features);
     T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
-    weights_.fill_random_normal(std_dev);
+    weights_.fill_random_normal(T(0), std_dev);
   }
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
@@ -730,7 +730,7 @@ private:
   }
 
   void set_flattened_weight_gradients(const std::vector<T> &flattened) {
-    weight_gradients_.from_rm_vector(flattened);
+    weight_gradients_.from_vector(flattened);
   }
 
 public:
@@ -759,7 +759,7 @@ public:
     T fan_in = static_cast<T>(in_channels * kernel_h * kernel_w);
     T fan_out = static_cast<T>(out_channels * kernel_h * kernel_w);
     T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
-    weights_.fill_random_normal(std_dev);
+    weights_.fill_random_normal(T(0), std_dev);
   }
 
   // Forward and backward implementations moved from separate file
@@ -782,7 +782,7 @@ public:
     const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
     // Perform im2col transformation
-    Matrix<T> col_matrix = input.im2col_optimized(kernel_h_, kernel_w_, stride_h_,
+    Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_,
                                         stride_w_, pad_h_, pad_w_);
     micro_batch_im2col_matrices_[micro_batch_id] =
         col_matrix; // Cache for backward pass
@@ -946,7 +946,7 @@ public:
     }
 
     // Compute input gradients using BLAS
-    std::vector<T> weight_flat = weights_.to_rm_vector();
+    std::vector<T> weight_flat = weights_.to_vector();
     std::vector<T> col_grad_flat(kernel_size * output_size);
     conv_gemm_input_gradients(grad_output_flat.data(), weight_flat.data(),
                               col_grad_flat.data(), output_size, kernel_size,
@@ -961,7 +961,7 @@ public:
     }
 
     // Use col2im to convert back to input gradient tensor
-    Tensor<T> grad_input = Tensor<T>::col2im_optimized(
+    Tensor<T> grad_input = Tensor<T>::col2im(
         col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
         kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
@@ -1524,8 +1524,7 @@ public:
     size_t batch_size = input.batch_size();
     size_t features = input.channels() * input.height() * input.width();
 
-    Tensor<T> output(input);
-    output.reshape({batch_size, features, 1, 1});
+    Tensor<T> output = input.reshape({batch_size, features, 1, 1});
 
     return output;
   }
@@ -1539,19 +1538,9 @@ public:
           std::to_string(micro_batch_id));
     }
     const std::vector<size_t> &original_shape = it->second;
+    
     // Reshape back to original shape
-    Tensor<T> grad_input(original_shape);
-
-    T* grad_input_data = grad_input.data();
-    const T* grad_output_data = grad_output.data();
-
-    // Copy data back to CHW order
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
-#endif
-    for (size_t idx=0;idx<grad_output.size();++idx) {
-      grad_input_data[idx] = grad_output_data[idx];
-    }
+    Tensor<T> grad_input = grad_output.reshape(original_shape);
 
     // micro_batch_original_shapes_.erase(it);
     return grad_input;
