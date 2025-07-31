@@ -784,22 +784,10 @@ public:
       }
     }
 
-    // Convert cached im2col matrix to contiguous format
-    std::vector<T> col_data(kernel_size * output_size);
-    for (size_t i = 0; i < kernel_size; ++i) {
-      for (size_t j = 0; j < output_size; ++j) {
-        col_data[i * output_size + j] = cached_im2col_matrix(i, j);
-      }
-    }
-
     // Compute weight gradients
-    std::vector<T> weight_grad_flat(out_channels_ * kernel_size);
-    conv_gemm_weight_gradients(col_data.data(), grad_output_flat.data(),
-                               weight_grad_flat.data(), output_size,
+    conv_gemm_weight_gradients(cached_im2col_matrix.data(), grad_output_flat.data(),
+                               weight_gradients_.data(), output_size,
                                kernel_size, out_channels_);
-
-    // Set weight gradients back to tensor format
-    set_flattened_weight_gradients(weight_grad_flat);
 
     // Compute bias gradients
     if (use_bias_) {
@@ -817,31 +805,15 @@ public:
     }
 
     // Compute input gradients
-    std::vector<T> weight_flat = weights_.to_vector();
-    std::vector<T> col_grad_flat(kernel_size * output_size);
-    conv_gemm_input_gradients(grad_output_flat.data(), weight_flat.data(),
-                              col_grad_flat.data(), output_size, kernel_size,
-                              out_channels_);
-
-    // Convert col_grad back to Matrix format
     Matrix<T> col_grad_matrix(kernel_size, output_size);
-    for (size_t i = 0; i < kernel_size; ++i) {
-      for (size_t j = 0; j < output_size; ++j) {
-        col_grad_matrix(i, j) = col_grad_flat[i * output_size + j];
-      }
-    }
+    conv_gemm_input_gradients(grad_output_flat.data(), weights_.data(),
+                              col_grad_matrix.data(), output_size, kernel_size,
+                              out_channels_);
 
     // Use col2im to convert back to input gradient tensor
     Tensor<T> grad_input = Tensor<T>::col2im(
         col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
         kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
-
-    // Clean up cache
-    // micro_batch_inputs_.erase(it_input);
-    // micro_batch_im2col_matrices_.erase(it_im2col);
-    // if (activation_) {
-    //   micro_batch_pre_activations_.erase(it_pre_act);
-    // }
 
     return grad_input;
   }

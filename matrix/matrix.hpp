@@ -70,7 +70,11 @@ public:
     return data_[row * cols_ + col];
   }
 
-  inline T* data(){
+  T* data(){
+    return data_;
+  }
+
+  T* data() const {
     return data_;
   }
 
