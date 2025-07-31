@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include <execution>
 
 enum Layout {
   NCHW,  // 4D: Batch, Channels, Height, Width (most common for CNNs)
@@ -179,7 +180,7 @@ public:
       throw std::invalid_argument("Data size doesn't match tensor shape");
     }
     data_ = std::make_unique<T[]>(data_size_);
-    std::copy(data.begin(), data.end(), data_.get());
+    std::copy(std::execution::par_unseq, data.begin(), data.end(), data_.get());
   }
 
   ~Tensor() = default;
@@ -190,7 +191,9 @@ public:
     compute_strides();
     if (data_size_ > 0) {
       data_ = std::make_unique<T[]>(data_size_);
-      std::copy(other.data_.get(), other.data_.get() + data_size_, data_.get());
+      std::copy(std::execution::par_unseq,
+                other.data_.get(), other.data_.get() + data_size_,
+                data_.get());
     }
   }
 
@@ -208,13 +211,11 @@ public:
       std::copy(other.shape_, other.shape_ + dims, shape_);
       compute_strides();
       data_size_ = other.data_size_;
-      if (data_size_ > 0) {
-        data_ = std::make_unique<T[]>(data_size_);
-        std::copy(other.data_.get(), other.data_.get() + data_size_,
-                  data_.get());
-      } else {
-        data_.reset();
-      }
+      data_ = std::make_unique<T[]>(data_size_);
+      std::copy(std::execution::par_unseq,
+                other.data_.get(),
+                other.data_.get() + data_size_,
+                data_.get());
     }
     return *this;
   }
@@ -312,10 +313,13 @@ public:
 
   // Generic dimension accessors
   size_t dimension(size_t index) const {
-    if (index >= dims) {
-      throw std::out_of_range("Dimension index out of range");
-    }
+    assert(index < dims && "Dimension index out of range");
     return shape_[index];
+  }
+
+  size_t stride(size_t index) const {
+    assert(index < dims && "Stride index out of range");
+    return strides[index];
   }
 
   size_t num_dimensions() const { return dims; }
@@ -346,7 +350,8 @@ public:
 
   // Fill operations
   void fill(T value) {
-    std::fill(data_.get(), data_.get() + data_size_, value);
+    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+              value);
   }
 
   void fill_random_uniform(T range) {
@@ -809,142 +814,10 @@ public:
       throw std::invalid_argument("Vector size does not match tensor size");
     }
 
-    std::copy(vec.begin(), vec.end(), data_.get());
+    std::copy(std::execution::par_unseq, vec.begin(), vec.end(), data_.get());
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
-
-  Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                   size_t stride_w = 1, size_t pad_h = 0,
-                   size_t pad_w = 0) const {
-    size_t output_h = (height() + 2 * pad_h - kernel_h) / stride_h + 1;
-    size_t output_w = (width() + 2 * pad_w - kernel_w) / stride_w + 1;
-
-    size_t col_height = channels() * kernel_h * kernel_w;
-    size_t col_width = batch_size() * output_h * output_w;
-
-    Matrix<T> col_matrix(col_height, col_width);
-    col_matrix.fill(0.0);
-
-    // Apply padding if needed - avoid copy when no padding
-    const Tensor<T, layout> *input_ptr = this;
-    std::unique_ptr<Tensor<T, layout>> padded_input_storage;
-
-    if (pad_h > 0 || pad_w > 0) {
-      padded_input_storage =
-          std::make_unique<Tensor<T, layout>>(pad(pad_h, pad_w));
-      input_ptr = padded_input_storage.get();
-    }
-
-    const Tensor<T, layout> &input_tensor = *input_ptr;
-
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t n = 0; n < batch_size(); ++n) {
-      size_t batch_offset = n * output_h * output_w;
-
-      for (size_t out_h = 0; out_h < output_h; ++out_h) {
-        for (size_t out_w = 0; out_w < output_w; ++out_w) {
-          size_t col_idx = batch_offset + out_h * output_w + out_w;
-          size_t row_idx = 0;
-
-          // Compute starting positions
-          size_t h_start = out_h * stride_h;
-          size_t w_start = out_w * stride_w;
-
-          for (size_t c = 0; c < channels(); ++c) {
-            // Vectorizable inner loops for small kernels
-            for (size_t kh = 0; kh < kernel_h; ++kh) {
-              size_t h_idx = h_start + kh;
-
-              if (h_idx < input_tensor.height()) {
-                for (size_t kw = 0; kw < kernel_w; ++kw) {
-                  size_t w_idx = w_start + kw;
-
-                  if (w_idx < input_tensor.width()) {
-                    col_matrix(row_idx, col_idx) =
-                        input_tensor(n, c, h_idx, w_idx);
-                  }
-                  ++row_idx;
-                }
-              } else {
-                // Skip entire row if height is out of bounds
-                row_idx += kernel_w;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    return col_matrix;
-  }
-
-  /**
-   * col2im operation (inverse of im2col) for gradient computation
-   * Reconstructs the original tensor from the column matrix.
-   */
-  static Tensor<T, layout> col2im(const Matrix<T> &col_matrix,
-                                  size_t batch_size, size_t channels,
-                                  size_t height, size_t width, size_t kernel_h,
-                                  size_t kernel_w, size_t stride_h = 1,
-                                  size_t stride_w = 1, size_t pad_h = 0,
-                                  size_t pad_w = 0) {
-    size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
-    size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
-
-    // Create padded result tensor
-    size_t padded_h = height + 2 * pad_h;
-    size_t padded_w = width + 2 * pad_w;
-    Tensor<T, layout> padded_result(batch_size, channels, padded_h, padded_w);
-    padded_result.fill(T(0));
-
-    // Reconstruct from column matrix
-#ifdef _OPENMP
-#pragma omp parallel for schedule(dynamic, 1)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t batch_offset = n * output_h * output_w;
-
-      for (size_t out_h = 0; out_h < output_h; ++out_h) {
-        for (size_t out_w = 0; out_w < output_w; ++out_w) {
-          size_t col_idx = batch_offset + out_h * output_w + out_w;
-          size_t row_idx = 0;
-
-          size_t h_start = out_h * stride_h;
-          size_t w_start = out_w * stride_w;
-
-          for (size_t c = 0; c < channels; ++c) {
-            for (size_t kh = 0; kh < kernel_h; ++kh) {
-              size_t h_idx = h_start + kh;
-
-              for (size_t kw = 0; kw < kernel_w; ++kw) {
-                size_t w_idx = w_start + kw;
-
-                if (h_idx < padded_h && w_idx < padded_w) {
-#ifdef _OPENMP
-#pragma omp atomic
-#endif
-                  padded_result(n, c, h_idx, w_idx) +=
-                      col_matrix(row_idx, col_idx);
-                }
-                ++row_idx;
-              }
-            }
-          }
-        }
-      }
-    }
-    // Remove padding if it was applied
-    if (pad_h > 0 || pad_w > 0) {
-      return padded_result.crop(pad_h, pad_w, padded_h - pad_h - 1,
-                                padded_w - pad_w - 1);
-    } else {
-      return padded_result;
-    }
-  }
-
   Matrix<T> im2col_optimized(size_t kernel_h, size_t kernel_w,
                              size_t stride_h = 1, size_t stride_w = 1,
                              size_t pad_h = 0, size_t pad_w = 0) const {
@@ -999,12 +872,11 @@ public:
     return col_matrix;
   }
 
-  static Tensor<T, layout> col2im(const Matrix<T> &col_matrix,
-                                  size_t batch_size, size_t channels,
-                                  size_t height, size_t width, size_t kernel_h,
-                                  size_t kernel_w, size_t stride_h = 1,
-                                  size_t stride_w = 1, size_t pad_h = 0,
-                                  size_t pad_w = 0) {
+  static Tensor<T, layout>
+  col2im_optimized(const Matrix<T> &col_matrix, size_t batch_size,
+                   size_t channels, size_t height, size_t width,
+                   size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+                   size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
 
     size_t padded_h = height + 2 * pad_h;
     size_t padded_w = width + 2 * pad_w;
@@ -1015,7 +887,7 @@ public:
     final_result.fill(T(0));
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(dynamic)
+#pragma omp parallel for collapse(4) schedule(static, 1)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t c = 0; c < channels; ++c) {

@@ -324,12 +324,12 @@ void train_cnn_model(layers::Sequential<float> &model,
     std::cout << std::string(70, '=') << std::endl;
 
     // Learning rate decay (more aggressive for CNN)
-    if ((epoch + 1) % 3 == 0) {
+    if ((epoch + 1) % 2 == 0) {
       std::cout << "Current learning rate: " << optimizer.get_learning_rate()
                 << std::endl;
-      float new_lr = optimizer.get_learning_rate() * 0.8;
+      float new_lr = 1.0f * optimizer.get_learning_rate() * 0.8f;
       optimizer.set_learning_rate(new_lr);
-      std::cout << "Learning rate reduced to: " << new_lr << std::endl;
+      printf("Learning rate decayed to: %.6f\n", new_lr);
     }
   }
 }
@@ -371,7 +371,7 @@ int main() {
                          "C2") // 1x1 conv
 
             // C3: convolution 5x5 kernel, stride 1, relu activation
-            // Output size: 16x4x4 (8-5+1=4) (C H W order)
+            // Output size: 48x4x4 (8-5+1=4) (C H W order)
             .blas_conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C2")
 
             // P2: max pool 2x2 blocks, stride 2
@@ -387,14 +387,14 @@ int main() {
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        32, 1, 28, 28}); // Show summary with single image input
+        64, 1, 28, 28}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting Mojo-style CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
-                    32, // batch_size (moderate batch size)
-                    0.02 // learning_rate (slightly higher for simpler model)
+                    64, // batch_size (moderate batch size)
+                    0.01 // learning_rate (slightly higher for simpler model)
     );
 
     std::cout

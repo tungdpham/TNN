@@ -41,10 +41,14 @@ private:
 
 public:
     void send(std::future<Tensor<T>> future, int source_stage_idx, int micro_batch_id) override {
-        Tensor<T> tensor = future.get();
-        std::lock_guard<std::mutex> lock(forward_mutex_);
-        forward_queues_[micro_batch_id][source_stage_idx].push(std::move(tensor));
-        forward_cv_.notify_all();
+        std::thread([this, f = std::move(future), source_stage_idx, micro_batch_id]() mutable {
+            Tensor<T> tensor = f.get();
+            {
+                std::lock_guard<std::mutex> lock(forward_mutex_);
+                forward_queues_[micro_batch_id][source_stage_idx].push(std::move(tensor));
+            }
+            forward_cv_.notify_all();
+        }).detach();
     }
 
     Tensor<T> receive(int source_stage_idx, int micro_batch_id) override {
@@ -60,10 +64,14 @@ public:
     }
 
     void send_grad(std::future<Tensor<T>> future, int dest_stage_idx, int micro_batch_id) override {
-        Tensor<T> tensor = future.get();
-        std::lock_guard<std::mutex> lock(backward_mutex_);
-        backward_queues_[micro_batch_id][dest_stage_idx].push(std::move(tensor));
-        backward_cv_.notify_all();
+        std::thread([this, f = std::move(future), dest_stage_idx, micro_batch_id]() mutable {
+            Tensor<T> tensor = f.get();
+            {
+                std::lock_guard<std::mutex> lock(backward_mutex_);
+                backward_queues_[micro_batch_id][dest_stage_idx].push(std::move(tensor));
+            }
+            backward_cv_.notify_all();
+        }).detach();
     }
 
     Tensor<T> receive_grad(int dest_stage_idx, int micro_batch_id) override {

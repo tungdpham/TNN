@@ -9,6 +9,9 @@
 /data/
 /mojo/
 
+# build
+/build/
+
 # build artifacts
 /**/*.o
 /main

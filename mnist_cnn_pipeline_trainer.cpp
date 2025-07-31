@@ -12,9 +12,9 @@
 #include "layers/layers.hpp"
 #include "layers/optimizers.hpp"
 #include "tensor/tensor.hpp"
-#include "pipeline/pipeline_stage.hpp"
-#include "pipeline/pipeline_orchestrator.hpp"
-#include "pipeline/communication.hpp"
+#include "pipeline_experimental/pipeline_stage.hpp"
+#include "pipeline_experimental/pipeline_orchestrator.hpp"
+#include "pipeline_experimental/communication.hpp"
 
 // Assuming the MNISTCNNDataLoader and loss functions are in a shared header
 // For this example, I'll redefine them here for simplicity.
@@ -223,17 +223,16 @@ int main() {
         test_loader.load_data("./data/mnist_test.csv");
         
         // Stage 1
-        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 8, 8); // 8 threads, 8 OMP threads each
+        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 1, 16); // 8 threads, 16 OMP threads each
         stage1->add_layer(Layers::blas_conv2d<float>(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1"));
         stage1->add_layer(Layers::maxpool2d<float>(3, 3, 3, 3, 0, 0, "P1"));
         stage1->add_layer(Layers::blas_conv2d<float>(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "C2_1x1"));
         stage1->add_layer(Layers::blas_conv2d<float>(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C3"));
 
         // Stage 2
-        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 8, 8); // 8 threads, 8 OMP threads each
+        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 1, 16); // 8 threads, 16 OMP threads each
         stage2->add_layer(Layers::maxpool2d<float>(2, 2, 2, 2, 0, 0, "P2"));
-        stage2->add_layer(Layers::flatten<float>("flatten"));
-        stage2->add_layer(Layers::blas_dense<float>(48 * 2 * 2, 10, "none", true, "output"));
+        stage2->add_layer(Layers::blas_dense<float>(48 * 2 * 2, 10, "linear", true, "output"));
         stage2->add_layer(Layers::activation<float>("softmax", "softmax_activation"));
 
 

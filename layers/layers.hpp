@@ -297,7 +297,7 @@ private:
                                 size_t input_features,
                                 size_t output_features) const {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) 
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t in_f = 0; in_f < input_features; ++in_f) {
@@ -350,6 +350,7 @@ public:
   }
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
     micro_batch_inputs_[micro_batch_id] = input;
 
     size_t batch_size = input.batch_size();
@@ -399,10 +400,14 @@ public:
 
   Tensor<T> backward(const Tensor<T> &grad_output,
                      int micro_batch_id = 0) override {
+    // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
     auto it_input = micro_batch_inputs_.find(micro_batch_id);
     auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
 
     if (it_input == micro_batch_inputs_.end()) {
+      for (const auto &pair : micro_batch_inputs_) {
+        printf("Cached micro-batch IDs: %d\n", pair.first);
+      }
       throw std::runtime_error("No cached input found for micro-batch ID: " +
                                std::to_string(micro_batch_id));
     }
@@ -447,12 +452,11 @@ public:
                          grad_input.data(), batch_size, input_features_,
                          output_features_);
 
-    // Clean up cached data for this micro-batch
+    // // Clean up cached data for this micro-batch
+    // printf("Cleaning up cached data for micro-batch ID: %d\n",
+    //        micro_batch_id);
     micro_batch_inputs_.erase(it_input);
-    if (activation_) {
-      micro_batch_pre_activations_.erase(it_pre_act);
-    }
-
+    micro_batch_pre_activations_.erase(it_pre_act);
     return grad_input;
   }
 
@@ -557,7 +561,7 @@ public:
     }
     const Tensor<T> &last_input = it->second;
     Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
-    micro_batch_inputs_.erase(it);
+    // micro_batch_inputs_.erase(it);
     return grad;
   }
 
@@ -683,11 +687,11 @@ private:
 
   // Fallback implementations when BLAS is not available
   void fallback_conv_gemm_forward(const T *col_data, const T *weight_data,
-                                  T *output_data, size_t output_size,
-                                  size_t kernel_size,
-                                  size_t out_channels) const {
+                                  T *output_data, const size_t output_size,
+                                  const size_t kernel_size,
+                                  const size_t out_channels) const {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) 
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t os = 0; os < output_size; ++os) {
@@ -703,7 +707,7 @@ private:
 
   void fallback_conv_gemm_weight_gradients(
       const T *col_data, const T *grad_output_data, T *weight_grad_data,
-      size_t output_size, size_t kernel_size, size_t out_channels) const {
+      const size_t output_size, const size_t kernel_size, const size_t out_channels) const {
     // Add profiling information
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
@@ -722,9 +726,9 @@ private:
 
   void fallback_conv_gemm_input_gradients(const T *grad_output_data,
                                           const T *weight_data,
-                                          T *col_grad_data, size_t output_size,
-                                          size_t kernel_size,
-                                          size_t out_channels) const {
+                                          T *col_grad_data, const size_t output_size,
+                                          const size_t kernel_size,
+                                          const size_t out_channels) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -739,12 +743,6 @@ private:
       }
     }
   }
-
-  // // Helper to reshape weights for BLAS operations
-  // std::vector<T> get_flattened_weights() const {
-  //   std::vector<T> flattened = weights_.to_rm_vector();
-  //   return flattened;
-  // }
 
   void set_flattened_weight_gradients(const std::vector<T> &flattened) {
     weight_gradients_.from_rm_vector(flattened);
@@ -790,16 +788,16 @@ public:
 
     micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    const size_t batch_size = input.batch_size();
+    const size_t input_h = input.height();
+    const size_t input_w = input.width();
 
     // Calculate output dimensions
-    size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
-    size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+    const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+    const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
     // Perform im2col transformation
-    Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_,
+    Matrix<T> col_matrix = input.im2col_optimized(kernel_h_, kernel_w_, stride_h_,
                                         stride_w_, pad_h_, pad_w_);
     micro_batch_im2col_matrices_[micro_batch_id] =
         col_matrix; // Cache for backward pass
@@ -807,32 +805,34 @@ public:
     // Create output tensor
     Tensor<T> output(batch_size, out_channels_, output_h, output_w);
 
-    // Get flattened weights for BLAS
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-
-    // Convert col_matrix to contiguous format for BLAS
-    std::vector<T> col_data = col_matrix.to_vector();
-
     // Prepare data for BLAS operation
     size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
     size_t output_size = batch_size * output_h * output_w;
 
     // Perform convolution using BLAS GEMM
     std::vector<T> output_flat(out_channels_ * output_size);
-    conv_gemm_forward(col_data.data(), weight_flat.data(), output_flat.data(),
+    conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.data(),
                       output_size, kernel_size, out_channels_);
 
     // Reshape output back to tensor format
+    T* output_data = output.data();
+    
+    const size_t N_stride = output.stride(0);
+    const size_t C_stride = output.stride(1);
+    const size_t H_stride = output.stride(2);
+    const size_t W_stride = output.stride(3);  
+
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t n=0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
         for (size_t oh = 0; oh < output_h; ++oh) {
           for (size_t ow = 0; ow < output_w; ++ow) {
             size_t flat_idx = oc * output_size + n * (output_h * output_w) +
                               oh * output_w + ow;
-            output(n, oc, oh, ow) = output_flat[flat_idx];
+            output_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] =
+                output_flat[flat_idx];
           }
         }
       }
@@ -976,16 +976,16 @@ public:
     }
 
     // Use col2im to convert back to input gradient tensor
-    Tensor<T> grad_input = Tensor<T>::col2im(
+    Tensor<T> grad_input = Tensor<T>::col2im_optimized(
         col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
         kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
     // Clean up cache
-    micro_batch_inputs_.erase(it_input);
-    micro_batch_im2col_matrices_.erase(it_im2col);
-    if (activation_) {
-      micro_batch_pre_activations_.erase(it_pre_act);
-    }
+    // micro_batch_inputs_.erase(it_input);
+    // micro_batch_im2col_matrices_.erase(it_im2col);
+    // if (activation_) {
+    //   micro_batch_pre_activations_.erase(it_pre_act);
+    // }
 
     return grad_input;
   }
@@ -1212,9 +1212,9 @@ public:
       grad_input = padded_grad_input;
     }
 
-    // Clean up cache
-    micro_batch_inputs_.erase(it_input);
-    micro_batch_masks_.erase(it_mask);
+    // // Clean up cache
+    // micro_batch_inputs_.erase(it_input);
+    // micro_batch_masks_.erase(it_mask);
 
     return grad_input;
   }
@@ -1344,7 +1344,7 @@ public:
       }
     }
 
-    micro_batch_masks_.erase(it_mask);
+    // micro_batch_masks_.erase(it_mask);
     return grad_input;
   }
 
@@ -1383,24 +1383,8 @@ public:
     size_t batch_size = input.batch_size();
     size_t features = input.channels() * input.height() * input.width();
 
-    // Create flattened output: [batch_size, features, 1, 1]
-    Tensor<T> output(std::vector<size_t>{batch_size, features, 1, 1});
-
-    // Copy data in CHW order
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t feature_idx = 0;
-      for (size_t c = 0; c < input.channels(); ++c) {
-        for (size_t h = 0; h < input.height(); ++h) {
-          for (size_t w = 0; w < input.width(); ++w) {
-            output(n, feature_idx, 0, 0) = input(n, c, h, w);
-            feature_idx++;
-          }
-        }
-      }
-    }
+    Tensor<T> output(input);
+    output.reshape({batch_size, features, 1, 1});
 
     return output;
   }
@@ -1417,25 +1401,18 @@ public:
     // Reshape back to original shape
     Tensor<T> grad_input(original_shape);
 
-    size_t batch_size = grad_input.batch_size();
+    T* grad_input_data = grad_input.data();
+    T* grad_output_data = grad_output.data();
 
     // Copy data back to CHW order
 #ifdef _OPENMP
-#pragma omp parallel for
+#pragma omp parallel for schedule(static, 1)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t feature_idx = 0;
-      for (size_t c = 0; c < grad_input.channels(); ++c) {
-        for (size_t h = 0; h < grad_input.height(); ++h) {
-          for (size_t w = 0; w < grad_input.width(); ++w) {
-            grad_input(n, c, h, w) = grad_output(n, feature_idx, 0, 0);
-            feature_idx++;
-          }
-        }
-      }
+    for (size_t idx=0;idx<grad_output.size();++idx) {
+      grad_input_data[idx] = grad_output_data[idx];
     }
 
-    micro_batch_original_shapes_.erase(it);
+    // micro_batch_original_shapes_.erase(it);
     return grad_input;
   }
 

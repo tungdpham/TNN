@@ -5,6 +5,7 @@
 #include <utility>
 #include <cmath>
 #include <limits>
+#include <thread>
 #include "pipeline_stage.hpp"
 #include "../tensor/tensor.hpp"
 
@@ -27,6 +28,23 @@ public:
       }
     }
     return total_loss;
+  }
+
+  static Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) {
+    Tensor<T> gradient = predictions;
+
+    size_t batch_size = predictions.batch_size();
+    size_t num_classes = predictions.channels();
+
+    for (size_t i = 0; i < batch_size; ++i) {
+      for (size_t j = 0; j < num_classes; ++j) {
+        gradient(i, j, 0, 0) = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
+      }
+    }
+
+    // Average over batch
+    gradient /= static_cast<T>(batch_size);
+    return gradient;
   }
 };
 
@@ -67,87 +85,55 @@ public:
         std::vector<Tensor<T>> micro_batch_inputs = input_batch.split(num_micro_batches_);
         std::vector<Tensor<T>> micro_batch_targets = target_batch.split(num_micro_batches_);
 
-        std::vector<std::future<Tensor<T>>> forward_futures(num_micro_batches_);
-        std::vector<std::future<Tensor<T>>> backward_futures(num_micro_batches_);
+        std::vector<std::thread> micro_batch_threads;
         std::vector<Tensor<T>> predictions(num_micro_batches_);
+        std::mutex predictions_mutex;
 
-        // --- Asynchronous Pipeline Execution ---
+        for (int i = 0; i < num_micro_batches_; ++i) {
+            micro_batch_threads.emplace_back([this, i, &micro_batch_inputs, &micro_batch_targets, &predictions, &predictions_mutex]() {
+                // Forward pass
+                Tensor<T> current_tensor = micro_batch_inputs[i];
+                for (size_t j = 0; j < stages_.size(); ++j) {
+                    auto future = stages_[j]->forward(current_tensor, i);
+                    if (j < stages_.size() - 1) {
+                        // This is now non-blocking
+                        communicator_->send(std::move(future), j, i);
+                        current_tensor = communicator_->receive(j, i);
+                    } else {
+                        // Last stage
+                        current_tensor = future.get();
+                    }
+                }
+                
+                {
+                    std::lock_guard<std::mutex> lock(predictions_mutex);
+                    predictions[i] = current_tensor;
+                }
 
-        // 1. Warm-up: Fill the pipeline with forward passes
-        for (int i = 0; i < stages_.size() - 1; ++i) {
-            Tensor<T> current_input = micro_batch_inputs[i];
-            for (size_t j = 0; j < stages_.size(); ++j) {
-                if (j > 0) {
-                    current_input = communicator_->receive(j - 1, i);
+                // Backward pass
+                Tensor<T> grad = compute_loss_gradient(current_tensor, micro_batch_targets[i]);
+                for (int j = stages_.size() - 1; j >= 0; --j) {
+                    auto future = stages_[j]->backward(grad, i);
+                    if (j > 0) {
+                        communicator_->send_grad(std::move(future), j - 1, i);
+                        grad = communicator_->receive_grad(j - 1, i);
+                    } else {
+                        // First stage, no one to send gradient to.
+                        future.get();
+                    }
                 }
-                auto future = stages_[j]->forward(current_input, i);
-                if (j < stages_.size() - 1) {
-                    communicator_->send(std::move(future), j, i);
-                } else {
-                    forward_futures[i] = std::move(future);
-                }
-            }
+            });
         }
 
-        // 2. Steady State: 1F1B (one forward, one backward pass)
-        for (int i = 0; i < num_micro_batches_ - (stages_.size() - 1); ++i) {
-            int forward_batch_idx = i + stages_.size() - 1;
-            int backward_batch_idx = i;
-
-            // Forward pass for micro-batch `forward_batch_idx`
-            Tensor<T> current_input = micro_batch_inputs[forward_batch_idx];
-            for (size_t j = 0; j < stages_.size(); ++j) {
-                if (j > 0) {
-                    current_input = communicator_->receive(j - 1, forward_batch_idx);
-                }
-                auto future = stages_[j]->forward(current_input, forward_batch_idx);
-                if (j < stages_.size() - 1) {
-                    communicator_->send(std::move(future), j, forward_batch_idx);
-                } else {
-                    forward_futures[forward_batch_idx] = std::move(future);
-                }
-            }
-
-            // Backward pass for micro-batch `backward_batch_idx`
-            predictions[backward_batch_idx] = forward_futures[backward_batch_idx].get();
-            Tensor<T> grad = compute_loss_gradient(predictions[backward_batch_idx], micro_batch_targets[backward_batch_idx]);
-            for (int j = stages_.size() - 1; j >= 0; --j) {
-                if (j < stages_.size() - 1) {
-                    grad = communicator_->receive_grad(j, backward_batch_idx);
-                }
-                auto future = stages_[j]->backward(grad, backward_batch_idx);
-                if (j > 0) {
-                    communicator_->send_grad(std::move(future), j - 1, backward_batch_idx);
-                } else {
-                    backward_futures[backward_batch_idx] = std::move(future);
-                }
-            }
+        for (auto& t : micro_batch_threads) {
+            t.join();
         }
 
-        // 3. Cool-down: Drain the pipeline with backward passes
-        for (int i = num_micro_batches_ - (stages_.size() - 1); i < num_micro_batches_; ++i) {
-            int backward_batch_idx = i;
-            predictions[backward_batch_idx] = forward_futures[backward_batch_idx].get();
-            Tensor<T> grad = compute_loss_gradient(predictions[backward_batch_idx], micro_batch_targets[backward_batch_idx]);
-            for (int j = stages_.size() - 1; j >= 0; --j) {
-                if (j < stages_.size() - 1) {
-                    grad = communicator_->receive_grad(j, backward_batch_idx);
-                }
-                auto future = stages_[j]->backward(grad, backward_batch_idx);
-                if (j > 0) {
-                    communicator_->send_grad(std::move(future), j - 1, backward_batch_idx);
-                } else {
-                    backward_futures[backward_batch_idx] = std::move(future);
-                }
-            }
-        }
-
-        // --- Wait for all backward passes to complete and calculate metrics ---
+        // --- Calculate metrics ---
         float total_loss = 0.0f;
         float total_correct = 0.0f;
 
         for (int i = 0; i < num_micro_batches_; ++i) {
-            backward_futures[i].get(); // Ensure backward pass is complete
             total_loss += TensorCrossEntropyLoss<T>::compute_loss(predictions[i], micro_batch_targets[i]);
             total_correct += calculate_tensor_accuracy<T>(predictions[i], micro_batch_targets[i]);
         }
@@ -162,7 +148,7 @@ private:
     Tensor<T> compute_loss_gradient(const Tensor<T>& prediction, const Tensor<T>& target) {
         // This is where your loss function's backward pass would be called.
         // For example, if using Mean Squared Error, the gradient is (prediction - target).
-        return prediction - target;
+        return TensorCrossEntropyLoss<T>::compute_gradient(prediction, target);
     }
 
     std::vector<std::unique_ptr<PipelineStage<T>>> stages_;

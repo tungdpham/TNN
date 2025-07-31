@@ -23,8 +23,8 @@ else
 endif
 
 # Compilation flags
-CXXFLAGS = -std=c++20 -Wpedantic -O3 -march=x86-64-v3 -flto
-NVCCFLAGS = -std=c++20 -O3 -arch=sm_89 --compiler-options -fPIC
+CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=x86-64-v3 -flto
+NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
 
