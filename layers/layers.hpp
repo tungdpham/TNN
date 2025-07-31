@@ -553,24 +553,62 @@ private:
                               T *output_data, const size_t output_size,
                               const size_t kernel_size,
                               const size_t out_channels) const {
+    
+    // Transpose im2col matrix for better memory access patterns
+    // Original: col_data[kernel_size x output_size]
+    // Transposed: col_data_T[output_size x kernel_size]
+    std::vector<T> col_data_transposed(kernel_size * output_size);
+    transpose_matrix(col_data, col_data_transposed.data(), kernel_size, output_size);
+    
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t os = 0; os < output_size; ++os) {
-        output_data[oc * output_size + os] = simd_dot_product(
+        output_data[oc * output_size + os] = simd_dot_product_contiguous(
             &weight_data[oc * kernel_size], 
-            &col_data[os], 
-            kernel_size, 
-            output_size
+            &col_data_transposed[os * kernel_size], 
+            kernel_size
         );
       }
     }
   }
 
-  // SIMD-optimized dot product implementation
-  T simd_dot_product(const T *weights, const T *col_data, 
-                     size_t kernel_size, size_t col_stride) const {
+  // Fast matrix transpose utility
+  void transpose_matrix(const T *src, T *dst, size_t rows, size_t cols) const {
+    // Use cache-friendly blocking for large matrices
+    const size_t block_size = 64; // Tuned for typical L1 cache
+    
+    if (rows * cols < 1024) {
+      // Simple transpose for small matrices
+      for (size_t i = 0; i < rows; ++i) {
+        for (size_t j = 0; j < cols; ++j) {
+          dst[j * rows + i] = src[i * cols + j];
+        }
+      }
+    } else {
+      // Blocked transpose for larger matrices
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+      for (size_t i = 0; i < rows; i += block_size) {
+        for (size_t j = 0; j < cols; j += block_size) {
+          size_t max_i = std::min(i + block_size, rows);
+          size_t max_j = std::min(j + block_size, cols);
+          
+          for (size_t ii = i; ii < max_i; ++ii) {
+            for (size_t jj = j; jj < max_j; ++jj) {
+              dst[jj * rows + ii] = src[ii * cols + jj];
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Optimized SIMD dot product for contiguous memory access
+  T simd_dot_product_contiguous(const T *weights, const T *col_data, 
+                                size_t kernel_size) const {
     T sum = T(0);
     
     // Use SIMD for float type only
@@ -581,20 +619,11 @@ private:
       size_t simd_end = kernel_size - (kernel_size % 8);
       
       for (size_t ks = 0; ks < simd_end; ks += 8) {
-        // Load 8 weights
+        // Load 8 weights (contiguous)
         __m256 w_vec = _mm256_loadu_ps(&weights[ks]);
         
-        // Load 8 col_data values with stride
-        __m256 c_vec = _mm256_set_ps(
-            col_data[(ks + 7) * col_stride],
-            col_data[(ks + 6) * col_stride],
-            col_data[(ks + 5) * col_stride],
-            col_data[(ks + 4) * col_stride],
-            col_data[(ks + 3) * col_stride],
-            col_data[(ks + 2) * col_stride],
-            col_data[(ks + 1) * col_stride],
-            col_data[ks * col_stride]
-        );
+        // Load 8 col_data values (now contiguous!)
+        __m256 c_vec = _mm256_loadu_ps(&col_data[ks]);
         
         // Fused multiply-add
         sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
@@ -612,7 +641,7 @@ private:
       
       // Handle remaining elements
       for (size_t ks = simd_end; ks < kernel_size; ++ks) {
-        sum += weights[ks] * col_data[ks * col_stride];
+        sum += weights[ks] * col_data[ks];
       }
       
 #elif defined(__SSE2__)
@@ -621,16 +650,11 @@ private:
       size_t simd_end = kernel_size - (kernel_size % 4);
       
       for (size_t ks = 0; ks < simd_end; ks += 4) {
-        // Load 4 weights
+        // Load 4 weights (contiguous)
         __m128 w_vec = _mm_loadu_ps(&weights[ks]);
         
-        // Load 4 col_data values with stride
-        __m128 c_vec = _mm_set_ps(
-            col_data[(ks + 3) * col_stride],
-            col_data[(ks + 2) * col_stride],
-            col_data[(ks + 1) * col_stride],
-            col_data[ks * col_stride]
-        );
+        // Load 4 col_data values (now contiguous!)
+        __m128 c_vec = _mm_loadu_ps(&col_data[ks]);
         
         // Multiply and add
         __m128 prod = _mm_mul_ps(w_vec, c_vec);
@@ -644,19 +668,114 @@ private:
       
       // Handle remaining elements
       for (size_t ks = simd_end; ks < kernel_size; ++ks) {
-        sum += weights[ks] * col_data[ks * col_stride];
+        sum += weights[ks] * col_data[ks];
       }
       
 #else
       // Fallback scalar implementation
       for (size_t ks = 0; ks < kernel_size; ++ks) {
-        sum += weights[ks] * col_data[ks * col_stride];
+        sum += weights[ks] * col_data[ks];
       }
 #endif
     } else {
       // For non-float types, use scalar implementation
       for (size_t ks = 0; ks < kernel_size; ++ks) {
-        sum += weights[ks] * col_data[ks * col_stride];
+        sum += weights[ks] * col_data[ks];
+      }
+    }
+    
+    return sum;
+  }
+
+  // Overloaded version for strided access (used in input gradients)
+  T simd_dot_product_contiguous(const T *weights, const T *col_data, 
+                                size_t length, size_t weight_stride) const {
+    T sum = T(0);
+    
+    // Use SIMD for float type only
+    if constexpr (std::is_same_v<T, float>) {
+#if defined(__AVX2__)
+      // AVX2 implementation - process 8 floats at once
+      __m256 sum_vec = _mm256_setzero_ps();
+      size_t simd_end = length - (length % 8);
+      
+      for (size_t i = 0; i < simd_end; i += 8) {
+        // Load 8 weights with stride
+        __m256 w_vec = _mm256_set_ps(
+            weights[(i + 7) * weight_stride],
+            weights[(i + 6) * weight_stride],
+            weights[(i + 5) * weight_stride],
+            weights[(i + 4) * weight_stride],
+            weights[(i + 3) * weight_stride],
+            weights[(i + 2) * weight_stride],
+            weights[(i + 1) * weight_stride],
+            weights[i * weight_stride]
+        );
+        
+        // Load 8 col_data values (contiguous)
+        __m256 c_vec = _mm256_loadu_ps(&col_data[i]);
+        
+        // Fused multiply-add
+        sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
+      }
+      
+      // Horizontal sum of the vector
+      __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
+      __m128 sum_low = _mm256_castps256_ps128(sum_vec);
+      __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
+      
+      // Sum the 4 elements in the 128-bit vector
+      sum_128 = _mm_hadd_ps(sum_128, sum_128);
+      sum_128 = _mm_hadd_ps(sum_128, sum_128);
+      sum = _mm_cvtss_f32(sum_128);
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < length; ++i) {
+        sum += weights[i * weight_stride] * col_data[i];
+      }
+      
+#elif defined(__SSE2__)
+      // SSE2 implementation - process 4 floats at once
+      __m128 sum_vec = _mm_setzero_ps();
+      size_t simd_end = length - (length % 4);
+      
+      for (size_t i = 0; i < simd_end; i += 4) {
+        // Load 4 weights with stride
+        __m128 w_vec = _mm_set_ps(
+            weights[(i + 3) * weight_stride],
+            weights[(i + 2) * weight_stride],
+            weights[(i + 1) * weight_stride],
+            weights[i * weight_stride]
+        );
+        
+        // Load 4 col_data values (contiguous)
+        __m128 c_vec = _mm_loadu_ps(&col_data[i]);
+        
+        // Multiply and add
+        __m128 prod = _mm_mul_ps(w_vec, c_vec);
+        sum_vec = _mm_add_ps(sum_vec, prod);
+      }
+      
+      // Horizontal sum of the vector
+      sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+      sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+      sum = _mm_cvtss_f32(sum_vec);
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < length; ++i) {
+        sum += weights[i * weight_stride] * col_data[i];
+      }
+      
+#else
+      // Fallback scalar implementation
+      for (size_t i = 0; i < length; ++i) {
+        sum += weights[i * weight_stride] * col_data[i];
+      }
+#endif
+    } else {
+      // For non-float types, use scalar implementation
+      for (size_t i = 0; i < length; ++i) {
+        sum += weights[i * weight_stride] * col_data[i];
       }
     }
     
@@ -674,12 +793,12 @@ private:
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t ks = 0; ks < kernel_size; ++ks) {
-        T sum = T(0);
-        for (size_t os = 0; os < output_size; ++os) {
-          sum += grad_output_data[oc * output_size + os] *
-                 col_data[ks * output_size + os];
-        }
-        weight_grad_data[oc * kernel_size + ks] = sum;
+        // SIMD-optimized dot product for weight gradients
+        weight_grad_data[oc * kernel_size + ks] = simd_dot_product_contiguous(
+            &grad_output_data[oc * output_size], 
+            &col_data[ks * output_size], 
+            output_size
+        );
       }
     }
   }
@@ -689,17 +808,25 @@ private:
                                       const size_t output_size,
                                       const size_t kernel_size,
                                       const size_t out_channels) const {
+    
+    // Transpose grad_output matrix for better memory access patterns
+    // Original: grad_output_data[out_channels x output_size]
+    // Transposed: grad_output_T[output_size x out_channels]
+    std::vector<T> grad_output_transposed(out_channels * output_size);
+    transpose_matrix(grad_output_data, grad_output_transposed.data(), out_channels, output_size);
+    
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       for (size_t os = 0; os < output_size; ++os) {
-        T sum = T(0);
-        for (size_t oc = 0; oc < out_channels; ++oc) {
-          sum += weight_data[oc * kernel_size + ks] *
-                 grad_output_data[oc * output_size + os];
-        }
-        col_grad_data[ks * output_size + os] = sum;
+        // SIMD-optimized dot product for input gradients
+        col_grad_data[ks * output_size + os] = simd_dot_product_contiguous(
+            &weight_data[ks], // weight column for this kernel position
+            &grad_output_transposed[os * out_channels], // grad_output row for this output position
+            out_channels,
+            kernel_size // stride for weight data
+        );
       }
     }
   }
