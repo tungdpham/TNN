@@ -243,7 +243,7 @@ int main() {
         auto communicator = std::make_unique<pipeline::InProcessCommunicator<float>>();
         
         // Using 4 micro-batches for the pipeline
-        pipeline::PipelineOrchestrator<float> orchestrator(std::move(stages), std::move(communicator), 4);
+        pipeline::PipelineOrchestrator<float> orchestrator(std::move(stages), std::move(communicator), 2);
         
         train_pipeline_model(orchestrator, train_loader, test_loader, 5, 128, 0.01);
 

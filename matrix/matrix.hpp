@@ -310,13 +310,28 @@ public:
     data_ = size > 0 ? new T[size]() : nullptr;
   }
 
-  void dot(const Matrix &other, Matrix &result) const {
-    if (cols != other.rows) {
+  static void dot(const Matrix &a, const Matrix &b, Matrix &result) {
+    if (a.cols != b.rows || result.rows != a.rows || result.cols != b.cols) {
       throw std::invalid_argument(
           "Matrix dimensions must match for dot product.");
     }
-    result = Matrix(rows, other.cols);
-    result = (*this) * other;
+
+    const T* a_data = a.data_;
+    const T* b_data = b.data_;
+    T* result_data = result.data_;
+    
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2) schedule(static, 1)
+#endif
+    for (int r = 0; r < a.rows; ++r) {
+      for (int c = 0; c < b.cols; ++c) {
+        T sum = 0.0;
+        for (int k = 0; k < a.cols; ++k) {
+          sum += a_data[r * a.cols + k] * b_data[k * b.cols + c]; 
+        }
+        result_data[r * b.cols + c] = sum;
+      }
+    }
   }
 
   std::vector<T> to_vector() const {

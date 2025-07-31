@@ -13,6 +13,7 @@
 
 #include "../tensor/tensor.hpp"
 #include "activations.hpp"
+#include "optimizers.hpp"
 
 // BLAS optimization support
 #ifdef USE_OPENBLAS
@@ -24,9 +25,6 @@ extern "C" {
 #include <cblas.h>
 }
 #endif
-
-// Forward declarations
-class Optimizer;
 
 namespace layers {
 // Convenience function for creating tensor activation functions
@@ -89,7 +87,7 @@ public:
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
   // Optional: custom parameter update (for layers that need special handling)
-  virtual void update_parameters(const Optimizer &optimizer) {}
+  virtual void update_parameters(const Optimizer<T> &optimizer) {}
 
   std::string name() const { return name_; }
 
@@ -131,14 +129,14 @@ public:
 
   bool has_parameters() const override { return true; }
 
-  void update_parameters(const Optimizer &optimizer) override {
+  void update_parameters(const Optimizer<T> &optimizer) override {
     update_parameters_impl(optimizer);
   }
 
 protected:
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  virtual void update_parameters_impl(const Optimizer &optimizer) = 0;
+  virtual void update_parameters_impl(const Optimizer<T> &optimizer) = 0;
 };
 
 // BLAS-optimized Dense/Fully Connected Layer
@@ -256,8 +254,8 @@ private:
 
   // Fallback implementations when BLAS is not available
   void fallback_gemm(const T *input_data, const T *weight_data, T *output_data,
-                     size_t batch_size, size_t input_features,
-                     size_t output_features) const {
+                     const size_t batch_size, const size_t input_features,
+                     const size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -353,8 +351,8 @@ public:
     // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
     micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t total_input_features =
+    const size_t batch_size = input.batch_size();
+    const size_t total_input_features =
         input.channels() * input.height() * input.width();
 
     if (total_input_features != input_features_) {
@@ -366,26 +364,15 @@ public:
 
     Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
 
-    // Get flattened input data for BLAS operations
-    std::vector<T> input_flat = input.to_rm_vector();
-    std::vector<T> output_flat(batch_size * output_features_);
-
-    // Get weight data in contiguous format
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-
     // Perform BLAS matrix multiplication
-    gemm_forward(input_flat.data(), weight_flat.data(), output_flat.data(),
+    gemm_forward(input.data(), weights_.data(), output.data(),
                  batch_size, input_features_, output_features_);
 
     // Add bias using BLAS if available
     if (use_bias_) {
-      std::vector<T> bias_flat = bias_.to_rm_vector();
-      add_bias_vector(output_flat.data(), bias_flat.data(), batch_size,
+      add_bias_vector(output.data(), bias_.data(), batch_size,
                       output_features_);
     }
-
-    // Convert back to tensor format
-    output.from_rm_vector(output_flat);
 
     // Store pre-activation output
     micro_batch_pre_activations_[micro_batch_id] = output;
@@ -411,7 +398,7 @@ public:
       throw std::runtime_error("No cached input found for micro-batch ID: " +
                                std::to_string(micro_batch_id));
     }
-    if (activation_ && it_pre_act == micro_batch_pre_activations_.end()) {
+    if (it_pre_act == micro_batch_pre_activations_.end()) {
       throw std::runtime_error(
           "No cached pre-activation output found for micro-batch ID: " +
           std::to_string(micro_batch_id));
@@ -453,8 +440,6 @@ public:
                          output_features_);
 
     // // Clean up cached data for this micro-batch
-    // printf("Cleaning up cached data for micro-batch ID: %d\n",
-    //        micro_batch_id);
     micro_batch_inputs_.erase(it_input);
     micro_batch_pre_activations_.erase(it_pre_act);
     return grad_input;
@@ -504,7 +489,7 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 
@@ -1044,12 +1029,12 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
 
-// MaxPooling Layer for 2D tensors
+// Optimized MaxPooling Layer for 2D tensors
 template <typename T = double> class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
@@ -1059,8 +1044,40 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<int, Tensor<T>> micro_batch_masks_;
+  // Use more efficient storage for mask indices
+  std::unordered_map<int, std::vector<size_t>> micro_batch_mask_indices_;
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+
+  // Pre-computed stride values for faster access
+  mutable size_t input_stride_n_, input_stride_c_, input_stride_h_, input_stride_w_;
+  mutable size_t output_stride_n_, output_stride_c_, output_stride_h_, output_stride_w_;
+
+  // Helper function for vectorized max finding
+  inline std::pair<T, size_t> find_max_in_window(const T* data, 
+                                                  size_t start_h, size_t start_w,
+                                                  size_t input_h, size_t input_w,
+                                                  size_t stride_h, size_t stride_w) const {
+    T max_val = -std::numeric_limits<T>::infinity();
+    size_t max_idx = 0;
+    
+    for (size_t ph = 0; ph < pool_h_; ++ph) {
+      for (size_t pw = 0; pw < pool_w_; ++pw) {
+        size_t h_idx = start_h + ph;
+        size_t w_idx = start_w + pw;
+        
+        if (h_idx < input_h && w_idx < input_w) {
+          size_t linear_idx = h_idx * stride_h + w_idx * stride_w;
+          T val = data[linear_idx];
+          if (val > max_val) {
+            max_val = val;
+            max_idx = linear_idx;
+          }
+        }
+      }
+    }
+    
+    return {max_val, max_idx};
+  }
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
@@ -1069,152 +1086,276 @@ public:
       : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
         stride_h_(stride_h == 0 ? pool_h : stride_h),
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
-        pad_w_(pad_w) {}
+        pad_w_(pad_w), input_stride_n_(0), input_stride_c_(0), 
+        input_stride_h_(0), input_stride_w_(0), output_stride_n_(0),
+        output_stride_c_(0), output_stride_h_(0), output_stride_w_(0) {
+    
+    // Validate parameters
+    if (pool_h_ == 0 || pool_w_ == 0) {
+      throw std::invalid_argument("Pool dimensions must be positive");
+    }
+    if (stride_h_ == 0 || stride_w_ == 0) {
+      throw std::invalid_argument("Stride dimensions must be positive");
+    }
+  }
+
+  // Add method to clear cached data for memory management
+  void clear_cache(int micro_batch_id = -1) {
+    if (micro_batch_id < 0) {
+      // Clear all cached data
+      micro_batch_inputs_.clear();
+      micro_batch_mask_indices_.clear();
+    } else {
+      // Clear specific micro-batch data
+      micro_batch_inputs_.erase(micro_batch_id);
+      micro_batch_mask_indices_.erase(micro_batch_id);
+    }
+  }
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     // Store input for backward pass
     micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    const size_t batch_size = input.batch_size();
+    const size_t channels = input.channels();
+    const size_t input_h = input.height();
+    const size_t input_w = input.width();
 
     // Calculate output dimensions
-    size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-    size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+    const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+    const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
     // Create output tensor
     Tensor<T> output(
         std::vector<size_t>{batch_size, channels, output_h, output_w});
 
-    // Create mask for backward pass (store which input position had max value)
-    Tensor<T> mask(
-        std::vector<size_t>{batch_size, channels, output_h, output_w});
+    // Pre-compute strides for efficient memory access
+    input_stride_n_ = input.stride(0);
+    input_stride_c_ = input.stride(1);
+    input_stride_h_ = input.stride(2);
+    input_stride_w_ = input.stride(3);
+    
+    output_stride_n_ = output.stride(0);
+    output_stride_c_ = output.stride(1);
+    output_stride_h_ = output.stride(2);
+    output_stride_w_ = output.stride(3);
 
-    // Apply padding if needed
-    Tensor<T> padded_input =
-        (pad_h_ > 0 || pad_w_ > 0)
-            ? input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity())
-            : input;
+    // Store mask indices more efficiently
+    const size_t total_outputs = batch_size * channels * output_h * output_w;
+    std::vector<size_t> mask_indices(total_outputs);
 
-    // Perform max pooling
+    const T* input_data = input.data();
+    T* output_data = output.data();
+
+    // Optimized pooling with better memory access patterns
+    if (pad_h_ == 0 && pad_w_ == 0) {
+      // No padding case - most common and fastest path
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t out_h = 0; out_h < output_h; ++out_h) {
-          for (size_t out_w = 0; out_w < output_w; ++out_w) {
-            T max_val = -std::numeric_limits<T>::infinity();
-            size_t max_h = 0, max_w = 0;
-
-            // Find maximum in pooling window
-            for (size_t ph = 0; ph < pool_h_; ++ph) {
-              for (size_t pw = 0; pw < pool_w_; ++pw) {
-                size_t input_h_idx = out_h * stride_h_ + ph;
-                size_t input_w_idx = out_w * stride_w_ + pw;
-
-                if (input_h_idx < padded_input.height() &&
-                    input_w_idx < padded_input.width()) {
-                  T val = padded_input(n, c, input_h_idx, input_w_idx);
-                  if (val > max_val) {
-                    max_val = val;
-                    max_h = input_h_idx;
-                    max_w = input_w_idx;
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T* input_channel = input_data + n * input_stride_n_ + c * input_stride_c_;
+          T* output_channel = output_data + n * output_stride_n_ + c * output_stride_c_;
+          
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              T max_val = -std::numeric_limits<T>::infinity();
+              size_t max_idx = 0;
+              
+              const size_t start_h = out_h * stride_h_;
+              const size_t start_w = out_w * stride_w_;
+              
+              // Unrolled inner loops for small kernel sizes
+              if (pool_h_ == 2 && pool_w_ == 2) {
+                // Special case for 2x2 pooling - most common
+                const T* pool_start = input_channel + start_h * input_stride_h_ + start_w * input_stride_w_;
+                
+                T val0 = pool_start[0];
+                T val1 = pool_start[input_stride_w_];
+                T val2 = pool_start[input_stride_h_];
+                T val3 = pool_start[input_stride_h_ + input_stride_w_];
+                
+                max_val = val0;
+                max_idx = start_h * input_w + start_w;
+                
+                if (val1 > max_val) { max_val = val1; max_idx = start_h * input_w + start_w + 1; }
+                if (val2 > max_val) { max_val = val2; max_idx = (start_h + 1) * input_w + start_w; }
+                if (val3 > max_val) { max_val = val3; max_idx = (start_h + 1) * input_w + start_w + 1; }
+              } else {
+                // General case
+                for (size_t ph = 0; ph < pool_h_; ++ph) {
+                  for (size_t pw = 0; pw < pool_w_; ++pw) {
+                    const size_t h_idx = start_h + ph;
+                    const size_t w_idx = start_w + pw;
+                    
+                    if (h_idx < input_h && w_idx < input_w) {
+                      T val = input_channel[h_idx * input_stride_h_ + w_idx * input_stride_w_];
+                      if (val > max_val) {
+                        max_val = val;
+                        max_idx = h_idx * input_w + w_idx;
+                      }
+                    }
                   }
                 }
               }
+              
+              output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] = max_val;
+              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              mask_indices[output_idx] = max_idx;
             }
+          }
+        }
+      }
+    } else {
+      // Padding case - use existing implementation but with optimizations
+      Tensor<T> padded_input = input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity());
+      const T* padded_data = padded_input.data();
+      const size_t padded_h = padded_input.height();
+      const size_t padded_w = padded_input.width();
+      const size_t padded_stride_h = padded_input.stride(2);
+      const size_t padded_stride_w = padded_input.stride(3);
 
-            output(n, c, out_h, out_w) = max_val;
-            // Store flattened index of max position for backward pass
-            mask(n, c, out_h, out_w) =
-                static_cast<T>(max_h * padded_input.width() + max_w);
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2) schedule(static)
+#endif
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T* padded_channel = padded_data + n * padded_input.stride(0) + c * padded_input.stride(1);
+          T* output_channel = output_data + n * output_stride_n_ + c * output_stride_c_;
+          
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              T max_val = -std::numeric_limits<T>::infinity();
+              size_t max_idx = 0;
+              
+              for (size_t ph = 0; ph < pool_h_; ++ph) {
+                for (size_t pw = 0; pw < pool_w_; ++pw) {
+                  const size_t h_idx = out_h * stride_h_ + ph;
+                  const size_t w_idx = out_w * stride_w_ + pw;
+                  
+                  if (h_idx < padded_h && w_idx < padded_w) {
+                    T val = padded_channel[h_idx * padded_stride_h + w_idx * padded_stride_w];
+                    if (val > max_val) {
+                      max_val = val;
+                      max_idx = h_idx * padded_w + w_idx;
+                    }
+                  }
+                }
+              }
+              
+              output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] = max_val;
+              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              mask_indices[output_idx] = max_idx;
+            }
           }
         }
       }
     }
 
-    micro_batch_masks_[micro_batch_id] = mask;
+    micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
     return output;
   }
 
   Tensor<T> backward(const Tensor<T> &grad_output,
                      int micro_batch_id = 0) override {
     auto it_input = micro_batch_inputs_.find(micro_batch_id);
-    auto it_mask = micro_batch_masks_.find(micro_batch_id);
+    auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
 
     if (it_input == micro_batch_inputs_.end()) {
       throw std::runtime_error(
           "No cached input found for micro-batch ID in MaxPool2DLayer: " +
           std::to_string(micro_batch_id));
     }
-    if (it_mask == micro_batch_masks_.end()) {
+    if (it_mask == micro_batch_mask_indices_.end()) {
       throw std::runtime_error(
           "No cached mask found for micro-batch ID in MaxPool2DLayer: " +
           std::to_string(micro_batch_id));
     }
 
     const Tensor<T> &last_input = it_input->second;
-    const Tensor<T> &mask = it_mask->second;
+    const std::vector<size_t> &mask_indices = it_mask->second;
 
-    // Use stored input dimensions instead of trying to calculate them
-    size_t batch_size = last_input.batch_size();
-    size_t channels = last_input.channels();
-    size_t input_h = last_input.height();
-    size_t input_w = last_input.width();
-    size_t output_h = grad_output.height();
-    size_t output_w = grad_output.width();
+    const size_t batch_size = last_input.batch_size();
+    const size_t channels = last_input.channels();
+    const size_t input_h = last_input.height();
+    const size_t input_w = last_input.width();
+    const size_t output_h = grad_output.height();
+    const size_t output_w = grad_output.width();
 
     Tensor<T> grad_input(
         std::vector<size_t>{batch_size, channels, input_h, input_w});
     grad_input.fill(0.0);
 
-    // Create padded gradient input if padding was used
-    Tensor<T> padded_grad_input = (pad_h_ > 0 || pad_w_ > 0)
-                                      ? grad_input.pad(pad_h_, pad_w_)
-                                      : grad_input;
+    const T* grad_output_data = grad_output.data();
+    T* grad_input_data = grad_input.data();
 
-    // Distribute gradients to max positions
+    if (pad_h_ == 0 && pad_w_ == 0) {
+      // No padding case - direct indexing
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t out_h = 0; out_h < output_h; ++out_h) {
-          for (size_t out_w = 0; out_w < output_w; ++out_w) {
-            // Get the position of the max value
-            size_t flat_idx = static_cast<size_t>(mask(n, c, out_h, out_w));
-            size_t max_h = flat_idx / padded_grad_input.width();
-            size_t max_w = flat_idx % padded_grad_input.width();
-
-            // Add gradient to the max position
-            if (max_h < padded_grad_input.height() &&
-                max_w < padded_grad_input.width()) {
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T* grad_out_channel = grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T* grad_in_channel = grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+          
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t max_idx = mask_indices[output_idx];
+              const size_t max_h = max_idx / input_w;
+              const size_t max_w = max_idx % input_w;
+              
+              const T grad_val = grad_out_channel[out_h * output_stride_h_ + out_w * output_stride_w_];
+              
+              // Use atomic add to handle potential race conditions
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-              padded_grad_input(n, c, max_h, max_w) +=
-                  grad_output(n, c, out_h, out_w);
+              grad_in_channel[max_h * input_stride_h_ + max_w * input_stride_w_] += grad_val;
+            }
+          }
+        }
+      }
+    } else {
+      // Padding case - need to handle coordinate transformation
+      const size_t padded_h = input_h + 2 * pad_h_;
+      const size_t padded_w = input_w + 2 * pad_w_;
+
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2) schedule(static)
+#endif
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T* grad_out_channel = grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T* grad_in_channel = grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+          
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t padded_max_idx = mask_indices[output_idx];
+              const size_t padded_max_h = padded_max_idx / padded_w;
+              const size_t padded_max_w = padded_max_idx % padded_w;
+              
+              // Convert back to unpadded coordinates
+              if (padded_max_h >= pad_h_ && padded_max_h < input_h + pad_h_ &&
+                  padded_max_w >= pad_w_ && padded_max_w < input_w + pad_w_) {
+                const size_t max_h = padded_max_h - pad_h_;
+                const size_t max_w = padded_max_w - pad_w_;
+                
+                const T grad_val = grad_out_channel[out_h * output_stride_h_ + out_w * output_stride_w_];
+                
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+                grad_in_channel[max_h * input_stride_h_ + max_w * input_stride_w_] += grad_val;
+              }
             }
           }
         }
       }
     }
-
-    // Remove padding if it was applied
-    if (pad_h_ > 0 || pad_w_ > 0) {
-      grad_input = padded_grad_input.crop(
-          pad_h_, pad_w_, padded_grad_input.height() - pad_h_ - 1,
-          padded_grad_input.width() - pad_w_ - 1);
-    } else {
-      grad_input = padded_grad_input;
-    }
-
-    // // Clean up cache
-    // micro_batch_inputs_.erase(it_input);
-    // micro_batch_masks_.erase(it_mask);
 
     return grad_input;
   }
@@ -1402,7 +1543,7 @@ public:
     Tensor<T> grad_input(original_shape);
 
     T* grad_input_data = grad_input.data();
-    T* grad_output_data = grad_output.data();
+    const T* grad_output_data = grad_output.data();
 
     // Copy data back to CHW order
 #ifdef _OPENMP

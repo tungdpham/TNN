@@ -514,6 +514,9 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
       for (size_t i = 0; i < size; ++i) {
         data[i] += bias;
       }
@@ -537,28 +540,8 @@ public:
     size_t width = pre_activation_values.width();
 
     if (upstream_gradient == nullptr) {
-      // If no upstream gradient provided, assume uniform gradient of 1
-      // (simplified case)
-#ifdef _OPENMP
-#pragma omp parallel for collapse(3)
-#endif
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            // Compute sum of all softmax outputs at this spatial location
-            T sum_outputs = T(0);
-            for (size_t c = 0; c < channels; ++c) {
-              sum_outputs += softmax_values(n, c, h, w);
-            }
-
-            // Compute gradient for each channel at this spatial location
-            for (size_t i = 0; i < channels; ++i) {
-              T s_i = softmax_values(n, i, h, w);
-              gradient(n, i, h, w) = s_i * (T(1) - sum_outputs);
-            }
-          }
-        }
-      }
+      throw std::invalid_argument(
+          "Upstream gradient must be provided for softmax gradient computation");
     } else {
       // Proper softmax gradient computation with upstream gradient
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
@@ -606,28 +589,8 @@ public:
     apply(softmax_values); // Apply softmax to get activated values
 
     if (upstream_gradient == nullptr) {
-      // If no upstream gradient provided, assume uniform gradient of 1
-      // (simplified case)
-#ifdef _OPENMP
-#pragma omp parallel for collapse(3)
-#endif
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            // Compute sum of all softmax outputs at this spatial location
-            T sum_outputs = T(0);
-            for (size_t c = 0; c < channels; ++c) {
-              sum_outputs += softmax_values(n, c, h, w);
-            }
-
-            // Compute gradient for each channel at this spatial location
-            for (size_t i = 0; i < channels; ++i) {
-              T s_i = softmax_values(n, i, h, w);
-              pre_activation_values(n, i, h, w) = s_i * (T(1) - sum_outputs);
-            }
-          }
-        }
-      }
+      throw std::invalid_argument(
+          "Upstream gradient must be provided for softmax gradient computation");
     } else {
       // Proper softmax gradient computation with upstream gradient
       if (upstream_gradient->shape() != pre_activation_values.shape()) {

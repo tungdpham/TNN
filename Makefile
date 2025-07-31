@@ -94,7 +94,7 @@ ifeq ($(OS),Windows_NT)
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
 	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer
 	rm -f $(TEST_PROGRAMS)
 	rm -f test_activations integration_test
 endif
@@ -144,6 +144,21 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif	
 
+# CIFAR-100 CNN trainer target
+cifar100_cnn_trainer: cifar100_cnn_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif
+
+cifar10_cnn_trainer: cifar10_cnn_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -169,4 +184,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer $(TEST_PROGRAMS)
