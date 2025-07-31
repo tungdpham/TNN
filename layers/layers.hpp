@@ -267,7 +267,6 @@ public:
       bias_ = Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
       bias_gradients_ =
           Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
-      bias_.fill(T(0));
     }
 
     // Xavier initialization
@@ -854,7 +853,6 @@ public:
     if (use_bias_) {
       bias_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
       bias_gradients_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
-      bias_.fill(0.0);
     }
 
     // Xavier/Glorot initialization
@@ -1309,7 +1307,7 @@ public:
       const size_t padded_stride_w = padded_input.stride(3);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(static)
+#pragma omp parallel for collapse(2)
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {

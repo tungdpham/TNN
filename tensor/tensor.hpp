@@ -3,7 +3,6 @@
 #include "../matrix/matrix.hpp"
 #include "tensor_view.hpp"
 #include <cassert>
-#include <execution>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -72,7 +71,7 @@ public:
     compute_strides();
     data_size_ = batch * channels * height * width;
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+    std::fill(data_.get(), data_.get() + data_size_,
               T(0));
   }
 
@@ -92,7 +91,7 @@ public:
     compute_strides();
     data_size_ = batch * channels * depth * height * width;
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+    std::fill(data_.get(), data_.get() + data_size_,
               T(0));
   }
 
@@ -107,7 +106,7 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+    std::fill(data_.get(), data_.get() + data_size_,
               T(0));
   }
 
@@ -132,7 +131,7 @@ public:
       throw std::invalid_argument("Data size doesn't match tensor shape");
     }
     data_ = std::make_unique<T[]>(data_size_);
-    std::copy(std::execution::par_unseq, data.begin(), data.end(), data_.get());
+    std::copy(data.begin(), data.end(), data_.get());
   }
 
   ~Tensor() = default;
@@ -143,7 +142,7 @@ public:
     compute_strides();
     if (data_size_ > 0) {
       data_ = std::make_unique<T[]>(data_size_);
-      std::copy(std::execution::par_unseq, other.data_.get(),
+      std::copy(other.data_.get(),
                 other.data_.get() + data_size_, data_.get());
     }
   }
@@ -288,7 +287,7 @@ public:
 
   // Fill operations
   void fill(T value) {
-    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+    std::fill(data_.get(), data_.get() + data_size_,
               value);
   }
 
