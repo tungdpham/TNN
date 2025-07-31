@@ -65,7 +65,8 @@ public:
     compute_strides();
     data_size_ = batch * channels * height * width;
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_, T(0));
+    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+              T(0));
   }
 
   // 5D constructor for 3D CNNs
@@ -84,7 +85,8 @@ public:
     compute_strides();
     data_size_ = batch * channels * depth * height * width;
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_, T(0));
+    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+              T(0));
   }
 
   Tensor(const std::initializer_list<size_t> &shape) {
@@ -98,7 +100,8 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
     data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_, T(0));
+    std::fill(std::execution::par_unseq, data_.get(), data_.get() + data_size_,
+              T(0));
   }
 
   Tensor(const std::vector<size_t> &shape) {
@@ -682,8 +685,7 @@ public:
     if constexpr (layout == NCHW) {
       return std::vector<T>(data_.get(), data_.get() + data_size_);
     } else {
-      throw std::runtime_error(
-          "to_vector is only supported for NCHW layout");
+      throw std::runtime_error("to_vector is only supported for NCHW layout");
     }
   }
 
@@ -694,17 +696,16 @@ public:
     }
 
     if constexpr (layout != NCHW) {
-      throw std::runtime_error(
-          "from_vector is only supported for NCHW layout");
+      throw std::runtime_error("from_vector is only supported for NCHW layout");
     }
 
     std::copy(std::execution::par_unseq, vec.begin(), vec.end(), data_.get());
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
-  Matrix<T> im2col(size_t kernel_h, size_t kernel_w,
-                             size_t stride_h = 1, size_t stride_w = 1,
-                             size_t pad_h = 0, size_t pad_w = 0) const {
+  Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+                   size_t stride_w = 1, size_t pad_h = 0,
+                   size_t pad_w = 0) const {
     static_assert(dims == 4,
                   "im2col is only supported for 4D tensors (NCHW/NHWC)");
 
@@ -731,7 +732,7 @@ public:
     Matrix<T> col_matrix(col_height, col_width);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static)
+#pragma omp parallel for collapse(4)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t c = 0; c < channels; ++c) {
@@ -756,62 +757,71 @@ public:
     return col_matrix;
   }
 
-  static Tensor<T, layout>
-  col2im(const Matrix<T> &col_matrix, size_t batch_size,
-                   size_t channels, size_t height, size_t width,
-                   size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                   size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
+  static Tensor<T, layout> col2im(
+      const Matrix<T> &col_matrix, size_t batch_size, size_t channels,
+      size_t height, size_t width, size_t kernel_h, size_t kernel_w,
+      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
 
+    // Calculate output dimensions
     size_t padded_h = height + 2 * pad_h;
     size_t padded_w = width + 2 * pad_w;
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
     size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
 
-    Tensor<T, layout> final_result(batch_size, channels, padded_h, padded_w);
+    // Create the output tensor for the padded image filled with zeros
+    Tensor<T, layout> result_padded(batch_size, channels, padded_h, padded_w);
+
+    // The total number of output "patches" is the number of columns in
+    // col_matrix
+    size_t num_output_patches = output_h * output_w;
+
+    // We can use a single loop or a more flattened loop structure over the
+    // col_matrix. Let's use a single flattened loop for simplicity. The number
+    // of rows in col_matrix is channels * kernel_h * kernel_w
+    size_t col_rows = channels * kernel_h * kernel_w;
+    size_t col_cols = batch_size * num_output_patches;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static, 1)
+#pragma omp parallel for collapse(3)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t h_idx = 0; h_idx < padded_h; ++h_idx) {
-          for (size_t w_idx = 0; w_idx < padded_w; ++w_idx) {
-            T sum = 0;
-            // Iterate through all possible kernel positions that would cover
-            // this pixel
+      for (size_t h_out = 0; h_out < output_h; ++h_out) {
+        for (size_t w_out = 0; w_out < output_w; ++w_out) {
+          // This corresponds to a single output patch position
+          size_t col_col_idx =
+              n * output_h * output_w + h_out * output_w + w_out;
+
+          // Now, iterate through the kernel dimensions (the rows of col_matrix)
+          for (size_t c = 0; c < channels; ++c) {
             for (size_t kh = 0; kh < kernel_h; ++kh) {
               for (size_t kw = 0; kw < kernel_w; ++kw) {
-                if (h_idx >= kh && w_idx >= kw) {
-                  size_t h_out = (h_idx - kh) / stride_h;
-                  size_t w_out = (w_idx - kw) / stride_w;
 
-                  // Check if this kernel position is valid and contributes to
-                  // the pixel
-                  if (h_out < output_h && w_out < output_w &&
-                      (h_idx - kh) % stride_h == 0 &&
-                      (w_idx - kw) % stride_w == 0) {
+                size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
 
-                    size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-                    size_t col_col_idx =
-                        n * output_h * output_w + h_out * output_w + w_out;
+                // Calculate the destination pixel in the padded image
+                size_t h_dest = h_out * stride_h + kh;
+                size_t w_dest = w_out * stride_w + kw;
 
-                    sum += col_matrix(col_row_idx, col_col_idx);
-                  }
-                }
+                // No need for a conditional `if`!
+                // We are guaranteed to be within the padded image bounds
+                // and the `col_matrix` element is always a valid contribution.
+
+                // Add the value to the destination
+                result_padded(n, c, h_dest, w_dest) +=
+                    col_matrix(col_row_idx, col_col_idx);
               }
             }
-            final_result(n, c, h_idx, w_idx) = sum;
           }
         }
       }
     }
 
-    // Remove padding if it was applied.
+    // Now handle the padding removal
     if (pad_h > 0 || pad_w > 0) {
-      return final_result.crop(pad_h, pad_w, padded_h - pad_h - 1,
-                               padded_w - pad_w - 1);
+      return result_padded.crop(pad_h, pad_w, padded_h - pad_h - 1,
+                                padded_w - pad_w - 1);
     } else {
-      return final_result;
+      return result_padded;
     }
   }
 

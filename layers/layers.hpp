@@ -129,8 +129,7 @@ protected:
 };
 
 // Dense/Fully Connected Layer
-template <typename T = float>
-class DenseLayer : public ParameterizedLayer<T> {
+template <typename T = float> class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
   size_t output_features_;
@@ -149,8 +148,8 @@ private:
   void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
                     size_t batch_size, size_t input_features,
                     size_t output_features) const {
-    gemm_impl(input_data, weight_data, output_data, batch_size,
-              input_features, output_features);
+    gemm_impl(input_data, weight_data, output_data, batch_size, input_features,
+              output_features);
   }
 
   void gemm_weight_gradients(const T *input_data, const T *grad_output_data,
@@ -217,7 +216,7 @@ private:
                             size_t input_features,
                             size_t output_features) const {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) 
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t in_f = 0; in_f < input_features; ++in_f) {
@@ -280,15 +279,14 @@ public:
     if (total_input_features != input_features_) {
       printf("Input shape: %zu features, expected: %zu features\n",
              total_input_features, input_features_);
-      throw std::invalid_argument(
-          "Input feature size mismatch in DenseLayer");
+      throw std::invalid_argument("Input feature size mismatch in DenseLayer");
     }
 
     Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
 
     // Perform matrix multiplication
-    gemm_forward(input.data(), weights_.data(), output.data(),
-                 batch_size, input_features_, output_features_);
+    gemm_forward(input.data(), weights_.data(), output.data(), batch_size,
+                 input_features_, output_features_);
 
     // Add bias
     if (use_bias_) {
@@ -383,9 +381,9 @@ public:
 
   std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<DenseLayer<T>>(
-        input_features_, output_features_, std::move(activation_clone),
-        use_bias_, this->name_);
+    return std::make_unique<DenseLayer<T>>(input_features_, output_features_,
+                                           std::move(activation_clone),
+                                           use_bias_, this->name_);
   }
 
   std::vector<size_t>
@@ -507,8 +505,8 @@ private:
   bool use_bias_;
   std::unique_ptr<ActivationFunction<T>> activation_;
 
-  Tensor<T> weights_;          // [out_channels, in_channels, kernel_h, kernel_w]
-  Tensor<T> bias_;             // [out_channels, 1, 1, 1]
+  Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
+  Tensor<T> bias_;    // [out_channels, 1, 1, 1]
   Tensor<T> weight_gradients_; // Same shape as weights
   Tensor<T> bias_gradients_;   // Same shape as bias
 
@@ -521,8 +519,8 @@ private:
   void conv_gemm_forward(const T *col_data, const T *weight_data,
                          T *output_data, size_t output_size, size_t kernel_size,
                          size_t out_channels) const {
-    conv_gemm_forward_impl(col_data, weight_data, output_data,
-                           output_size, kernel_size, out_channels);
+    conv_gemm_forward_impl(col_data, weight_data, output_data, output_size,
+                           kernel_size, out_channels);
   }
 
   void conv_gemm_weight_gradients(const T *col_data, const T *grad_output_data,
@@ -530,17 +528,16 @@ private:
                                   size_t kernel_size,
                                   size_t out_channels) const {
     conv_gemm_weight_gradients_impl(col_data, grad_output_data,
-                                    weight_grad_data, output_size,
-                                    kernel_size, out_channels);
+                                    weight_grad_data, output_size, kernel_size,
+                                    out_channels);
   }
 
   void conv_gemm_input_gradients(const T *grad_output_data,
                                  const T *weight_data, T *col_grad_data,
                                  size_t output_size, size_t kernel_size,
                                  size_t out_channels) const {
-    conv_gemm_input_gradients_impl(grad_output_data, weight_data,
-                                   col_grad_data, output_size,
-                                   kernel_size, out_channels);
+    conv_gemm_input_gradients_impl(grad_output_data, weight_data, col_grad_data,
+                                   output_size, kernel_size, out_channels);
   }
 
   // Default implementations
@@ -549,7 +546,7 @@ private:
                               const size_t kernel_size,
                               const size_t out_channels) const {
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) 
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t os = 0; os < output_size; ++os) {
@@ -563,9 +560,12 @@ private:
     }
   }
 
-  void conv_gemm_weight_gradients_impl(
-      const T *col_data, const T *grad_output_data, T *weight_grad_data,
-      const size_t output_size, const size_t kernel_size, const size_t out_channels) const {
+  void conv_gemm_weight_gradients_impl(const T *col_data,
+                                       const T *grad_output_data,
+                                       T *weight_grad_data,
+                                       const size_t output_size,
+                                       const size_t kernel_size,
+                                       const size_t out_channels) const {
     // Add profiling information
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
@@ -583,10 +583,10 @@ private:
   }
 
   void conv_gemm_input_gradients_impl(const T *grad_output_data,
-                                       const T *weight_data,
-                                       T *col_grad_data, const size_t output_size,
-                                       const size_t kernel_size,
-                                       const size_t out_channels) const {
+                                      const T *weight_data, T *col_grad_data,
+                                      const size_t output_size,
+                                      const size_t kernel_size,
+                                      const size_t out_channels) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -640,8 +640,7 @@ public:
     if (input.channels() != in_channels_) {
       printf("Input shape: %zu channels, expected: %zu channels\n",
              input.channels(), in_channels_);
-      throw std::invalid_argument(
-          "Input channel size mismatch in Conv2DLayer");
+      throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
     }
 
     micro_batch_inputs_[micro_batch_id] = input;
@@ -673,24 +672,24 @@ public:
                       output_size, kernel_size, out_channels_);
 
     // Reshape output back to tensor format
-    T* output_data = output.data();
-    
+    T *output_data = output.data();
+
     const size_t N_stride = output.stride(0);
     const size_t C_stride = output.stride(1);
     const size_t H_stride = output.stride(2);
-    const size_t W_stride = output.stride(3);  
+    const size_t W_stride = output.stride(3);
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4)
 #endif
-    for (size_t n=0; n < batch_size; ++n) {
+    for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
         for (size_t oh = 0; oh < output_h; ++oh) {
           for (size_t ow = 0; ow < output_w; ++ow) {
             size_t flat_idx = oc * output_size + n * (output_h * output_w) +
                               oh * output_w + ow;
-            output_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] =
-                output_flat[flat_idx];
+            output_data[n * N_stride + oc * C_stride + oh * H_stride +
+                        ow * W_stride] = output_flat[flat_idx];
           }
         }
       }
@@ -922,22 +921,25 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
 
   // Pre-computed stride values for faster access
-  mutable size_t input_stride_n_, input_stride_c_, input_stride_h_, input_stride_w_;
-  mutable size_t output_stride_n_, output_stride_c_, output_stride_h_, output_stride_w_;
+  mutable size_t input_stride_n_, input_stride_c_, input_stride_h_,
+      input_stride_w_;
+  mutable size_t output_stride_n_, output_stride_c_, output_stride_h_,
+      output_stride_w_;
 
   // Helper function for vectorized max finding
-  inline std::pair<T, size_t> find_max_in_window(const T* data, 
-                                                  size_t start_h, size_t start_w,
-                                                  size_t input_h, size_t input_w,
-                                                  size_t stride_h, size_t stride_w) const {
+  inline std::pair<T, size_t> find_max_in_window(const T *data, size_t start_h,
+                                                 size_t start_w, size_t input_h,
+                                                 size_t input_w,
+                                                 size_t stride_h,
+                                                 size_t stride_w) const {
     T max_val = -std::numeric_limits<T>::infinity();
     size_t max_idx = 0;
-    
+
     for (size_t ph = 0; ph < pool_h_; ++ph) {
       for (size_t pw = 0; pw < pool_w_; ++pw) {
         size_t h_idx = start_h + ph;
         size_t w_idx = start_w + pw;
-        
+
         if (h_idx < input_h && w_idx < input_w) {
           size_t linear_idx = h_idx * stride_h + w_idx * stride_w;
           T val = data[linear_idx];
@@ -948,7 +950,7 @@ private:
         }
       }
     }
-    
+
     return {max_val, max_idx};
   }
 
@@ -959,10 +961,10 @@ public:
       : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
         stride_h_(stride_h == 0 ? pool_h : stride_h),
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
-        pad_w_(pad_w), input_stride_n_(0), input_stride_c_(0), 
+        pad_w_(pad_w), input_stride_n_(0), input_stride_c_(0),
         input_stride_h_(0), input_stride_w_(0), output_stride_n_(0),
         output_stride_c_(0), output_stride_h_(0), output_stride_w_(0) {
-    
+
     // Validate parameters
     if (pool_h_ == 0 || pool_w_ == 0) {
       throw std::invalid_argument("Pool dimensions must be positive");
@@ -1007,7 +1009,7 @@ public:
     input_stride_c_ = input.stride(1);
     input_stride_h_ = input.stride(2);
     input_stride_w_ = input.stride(3);
-    
+
     output_stride_n_ = output.stride(0);
     output_stride_c_ = output.stride(1);
     output_stride_h_ = output.stride(2);
@@ -1017,8 +1019,8 @@ public:
     const size_t total_outputs = batch_size * channels * output_h * output_w;
     std::vector<size_t> mask_indices(total_outputs);
 
-    const T* input_data = input.data();
-    T* output_data = output.data();
+    const T *input_data = input.data();
+    T *output_data = output.data();
 
     // Optimized pooling with better memory access patterns
     if (pad_h_ == 0 && pad_w_ == 0) {
@@ -1028,42 +1030,56 @@ public:
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {
-          const T* input_channel = input_data + n * input_stride_n_ + c * input_stride_c_;
-          T* output_channel = output_data + n * output_stride_n_ + c * output_stride_c_;
-          
+          const T *input_channel =
+              input_data + n * input_stride_n_ + c * input_stride_c_;
+          T *output_channel =
+              output_data + n * output_stride_n_ + c * output_stride_c_;
+
           for (size_t out_h = 0; out_h < output_h; ++out_h) {
             for (size_t out_w = 0; out_w < output_w; ++out_w) {
               T max_val = -std::numeric_limits<T>::infinity();
               size_t max_idx = 0;
-              
+
               const size_t start_h = out_h * stride_h_;
               const size_t start_w = out_w * stride_w_;
-              
+
               // Unrolled inner loops for small kernel sizes
               if (pool_h_ == 2 && pool_w_ == 2) {
                 // Special case for 2x2 pooling - most common
-                const T* pool_start = input_channel + start_h * input_stride_h_ + start_w * input_stride_w_;
-                
+                const T *pool_start = input_channel +
+                                      start_h * input_stride_h_ +
+                                      start_w * input_stride_w_;
+
                 T val0 = pool_start[0];
                 T val1 = pool_start[input_stride_w_];
                 T val2 = pool_start[input_stride_h_];
                 T val3 = pool_start[input_stride_h_ + input_stride_w_];
-                
+
                 max_val = val0;
                 max_idx = start_h * input_w + start_w;
-                
-                if (val1 > max_val) { max_val = val1; max_idx = start_h * input_w + start_w + 1; }
-                if (val2 > max_val) { max_val = val2; max_idx = (start_h + 1) * input_w + start_w; }
-                if (val3 > max_val) { max_val = val3; max_idx = (start_h + 1) * input_w + start_w + 1; }
+
+                if (val1 > max_val) {
+                  max_val = val1;
+                  max_idx = start_h * input_w + start_w + 1;
+                }
+                if (val2 > max_val) {
+                  max_val = val2;
+                  max_idx = (start_h + 1) * input_w + start_w;
+                }
+                if (val3 > max_val) {
+                  max_val = val3;
+                  max_idx = (start_h + 1) * input_w + start_w + 1;
+                }
               } else {
                 // General case
                 for (size_t ph = 0; ph < pool_h_; ++ph) {
                   for (size_t pw = 0; pw < pool_w_; ++pw) {
                     const size_t h_idx = start_h + ph;
                     const size_t w_idx = start_w + pw;
-                    
+
                     if (h_idx < input_h && w_idx < input_w) {
-                      T val = input_channel[h_idx * input_stride_h_ + w_idx * input_stride_w_];
+                      T val = input_channel[h_idx * input_stride_h_ +
+                                            w_idx * input_stride_w_];
                       if (val > max_val) {
                         max_val = val;
                         max_idx = h_idx * input_w + w_idx;
@@ -1072,9 +1088,11 @@ public:
                   }
                 }
               }
-              
-              output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] = max_val;
-              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+
+              output_channel[out_h * output_stride_h_ +
+                             out_w * output_stride_w_] = max_val;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
               mask_indices[output_idx] = max_idx;
             }
           }
@@ -1082,8 +1100,9 @@ public:
       }
     } else {
       // Padding case - use existing implementation but with optimizations
-      Tensor<T> padded_input = input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity());
-      const T* padded_data = padded_input.data();
+      Tensor<T> padded_input =
+          input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity());
+      const T *padded_data = padded_input.data();
       const size_t padded_h = padded_input.height();
       const size_t padded_w = padded_input.width();
       const size_t padded_stride_h = padded_input.stride(2);
@@ -1094,21 +1113,24 @@ public:
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {
-          const T* padded_channel = padded_data + n * padded_input.stride(0) + c * padded_input.stride(1);
-          T* output_channel = output_data + n * output_stride_n_ + c * output_stride_c_;
-          
+          const T *padded_channel = padded_data + n * padded_input.stride(0) +
+                                    c * padded_input.stride(1);
+          T *output_channel =
+              output_data + n * output_stride_n_ + c * output_stride_c_;
+
           for (size_t out_h = 0; out_h < output_h; ++out_h) {
             for (size_t out_w = 0; out_w < output_w; ++out_w) {
               T max_val = -std::numeric_limits<T>::infinity();
               size_t max_idx = 0;
-              
+
               for (size_t ph = 0; ph < pool_h_; ++ph) {
                 for (size_t pw = 0; pw < pool_w_; ++pw) {
                   const size_t h_idx = out_h * stride_h_ + ph;
                   const size_t w_idx = out_w * stride_w_ + pw;
-                  
+
                   if (h_idx < padded_h && w_idx < padded_w) {
-                    T val = padded_channel[h_idx * padded_stride_h + w_idx * padded_stride_w];
+                    T val = padded_channel[h_idx * padded_stride_h +
+                                           w_idx * padded_stride_w];
                     if (val > max_val) {
                       max_val = val;
                       max_idx = h_idx * padded_w + w_idx;
@@ -1116,9 +1138,11 @@ public:
                   }
                 }
               }
-              
-              output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] = max_val;
-              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+
+              output_channel[out_h * output_stride_h_ +
+                             out_w * output_stride_w_] = max_val;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
               mask_indices[output_idx] = max_idx;
             }
           }
@@ -1160,8 +1184,8 @@ public:
         std::vector<size_t>{batch_size, channels, input_h, input_w});
     grad_input.fill(0.0);
 
-    const T* grad_output_data = grad_output.data();
-    T* grad_input_data = grad_input.data();
+    const T *grad_output_data = grad_output.data();
+    T *grad_input_data = grad_input.data();
 
     if (pad_h_ == 0 && pad_w_ == 0) {
       // No padding case - direct indexing
@@ -1170,23 +1194,28 @@ public:
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {
-          const T* grad_out_channel = grad_output_data + n * output_stride_n_ + c * output_stride_c_;
-          T* grad_in_channel = grad_input_data + n * input_stride_n_ + c * input_stride_c_;
-          
+          const T *grad_out_channel =
+              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T *grad_in_channel =
+              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+
           for (size_t out_h = 0; out_h < output_h; ++out_h) {
             for (size_t out_w = 0; out_w < output_w; ++out_w) {
-              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
               const size_t max_idx = mask_indices[output_idx];
               const size_t max_h = max_idx / input_w;
               const size_t max_w = max_idx % input_w;
-              
-              const T grad_val = grad_out_channel[out_h * output_stride_h_ + out_w * output_stride_w_];
-              
+
+              const T grad_val = grad_out_channel[out_h * output_stride_h_ +
+                                                  out_w * output_stride_w_];
+
               // Use atomic add to handle potential race conditions
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-              grad_in_channel[max_h * input_stride_h_ + max_w * input_stride_w_] += grad_val;
+              grad_in_channel[max_h * input_stride_h_ +
+                              max_w * input_stride_w_] += grad_val;
             }
           }
         }
@@ -1201,28 +1230,33 @@ public:
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {
-          const T* grad_out_channel = grad_output_data + n * output_stride_n_ + c * output_stride_c_;
-          T* grad_in_channel = grad_input_data + n * input_stride_n_ + c * input_stride_c_;
-          
+          const T *grad_out_channel =
+              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T *grad_in_channel =
+              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+
           for (size_t out_h = 0; out_h < output_h; ++out_h) {
             for (size_t out_w = 0; out_w < output_w; ++out_w) {
-              const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
               const size_t padded_max_idx = mask_indices[output_idx];
               const size_t padded_max_h = padded_max_idx / padded_w;
               const size_t padded_max_w = padded_max_idx % padded_w;
-              
+
               // Convert back to unpadded coordinates
               if (padded_max_h >= pad_h_ && padded_max_h < input_h + pad_h_ &&
                   padded_max_w >= pad_w_ && padded_max_w < input_w + pad_w_) {
                 const size_t max_h = padded_max_h - pad_h_;
                 const size_t max_w = padded_max_w - pad_w_;
-                
-                const T grad_val = grad_out_channel[out_h * output_stride_h_ + out_w * output_stride_w_];
-                
+
+                const T grad_val = grad_out_channel[out_h * output_stride_h_ +
+                                                    out_w * output_stride_w_];
+
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-                grad_in_channel[max_h * input_stride_h_ + max_w * input_stride_w_] += grad_val;
+                grad_in_channel[max_h * input_stride_h_ +
+                                max_w * input_stride_w_] += grad_val;
               }
             }
           }
@@ -1411,7 +1445,7 @@ public:
           std::to_string(micro_batch_id));
     }
     const std::vector<size_t> &original_shape = it->second;
-    
+
     // Reshape back to original shape
     Tensor<T> grad_input = grad_output.reshape(original_shape);
 
@@ -1473,8 +1507,7 @@ public:
   static void register_defaults() {
     // Dense layer
     register_layer(
-        "dense",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+        "dense", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
           size_t output_features = config.get<size_t>("output_features");
           bool use_bias = config.get<bool>("use_bias", true);
@@ -1495,8 +1528,7 @@ public:
 
     // Conv2D layer
     register_layer(
-        "conv2d",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+        "conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
           size_t out_channels = config.get<size_t>("out_channels");
           size_t kernel_h = config.get<size_t>("kernel_h");
