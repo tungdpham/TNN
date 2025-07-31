@@ -360,26 +360,26 @@ int main() {
 
             // C1: convolution 5x5 kernel, stride 1, relu activation
             // Output size: 8x24x24 (padding 0) (28-5+1=24) (C H W order)
-            .blas_conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1")
+            .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1")
 
             // P1: max pool 3x3 blocks, stride 3
             // Output size: 8x8x8 (24/3=8) (C H W order)
             .maxpool2d(3, 3, 3, 3, 0, 0, "P1")
 
             // C2: inceptoin layer
-            .blas_conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true,
+            .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true,
                          "C2") // 1x1 conv
 
             // C3: convolution 5x5 kernel, stride 1, relu activation
             // Output size: 48x4x4 (8-5+1=4) (C H W order)
-            .blas_conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C2")
+            .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C2")
 
             // P2: max pool 2x2 blocks, stride 2
             // Output size: 48x2x2 (4/2=2) (C H W order)
             .maxpool2d(2, 2, 2, 2, 0, 0, "P2")
 
             // FC1: fully connected
-            .blas_dense(48 * 4, 10, "linear", true,
+            .dense(48 * 4, 10, "linear", true,
                         "output") // Output layer with 10 classes
 
             .build();

@@ -22,8 +22,8 @@ else
 	OBJ = $(CXX_OBJ)
 endif
 
-# Compilation flags - Updated to C++20 for concepts and SIMD optimizations
-CXXFLAGS = -std=c++20 -Wpedantic -O3 -march=native -mavx -mavx2 -flto
+# Compilation flags - Updated to C++17 for compatibility
+CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=native -mavx -mavx2 -flto
 NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
@@ -159,14 +159,6 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
-# Tensor test target
-tensor_test: tensor_test.cpp ${HEADERS}
-ifeq ($(ENABLE_CUDA), 1)
-	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
-else
-	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
-endif
-
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -195,4 +187,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer tensor_test $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer $(TEST_PROGRAMS)

@@ -768,7 +768,6 @@ public:
     size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
 
     Tensor<T, layout> final_result(batch_size, channels, padded_h, padded_w);
-    final_result.fill(T(0));
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4) schedule(static, 1)
@@ -825,18 +824,6 @@ public:
           for (size_t h = 0; h < shape_[2]; ++h) {
             for (size_t w = 0; w < shape_[3]; ++w) {
               result(n, c, h, w) = (*this)(n, c, h, w);
-            }
-          }
-        }
-      }
-    } else if constexpr (dims == 5) {
-      for (size_t n = 0; n < shape_[0]; ++n) {
-        for (size_t c = 0; c < shape_[1]; ++c) {
-          for (size_t d = 0; d < shape_[2]; ++d) {
-            for (size_t h = 0; h < shape_[3]; ++h) {
-              for (size_t w = 0; w < shape_[4]; ++w) {
-                result(n, c, d, h, w) = (*this)(n, c, d, h, w);
-              }
             }
           }
         }

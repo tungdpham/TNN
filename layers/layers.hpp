@@ -15,17 +15,6 @@
 #include "activations.hpp"
 #include "optimizers.hpp"
 
-// BLAS optimization support
-#ifdef USE_OPENBLAS
-#include <cblas.h>
-#elif defined(USE_MKL)
-#include <mkl_cblas.h>
-#elif defined(USE_ATLAS)
-extern "C" {
-#include <cblas.h>
-}
-#endif
-
 namespace layers {
 // Convenience function for creating tensor activation functions
 template <typename T = float>
@@ -139,9 +128,9 @@ protected:
   virtual void update_parameters_impl(const Optimizer<T> &optimizer) = 0;
 };
 
-// BLAS-optimized Dense/Fully Connected Layer
+// Dense/Fully Connected Layer
 template <typename T = float>
-class BLASDenseLayer : public ParameterizedLayer<T> {
+class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
   size_t output_features_;
@@ -156,106 +145,39 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
 
-  // BLAS helper functions
+  // Helper functions
   void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
                     size_t batch_size, size_t input_features,
                     size_t output_features) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
-                  output_features, input_features, 1.0f, input_data,
-                  input_features, weight_data, input_features, 0.0f,
-                  output_data, output_features);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
-                  output_features, input_features, 1.0, input_data,
-                  input_features, weight_data, input_features, 0.0, output_data,
-                  output_features);
-    } else {
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-    } 
-#else
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-#endif
+    gemm_impl(input_data, weight_data, output_data, batch_size,
+              input_features, output_features);
   }
 
   void gemm_weight_gradients(const T *input_data, const T *grad_output_data,
                              T *weight_grad_data, size_t batch_size,
                              size_t input_features,
                              size_t output_features) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
-                  input_features, batch_size, 1.0f, grad_output_data,
-                  output_features, input_data, input_features, 0.0f,
-                  weight_grad_data, input_features);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
-                  input_features, batch_size, 1.0, grad_output_data,
-                  output_features, input_data, input_features, 0.0,
-                  weight_grad_data, input_features);
-    } else {
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-    }
-#else
-    fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                              batch_size, input_features, output_features);
-#endif
+    weight_gradients_impl(input_data, grad_output_data, weight_grad_data,
+                          batch_size, input_features, output_features);
   }
 
   void gemm_input_gradients(const T *grad_output_data, const T *weight_data,
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
-                  input_features, output_features, 1.0f, grad_output_data,
-                  output_features, weight_data, input_features, 0.0f,
-                  grad_input_data, input_features);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
-                  input_features, output_features, 1.0, grad_output_data,
-                  output_features, weight_data, input_features, 0.0,
-                  grad_input_data, input_features);
-    } else {
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-    }
-#else
-    fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                             batch_size, input_features, output_features);
-#endif
+    input_gradients_impl(grad_output_data, weight_data, grad_input_data,
+                         batch_size, input_features, output_features);
   }
 
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      for (size_t n = 0; n < batch_size; ++n) {
-        cblas_saxpy(output_features, 1.0f, bias_data, 1,
-                    output_data + n * output_features, 1);
-      }
-    } else if constexpr (std::is_same_v<T, double>) {
-      for (size_t n = 0; n < batch_size; ++n) {
-        cblas_daxpy(output_features, 1.0, bias_data, 1,
-                    output_data + n * output_features, 1);
-      }
-    } else {
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-    }
-#else
-    fallback_add_bias(output_data, bias_data, batch_size, output_features);
-#endif
+    add_bias_impl(output_data, bias_data, batch_size, output_features);
   }
 
-  // Fallback implementations when BLAS is not available
-  void fallback_gemm(const T *input_data, const T *weight_data, T *output_data,
-                     const size_t batch_size, const size_t input_features,
-                     const size_t output_features) const {
+  // Default implementations
+  void gemm_impl(const T *input_data, const T *weight_data, T *output_data,
+                 const size_t batch_size, const size_t input_features,
+                 const size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -271,10 +193,10 @@ private:
     }
   }
 
-  void fallback_weight_gradients(const T *input_data, const T *grad_output_data,
-                                 T *weight_grad_data, size_t batch_size,
-                                 size_t input_features,
-                                 size_t output_features) const {
+  void weight_gradients_impl(const T *input_data, const T *grad_output_data,
+                             T *weight_grad_data, size_t batch_size,
+                             size_t input_features,
+                             size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -290,10 +212,10 @@ private:
     }
   }
 
-  void fallback_input_gradients(const T *grad_output_data, const T *weight_data,
-                                T *grad_input_data, size_t batch_size,
-                                size_t input_features,
-                                size_t output_features) const {
+  void input_gradients_impl(const T *grad_output_data, const T *weight_data,
+                            T *grad_input_data, size_t batch_size,
+                            size_t input_features,
+                            size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) 
 #endif
@@ -309,8 +231,8 @@ private:
     }
   }
 
-  void fallback_add_bias(T *output_data, const T *bias_data, size_t batch_size,
-                         size_t output_features) const {
+  void add_bias_impl(T *output_data, const T *bias_data, size_t batch_size,
+                     size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -322,9 +244,9 @@ private:
   }
 
 public:
-  BLASDenseLayer(size_t input_features, size_t output_features,
-                 std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-                 bool use_bias = true, const std::string &name = "blas_dense")
+  DenseLayer(size_t input_features, size_t output_features,
+             std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+             bool use_bias = true, const std::string &name = "dense")
       : ParameterizedLayer<T>(name), input_features_(input_features),
         output_features_(output_features), use_bias_(use_bias),
         activation_(std::move(activation)) {
@@ -359,16 +281,16 @@ public:
       printf("Input shape: %zu features, expected: %zu features\n",
              total_input_features, input_features_);
       throw std::invalid_argument(
-          "Input feature size mismatch in BLASDenseLayer");
+          "Input feature size mismatch in DenseLayer");
     }
 
     Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
 
-    // Perform BLAS matrix multiplication
+    // Perform matrix multiplication
     gemm_forward(input.data(), weights_.data(), output.data(),
                  batch_size, input_features_, output_features_);
 
-    // Add bias using BLAS if available
+    // Add bias
     if (use_bias_) {
       add_bias_vector(output.data(), bias_.data(), batch_size,
                       output_features_);
@@ -417,7 +339,7 @@ public:
       current_grad = activation_grad;
     }
 
-    // Compute weight gradients using BLAS
+    // Compute weight gradients
     gemm_weight_gradients(last_input.data(), current_grad.data(),
                           weight_gradients_.data(), batch_size, input_features_,
                           output_features_);
@@ -434,7 +356,7 @@ public:
       }
     }
 
-    // Compute input gradients using BLAS
+    // Compute input gradients
     gemm_input_gradients(current_grad.data(), weights_.data(),
                          grad_input.data(), batch_size, input_features_,
                          output_features_);
@@ -445,7 +367,7 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "blas_dense"; }
+  std::string type() const override { return "dense"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
@@ -455,13 +377,13 @@ public:
     config.parameters["use_bias"] = use_bias_;
     config.parameters["activation"] =
         activation_ ? activation_->name() : std::string("none");
-    config.parameters["optimized"] = std::string("blas");
+    config.parameters["optimized"] = std::string("native");
     return config;
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASDenseLayer<T>>(
+    return std::make_unique<DenseLayer<T>>(
         input_features_, output_features_, std::move(activation_clone),
         use_bias_, this->name_);
   }
@@ -469,7 +391,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASDenseLayer expects 4D input");
+      throw std::invalid_argument("DenseLayer expects 4D input");
     }
     return {input_shape[0], output_features_, 1, 1};
   }
@@ -507,9 +429,9 @@ protected:
       activation = ActivationFactory<T>::create(activation_name);
     }
 
-    return std::make_unique<BLASDenseLayer<T>>(input_features, output_features,
-                                               std::move(activation), use_bias,
-                                               config.name);
+    return std::make_unique<DenseLayer<T>>(input_features, output_features,
+                                           std::move(activation), use_bias,
+                                           config.name);
   }
 };
 
@@ -570,9 +492,9 @@ public:
   }
 };
 
-// BLAS-optimized 2D Convolutional Layer using im2col + GEMM
+// 2D Convolutional Layer using im2col + GEMM
 template <typename T = double>
-class BLASConv2DLayer : public ParameterizedLayer<T> {
+class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -595,86 +517,37 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 
-  // BLAS helper functions for convolution
+  // Helper functions for convolution
   void conv_gemm_forward(const T *col_data, const T *weight_data,
                          T *output_data, size_t output_size, size_t kernel_size,
                          size_t out_channels) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
-                  output_size, kernel_size, 1.0f, weight_data, kernel_size,
-                  col_data, output_size, 0.0f, output_data, output_size);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
-                  output_size, kernel_size, 1.0, weight_data, kernel_size,
-                  col_data, output_size, 0.0, output_data, output_size);
-    } else {
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-    }
-#else
-    fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                               output_size, kernel_size, out_channels);
-#endif
+    conv_gemm_forward_impl(col_data, weight_data, output_data,
+                           output_size, kernel_size, out_channels);
   }
 
   void conv_gemm_weight_gradients(const T *col_data, const T *grad_output_data,
                                   T *weight_grad_data, size_t output_size,
                                   size_t kernel_size,
                                   size_t out_channels) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
-                  kernel_size, output_size, 1.0f, grad_output_data, output_size,
-                  col_data, output_size, 0.0f, weight_grad_data, kernel_size);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
-                  kernel_size, output_size, 1.0, grad_output_data, output_size,
-                  col_data, output_size, 0.0, weight_grad_data, kernel_size);
-    } else {
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-    }
-#else
-    fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                        weight_grad_data, output_size,
-                                        kernel_size, out_channels);
-#endif
+    conv_gemm_weight_gradients_impl(col_data, grad_output_data,
+                                    weight_grad_data, output_size,
+                                    kernel_size, out_channels);
   }
 
   void conv_gemm_input_gradients(const T *grad_output_data,
                                  const T *weight_data, T *col_grad_data,
                                  size_t output_size, size_t kernel_size,
                                  size_t out_channels) const {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-    if constexpr (std::is_same_v<T, float>) {
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
-                  output_size, out_channels, 1.0f, weight_data, kernel_size,
-                  grad_output_data, output_size, 0.0f, col_grad_data,
-                  output_size);
-    } else if constexpr (std::is_same_v<T, double>) {
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
-                  output_size, out_channels, 1.0, weight_data, kernel_size,
-                  grad_output_data, output_size, 0.0, col_grad_data,
-                  output_size);
-    } else {
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-    }
-#else
-    fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                       col_grad_data, output_size,
-                                       kernel_size, out_channels);
-#endif
+    conv_gemm_input_gradients_impl(grad_output_data, weight_data,
+                                   col_grad_data, output_size,
+                                   kernel_size, out_channels);
   }
 
-  // Fallback implementations when BLAS is not available
-  void fallback_conv_gemm_forward(const T *col_data, const T *weight_data,
-                                  T *output_data, const size_t output_size,
-                                  const size_t kernel_size,
-                                  const size_t out_channels) const {
+  // Default implementations
+  void conv_gemm_forward_impl(const T *col_data, const T *weight_data,
+                              T *output_data, const size_t output_size,
+                              const size_t kernel_size,
+                              const size_t out_channels) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) 
 #endif
@@ -690,7 +563,7 @@ private:
     }
   }
 
-  void fallback_conv_gemm_weight_gradients(
+  void conv_gemm_weight_gradients_impl(
       const T *col_data, const T *grad_output_data, T *weight_grad_data,
       const size_t output_size, const size_t kernel_size, const size_t out_channels) const {
     // Add profiling information
@@ -709,11 +582,11 @@ private:
     }
   }
 
-  void fallback_conv_gemm_input_gradients(const T *grad_output_data,
-                                          const T *weight_data,
-                                          T *col_grad_data, const size_t output_size,
-                                          const size_t kernel_size,
-                                          const size_t out_channels) const {
+  void conv_gemm_input_gradients_impl(const T *grad_output_data,
+                                       const T *weight_data,
+                                       T *col_grad_data, const size_t output_size,
+                                       const size_t kernel_size,
+                                       const size_t out_channels) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -734,11 +607,11 @@ private:
   }
 
 public:
-  BLASConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
-                  size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-                  size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
-                  std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-                  const std::string &name = "blas_conv2d")
+  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
+              size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+              size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
+              std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+              const std::string &name = "conv2d")
       : ParameterizedLayer<T>(name), in_channels_(in_channels),
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
@@ -768,7 +641,7 @@ public:
       printf("Input shape: %zu channels, expected: %zu channels\n",
              input.channels(), in_channels_);
       throw std::invalid_argument(
-          "Input channel size mismatch in BLASConv2DLayer");
+          "Input channel size mismatch in Conv2DLayer");
     }
 
     micro_batch_inputs_[micro_batch_id] = input;
@@ -790,11 +663,11 @@ public:
     // Create output tensor
     Tensor<T> output(batch_size, out_channels_, output_h, output_w);
 
-    // Prepare data for BLAS operation
+    // Prepare data for GEMM operation
     size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
     size_t output_size = batch_size * output_h * output_w;
 
-    // Perform convolution using BLAS GEMM
+    // Perform convolution using GEMM
     std::vector<T> output_flat(out_channels_ * output_size);
     conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.data(),
                       output_size, kernel_size, out_channels_);
@@ -892,11 +765,11 @@ public:
       bias_gradients_.fill(T(0));
     }
 
-    // Prepare data for BLAS operations
+    // Prepare data for GEMM operations
     size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
     size_t output_size = batch_size * output_h * output_w;
 
-    // Flatten gradient output for BLAS
+    // Flatten gradient output for GEMM
     std::vector<T> grad_output_flat(out_channels_ * output_size);
 
 #ifdef _OPENMP
@@ -921,7 +794,7 @@ public:
       }
     }
 
-    // Compute weight gradients using BLAS
+    // Compute weight gradients
     std::vector<T> weight_grad_flat(out_channels_ * kernel_size);
     conv_gemm_weight_gradients(col_data.data(), grad_output_flat.data(),
                                weight_grad_flat.data(), output_size,
@@ -945,7 +818,7 @@ public:
       }
     }
 
-    // Compute input gradients using BLAS
+    // Compute input gradients
     std::vector<T> weight_flat = weights_.to_vector();
     std::vector<T> col_grad_flat(kernel_size * output_size);
     conv_gemm_input_gradients(grad_output_flat.data(), weight_flat.data(),
@@ -975,7 +848,7 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "blas_conv2d"; }
+  std::string type() const override { return "conv2d"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
@@ -991,13 +864,13 @@ public:
     config.parameters["use_bias"] = use_bias_;
     config.parameters["activation"] =
         activation_ ? activation_->name() : std::string("none");
-    config.parameters["optimized"] = std::string("blas");
+    config.parameters["optimized"] = std::string("native");
     return config;
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASConv2DLayer<T>>(
+    return std::make_unique<Conv2DLayer<T>>(
         in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
         pad_h_, pad_w_, use_bias_, std::move(activation_clone), this->name_);
   }
@@ -1005,7 +878,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASConv2DLayer expects 4D input");
+      throw std::invalid_argument("Conv2DLayer expects 4D input");
     }
 
     size_t output_h = (input_shape[2] + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
@@ -1598,9 +1471,9 @@ public:
   }
 
   static void register_defaults() {
-    // BLAS-optimized Dense layer
+    // Dense layer
     register_layer(
-        "blas_dense",
+        "dense",
         [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
           size_t output_features = config.get<size_t>("output_features");
@@ -1615,14 +1488,14 @@ public:
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASDenseLayer<T>>(
+          return std::make_unique<DenseLayer<T>>(
               input_features, output_features, std::move(activation), use_bias,
               config.name);
         });
 
-    // BLAS-optimized Conv2D layer
+    // Conv2D layer
     register_layer(
-        "blas_conv2d",
+        "conv2d",
         [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
           size_t out_channels = config.get<size_t>("out_channels");
@@ -1643,7 +1516,7 @@ public:
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASConv2DLayer<T>>(
+          return std::make_unique<Conv2DLayer<T>>(
               in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
               pad_h, pad_w, use_bias, std::move(activation), config.name);
         });
@@ -1714,9 +1587,9 @@ namespace Layers {
 
 template <typename T = double>
 std::unique_ptr<layers::Layer<T>>
-blas_dense(size_t input_features, size_t output_features,
-           const std::string &activation = "none", bool use_bias = true,
-           const std::string &name = "blas_dense") {
+dense(size_t input_features, size_t output_features,
+      const std::string &activation = "none", bool use_bias = true,
+      const std::string &name = "dense") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
     auto factory = ActivationFactory<T>();
@@ -1724,24 +1597,24 @@ blas_dense(size_t input_features, size_t output_features,
     act = factory.create(activation);
   }
 
-  return std::make_unique<layers::BLASDenseLayer<T>>(
+  return std::make_unique<layers::DenseLayer<T>>(
       input_features, output_features, std::move(act), use_bias, name);
 }
 
 template <typename T = double>
 std::unique_ptr<layers::Layer<T>>
-blas_conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
-            size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-            size_t pad_h = 0, size_t pad_w = 0,
-            const std::string &activation = "none", bool use_bias = true,
-            const std::string &name = "blas_conv2d") {
+conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
+       size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+       size_t pad_h = 0, size_t pad_w = 0,
+       const std::string &activation = "none", bool use_bias = true,
+       const std::string &name = "conv2d") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
     auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<layers::BLASConv2DLayer<T>>(
+  return std::make_unique<layers::Conv2DLayer<T>>(
       in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h,
       pad_w, use_bias, std::move(act), name);
 }
