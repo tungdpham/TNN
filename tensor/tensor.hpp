@@ -1,7 +1,9 @@
 #pragma once
 
 #include "../matrix/matrix.hpp"
+#include "tensor_view.hpp"
 #include <cassert>
+#include <execution>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -11,62 +13,6 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
-#include <execution>
-
-enum Layout {
-  NCHW,  // 4D: Batch, Channels, Height, Width (most common for CNNs)
-  NHWC,  // 4D: Batch, Height, Width, Channels (TensorFlow default)
-  NCDHW, // 5D: Batch, Channels, Depth, Height, Width (3D CNNs)
-  NDHWC  // 5D: Batch, Depth, Height, Width, Channels (3D TensorFlow default)
-};
-
-template <typename T, Layout L> struct LayoutTraits;
-
-template <typename T> struct LayoutTraits<T, NCHW> {
-  static constexpr size_t dims = 4;
-
-  inline static void compute_strides(size_t *strides, const size_t *shape) {
-    strides[0] = shape[1] * shape[2] * shape[3]; // stride for batch
-    strides[1] = shape[2] * shape[3];            // stride for channels
-    strides[2] = shape[3];                       // stride for height
-    strides[3] = 1;                              // stride for width
-  }
-};
-
-template <typename T> struct LayoutTraits<T, NHWC> {
-  static constexpr size_t dims = 4;
-
-  inline static void compute_strides(size_t *strides, const size_t *shape) {
-    strides[0] = shape[2] * shape[3] * shape[1]; // stride for batch
-    strides[1] = shape[3] * shape[1];            // stride for height
-    strides[2] = shape[1];                       // stride for width
-    strides[3] = 1;                              // stride for channels
-  }
-};
-
-template <typename T> struct LayoutTraits<T, NCDHW> {
-  static constexpr size_t dims = 5;
-
-  inline static void compute_strides(size_t *strides, const size_t *shape) {
-    strides[0] = shape[1] * shape[2] * shape[3] * shape[4]; // stride for batch
-    strides[1] = shape[2] * shape[3] * shape[4]; // stride for channels
-    strides[2] = shape[3] * shape[4];            // stride for depth
-    strides[3] = shape[4];                       // stride for height
-    strides[4] = 1;                              // stride for width
-  }
-};
-
-template <typename T> struct LayoutTraits<T, NDHWC> {
-  static constexpr size_t dims = 5;
-
-  inline static void compute_strides(size_t *strides, const size_t *shape) {
-    strides[0] = shape[2] * shape[3] * shape[4] * shape[1]; // stride for batch
-    strides[1] = shape[3] * shape[4] * shape[1];            // stride for depth
-    strides[2] = shape[4] * shape[1];                       // stride for height
-    strides[3] = shape[1];                                  // stride for width
-    strides[4] = 1; // stride for channels
-  }
-};
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
 // but primarily NCHW and NCDHW.
@@ -75,21 +21,17 @@ template <typename T = float, Layout layout = NCHW> class Tensor {
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
                 "Tensor type must be floating point or integral");
 
-public:
 private:
-  using Traits = LayoutTraits<T, layout>;
-  static constexpr size_t dims =
-      Traits::dims; // 4 for NCHW/NHWC, 5 for NCDHW/NDHWC
+  using View = TensorView<T, layout>;
 
-  size_t shape_[dims];  // Shape of the tensor (e.g., {batch, channels, height,
-                        // width} for 4D)
+  static constexpr size_t dims = View::dims;
+  size_t shape_[dims];  // Shape of the tensor
   size_t strides[dims]; // Strides for each dimension
-  std::unique_ptr<T[]>
-      data_; // Contiguous raw array storage for better performance
+  std::unique_ptr<T[]> data_;
 
   size_t data_size_; // Total number of elements in the tensor
 
-  inline void compute_strides() { Traits::compute_strides(strides, shape_); }
+  inline void compute_strides() { View::compute_strides(strides, shape_); }
 
   inline size_t compute_index(std::initializer_list<size_t> indices) const {
     size_t index = 0;
@@ -191,9 +133,8 @@ public:
     compute_strides();
     if (data_size_ > 0) {
       data_ = std::make_unique<T[]>(data_size_);
-      std::copy(std::execution::par_unseq,
-                other.data_.get(), other.data_.get() + data_size_,
-                data_.get());
+      std::copy(std::execution::par_unseq, other.data_.get(),
+                other.data_.get() + data_size_, data_.get());
     }
   }
 
@@ -212,10 +153,8 @@ public:
       compute_strides();
       data_size_ = other.data_size_;
       data_ = std::make_unique<T[]>(data_size_);
-      std::copy(std::execution::par_unseq,
-                other.data_.get(),
-                other.data_.get() + data_size_,
-                data_.get());
+      std::copy(std::execution::par_unseq, other.data_.get(),
+                other.data_.get() + data_size_, data_.get());
     }
     return *this;
   }
