@@ -162,7 +162,7 @@ public:
       compute_strides();
       data_size_ = other.data_size_;
       data_ = std::make_unique<T[]>(data_size_);
-      std::copy(std::execution::par_unseq, other.data_.get(),
+      std::copy(other.data_.get(),
                 other.data_.get() + data_size_, data_.get());
     }
     return *this;
@@ -707,7 +707,7 @@ public:
       throw std::runtime_error("from_vector is only supported for NCHW layout");
     }
 
-    std::copy(std::execution::par_unseq, vec.begin(), vec.end(), data_.get());
+    std::copy(vec.begin(), vec.end(), data_.get());
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
