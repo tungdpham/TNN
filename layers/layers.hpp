@@ -10,6 +10,15 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <type_traits>
+
+// SIMD intrinsics
+#if defined(__AVX2__)
+#include <immintrin.h>
+#elif defined(__SSE2__)
+#include <emmintrin.h>
+#include <smmintrin.h>
+#endif
 
 #include "../tensor/tensor.hpp"
 #include "activations.hpp"
@@ -507,8 +516,8 @@ private:
 
   Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
   Tensor<T> bias_;    // [out_channels, 1, 1, 1]
-  Tensor<T> weight_gradients_; // Same shape as weights
-  Tensor<T> bias_gradients_;   // Same shape as bias
+  Tensor<T> weight_gradients_; 
+  Tensor<T> bias_gradients_;   
 
   // Per-micro-batch state
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
@@ -540,7 +549,6 @@ private:
                                    output_size, kernel_size, out_channels);
   }
 
-  // Default implementations
   void conv_gemm_forward_impl(const T *col_data, const T *weight_data,
                               T *output_data, const size_t output_size,
                               const size_t kernel_size,
@@ -550,14 +558,109 @@ private:
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t os = 0; os < output_size; ++os) {
-        T sum = T(0);
-        for (size_t ks = 0; ks < kernel_size; ++ks) {
-          sum += weight_data[oc * kernel_size + ks] *
-                 col_data[ks * output_size + os];
-        }
-        output_data[oc * output_size + os] = sum;
+        output_data[oc * output_size + os] = simd_dot_product(
+            &weight_data[oc * kernel_size], 
+            &col_data[os], 
+            kernel_size, 
+            output_size
+        );
       }
     }
+  }
+
+  // SIMD-optimized dot product implementation
+  T simd_dot_product(const T *weights, const T *col_data, 
+                     size_t kernel_size, size_t col_stride) const {
+    T sum = T(0);
+    
+    // Use SIMD for float type only
+    if constexpr (std::is_same_v<T, float>) {
+#if defined(__AVX2__)
+      // AVX2 implementation - process 8 floats at once
+      __m256 sum_vec = _mm256_setzero_ps();
+      size_t simd_end = kernel_size - (kernel_size % 8);
+      
+      for (size_t ks = 0; ks < simd_end; ks += 8) {
+        // Load 8 weights
+        __m256 w_vec = _mm256_loadu_ps(&weights[ks]);
+        
+        // Load 8 col_data values with stride
+        __m256 c_vec = _mm256_set_ps(
+            col_data[(ks + 7) * col_stride],
+            col_data[(ks + 6) * col_stride],
+            col_data[(ks + 5) * col_stride],
+            col_data[(ks + 4) * col_stride],
+            col_data[(ks + 3) * col_stride],
+            col_data[(ks + 2) * col_stride],
+            col_data[(ks + 1) * col_stride],
+            col_data[ks * col_stride]
+        );
+        
+        // Fused multiply-add
+        sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
+      }
+      
+      // Horizontal sum of the vector
+      __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
+      __m128 sum_low = _mm256_castps256_ps128(sum_vec);
+      __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
+      
+      // Sum the 4 elements in the 128-bit vector
+      sum_128 = _mm_hadd_ps(sum_128, sum_128);
+      sum_128 = _mm_hadd_ps(sum_128, sum_128);
+      sum = _mm_cvtss_f32(sum_128);
+      
+      // Handle remaining elements
+      for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+        sum += weights[ks] * col_data[ks * col_stride];
+      }
+      
+#elif defined(__SSE2__)
+      // SSE2 implementation - process 4 floats at once
+      __m128 sum_vec = _mm_setzero_ps();
+      size_t simd_end = kernel_size - (kernel_size % 4);
+      
+      for (size_t ks = 0; ks < simd_end; ks += 4) {
+        // Load 4 weights
+        __m128 w_vec = _mm_loadu_ps(&weights[ks]);
+        
+        // Load 4 col_data values with stride
+        __m128 c_vec = _mm_set_ps(
+            col_data[(ks + 3) * col_stride],
+            col_data[(ks + 2) * col_stride],
+            col_data[(ks + 1) * col_stride],
+            col_data[ks * col_stride]
+        );
+        
+        // Multiply and add
+        __m128 prod = _mm_mul_ps(w_vec, c_vec);
+        sum_vec = _mm_add_ps(sum_vec, prod);
+      }
+      
+      // Horizontal sum of the vector
+      sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+      sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+      sum = _mm_cvtss_f32(sum_vec);
+      
+      // Handle remaining elements
+      for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+        sum += weights[ks] * col_data[ks * col_stride];
+      }
+      
+#else
+      // Fallback scalar implementation
+      for (size_t ks = 0; ks < kernel_size; ++ks) {
+        sum += weights[ks] * col_data[ks * col_stride];
+      }
+#endif
+    } else {
+      // For non-float types, use scalar implementation
+      for (size_t ks = 0; ks < kernel_size; ++ks) {
+        sum += weights[ks] * col_data[ks * col_stride];
+      }
+    }
+    
+    return sum;
   }
 
   void conv_gemm_weight_gradients_impl(const T *col_data,
@@ -566,7 +669,6 @@ private:
                                        const size_t output_size,
                                        const size_t kernel_size,
                                        const size_t out_channels) const {
-    // Add profiling information
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
