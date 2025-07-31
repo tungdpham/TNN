@@ -360,14 +360,14 @@ int main() {
     auto model =
         layers::SequentialBuilder<float>("cifar10_cnn_classifier")
             // Input: 32x32x3
-            .blas_conv2d(3, 32, 3, 3, 1, 1, 1, 1, "relu", true, "conv1") // 3x32x32 -> 32x32x32
+            .conv2d(3, 32, 3, 3, 1, 1, 1, 1, "relu", true, "conv1") // 3x32x32 -> 32x32x32
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32x32 -> 16x16x32
-            .blas_conv2d(32, 64, 3, 3, 1, 1, 1, 1, "relu", true, "conv2") // 16x16x32 -> 16x16x64
+            .conv2d(32, 64, 3, 3, 1, 1, 1, 1, "relu", true, "conv2") // 16x16x32 -> 16x16x64
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16x64 -> 8x8x64
-            .blas_conv2d(64, 128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3") // 8x8x64 -> 8x8x128
+            .conv2d(64, 128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3") // 8x8x64 -> 8x8x128
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8x128 -> 4x4x128
-            .blas_dense(128 * 4 * 4, 128, "relu", true, "fc1") // Flatten to 128
-            .blas_dense(128, 10, "linear", true, "output") // Output layer with 10 classes
+            .dense(128 * 4 * 4, 128, "relu", true, "fc1") // Flatten to 128
+            .dense(128, 10, "linear", true, "output") // Output layer with 10 classes
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis

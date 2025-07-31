@@ -671,7 +671,6 @@ public:
     conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.data(),
                       output_size, kernel_size, out_channels_);
 
-    // Reshape output back to tensor format
     T *output_data = output.data();
 
     const size_t N_stride = output.stride(0);

@@ -360,12 +360,12 @@ int main() {
     auto model =
         layers::SequentialBuilder<float>("cifar100_cnn_classifier")
             // Input: 32x32x3
-            .blas_conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 32x32x32
+            .conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 32x32x32
             .maxpool2d(3, 3, 3, 3, 0, 0, "pool1") // 10x10x16
-            .blas_conv2d(32, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 10x10x64
+            .conv2d(32, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 10x10x64
             .maxpool2d(4, 4, 4, 4, 0, 0, "pool2") // 2x2x64
-            .blas_dense(64 * 2 * 2, 512, "relu", true, "fc1") // Flatten to 512
-            .blas_dense(512, 100, "linear", true, "output") // Output layer with 100 classes
+            .dense(64 * 2 * 2, 512, "relu", true, "fc1") // Flatten to 512
+            .dense(512, 100, "linear", true, "output") // Output layer with 100 classes
             .activation("softmax", "softmax_output") // Softmax activation
             .build();
 
