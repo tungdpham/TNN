@@ -725,7 +725,7 @@ public:
                                        const std::string &name = "") {
     auto layer = Layers::conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
-        pad_h, pad_w, activation, use_bias,
+        pad_h, pad_w, activation, use_bias, 
         name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;

@@ -33,6 +33,13 @@ private:
 
   inline void compute_strides() { View::compute_strides(strides, shape_); }
 
+  inline size_t compute_index(size_t batch, size_t channel, size_t height,
+                             size_t width) const {
+    static_assert(dims == 4, "compute_index only valid for 4D tensors");
+    return batch * strides[0] + channel * strides[1] +
+           height * strides[2] + width * strides[3];
+  }
+
   inline size_t compute_index(std::initializer_list<size_t> indices) const {
     size_t index = 0;
     for (size_t i = 0; i < dims; ++i) {
@@ -175,11 +182,11 @@ public:
 
   // Accessors for 4D tensors
   T &operator()(size_t n, size_t c, size_t h, size_t w) {
-    return data_[compute_index({n, c, h, w})];
+    return data_[compute_index(n, c, h, w)];
   }
 
   const T &operator()(size_t n, size_t c, size_t h, size_t w) const {
-    return data_[compute_index({n, c, h, w})];
+    return data_[compute_index(n, c, h, w)];
   }
 
   T &operator()(const std::vector<size_t> &indices) {
@@ -209,6 +216,8 @@ public:
   }
 
   const size_t *shape_ptr() const { return shape_; }
+
+  const size_t *strides_ptr() const { return strides; }
 
   size_t batch_size() const { return shape_[0]; }
 
@@ -719,6 +728,8 @@ public:
       input_ptr = padded_input_storage.get();
     }
     const Tensor<T, layout> &input_tensor = *input_ptr;
+    const T* input_data = input_tensor.data();
+    const size_t *strides = input_tensor.strides_ptr();
 
     const size_t in_h = input_tensor.height();
     const size_t in_w = input_tensor.width();
@@ -747,7 +758,8 @@ public:
                     n * out_h * out_w + out_h_idx * out_w + out_w_idx;
 
                 col_matrix(col_row_idx, col_col_idx) =
-                    input_tensor(n, c, in_h_idx, in_w_idx);
+                    input_data[n * strides[0] + c * strides[1] +
+                               in_h_idx * strides[2] + in_w_idx * strides[3]];
               }
             }
           }
@@ -768,16 +780,12 @@ public:
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
     size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
 
-    // Create the output tensor for the padded image filled with zeros
     Tensor<T, layout> result_padded(batch_size, channels, padded_h, padded_w);
 
     // The total number of output "patches" is the number of columns in
     // col_matrix
     size_t num_output_patches = output_h * output_w;
 
-    // We can use a single loop or a more flattened loop structure over the
-    // col_matrix. Let's use a single flattened loop for simplicity. The number
-    // of rows in col_matrix is channels * kernel_h * kernel_w
     size_t col_rows = channels * kernel_h * kernel_w;
     size_t col_cols = batch_size * num_output_patches;
 
@@ -791,22 +799,15 @@ public:
           size_t col_col_idx =
               n * output_h * output_w + h_out * output_w + w_out;
 
-          // Now, iterate through the kernel dimensions (the rows of col_matrix)
           for (size_t c = 0; c < channels; ++c) {
             for (size_t kh = 0; kh < kernel_h; ++kh) {
               for (size_t kw = 0; kw < kernel_w; ++kw) {
 
                 size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
 
-                // Calculate the destination pixel in the padded image
                 size_t h_dest = h_out * stride_h + kh;
                 size_t w_dest = w_out * stride_w + kw;
 
-                // No need for a conditional `if`!
-                // We are guaranteed to be within the padded image bounds
-                // and the `col_matrix` element is always a valid contribution.
-
-                // Add the value to the destination
                 result_padded(n, c, h_dest, w_dest) +=
                     col_matrix(col_row_idx, col_col_idx);
               }
