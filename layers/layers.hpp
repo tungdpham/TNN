@@ -208,7 +208,7 @@ private:
                              size_t output_features) const {
     std::vector<T> input_transposed(input_features * batch_size);
     std::vector<T> grad_output_transposed(output_features * batch_size);
-    
+
     utils::transpose_2d(input_data, input_transposed.data(), 
                         batch_size, input_features);
     utils::transpose_2d(grad_output_data, grad_output_transposed.data(), 
@@ -1187,84 +1187,87 @@ public:
 
     Tensor<T> grad_input(
         std::vector<size_t>{batch_size, channels, input_h, input_w});
-    grad_input.fill(0.0);
+    grad_input.fill(T(0));
 
     const T *grad_output_data = grad_output.data();
     T *grad_input_data = grad_input.data();
 
+    // Optimized backward pass: iterate through all output elements once
+    // Each output element maps to exactly one input element (the max), so no race conditions
+    const size_t total_outputs = batch_size * channels * output_h * output_w;
+
     if (pad_h_ == 0 && pad_w_ == 0) {
-      // No padding case - direct indexing
+      // No padding case - direct indexing, optimized version
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for
 #endif
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t c = 0; c < channels; ++c) {
-          const T *grad_out_channel =
-              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
-          T *grad_in_channel =
-              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+      for (size_t i = 0; i < total_outputs; ++i) {
+        // Decode the linear index back to (n, c, out_h, out_w)
+        const size_t output_hw = output_h * output_w;
+        const size_t output_chw = channels * output_hw;
+        
+        const size_t n = i / output_chw;
+        const size_t c = (i % output_chw) / output_hw;
+        const size_t out_h = (i % output_hw) / output_w;
+        const size_t out_w = i % output_w;
 
-          for (size_t out_h = 0; out_h < output_h; ++out_h) {
-            for (size_t out_w = 0; out_w < output_w; ++out_w) {
-              const size_t output_idx =
-                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
-              const size_t max_idx = mask_indices[output_idx];
-              const size_t max_h = max_idx / input_w;
-              const size_t max_w = max_idx % input_w;
+        // Get the max index for this output element
+        const size_t max_idx = mask_indices[i];
+        const size_t max_h = max_idx / input_w;
+        const size_t max_w = max_idx % input_w;
 
-              const T grad_val = grad_out_channel[out_h * output_stride_h_ +
-                                                  out_w * output_stride_w_];
+        // Get the gradient value for this output element
+        const T grad_val = grad_output_data[n * output_stride_n_ + 
+                                           c * output_stride_c_ + 
+                                           out_h * output_stride_h_ + 
+                                           out_w * output_stride_w_];
 
-              // Use atomic add to handle potential race conditions
-#ifdef _OPENMP
-#pragma omp atomic
-#endif
-              grad_in_channel[max_h * input_stride_h_ +
-                              max_w * input_stride_w_] += grad_val;
-            }
-          }
-        }
+        // No atomic needed - each output maps to unique input location
+        grad_input_data[n * input_stride_n_ + 
+                       c * input_stride_c_ + 
+                       max_h * input_stride_h_ + 
+                       max_w * input_stride_w_] += grad_val;
       }
     } else {
-      // Padding case - need to handle coordinate transformation
+      // Padding case - optimized version with coordinate transformation
       const size_t padded_h = input_h + 2 * pad_h_;
       const size_t padded_w = input_w + 2 * pad_w_;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for
 #endif
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t c = 0; c < channels; ++c) {
-          const T *grad_out_channel =
-              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
-          T *grad_in_channel =
-              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+      for (size_t i = 0; i < total_outputs; ++i) {
+        // Decode the linear index back to (n, c, out_h, out_w)
+        const size_t output_hw = output_h * output_w;
+        const size_t output_chw = channels * output_hw;
+        
+        const size_t n = i / output_chw;
+        const size_t c = (i % output_chw) / output_hw;
+        const size_t out_h = (i % output_hw) / output_w;
+        const size_t out_w = i % output_w;
 
-          for (size_t out_h = 0; out_h < output_h; ++out_h) {
-            for (size_t out_w = 0; out_w < output_w; ++out_w) {
-              const size_t output_idx =
-                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
-              const size_t padded_max_idx = mask_indices[output_idx];
-              const size_t padded_max_h = padded_max_idx / padded_w;
-              const size_t padded_max_w = padded_max_idx % padded_w;
+        // Get the padded max index for this output element
+        const size_t padded_max_idx = mask_indices[i];
+        const size_t padded_max_h = padded_max_idx / padded_w;
+        const size_t padded_max_w = padded_max_idx % padded_w;
 
-              // Convert back to unpadded coordinates
-              if (padded_max_h >= pad_h_ && padded_max_h < input_h + pad_h_ &&
-                  padded_max_w >= pad_w_ && padded_max_w < input_w + pad_w_) {
-                const size_t max_h = padded_max_h - pad_h_;
-                const size_t max_w = padded_max_w - pad_w_;
+        // Convert back to unpadded coordinates
+        if (padded_max_h >= pad_h_ && padded_max_h < input_h + pad_h_ &&
+            padded_max_w >= pad_w_ && padded_max_w < input_w + pad_w_) {
+          const size_t max_h = padded_max_h - pad_h_;
+          const size_t max_w = padded_max_w - pad_w_;
 
-                const T grad_val = grad_out_channel[out_h * output_stride_h_ +
-                                                    out_w * output_stride_w_];
+          // Get the gradient value for this output element
+          const T grad_val = grad_output_data[n * output_stride_n_ + 
+                                             c * output_stride_c_ + 
+                                             out_h * output_stride_h_ + 
+                                             out_w * output_stride_w_];
 
-#ifdef _OPENMP
-#pragma omp atomic
-#endif
-                grad_in_channel[max_h * input_stride_h_ +
-                                max_w * input_stride_w_] += grad_val;
-              }
-            }
-          }
+          // No atomic needed - each output maps to unique input location
+          grad_input_data[n * input_stride_n_ + 
+                         c * input_stride_c_ + 
+                         max_h * input_stride_h_ + 
+                         max_w * input_stride_w_] += grad_val;
         }
       }
     }

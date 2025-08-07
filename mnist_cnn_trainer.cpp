@@ -431,7 +431,7 @@ void train_cnn_model(layers::Sequential<float> &model,
     double total_loss = 0.0; // Use double for better numerical precision
     double total_accuracy = 0.0;
     int num_batches = 0;
-
+    std:: cout << "Epoch " << epoch + 1 << "/" << epochs << std::endl;
     // Use fast batch iteration with pre-computed batches
     while (train_loader.get_next_batch(batch_data, batch_labels)) {
       ++num_batches;
@@ -459,12 +459,11 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Print progress at intervals
       if (num_batches % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-        model.print_profiling_summary();
-        std::cout << "Epoch " << epoch + 1 << "/" << epochs 
-                  << ", Batch: " << num_batches 
-                  << ", Loss: " << std::fixed << std::setprecision(4) << loss
-                  << ", Acc: " << std::setprecision(2) << accuracy * 100.0f << "%"
-                  << std::endl;
+        // model.print_profiling_summary();
+        std::cout << "Batch ID: " << num_batches 
+                  << ", Batch's Loss: " << std::fixed << std::setprecision(4) << loss
+                  << ", Batch's Accuracy: " << std::setprecision(2) 
+                  << accuracy * 100.0f << "%" << std::endl;
       }
     }
 
@@ -580,7 +579,7 @@ int main() {
             .build();
     
     // Enable profiling for performance analysis
-    model.enable_profiling(true);
+    // model.enable_profiling(true);
     
     // Print model summary with optimized batch size
     std::cout << "\nModel Architecture Summary:" << std::endl;
