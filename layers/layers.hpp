@@ -354,6 +354,9 @@ public:
     // Compute bias gradients
     if (use_bias_) {
       bias_gradients_.fill(T(0));
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
       for (size_t out_f = 0; out_f < output_features_; ++out_f) {
         T grad_sum = T(0);
         for (size_t n = 0; n < batch_size; ++n) {
@@ -710,6 +713,9 @@ public:
 
     // Add bias if enabled
     if (use_bias_) {
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t oc = 0; oc < out_channels_; ++oc) {
           T bias_val = bias_(oc, 0, 0, 0);
@@ -805,6 +811,9 @@ public:
 
     // Compute bias gradients
     if (use_bias_) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
       for (size_t oc = 0; oc < out_channels_; ++oc) {
         T grad_sum = T(0);
         for (size_t n = 0; n < batch_size; ++n) {

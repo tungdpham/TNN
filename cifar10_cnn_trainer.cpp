@@ -359,15 +359,12 @@ int main() {
 
     auto model =
         layers::SequentialBuilder<float>("cifar10_cnn_classifier")
-            // Input: 32x32x3
-            .conv2d(3, 32, 3, 3, 1, 1, 1, 1, "relu", true, "conv1") // 3x32x32 -> 32x32x32
-            .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32x32 -> 16x16x32
-            .conv2d(32, 64, 3, 3, 1, 1, 1, 1, "relu", true, "conv2") // 16x16x32 -> 16x16x64
-            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16x64 -> 8x8x64
-            .conv2d(64, 128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3") // 8x8x64 -> 8x8x128
-            .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8x128 -> 4x4x128
-            .dense(128 * 4 * 4, 128, "relu", true, "fc1") // Flatten to 128
-            .dense(128, 10, "linear", true, "output") // Output layer with 10 classes
+            // Input: 3x32x32 (channels, height, width)
+            .conv2d(3, 16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 3x32x32 -> 32x30x30
+            .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1") // 32x30x30 -> 16x10x10
+            .conv2d(16, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 16x10x10 -> 64x8x8
+            .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2") // 64x8x8 -> 64x2x2
+            .dense(64 * 2 * 2, 10, "linear", true, "fc1") // Flatten to 256 -> 10
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
