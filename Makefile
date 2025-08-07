@@ -6,10 +6,11 @@ NVCC = nvcc
 ENABLE_OPENMP ?= 1
 ENABLE_CUDA ?= 0
 ENABLE_BLAS ?= 0
+ENABLE_DEBUG ?= 0
 
 # Source files
 CXX_SOURCES = $(wildcard matrix/*.cpp neural/*.cpp utils/*.cpp)
-HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp layers/*.hpp)
+HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp layers/*.hpp tensor/*.hpp)
 CU_SOURCES = $(wildcard matrix/*.cu neural/*.cu utils/*.cu)
 
 # Object files
@@ -21,17 +22,25 @@ else
 	OBJ = $(CXX_OBJ)
 endif
 
-# Compilation flags
-CXXFLAGS = -std=c++20 -Wpedantic -O3 -march=x86-64-v3 -flto
-NVCCFLAGS = -std=c++20 -O3 -arch=sm_89 --compiler-options -fPIC
+# Compilation flags - Updated to C++17 for compatibility
+CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=native -mavx -mavx2 -flto
+NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
+
+DEBUG_FLAGS = -g -O0
+
+ifeq ($(ENABLE_DEBUG),1)
+	CXXFLAGS += $(DEBUG_FLAGS)
+	NVCCFLAGS += $(DEBUG_FLAGS)
+	LDFLAGS += $(DEBUG_FLAGS)
+	CUDA_LDFLAGS += $(DEBUG_FLAGS)
+endif
 
 # Add OpenMP support
 ifeq ($(ENABLE_OPENMP), 1)
 	CXXFLAGS += -fopenmp
 	LDFLAGS += -fopenmp
-	# CUDA_LDFLAGS += -fopenmp
 endif
 
 # Add CUDA support
@@ -84,8 +93,8 @@ ifeq ($(OS),Windows_NT)
 	if exist ${MAIN}.exe del ${MAIN}.exe
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
-	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer
+	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o tensor/*.o *.o ${MAIN}
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer tensor_test
 	rm -f $(TEST_PROGRAMS)
 	rm -f test_activations integration_test
 endif
@@ -127,6 +136,29 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
+# MNIST CNN pipeline trainer target
+mnist_cnn_pipeline_trainer: mnist_cnn_pipeline_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif	
+
+# CIFAR-100 CNN trainer target
+cifar100_cnn_trainer: cifar100_cnn_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif
+
+cifar10_cnn_trainer: cifar10_cnn_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -145,6 +177,9 @@ help:
 	@echo "  main           - Build main MNIST program with current settings"
 	@echo "  mnist_trainer  - Build MNIST neural network trainer"
 	@echo "  mnist_cnn_trainer - Build MNIST CNN tensor neural network trainer"
+	@echo "  cifar10_cnn_trainer - Build CIFAR-10 CNN trainer"
+	@echo "  cifar100_cnn_trainer - Build CIFAR-100 CNN trainer"
+	@echo "  tensor_test    - Build and test refactored tensor class with SIMD optimizations"
 	@echo "  tests          - Build all test programs"
 	@echo "  clean          - Remove object files and executables"
 	@echo ""
@@ -152,4 +187,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer $(TEST_PROGRAMS)

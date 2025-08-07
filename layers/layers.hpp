@@ -8,25 +8,22 @@
 #include <random>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <unordered_map>
 #include <vector>
 
-#include "../tensor/tensor.hpp"
-#include "activations.hpp"
-
-// BLAS optimization support
-#ifdef USE_OPENBLAS
-#include <cblas.h>
-#elif defined(USE_MKL)
-#include <mkl_cblas.h>
-#elif defined(USE_ATLAS)
-extern "C" {
-#include <cblas.h>
-}
+// SIMD intrinsics
+#if defined(__AVX2__)
+#include <immintrin.h>
+#elif defined(__SSE2__)
+#include <emmintrin.h>
+#include <smmintrin.h>
 #endif
 
-// Forward declarations
-class Optimizer;
+#include "../tensor/tensor.hpp"
+#include "../utils/ops.hpp"
+#include "activations.hpp"
+#include "optimizers.hpp"
 
 namespace layers {
 // Convenience function for creating tensor activation functions
@@ -63,8 +60,9 @@ public:
   virtual ~Layer() = default;
 
   // Core forward/backward operations
-  virtual Tensor<T> forward(const Tensor<T> &input) = 0;
-  virtual Tensor<T> backward(const Tensor<T> &grad_output) = 0;
+  virtual Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) = 0;
+  virtual Tensor<T> backward(const Tensor<T> &grad_output,
+                             int micro_batch_id = 0) = 0;
 
   // Parameter management
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
@@ -88,7 +86,9 @@ public:
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
   // Optional: custom parameter update (for layers that need special handling)
-  virtual void update_parameters(const Optimizer &optimizer) {}
+  virtual void update_parameters(const Optimizer<T> &optimizer) {}
+
+  std::string name() const { return name_; }
 
 protected:
   bool is_training_ = true;
@@ -128,21 +128,18 @@ public:
 
   bool has_parameters() const override { return true; }
 
-  void update_parameters(const Optimizer &optimizer) override {
+  void update_parameters(const Optimizer<T> &optimizer) override {
     update_parameters_impl(optimizer);
   }
 
 protected:
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  virtual void update_parameters_impl(const Optimizer &optimizer) = 0;
-
-  Tensor<T> last_input_; // Cache for gradient computation
+  virtual void update_parameters_impl(const Optimizer<T> &optimizer) = 0;
 };
 
-// BLAS-optimized Dense/Fully Connected Layer
-template <typename T = float>
-class BLASDenseLayer : public ParameterizedLayer<T> {
+// Dense/Fully Connected Layer
+template <typename T = float> class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
   size_t output_features_;
@@ -152,127 +149,44 @@ private:
   Tensor<T> bias_;
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
-  Tensor<T> pre_activation_output_;
 
-  // BLAS helper functions
+  // Per-micro-batch state
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
+
+  // Helper functions
   void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
                     size_t batch_size, size_t input_features,
                     size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
-                  output_features, input_features, 1.0f, input_data,
-                  input_features, weight_data, input_features, 0.0f,
-                  output_data, output_features);
-#else
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, batch_size,
-                  output_features, input_features, 1.0, input_data,
-                  input_features, weight_data, input_features, 0.0, output_data,
-                  output_features);
-#else
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-#endif
-    } else {
-      fallback_gemm(input_data, weight_data, output_data, batch_size,
-                    input_features, output_features);
-    }
+    gemm_impl(input_data, weight_data, output_data, batch_size, input_features,
+              output_features);
   }
 
   void gemm_weight_gradients(const T *input_data, const T *grad_output_data,
                              T *weight_grad_data, size_t batch_size,
                              size_t input_features,
                              size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
-                  input_features, batch_size, 1.0f, grad_output_data,
-                  output_features, input_data, input_features, 0.0f,
-                  weight_grad_data, input_features);
-#else
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, output_features,
-                  input_features, batch_size, 1.0, grad_output_data,
-                  output_features, input_data, input_features, 0.0,
-                  weight_grad_data, input_features);
-#else
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-#endif
-    } else {
-      fallback_weight_gradients(input_data, grad_output_data, weight_grad_data,
-                                batch_size, input_features, output_features);
-    }
+    weight_gradients_impl(input_data, grad_output_data, weight_grad_data,
+                          batch_size, input_features, output_features);
   }
 
   void gemm_input_gradients(const T *grad_output_data, const T *weight_data,
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
-                  input_features, output_features, 1.0f, grad_output_data,
-                  output_features, weight_data, input_features, 0.0f,
-                  grad_input_data, input_features);
-#else
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, batch_size,
-                  input_features, output_features, 1.0, grad_output_data,
-                  output_features, weight_data, input_features, 0.0,
-                  grad_input_data, input_features);
-#else
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-#endif
-    } else {
-      fallback_input_gradients(grad_output_data, weight_data, grad_input_data,
-                               batch_size, input_features, output_features);
-    }
+    input_gradients_impl(grad_output_data, weight_data, grad_input_data,
+                         batch_size, input_features, output_features);
   }
 
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      for (size_t n = 0; n < batch_size; ++n) {
-        cblas_saxpy(output_features, 1.0f, bias_data, 1,
-                    output_data + n * output_features, 1);
-      }
-#else
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      for (size_t n = 0; n < batch_size; ++n) {
-        cblas_daxpy(output_features, 1.0, bias_data, 1,
-                    output_data + n * output_features, 1);
-      }
-#else
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-#endif
-    } else {
-      fallback_add_bias(output_data, bias_data, batch_size, output_features);
-    }
+    add_bias_impl(output_data, bias_data, batch_size, output_features);
   }
 
-  // Fallback implementations when BLAS is not available
-  void fallback_gemm(const T *input_data, const T *weight_data, T *output_data,
-                     size_t batch_size, size_t input_features,
-                     size_t output_features) const {
+  // Default implementations
+  void gemm_impl(const T *input_data, const T *weight_data, T *output_data,
+                 const size_t batch_size, const size_t input_features,
+                 const size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -288,10 +202,10 @@ private:
     }
   }
 
-  void fallback_weight_gradients(const T *input_data, const T *grad_output_data,
-                                 T *weight_grad_data, size_t batch_size,
-                                 size_t input_features,
-                                 size_t output_features) const {
+  void weight_gradients_impl(const T *input_data, const T *grad_output_data,
+                             T *weight_grad_data, size_t batch_size,
+                             size_t input_features,
+                             size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -307,10 +221,10 @@ private:
     }
   }
 
-  void fallback_input_gradients(const T *grad_output_data, const T *weight_data,
-                                T *grad_input_data, size_t batch_size,
-                                size_t input_features,
-                                size_t output_features) const {
+  void input_gradients_impl(const T *grad_output_data, const T *weight_data,
+                            T *grad_input_data, size_t batch_size,
+                            size_t input_features,
+                            size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -326,8 +240,8 @@ private:
     }
   }
 
-  void fallback_add_bias(T *output_data, const T *bias_data, size_t batch_size,
-                         size_t output_features) const {
+  void add_bias_impl(T *output_data, const T *bias_data, size_t batch_size,
+                     size_t output_features) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -339,9 +253,9 @@ private:
   }
 
 public:
-  BLASDenseLayer(size_t input_features, size_t output_features,
-                 std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-                 bool use_bias = true, const std::string &name = "blas_dense")
+  DenseLayer(size_t input_features, size_t output_features,
+             std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+             bool use_bias = true, const std::string &name = "dense")
       : ParameterizedLayer<T>(name), input_features_(input_features),
         output_features_(output_features), use_bias_(use_bias),
         activation_(std::move(activation)) {
@@ -354,55 +268,43 @@ public:
       bias_ = Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
       bias_gradients_ =
           Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
-      bias_.fill(T(0));
     }
 
     // Xavier initialization
     T fan_in = static_cast<T>(input_features);
     T fan_out = static_cast<T>(output_features);
     T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
-    weights_.fill_random_normal(std_dev);
+    weights_.fill_random_normal(T(0), std_dev);
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    this->last_input_ = input;
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
+    micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t total_input_features =
+    const size_t batch_size = input.batch_size();
+    const size_t total_input_features =
         input.channels() * input.height() * input.width();
 
     if (total_input_features != input_features_) {
       printf("Input shape: %zu features, expected: %zu features\n",
              total_input_features, input_features_);
-      throw std::invalid_argument(
-          "Input feature size mismatch in BLASDenseLayer");
+      throw std::invalid_argument("Input feature size mismatch in DenseLayer");
     }
 
     Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
 
-    // Get flattened input data for BLAS operations
-    std::vector<T> input_flat = input.to_rm_vector();
-    std::vector<T> output_flat(batch_size * output_features_);
+    // Perform matrix multiplication
+    gemm_forward(input.data(), weights_.data(), output.data(), batch_size,
+                 input_features_, output_features_);
 
-    // Get weight data in contiguous format
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-
-    // Perform BLAS matrix multiplication
-    gemm_forward(input_flat.data(), weight_flat.data(), output_flat.data(),
-                 batch_size, input_features_, output_features_);
-
-    // Add bias using BLAS if available
+    // Add bias
     if (use_bias_) {
-      std::vector<T> bias_flat = bias_.to_rm_vector();
-      add_bias_vector(output_flat.data(), bias_flat.data(), batch_size,
+      add_bias_vector(output.data(), bias_.data(), batch_size,
                       output_features_);
     }
 
-    // Convert back to tensor format
-    output.from_rm_vector(output_flat);
-
     // Store pre-activation output
-    pre_activation_output_ = output;
+    micro_batch_pre_activations_[micro_batch_id] = output;
 
     // Apply activation if provided
     if (activation_) {
@@ -412,21 +314,40 @@ public:
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    size_t batch_size = this->last_input_.batch_size();
-    Tensor<T> grad_input(this->last_input_.shape());
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      for (const auto &pair : micro_batch_inputs_) {
+        printf("Cached micro-batch IDs: %d\n", pair.first);
+      }
+      throw std::runtime_error("No cached input found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+    if (it_pre_act == micro_batch_pre_activations_.end()) {
+      throw std::runtime_error(
+          "No cached pre-activation output found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
+    }
+
+    const Tensor<T> &last_input = it_input->second;
+    size_t batch_size = last_input.batch_size();
+    Tensor<T> grad_input(last_input.shape());
 
     Tensor<T> current_grad = grad_output;
 
     // Backprop through activation
     if (activation_) {
       Tensor<T> activation_grad =
-          activation_->compute_gradient(pre_activation_output_, &current_grad);
+          activation_->compute_gradient(it_pre_act->second, &current_grad);
       current_grad = activation_grad;
     }
 
-    // Compute weight gradients using BLAS
-    gemm_weight_gradients(this->last_input_.data(), current_grad.data(),
+    // Compute weight gradients
+    gemm_weight_gradients(last_input.data(), current_grad.data(),
                           weight_gradients_.data(), batch_size, input_features_,
                           output_features_);
 
@@ -442,15 +363,18 @@ public:
       }
     }
 
-    // Compute input gradients using BLAS
+    // Compute input gradients
     gemm_input_gradients(current_grad.data(), weights_.data(),
                          grad_input.data(), batch_size, input_features_,
                          output_features_);
 
+    // // Clean up cached data for this micro-batch
+    micro_batch_inputs_.erase(it_input);
+    micro_batch_pre_activations_.erase(it_pre_act);
     return grad_input;
   }
 
-  std::string type() const override { return "blas_dense"; }
+  std::string type() const override { return "dense"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
@@ -460,21 +384,21 @@ public:
     config.parameters["use_bias"] = use_bias_;
     config.parameters["activation"] =
         activation_ ? activation_->name() : std::string("none");
-    config.parameters["optimized"] = std::string("blas");
+    config.parameters["optimized"] = std::string("native");
     return config;
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASDenseLayer<T>>(
-        input_features_, output_features_, std::move(activation_clone),
-        use_bias_, this->name_);
+    return std::make_unique<DenseLayer<T>>(input_features_, output_features_,
+                                           std::move(activation_clone),
+                                           use_bias_, this->name_);
   }
 
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASDenseLayer expects 4D input");
+      throw std::invalid_argument("DenseLayer expects 4D input");
     }
     return {input_shape[0], output_features_, 1, 1};
   }
@@ -494,7 +418,7 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 
@@ -512,9 +436,9 @@ protected:
       activation = ActivationFactory<T>::create(activation_name);
     }
 
-    return std::make_unique<BLASDenseLayer<T>>(input_features, output_features,
-                                               std::move(activation), use_bias,
-                                               config.name);
+    return std::make_unique<DenseLayer<T>>(input_features, output_features,
+                                           std::move(activation), use_bias,
+                                           config.name);
   }
 };
 
@@ -523,7 +447,7 @@ template <typename T = double>
 class ActivationLayer : public StatelessLayer<T> {
 private:
   std::unique_ptr<ActivationFunction<T>> activation_;
-  Tensor<T> last_input_;
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
 
 public:
   explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
@@ -534,15 +458,25 @@ public:
     }
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    last_input_ = input;
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    micro_batch_inputs_[micro_batch_id] = input;
     Tensor<T> output = input; // Copy
     activation_->apply(output);
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    return activation_->compute_gradient(last_input_, &grad_output);
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it = micro_batch_inputs_.find(micro_batch_id);
+    if (it == micro_batch_inputs_.end()) {
+      throw std::runtime_error(
+          "No cached input found for micro-batch ID in ActivationLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    const Tensor<T> &last_input = it->second;
+    Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
+    // micro_batch_inputs_.erase(it);
+    return grad;
   }
 
   std::string type() const override { return "activation"; }
@@ -565,9 +499,9 @@ public:
   }
 };
 
-// BLAS-optimized 2D Convolutional Layer using im2col + GEMM
+// 2D Convolutional Layer using im2col + GEMM
 template <typename T = double>
-class BLASConv2DLayer : public ParameterizedLayer<T> {
+class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -582,188 +516,122 @@ private:
 
   Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
   Tensor<T> bias_;    // [out_channels, 1, 1, 1]
-  Tensor<T> weight_gradients_; // Same shape as weights
-  Tensor<T> bias_gradients_;   // Same shape as bias
-  Tensor<T> pre_activation_output_;
+  Tensor<T> weight_gradients_;
+  Tensor<T> bias_gradients_;
 
-  // Cached im2col matrix to avoid recomputation in backward pass
-  mutable Matrix<T> cached_im2col_matrix_;
-  mutable bool im2col_cached_;
+  // Per-micro-batch state
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
+  mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 
-  // BLAS helper functions for convolution
+  // Helper functions for convolution
   void conv_gemm_forward(const T *col_data, const T *weight_data,
                          T *output_data, size_t output_size, size_t kernel_size,
                          size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      printf("Using BLAS for convolution forward\n");
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
-                  output_size, kernel_size, 1.0f, weight_data, kernel_size,
-                  col_data, output_size, 0.0f, output_data, output_size);
-#else
-      // printf("Using fallback for convolution forward\n");
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, out_channels,
-                  output_size, kernel_size, 1.0, weight_data, kernel_size,
-                  col_data, output_size, 0.0, output_data, output_size);
-#else
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-#endif
-    } else {
-      fallback_conv_gemm_forward(col_data, weight_data, output_data,
-                                 output_size, kernel_size, out_channels);
-    }
+    conv_gemm_forward_impl(col_data, weight_data, output_data, output_size,
+                           kernel_size, out_channels);
   }
 
   void conv_gemm_weight_gradients(const T *col_data, const T *grad_output_data,
                                   T *weight_grad_data, size_t output_size,
                                   size_t kernel_size,
                                   size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
-                  kernel_size, output_size, 1.0f, grad_output_data, output_size,
-                  col_data, output_size, 0.0f, weight_grad_data, kernel_size);
-#else
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, out_channels,
-                  kernel_size, output_size, 1.0, grad_output_data, output_size,
-                  col_data, output_size, 0.0, weight_grad_data, kernel_size);
-#else
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-#endif
-    } else {
-      fallback_conv_gemm_weight_gradients(col_data, grad_output_data,
-                                          weight_grad_data, output_size,
-                                          kernel_size, out_channels);
-    }
+    conv_gemm_weight_gradients_impl(col_data, grad_output_data,
+                                    weight_grad_data, output_size, kernel_size,
+                                    out_channels);
   }
 
   void conv_gemm_input_gradients(const T *grad_output_data,
                                  const T *weight_data, T *col_grad_data,
                                  size_t output_size, size_t kernel_size,
                                  size_t out_channels) const {
-    if constexpr (std::is_same_v<T, float>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
-                  output_size, out_channels, 1.0f, weight_data, kernel_size,
-                  grad_output_data, output_size, 0.0f, col_grad_data,
-                  output_size);
-#else
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-#endif
-    } else if constexpr (std::is_same_v<T, double>) {
-#if defined(USE_OPENBLAS) || defined(USE_MKL) || defined(USE_ATLAS)
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, kernel_size,
-                  output_size, out_channels, 1.0, weight_data, kernel_size,
-                  grad_output_data, output_size, 0.0, col_grad_data,
-                  output_size);
-#else
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-#endif
-    } else {
-      fallback_conv_gemm_input_gradients(grad_output_data, weight_data,
-                                         col_grad_data, output_size,
-                                         kernel_size, out_channels);
-    }
+    conv_gemm_input_gradients_impl(grad_output_data, weight_data, col_grad_data,
+                                   output_size, kernel_size, out_channels);
   }
 
-  // Fallback implementations when BLAS is not available
-  void fallback_conv_gemm_forward(const T *col_data, const T *weight_data,
-                                  T *output_data, size_t output_size,
-                                  size_t kernel_size,
-                                  size_t out_channels) const {
+  void conv_gemm_forward_impl(const T *col_data, const T *weight_data,
+                              T *output_data, const size_t output_size,
+                              const size_t kernel_size,
+                              const size_t out_channels) const {
+
+    // Transpose im2col matrix for better memory access patterns
+    // Original: col_data[kernel_size x output_size]
+    // Transposed: col_data_T[output_size x kernel_size]
+    std::vector<T> col_data_transposed(kernel_size * output_size);
+    utils::transpose_2d(col_data, col_data_transposed.data(), kernel_size,
+                        output_size);
+
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t os = 0; os < output_size; ++os) {
-        T sum = T(0);
-        for (size_t ks = 0; ks < kernel_size; ++ks) {
-          sum += weight_data[oc * kernel_size + ks] *
-                 col_data[ks * output_size + os];
-        }
-        output_data[oc * output_size + os] = sum;
+        output_data[oc * output_size + os] = utils::simd_dot_product_contiguous(
+            &weight_data[oc * kernel_size],
+            &col_data_transposed[os * kernel_size], kernel_size);
       }
     }
   }
 
-  void fallback_conv_gemm_weight_gradients(
-      const T *col_data, const T *grad_output_data, T *weight_grad_data,
-      size_t output_size, size_t kernel_size, size_t out_channels) const {
-    // Add profiling information
+  void conv_gemm_weight_gradients_impl(const T *col_data,
+                                       const T *grad_output_data,
+                                       T *weight_grad_data,
+                                       const size_t output_size,
+                                       const size_t kernel_size,
+                                       const size_t out_channels) const {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t ks = 0; ks < kernel_size; ++ks) {
-        T sum = T(0);
-        for (size_t os = 0; os < output_size; ++os) {
-          sum += grad_output_data[oc * output_size + os] *
-                 col_data[ks * output_size + os];
-        }
-        weight_grad_data[oc * kernel_size + ks] = sum;
+        // SIMD-optimized dot product for weight gradients
+        weight_grad_data[oc * kernel_size + ks] =
+            utils::simd_dot_product_contiguous(
+                &grad_output_data[oc * output_size],
+                &col_data[ks * output_size], output_size);
       }
     }
   }
 
-  void fallback_conv_gemm_input_gradients(const T *grad_output_data,
-                                          const T *weight_data,
-                                          T *col_grad_data, size_t output_size,
-                                          size_t kernel_size,
-                                          size_t out_channels) const {
+  void conv_gemm_input_gradients_impl(const T *grad_output_data,
+                                      const T *weight_data, T *col_grad_data,
+                                      const size_t output_size,
+                                      const size_t kernel_size,
+                                      const size_t out_channels) const {
+
+    // Transpose grad_output matrix for better memory access patterns
+    std::vector<T> grad_output_transposed(out_channels * output_size);
+    utils::transpose_2d(grad_output_data, grad_output_transposed.data(),
+                        out_channels, output_size);
+
+    std::vector<T> weights_transposed(out_channels * kernel_size);
+    utils::transpose_2d(weight_data, weights_transposed.data(), out_channels,
+                        kernel_size);
+
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       for (size_t os = 0; os < output_size; ++os) {
-        T sum = T(0);
-        for (size_t oc = 0; oc < out_channels; ++oc) {
-          sum += weight_data[oc * kernel_size + ks] *
-                 grad_output_data[oc * output_size + os];
-        }
-        col_grad_data[ks * output_size + os] = sum;
+        col_grad_data[ks * output_size + os] =
+            utils::simd_dot_product_contiguous(
+                &weights_transposed[ks * out_channels],
+                &grad_output_transposed[os * out_channels], out_channels);
       }
     }
   }
 
-  // // Helper to reshape weights for BLAS operations
-  // std::vector<T> get_flattened_weights() const {
-  //   std::vector<T> flattened = weights_.to_rm_vector();
-  //   return flattened;
-  // }
-
-  void set_flattened_weight_gradients(const std::vector<T> &flattened) {
-    weight_gradients_.from_rm_vector(flattened);
-  }
-
 public:
-  BLASConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
-                  size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-                  size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
-                  std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-                  const std::string &name = "blas_conv2d")
+  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
+              size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+              size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
+              std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+              const std::string &name = "conv2d")
       : ParameterizedLayer<T>(name), in_channels_(in_channels),
         out_channels_(out_channels), kernel_h_(kernel_h), kernel_w_(kernel_w),
         stride_h_(stride_h), stride_w_(stride_w), pad_h_(pad_h), pad_w_(pad_w),
         use_bias_(use_bias), activation_(std::move(activation)),
-        im2col_cached_(false) {
+        micro_batch_im2col_matrices_() {
     weights_ = Tensor<T>(
         std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
     weight_gradients_ = Tensor<T>(
@@ -772,63 +640,60 @@ public:
     if (use_bias_) {
       bias_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
       bias_gradients_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
-      bias_.fill(0.0);
     }
 
     // Xavier/Glorot initialization
     T fan_in = static_cast<T>(in_channels * kernel_h * kernel_w);
     T fan_out = static_cast<T>(out_channels * kernel_h * kernel_w);
     T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
-    weights_.fill_random_normal(std_dev);
+    weights_.fill_random_normal(T(0), std_dev);
   }
 
   // Forward and backward implementations moved from separate file
-  Tensor<T> forward(const Tensor<T> &input) override {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (input.channels() != in_channels_) {
       printf("Input shape: %zu channels, expected: %zu channels\n",
              input.channels(), in_channels_);
-      throw std::invalid_argument(
-          "Input channel size mismatch in BLASConv2DLayer");
+      throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
     }
 
-    this->last_input_ = input;
-    im2col_cached_ = false;
+    micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    const size_t batch_size = input.batch_size();
+    const size_t input_h = input.height();
+    const size_t input_w = input.width();
 
     // Calculate output dimensions
-    size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
-    size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+    const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+    const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
     // Perform im2col transformation
     Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_,
                                         stride_w_, pad_h_, pad_w_);
-    cached_im2col_matrix_ = col_matrix; // Cache for backward pass
-    im2col_cached_ = true;
+    micro_batch_im2col_matrices_[micro_batch_id] =
+        col_matrix; // Cache for backward pass
 
     // Create output tensor
     Tensor<T> output(batch_size, out_channels_, output_h, output_w);
 
-    // Get flattened weights for BLAS
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-
-    // Convert col_matrix to contiguous format for BLAS
-    std::vector<T> col_data = col_matrix.to_vector();
-
-    // Prepare data for BLAS operation
+    // Prepare data for GEMM operation
     size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
     size_t output_size = batch_size * output_h * output_w;
 
-    // Perform convolution using BLAS GEMM
+    // Perform convolution using GEMM
     std::vector<T> output_flat(out_channels_ * output_size);
-    conv_gemm_forward(col_data.data(), weight_flat.data(), output_flat.data(),
+    conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.data(),
                       output_size, kernel_size, out_channels_);
 
-    // Reshape output back to tensor format
+    T *output_data = output.data();
+
+    const size_t N_stride = output.stride(0);
+    const size_t C_stride = output.stride(1);
+    const size_t H_stride = output.stride(2);
+    const size_t W_stride = output.stride(3);
+
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
@@ -836,7 +701,8 @@ public:
           for (size_t ow = 0; ow < output_w; ++ow) {
             size_t flat_idx = oc * output_size + n * (output_h * output_w) +
                               oh * output_w + ow;
-            output(n, oc, oh, ow) = output_flat[flat_idx];
+            output_data[n * N_stride + oc * C_stride + oh * H_stride +
+                        ow * W_stride] = output_flat[flat_idx];
           }
         }
       }
@@ -857,7 +723,7 @@ public:
     }
 
     // Store pre-activation output
-    pre_activation_output_ = output;
+    micro_batch_pre_activations_[micro_batch_id] = output;
 
     // Apply activation if provided
     if (activation_) {
@@ -867,15 +733,33 @@ public:
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    if (!im2col_cached_) {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
+    auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      throw std::runtime_error("No cached input found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+    if (it_im2col == micro_batch_im2col_matrices_.end()) {
       throw std::runtime_error(
-          "Forward pass must be called before backward pass");
+          "No cached im2col matrix found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
+    }
+    if (activation_ && it_pre_act == micro_batch_pre_activations_.end()) {
+      throw std::runtime_error(
+          "No cached pre-activation output found for micro-batch ID: " +
+          std::to_string(micro_batch_id));
     }
 
-    size_t batch_size = this->last_input_.batch_size();
-    size_t input_h = this->last_input_.height();
-    size_t input_w = this->last_input_.width();
+    const Tensor<T> &last_input = it_input->second;
+    const Matrix<T> &cached_im2col_matrix = it_im2col->second;
+
+    size_t batch_size = last_input.batch_size();
+    size_t input_h = last_input.height();
+    size_t input_w = last_input.width();
     size_t output_h = grad_output.height();
     size_t output_w = grad_output.width();
 
@@ -884,7 +768,7 @@ public:
     // Backprop through activation
     if (activation_) {
       current_grad =
-          activation_->compute_gradient(pre_activation_output_, &current_grad);
+          activation_->compute_gradient(it_pre_act->second, &current_grad);
     }
 
     // Initialize gradients
@@ -893,15 +777,15 @@ public:
       bias_gradients_.fill(T(0));
     }
 
-    // Prepare data for BLAS operations
+    // Prepare data for GEMM operations
     size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
     size_t output_size = batch_size * output_h * output_w;
 
-    // Flatten gradient output for BLAS
+    // Flatten gradient output for GEMM
     std::vector<T> grad_output_flat(out_channels_ * output_size);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
@@ -914,22 +798,10 @@ public:
       }
     }
 
-    // Convert cached im2col matrix to contiguous format
-    std::vector<T> col_data(kernel_size * output_size);
-    for (size_t i = 0; i < kernel_size; ++i) {
-      for (size_t j = 0; j < output_size; ++j) {
-        col_data[i * output_size + j] = cached_im2col_matrix_(i, j);
-      }
-    }
-
-    // Compute weight gradients using BLAS
-    std::vector<T> weight_grad_flat(out_channels_ * kernel_size);
-    conv_gemm_weight_gradients(col_data.data(), grad_output_flat.data(),
-                               weight_grad_flat.data(), output_size,
-                               kernel_size, out_channels_);
-
-    // Set weight gradients back to tensor format
-    set_flattened_weight_gradients(weight_grad_flat);
+    // Compute weight gradients
+    conv_gemm_weight_gradients(
+        cached_im2col_matrix.data(), grad_output_flat.data(),
+        weight_gradients_.data(), output_size, kernel_size, out_channels_);
 
     // Compute bias gradients
     if (use_bias_) {
@@ -946,20 +818,11 @@ public:
       }
     }
 
-    // Compute input gradients using BLAS
-    std::vector<T> weight_flat = weights_.to_rm_vector();
-    std::vector<T> col_grad_flat(kernel_size * output_size);
-    conv_gemm_input_gradients(grad_output_flat.data(), weight_flat.data(),
-                              col_grad_flat.data(), output_size, kernel_size,
-                              out_channels_);
-
-    // Convert col_grad back to Matrix format
+    // Compute input gradients
     Matrix<T> col_grad_matrix(kernel_size, output_size);
-    for (size_t i = 0; i < kernel_size; ++i) {
-      for (size_t j = 0; j < output_size; ++j) {
-        col_grad_matrix(i, j) = col_grad_flat[i * output_size + j];
-      }
-    }
+    conv_gemm_input_gradients(grad_output_flat.data(), weights_.data(),
+                              col_grad_matrix.data(), output_size, kernel_size,
+                              out_channels_);
 
     // Use col2im to convert back to input gradient tensor
     Tensor<T> grad_input = Tensor<T>::col2im(
@@ -969,7 +832,7 @@ public:
     return grad_input;
   }
 
-  std::string type() const override { return "blas_conv2d"; }
+  std::string type() const override { return "conv2d"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
@@ -985,13 +848,13 @@ public:
     config.parameters["use_bias"] = use_bias_;
     config.parameters["activation"] =
         activation_ ? activation_->name() : std::string("none");
-    config.parameters["optimized"] = std::string("blas");
+    config.parameters["optimized"] = std::string("native");
     return config;
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
     auto activation_clone = activation_ ? activation_->clone() : nullptr;
-    return std::make_unique<BLASConv2DLayer<T>>(
+    return std::make_unique<Conv2DLayer<T>>(
         in_channels_, out_channels_, kernel_h_, kernel_w_, stride_h_, stride_w_,
         pad_h_, pad_w_, use_bias_, std::move(activation_clone), this->name_);
   }
@@ -999,7 +862,7 @@ public:
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
     if (input_shape.size() != 4) {
-      throw std::invalid_argument("BLASConv2DLayer expects 4D input");
+      throw std::invalid_argument("Conv2DLayer expects 4D input");
     }
 
     size_t output_h = (input_shape[2] + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
@@ -1023,12 +886,12 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer &optimizer) override {
+  void update_parameters_impl(const Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
 
-// MaxPooling Layer for 2D tensors
+// Optimized MaxPooling Layer for 2D tensors
 template <typename T = double> class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
@@ -1038,8 +901,43 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  Tensor<T> mask_;       // For storing max indices during forward pass
-  Tensor<T> last_input_; // Store input for backward pass
+  // Use more efficient storage for mask indices
+  std::unordered_map<int, std::vector<size_t>> micro_batch_mask_indices_;
+  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+
+  // Pre-computed stride values for faster access
+  mutable size_t input_stride_n_, input_stride_c_, input_stride_h_,
+      input_stride_w_;
+  mutable size_t output_stride_n_, output_stride_c_, output_stride_h_,
+      output_stride_w_;
+
+  // Helper function for vectorized max finding
+  inline std::pair<T, size_t> find_max_in_window(const T *data, size_t start_h,
+                                                 size_t start_w, size_t input_h,
+                                                 size_t input_w,
+                                                 size_t stride_h,
+                                                 size_t stride_w) const {
+    T max_val = -std::numeric_limits<T>::infinity();
+    size_t max_idx = 0;
+
+    for (size_t ph = 0; ph < pool_h_; ++ph) {
+      for (size_t pw = 0; pw < pool_w_; ++pw) {
+        size_t h_idx = start_h + ph;
+        size_t w_idx = start_w + pw;
+
+        if (h_idx < input_h && w_idx < input_w) {
+          size_t linear_idx = h_idx * stride_h + w_idx * stride_w;
+          T val = data[linear_idx];
+          if (val > max_val) {
+            max_val = val;
+            max_idx = linear_idx;
+          }
+        }
+      }
+    }
+
+    return {max_val, max_idx};
+  }
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
@@ -1048,128 +946,307 @@ public:
       : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
         stride_h_(stride_h == 0 ? pool_h : stride_h),
         stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
-        pad_w_(pad_w) {}
+        pad_w_(pad_w), input_stride_n_(0), input_stride_c_(0),
+        input_stride_h_(0), input_stride_w_(0), output_stride_n_(0),
+        output_stride_c_(0), output_stride_h_(0), output_stride_w_(0) {
 
-  Tensor<T> forward(const Tensor<T> &input) override {
+    // Validate parameters
+    if (pool_h_ == 0 || pool_w_ == 0) {
+      throw std::invalid_argument("Pool dimensions must be positive");
+    }
+    if (stride_h_ == 0 || stride_w_ == 0) {
+      throw std::invalid_argument("Stride dimensions must be positive");
+    }
+  }
+
+  // Add method to clear cached data for memory management
+  void clear_cache(int micro_batch_id = -1) {
+    if (micro_batch_id < 0) {
+      // Clear all cached data
+      micro_batch_inputs_.clear();
+      micro_batch_mask_indices_.clear();
+    } else {
+      // Clear specific micro-batch data
+      micro_batch_inputs_.erase(micro_batch_id);
+      micro_batch_mask_indices_.erase(micro_batch_id);
+    }
+  }
+
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     // Store input for backward pass
-    last_input_ = input;
+    micro_batch_inputs_[micro_batch_id] = input;
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    const size_t batch_size = input.batch_size();
+    const size_t channels = input.channels();
+    const size_t input_h = input.height();
+    const size_t input_w = input.width();
 
     // Calculate output dimensions
-    size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-    size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+    const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+    const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
     // Create output tensor
     Tensor<T> output(
         std::vector<size_t>{batch_size, channels, output_h, output_w});
 
-    // Create mask for backward pass (store which input position had max value)
-    mask_ = Tensor<T>(
-        std::vector<size_t>{batch_size, channels, output_h, output_w});
+    // Pre-compute strides for efficient memory access
+    input_stride_n_ = input.stride(0);
+    input_stride_c_ = input.stride(1);
+    input_stride_h_ = input.stride(2);
+    input_stride_w_ = input.stride(3);
 
-    // Apply padding if needed
-    Tensor<T> padded_input =
-        (pad_h_ > 0 || pad_w_ > 0)
-            ? input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity())
-            : input;
+    output_stride_n_ = output.stride(0);
+    output_stride_c_ = output.stride(1);
+    output_stride_h_ = output.stride(2);
+    output_stride_w_ = output.stride(3);
 
-    // Perform max pooling
+    // Store mask indices more efficiently
+    const size_t total_outputs = batch_size * channels * output_h * output_w;
+    std::vector<size_t> mask_indices(total_outputs);
+
+    const T *input_data = input.data();
+    T *output_data = output.data();
+
+    // Optimized pooling with better memory access patterns
+    if (pad_h_ == 0 && pad_w_ == 0) {
+      // No padding case - most common and fastest path
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t out_h = 0; out_h < output_h; ++out_h) {
-          for (size_t out_w = 0; out_w < output_w; ++out_w) {
-            T max_val = -std::numeric_limits<T>::infinity();
-            size_t max_h = 0, max_w = 0;
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T *input_channel =
+              input_data + n * input_stride_n_ + c * input_stride_c_;
+          T *output_channel =
+              output_data + n * output_stride_n_ + c * output_stride_c_;
 
-            // Find maximum in pooling window
-            for (size_t ph = 0; ph < pool_h_; ++ph) {
-              for (size_t pw = 0; pw < pool_w_; ++pw) {
-                size_t input_h_idx = out_h * stride_h_ + ph;
-                size_t input_w_idx = out_w * stride_w_ + pw;
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              T max_val = -std::numeric_limits<T>::infinity();
+              size_t max_idx = 0;
 
-                if (input_h_idx < padded_input.height() &&
-                    input_w_idx < padded_input.width()) {
-                  T val = padded_input(n, c, input_h_idx, input_w_idx);
-                  if (val > max_val) {
-                    max_val = val;
-                    max_h = input_h_idx;
-                    max_w = input_w_idx;
+              const size_t start_h = out_h * stride_h_;
+              const size_t start_w = out_w * stride_w_;
+
+              // Unrolled inner loops for small kernel sizes
+              if (pool_h_ == 2 && pool_w_ == 2) {
+                // Special case for 2x2 pooling - most common
+                const T *pool_start = input_channel +
+                                      start_h * input_stride_h_ +
+                                      start_w * input_stride_w_;
+
+                T val0 = pool_start[0];
+                T val1 = pool_start[input_stride_w_];
+                T val2 = pool_start[input_stride_h_];
+                T val3 = pool_start[input_stride_h_ + input_stride_w_];
+
+                max_val = val0;
+                max_idx = start_h * input_w + start_w;
+
+                if (val1 > max_val) {
+                  max_val = val1;
+                  max_idx = start_h * input_w + start_w + 1;
+                }
+                if (val2 > max_val) {
+                  max_val = val2;
+                  max_idx = (start_h + 1) * input_w + start_w;
+                }
+                if (val3 > max_val) {
+                  max_val = val3;
+                  max_idx = (start_h + 1) * input_w + start_w + 1;
+                }
+              } else {
+                // General case
+                for (size_t ph = 0; ph < pool_h_; ++ph) {
+                  for (size_t pw = 0; pw < pool_w_; ++pw) {
+                    const size_t h_idx = start_h + ph;
+                    const size_t w_idx = start_w + pw;
+
+                    if (h_idx < input_h && w_idx < input_w) {
+                      T val = input_channel[h_idx * input_stride_h_ +
+                                            w_idx * input_stride_w_];
+                      if (val > max_val) {
+                        max_val = val;
+                        max_idx = h_idx * input_w + w_idx;
+                      }
+                    }
                   }
                 }
               }
-            }
 
-            output(n, c, out_h, out_w) = max_val;
-            // Store flattened index of max position for backward pass
-            mask_(n, c, out_h, out_w) =
-                static_cast<T>(max_h * padded_input.width() + max_w);
+              output_channel[out_h * output_stride_h_ +
+                             out_w * output_stride_w_] = max_val;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              mask_indices[output_idx] = max_idx;
+            }
+          }
+        }
+      }
+    } else {
+      // Padding case - use existing implementation but with optimizations
+      Tensor<T> padded_input =
+          input.pad(pad_h_, pad_w_, -std::numeric_limits<T>::infinity());
+      const T *padded_data = padded_input.data();
+      const size_t padded_h = padded_input.height();
+      const size_t padded_w = padded_input.width();
+      const size_t padded_stride_h = padded_input.stride(2);
+      const size_t padded_stride_w = padded_input.stride(3);
+
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T *padded_channel = padded_data + n * padded_input.stride(0) +
+                                    c * padded_input.stride(1);
+          T *output_channel =
+              output_data + n * output_stride_n_ + c * output_stride_c_;
+
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              T max_val = -std::numeric_limits<T>::infinity();
+              size_t max_idx = 0;
+
+              for (size_t ph = 0; ph < pool_h_; ++ph) {
+                for (size_t pw = 0; pw < pool_w_; ++pw) {
+                  const size_t h_idx = out_h * stride_h_ + ph;
+                  const size_t w_idx = out_w * stride_w_ + pw;
+
+                  if (h_idx < padded_h && w_idx < padded_w) {
+                    T val = padded_channel[h_idx * padded_stride_h +
+                                           w_idx * padded_stride_w];
+                    if (val > max_val) {
+                      max_val = val;
+                      max_idx = h_idx * padded_w + w_idx;
+                    }
+                  }
+                }
+              }
+
+              output_channel[out_h * output_stride_h_ +
+                             out_w * output_stride_w_] = max_val;
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              mask_indices[output_idx] = max_idx;
+            }
           }
         }
       }
     }
 
+    micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    // Use stored input dimensions instead of trying to calculate them
-    size_t batch_size = last_input_.batch_size();
-    size_t channels = last_input_.channels();
-    size_t input_h = last_input_.height();
-    size_t input_w = last_input_.width();
-    size_t output_h = grad_output.height();
-    size_t output_w = grad_output.width();
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it_input = micro_batch_inputs_.find(micro_batch_id);
+    auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
+
+    if (it_input == micro_batch_inputs_.end()) {
+      throw std::runtime_error(
+          "No cached input found for micro-batch ID in MaxPool2DLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    if (it_mask == micro_batch_mask_indices_.end()) {
+      throw std::runtime_error(
+          "No cached mask found for micro-batch ID in MaxPool2DLayer: " +
+          std::to_string(micro_batch_id));
+    }
+
+    const Tensor<T> &last_input = it_input->second;
+    const std::vector<size_t> &mask_indices = it_mask->second;
+
+    const size_t batch_size = last_input.batch_size();
+    const size_t channels = last_input.channels();
+    const size_t input_h = last_input.height();
+    const size_t input_w = last_input.width();
+    const size_t output_h = grad_output.height();
+    const size_t output_w = grad_output.width();
 
     Tensor<T> grad_input(
         std::vector<size_t>{batch_size, channels, input_h, input_w});
     grad_input.fill(0.0);
 
-    // Create padded gradient input if padding was used
-    Tensor<T> padded_grad_input = (pad_h_ > 0 || pad_w_ > 0)
-                                      ? grad_input.pad(pad_h_, pad_w_)
-                                      : grad_input;
+    const T *grad_output_data = grad_output.data();
+    T *grad_input_data = grad_input.data();
 
-    // Distribute gradients to max positions
+    if (pad_h_ == 0 && pad_w_ == 0) {
+      // No padding case - direct indexing
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t out_h = 0; out_h < output_h; ++out_h) {
-          for (size_t out_w = 0; out_w < output_w; ++out_w) {
-            // Get the position of the max value
-            size_t flat_idx = static_cast<size_t>(mask_(n, c, out_h, out_w));
-            size_t max_h = flat_idx / padded_grad_input.width();
-            size_t max_w = flat_idx % padded_grad_input.width();
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T *grad_out_channel =
+              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T *grad_in_channel =
+              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
 
-            // Add gradient to the max position
-            if (max_h < padded_grad_input.height() &&
-                max_w < padded_grad_input.width()) {
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t max_idx = mask_indices[output_idx];
+              const size_t max_h = max_idx / input_w;
+              const size_t max_w = max_idx % input_w;
+
+              const T grad_val = grad_out_channel[out_h * output_stride_h_ +
+                                                  out_w * output_stride_w_];
+
+              // Use atomic add to handle potential race conditions
 #ifdef _OPENMP
 #pragma omp atomic
 #endif
-              padded_grad_input(n, c, max_h, max_w) +=
-                  grad_output(n, c, out_h, out_w);
+              grad_in_channel[max_h * input_stride_h_ +
+                              max_w * input_stride_w_] += grad_val;
             }
           }
         }
       }
-    }
-
-    // Remove padding if it was applied
-    if (pad_h_ > 0 || pad_w_ > 0) {
-      grad_input = padded_grad_input.crop(
-          pad_h_, pad_w_, padded_grad_input.height() - pad_h_ - 1,
-          padded_grad_input.width() - pad_w_ - 1);
     } else {
-      grad_input = padded_grad_input;
+      // Padding case - need to handle coordinate transformation
+      const size_t padded_h = input_h + 2 * pad_h_;
+      const size_t padded_w = input_w + 2 * pad_w_;
+
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          const T *grad_out_channel =
+              grad_output_data + n * output_stride_n_ + c * output_stride_c_;
+          T *grad_in_channel =
+              grad_input_data + n * input_stride_n_ + c * input_stride_c_;
+
+          for (size_t out_h = 0; out_h < output_h; ++out_h) {
+            for (size_t out_w = 0; out_w < output_w; ++out_w) {
+              const size_t output_idx =
+                  ((n * channels + c) * output_h + out_h) * output_w + out_w;
+              const size_t padded_max_idx = mask_indices[output_idx];
+              const size_t padded_max_h = padded_max_idx / padded_w;
+              const size_t padded_max_w = padded_max_idx % padded_w;
+
+              // Convert back to unpadded coordinates
+              if (padded_max_h >= pad_h_ && padded_max_h < input_h + pad_h_ &&
+                  padded_max_w >= pad_w_ && padded_max_w < input_w + pad_w_) {
+                const size_t max_h = padded_max_h - pad_h_;
+                const size_t max_w = padded_max_w - pad_w_;
+
+                const T grad_val = grad_out_channel[out_h * output_stride_h_ +
+                                                    out_w * output_stride_w_];
+
+#ifdef _OPENMP
+#pragma omp atomic
+#endif
+                grad_in_channel[max_h * input_stride_h_ +
+                                max_w * input_stride_w_] += grad_val;
+              }
+            }
+          }
+        }
+      }
     }
 
     return grad_input;
@@ -1211,7 +1288,7 @@ public:
 template <typename T = double> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
-  Tensor<T> mask_; // Dropout mask
+  std::unordered_map<int, Tensor<T>> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
 public:
@@ -1223,12 +1300,12 @@ public:
     }
   }
 
-  Tensor<T> forward(const Tensor<T> &input) override {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (!this->is_training_) {
       return input; // No dropout during inference
     }
 
-    mask_ = Tensor<T>(input.shape());
+    Tensor<T> mask(input.shape());
     Tensor<T> output = input;
 
     std::uniform_real_distribution<T> distribution(T(0), T(1));
@@ -1237,8 +1314,7 @@ public:
     T scale = T(1) / (T(1) - dropout_rate_);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(                                             \
-        2) if (input.batch_size() * input.channels() > 1000)
+#pragma omp parallel for
 #endif
     for (size_t n = 0; n < input.batch_size(); ++n) {
       for (size_t c = 0; c < input.channels(); ++c) {
@@ -1256,10 +1332,10 @@ public:
 #else
             if (local_distribution(generator_) < dropout_rate_) {
 #endif
-              mask_(n, c, h, w) = T(0);
+              mask(n, c, h, w) = T(0);
               output(n, c, h, w) = T(0);
             } else {
-              mask_(n, c, h, w) = scale;
+              mask(n, c, h, w) = scale;
               output(n, c, h, w) *= scale;
             }
           }
@@ -1267,29 +1343,40 @@ public:
       }
     }
 
+    micro_batch_masks_[micro_batch_id] = mask;
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
     if (!this->is_training_) {
       return grad_output;
     }
 
+    auto it_mask = micro_batch_masks_.find(micro_batch_id);
+    if (it_mask == micro_batch_masks_.end()) {
+      throw std::runtime_error(
+          "No cached mask found for micro-batch ID in DropoutLayer: " +
+          std::to_string(micro_batch_id));
+    }
+    const Tensor<T> &mask = it_mask->second;
+
     Tensor<T> grad_input = grad_output;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < grad_output.batch_size(); ++n) {
       for (size_t c = 0; c < grad_output.channels(); ++c) {
         for (size_t h = 0; h < grad_output.height(); ++h) {
           for (size_t w = 0; w < grad_output.width(); ++w) {
-            grad_input(n, c, h, w) *= mask_(n, c, h, w);
+            grad_input(n, c, h, w) *= mask(n, c, h, w);
           }
         }
       }
     }
 
+    // micro_batch_masks_.erase(it_mask);
     return grad_input;
   }
 
@@ -1316,62 +1403,37 @@ public:
 // dense layers)
 template <typename T = double> class FlattenLayer : public StatelessLayer<T> {
 private:
-  std::vector<size_t> original_shape_; // Store for backward pass
+  std::unordered_map<int, std::vector<size_t>> micro_batch_original_shapes_;
 
 public:
   explicit FlattenLayer(const std::string &name = "flatten")
       : StatelessLayer<T>(name) {}
 
-  Tensor<T> forward(const Tensor<T> &input) override {
-    original_shape_ = input.shape();
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
+    micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
     size_t batch_size = input.batch_size();
     size_t features = input.channels() * input.height() * input.width();
 
-    // Create flattened output: [batch_size, features, 1, 1]
-    Tensor<T> output(std::vector<size_t>{batch_size, features, 1, 1});
-
-    // Copy data in CHW order
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t feature_idx = 0;
-      for (size_t c = 0; c < input.channels(); ++c) {
-        for (size_t h = 0; h < input.height(); ++h) {
-          for (size_t w = 0; w < input.width(); ++w) {
-            output(n, feature_idx, 0, 0) = input(n, c, h, w);
-            feature_idx++;
-          }
-        }
-      }
-    }
+    Tensor<T> output = input.reshape({batch_size, features, 1, 1});
 
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output) override {
-    // Reshape back to original shape
-    Tensor<T> grad_input(original_shape_);
-
-    size_t batch_size = grad_input.batch_size();
-
-    // Copy data back to CHW order
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      size_t feature_idx = 0;
-      for (size_t c = 0; c < grad_input.channels(); ++c) {
-        for (size_t h = 0; h < grad_input.height(); ++h) {
-          for (size_t w = 0; w < grad_input.width(); ++w) {
-            grad_input(n, c, h, w) = grad_output(n, feature_idx, 0, 0);
-            feature_idx++;
-          }
-        }
-      }
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
+    auto it = micro_batch_original_shapes_.find(micro_batch_id);
+    if (it == micro_batch_original_shapes_.end()) {
+      throw std::runtime_error(
+          "No cached shape found for micro-batch ID in FlattenLayer: " +
+          std::to_string(micro_batch_id));
     }
+    const std::vector<size_t> &original_shape = it->second;
 
+    // Reshape back to original shape
+    Tensor<T> grad_input = grad_output.reshape(original_shape);
+
+    // micro_batch_original_shapes_.erase(it);
     return grad_input;
   }
 
@@ -1427,10 +1489,9 @@ public:
   }
 
   static void register_defaults() {
-    // BLAS-optimized Dense layer
+    // Dense layer
     register_layer(
-        "blas_dense",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+        "dense", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
           size_t output_features = config.get<size_t>("output_features");
           bool use_bias = config.get<bool>("use_bias", true);
@@ -1444,15 +1505,14 @@ public:
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASDenseLayer<T>>(
+          return std::make_unique<DenseLayer<T>>(
               input_features, output_features, std::move(activation), use_bias,
               config.name);
         });
 
-    // BLAS-optimized Conv2D layer
+    // Conv2D layer
     register_layer(
-        "blas_conv2d",
-        [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+        "conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
           size_t out_channels = config.get<size_t>("out_channels");
           size_t kernel_h = config.get<size_t>("kernel_h");
@@ -1472,7 +1532,7 @@ public:
             activation = factory.create(activation_name);
           }
 
-          return std::make_unique<BLASConv2DLayer<T>>(
+          return std::make_unique<Conv2DLayer<T>>(
               in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
               pad_h, pad_w, use_bias, std::move(activation), config.name);
         });
@@ -1543,9 +1603,9 @@ namespace Layers {
 
 template <typename T = double>
 std::unique_ptr<layers::Layer<T>>
-blas_dense(size_t input_features, size_t output_features,
-           const std::string &activation = "none", bool use_bias = true,
-           const std::string &name = "blas_dense") {
+dense(size_t input_features, size_t output_features,
+      const std::string &activation = "none", bool use_bias = true,
+      const std::string &name = "dense") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
     auto factory = ActivationFactory<T>();
@@ -1553,24 +1613,24 @@ blas_dense(size_t input_features, size_t output_features,
     act = factory.create(activation);
   }
 
-  return std::make_unique<layers::BLASDenseLayer<T>>(
+  return std::make_unique<layers::DenseLayer<T>>(
       input_features, output_features, std::move(act), use_bias, name);
 }
 
 template <typename T = double>
 std::unique_ptr<layers::Layer<T>>
-blas_conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
-            size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-            size_t pad_h = 0, size_t pad_w = 0,
-            const std::string &activation = "none", bool use_bias = true,
-            const std::string &name = "blas_conv2d") {
+conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
+       size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+       size_t pad_h = 0, size_t pad_w = 0,
+       const std::string &activation = "none", bool use_bias = true,
+       const std::string &name = "conv2d") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
   if (activation != "none") {
     auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<layers::BLASConv2DLayer<T>>(
+  return std::make_unique<layers::Conv2DLayer<T>>(
       in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h,
       pad_w, use_bias, std::move(act), name);
 }

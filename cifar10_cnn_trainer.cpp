@@ -7,54 +7,50 @@
 #include <random>
 #include <sstream>
 #include <vector>
-#include <omp.h>
-
+#include <omp.h>  
 #include "layers/layers.hpp"
 #include "layers/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "layers/optimizers.hpp"
 
-// Enhanced data loader for MNIST CSV format adapted for CNN (2D images)
-class MNISTCNNDataLoader {
+// CIFAR-10 data loader
+class CIFAR10DataLoader {
 private:
   std::vector<std::vector<float>> data_;
   std::vector<int> labels_;
   size_t current_index_;
+  const int num_classes = 10;
 
 public:
-  bool load_data(const std::string &filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-      std::cerr << "Error: Could not open file " << filename << std::endl;
-      return false;
-    }
-
-    std::string line;
-    // Skip header line
-    std::getline(file, line);
-
+  bool load_data(const std::vector<std::string> &filenames) {
     data_.clear();
     labels_.clear();
 
-    while (std::getline(file, line)) {
-      std::stringstream ss(line);
-      std::string cell;
-
-      // First column is label
-      std::getline(ss, cell, ',');
-      labels_.push_back(std::stoi(cell));
-
-      // Remaining columns are pixel values
-      std::vector<float> row;
-      while (std::getline(ss, cell, ',')) {
-        row.push_back(std::stod(cell) / 255.0); // Normalize to [0, 1]
+    for (const auto &filename : filenames) {
+      std::ifstream file(filename, std::ios::binary);
+      if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return false;
       }
-      data_.push_back(row);
+
+      // CIFAR-10 binary format: [1-byte label][3072 bytes of pixel data]
+      const int record_size = 1 + 32 * 32 * 3;
+
+      char buffer[record_size];
+      while (file.read(buffer, record_size)) {
+        labels_.push_back(static_cast<int>(buffer[0]));
+
+        std::vector<float> image_data(32 * 32 * 3);
+        for (int i = 0; i < 3072; ++i) {
+          image_data[i] = static_cast<unsigned char>(buffer[i + 1]) / 255.0f;
+        }
+        data_.push_back(image_data);
+      }
+      std::cout << "Loaded " << data_.size() << " samples from " << filename
+                << std::endl;
     }
 
     current_index_ = 0;
-    std::cout << "Loaded " << data_.size() << " samples from " << filename
-              << std::endl;
     return true;
   }
 
@@ -88,21 +84,23 @@ public:
     int actual_batch_size =
         std::min(batch_size, static_cast<int>(data_.size() - current_index_));
 
-    // Create batch data tensor for CNN: (batch_size, channels=1, height=28,
-    // width=28)
+    // Create batch data tensor for CNN: (batch_size, channels=3, height=32, width=32)
     batch_data = Tensor<float>(
-        std::vector<size_t>{static_cast<size_t>(actual_batch_size), 1, 28, 28});
+        std::vector<size_t>{static_cast<size_t>(actual_batch_size), 3, 32, 32});
 
     // Create batch labels tensor (batch_size, 10, 1, 1) - one-hot encoded
     batch_labels = Tensor<float>(
-        std::vector<size_t>{static_cast<size_t>(actual_batch_size), 10, 1, 1});
+        std::vector<size_t>{static_cast<size_t>(actual_batch_size), (size_t)num_classes, 1, 1});
     batch_labels.fill(0.0);
 
     for (int i = 0; i < actual_batch_size; ++i) {
-      // Copy pixel data and reshape to 28x28
-      for (int h = 0; h < 28; ++h) {
-        for (int w = 0; w < 28; ++w) {
-          batch_data(i, 0, h, w) = data_[current_index_ + i][h * 28 + w];
+      // Copy pixel data and reshape to 3x32x32
+      for (int c = 0; c < 3; ++c) {
+        for (int h = 0; h < 32; ++h) {
+          for (int w = 0; w < 32; ++w) {
+            // Data is stored in channel-major order: RRR...GGG...BBB...
+            batch_data(i, c, h, w) = data_[current_index_ + i][c * 1024 + h * 32 + w];
+          }
         }
       }
 
@@ -226,8 +224,8 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
 
 // Training function for CNN tensor model
 void train_cnn_model(layers::Sequential<float> &model,
-                     MNISTCNNDataLoader &train_loader,
-                     MNISTCNNDataLoader &test_loader, int epochs = 10,
+                     CIFAR10DataLoader &train_loader,
+                     CIFAR10DataLoader &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
   layers::SGD<float> optimizer(learning_rate, 0.9);
 
@@ -274,7 +272,7 @@ void train_cnn_model(layers::Sequential<float> &model,
       optimizer.update(params, grads);
 
       // Print progress every 10 batches (more frequent for CNN)
-      if (num_batches % 200 == 0) {
+      if (num_batches % 100 == 0) {
         model.print_profiling_summary();
         std::cout << "Epoch " << epoch + 1 << "/" << epochs << ", Batch "
                   << num_batches << ", Loss: " << std::fixed
@@ -325,7 +323,7 @@ void train_cnn_model(layers::Sequential<float> &model,
     std::cout << std::string(70, '=') << std::endl;
 
     // Learning rate decay (more aggressive for CNN)
-    if ((epoch + 1) % 2 == 0) {
+    if ((epoch + 1) % 4 == 0) {
       std::cout << "Current learning rate: " << optimizer.get_learning_rate()
                 << std::endl;
       float new_lr = 1.0f * optimizer.get_learning_rate() * 0.8f;
@@ -337,70 +335,60 @@ void train_cnn_model(layers::Sequential<float> &model,
 
 int main() {
   try {
-    std::cout << "MNIST CNN Tensor<float> Neural Network Training" << std::endl;
+    std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
     // Load data
-    MNISTCNNDataLoader train_loader, test_loader;
+    CIFAR10DataLoader train_loader, test_loader;
 
-    if (!train_loader.load_data("./data/mnist_train.csv")) {
+    std::vector<std::string> train_files;
+    for (int i = 1; i <= 5; ++i) {
+      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + std::to_string(i) + ".bin");
+    }
+    if (!train_loader.load_data(train_files)) {
       return -1;
     }
 
-    if (!test_loader.load_data("./data/mnist_test.csv")) {
+    if (!test_loader.load_data({"./data/cifar-10-batches-bin/test_batch.bin"})) {
       return -1;
     }
 
-    // Create CNN model architecture matching Mojo configuration
-    std::cout << "\nBuilding CNN model architecture (matching Mojo config)..."
+    // Create CNN model architecture for CIFAR-10
+    std::cout << "\nBuilding CNN model architecture for CIFAR-10..."
               << std::endl;
 
     auto model =
-        layers::SequentialBuilder<float>("mnist_cnn_classifier")
-            // C1: convolution 5x5 kernel, stride 1, relu activation
-            // Output size: 8x24x24 (padding 0) (28-5+1=24) (C H W order)
-            .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1")
-
-            // P1: max pool 3x3 blocks, stride 3
-            // Output size: 8x8x8 (24/3=8) (C H W order)
-            .maxpool2d(3, 3, 3, 3, 0, 0, "P1")
-
-            // C2: inceptoin layer
-            .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true,
-                         "C2") // 1x1 conv
-
-            // C3: convolution 5x5 kernel, stride 1, relu activation
-            // Output size: 48x4x4 (8-5+1=4) (C H W order)
-            .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C2")
-
-            // P2: max pool 2x2 blocks, stride 2
-            // Output size: 48x2x2 (4/2=2) (C H W order)
-            .maxpool2d(2, 2, 2, 2, 0, 0, "P2")
-
-            // FC1: fully connected
-            .dense(48 * 4, 10, "linear", true,
-                        "output") // Output layer with 10 classes
-
+        layers::SequentialBuilder<float>("cifar10_cnn_classifier")
+            // Input: 32x32x3
+            .conv2d(3, 32, 3, 3, 1, 1, 1, 1, "relu", true, "conv1") // 3x32x32 -> 32x32x32
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32x32 -> 16x16x32
+            .conv2d(32, 64, 3, 3, 1, 1, 1, 1, "relu", true, "conv2") // 16x16x32 -> 16x16x64
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16x64 -> 8x8x64
+            .conv2d(64, 128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3") // 8x8x64 -> 8x8x128
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8x128 -> 4x4x128
+            .dense(128 * 4 * 4, 128, "relu", true, "fc1") // Flatten to 128
+            .dense(128, 10, "linear", true, "output") // Output layer with 10 classes
             .build();
-    
+
     model.enable_profiling(true); // Enable profiling for performance analysis
+
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        64, 1, 28, 28}); // Show summary with single image input
+        32, 3, 32, 32}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
-    std::cout << "\nStarting Mojo-style CNN training..." << std::endl;
+    std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
-                    64, // batch_size (moderate batch size)
-                    0.01 // learning_rate (slightly higher for simpler model)
+                    32, // batch_size
+                    0.01 // learning_rate
     );
 
     std::cout
-        << "\nMNIST CNN model training completed successfully!"
+        << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!"
         << std::endl;
 
-    model.save_to_file("model_snapshots/mnist_cnn_model");
+    model.save_to_file("model_snapshots/cifar10_cnn_model");
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return -1;

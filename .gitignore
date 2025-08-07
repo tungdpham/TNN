@@ -9,12 +9,19 @@
 /data/
 /mojo/
 
+# build
+/build/
+
 # build artifacts
 /**/*.o
 /main
 /mnist_cnn_trainer
 /mnist_trainer
-/activation_tests
-/test_activations
-/integration_test
+/mnist_cnn_pipeline_trainer
+/cifar100_cnn_trainer
+/cifar10_cnn_trainers
 /profile.json.gz
+
+
+# snapshots
+/model_snapshots/
