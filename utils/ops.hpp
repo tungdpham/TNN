@@ -8,6 +8,9 @@ void transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
   const size_t block_size = 64; // Tuned for typical L1 cache
 
   if (rows * cols < 1024) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
     // Simple transpose for small matrices
     for (size_t i = 0; i < rows; ++i) {
       for (size_t j = 0; j < cols; ++j) {
@@ -48,10 +51,8 @@ T simd_dot_product_contiguous(const T *weights, const T *col_data,
     size_t simd_end = kernel_size - (kernel_size % 8);
 
     for (size_t ks = 0; ks < simd_end; ks += 8) {
-      // Load 8 weights (contiguous)
       __m256 w_vec = _mm256_loadu_ps(&weights[ks]);
 
-      // Load 8 col_data values (now contiguous!)
       __m256 c_vec = _mm256_loadu_ps(&col_data[ks]);
 
       // Fused multiply-add

@@ -45,9 +45,7 @@ public:
             for (auto it = layers_.rbegin(); it != layers_.rend(); ++it) {
                 current_grad = (*it)->backward(current_grad, micro_batch_id);
             }
-
-            // After the backward pass for a micro-batch, gradients for the weights in this stage are computed.
-            // These gradients need to be accumulated.
+            
             accumulate_gradients();
 
             return current_grad;

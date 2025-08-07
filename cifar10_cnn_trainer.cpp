@@ -371,13 +371,13 @@ int main() {
 
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        32, 3, 32, 32}); // Show summary with single image input
+        100, 3, 32, 32}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
-                    32, // batch_size
+                    100, // batch_size
                     0.01 // learning_rate
     );
 

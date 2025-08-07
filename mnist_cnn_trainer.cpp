@@ -274,9 +274,9 @@ void train_cnn_model(layers::Sequential<float> &model,
       optimizer.update(params, grads);
 
       // Print progress every 10 batches (more frequent for CNN)
-      if (num_batches % 200 == 0) {
+      if (num_batches % 50 == 0) {
         model.print_profiling_summary();
-        std::cout << "Epoch " << epoch + 1 << "/" << epochs << ", Batch "
+        std::cout << "Epoch " << epoch + 1 << "/" << epochs << ", Batch no: "
                   << num_batches << ", Loss: " << std::fixed
                   << std::setprecision(4) << loss
                   << ", Acc: " << std::setprecision(3) << accuracy * 100 << "%"
@@ -386,13 +386,13 @@ int main() {
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        64, 1, 28, 28}); // Show summary with single image input
+        128, 1, 28, 28}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting Mojo-style CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
                     5,  // epochs
-                    64, // batch_size (moderate batch size)
+                    128, // batch_size (moderate batch size)
                     0.01 // learning_rate (slightly higher for simpler model)
     );
 

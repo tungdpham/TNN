@@ -192,12 +192,12 @@ private:
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t out_f = 0; out_f < output_features; ++out_f) {
-        T sum = T(0);
-        for (size_t in_f = 0; in_f < input_features; ++in_f) {
-          sum += input_data[n * input_features + in_f] *
-                 weight_data[out_f * input_features + in_f];
-        }
-        output_data[n * output_features + out_f] = sum;
+        // Use SIMD-optimized dot product for contiguous memory access
+        output_data[n * output_features + out_f] = 
+            utils::simd_dot_product_contiguous(
+                &weight_data[out_f * input_features],
+                &input_data[n * input_features], 
+                input_features);
       }
     }
   }
@@ -225,17 +225,20 @@ private:
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
+    std::vector<T> weights_transposed(input_features * output_features);
+    utils::transpose_2d(weight_data, weights_transposed.data(), 
+                        output_features, input_features);
+    
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t in_f = 0; in_f < input_features; ++in_f) {
-        T sum = T(0);
-        for (size_t out_f = 0; out_f < output_features; ++out_f) {
-          sum += grad_output_data[n * output_features + out_f] *
-                 weight_data[out_f * input_features + in_f];
-        }
-        grad_input_data[n * input_features + in_f] = sum;
+        grad_input_data[n * input_features + in_f] = 
+            utils::simd_dot_product_contiguous(
+                &grad_output_data[n * output_features],
+                &weights_transposed[in_f * output_features],
+                output_features);
       }
     }
   }
