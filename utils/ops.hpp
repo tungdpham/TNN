@@ -7,30 +7,17 @@ void transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
   // Use cache-friendly blocking for large matrices
   const size_t block_size = 64; // Tuned for typical L1 cache
 
-  if (rows * cols < 1024) {
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
-    // Simple transpose for small matrices
-    for (size_t i = 0; i < rows; ++i) {
-      for (size_t j = 0; j < cols; ++j) {
-        dst[j * rows + i] = src[i * cols + j];
-      }
-    }
-  } else {
-    // Blocked transpose for larger matrices
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
-    for (size_t i = 0; i < rows; i += block_size) {
-      for (size_t j = 0; j < cols; j += block_size) {
-        size_t max_i = std::min(i + block_size, rows);
-        size_t max_j = std::min(j + block_size, cols);
+  for (size_t i = 0; i < rows; i += block_size) {
+    for (size_t j = 0; j < cols; j += block_size) {
+      size_t max_i = std::min(i + block_size, rows);
+      size_t max_j = std::min(j + block_size, cols);
 
-        for (size_t ii = i; ii < max_i; ++ii) {
-          for (size_t jj = j; jj < max_j; ++jj) {
-            dst[jj * rows + ii] = src[ii * cols + jj];
-          }
+      for (size_t ii = i; ii < max_i; ++ii) {
+        for (size_t jj = j; jj < max_j; ++jj) {
+          dst[jj * rows + ii] = src[ii * cols + jj];
         }
       }
     }
