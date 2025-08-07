@@ -7,7 +7,7 @@
 #include <random>
 #include <sstream>
 #include <vector>
-
+#include <omp.h>  
 #include "layers/layers.hpp"
 #include "layers/sequential.hpp"
 #include "tensor/tensor.hpp"
@@ -371,6 +371,7 @@ int main() {
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
+
     // Print model summary
     model.print_summary(std::vector<size_t>{
         32, 3, 32, 32}); // Show summary with single image input

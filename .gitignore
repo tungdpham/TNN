@@ -18,6 +18,8 @@
 /mnist_cnn_trainer
 /mnist_trainer
 /mnist_cnn_pipeline_trainer
+/cifar100_cnn_trainer
+/cifar10_cnn_trainers
 /profile.json.gz
 
 

@@ -7,6 +7,7 @@
 #include <random>
 #include <sstream>
 #include <vector>
+#include <omp.h>
 
 #include "layers/layers.hpp"
 #include "layers/sequential.hpp"
@@ -356,8 +357,6 @@ int main() {
 
     auto model =
         layers::SequentialBuilder<float>("mnist_cnn_classifier")
-            // I1: input 28x28x1 (implicit - handled by data loader)
-
             // C1: convolution 5x5 kernel, stride 1, relu activation
             // Output size: 8x24x24 (padding 0) (28-5+1=24) (C H W order)
             .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1")
@@ -383,7 +382,7 @@ int main() {
                         "output") // Output layer with 10 classes
 
             .build();
-
+    
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
     model.print_summary(std::vector<size_t>{
@@ -398,7 +397,7 @@ int main() {
     );
 
     std::cout
-        << "\nMNIST CNN Tensor<float> model training completed successfully!"
+        << "\nMNIST CNN model training completed successfully!"
         << std::endl;
 
     model.save_to_file("model_snapshots/mnist_cnn_model");
