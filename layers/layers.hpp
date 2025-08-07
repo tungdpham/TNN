@@ -600,27 +600,23 @@ private:
                                       const size_t out_channels) const {
 
     // Transpose grad_output matrix for better memory access patterns
-    // Original: grad_output_data[out_channels x output_size]
-    // Transposed: grad_output_T[output_size x out_channels]
     std::vector<T> grad_output_transposed(out_channels * output_size);
     utils::transpose_2d(grad_output_data, grad_output_transposed.data(),
                         out_channels, output_size);
+
+    std::vector<T> weights_transposed(out_channels * kernel_size);
+    utils::transpose_2d(weight_data, weights_transposed.data(), out_channels,
+                        kernel_size);
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       for (size_t os = 0; os < output_size; ++os) {
-        // SIMD-optimized dot product for input gradients
         col_grad_data[ks * output_size + os] =
             utils::simd_dot_product_contiguous(
-                &weight_data[ks], // weight column for this kernel position
-                &grad_output_transposed[os *
-                                        out_channels], // grad_output row for
-                                                       // this output position
-                out_channels,
-                kernel_size // stride for weight data
-            );
+                &weights_transposed[ks * out_channels],
+                &grad_output_transposed[os * out_channels], out_channels);
       }
     }
   }
@@ -697,7 +693,7 @@ public:
     const size_t W_stride = output.stride(3);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
@@ -789,7 +785,7 @@ public:
     std::vector<T> grad_output_flat(out_channels_ * output_size);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oc = 0; oc < out_channels_; ++oc) {
@@ -1215,7 +1211,7 @@ public:
       const size_t padded_w = input_w + 2 * pad_w_;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(static)
+#pragma omp parallel for collapse(2)
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t c = 0; c < channels; ++c) {
@@ -1368,7 +1364,7 @@ public:
     Tensor<T> grad_input = grad_output;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < grad_output.batch_size(); ++n) {
       for (size_t c = 0; c < grad_output.channels(); ++c) {

@@ -71,6 +71,8 @@ public:
     compute_strides();
     data_size_ = batch * channels * height * width;
     data_ = std::make_unique<T[]>(data_size_);
+    std::fill(data_.get(), data_.get() + data_size_,
+              T(0)); 
   }
 
   // 5D constructor for 3D CNNs
