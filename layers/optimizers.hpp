@@ -43,6 +43,9 @@ public:
             initialized_ = true;
         }
 
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
         for (size_t i = 0; i < params.size(); ++i) {
             if (momentum_ > 0.0f) {
                 // v = momentum * v - learning_rate * grad

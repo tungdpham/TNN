@@ -38,9 +38,16 @@ private:
   std::vector<int> labels_;
   size_t current_index_;
   mutable std::mt19937 rng_{std::random_device{}()};
+  
+  // Pre-computed batch storage
+  std::vector<Tensor<float>> batched_data_;
+  std::vector<Tensor<float>> batched_labels_;
+  size_t current_batch_index_;
+  int batch_size_;
+  bool batches_prepared_;
 
 public:
-  MNISTCNNDataLoader() : current_index_(0) {
+  MNISTCNNDataLoader() : current_index_(0), current_batch_index_(0), batch_size_(32), batches_prepared_(false) {
     // Reserve space to reduce allocations
     data_.reserve(60000); // MNIST train set size
     labels_.reserve(60000);
@@ -118,10 +125,101 @@ public:
     data_ = std::move(shuffled_data);
     labels_ = std::move(shuffled_labels);
     current_index_ = 0;
+    
+    // Invalidate pre-computed batches since data order changed
+    batches_prepared_ = false;
   }
 
+  // Pre-compute all batches for efficient training
+  void prepare_batches(int batch_size) {
+    if (data_.empty()) {
+      std::cerr << "Warning: No data loaded, cannot prepare batches!" << std::endl;
+      return;
+    }
+    
+    batch_size_ = batch_size;
+    batched_data_.clear();
+    batched_labels_.clear();
+    
+    const size_t num_samples = data_.size();
+    const size_t num_batches = (num_samples + batch_size - 1) / batch_size; // Ceiling division
+    
+    batched_data_.reserve(num_batches);
+    batched_labels_.reserve(num_batches);
+    
+    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..." << std::endl;
+    
+    for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
+      const size_t start_idx = batch_idx * batch_size;
+      const size_t end_idx = std::min(start_idx + batch_size, num_samples);
+      const int actual_batch_size = static_cast<int>(end_idx - start_idx);
+      
+      // Create batch tensors
+      Tensor<float> batch_data(
+          std::vector<size_t>{static_cast<size_t>(actual_batch_size), 1, 
+                             mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+      
+      Tensor<float> batch_labels(
+          std::vector<size_t>{static_cast<size_t>(actual_batch_size), 
+                             mnist_constants::NUM_CLASSES, 1, 1});
+      batch_labels.fill(0.0f);
+      
+      // Fill batch data in parallel
+      #pragma omp parallel for if(actual_batch_size > 16)
+      for (int i = 0; i < actual_batch_size; ++i) {
+        const size_t sample_idx = start_idx + i;
+        const auto& image_data = data_[sample_idx];
+        
+        // Copy pixel data and reshape to 28x28 with better cache locality
+        for (int h = 0; h < static_cast<int>(mnist_constants::IMAGE_HEIGHT); ++h) {
+          for (int w = 0; w < static_cast<int>(mnist_constants::IMAGE_WIDTH); ++w) {
+            batch_data(i, 0, h, w) = image_data[h * mnist_constants::IMAGE_WIDTH + w];
+          }
+        }
+        
+        // Set one-hot label
+        const int label = labels_[sample_idx];
+        if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+          batch_labels(i, label, 0, 0) = 1.0f;
+        }
+      }
+      
+      batched_data_.emplace_back(std::move(batch_data));
+      batched_labels_.emplace_back(std::move(batch_labels));
+    }
+    
+    current_batch_index_ = 0;
+    batches_prepared_ = true;
+    std::cout << "Batch preparation completed!" << std::endl;
+  }
+
+  // Fast batch retrieval from pre-computed batches
+  bool get_next_batch(Tensor<float> &batch_data, Tensor<float> &batch_labels) {
+    if (!batches_prepared_) {
+      std::cerr << "Error: Batches not prepared! Call prepare_batches() first." << std::endl;
+      return false;
+    }
+    
+    if (current_batch_index_ >= batched_data_.size()) {
+      return false; // No more batches
+    }
+    
+    batch_data = batched_data_[current_batch_index_];
+    batch_labels = batched_labels_[current_batch_index_];
+    ++current_batch_index_;
+    
+    return true;
+  }
+
+  // Legacy method for backward compatibility - now uses pre-computed batches when available
   bool get_batch(int batch_size, Tensor<float> &batch_data,
                  Tensor<float> &batch_labels) {
+    // If batches are prepared and batch size matches, use fast path
+    if (batches_prepared_ && batch_size == batch_size_) {
+      return get_next_batch(batch_data, batch_labels);
+    }
+    
+    // Fallback to original implementation for different batch sizes
     if (current_index_ >= data_.size()) {
       return false; // No more data
     }
@@ -163,9 +261,18 @@ public:
     return true;
   }
 
-  void reset() { current_index_ = 0; }
+  void reset() { 
+    current_index_ = 0; 
+    current_batch_index_ = 0;
+  }
 
   size_t size() const { return data_.size(); }
+  
+  size_t num_batches() const { 
+    return batches_prepared_ ? batched_data_.size() : 0; 
+  }
+  
+  bool are_batches_prepared() const { return batches_prepared_; }
 };
 
 // Optimized loss functions for tensors
@@ -283,7 +390,7 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-// Optimized training function for CNN tensor model
+// Optimized training function for CNN tensor model with pre-computed batches
 void train_cnn_model(layers::Sequential<float> &model,
                      MNISTCNNDataLoader &train_loader,
                      MNISTCNNDataLoader &test_loader, 
@@ -301,21 +408,32 @@ void train_cnn_model(layers::Sequential<float> &model,
   std::cout << "OpenMP threads: " << omp_get_max_threads() << std::endl;
   std::cout << std::string(70, '=') << std::endl;
 
-  const float inv_print_interval = 1.0f / mnist_constants::PROGRESS_PRINT_INTERVAL;
+  // Pre-compute batches for training and validation data
+  std::cout << "\nPreparing training batches..." << std::endl;
+  train_loader.prepare_batches(batch_size);
+  
+  std::cout << "Preparing validation batches..." << std::endl;
+  test_loader.prepare_batches(batch_size);
+  
+  std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
+  std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
+  std::cout << std::string(70, '=') << std::endl;
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
     const auto epoch_start = std::chrono::high_resolution_clock::now();
 
-    // Training phase
+    // Training phase - shuffle data and re-prepare batches for each epoch
     model.train();
     train_loader.shuffle();
+    train_loader.prepare_batches(batch_size); // Re-prepare after shuffle
     train_loader.reset();
 
     double total_loss = 0.0; // Use double for better numerical precision
     double total_accuracy = 0.0;
     int num_batches = 0;
 
-    while (train_loader.get_batch(batch_size, batch_data, batch_labels)) {
+    // Use fast batch iteration with pre-computed batches
+    while (train_loader.get_next_batch(batch_data, batch_labels)) {
       ++num_batches;
       
       // Forward pass
@@ -353,7 +471,7 @@ void train_cnn_model(layers::Sequential<float> &model,
     const float avg_train_loss = static_cast<float>(total_loss / num_batches);
     const float avg_train_accuracy = static_cast<float>(total_accuracy / num_batches);
 
-    // Optimized validation phase
+    // Optimized validation phase - use pre-computed batches
     model.eval();
     test_loader.reset();
 
@@ -361,7 +479,8 @@ void train_cnn_model(layers::Sequential<float> &model,
     double val_accuracy = 0.0;
     int val_batches = 0;
 
-    while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
+    // Use fast batch iteration with pre-computed validation batches
+    while (test_loader.get_next_batch(batch_data, batch_labels)) {
       predictions = model.forward(batch_data);
       apply_tensor_softmax(predictions);
 

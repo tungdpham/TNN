@@ -67,7 +67,7 @@ public:
 
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
-    size_t size = tensor.size();
+    const size_t size = tensor.size();
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -115,7 +115,7 @@ public:
     Tensor<T> gradient(pre_activation_values.shape());
     const T *input_data = pre_activation_values.data();
     T *grad_data = gradient.data();
-    size_t size = pre_activation_values.size();
+    const size_t size = pre_activation_values.size();
 
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -731,7 +731,7 @@ public:
 
     T *data = tensor.data();
     const T *bias_data = bias.data();
-    size_t size = tensor.size();
+    const size_t size = tensor.size();
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
