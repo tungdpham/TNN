@@ -29,7 +29,7 @@ namespace ips_constants {
     constexpr float POSITIONING_ERROR_THRESHOLD = 5.0f; // 5 meters for accuracy
     constexpr size_t MAX_BATCH_SIZE = 32; // Maximum batch size for training
     constexpr size_t MAX_EPOCHS = 100; // Maximum number of training epochs 
-    constexpr float learning_rate = 0.002f; 
+    constexpr float learning_rate = 0.01f; 
 }
 
 // Distance-based loss for coordinate prediction (operates in real-world space)
@@ -111,48 +111,6 @@ public:
                 // Transform gradient back to normalized space: d_loss/d_norm = d_loss/d_real * d_real/d_norm
                 // d_real/d_norm = std_dev (from denormalization: real = norm * std + mean)
                 gradient(i, j, 0, 0) = scale * real_diff * target_stds[j];
-            }
-        }
-        
-        return gradient;
-    }
-};
-
-// Cross-entropy loss for classification tasks (building/floor prediction)
-class TensorCrossEntropyLoss {
-public:
-    static float compute_loss(const Tensor<float>& predictions, const Tensor<float>& targets) {
-        const size_t batch_size = predictions.shape()[0];
-        const size_t num_classes = predictions.shape()[1];
-        
-        double total_loss = 0.0;
-        
-        #pragma omp parallel for reduction(+:total_loss) if(batch_size > 32)
-        for (size_t i = 0; i < batch_size; ++i) {
-            for (size_t j = 0; j < num_classes; ++j) {
-                if (targets(i, j, 0, 0) > 0.5f) {
-                    const float pred = std::clamp(predictions(i, j, 0, 0), 
-                                                ips_constants::EPSILON, 
-                                                1.0f - ips_constants::EPSILON);
-                    total_loss -= std::log(pred);
-                    break;
-                }
-            }
-        }
-        
-        return static_cast<float>(total_loss / batch_size);
-    }
-    
-    static Tensor<float> compute_gradient(const Tensor<float>& predictions, const Tensor<float>& targets) {
-        Tensor<float> gradient = predictions;
-        const size_t batch_size = predictions.shape()[0];
-        const size_t num_classes = predictions.shape()[1];
-        const float inv_batch_size = 1.0f / static_cast<float>(batch_size);
-        
-        #pragma omp parallel for if(batch_size > 32)
-        for (size_t i = 0; i < batch_size; ++i) {
-            for (size_t j = 0; j < num_classes; ++j) {
-                gradient(i, j, 0, 0) = (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * inv_batch_size;
             }
         }
         
@@ -414,9 +372,9 @@ void train_ips_model(layers::Sequential<float>& model,
             } else {
                 // Classification task
                 apply_tensor_softmax(predictions);
-                loss = TensorCrossEntropyLoss::compute_loss(predictions, batch_targets);
+                loss = classification_loss->compute_loss(predictions, batch_targets);
                 accuracy = calculate_classification_accuracy(predictions, batch_targets);
-                loss_gradient = TensorCrossEntropyLoss::compute_gradient(predictions, batch_targets);
+                loss_gradient = classification_loss->compute_gradient(predictions, batch_targets);
             }
             
             total_loss += loss;
@@ -478,7 +436,7 @@ void train_ips_model(layers::Sequential<float>& model,
                 }
             } else {
                 apply_tensor_softmax(predictions);
-                val_loss += TensorCrossEntropyLoss::compute_loss(predictions, batch_targets);
+                val_loss += classification_loss->compute_loss(predictions, batch_targets);
                 val_accuracy += calculate_classification_accuracy(predictions, batch_targets);
             }
             ++val_batches;
@@ -605,20 +563,20 @@ int main() {
             .dense(input_features, 192, "linear", true, "hidden1")
             .batchnorm(192, 1e-5, 0.1, true, "batchnorm1")
             .activation("relu", "hidden1_relu")
-            .dropout(0.4f, "dropout1") // Use dropout for regularization
+            .dropout(0.25f, "dropout1") // Use dropout for regularization
             
             // Second hidden layer
             .dense(192, 64, "linear", true, "hidden2")
             .batchnorm(64, 1e-5, 0.1, true, "batchnorm2")
             .activation("relu", "hidden2_relu")
-            .dropout(0.3f, "dropout2") // Another dropout layer
+            // .dropout(0.3f, "dropout2") // Another dropout layer
             
             // Third hidden layer
             .dense(64, 32, "linear", true, "hidden3")
             .batchnorm(32, 1e-5, 0.1, true, "batchnorm3")
             .activation("relu", "hidden3_relu")
 
-            .dropout(0.2f, "dropout3") // Another dropout layer
+            .dropout(0.25f, "dropout3") // Another dropout layer
             
             .dense(32, 16, "linear", true, "hidden4")
             .batchnorm(16, 1e-5, 0.1, true, "batchnorm4")
