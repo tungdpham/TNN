@@ -911,7 +911,6 @@ protected:
   }
 };
 
-// Optimized MaxPooling Layer for 2D tensors
 template <typename T = double> class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
@@ -930,34 +929,6 @@ private:
       input_stride_w_;
   mutable size_t output_stride_n_, output_stride_c_, output_stride_h_,
       output_stride_w_;
-
-  // Helper function for vectorized max finding
-  inline std::pair<T, size_t> find_max_in_window(const T *data, size_t start_h,
-                                                 size_t start_w, size_t input_h,
-                                                 size_t input_w,
-                                                 size_t stride_h,
-                                                 size_t stride_w) const {
-    T max_val = -std::numeric_limits<T>::infinity();
-    size_t max_idx = 0;
-
-    for (size_t ph = 0; ph < pool_h_; ++ph) {
-      for (size_t pw = 0; pw < pool_w_; ++pw) {
-        size_t h_idx = start_h + ph;
-        size_t w_idx = start_w + pw;
-
-        if (h_idx < input_h && w_idx < input_w) {
-          size_t linear_idx = h_idx * stride_h + w_idx * stride_w;
-          T val = data[linear_idx];
-          if (val > max_val) {
-            max_val = val;
-            max_idx = linear_idx;
-          }
-        }
-      }
-    }
-
-    return {max_val, max_idx};
-  }
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
@@ -1192,8 +1163,6 @@ public:
     const T *grad_output_data = grad_output.data();
     T *grad_input_data = grad_input.data();
 
-    // Optimized backward pass: iterate through all output elements once
-    // Each output element maps to exactly one input element (the max), so no race conditions
     const size_t total_outputs = batch_size * channels * output_h * output_w;
 
     if (pad_h_ == 0 && pad_w_ == 0) {
@@ -1202,7 +1171,6 @@ public:
 #pragma omp parallel for
 #endif
       for (size_t i = 0; i < total_outputs; ++i) {
-        // Decode the linear index back to (n, c, out_h, out_w)
         const size_t output_hw = output_h * output_w;
         const size_t output_chw = channels * output_hw;
         
@@ -1211,18 +1179,15 @@ public:
         const size_t out_h = (i % output_hw) / output_w;
         const size_t out_w = i % output_w;
 
-        // Get the max index for this output element
         const size_t max_idx = mask_indices[i];
         const size_t max_h = max_idx / input_w;
         const size_t max_w = max_idx % input_w;
 
-        // Get the gradient value for this output element
         const T grad_val = grad_output_data[n * output_stride_n_ + 
                                            c * output_stride_c_ + 
                                            out_h * output_stride_h_ + 
                                            out_w * output_stride_w_];
 
-        // No atomic needed - each output maps to unique input location
         grad_input_data[n * input_stride_n_ + 
                        c * input_stride_c_ + 
                        max_h * input_stride_h_ + 
@@ -1325,7 +1290,7 @@ public:
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (!this->is_training_) {
-      return input; // No dropout during inference
+      return input; 
     }
 
     Tensor<T> mask(input.shape());
@@ -1333,7 +1298,6 @@ public:
 
     std::uniform_real_distribution<T> distribution(T(0), T(1));
 
-    // Generate random mask with proper scaling
     T scale = T(1) / (T(1) - dropout_rate_);
 
 #ifdef _OPENMP
