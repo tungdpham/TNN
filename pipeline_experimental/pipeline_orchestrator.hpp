@@ -7,6 +7,7 @@
 #include <limits>
 #include <thread>
 #include "pipeline_stage.hpp"
+#include "thread_pool.hpp"
 #include "../tensor/tensor.hpp"
 
 namespace pipeline {
@@ -75,22 +76,25 @@ class PipelineOrchestrator {
 public:
     PipelineOrchestrator(std::vector<std::unique_ptr<PipelineStage<T>>> stages,
                          std::unique_ptr<Communicator<T>> communicator,
-                         int num_micro_batches)
+                         int num_micro_batches,
+                         size_t num_threads = 4)
         : stages_(std::move(stages)),
           communicator_(std::move(communicator)),
-          num_micro_batches_(num_micro_batches) {}
+          num_micro_batches_(num_micro_batches),
+          thread_pool_(num_threads) {}
 
     std::pair<float, float> train_batch(const Tensor<T>& input_batch, const Tensor<T>& target_batch) {
         // Split the batch into micro-batches
         std::vector<Tensor<T>> micro_batch_inputs = input_batch.split(num_micro_batches_);
         std::vector<Tensor<T>> micro_batch_targets = target_batch.split(num_micro_batches_);
 
-        std::vector<std::thread> micro_batch_threads;
+        std::vector<std::future<void>> micro_batch_futures;
         std::vector<Tensor<T>> predictions(num_micro_batches_);
         std::mutex predictions_mutex;
 
         for (int i = 0; i < num_micro_batches_; ++i) {
-            micro_batch_threads.emplace_back([this, i, &micro_batch_inputs, &micro_batch_targets, &predictions, &predictions_mutex]() {
+            micro_batch_futures.push_back(
+                thread_pool_.enqueue([this, i, &micro_batch_inputs, &micro_batch_targets, &predictions, &predictions_mutex]() {
                 // Forward pass
                 Tensor<T> current_tensor = micro_batch_inputs[i];
                 for (size_t j = 0; j < stages_.size(); ++j) {
@@ -125,8 +129,8 @@ public:
             });
         }
 
-        for (auto& t : micro_batch_threads) {
-            t.join();
+        for (auto& future : micro_batch_futures) {
+            future.get();
         }
 
         // --- Calculate metrics ---
@@ -154,6 +158,7 @@ private:
     std::vector<std::unique_ptr<PipelineStage<T>>> stages_;
     std::unique_ptr<Communicator<T>> communicator_;
     int num_micro_batches_;
+    ThreadPool thread_pool_;
 };
 
 } // namespace pipeline

@@ -7,6 +7,7 @@
 #include <condition_variable>
 #include <map>
 #include "../tensor/tensor.hpp"
+#include "thread_pool.hpp"
 
 namespace pipeline {
 
@@ -38,17 +39,20 @@ private:
     std::mutex backward_mutex_;
     std::map<int, QueueMap> backward_queues_; // Key: micro_batch_id, Value: map of stage_idx to queue
     std::condition_variable backward_cv_;
+    
+    ThreadPool thread_pool_; // Reuse threads instead of creating new ones
 
 public:
+    InProcessCommunicator(size_t num_threads = 4) : thread_pool_(num_threads) {}
     void send(std::future<Tensor<T>> future, int source_stage_idx, int micro_batch_id) override {
-        std::thread([this, f = std::move(future), source_stage_idx, micro_batch_id]() mutable {
+        thread_pool_.enqueue([this, f = std::move(future), source_stage_idx, micro_batch_id]() mutable {
             Tensor<T> tensor = f.get();
             {
                 std::lock_guard<std::mutex> lock(forward_mutex_);
                 forward_queues_[micro_batch_id][source_stage_idx].push(std::move(tensor));
             }
             forward_cv_.notify_all();
-        }).detach();
+        });
     }
 
     Tensor<T> receive(int source_stage_idx, int micro_batch_id) override {
@@ -64,14 +68,14 @@ public:
     }
 
     void send_grad(std::future<Tensor<T>> future, int dest_stage_idx, int micro_batch_id) override {
-        std::thread([this, f = std::move(future), dest_stage_idx, micro_batch_id]() mutable {
+        thread_pool_.enqueue([this, f = std::move(future), dest_stage_idx, micro_batch_id]() mutable {
             Tensor<T> tensor = f.get();
             {
                 std::lock_guard<std::mutex> lock(backward_mutex_);
                 backward_queues_[micro_batch_id][dest_stage_idx].push(std::move(tensor));
             }
             backward_cv_.notify_all();
-        }).detach();
+        });
     }
 
     Tensor<T> receive_grad(int dest_stage_idx, int micro_batch_id) override {
