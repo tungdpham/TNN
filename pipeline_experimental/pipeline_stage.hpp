@@ -18,8 +18,8 @@ namespace pipeline {
 template <typename T>
 class PipelineStage {
 public:
-    PipelineStage(int stage_id, int device_id, size_t num_threads = 1, int omp_num_threads = 1)
-        : stage_id_(stage_id), device_id_(device_id), pool_(num_threads, omp_num_threads) {}
+    PipelineStage(int stage_id, int device_id, size_t num_threads = 1)
+        : stage_id_(stage_id), device_id_(device_id), pool_(num_threads) {}
 
     void add_layer(std::unique_ptr<layers::Layer<T>> layer) {
         layers_.push_back(std::move(layer));

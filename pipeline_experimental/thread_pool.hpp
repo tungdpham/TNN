@@ -12,7 +12,7 @@
 
 class ThreadPool {
 public:
-    ThreadPool(size_t threads, int omp_num_threads = 1);
+    ThreadPool(size_t threads);
     ~ThreadPool();
 
     template<class F, class... Args>
@@ -28,10 +28,9 @@ private:
     bool stop;
 };
 
-inline ThreadPool::ThreadPool(size_t threads, int omp_num_threads) : stop(false) {
+inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
     for(size_t i = 0; i < threads; ++i) {
-        workers.emplace_back([this, omp_num_threads] {
-            omp_set_num_threads(omp_num_threads);
+        workers.emplace_back([this] {
             for(;;) {
                 std::function<void()> task;
                 {
