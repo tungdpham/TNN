@@ -13,8 +13,6 @@
 #include "data_loader.hpp"
 #include "../tensor/tensor.hpp"
 
-namespace data_loading {
-
 // Constants for MNIST dataset
 namespace mnist_constants {
     constexpr size_t IMAGE_HEIGHT = 28;
@@ -24,6 +22,8 @@ namespace mnist_constants {
     constexpr size_t NUM_CHANNELS = 1;
     constexpr float NORMALIZATION_FACTOR = 255.0f;
 }
+
+namespace data_loading {
 
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)

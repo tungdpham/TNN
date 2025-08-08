@@ -22,38 +22,34 @@
 // Constants for MNIST dataset
 namespace mnist_constants {
 
-constexpr size_t IMAGE_HEIGHT = 28;
-constexpr size_t IMAGE_WIDTH = 28;
-constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH;
-constexpr size_t NUM_CLASSES = 10;
-constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 50;
+constexpr int EPOCHS = 50; 
+constexpr size_t BATCH_SIZE = 32; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
+constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
 
 } // namespace mnist_constants
 
-// Optimized loss functions for tensors
-class TensorCrossEntropyLoss {
+class CrossEntropyLoss {
 public:
   static float compute_loss(const Tensor<float> &predictions,
                             const Tensor<float> &targets) {
     const size_t batch_size = predictions.shape()[0];
     const size_t num_classes = predictions.shape()[1];
 
-    double total_loss = 0.0; // Use double for better numerical precision
+    double total_loss = 0.0; 
 
-// Parallelize loss computation for large batches
-#pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
+#pragma omp parallel for reduction(+ : total_loss)
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < num_classes; ++j) {
-        if (targets(i, j, 0, 0) > 0.5f) { // This is the correct class
+        if (targets(i, j, 0, 0) > 0.5f) {
           const float pred =
               std::clamp(predictions(i, j, 0, 0), mnist_constants::EPSILON,
                          1.0f - mnist_constants::EPSILON);
           total_loss -= std::log(pred);
-          break; // Only one class is true per sample
+          break; 
         }
       }
     }
@@ -81,21 +77,17 @@ public:
   }
 };
 
-// Optimized softmax activation for tensors with numerical stability
 void apply_tensor_softmax(Tensor<float> &tensor) {
   const size_t batch_size = tensor.shape()[0];
   const size_t num_classes = tensor.shape()[1];
 
-// Parallelize softmax computation across batch
 #pragma omp parallel for if (batch_size > 16)
   for (size_t batch = 0; batch < batch_size; ++batch) {
-    // Find max for numerical stability
     float max_val = tensor(batch, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {
       max_val = std::max(max_val, tensor(batch, j, 0, 0));
     }
 
-    // Compute exponentials and sum in one pass
     float sum = 0.0f;
     for (size_t j = 0; j < num_classes; ++j) {
       const float exp_val = std::exp(tensor(batch, j, 0, 0) - max_val);
@@ -103,7 +95,6 @@ void apply_tensor_softmax(Tensor<float> &tensor) {
       sum += exp_val;
     }
 
-    // Normalize with safety check
     const float inv_sum = 1.0f / std::max(sum, mnist_constants::EPSILON);
     for (size_t j = 0; j < num_classes; ++j) {
       tensor(batch, j, 0, 0) *= inv_sum;
@@ -150,14 +141,12 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-// Optimized training function for CNN tensor model with pre-computed batches
 void train_cnn_model(layers::Sequential<float> &model,
                      data_loading::MNISTDataLoader<float> &train_loader,
                      data_loading::MNISTDataLoader<float> &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001f) {
-  layers::SGD<float> optimizer(learning_rate, 0.9f);
+  layers::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
 
-  // Pre-allocate tensors to reduce memory allocations
   Tensor<float> batch_data, batch_labels, predictions;
 
   std::cout << "Starting optimized CNN tensor model training..." << std::endl;
@@ -200,7 +189,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Compute loss and accuracy
       const float loss =
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          CrossEntropyLoss::compute_loss(predictions, batch_labels);
       const float accuracy =
           calculate_tensor_accuracy(predictions, batch_labels);
 
@@ -209,7 +198,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Backward pass
       const Tensor<float> loss_gradient =
-          TensorCrossEntropyLoss::compute_gradient(predictions, batch_labels);
+          CrossEntropyLoss::compute_gradient(predictions, batch_labels);
       model.backward(loss_gradient);
 
       // Update parameters
@@ -245,7 +234,7 @@ void train_cnn_model(layers::Sequential<float> &model,
       apply_tensor_softmax(predictions);
 
       val_loss +=
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          CrossEntropyLoss::compute_loss(predictions, batch_labels);
       val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
       ++val_batches;
     }
@@ -294,6 +283,7 @@ int main() {
     const int num_threads = omp_get_max_threads();
     omp_set_num_threads(
         std::min(num_threads, 8)); // Limit threads to avoid overhead
+
     std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
               << std::endl;
 
@@ -348,7 +338,7 @@ int main() {
             .build();
 
     // Enable profiling for performance analysis
-    // model.enable_profiling(true);
+    model.enable_profiling(true);
 
     // Print model summary with optimized batch size
     std::cout << "\nModel Architecture Summary:" << std::endl;
@@ -360,15 +350,8 @@ int main() {
         << "\nStarting optimized CNN training with improved hyperparameters..."
         << std::endl;
 
-    // Use optimized training parameters
-    constexpr int optimal_epochs = 5;
-    constexpr int optimal_batch_size =
-        128; // Good balance between memory and convergence
-    constexpr float optimal_learning_rate =
-        0.01f; // Slightly higher for faster convergence
-
-    train_cnn_model(model, train_loader, test_loader, optimal_epochs,
-                    optimal_batch_size, optimal_learning_rate);
+    train_cnn_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
+                    mnist_constants::BATCH_SIZE, mnist_constants::LR_INITIAL);
 
     std::cout << "\nOptimized MNIST CNN model training completed successfully!"
               << std::endl;
