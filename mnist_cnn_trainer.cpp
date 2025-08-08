@@ -105,6 +105,7 @@ void train_cnn_model(layers::Sequential<float> &model,
   
   // Create loss function using the new base class approach
   auto loss_function = layers::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+  // auto loss_function = layers::LossFactory<float>::create_mse();
 
   Tensor<float> batch_data, batch_labels, predictions;
 
@@ -272,9 +273,9 @@ int main() {
         layers::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
             // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
             // activation Input: 1x28x28 → Output: 8x24x24 (28-5+1=24)
-            .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "linear", true, "conv1")
-            .batchnorm(8, 1e-5, 0.1, true, "batchnorm1")
-            .activation("relu", "relu1")
+            .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+            // .batchnorm(8, 1e-5, 0.1, true, "batchnorm1")
+            // .activation("relu", "relu1")
             // P1: Max pooling layer - 3x3 blocks, stride 3
             // Input: 8x24x24 → Output: 8x8x8 (24/3=8)
             .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
