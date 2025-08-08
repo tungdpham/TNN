@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "nn/layers.hpp"
+#include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
@@ -23,59 +24,14 @@
 namespace mnist_constants {
 
 constexpr float EPSILON = 1e-15f;
-constexpr int PROGRESS_PRINT_INTERVAL = 50;
-constexpr int EPOCHS = 50; 
+constexpr int PROGRESS_PRINT_INTERVAL = 100;
+constexpr int EPOCHS = 20; 
 constexpr size_t BATCH_SIZE = 32; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
 
 } // namespace mnist_constants
-
-class CrossEntropyLoss {
-public:
-  static float compute_loss(const Tensor<float> &predictions,
-                            const Tensor<float> &targets) {
-    const size_t batch_size = predictions.shape()[0];
-    const size_t num_classes = predictions.shape()[1];
-
-    double total_loss = 0.0; 
-
-#pragma omp parallel for reduction(+ : total_loss)
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        if (targets(i, j, 0, 0) > 0.5f) {
-          const float pred =
-              std::clamp(predictions(i, j, 0, 0), mnist_constants::EPSILON,
-                         1.0f - mnist_constants::EPSILON);
-          total_loss -= std::log(pred);
-          break; 
-        }
-      }
-    }
-
-    return static_cast<float>(total_loss / batch_size);
-  }
-
-  static Tensor<float> compute_gradient(const Tensor<float> &predictions,
-                                        const Tensor<float> &targets) {
-    Tensor<float> gradient = predictions;
-    const size_t batch_size = predictions.shape()[0];
-    const size_t num_classes = predictions.shape()[1];
-    const float inv_batch_size = 1.0f / static_cast<float>(batch_size);
-
-// Parallelize gradient computation
-#pragma omp parallel for if (batch_size > 32)
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        gradient(i, j, 0, 0) =
-            (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * inv_batch_size;
-      }
-    }
-
-    return gradient;
-  }
-};
 
 void apply_tensor_softmax(Tensor<float> &tensor) {
   const size_t batch_size = tensor.shape()[0];
@@ -146,6 +102,9 @@ void train_cnn_model(layers::Sequential<float> &model,
                      data_loading::MNISTDataLoader<float> &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001f) {
   layers::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
+  
+  // Create loss function using the new base class approach
+  auto loss_function = layers::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
 
   Tensor<float> batch_data, batch_labels, predictions;
 
@@ -189,7 +148,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Compute loss and accuracy
       const float loss =
-          CrossEntropyLoss::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       const float accuracy =
           calculate_tensor_accuracy(predictions, batch_labels);
 
@@ -198,7 +157,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Backward pass
       const Tensor<float> loss_gradient =
-          CrossEntropyLoss::compute_gradient(predictions, batch_labels);
+          loss_function->compute_gradient(predictions, batch_labels);
       model.backward(loss_gradient);
 
       // Update parameters
@@ -234,7 +193,7 @@ void train_cnn_model(layers::Sequential<float> &model,
       apply_tensor_softmax(predictions);
 
       val_loss +=
-          CrossEntropyLoss::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
       ++val_batches;
     }
@@ -343,7 +302,7 @@ int main() {
     // Print model summary with optimized batch size
     std::cout << "\nModel Architecture Summary:" << std::endl;
     model.print_summary(std::vector<size_t>{
-        128, 1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+        mnist_constants::BATCH_SIZE, 1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
     // Train the CNN model with optimized hyperparameters
     std::cout

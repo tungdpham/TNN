@@ -12,6 +12,17 @@
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/loss.hpp"
+
+namespace cifar10_constants {
+  constexpr float EPSILON = 1e-15f;
+  constexpr int PROGRESS_PRINT_INTERVAL = 50;
+  constexpr int EPOCHS = 20; // Number of epochs for training
+  constexpr size_t BATCH_SIZE = 32; // Batch size for training
+  constexpr int LR_DECAY_INTERVAL = 10; // Learning rate decay interval
+  constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
+  constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
+} // namespace cifar_constants
 
 // CIFAR-10 data loader
 class CIFAR10DataLoader {
@@ -118,49 +129,6 @@ public:
   size_t size() const { return data_.size(); }
 };
 
-// Loss functions for tensors
-class TensorCrossEntropyLoss {
-public:
-  static float compute_loss(const Tensor<float> &predictions,
-                            const Tensor<float> &targets) {
-    float total_loss = 0.0;
-    const float epsilon = 1e-15; // Small value to prevent log(0)
-
-    size_t batch_size = predictions.shape()[0];
-    size_t num_classes = predictions.shape()[1];
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        if (targets(i, j, 0, 0) > 0.5) { // This is the correct class
-          float pred = std::max(
-              epsilon, std::min(1.0f - epsilon, predictions(i, j, 0, 0)));
-          total_loss -= std::log(pred);
-        }
-      }
-    }
-
-    return total_loss / batch_size;
-  }
-
-  static Tensor<float> compute_gradient(const Tensor<float> &predictions,
-                                        const Tensor<float> &targets) {
-    Tensor<float> gradient = predictions;
-
-    size_t batch_size = predictions.shape()[0];
-    size_t num_classes = predictions.shape()[1];
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        gradient(i, j, 0, 0) = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
-      }
-    }
-
-    // Average over batch
-    gradient /= static_cast<float>(batch_size);
-    return gradient;
-  }
-};
-
 // Softmax activation for tensors
 void apply_tensor_softmax(Tensor<float> &tensor) {
   size_t batch_size = tensor.shape()[0];
@@ -228,6 +196,8 @@ void train_cnn_model(layers::Sequential<float> &model,
                      CIFAR10DataLoader &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
   layers::SGD<float> optimizer(learning_rate, 0.9);
+  
+  auto loss_function = layers::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
 
   std::cout << "Starting CNN tensor model training..." << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
@@ -254,7 +224,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Compute loss and accuracy
       float loss =
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       float accuracy = calculate_tensor_accuracy(predictions, batch_labels);
 
       total_loss += loss;
@@ -263,7 +233,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Backward pass
       Tensor<float> loss_gradient =
-          TensorCrossEntropyLoss::compute_gradient(predictions, batch_labels);
+          loss_function->compute_gradient(predictions, batch_labels);
       model.backward(loss_gradient);
 
       // Update parameters
@@ -298,7 +268,7 @@ void train_cnn_model(layers::Sequential<float> &model,
       apply_tensor_softmax(predictions);
 
       val_loss +=
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
       val_batches++;
     }
@@ -365,20 +335,21 @@ int main() {
             .conv2d(16, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 16x10x10 -> 64x8x8
             .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2") // 64x8x8 -> 64x2x2
             .dense(64 * 2 * 2, 10, "linear", true, "fc1") // Flatten to 256 -> 10
+            // .activation("softmax", "output") // Softmax output layer
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
 
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        100, 3, 32, 32}); // Show summary with single image input
+        cifar10_constants::BATCH_SIZE, 3, 32, 32}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
-                    5,  // epochs
-                    100, // batch_size
-                    0.01 // learning_rate
+                    cifar10_constants::EPOCHS,  // epochs
+                    cifar10_constants::BATCH_SIZE, // batch_size
+                    cifar10_constants::LR_INITIAL // learning_rate
     );
 
     std::cout

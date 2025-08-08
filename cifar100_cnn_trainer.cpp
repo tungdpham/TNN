@@ -12,6 +12,7 @@
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/loss.hpp"
 
 // CIFAR-100 data loader
 class CIFAR100DataLoader {
@@ -123,49 +124,6 @@ public:
   size_t size() const { return data_.size(); }
 };
 
-// Loss functions for tensors
-class TensorCrossEntropyLoss {
-public:
-  static float compute_loss(const Tensor<float> &predictions,
-                            const Tensor<float> &targets) {
-    float total_loss = 0.0;
-    const float epsilon = 1e-15; // Small value to prevent log(0)
-
-    size_t batch_size = predictions.shape()[0];
-    size_t num_classes = predictions.shape()[1];
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        if (targets(i, j, 0, 0) > 0.5) { // This is the correct class
-          float pred = std::max(
-              epsilon, std::min(1.0f - epsilon, predictions(i, j, 0, 0)));
-          total_loss -= std::log(pred);
-        }
-      }
-    }
-
-    return total_loss / batch_size;
-  }
-
-  static Tensor<float> compute_gradient(const Tensor<float> &predictions,
-                                        const Tensor<float> &targets) {
-    Tensor<float> gradient = predictions;
-
-    size_t batch_size = predictions.shape()[0];
-    size_t num_classes = predictions.shape()[1];
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      for (size_t j = 0; j < num_classes; ++j) {
-        gradient(i, j, 0, 0) = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
-      }
-    }
-
-    // Average over batch
-    gradient /= static_cast<float>(batch_size);
-    return gradient;
-  }
-};
-
 // Softmax activation for tensors
 void apply_tensor_softmax(Tensor<float> &tensor) {
   size_t batch_size = tensor.shape()[0];
@@ -259,7 +217,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Compute loss and accuracy
       float loss =
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          C::compute_loss(predictions, batch_labels);
       float accuracy = calculate_tensor_accuracy(predictions, batch_labels);
 
       total_loss += loss;
