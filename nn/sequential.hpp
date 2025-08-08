@@ -760,6 +760,16 @@ public:
     return *this;
   }
 
+  SequentialBuilder &batchnorm(size_t num_features, T epsilon = T(1e-5),
+                                       T momentum = T(0.1), bool affine = true,
+                                       const std::string &name = "") {
+    auto layer = Layers::batchnorm<T>(
+        num_features, epsilon, momentum, affine,
+        name.empty() ? "batchnorm_" + std::to_string(model_.size()) : name);
+    model_.add(std::move(layer));
+    return *this;
+  }
+
   SequentialBuilder &flatten(const std::string &name = "") {
     auto layer = Layers::flatten<T>(
         name.empty() ? "flatten_" + std::to_string(model_.size()) : name);
