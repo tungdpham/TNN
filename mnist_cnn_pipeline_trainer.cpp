@@ -223,14 +223,14 @@ int main() {
         test_loader.load_data("./data/mnist/test.csv");
         
         // Stage 1
-        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 1); 
+        auto stage1 = std::make_unique<pipeline::PipelineStage<float>>(0, 0, 4); 
         stage1->add_layer(Layers::conv2d<float>(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "C1"));
         stage1->add_layer(Layers::maxpool2d<float>(3, 3, 3, 3, 0, 0, "P1"));
         stage1->add_layer(Layers::conv2d<float>(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "C2_1x1"));
         stage1->add_layer(Layers::conv2d<float>(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "C3"));
 
         // Stage 2
-        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 1);
+        auto stage2 = std::make_unique<pipeline::PipelineStage<float>>(1, 1, 4);
         stage2->add_layer(Layers::maxpool2d<float>(2, 2, 2, 2, 0, 0, "P2"));
         stage2->add_layer(Layers::dense<float>(48 * 2 * 2, 10, "linear", true, "output"));
         stage2->add_layer(Layers::activation<float>("softmax", "softmax_activation"));

@@ -95,38 +95,39 @@ public:
         for (int i = 0; i < num_micro_batches_; ++i) {
             micro_batch_futures.push_back(
                 thread_pool_.enqueue([this, i, &micro_batch_inputs, &micro_batch_targets, &predictions, &predictions_mutex]() {
-                // Forward pass
-                Tensor<T> current_tensor = micro_batch_inputs[i];
-                for (size_t j = 0; j < stages_.size(); ++j) {
-                    auto future = stages_[j]->forward(current_tensor, i);
-                    if (j < stages_.size() - 1) {
-                        // This is now non-blocking
-                        communicator_->send(std::move(future), j, i);
-                        current_tensor = communicator_->receive(j, i);
-                    } else {
-                        // Last stage
-                        current_tensor = future.get();
+                    // Forward pass
+                    Tensor<T> current_tensor = micro_batch_inputs[i];
+                    for (size_t j = 0; j < stages_.size(); ++j) {
+                        auto future = stages_[j]->forward(current_tensor, i);
+                        if (j < stages_.size() - 1) {
+                            // This is now non-blocking
+                            communicator_->send(std::move(future), j, i);
+                            current_tensor = communicator_->receive(j, i);
+                        } else {
+                            // Last stage
+                            current_tensor = future.get();
+                        }
                     }
-                }
-                
-                {
-                    std::lock_guard<std::mutex> lock(predictions_mutex);
-                    predictions[i] = current_tensor;
-                }
+                    
+                    {
+                        std::lock_guard<std::mutex> lock(predictions_mutex);
+                        predictions[i] = current_tensor;
+                    }
 
-                // Backward pass
-                Tensor<T> grad = compute_loss_gradient(current_tensor, micro_batch_targets[i]);
-                for (int j = stages_.size() - 1; j >= 0; --j) {
-                    auto future = stages_[j]->backward(grad, i);
-                    if (j > 0) {
-                        communicator_->send_grad(std::move(future), j - 1, i);
-                        grad = communicator_->receive_grad(j - 1, i);
-                    } else {
-                        // First stage, no one to send gradient to.
-                        future.get();
+                    // Backward pass
+                    Tensor<T> grad = compute_loss_gradient(current_tensor, micro_batch_targets[i]);
+                    for (int j = stages_.size() - 1; j >= 0; --j) {
+                        auto future = stages_[j]->backward(grad, i);
+                        if (j > 0) {
+                            communicator_->send_grad(std::move(future), j - 1, i);
+                            grad = communicator_->receive_grad(j - 1, i);
+                        } else {
+                            // First stage, no one to send gradient to.
+                            future.get();
+                        }
                     }
-                }
-            });
+                })
+            );
         }
 
         for (auto& future : micro_batch_futures) {
