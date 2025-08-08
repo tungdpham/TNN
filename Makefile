@@ -94,9 +94,8 @@ ifeq ($(OS),Windows_NT)
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
 	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o tensor/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer tensor_test
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test
 	rm -f $(TEST_PROGRAMS)
-	rm -f test_activations integration_test
 endif
 
 # Test targets
@@ -159,6 +158,13 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
+uji_ips_trainer: uji_ips_trainer.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
+else
+	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+endif
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -179,7 +185,9 @@ help:
 	@echo "  mnist_cnn_trainer - Build MNIST CNN tensor neural network trainer"
 	@echo "  cifar10_cnn_trainer - Build CIFAR-10 CNN trainer"
 	@echo "  cifar100_cnn_trainer - Build CIFAR-100 CNN trainer"
-	@echo "  tensor_test    - Build and test refactored tensor class with SIMD optimizations"
+	@echo "  mnist_cnn_test - Build MNIST CNN test program"
+	@echo "  mnist_cnn_pipeline_trainer - Build MNIST CNN pipeline trainer"
+	@echo "  uji_ips_trainer    - Build IPS trainer"
 	@echo "  tests          - Build all test programs"
 	@echo "  clean          - Remove object files and executables"
 	@echo ""
@@ -187,4 +195,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer $(TEST_PROGRAMS)

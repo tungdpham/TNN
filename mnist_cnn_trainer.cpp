@@ -533,12 +533,12 @@ int main() {
     MNISTCNNDataLoader train_loader, test_loader;
 
     // Validate data loading
-    if (!train_loader.load_data("./data/mnist_train.csv")) {
+    if (!train_loader.load_data("./data/mnist/train.csv")) {
       std::cerr << "Failed to load training data!" << std::endl;
       return -1;
     }
 
-    if (!test_loader.load_data("./data/mnist_test.csv")) {
+    if (!test_loader.load_data("./data/mnist/test.csv")) {
       std::cerr << "Failed to load test data!" << std::endl;
       return -1;
     }
