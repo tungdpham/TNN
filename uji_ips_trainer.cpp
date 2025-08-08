@@ -18,6 +18,7 @@
 #include "tensor/tensor.hpp"
 #include "nn/optimizers.hpp"
 #include "utils/wifi_data_loader.hpp"
+#include "nn/loss.hpp"
 
 // Constants for Indoor Positioning System datasets
 namespace ips_constants {
@@ -28,45 +29,8 @@ namespace ips_constants {
     constexpr float POSITIONING_ERROR_THRESHOLD = 5.0f; // 5 meters for accuracy
     constexpr size_t MAX_BATCH_SIZE = 32; // Maximum batch size for training
     constexpr size_t MAX_EPOCHS = 100; // Maximum number of training epochs 
-    constexpr float learning_rate = 0.0015f; 
+    constexpr float learning_rate = 0.002f; 
 }
-
-// Mean Squared Error loss for regression tasks (coordinate prediction)
-class MSELoss {
-public:
-    static float compute_loss(const Tensor<float>& predictions, const Tensor<float>& targets) {
-        const size_t batch_size = predictions.shape()[0];
-        const size_t output_size = predictions.shape()[1];
-        
-        double total_loss = 0.0;
-        
-        #pragma omp parallel for reduction(+:total_loss) if(batch_size > 32)
-        for (size_t i = 0; i < batch_size; ++i) {
-            for (size_t j = 0; j < output_size; ++j) {
-                const float diff = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
-                total_loss += diff * diff;
-            }
-        }
-        
-        return static_cast<float>(total_loss / (batch_size * output_size));
-    }
-    
-    static Tensor<float> compute_gradient(const Tensor<float>& predictions, const Tensor<float>& targets) {
-        Tensor<float> gradient = predictions;
-        const size_t batch_size = predictions.shape()[0];
-        const size_t output_size = predictions.shape()[1];
-        const float scale = 2.0f / static_cast<float>(batch_size * output_size);
-        
-        #pragma omp parallel for if(batch_size > 32)
-        for (size_t i = 0; i < batch_size; ++i) {
-            for (size_t j = 0; j < output_size; ++j) {
-                gradient(i, j, 0, 0) = (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * scale;
-            }
-        }
-        
-        return gradient;
-    }
-};
 
 // Distance-based loss for coordinate prediction (operates in real-world space)
 class DistanceLoss {
@@ -388,6 +352,8 @@ void train_ips_model(layers::Sequential<float>& model,
     layers::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
     // layers::SGD<float> optimizer(learning_rate, 0.9f);
     
+    auto classification_loss = layers::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
+
     const bool is_regression = train_loader.is_regression();
     const std::string task_type = is_regression ? "Coordinate Prediction" : "Classification";
     
@@ -636,22 +602,27 @@ int main() {
         
         auto model = layers::SequentialBuilder<float>("ips_classifier")
             // Input layer to first hidden layer
-            .dense(input_features, 192, "relu", true, "hidden1")
-            
-
+            .dense(input_features, 192, "linear", true, "hidden1")
+            .batchnorm(192, 1e-5, 0.1, true, "batchnorm1")
+            .activation("relu", "hidden1_relu")
             .dropout(0.4f, "dropout1") // Use dropout for regularization
             
             // Second hidden layer
-            .dense(192, 64, "relu", true, "hidden2")
-
+            .dense(192, 64, "linear", true, "hidden2")
+            .batchnorm(64, 1e-5, 0.1, true, "batchnorm2")
+            .activation("relu", "hidden2_relu")
             .dropout(0.3f, "dropout2") // Another dropout layer
             
             // Third hidden layer
-            .dense(64, 32, "relu", true, "hidden3")
+            .dense(64, 32, "linear", true, "hidden3")
+            .batchnorm(32, 1e-5, 0.1, true, "batchnorm3")
+            .activation("relu", "hidden3_relu")
 
             .dropout(0.2f, "dropout3") // Another dropout layer
             
-            .dense(32, 16, "relu", true, "hidden4")
+            .dense(32, 16, "linear", true, "hidden4")
+            .batchnorm(16, 1e-5, 0.1, true, "batchnorm4")
+            .activation("relu", "hidden4_relu")
 
             // Output layer
             .dense(16, output_size, output_activation, true, "output")
