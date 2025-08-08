@@ -14,6 +14,16 @@
 #include "nn/optimizers.hpp"
 #include "nn/loss.hpp"
 
+namespace cifar100_constants {
+  constexpr float EPSILON = 1e-15f;
+  constexpr int PROGRESS_PRINT_INTERVAL = 50;
+  constexpr int EPOCHS = 20; // Number of epochs for training
+  constexpr size_t BATCH_SIZE = 32; // Batch size for training
+  constexpr int LR_DECAY_INTERVAL = 10; // Learning rate decay interval
+  constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
+  constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
+} // namespace cifar100_constants
+
 // CIFAR-100 data loader
 class CIFAR100DataLoader {
 private:
@@ -192,6 +202,8 @@ void train_cnn_model(layers::Sequential<float> &model,
                      int batch_size = 32, float learning_rate = 0.001) {
   layers::SGD<float> optimizer(learning_rate, 0.9);
 
+  auto loss_function = layers::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
+
   std::cout << "Starting CNN tensor model training..." << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
             << ", Learning rate: " << learning_rate << std::endl;
@@ -217,7 +229,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Compute loss and accuracy
       float loss =
-          C::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       float accuracy = calculate_tensor_accuracy(predictions, batch_labels);
 
       total_loss += loss;
@@ -226,7 +238,7 @@ void train_cnn_model(layers::Sequential<float> &model,
 
       // Backward pass
       Tensor<float> loss_gradient =
-          TensorCrossEntropyLoss::compute_gradient(predictions, batch_labels);
+          loss_function->compute_gradient(predictions, batch_labels);
       model.backward(loss_gradient);
 
       // Update parameters
@@ -260,7 +272,7 @@ void train_cnn_model(layers::Sequential<float> &model,
       Tensor<float> predictions = model.forward(batch_data);
 
       val_loss +=
-          TensorCrossEntropyLoss::compute_loss(predictions, batch_labels);
+          loss_function->compute_loss(predictions, batch_labels);
       val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
       val_batches++;
     }

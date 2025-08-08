@@ -28,7 +28,7 @@ NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
 
-DEBUG_FLAGS = -g -O0
+DEBUG_FLAGS = -g -fsanitize=address
 
 ifeq ($(ENABLE_DEBUG),1)
 	CXXFLAGS += $(DEBUG_FLAGS)

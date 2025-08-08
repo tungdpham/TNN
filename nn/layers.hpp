@@ -369,11 +369,9 @@ public:
 #pragma omp parallel for schedule(static)
 #endif
       for (size_t out_f = 0; out_f < output_features_; ++out_f) {
-        T grad_sum = T(0);
         for (size_t n = 0; n < batch_size; ++n) {
-          grad_sum += current_grad(n, out_f, 0, 0);
+          bias_gradients_(out_f, 0, 0, 0) += current_grad(n, out_f, 0, 0);
         }
-        bias_gradients_(out_f, 0, 0, 0) = grad_sum;
       }
     }
 
@@ -489,7 +487,6 @@ public:
     }
     const Tensor<T> &last_input = it->second;
     Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
-    // micro_batch_inputs_.erase(it);
     return grad;
   }
 

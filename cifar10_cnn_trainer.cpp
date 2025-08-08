@@ -335,7 +335,6 @@ int main() {
             .conv2d(16, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 16x10x10 -> 64x8x8
             .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2") // 64x8x8 -> 64x2x2
             .dense(64 * 2 * 2, 10, "linear", true, "fc1") // Flatten to 256 -> 10
-            // .activation("softmax", "output") // Softmax output layer
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
