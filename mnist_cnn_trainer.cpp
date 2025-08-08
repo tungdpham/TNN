@@ -13,10 +13,10 @@
 #include <atomic>
 #include <omp.h>
 
-#include "layers/layers.hpp"
-#include "layers/sequential.hpp"
+#include "nn/layers.hpp"
+#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "layers/optimizers.hpp"
+#include "nn/optimizers.hpp"
 
 // Constants for MNIST dataset
 namespace mnist_constants {

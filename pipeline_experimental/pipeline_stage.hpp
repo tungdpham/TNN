@@ -8,7 +8,7 @@
 #include <mutex>
 #include <condition_variable>
 
-#include "../layers/layers.hpp"
+#include "../nn/layers.hpp"
 #include "../tensor/tensor.hpp"
 #include "communication.hpp"
 #include "thread_pool.hpp"

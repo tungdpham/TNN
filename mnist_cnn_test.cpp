@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
-#include "layers/sequential.hpp"
+#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include <fstream>
 #include <sstream>

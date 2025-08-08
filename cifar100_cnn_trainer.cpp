@@ -8,10 +8,10 @@
 #include <sstream>
 #include <vector>
 
-#include "layers/layers.hpp"
-#include "layers/sequential.hpp"
+#include "nn/layers.hpp"
+#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "layers/optimizers.hpp"
+#include "nn/optimizers.hpp"
 
 // CIFAR-100 data loader
 class CIFAR100DataLoader {

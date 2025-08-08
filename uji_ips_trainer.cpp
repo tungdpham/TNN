@@ -13,10 +13,10 @@
 #include <atomic>
 #include <omp.h>
 
-#include "layers/layers.hpp"
-#include "layers/sequential.hpp"
+#include "nn/layers.hpp"
+#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "layers/optimizers.hpp"
+#include "nn/optimizers.hpp"
 #include "utils/wifi_data_loader.hpp"
 
 // Constants for Indoor Positioning System datasets
@@ -24,12 +24,11 @@ namespace ips_constants {
     constexpr float EPSILON = 1e-15f;
     constexpr int PROGRESS_PRINT_INTERVAL = 50;
     constexpr int LR_DECAY_INTERVAL = 10;
-    constexpr float LR_DECAY_FACTOR = 0.9f;
-    constexpr float COORDINATE_SCALE = 100.0f; // For converting meters to more manageable units
+    constexpr float LR_DECAY_FACTOR = 0.85f;
     constexpr float POSITIONING_ERROR_THRESHOLD = 5.0f; // 5 meters for accuracy
-    constexpr size_t MAX_BATCH_SIZE = 48; // Maximum batch size for training
+    constexpr size_t MAX_BATCH_SIZE = 32; // Maximum batch size for training
     constexpr size_t MAX_EPOCHS = 100; // Maximum number of training epochs 
-    constexpr float learning_rate = 0.002f; 
+    constexpr float learning_rate = 0.0015f; 
 }
 
 // Mean Squared Error loss for regression tasks (coordinate prediction)

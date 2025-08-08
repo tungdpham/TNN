@@ -9,8 +9,8 @@
 #include <numeric> // Required for std::iota
 #include <random> // Required for std::random_device, std::mt19937
 #include <limits> // Required for std::numeric_limits
-#include "layers/layers.hpp"
-#include "layers/optimizers.hpp"
+#include "nn/layers.hpp"
+#include "nn/optimizers.hpp"
 #include "tensor/tensor.hpp"
 #include "pipeline_experimental/pipeline_stage.hpp"
 #include "pipeline_experimental/pipeline_orchestrator.hpp"

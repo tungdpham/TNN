@@ -10,7 +10,7 @@ ENABLE_DEBUG ?= 0
 
 # Source files
 CXX_SOURCES = $(wildcard matrix/*.cpp neural/*.cpp utils/*.cpp)
-HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp layers/*.hpp tensor/*.hpp)
+HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp tensor/*.hpp)
 CU_SOURCES = $(wildcard matrix/*.cu neural/*.cu utils/*.cu)
 
 # Object files
@@ -93,7 +93,7 @@ ifeq ($(OS),Windows_NT)
 	if exist ${MAIN}.exe del ${MAIN}.exe
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
-	rm -f matrix/*.o neural/*.o utils/*.o layers/*.o tensor/*.o *.o ${MAIN}
+	rm -f matrix/*.o neural/*.o utils/*.o nn/*.o tensor/*.o *.o ${MAIN}
 	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test
 	rm -f $(TEST_PROGRAMS)
 endif
