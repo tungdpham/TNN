@@ -45,6 +45,11 @@ public:
     return !this->in_task_queue_.empty();
   }
 
+  bool has_output_task() const {
+    std::lock_guard<std::mutex> lock(this->out_task_mutex_);
+    return !this->out_task_queue_.empty();
+  }
+
   virtual void set_next_stage(PipelineCommunicator<T> *next_stage) = 0;
 
   virtual void set_prev_stage(PipelineCommunicator<T> *prev_stage) = 0;
@@ -71,12 +76,12 @@ public:
     std::lock_guard<std::mutex> lock(this->out_task_mutex_);
     if (!this->out_task_queue_.empty()) {
       tpipeline::Task<T> task = this->out_task_queue_.front();
-      this->out_task_queue_.pop();
       if(task.type == tpipeline::TaskType::Forward) {
-        next_stage_comm_->enqueue_task(task);
+        if(next_stage_comm_) next_stage_comm_->enqueue_task(task);
       } else if(task.type == tpipeline::TaskType::Backward) {
-        prev_stage_comm_->enqueue_task(task);
+        if(prev_stage_comm_) prev_stage_comm_->enqueue_task(task);
       }
+      this->out_task_queue_.pop();
     }
   }
 

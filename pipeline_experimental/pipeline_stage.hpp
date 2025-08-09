@@ -45,6 +45,10 @@ public:
     if (send_future_.valid()) send_future_.wait();
   }
 
+  bool is_processing() const {
+    return is_processing_;
+  }
+  
   // Get the model associated with this stage
   tnn::Sequential<T>* get_model() {
     return model_.get();
@@ -68,7 +72,6 @@ protected:
   // Continuous loop for processing tasks
   void process_loop() {
     while (!should_stop_) {
-      printf("Processing tasks in stage: %s\n", name_.c_str());
       if (communicator_->has_input_task() && !is_processing_) {
         is_processing_ = true;
         try {

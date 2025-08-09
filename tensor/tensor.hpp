@@ -825,6 +825,49 @@ public:
     }
   }
 
+
+  // Combine multiple tensors into a single tensor with same CHW size and batch size stacked upon each other
+  // This is useful for combining outputs from multiple layers or branches in a network
+  static Tensor<T> combine(std::vector<Tensor<T>> &tensors) {
+    if (tensors.empty()) {
+      throw std::invalid_argument("No tensors to combine");
+    }
+
+    size_t channels = tensors[0].channels();
+    size_t height = tensors[0].height();
+    size_t width = tensors[0].width();
+
+    for (const auto &tensor : tensors) {
+      if (tensor.channels() != channels ||
+          tensor.height() != height || tensor.width() != width) {
+        throw std::invalid_argument("All tensors must have the same shape");
+      }
+    }
+
+    size_t total_batch_size = std::accumulate(
+        tensors.begin(), tensors.end(), 0UL,
+        [](size_t sum, const Tensor<T> &tensor) { return sum + tensor.batch_size(); });
+
+    Tensor<T> combined(total_batch_size, channels, height, width);
+
+    size_t offset = 0;
+    for (const auto &tensor : tensors) {
+      size_t batch_size = tensor.batch_size();
+      for (size_t n = 0; n < batch_size; ++n) {
+        for (size_t c = 0; c < channels; ++c) {
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              combined(offset + n, c, h, w) = tensor(n, c, h, w);
+            } 
+          }
+        }
+      }
+      offset += batch_size;
+    }
+
+    return combined;
+  }
+
   template <Layout new_layout> Tensor<T, new_layout> as_layout() const {
     Tensor<T, new_layout> result(this->shape());
 
@@ -873,6 +916,23 @@ public:
     std::cout << "Dimensions: " << num_dimensions() << "D" << std::endl;
     std::cout << "Total size: " << size() << std::endl;
     std::cout << "Mean: " << mean() << std::endl;
+  }
+
+  void print_data() const {
+    std::cout << "Tensor data: ";
+    if constexpr (dims == 4){
+      for(size_t n = 0; n < batch_size(); ++n) {
+        for (size_t c = 0; c < channels(); ++c) {
+          for (size_t h = 0; h < height(); ++h) {
+            for (size_t w = 0; w < width(); ++w) {
+              std::cout << operator()(n, c, h, w) << " ";
+            }
+          }
+        }
+        printf("\n");
+      }
+    }
+    std::cout << std::endl;
   }
 
   // Get the index of the maximum value in a specific channel for a given
