@@ -242,7 +242,7 @@ public:
   }
 
   // Forward pass
-  Tensor<T> forward(const Tensor<T> &input) {
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
@@ -268,7 +268,7 @@ public:
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
 
-          current_output = layers_[i]->forward(current_output);
+          current_output = layers_[i]->forward(current_output, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -283,7 +283,7 @@ public:
           }
           layer_names_.push_back(layer_name);
         } else {
-          current_output = layers_[i]->forward(current_output);
+          current_output = layers_[i]->forward(current_output, micro_batch_id);
         }
 
         layer_outputs_.push_back(current_output);
@@ -297,7 +297,7 @@ public:
   }
 
   // Backward pass
-  Tensor<T> backward(const Tensor<T> &grad_output) {
+  Tensor<T> backward(const Tensor<T> &grad_output, int micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(
           "Cannot backward through empty sequential model");
@@ -320,7 +320,7 @@ public:
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
 
-          current_grad = layers_[i]->backward(current_grad);
+          current_grad = layers_[i]->backward(current_grad, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -329,7 +329,7 @@ public:
           backward_times_ms_.insert(backward_times_ms_.begin(),
                                     duration.count() / 1000.0);
         } else {
-          current_grad = layers_[i]->backward(current_grad);
+          current_grad = layers_[i]->backward(current_grad, micro_batch_id);
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in backward pass of layer " +
@@ -691,6 +691,28 @@ public:
         layer->update_parameters(optimizer);
       }
     }
+  }
+
+  // Split the model into multiple stages (Will optimize later for heterogeneous machines)
+  std::vector<Sequential<T>> split(size_t num_stages) const {
+    if (num_stages == 0 || num_stages > layers_.size()) {
+      throw std::invalid_argument("Invalid number of stages for split");
+    } 
+    std::vector<Sequential<T>> stages(num_stages);
+    size_t stage_size = layers_.size() / num_stages;
+    size_t remainder = layers_.size() % num_stages;
+    size_t layer_index = 0;
+    for (size_t i = 0; i < num_stages; ++i) {
+      size_t current_stage_size = stage_size + (i < remainder ? 1 : 0);
+      for (size_t j = 0; j < current_stage_size; ++j) {
+        if (layer_index >= layers_.size()) {
+          throw std::out_of_range("Layer index out of range during split");
+        }
+        stages[i].add(layers_[layer_index]->clone());
+        layer_index++;
+      }
+    }
+    return stages;
   }
 };
 
