@@ -381,8 +381,8 @@ public:
                          output_features_);
 
     // // Clean up cached data for this micro-batch
-    micro_batch_inputs_.erase(it_input);
-    micro_batch_pre_activations_.erase(it_pre_act);
+    // micro_batch_inputs_.erase(it_input);
+    // micro_batch_pre_activations_.erase(it_pre_act);
     return grad_input;
   }
 
