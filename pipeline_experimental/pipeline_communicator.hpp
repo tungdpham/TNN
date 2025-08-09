@@ -1,3 +1,10 @@
+#pragma once
+
+#include "task.hpp"
+#include <queue>
+#include <mutex>
+#include <stdexcept>
+#include <memory>
 
 template <typename T = float> class PipelineCommunicator {
 public:
@@ -38,13 +45,17 @@ public:
     return !this->in_task_queue_.empty();
   }
 
+  virtual void set_next_stage(PipelineCommunicator<T> *next_stage) = 0;
+
+  virtual void set_prev_stage(PipelineCommunicator<T> *prev_stage) = 0;
+
 protected:
   std::queue<tpipeline::Task<T>> in_task_queue_;
   std::queue<tpipeline::Task<T>> out_task_queue_;
   //mutex lock for input
-  std::mutex in_task_mutex_;
+  mutable std::mutex in_task_mutex_;
   //mutex lock for output
-  std::mutex out_task_mutex_;
+  mutable std::mutex out_task_mutex_;
 };
 
 
@@ -71,6 +82,14 @@ public:
 
   void receive_input_task() override {
     // Not applicable for in-process communication - tasks are directly enqueued
+  } 
+
+  void set_next_stage(PipelineCommunicator<T> *next_stage) override {
+    next_stage_comm_ = static_cast<InProcessPipelineCommunicator<T> *>(next_stage);
+  }
+
+  void set_prev_stage(PipelineCommunicator<T> *prev_stage) override {
+    prev_stage_comm_ = static_cast<InProcessPipelineCommunicator<T> *>(prev_stage);
   }
 
 private:

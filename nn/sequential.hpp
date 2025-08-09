@@ -714,6 +714,11 @@ public:
     }
     return stages;
   }
+
+  // Get all layers
+  const std::vector<std::unique_ptr<Layer<T>>> &get_layers() const {
+    return layers_;
+  }
 };
 
 // Builder pattern for easy model construction

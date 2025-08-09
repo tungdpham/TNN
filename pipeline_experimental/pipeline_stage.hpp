@@ -1,3 +1,5 @@
+#pragma once
+
 #include "../nn/sequential.hpp"
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
@@ -43,6 +45,11 @@ public:
     if (send_future_.valid()) send_future_.wait();
   }
 
+  // Get the model associated with this stage
+  tnn::Sequential<T>* get_model() {
+    return model_.get();
+  }
+  
   // Get the name of the stage
   std::string name() const { return name_; }
 
@@ -61,6 +68,7 @@ protected:
   // Continuous loop for processing tasks
   void process_loop() {
     while (!should_stop_) {
+      printf("Processing tasks in stage: %s\n", name_.c_str());
       if (communicator_->has_input_task() && !is_processing_) {
         is_processing_ = true;
         try {

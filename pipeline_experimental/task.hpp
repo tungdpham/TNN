@@ -1,3 +1,5 @@
+#pragma once
+
 namespace tpipeline {
 enum TaskType { Forward, Backward };
 
