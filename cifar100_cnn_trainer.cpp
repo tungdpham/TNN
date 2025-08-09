@@ -196,13 +196,13 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
 }
 
 // Training function for CNN tensor model
-void train_cnn_model(layers::Sequential<float> &model,
+void train_cnn_model(tnn::Sequential<float> &model,
                      CIFAR100DataLoader &train_loader,
                      CIFAR100DataLoader &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
-  layers::SGD<float> optimizer(learning_rate, 0.9);
+  tnn::SGD<float> optimizer(learning_rate, 0.9);
 
-  auto loss_function = layers::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
+  auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
 
   std::cout << "Starting CNN tensor model training..." << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
@@ -328,7 +328,7 @@ int main() {
               << std::endl;
 
     auto model =
-        layers::SequentialBuilder<float>("cifar100_cnn_classifier")
+        tnn::SequentialBuilder<float>("cifar100_cnn_classifier")
             // Input: 32x32x3
             .conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 32x32x32
             .maxpool2d(3, 3, 3, 3, 0, 0, "pool1") // 10x10x16

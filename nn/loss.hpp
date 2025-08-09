@@ -8,7 +8,7 @@
 #include <stdexcept>
 #include "../tensor/tensor.hpp"
 
-namespace layers {
+namespace tnn {
 
 // Forward declaration for WiFiDataLoader (needed for DistanceLoss)
 class WiFiDataLoader;
@@ -286,4 +286,4 @@ public:
     }
 };
 
-} // namespace layers
+} // namespace tnn

@@ -8,7 +8,7 @@
 #include <cmath>
 #include "../tensor/tensor.hpp"
 
-namespace layers {
+namespace tnn {
 
 // Base class for all optimizers
 template <typename T = float>
@@ -144,4 +144,4 @@ public:
     }
 };
 
-} // namespace layers
+} // namespace tnn

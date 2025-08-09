@@ -78,9 +78,9 @@ public:
 
 void run_test() {
     // Load the trained model
-    layers::Sequential<float> model;
+    tnn::Sequential<float> model;
     try {
-        model = layers::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
+        model = tnn::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
         std::cout << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
     } catch (const std::exception& e) {
         std::cerr << "Error loading model: " << e.what() << std::endl;

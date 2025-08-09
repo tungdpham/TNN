@@ -11,7 +11,7 @@
 
 #include "layers.hpp"
 
-namespace layers {
+namespace tnn {
 
 // Sequential model for layers
 template <typename T = double> class Sequential {
@@ -709,7 +709,7 @@ public:
                                       const std::string &activation = "none",
                                       bool use_bias = true,
                                       const std::string &name = "") {
-    auto layer = Layers::dense<T>(
+    auto layer = tnn::dense<T>(
         input_features, output_features, activation, use_bias,
         name.empty() ? "dense_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
@@ -723,7 +723,7 @@ public:
                                        const std::string &activation = "none",
                                        bool use_bias = true,
                                        const std::string &name = "") {
-    auto layer = Layers::conv2d<T>(
+    auto layer = tnn::conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
         pad_h, pad_w, activation, use_bias, 
         name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
@@ -733,7 +733,7 @@ public:
 
   SequentialBuilder &activation(const std::string &activation_name,
                                       const std::string &name = "") {
-    auto layer = Layers::activation<T>(
+    auto layer = tnn::activation<T>(
         activation_name,
         name.empty() ? "activation_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
@@ -744,7 +744,7 @@ public:
                                      size_t stride_h = 0, size_t stride_w = 0,
                                      size_t pad_h = 0, size_t pad_w = 0,
                                      const std::string &name = "") {
-    auto layer = Layers::maxpool2d<T>(
+    auto layer = tnn::maxpool2d<T>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "maxpool2d_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
@@ -753,7 +753,7 @@ public:
 
   SequentialBuilder &dropout(T dropout_rate,
                                    const std::string &name = "") {
-    auto layer = Layers::dropout<T>(
+    auto layer = tnn::dropout<T>(
         dropout_rate,
         name.empty() ? "dropout_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
@@ -763,7 +763,7 @@ public:
   SequentialBuilder &batchnorm(size_t num_features, T epsilon = T(1e-5),
                                        T momentum = T(0.1), bool affine = true,
                                        const std::string &name = "") {
-    auto layer = Layers::batchnorm<T>(
+    auto layer = tnn::batchnorm<T>(
         num_features, epsilon, momentum, affine,
         name.empty() ? "batchnorm_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
@@ -771,7 +771,7 @@ public:
   }
 
   SequentialBuilder &flatten(const std::string &name = "") {
-    auto layer = Layers::flatten<T>(
+    auto layer = tnn::flatten<T>(
         name.empty() ? "flatten_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;

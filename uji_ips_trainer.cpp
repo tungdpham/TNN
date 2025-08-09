@@ -300,17 +300,17 @@ float calculate_classification_accuracy(const Tensor<float>& predictions, const 
 }
 
 // Training function for IPS model with flat layers
-void train_ips_model(layers::Sequential<float>& model,
+void train_ips_model(tnn::Sequential<float>& model,
                      WiFiDataLoader& train_loader,
                      WiFiDataLoader& test_loader,
                      int epochs = 50,
                      int batch_size = 64,
                      float learning_rate = 0.001f) {
     
-    layers::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
-    // layers::SGD<float> optimizer(learning_rate, 0.9f);
+    tnn::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
+    // tnn::SGD<float> optimizer(learning_rate, 0.9f);
     
-    auto classification_loss = layers::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
+    auto classification_loss = tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
 
     const bool is_regression = train_loader.is_regression();
     const std::string task_type = is_regression ? "Coordinate Prediction" : "Classification";
@@ -558,7 +558,7 @@ int main() {
         const size_t output_size = train_loader.num_outputs();
         const std::string output_activation = is_regression ? "linear" : "linear"; // Will apply softmax separately for classification
         
-        auto model = layers::SequentialBuilder<float>("ips_classifier")
+        auto model = tnn::SequentialBuilder<float>("ips_classifier")
             // Input layer to first hidden layer
             .dense(input_features, 192, "linear", true, "hidden1")
             .batchnorm(192, 1e-5, 0.1, true, "batchnorm1")

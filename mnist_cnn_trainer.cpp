@@ -97,15 +97,15 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-void train_cnn_model(layers::Sequential<float> &model,
+void train_cnn_model(tnn::Sequential<float> &model,
                      data_loading::MNISTDataLoader<float> &train_loader,
                      data_loading::MNISTDataLoader<float> &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001f) {
-  layers::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
+  tnn::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
   
   // Create loss function using the new base class approach
-  auto loss_function = layers::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
-  // auto loss_function = layers::LossFactory<float>::create_mse();
+  auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+  // auto loss_function = tnn::LossFactory<float>::create_mse();
 
   Tensor<float> batch_data, batch_labels, predictions;
 
@@ -270,7 +270,7 @@ int main() {
     std::cout << "\nBuilding optimized CNN model architecture..." << std::endl;
 
     auto model =
-        layers::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+        tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
             // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
             // activation Input: 1x28x28 → Output: 8x24x24 (28-5+1=24)
             .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
