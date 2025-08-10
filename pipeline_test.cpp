@@ -11,7 +11,7 @@ namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 20;
-constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
+constexpr size_t BATCH_SIZE = 256; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
@@ -231,7 +231,7 @@ signed main() {
   }
   auto epoch_end = std::chrono::high_resolution_clock::now();
   auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
-  printf("Epoch %d completed in %ld ms\n", batch_index, epoch_duration.count());
+  printf("Epoch completed in %ld ms\n", epoch_duration.count());
 
   printf("Program stopped successfully.\n");
   return 0;

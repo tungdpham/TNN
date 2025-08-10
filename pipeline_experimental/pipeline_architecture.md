@@ -10,8 +10,15 @@ The initial idea was to have each stage runs these things in parallel:
 
 However, this turns out to be quite a terrible idea as each of these tasks needs a loop if parallelized, causing massive resource waste most of the time. This is where our next idea comes in:
 
-Event-based Task processing:
+# Event-based Task processing:
 - For each stage, a main event will listen for incoming tasks, which will be done via its communicator. When it receives a task, the main event will spawns a thread which will process task and when it finishes processing, it will send the output task to the corresponding recipient. When the send succeeds, automatically closes the thread but does not terminate it (for thread pool re usage).
+
+
+# Network auto-distribution
+- For network distribution, user will only need to specify the config of the whole model, the number of stages, and number of microbatches, from which the coordinator is created. 
+- To do this, the coordinator needs to do an initial handshake with all the specified endpoints that the user specifies, which are the machines we will distribute the model. Once it verifies the connection, it serialize each stage into config and send it over the network. Meanwhile, the recipient, being a machine, will listens either via socket or something like that and create the model from that config. For each machine, once it has successfully created the Pipeline Stage from given config, it will then ping back to the coordinator that it's ready. Once all the Stages are ready, the coordinator will start the running event loop on every Stages via some methods of communication. The rest of the training loop will be as already implemented. 
+
+- The model already has its serialization with json and bin. We need to serialize the other pipeline variables and pack it. 
 
 # Example
 If we split the model into 4 stages and each mini-batch is split into 4 microbatches, the pipelining should work as follows:
