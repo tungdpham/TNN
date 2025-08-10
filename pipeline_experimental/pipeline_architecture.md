@@ -1,10 +1,18 @@
 # Intended architecture
-I'm trying to implement a pipelining parallelism for distributed neural networks. I have already built my own Sequential in C++ that runs pretty well. Now I want a way to split up a neural networks into multiple pipelining stages, which could possibly be a wrapper around my Sequential. The pipelining model should consists of a Coordinator, which will have multiple Stages and each Stage should have ability to retrieve, store, and send Forward and Backward tasks (these tasks includes a Tensor either be the input or the gradient). This is because when first stage have finished forwarding batch 2, second stage might not have finished forwarding batch 1, so queues are needed. Note that each stage should only be processing only 1 task, more would be meaningless and cause more overhead.
+The pipelining model should consists of a Coordinator, which will have multiple Stages and each Stage should have ability to retrieve, store, and send Forward/Backward tasks (these tasks includes a Tensor either be the input or the gradient). 
 
-- Each stage should have these things running in parallel:
+This is because when first stage have finished forwarding batch 2, second stage might not have finished forwarding batch 1, so queues are needed. Note that each stage should only be processing only 1 task, more would be meaningless and cause more overhead.
+
+The initial idea was to have each stage runs these things in parallel:
 + Task Retrieval 
 + Process Task
 + Task Sending
+
+However, this turns out to be quite a terrible idea as each of these tasks needs a loop if parallelized, causing massive resource waste most of the time. This is where our next idea comes in:
+
+Event-based Task processing:
+- For each stage, a main event will listen for incoming tasks, which will be done via its communicator. When it receives a task, the main event will spawns a thread which will process task and when it finishes processing, it will send the output task to the corresponding recipient. When the send succeeds, automatically closes the thread but does not terminate it (for thread pool re usage).
+
 
 # Example
 If we split the model into 4 stages and each mini-batch is split into 4 microbatches, the pipelining should work as follows:

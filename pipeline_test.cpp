@@ -1,9 +1,9 @@
 #include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "pipeline_experimental/pipeline_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/mnist_data_loader.hpp"
-#include "nn/optimizers.hpp"
 using namespace tnn;
 using namespace data_loading;
 
@@ -11,7 +11,7 @@ namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 20;
-constexpr size_t BATCH_SIZE = 32; // Good balance between memory and convergence
+constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
@@ -73,7 +73,7 @@ float calculate_tensor_accuracy(const Tensor<float> &predictions,
       }
     }
 
-    printf("Predicted class: %d, True class: %d\n", pred_class, true_class);
+    // printf("Predicted class: %d, True class: %d\n", pred_class, true_class);
     if (pred_class == true_class && true_class != -1) {
       total_correct++;
     }
@@ -95,6 +95,7 @@ signed main() {
     return -1;
   }
 
+  omp_set_num_threads(2);
   // Create a sequential model using the builder pattern
   auto model = SequentialBuilder<float>("mnist_cnn_classifier")
                    // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
@@ -127,15 +128,16 @@ signed main() {
   auto pipeline_coordinator =
       tpipeline::InProcessPipelineCoordinator<float>(model, 2, 4);
 
-  pipeline_coordinator.start();
-
   // Prepare the training data loader
-  train_loader.prepare_batches(32);
-  test_loader.prepare_batches(32);
+  train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+  test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
 
   Tensor<float> batch_data;
   Tensor<float> batch_labels;
+  int batch_index = 0;
+  printf("Starting training loop...\n");
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
+    pipeline_coordinator.start();
     // Process a batch of data
     pipeline_coordinator.forward(batch_data, 4);
 
@@ -143,29 +145,23 @@ signed main() {
 
     std::vector<tpipeline::Task<float>> all_tasks =
         pipeline_coordinator.get_all_tasks();
-    printf("Total tasks processed: %zu\n", all_tasks.size());
+    // printf("Total tasks processed: %zu\n", all_tasks.size());
 
     std::vector<Tensor<float>> outputs;
     sort(all_tasks.begin(), all_tasks.end(),
-          [](const tpipeline::Task<float> &a, const tpipeline::Task<float> &b) {
-            return a.micro_batch_id < b.micro_batch_id;
-          });
+         [](const tpipeline::Task<float> &a, const tpipeline::Task<float> &b) {
+           return a.micro_batch_id < b.micro_batch_id;
+         });
     for (const auto &task : all_tasks) {
       if (task.type == tpipeline::TaskType::Forward) {
         outputs.push_back(task.data);
-        printf("Processed forward task with micro_batch_id: %d\n",
-               task.micro_batch_id);
       } else {
-        printf("Processed backward task with micro_batch_id: %d\n",
-               task.micro_batch_id);
       }
     }
 
     // Apply softmax to outputs
     for (auto &output : outputs) {
       apply_tensor_softmax(output);
-      output.print_info(); // Print output tensor info
-      output.print_data(); // Print output tensor data
     }
 
     // Compute loss and accuracy using the output tensors
@@ -187,25 +183,29 @@ signed main() {
 
     accuracy /= outputs.size();
 
-    printf("Total Loss: %.4f, Accuracy: %.2f%%\n", total_loss,
-           accuracy * 100.0f);
+    if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+      printf("Batch %d/%zu - Loss: %.4f, Accuracy: %.2f%%\n", batch_index,
+             train_loader.size() / train_loader.get_batch_size(), total_loss,
+             accuracy * 100.0f);
+    }
 
     // Compute gradient with respect to the loss
     std::vector<Tensor<float>> gradients;
-    for (int i=0; i < micro_batch_labels.size(); ++i) {
+    for (int i = 0; i < micro_batch_labels.size(); ++i) {
       gradients.push_back(
           loss_function->compute_gradient(outputs[i], micro_batch_labels[i]));
-      // Print gradient
-      gradients.back().print_info(); // Print gradient tensor info
-      gradients.back().print_data(); // Print gradient tensor data
     }
 
     // Backward pass
+    pipeline_coordinator.start();
+
     pipeline_coordinator.backward(gradients);
 
-    pipeline_coordinator.join(); 
-    
+    pipeline_coordinator.join();
+
     pipeline_coordinator.update_params();
+
+    ++batch_index;
   }
 
   printf("Program stopped successfully.\n");

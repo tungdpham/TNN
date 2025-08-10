@@ -65,7 +65,7 @@ protected:
   void receive_loop() {
     while (!should_stop_) {
       communicator_->receive_input_task();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1)); // Small delay to prevent busy waiting
+      std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Small delay to prevent busy waiting
     }
   }
 
@@ -82,7 +82,7 @@ protected:
         }
         is_processing_ = false;
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
@@ -90,7 +90,7 @@ protected:
   void send_loop() {
     while (!should_stop_) {
       communicator_->send_output_task();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 

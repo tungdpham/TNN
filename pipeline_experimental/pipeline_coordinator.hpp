@@ -26,7 +26,7 @@ public:
   // Start all stages
   void start() {
     for (auto &stage : stages_) {
-      printf("Starting stage: %s\n", stage->name().c_str());
+      // printf("Starting stage: %s\n", stage->name().c_str());
       stage->start();
     }
   }
@@ -45,12 +45,10 @@ public:
       for (const auto &stage : stages_) {
         if (stage->get_communicator()->has_input_task() || stage->get_communicator()->has_output_task() || stage->is_processing()) {
           all_empty = false;
-          // printf("Stage %s has input tasks or output tasks to process.\n",
-                //  stage->name().c_str());
         }
       }
       if(all_empty) {
-        printf("All stages have no tasks. Exiting join loop.\n");
+        stop();
         break;
       }
       // printf("Waiting for stages to finish processing...\n");
@@ -64,11 +62,11 @@ public:
     while (coordinator_comm_->has_input_task()) {
       try {
         Task<T> task = coordinator_comm_->dequeue_input_task();
-        printf("Coordinator dequeued task: %d\n", task.micro_batch_id);
+        // printf("Coordinator dequeued task: %d\n", task.micro_batch_id);
         all_tasks.push_back(task);
       } catch (const std::runtime_error &e) {
         // Ignore empty queue errors
-        printf("No more tasks in coordinator queue.\n");
+        // printf("No more tasks in coordinator queue.\n");
         break;
       }
     }
@@ -99,8 +97,7 @@ protected:
   std::vector<Tensor<T>> split_into_microbatches(const Tensor<T> &batch,
                                                  int num_microbatches) {
     std::vector<Tensor<T>> microbatches;
-    printf("Splitting batch of size %zu into %d microbatches\n",
-           batch.batch_size(), num_microbatches);
+
     size_t batch_size = batch.batch_size() / num_microbatches;
 
     for (int i = 0; i < num_microbatches; ++i) {
@@ -201,7 +198,7 @@ public:
     for (int i = 0; i < num_microbatches; ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Forward, microbatches[i], i);
 
-      printf("Enqueuing forward task for microbatch %d\n", i);
+      // printf("Enqueuing forward task for microbatch %d\n", i);
       first_stage_comm->enqueue_task(task);
     }
   }
@@ -219,7 +216,7 @@ public:
     for (int i = 0; i < gradients.size(); ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Backward, gradients[i], i);
 
-      printf("Enqueuing backward task for microbatch %d\n", i);
+      // printf("Enqueuing backward task for microbatch %d\n", i);
       last_stage_comm->enqueue_task(task);
     }
   }
@@ -227,20 +224,10 @@ public:
   void update_params() {
     int idx = 0;
     for(auto &stage : this->stages_) {
-      printf("Updating parameters for stage: %s\n", stage->name().c_str());
       auto model = stage->get_model();
       std::vector<Tensor<T>*> params = model->parameters();
       std::vector<Tensor<T>*> grads = model->gradients();
-      for(int i=0;i<params.size();++i) {
-        printf("Parameter %d shape: ", i);
-        params[i]->print_info();
-      }
-      for(int i=0;i<grads.size();++i) {
-        printf("Gradient %d shape: ", i);
-        grads[i]->print_info();
-      }
       this->optimizers_[idx]->update(params, grads);
-      printf("Updated parameters for stage: %s\n", stage->name().c_str());
       ++idx;
     }
   }

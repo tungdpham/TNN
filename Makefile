@@ -9,7 +9,7 @@ ENABLE_BLAS ?= 0
 ENABLE_DEBUG ?= 0
 
 # Source files
-CXX_SOURCES = $(wildcard matrix/*.cpp neural/*.cpp utils/*.cpp)
+CXX_SOURCES = $(wildcard matrix/*.cpp nn/*.cpp utils/*.cpp)
 HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp tensor/*.hpp pipeline_experimental/*.hpp)
 CU_SOURCES = $(wildcard matrix/*.cu neural/*.cu utils/*.cu)
 
