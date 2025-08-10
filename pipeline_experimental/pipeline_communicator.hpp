@@ -1,11 +1,14 @@
 #pragma once
 
+#include "pipeline_endpoint.hpp"
 #include "task.hpp"
-#include <queue>
-#include <mutex>
-#include <stdexcept>
-#include <memory>
 #include <functional>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <stdexcept>
+
+namespace tpipeline {
 
 template <typename T = float> class PipelineCommunicator {
 public:
@@ -15,7 +18,8 @@ public:
   // Send an output task to the stage in the correct direction
   virtual void send_output_task() = 0;
 
-  // Receive an input task from corresponding method of communication (in memory for in-process, websocket for distributed)
+  // Receive an input task from corresponding method of communication (in memory
+  // for in-process, websocket for distributed)
   virtual void receive_input_task() = 0;
 
   // Enqueue a task into the input queue (called by other stages)
@@ -62,9 +66,15 @@ public:
     return !this->out_task_queue_.empty();
   }
 
-  inline virtual void set_next_stage(PipelineCommunicator<T> *next_stage) = 0;
+  inline virtual void
+  set_next_stage_endpoint(const tpipeline::StageEndpoint &endpoint) {
+    next_stage_endpoint_ = endpoint;
+  }
 
-  inline virtual void set_prev_stage(PipelineCommunicator<T> *prev_stage) = 0;
+  inline virtual void
+  set_prev_stage_endpoint(const tpipeline::StageEndpoint &endpoint) {
+    prev_stage_endpoint_ = endpoint;
+  }
 
   // Set callback for task notification (event-based)
   inline void set_task_notification_callback(std::function<void()> callback) {
@@ -74,51 +84,31 @@ public:
 protected:
   std::queue<tpipeline::Task<T>> in_task_queue_;
   std::queue<tpipeline::Task<T>> out_task_queue_;
-  //mutex lock for input
+  // mutex lock for input
   mutable std::mutex in_task_mutex_;
-  //mutex lock for output
+  // mutex lock for output
   mutable std::mutex out_task_mutex_;
-  
+
   // Event-based notification callback
   std::function<void()> task_notification_callback_;
+
+  tpipeline::StageEndpoint next_stage_endpoint_;
+  tpipeline::StageEndpoint prev_stage_endpoint_;
 };
 
-
-template <typename T = float> class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
+template <typename T = float>
+class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
 public:
-  InProcessPipelineCommunicator(InProcessPipelineCommunicator<T> *prev_stage_comm,
-                                InProcessPipelineCommunicator<T> *next_stage_comm)
-      : prev_stage_comm_(prev_stage_comm), next_stage_comm_(next_stage_comm) {}
+  InProcessPipelineCommunicator() = default;
+  ~InProcessPipelineCommunicator() override = default;
 
-  ~InProcessPipelineCommunicator() override = default;  
-
-  void send_output_task() override {
-    std::lock_guard<std::mutex> lock(this->out_task_mutex_);
-    if (!this->out_task_queue_.empty()) {
-      tpipeline::Task<T> task = this->out_task_queue_.front();
-      this->out_task_queue_.pop();
-      
-      if(task.type == tpipeline::TaskType::Forward) {
-        if(next_stage_comm_) next_stage_comm_->enqueue_input_task(task);
-      } else if(task.type == tpipeline::TaskType::Backward) {
-        if(prev_stage_comm_) prev_stage_comm_->enqueue_input_task(task);
-      }
-    }
-  }
+  void send_output_task() override;
 
   void receive_input_task() override {
-    // Not applicable for in-process communication - tasks are directly enqueued
-  } 
-
-  inline void set_next_stage(PipelineCommunicator<T> *next_stage) override {
-    next_stage_comm_ = static_cast<InProcessPipelineCommunicator<T> *>(next_stage);
+    // Not applicable for in-process communication
   }
-
-  inline void set_prev_stage(PipelineCommunicator<T> *prev_stage) override {
-    prev_stage_comm_ = static_cast<InProcessPipelineCommunicator<T> *>(prev_stage);
-  }
-
-private:
-  InProcessPipelineCommunicator<T> *prev_stage_comm_ = nullptr; // Pointer to the previous stage communicator
-  InProcessPipelineCommunicator<T> *next_stage_comm_ = nullptr; // Pointer to the next stage communicator
 };
+
+} // namespace tpipeline
+
+#include "in_process_pipeline_communicator.tpp"

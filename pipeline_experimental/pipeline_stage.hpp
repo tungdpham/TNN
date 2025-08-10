@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../nn/sequential.hpp"
-#include "pipeline_communicator.hpp"
+#include "pipeline_communicator.hpp" // Full definition needed here
 #include "task.hpp"
 #include "thread_pool.hpp"
 #include <atomic>
@@ -108,7 +108,7 @@ protected:
 
   void process_task(const tpipeline::Task<T> &task) {
     // Forward or backward pass based on task type
-    tpipeline::Task<T> output_task = task; 
+    tpipeline::Task<T> output_task = task;
 
     if (task.type == tpipeline::TaskType::Forward) {
       // Forward pass

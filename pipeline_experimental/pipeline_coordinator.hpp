@@ -2,8 +2,7 @@
 
 #include "../nn/optimizers.hpp"
 #include "../nn/sequential.hpp"
-#include "pipeline_communicator.hpp"
-#include "pipeline_stage.hpp"
+#include "pipeline_stage.hpp" // Includes communicator and endpoint
 
 namespace tpipeline {
 template <typename T = float> class PipelineCoordinator {
@@ -66,7 +65,7 @@ public:
 
     // Create the coordinator communicator
     this->coordinator_comm_ =
-        std::make_unique<InProcessPipelineCommunicator<T>>(nullptr, nullptr);
+        std::make_unique<InProcessPipelineCommunicator<T>>();
 
     // Create stages and their communicators
     for (int i = 0; i < this->num_stages_; ++i) {
@@ -74,7 +73,7 @@ public:
       auto model_ptr =
           std::make_unique<tnn::Sequential<T>>(std::move(splitted_models_[i]));
       auto stage_communicator =
-          std::make_unique<InProcessPipelineCommunicator<T>>(nullptr, nullptr);
+          std::make_unique<InProcessPipelineCommunicator<T>>();
 
       this->stages_.emplace_back(std::make_unique<InProcessPipelineStage<T>>(
           std::move(model_ptr), std::move(stage_communicator),
@@ -87,37 +86,47 @@ public:
       }
     }
 
-    // Now set up inter-stage communication links
+    // Now set up inter-stage communication links using endpoints
     for (int i = 0; i < this->num_stages_; ++i) {
-      auto *current_comm = static_cast<InProcessPipelineCommunicator<T> *>(
-          this->stages_[i]->get_communicator());
-      auto *prev_comm =
-          (i > 0) ? static_cast<InProcessPipelineCommunicator<T> *>(
-                        this->stages_[i - 1]->get_communicator())
-                  : nullptr; // no need to backward link for first stage
-      auto *next_comm = (i < this->num_stages_ - 1)
-                            ? static_cast<InProcessPipelineCommunicator<T> *>(
-                                  this->stages_[i + 1]->get_communicator())
-                            : this->coordinator_comm_.get();
+      auto *current_comm = this->stages_[i]->get_communicator();
 
-      current_comm->set_prev_stage(
-          static_cast<InProcessPipelineCommunicator<T> *>(prev_comm));
-      current_comm->set_next_stage(
-          static_cast<InProcessPipelineCommunicator<T> *>(next_comm));
+      // Endpoint for the previous stage
+      if (i > 0) {
+        auto *prev_comm = this->stages_[i - 1]->get_communicator();
+        InProcessStageEndpointDetails<T> prev_details{prev_comm};
+        StageEndpoint prev_endpoint("stage_" + std::to_string(i - 1),
+                                    prev_details);
+        current_comm->set_prev_stage_endpoint(prev_endpoint);
+      }
+
+      // Endpoint for the next stage
+      if (i < this->num_stages_ - 1) {
+        auto *next_comm = this->stages_[i + 1]->get_communicator();
+        InProcessStageEndpointDetails<T> next_details{next_comm};
+        StageEndpoint next_endpoint("stage_" + std::to_string(i + 1),
+                                    next_details);
+        current_comm->set_next_stage_endpoint(next_endpoint);
+      } else {
+        // The last stage sends to the coordinator
+        InProcessStageEndpointDetails<T> next_details{
+            this->coordinator_comm_.get()};
+        StageEndpoint next_endpoint("coordinator", next_details);
+        current_comm->set_next_stage_endpoint(next_endpoint);
+      }
     }
 
-    // Set up coordinator communication links
-    auto *first_stage_comm = static_cast<InProcessPipelineCommunicator<T> *>(
-        this->stages_[0]->get_communicator());
-    auto *last_stage_comm = static_cast<InProcessPipelineCommunicator<T> *>(
-        this->stages_[this->num_stages_ - 1]->get_communicator());
+    // Set up coordinator's endpoints
+    auto *first_stage_comm = this->stages_[0]->get_communicator();
+    InProcessStageEndpointDetails<T> first_stage_details{first_stage_comm};
+    StageEndpoint first_stage_endpoint("stage_0", first_stage_details);
+    this->coordinator_comm_->set_next_stage_endpoint(first_stage_endpoint);
 
-    auto *coordinator_comm_raw =
-        static_cast<InProcessPipelineCommunicator<T> *>(
-            this->coordinator_comm_.get());
-
-    coordinator_comm_raw->set_next_stage(first_stage_comm);
-    coordinator_comm_raw->set_prev_stage(last_stage_comm);
+    auto *last_stage_comm =
+        this->stages_[this->num_stages_ - 1]->get_communicator();
+    InProcessStageEndpointDetails<T> last_stage_details{last_stage_comm};
+    StageEndpoint last_stage_endpoint(
+        "stage_" + std::to_string(this->num_stages_ - 1), last_stage_details);
+    this->coordinator_comm_->set_prev_stage_endpoint(last_stage_endpoint);
 
     // Create optimizers for each stage
     for (int i = 0; i < this->num_stages_; ++i) {
@@ -149,8 +158,7 @@ public:
     auto microbatches = batch.split(this->num_microbatches_);
 
     // Enqueue each microbatch to the first stage's communicator
-    auto *first_stage_comm = static_cast<InProcessPipelineCommunicator<T> *>(
-        this->stages_[0]->get_communicator());
+    auto *first_stage_comm = this->stages_[0]->get_communicator();
 
     for (int i = 0; i < this->num_microbatches_; ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Forward, microbatches[i], i);
@@ -163,11 +171,11 @@ public:
       throw std::runtime_error("No stages available for processing");
     }
 
-    // Enqueue each microbatch to the last stage's communicator
-    auto *last_stage_comm = static_cast<InProcessPipelineCommunicator<T> *>(
-        this->stages_[this->num_stages_ - 1]->get_communicator());
+    // Enqueue each gradient to the last stage's communicator
+    auto *last_stage_comm =
+        this->stages_[this->num_stages_ - 1]->get_communicator();
 
-    for (int i = 0; i < gradients.size(); ++i) {
+    for (size_t i = 0; i < gradients.size(); ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Backward, gradients[i], i);
 
       last_stage_comm->enqueue_input_task(task);
@@ -205,8 +213,6 @@ public:
 private:
   std::vector<std::unique_ptr<tnn::Optimizer<T>>> optimizers_;
   std::vector<std::unique_ptr<InProcessPipelineStage<T>>> stages_;
-  std::vector<std::unique_ptr<InProcessPipelineCommunicator<T>>> communicators_;
-  std::unique_ptr<InProcessPipelineCommunicator<T>> coordinator_communicator_;
 };
 
 } // namespace tpipeline
