@@ -90,8 +90,11 @@ protected:
           is_processing_ = false;
           notify_task_available();
           // auto thread_end = std::chrono::high_resolution_clock::now();
-          // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(thread_end - thread_start);
-          // printf("Stage %s processed %s thread in %ld ms\n", name_.c_str(), task.type == TaskType::Forward ? "Forward" : "Backward", duration.count());
+          // auto duration =
+          // std::chrono::duration_cast<std::chrono::milliseconds>(thread_end -
+          // thread_start); printf("Stage %s processed %s thread in %ld ms\n",
+          // name_.c_str(), task.type == TaskType::Forward ? "Forward" :
+          // "Backward", duration.count());
         });
       }
     }
@@ -103,8 +106,21 @@ protected:
     task_available_cv_.notify_one();
   }
 
-  // Process a single task (to be implemented by derived classes)
-  virtual void process_task(const tpipeline::Task<T> &task) = 0;
+  void process_task(const tpipeline::Task<T> &task) {
+    // Forward or backward pass based on task type
+    tpipeline::Task<T> output_task = task; 
+
+    if (task.type == tpipeline::TaskType::Forward) {
+      // Forward pass
+      output_task.data = this->model_->forward(task.data);
+    } else if (task.type == tpipeline::TaskType::Backward) {
+      // Backward pass
+      output_task.data = this->model_->backward(task.data);
+    }
+    // Send the result immediately after processing
+    this->communicator_->enqueue_output_task(output_task);
+    this->communicator_->send_output_task();
+  }
 
 protected:
   std::unique_ptr<tnn::Sequential<T>> model_;
@@ -130,23 +146,6 @@ public:
       std::unique_ptr<PipelineCommunicator<T>> communicator,
       const std::string &name = "")
       : PipelineStage<T>(std::move(model), std::move(communicator), name) {}
-
-protected:
-  void process_task(const tpipeline::Task<T> &task) override {
-    // Forward or backward pass based on task type
-    tpipeline::Task<T> output_task = task; // Copy task structure
-
-    if (task.type == tpipeline::TaskType::Forward) {
-      // Forward pass
-      output_task.data = this->model_->forward(task.data);
-    } else if (task.type == tpipeline::TaskType::Backward) {
-      // Backward pass
-      output_task.data = this->model_->backward(task.data);
-    }
-    // Send the result immediately after processing
-    this->communicator_->enqueue_output_task(output_task);
-    this->communicator_->send_output_task();
-  }
 };
 
 } // namespace tpipeline

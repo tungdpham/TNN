@@ -19,7 +19,7 @@ public:
   virtual void receive_input_task() = 0;
 
   // Enqueue a task into the input queue (called by other stages)
-  inline virtual void enqueue_task(const tpipeline::Task<T> &task) {
+  inline virtual void enqueue_input_task(const tpipeline::Task<T> &task) {
     {
       std::lock_guard<std::mutex> lock(this->in_task_mutex_);
       this->in_task_queue_.push(task);
@@ -50,7 +50,7 @@ public:
     std::lock_guard<std::mutex> lock(this->in_task_mutex_);
     return this->in_task_queue_.size();
   }
-  
+
   // Check if the input queue is empty
   inline bool has_input_task() const {
     std::lock_guard<std::mutex> lock(this->in_task_mutex_);
@@ -99,9 +99,9 @@ public:
       this->out_task_queue_.pop();
       
       if(task.type == tpipeline::TaskType::Forward) {
-        if(next_stage_comm_) next_stage_comm_->enqueue_task(task);
+        if(next_stage_comm_) next_stage_comm_->enqueue_input_task(task);
       } else if(task.type == tpipeline::TaskType::Backward) {
-        if(prev_stage_comm_) prev_stage_comm_->enqueue_task(task);
+        if(prev_stage_comm_) prev_stage_comm_->enqueue_input_task(task);
       }
     }
   }

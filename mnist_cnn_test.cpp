@@ -87,12 +87,13 @@ void run_test() {
         return;
     }
 
+    model.print_config();
     // Set the model to evaluation mode
     model.eval();
 
     // Load the test data
     MNISTDataLoader loader;
-    if (!loader.load_data("data/mnist_test.csv")) {
+    if (!loader.load_data("data/mnist/test.csv")) {
         return;
     }
 

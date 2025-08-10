@@ -126,6 +126,8 @@ signed main() {
                           true, "output")
                    .build();
 
+  auto optimizer = std::make_unique<tnn::Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+  model.set_optimizer(std::move(optimizer));
   auto pipeline_coordinator =
       tpipeline::InProcessPipelineCoordinator<float>(model, 1, mnist_constants::NUM_MICROBATCHES);
 

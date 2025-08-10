@@ -10,14 +10,18 @@
 #include <vector>
 
 #include "layers.hpp"
+#include "loss.hpp"
+#include "optimizers.hpp"
 
 namespace tnn {
 
 // Sequential model for layers
-template <typename T = double> class Sequential {
+template <typename T = float> class Sequential {
 private:
   std::vector<std::unique_ptr<Layer<T>>> layers_;
   std::string name_;
+  std::unique_ptr<Optimizer<T>> optimizer_ = nullptr;
+  std::unique_ptr<Loss<T>> loss_ = nullptr;
   bool is_training_;
 
   // Cache for intermediate outputs during forward pass (useful for debugging)
@@ -40,11 +44,18 @@ public:
     for (const auto &layer : other.layers_) {
       layers_.push_back(layer->clone());
     }
+    if (other.optimizer_) {
+      optimizer_ = other.optimizer_->clone();
+    }
+    if (other.loss_) {
+      loss_ = other.loss_->clone();
+    }
   }
 
   // Move constructor
   Sequential(Sequential &&other) noexcept
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
+        optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
         is_training_(other.is_training_),
         layer_outputs_(std::move(other.layer_outputs_)),
         enable_profiling_(other.enable_profiling_),
@@ -59,6 +70,8 @@ public:
       for (const auto &layer : other.layers_) {
         layers_.push_back(layer->clone());
       }
+      optimizer_ = other.optimizer_ ? other.optimizer_->clone() : nullptr;
+      loss_ = other.loss_ ? other.loss_->clone() : nullptr;
       name_ = other.name_;
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
@@ -73,6 +86,8 @@ public:
   Sequential &operator=(Sequential &&other) noexcept {
     if (this != &other) {
       layers_ = std::move(other.layers_);
+      optimizer_ = std::move(other.optimizer_);
+      loss_ = std::move(other.loss_);
       name_ = std::move(other.name_);
       is_training_ = other.is_training_;
       layer_outputs_ = std::move(other.layer_outputs_);
@@ -476,82 +491,13 @@ public:
 
   void print_config() const {
     std::cout << "Sequential Configuration:\n";
-    std::cout << "Name: " << name_ << "\n";
-    std::cout << "Training: " << (is_training_ ? "True" : "False") << "\n";
-    std::cout << "Layers: " << layers_.size() << "\n\n";
-
-    for (size_t i = 0; i < layers_.size(); ++i) {
-      auto config = layers_[i]->get_config();
-      std::cout << "Layer " << i << ": " << config.name
-                << " (type: " << layers_[i]->type() << ")\n";
-
-      // Print layer-specific parameters
-      if (!config.parameters.empty()) {
-        std::cout << "  Parameters:\n";
-        for (const auto &[key, value] : config.parameters) {
-          std::cout << "    " << key << ": ";
-
-          // Try to extract common types
-          try {
-            if (auto int_val = std::any_cast<int>(&value)) {
-              std::cout << *int_val;
-            } else if (auto size_val = std::any_cast<size_t>(&value)) {
-              std::cout << *size_val;
-            } else if (auto double_val = std::any_cast<double>(&value)) {
-              std::cout << *double_val;
-            } else if (auto float_val = std::any_cast<float>(&value)) {
-              std::cout << *float_val;
-            } else if (auto bool_val = std::any_cast<bool>(&value)) {
-              std::cout << (*bool_val ? "true" : "false");
-            } else if (auto str_val = std::any_cast<std::string>(&value)) {
-              std::cout << "\"" << *str_val << "\"";
-            } else {
-              std::cout << "[complex type]";
-            }
-          } catch (...) {
-            std::cout << "[unknown type]";
-          }
-          std::cout << "\n";
-        }
-      }
-      std::cout << "\n";
-    }
+    std::cout << get_config().dump(2) << std::endl;
   }
 
   // Serialization support
   void save_to_file(const std::string &path) const {
-    // Save configuration to JSON
-    nlohmann::json config_json;
-    config_json["name"] = name_;
-    config_json["training"] = is_training_;
-    config_json["profiling"] = enable_profiling_;
-    config_json["layers"] = nlohmann::json::array();
-
-    for (const auto &layer : layers_) {
-      auto config = layer->get_config();
-      nlohmann::json layer_json;
-      layer_json["type"] = layer->type();
-      layer_json["name"] = config.name;
-      // A basic way to handle std::any parameters
-      // This might need to be more robust depending on the types stored in
-      // `any`
-      for (const auto &p : config.parameters) {
-        if (p.second.type() == typeid(size_t)) {
-          layer_json[p.first] = std::any_cast<size_t>(p.second);
-        } else if (p.second.type() == typeid(int)) {
-          layer_json[p.first] = std::any_cast<int>(p.second);
-        } else if (p.second.type() == typeid(double)) {
-          layer_json[p.first] = std::any_cast<double>(p.second);
-        } else if (p.second.type() == typeid(float)) {
-          layer_json[p.first] = std::any_cast<float>(p.second);
-        } else if (p.second.type() == typeid(bool)) {
-          layer_json[p.first] = std::any_cast<bool>(p.second);
-        } else if (p.second.type() == typeid(std::string)) {
-          layer_json[p.first] = std::any_cast<std::string>(p.second);
-        }
-      }
-      config_json["layers"].push_back(layer_json);
-    }
+    // Use the new get_config method that includes optimizer and loss
+    nlohmann::json config_json = get_config();
 
     std::ofstream config_file(path + ".json");
     config_file << config_json.dump(4);
@@ -572,7 +518,7 @@ public:
   }
 
   static Sequential<T> from_file(const std::string &path) {
-    // Load configuration from JSON
+    // Load configuration from JSON using new serialization system
     std::ifstream config_file(path + ".json");
     if (!config_file.is_open()) {
       throw std::runtime_error("Could not open config file: " + path +
@@ -582,32 +528,8 @@ public:
     config_file >> config_json;
     config_file.close();
 
-    Sequential<T> model(config_json["name"]);
-    model.set_training(config_json["training"]);
-    model.enable_profiling(config_json["profiling"]);
-
-    auto factory = LayerFactory<T>();
-    factory.register_defaults();
-
-    for (const auto &layer_json : config_json["layers"]) {
-      LayerConfig config;
-      config.name = layer_json["name"];
-      for (auto it = layer_json.begin(); it != layer_json.end(); ++it) {
-        if (it.key() != "type" && it.key() != "name") {
-          if (it.value().is_number_integer()) {
-            config.parameters[it.key()] = it.value().get<size_t>();
-          } else if (it.value().is_number_float()) {
-            config.parameters[it.key()] = it.value().get<double>();
-          } else if (it.value().is_boolean()) {
-            config.parameters[it.key()] = it.value().get<bool>();
-          } else if (it.value().is_string()) {
-            config.parameters[it.key()] = it.value().get<std::string>();
-          }
-        }
-      }
-      auto layer = factory.create(layer_json["type"], config);
-      model.add(std::move(layer));
-    }
+    // Use the new load_from_config method that handles optimizer and loss
+    Sequential<T> model = load_from_config(config_json);
 
     // Load weights from binary file
     std::ifstream weights_file(path + ".bin", std::ios::binary);
@@ -684,13 +606,37 @@ public:
   auto end() const { return layers_.end(); }
 
   // Update all parameters using an optimizer
-  template <typename OptimizerType>
-  void update_parameters(const OptimizerType &optimizer) {
+  void update_parameters() const {
     for (auto &layer : layers_) {
       if (layer->has_parameters()) {
-        layer->update_parameters(optimizer);
+        layer->update_parameters(*(this->optimizer_));
       }
     }
+  }
+
+  void set_optimizer(Optimizer<T> &optimizer) {
+    this->optimizer_ = optimizer.clone();
+  }
+  
+  void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
+    this->optimizer_ = std::move(optimizer);
+    printf("Optimizer set to: %s\n", this->optimizer_->name().c_str());
+  }
+  
+  void set_loss(Loss<T> &loss) {
+    this->loss_ = loss.clone();
+  }
+  
+  void set_loss(std::unique_ptr<Loss<T>> loss) {
+    this->loss_ = std::move(loss);
+  }
+  
+  Optimizer<T>* get_optimizer() const {
+    return optimizer_.get();
+  }
+  
+  Loss<T>* get_loss() const {
+    return loss_.get();
   }
 
   // Split the model into multiple stages (Will optimize later for heterogeneous machines)
@@ -711,6 +657,12 @@ public:
         stages[i].add(layers_[layer_index]->clone());
         layer_index++;
       }
+      if (this->optimizer_) {
+        stages[i].set_optimizer(this->optimizer_->clone());
+      }
+      if (this->loss_) {
+        stages[i].set_loss(this->loss_->clone());
+      }
     }
     return stages;
   }
@@ -718,6 +670,192 @@ public:
   // Get all layers
   const std::vector<std::unique_ptr<Layer<T>>> &get_layers() const {
     return layers_;
+  }
+  
+  // Serialization methods
+  nlohmann::json get_config() const {
+    nlohmann::json config;
+    config["name"] = name_;
+    config["is_training"] = is_training_;
+    
+    // Serialize layers
+    nlohmann::json layers_config = nlohmann::json::array();
+    for (const auto& layer : layers_) {
+      LayerConfig layer_config = layer->get_config();
+      nlohmann::json layer_json;
+      layer_json["type"] = layer->type();
+      layer_json["name"] = layer_config.name;
+      layer_json["parameters"] = nlohmann::json::object();
+      
+      // Convert std::any parameters to JSON (basic types only)
+      for (const auto& [key, value] : layer_config.parameters) {
+        try {
+          if (auto* ptr = std::any_cast<int>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<size_t>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<float>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<double>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<bool>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<std::string>(&value)) {
+            layer_json["parameters"][key] = *ptr;
+          }
+        } catch (const std::bad_any_cast&) {
+          // Skip parameters that can't be serialized
+        }
+      }
+      layers_config.push_back(layer_json);
+    }
+    config["layers"] = layers_config;
+    
+    // Serialize optimizer
+    if (optimizer_) {
+      printf("Saving optimizer configuration...\n");
+      OptimizerConfig opt_config = optimizer_->get_config();
+      nlohmann::json opt_json;
+      opt_json["type"] = opt_config.type;
+      opt_json["name"] = opt_config.name;
+      opt_json["parameters"] = nlohmann::json::object();
+      
+      for (const auto& [key, value] : opt_config.parameters) {
+        try {
+          if (auto* ptr = std::any_cast<float>(&value)) {
+            opt_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<double>(&value)) {
+            opt_json["parameters"][key] = *ptr;
+          }
+        } catch (const std::bad_any_cast&) {
+          // Skip parameters that can't be serialized
+        }
+      }
+      config["optimizer"] = opt_json;
+    }
+    
+    // Serialize loss
+    if (loss_) {
+      LossConfig loss_config = loss_->get_config();
+      nlohmann::json loss_json;
+      loss_json["type"] = loss_config.type;
+      loss_json["name"] = loss_config.name;
+      loss_json["parameters"] = nlohmann::json::object();
+      
+      for (const auto& [key, value] : loss_config.parameters) {
+        try {
+          if (auto* ptr = std::any_cast<float>(&value)) {
+            loss_json["parameters"][key] = *ptr;
+          } else if (auto* ptr = std::any_cast<double>(&value)) {
+            loss_json["parameters"][key] = *ptr;
+          }
+        } catch (const std::bad_any_cast&) {
+          // Skip parameters that can't be serialized
+        }
+      }
+      config["loss"] = loss_json;
+    }
+    
+    return config;
+  }
+  
+  void save_config(const std::string& filepath) const {
+    std::ofstream file(filepath);
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open file for writing: " + filepath);
+    }
+    file << get_config().dump(2);
+    file.close();
+  }
+  
+  static Sequential<T> load_from_config(const nlohmann::json& config) {
+    Sequential<T> model(config.value("name", "sequential"));
+    model.is_training_ = config.value("is_training", true);
+    
+    // Load optimizer if present
+    if (config.contains("optimizer")) {
+      printf("Loading optimizer configuration...\n");
+      OptimizerConfig opt_config;
+      opt_config.type = config["optimizer"]["type"];
+      opt_config.name = config["optimizer"]["name"];
+      
+      if (config["optimizer"].contains("parameters")) {
+        for (const auto& [key, value] : config["optimizer"]["parameters"].items()) {
+          if (value.is_number_float()) {
+            opt_config.parameters[key] = value.get<float>();
+          } else if (value.is_number_integer()) {
+            opt_config.parameters[key] = value.get<int>();
+          }
+        }
+      }
+      
+      model.set_optimizer(OptimizerFactory<T>::create_from_config(opt_config));
+    }
+    
+    // Load loss if present
+    if (config.contains("loss")) {
+      printf("Loading loss configuration...\n");
+      LossConfig loss_config;
+      loss_config.type = config["loss"]["type"];
+      loss_config.name = config["loss"]["name"];
+      
+      if (config["loss"].contains("parameters")) {
+        for (const auto& [key, value] : config["loss"]["parameters"].items()) {
+          if (value.is_number_float()) {
+            loss_config.parameters[key] = value.get<float>();
+          } else if (value.is_number_integer()) {
+            loss_config.parameters[key] = value.get<int>();
+          }
+        }
+      }
+      
+      model.set_loss(LossFactory<T>::create_from_config(loss_config));
+    }
+    
+    // Load layers using LayerFactory
+    if (config.contains("layers")) {
+      auto factory = LayerFactory<T>();
+      factory.register_defaults();
+      
+      for (const auto& layer_json : config["layers"]) {
+        LayerConfig layer_config;
+        layer_config.name = layer_json.value("name", "");
+        
+        // Convert JSON parameters back to LayerConfig parameters
+        if (layer_json.contains("parameters")) {
+          for (const auto& [key, value] : layer_json["parameters"].items()) {
+            if (value.is_number_integer()) {
+              layer_config.parameters[key] = value.get<size_t>();
+            } else if (value.is_number_float()) {
+              layer_config.parameters[key] = value.get<float>();
+            } else if (value.is_boolean()) {
+              layer_config.parameters[key] = value.get<bool>();
+            } else if (value.is_string()) {
+              layer_config.parameters[key] = value.get<std::string>();
+            }
+          }
+        }
+        
+        std::string layer_type = layer_json.value("type", "");
+        auto layer = factory.create(layer_type, layer_config);
+        model.add(std::move(layer));
+      }
+    }
+    
+    return model;
+  }
+  
+  static Sequential<T> load_from_config_file(const std::string& filepath) {
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+      throw std::runtime_error("Cannot open file for reading: " + filepath);
+    }
+    
+    nlohmann::json config;
+    file >> config;
+    file.close();
+    
+    return load_from_config(config);
   }
 };
 

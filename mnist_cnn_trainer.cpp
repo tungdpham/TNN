@@ -25,7 +25,7 @@ namespace mnist_constants {
 
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 20; 
+constexpr int EPOCHS = 1; 
 constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
@@ -242,7 +242,7 @@ int main() {
     // Set OpenMP configuration for optimal performance
     const int num_threads = omp_get_max_threads();
     omp_set_num_threads(
-        std::min(num_threads, 1)); // Limit threads to avoid overhead
+        std::min(num_threads, 4)); // Limit threads to avoid overhead
 
     std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
               << std::endl;
@@ -297,6 +297,13 @@ int main() {
             .dense(48 * 2 * 2, mnist_constants::NUM_CLASSES, "linear", true,
                    "output")
             .build();
+    // Set optimizer for the model
+    auto optimizer = std::make_unique<tnn::Adam<float>>(
+        mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    model.set_optimizer(std::move(optimizer));
+    // Set loss function for the model
+    auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+    model.set_loss(std::move(loss_function));
 
     // Enable profiling for performance analysis
     model.enable_profiling(true);

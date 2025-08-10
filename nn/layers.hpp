@@ -86,7 +86,7 @@ public:
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
   // Optional: custom parameter update (for layers that need special handling)
-  virtual void update_parameters(const Optimizer<T> &optimizer) {}
+  virtual void update_parameters(Optimizer<T> &optimizer) {}
 
   std::string name() const { return name_; }
 
@@ -128,14 +128,14 @@ public:
 
   bool has_parameters() const override { return true; }
 
-  void update_parameters(const Optimizer<T> &optimizer) override {
+  void update_parameters(Optimizer<T> &optimizer) override {
     update_parameters_impl(optimizer);
   }
 
 protected:
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  virtual void update_parameters_impl(const Optimizer<T> &optimizer) = 0;
+  virtual void update_parameters_impl(Optimizer<T> &optimizer) = 0;
 };
 
 // Dense/Fully Connected Layer
@@ -430,8 +430,15 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer<T> &optimizer) override {
+  void update_parameters_impl(Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
+    std::vector<Tensor<T> *> params = this->parameters();
+    std::vector<Tensor<T> *> grads = this->gradients();
+    if (params.size() != grads.size()) {
+      throw std::runtime_error(
+          "Parameter and gradient size mismatch in DenseLayer");
+    }
+    optimizer.update(params, grads);
   }
 
   static std::unique_ptr<Layer<T>>
@@ -903,7 +910,7 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer<T> &optimizer) override {
+  void update_parameters_impl(Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 };
@@ -1626,7 +1633,7 @@ protected:
     }
   }
 
-  void update_parameters_impl(const Optimizer<T> &optimizer) override {
+  void update_parameters_impl(Optimizer<T> &optimizer) override {
     // To be implemented with optimizer interface
   }
 };

@@ -6,12 +6,32 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <any>
+#include <unordered_map>
 #include "../tensor/tensor.hpp"
 
 namespace tnn {
 
 // Forward declaration for WiFiDataLoader (needed for DistanceLoss)
-class WiFiDataLoader;
+// Configuration structure for loss functions
+struct LossConfig {
+    std::string type;
+    std::string name;
+    std::unordered_map<std::string, std::any> parameters;
+    
+    template <typename T>
+    T get(const std::string &key, const T &default_value = T{}) const {
+        auto it = parameters.find(key);
+        if (it != parameters.end()) {
+            try {
+                return std::any_cast<T>(it->second);
+            } catch (const std::bad_any_cast&) {
+                return default_value;
+            }
+        }
+        return default_value;
+    }
+};
 
 // Base class for all loss functions
 template <typename T = float>
@@ -23,8 +43,10 @@ public:
     virtual T compute_loss(const Tensor<T>& predictions, const Tensor<T>& targets) = 0;
     virtual Tensor<T> compute_gradient(const Tensor<T>& predictions, const Tensor<T>& targets) = 0;
     
-    // Optional: Get the name of the loss function
+    // Serialization support
     virtual std::string name() const = 0;
+    virtual LossConfig get_config() const = 0;
+    virtual std::unique_ptr<Loss<T>> clone() const = 0;
     
     // Optional: Get number of parameters (for losses that have learnable parameters)
     virtual size_t num_parameters() const { return 0; }
@@ -84,6 +106,18 @@ public:
         return "CrossEntropyLoss";
     }
     
+    LossConfig get_config() const override {
+        LossConfig config;
+        config.type = "crossentropy";
+        config.name = "CrossEntropyLoss";
+        config.parameters["epsilon"] = epsilon_;
+        return config;
+    }
+    
+    std::unique_ptr<Loss<T>> clone() const override {
+        return std::make_unique<CrossEntropyLoss<T>>(epsilon_);
+    }
+    
 private:
     T epsilon_;
 };
@@ -134,6 +168,17 @@ public:
     std::string name() const override {
         return "MSELoss";
     }
+    
+    LossConfig get_config() const override {
+        LossConfig config;
+        config.type = "mse";
+        config.name = "MSELoss";
+        return config;
+    }
+    
+    std::unique_ptr<Loss<T>> clone() const override {
+        return std::make_unique<MSELoss<T>>();
+    }
 };
 
 // Mean Absolute Error loss for regression tasks
@@ -181,6 +226,17 @@ public:
     
     std::string name() const override {
         return "MAELoss";
+    }
+    
+    LossConfig get_config() const override {
+        LossConfig config;
+        config.type = "mae";
+        config.name = "MAELoss";
+        return config;
+    }
+    
+    std::unique_ptr<Loss<T>> clone() const override {
+        return std::make_unique<MAELoss<T>>();
     }
 };
 
@@ -242,6 +298,18 @@ public:
         return "HuberLoss";
     }
     
+    LossConfig get_config() const override {
+        LossConfig config;
+        config.type = "huber";
+        config.name = "HuberLoss";
+        config.parameters["delta"] = delta_;
+        return config;
+    }
+    
+    std::unique_ptr<Loss<T>> clone() const override {
+        return std::make_unique<HuberLoss<T>>(delta_);
+    }
+    
     void set_delta(T delta) { delta_ = delta; }
     T get_delta() const { return delta_; }
     
@@ -267,6 +335,24 @@ public:
             return std::make_unique<HuberLoss<T>>();
         }
         throw std::invalid_argument("Unknown loss type: " + loss_type);
+    }
+    
+    static std::unique_ptr<Loss<T>> create_from_config(const LossConfig& config) {
+        if (config.type == "crossentropy" || config.type == "ce") {
+            T epsilon = config.get<T>("epsilon", static_cast<T>(1e-15));
+            return std::make_unique<CrossEntropyLoss<T>>(epsilon);
+        }
+        if (config.type == "mse" || config.type == "mean_squared_error") {
+            return std::make_unique<MSELoss<T>>();
+        }
+        if (config.type == "mae" || config.type == "mean_absolute_error") {
+            return std::make_unique<MAELoss<T>>();
+        }
+        if (config.type == "huber") {
+            T delta = config.get<T>("delta", static_cast<T>(1.0));
+            return std::make_unique<HuberLoss<T>>(delta);
+        }
+        throw std::invalid_argument("Unknown loss type: " + config.type);
     }
     
     static std::unique_ptr<Loss<T>> create_crossentropy(T epsilon = static_cast<T>(1e-15)) {

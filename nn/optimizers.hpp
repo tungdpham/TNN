@@ -6,9 +6,30 @@
 #include <unordered_map>
 #include <functional>
 #include <cmath>
+#include <any>
 #include "../tensor/tensor.hpp"
 
 namespace tnn {
+
+// Configuration structure for optimizers
+struct OptimizerConfig {
+    std::string type;
+    std::string name;
+    std::unordered_map<std::string, std::any> parameters;
+    
+    template <typename T>
+    T get(const std::string &key, const T &default_value = T{}) const {
+        auto it = parameters.find(key);
+        if (it != parameters.end()) {
+            try {
+                return std::any_cast<T>(it->second);
+            } catch (const std::bad_any_cast&) {
+                return default_value;
+            }
+        }
+        return default_value;
+    }
+};
 
 // Base class for all optimizers
 template <typename T = float>
@@ -21,6 +42,11 @@ public:
 
     void set_learning_rate(float lr) { learning_rate_ = lr; }
     float get_learning_rate() const { return learning_rate_; }
+    
+    // Serialization support
+    virtual std::string name() const = 0;
+    virtual OptimizerConfig get_config() const = 0;
+    virtual std::unique_ptr<Optimizer<T>> clone() const = 0;
 
 protected:
     float learning_rate_;
@@ -60,6 +86,23 @@ public:
                 (*params[i]) -= scaled_grad;
             }
         }
+    }
+    
+    std::string name() const override {
+        return "SGD";
+    }
+    
+    OptimizerConfig get_config() const override {
+        OptimizerConfig config;
+        config.type = "sgd";
+        config.name = "SGD";
+        config.parameters["learning_rate"] = this->learning_rate_;
+        config.parameters["momentum"] = momentum_;
+        return config;
+    }
+    
+    std::unique_ptr<Optimizer<T>> clone() const override {
+        return std::make_unique<SGD<T>>(this->learning_rate_, momentum_);
     }
 
 private:
@@ -118,6 +161,25 @@ public:
             }
         }
     }
+    
+    std::string name() const override {
+        return "Adam";
+    }
+    
+    OptimizerConfig get_config() const override {
+        OptimizerConfig config;
+        config.type = "adam";
+        config.name = "Adam";
+        config.parameters["learning_rate"] = this->learning_rate_;
+        config.parameters["beta1"] = beta1_;
+        config.parameters["beta2"] = beta2_;
+        config.parameters["epsilon"] = epsilon_;
+        return config;
+    }
+    
+    std::unique_ptr<Optimizer<T>> clone() const override {
+        return std::make_unique<Adam<T>>(this->learning_rate_, beta1_, beta2_, epsilon_);
+    }
 
 private:
     float beta1_;
@@ -141,6 +203,22 @@ public:
             return std::make_unique<Adam<T>>(learning_rate);
         }
         throw std::invalid_argument("Unknown optimizer type: " + name);
+    }
+    
+    static std::unique_ptr<Optimizer<T>> create_from_config(const OptimizerConfig& config) {
+        if (config.type == "sgd") {
+            float learning_rate = config.get<float>("learning_rate", 0.01f);
+            float momentum = config.get<float>("momentum", 0.0f);
+            return std::make_unique<SGD<T>>(learning_rate, momentum);
+        }
+        if (config.type == "adam") {
+            float learning_rate = config.get<float>("learning_rate", 0.001f);
+            float beta1 = config.get<float>("beta1", 0.9f);
+            float beta2 = config.get<float>("beta2", 0.999f);
+            float epsilon = config.get<float>("epsilon", 1e-8f);
+            return std::make_unique<Adam<T>>(learning_rate, beta1, beta2, epsilon);
+        }
+        throw std::invalid_argument("Unknown optimizer type: " + config.type);
     }
 };
 
