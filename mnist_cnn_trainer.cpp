@@ -26,7 +26,7 @@ namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 20; 
-constexpr size_t BATCH_SIZE = 32; // Good balance between memory and convergence
+constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
@@ -168,7 +168,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
 
       // Print progress at intervals
       if (num_batches % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-        // model.print_profiling_summary();
+        model.print_profiling_summary();
         std::cout << "Batch ID: " << num_batches
                   << ", Batch's Loss: " << std::fixed << std::setprecision(4)
                   << loss << ", Batch's Accuracy: " << std::setprecision(2)
@@ -242,7 +242,7 @@ int main() {
     // Set OpenMP configuration for optimal performance
     const int num_threads = omp_get_max_threads();
     omp_set_num_threads(
-        std::min(num_threads, 8)); // Limit threads to avoid overhead
+        std::min(num_threads, 1)); // Limit threads to avoid overhead
 
     std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
               << std::endl;

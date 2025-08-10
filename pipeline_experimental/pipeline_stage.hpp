@@ -5,110 +5,121 @@
 #include "task.hpp"
 #include "thread_pool.hpp"
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <queue>
 #include <string>
 #include <thread>
-#include <chrono>
 
 namespace tpipeline {
 
 template <typename T = float> class PipelineStage {
 public:
   explicit PipelineStage(std::unique_ptr<tnn::Sequential<T>> model,
-                        std::unique_ptr<PipelineCommunicator<T>> communicator,
-                        const std::string &name = "")
-      : model_(std::move(model)), communicator_(std::move(communicator)), name_(name), 
-        should_stop_(false), thread_pool_(3) {} // 3 threads: receive, process, send
+                         std::unique_ptr<PipelineCommunicator<T>> communicator,
+                         const std::string &name = "")
+      : model_(std::move(model)), communicator_(std::move(communicator)),
+        name_(name), should_stop_(false), is_processing_(false),
+        thread_pool_(2) {} // 2 threads: main event listener and task processor
 
-  virtual ~PipelineStage() {
-    stop();
-  }
+  virtual ~PipelineStage() { stop(); }
 
   // Initialize and start the stage
   virtual void start() {
     should_stop_ = false;
-    
-    // Start the three parallel operations
-    receive_future_ = thread_pool_.enqueue([this]() { receive_loop(); });
-    process_future_ = thread_pool_.enqueue([this]() { process_loop(); });
-    send_future_ = thread_pool_.enqueue([this]() { send_loop(); });
+
+    // Start the main event listener
+    event_listener_future_ =
+        thread_pool_.enqueue([this]() { event_listener(); });
+
+    // Set up the communicator to notify this stage when tasks arrive
+    communicator_->set_task_notification_callback(
+        [this]() { notify_task_available(); });
   }
 
   // Stop the stage
   virtual void stop() {
     should_stop_ = true;
-    
-    // Wait for all threads to complete
-    if (receive_future_.valid()) receive_future_.wait();
-    if (process_future_.valid()) process_future_.wait();
-    if (send_future_.valid()) send_future_.wait();
+
+    // Notify waiting threads to wake up and exit
+    task_available_cv_.notify_all();
+
+    // Wait for event listener to complete
+    if (event_listener_future_.valid())
+      event_listener_future_.wait();
   }
 
-  bool is_processing() const {
-    return is_processing_;
-  }
-  
+  bool is_processing() const { return is_processing_; }
+
   // Get the model associated with this stage
-  tnn::Sequential<T>* get_model() {
-    return model_.get();
-  }
-  
+  tnn::Sequential<T> *get_model() { return model_.get(); }
+
   // Get the name of the stage
   std::string name() const { return name_; }
 
   // Get the communicator (useful for coordinator to send tasks)
-  PipelineCommunicator<T>* get_communicator() { return communicator_.get(); }
+  PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }
 
 protected:
-  // Continuous loop for receiving input tasks
-  void receive_loop() {
+  // Event-driven listener that waits for task notifications
+  void event_listener() {
     while (!should_stop_) {
-      communicator_->receive_input_task();
-      std::this_thread::sleep_for(std::chrono::milliseconds(10)); // Small delay to prevent busy waiting
-    }
-  }
+      std::unique_lock<std::mutex> lock(task_available_mutex_);
 
-  // Continuous loop for processing tasks
-  void process_loop() {
-    while (!should_stop_) {
+      // Wait for a task to be available or stop signal
+      task_available_cv_.wait(lock, [this]() {
+        return should_stop_ ||
+               (communicator_->has_input_task() && !is_processing_);
+      });
+
+      if (should_stop_)
+        break;
+
+      // If we have a task and not currently processing, spawn a thread to
+      // handle it
       if (communicator_->has_input_task() && !is_processing_) {
         is_processing_ = true;
-        try {
+
+        // Spawn a task processing thread
+        thread_pool_.enqueue([this]() {
+          // auto thread_start = std::chrono::high_resolution_clock::now();
           tpipeline::Task<T> task = communicator_->dequeue_input_task();
           process_task(task);
-        } catch (const std::exception& e) {
-          // Handle empty queue gracefully
-        }
-        is_processing_ = false;
+          is_processing_ = false;
+          notify_task_available();
+          // auto thread_end = std::chrono::high_resolution_clock::now();
+          // auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(thread_end - thread_start);
+          // printf("Stage %s processed %s thread in %ld ms\n", name_.c_str(), task.type == TaskType::Forward ? "Forward" : "Backward", duration.count());
+        });
       }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
-  // Continuous loop for sending output tasks
-  void send_loop() {
-    while (!should_stop_) {
-      communicator_->send_output_task();
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
+  // Called by communicator when a new task arrives
+  void notify_task_available() {
+    std::lock_guard<std::mutex> lock(task_available_mutex_);
+    task_available_cv_.notify_one();
   }
 
   // Process a single task (to be implemented by derived classes)
-  virtual void process_task(const tpipeline::Task<T>& task) = 0;
+  virtual void process_task(const tpipeline::Task<T> &task) = 0;
 
 protected:
   std::unique_ptr<tnn::Sequential<T>> model_;
   std::unique_ptr<PipelineCommunicator<T>> communicator_;
   std::string name_;
-  
+
   std::atomic<bool> should_stop_;
-  std::atomic<bool> is_processing_{false};
-  
+  std::atomic<bool> is_processing_;
+
   ThreadPool thread_pool_;
-  std::future<void> receive_future_;
-  std::future<void> process_future_;
-  std::future<void> send_future_;
+  std::future<void> event_listener_future_;
+
+  // Event-based synchronization
+  std::mutex task_available_mutex_;
+  std::condition_variable task_available_cv_;
 };
 
 template <typename T = float>
@@ -121,10 +132,10 @@ public:
       : PipelineStage<T>(std::move(model), std::move(communicator), name) {}
 
 protected:
-  void process_task(const tpipeline::Task<T>& task) override {
+  void process_task(const tpipeline::Task<T> &task) override {
     // Forward or backward pass based on task type
     tpipeline::Task<T> output_task = task; // Copy task structure
-    
+
     if (task.type == tpipeline::TaskType::Forward) {
       // Forward pass
       output_task.data = this->model_->forward(task.data);
@@ -132,9 +143,9 @@ protected:
       // Backward pass
       output_task.data = this->model_->backward(task.data);
     }
-    
-    // Enqueue the result for sending
+    // Send the result immediately after processing
     this->communicator_->enqueue_output_task(output_task);
+    this->communicator_->send_output_task();
   }
 };
 

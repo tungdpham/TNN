@@ -15,6 +15,7 @@ constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergenc
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
+constexpr int NUM_MICROBATCHES = 2; // Number of microbatches for pipeline processing
 } // namespace mnist_constants
 
 void apply_tensor_softmax(Tensor<float> &tensor) {
@@ -95,7 +96,7 @@ signed main() {
     return -1;
   }
 
-  omp_set_num_threads(2);
+  omp_set_num_threads(1);
   // Create a sequential model using the builder pattern
   auto model = SequentialBuilder<float>("mnist_cnn_classifier")
                    // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
@@ -126,7 +127,7 @@ signed main() {
                    .build();
 
   auto pipeline_coordinator =
-      tpipeline::InProcessPipelineCoordinator<float>(model, 2, 4);
+      tpipeline::InProcessPipelineCoordinator<float>(model, 1, mnist_constants::NUM_MICROBATCHES);
 
   // Prepare the training data loader
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
@@ -136,12 +137,21 @@ signed main() {
   Tensor<float> batch_labels;
   int batch_index = 0;
   printf("Starting training loop...\n");
+  pipeline_coordinator.start();
+
+  auto epoch_start = std::chrono::high_resolution_clock::now();
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
-    pipeline_coordinator.start();
+    auto forward_start = std::chrono::high_resolution_clock::now();
     // Process a batch of data
-    pipeline_coordinator.forward(batch_data, 4);
+    pipeline_coordinator.forward(batch_data);
 
     pipeline_coordinator.join();
+
+    auto forward_end = std::chrono::high_resolution_clock::now();
+    auto forward_duration = std::chrono::duration_cast<std::chrono::milliseconds>(forward_end - forward_start);
+    printf("Forward pass completed in %ld ms\n", forward_duration.count());
+
+    auto compute_loss_start = std::chrono::high_resolution_clock::now();
 
     std::vector<tpipeline::Task<float>> all_tasks =
         pipeline_coordinator.get_all_tasks();
@@ -156,9 +166,13 @@ signed main() {
       if (task.type == tpipeline::TaskType::Forward) {
         outputs.push_back(task.data);
       } else {
+        throw new std::runtime_error(
+            "Unexpected task type in forward processing: " +
+            std::to_string(static_cast<int>(task.type)));
       }
     }
 
+    // Compute loss and accuracy using the output tensors
     // Apply softmax to outputs
     for (auto &output : outputs) {
       apply_tensor_softmax(output);
@@ -168,7 +182,7 @@ signed main() {
     auto loss_function = tnn::LossFactory<float>::create("crossentropy");
     float total_loss = 0.0f;
 
-    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(4);
+    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(mnist_constants::NUM_MICROBATCHES);
 
     for (int i = 0; i < outputs.size(); ++i) {
       total_loss +=
@@ -195,18 +209,27 @@ signed main() {
       gradients.push_back(
           loss_function->compute_gradient(outputs[i], micro_batch_labels[i]));
     }
+    auto compute_loss_end = std::chrono::high_resolution_clock::now();
+    auto compute_loss_duration = std::chrono::duration_cast<std::chrono::milliseconds>(compute_loss_end - compute_loss_start);
+    printf("Loss computation completed in %ld ms\n", compute_loss_duration.count());
 
+    auto backward_start = std::chrono::high_resolution_clock::now();
     // Backward pass
-    pipeline_coordinator.start();
-
     pipeline_coordinator.backward(gradients);
 
     pipeline_coordinator.join();
 
     pipeline_coordinator.update_params();
 
+    auto backward_end = std::chrono::high_resolution_clock::now();
+    auto backward_duration = std::chrono::duration_cast<std::chrono::milliseconds>(backward_end - backward_start);
+    printf("Backward pass completed in %ld ms\n", backward_duration.count());
+
     ++batch_index;
   }
+  auto epoch_end = std::chrono::high_resolution_clock::now();
+  auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
+  printf("Epoch %d completed in %ld ms\n", batch_index, epoch_duration.count());
 
   printf("Program stopped successfully.\n");
   return 0;

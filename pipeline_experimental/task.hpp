@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../tensor/tensor.hpp"
+
 namespace tpipeline {
 enum TaskType { Forward, Backward };
 

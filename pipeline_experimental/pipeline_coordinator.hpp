@@ -26,7 +26,6 @@ public:
   // Start all stages
   void start() {
     for (auto &stage : stages_) {
-      // printf("Starting stage: %s\n", stage->name().c_str());
       stage->start();
     }
   }
@@ -39,20 +38,20 @@ public:
   }
 
   void join() {
-    // Check if all stages have input tasks
-    while (true) {
-      bool all_empty = true;
+    // Wait for all stages to complete processing all tasks
+    bool all_done = false;
+    while (!all_done) {
+      all_done = true;
       for (const auto &stage : stages_) {
-        if (stage->get_communicator()->has_input_task() || stage->get_communicator()->has_output_task() || stage->is_processing()) {
-          all_empty = false;
+        if (stage->get_communicator()->has_input_task() || 
+            stage->get_communicator()->has_output_task() || 
+            stage->is_processing()) {
+          all_done = false;
+          break;
         }
       }
-      if(all_empty) {
-        stop();
-        break;
-      }
-      // printf("Waiting for stages to finish processing...\n");
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+      if (all_done) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(3));
     }
   }
 
@@ -62,11 +61,8 @@ public:
     while (coordinator_comm_->has_input_task()) {
       try {
         Task<T> task = coordinator_comm_->dequeue_input_task();
-        // printf("Coordinator dequeued task: %d\n", task.micro_batch_id);
         all_tasks.push_back(task);
       } catch (const std::runtime_error &e) {
-        // Ignore empty queue errors
-        // printf("No more tasks in coordinator queue.\n");
         break;
       }
     }
@@ -82,7 +78,7 @@ public:
     }
   }
 
-  virtual void forward(const Tensor<T> &batch, int num_microbatches = 4) = 0;
+  virtual void forward(const Tensor<T> &batch) = 0;
   virtual void backward(const std::vector<Tensor<T>> gradients) = 0;
 
 protected:
@@ -132,6 +128,7 @@ public:
 
     // Create stages and their communicators
     for (int i = 0; i < this->num_stages_; ++i) {
+      splitted_models_[i].enable_profiling(true); 
       auto model_ptr =
           std::make_unique<tnn::Sequential<T>>(std::move(splitted_models_[i]));
       auto stage_communicator =
@@ -155,7 +152,7 @@ public:
       auto *prev_comm = (i > 0)
                             ? static_cast<InProcessPipelineCommunicator<T> *>(
                                   this->stages_[i - 1]->get_communicator())
-                            : nullptr;
+                            : nullptr; // no need to backward link for first stage
       auto *next_comm = (i < this->num_stages_ - 1)
                             ? static_cast<InProcessPipelineCommunicator<T> *>(
                                   this->stages_[i + 1]->get_communicator())
@@ -181,21 +178,20 @@ public:
     coordinator_comm_raw->set_prev_stage(last_stage_comm);
   }
 
-  void forward(const Tensor<T> &batch,
-              int num_microbatches = 4) override {
+  void forward(const Tensor<T> &batch) override {
     if (this->stages_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     // Split the batch into microbatches
-    auto microbatches = this->split_into_microbatches(batch, num_microbatches);
+    auto microbatches = this->split_into_microbatches(batch, this->num_microbatches_);
 
     // Enqueue each microbatch to the first stage's communicator
     auto *first_stage_comm =
         static_cast<InProcessPipelineCommunicator<T> *>(
             this->stages_[0]->get_communicator());
 
-    for (int i = 0; i < num_microbatches; ++i) {
+    for (int i = 0; i < this->num_microbatches_; ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Forward, microbatches[i], i);
 
       // printf("Enqueuing forward task for microbatch %d\n", i);
@@ -216,7 +212,6 @@ public:
     for (int i = 0; i < gradients.size(); ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Backward, gradients[i], i);
 
-      // printf("Enqueuing backward task for microbatch %d\n", i);
       last_stage_comm->enqueue_task(task);
     }
   }

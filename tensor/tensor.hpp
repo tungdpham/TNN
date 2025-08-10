@@ -12,6 +12,7 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include <fstream>
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
 // but primarily NCHW and NCDHW.
@@ -416,16 +417,15 @@ public:
 
     if constexpr (dims == 4) {
       Tensor<T, layout> result(new_batch_size, channels(), height(), width());
+      T* result_data = result.data();
+      size_t output_size = channels() * height() * width();
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3) schedule(static, 1)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
       for (size_t n = 0; n < new_batch_size; ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              result(n, c, h, w) = (*this)(start_batch + n, c, h, w);
-            }
-          }
+        for(size_t idx = 0; idx < output_size; ++idx) {
+          size_t batch_idx = start_batch + n;
+          result_data[n * output_size + idx] = this->data_[batch_idx * strides[0] + idx];
         }
       }
       return result;
@@ -671,7 +671,7 @@ public:
       throw std::invalid_argument("Invalid number of splits");
     }
 
-    std::vector<Tensor<T, layout>> splits;
+    std::vector<Tensor<T>> splits;
     size_t split_size = batch_size() / num_splits;
 
     for (size_t i = 0; i < num_splits; ++i) {

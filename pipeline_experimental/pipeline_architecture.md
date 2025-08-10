@@ -13,7 +13,6 @@ However, this turns out to be quite a terrible idea as each of these tasks needs
 Event-based Task processing:
 - For each stage, a main event will listen for incoming tasks, which will be done via its communicator. When it receives a task, the main event will spawns a thread which will process task and when it finishes processing, it will send the output task to the corresponding recipient. When the send succeeds, automatically closes the thread but does not terminate it (for thread pool re usage).
 
-
 # Example
 If we split the model into 4 stages and each mini-batch is split into 4 microbatches, the pipelining should work as follows:
 
