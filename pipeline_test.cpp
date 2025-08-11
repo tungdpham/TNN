@@ -163,8 +163,14 @@ signed main() {
     auto compute_loss_start = std::chrono::high_resolution_clock::now();
 
     std::vector<tpipeline::Message<float>> all_messages =
-        pipeline_coordinator.get_task_message();
+        pipeline_coordinator.get_task_messages();
     printf("Total messages processed: %zu\n", all_messages.size());
+
+    if(all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
+      throw std::runtime_error(
+          "Unexpected number of messages: " + std::to_string(all_messages.size()) +
+          ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
+    }
 
     // Extract tasks from messages
     std::vector<tpipeline::Task<float>> all_tasks;
@@ -242,6 +248,7 @@ signed main() {
     auto backward_duration = std::chrono::duration_cast<std::chrono::milliseconds>(backward_end - backward_start);
     printf("Backward pass completed in %ld ms\n", backward_duration.count());
 
+    pipeline_coordinator.print_profiling_on_all_stages();
     ++batch_index;
   }
   auto epoch_end = std::chrono::high_resolution_clock::now();

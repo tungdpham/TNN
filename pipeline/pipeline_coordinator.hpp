@@ -34,7 +34,7 @@ public:
     coordinator_comm_->send_message(stage_id, message);
   }
 
-  std::vector<Message<T>> get_task_message(){
+  std::vector<Message<T>> get_task_messages(){
     std::vector<Message<T>> task_messages;
     while (coordinator_comm_->has_task_message()) {
       try {
@@ -245,7 +245,7 @@ public:
       request_status_from_all_stages();
 
       // Wait a bit for responses
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
 
       // Check responses - use specific status message getter
       auto status_messages = this->get_status_messages();
@@ -280,6 +280,16 @@ public:
     if (attempts >= max_attempts) {
       printf("Warning: join() timed out waiting for stages to complete\n");
     }
+  }
+
+  void print_profiling_on_all_stages() {
+    for (const auto &stage_names_ : this->stage_names_) {
+      auto profiling_msg = Message<T>::create_control_message(
+          CommandType::PRINT_PROFILING, "coordinator", stage_names_);
+      this->send_message_to_stage(stage_names_, profiling_msg);
+    }
+    this->coordinator_comm_->flush_output_messages();
+    printf("Sent profiling request to all stages\n");
   }
 
   // Status and monitoring through messages only

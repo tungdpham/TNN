@@ -128,6 +128,14 @@ protected:
         }
         break;
         
+      case CommandType::PRINT_PROFILING:
+        printf("Stage %s received PRINT_PROFILING command\n", name_.c_str());
+        if (model_) {
+          model_->print_profiling_summary();
+        } else {
+          printf("Warning: No model available to print profiling data\n");
+        }
+        break;
       default:
         printf("Stage %s received unknown command type: %d\n", 
                name_.c_str(), static_cast<int>(message.command_type));

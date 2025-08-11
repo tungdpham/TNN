@@ -49,7 +49,10 @@ enum class CommandType {
     
     // Stage Management
     QUERY_STAGE_INFO,
-    STAGE_INFO_RESPONSE
+    STAGE_INFO_RESPONSE,
+
+    // Debugging and Profiling
+    PRINT_PROFILING,
 };
 
 } // namespace tpipeline
