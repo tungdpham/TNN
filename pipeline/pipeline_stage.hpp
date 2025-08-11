@@ -85,6 +85,7 @@ protected:
       case CommandType::BACKWARD_TASK:
         printf("Stage %s received task message\n", name_.c_str());
         process_task_message(message);
+        printf("Stage %s processed task message\n", name_.c_str());
         break;
       case CommandType::UPDATE_PARAMETERS:
         printf("Stage %s received UPDATE_PARAMETERS command\n", name_.c_str());
@@ -186,6 +187,7 @@ protected:
 
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_processing_;
+  std::atomic<bool> is_processing_task_;
 
   ThreadPool thread_pool_;
   std::future<void> event_listener_future_;

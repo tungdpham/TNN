@@ -12,6 +12,7 @@ enum class CommandType {
     // Pipeline Tasks
     FORWARD_TASK,
     BACKWARD_TASK,
+    UPDATE_PARAMETERS,
     
     // Control Commands
     START_TRAINING,
@@ -28,6 +29,7 @@ enum class CommandType {
     // System State
     STATUS_REQUEST,
     STATUS_RESPONSE,
+    PARAMETERS_UPDATED,
     HEALTH_CHECK,
     
     // Error Handling
@@ -43,9 +45,6 @@ enum class CommandType {
     MEMORY_REPORT,
     RESOURCE_REQUEST,
     
-    // Parameter Management
-    UPDATE_PARAMETERS,
-    PARAMETERS_UPDATED,
     
     // Stage Management
     QUERY_STAGE_INFO,
