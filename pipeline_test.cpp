@@ -155,9 +155,17 @@ signed main() {
 
     auto compute_loss_start = std::chrono::high_resolution_clock::now();
 
-    std::vector<tpipeline::Task<float>> all_tasks =
-        pipeline_coordinator.get_all_tasks();
-    // printf("Total tasks processed: %zu\n", all_tasks.size());
+    std::vector<tpipeline::Message<float>> all_messages =
+        pipeline_coordinator.get_all_messages();
+    // printf("Total messages processed: %zu\n", all_messages.size());
+
+    // Extract tasks from messages
+    std::vector<tpipeline::Task<float>> all_tasks;
+    for (const auto& message : all_messages) {
+      if (message.is_task()) {
+        all_tasks.push_back(message.template get_payload<tpipeline::Task<float>>());
+      }
+    }
 
     std::vector<Tensor<float>> outputs;
     sort(all_tasks.begin(), all_tasks.end(),

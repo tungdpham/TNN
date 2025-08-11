@@ -39,18 +39,6 @@ public:
     return all_messages;
   }
 
-  // Backward compatibility
-  std::vector<Task<T>> get_all_tasks() {
-    std::vector<Task<T>> all_tasks;
-    auto messages = get_all_messages();
-    for (const auto& message : messages) {
-      if (message.is_task()) {
-        all_tasks.push_back(message.template get_payload<Task<T>>());
-      }
-    }
-    return all_tasks;
-  }
-
   virtual void forward(const Tensor<T> &batch) = 0;
   virtual void backward(const std::vector<Tensor<T>> gradients) = 0;
 

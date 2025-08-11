@@ -176,14 +176,6 @@ protected:
     this->communicator_->send_output_message();
   }
 
-  // Backward compatibility method
-  void process_task(const tpipeline::Task<T> &task) {
-    CommandType cmd_type = (task.type == TaskType::Forward) ? 
-                          CommandType::FORWARD_TASK : CommandType::BACKWARD_TASK;
-    Message<T> message(cmd_type, task);
-    process_task_message(message);
-  }
-
 protected:
   std::unique_ptr<tnn::Sequential<T>> model_;
   std::unique_ptr<PipelineCommunicator<T>> communicator_;
