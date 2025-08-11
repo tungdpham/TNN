@@ -32,6 +32,8 @@ struct Message {
     int sequence_number = 0;  // For ordering/deduplication
     
     // Constructors
+    Message() {}
+
     Message(CommandType cmd_type)
         : command_type(cmd_type), timestamp(std::chrono::steady_clock::now()) {}
     

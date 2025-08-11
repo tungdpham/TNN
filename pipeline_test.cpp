@@ -163,7 +163,7 @@ signed main() {
     auto compute_loss_start = std::chrono::high_resolution_clock::now();
 
     std::vector<tpipeline::Message<float>> all_messages =
-        pipeline_coordinator.get_all_messages();
+        pipeline_coordinator.get_task_message();
     printf("Total messages processed: %zu\n", all_messages.size());
 
     // Extract tasks from messages

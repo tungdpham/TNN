@@ -34,26 +34,45 @@ public:
     coordinator_comm_->send_message(stage_id, message);
   }
 
-  // Get all messages without modifying the queue
-  std::vector<Message<T>> get_all_messages_copy() {
-    // make a copy of all messages in the input queue
-    std::vector<Message<T>> all_messages =
-        this->coordinator_comm_->get_input_messages();
-    return all_messages;
-  }
-
-  std::vector<Message<T>> get_all_messages() {
-    // Get all messages from the coordinator communicator
-    std::vector<Message<T>> all_messages;
-    while (this->coordinator_comm_->has_input_message()) {
+  std::vector<Message<T>> get_task_message(){
+    std::vector<Message<T>> task_messages;
+    while (coordinator_comm_->has_task_message()) {
       try {
-        Message<T> message = this->coordinator_comm_->dequeue_input_message();
-        all_messages.push_back(message);
+        Message<T> message = coordinator_comm_->dequeue_task_message();
+        task_messages.push_back(message);
       } catch (const std::runtime_error &e) {
-        break; // No more messages available
+        break; // No more task messages available
       }
     }
-    return all_messages;
+    return task_messages;
+  }
+
+  // Get all status messages specifically
+  std::vector<Message<T>> get_status_messages() {
+    std::vector<Message<T>> status_messages;
+    while (this->coordinator_comm_->has_status_message()) {
+      try {
+        Message<T> message = this->coordinator_comm_->dequeue_status_message();
+        status_messages.push_back(message);
+      } catch (const std::runtime_error &e) {
+        break; // No more status messages available
+      }
+    }
+    return status_messages;
+  }
+
+  // Get all parameter update messages specifically
+  std::vector<Message<T>> get_parameter_update_messages() {
+    std::vector<Message<T>> param_messages;
+    while (this->coordinator_comm_->has_parameter_update_message()) {
+      try {
+        Message<T> message = this->coordinator_comm_->dequeue_parameter_update_message();
+        param_messages.push_back(message);
+      } catch (const std::runtime_error &e) {
+        break; // No more parameter update messages available
+      }
+    }
+    return param_messages;
   }
 
 protected:
@@ -228,11 +247,11 @@ public:
       // Wait a bit for responses
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-      // Check responses
-      auto messages = this->get_all_messages_copy();
+      // Check responses - use specific status message getter
+      auto status_messages = this->get_status_messages();
       std::vector<bool> stage_status(this->num_stages_, false);
 
-      for (const auto &message : messages) {
+      for (const auto &message : status_messages) {
         if (message.command_type == CommandType::STATUS_RESPONSE &&
             message.has_text()) {
           // Parse stage status from text response
@@ -357,10 +376,13 @@ private:
     const auto timeout = std::chrono::seconds(10);
 
     while (confirmations < this->num_stages_) {
-      auto messages = this->get_all_messages_copy();
-      for (const auto &message : messages) {
+      // Get specifically parameter update messages
+      auto param_messages = this->get_parameter_update_messages();
+      for (const auto &message : param_messages) {
         if (message.command_type == CommandType::PARAMETERS_UPDATED) {
           confirmations++;
+          printf("Received parameter update confirmation from %s\n", 
+                 message.sender_id.c_str());
         }
       }
 

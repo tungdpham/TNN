@@ -86,6 +86,84 @@ public:
     return message;
   }
 
+  // Dequeue a specific type of message (task, status, parameter update, etc.)
+  inline tpipeline::Message<T> dequeue_message_by_type(CommandType target_type) {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    
+    // Search for the target message type
+    std::queue<tpipeline::Message<T>> temp_queue;
+    tpipeline::Message<T> target_message;
+    bool found = false;
+    
+    while (!this->in_message_queue_.empty()) {
+      auto message = this->in_message_queue_.front();
+      this->in_message_queue_.pop();
+      
+      if (!found && message.command_type == target_type) {
+        target_message = message;
+        found = true;
+      } else {
+        temp_queue.push(message);
+      }
+    }
+    
+    // Put back all non-target messages
+    while (!temp_queue.empty()) {
+      this->in_message_queue_.push(temp_queue.front());
+      temp_queue.pop();
+    }
+    
+    if (!found) {
+      throw std::runtime_error("No message of specified type available");
+    }
+    
+    return target_message;
+  }
+
+  // Convenience method to dequeue any task message (FORWARD_TASK or BACKWARD_TASK)
+  inline tpipeline::Message<T> dequeue_task_message() {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    
+    std::queue<tpipeline::Message<T>> temp_queue;
+    tpipeline::Message<T> target_message;
+    bool found = false;
+    
+    while (!this->in_message_queue_.empty()) {
+      auto message = this->in_message_queue_.front();
+      this->in_message_queue_.pop();
+      
+      if (!found && (message.command_type == CommandType::FORWARD_TASK || 
+                     message.command_type == CommandType::BACKWARD_TASK)) {
+        target_message = message;
+        found = true;
+      } else {
+        temp_queue.push(message);
+      }
+    }
+    
+    // Put back all non-task messages
+    while (!temp_queue.empty()) {
+      this->in_message_queue_.push(temp_queue.front());
+      temp_queue.pop();
+    }
+    
+    if (!found) {
+      throw std::runtime_error("No task message available");
+    }
+    
+    return target_message;
+  }
+
+  // Convenience method to dequeue status messages
+  inline tpipeline::Message<T> dequeue_status_message() {
+    return dequeue_message_by_type(CommandType::STATUS_RESPONSE);
+  }
+
+  // Convenience method to dequeue parameter update messages  
+  inline tpipeline::Message<T> dequeue_parameter_update_message() {
+    return dequeue_message_by_type(CommandType::PARAMETERS_UPDATED);
+  }
+
   inline size_t input_queue_size() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     return this->in_message_queue_.size();
@@ -107,6 +185,30 @@ public:
     return count;
   }
 
+  // Count messages of a specific type in input queue
+  inline size_t message_count_by_type(CommandType target_type) const {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    size_t count = 0;
+    auto temp_queue = this->in_message_queue_;
+    while (!temp_queue.empty()) {
+      auto message = temp_queue.front();
+      temp_queue.pop();
+      if (message.command_type == target_type) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  // Convenience methods for common message type counts
+  inline size_t status_message_count() const {
+    return message_count_by_type(CommandType::STATUS_RESPONSE);
+  }
+
+  inline size_t parameter_update_count() const {
+    return message_count_by_type(CommandType::PARAMETERS_UPDATED);
+  }
+
   // Check if the input queue is empty
   inline bool has_input_message() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
@@ -122,6 +224,45 @@ public:
       temp_queue.pop();
       if (message.command_type == CommandType::FORWARD_TASK || 
           message.command_type == CommandType::BACKWARD_TASK) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Check if there are messages of a specific type in the input queue
+  inline bool has_message_of_type(CommandType target_type) const {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    auto temp_queue = this->in_message_queue_;
+    while (!temp_queue.empty()) {
+      auto message = temp_queue.front();
+      temp_queue.pop();
+      if (message.command_type == target_type) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Convenience methods for common message type checks
+  inline bool has_status_message() const {
+    return has_message_of_type(CommandType::STATUS_RESPONSE);
+  }
+
+  inline bool has_parameter_update_message() const {
+    return has_message_of_type(CommandType::PARAMETERS_UPDATED);
+  }
+
+  inline bool has_control_message() const {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    auto temp_queue = this->in_message_queue_;
+    while (!temp_queue.empty()) {
+      auto message = temp_queue.front();
+      temp_queue.pop();
+      if (message.command_type == CommandType::START_TRAINING ||
+          message.command_type == CommandType::STOP_TRAINING ||
+          message.command_type == CommandType::PAUSE_TRAINING ||
+          message.command_type == CommandType::RESUME_TRAINING) {
         return true;
       }
     }
