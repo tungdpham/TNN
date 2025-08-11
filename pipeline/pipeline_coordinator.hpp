@@ -24,7 +24,7 @@ public:
   // Core interface - only communicates through messages
   virtual void start() = 0;
   virtual void stop() = 0;
-  virtual void join() = 0;
+  virtual void join(bool direction) = 0;
   virtual void forward(const Tensor<T> &batch) = 0;
   virtual void backward(const std::vector<Tensor<T>> &gradients) = 0;
 
@@ -234,47 +234,27 @@ public:
     this->coordinator_comm_->flush_output_messages();
   }
 
-  void join() override {
+  void join(bool direction) override {
     // Wait for all stages to complete processing
     bool all_idle = false;
     int max_attempts = 1000;
     int attempts = 0;
 
     while (!all_idle && attempts < max_attempts) {
-      // Request status from all stages
-      request_status_from_all_stages();
-
-      // Wait a bit for responses
-      std::this_thread::sleep_for(std::chrono::milliseconds(20));
-
-      // Check responses - use specific status message getter
-      auto status_messages = this->get_status_messages();
-      std::vector<bool> stage_status(this->num_stages_, false);
-
-      for (const auto &message : status_messages) {
-        if (message.command_type == CommandType::STATUS_RESPONSE &&
-            message.has_text()) {
-          // Parse stage status from text response
-          for (int i = 0; i < this->num_stages_; i++) {
-            if (message.sender_id == this->stage_names_[i]) {
-              // Assume text contains "idle" or "busy" information
-              stage_status[i] =
-                  (message.text_data->find("idle") != std::string::npos);
-              break;
-            }
-          }
+      if (direction) {
+        // Forward direction: check that number of task messages = num_microbatches
+        if( this->coordinator_comm_->actual_task_message_count() >=
+            this->num_microbatches_) {
+          break;
+        } 
+      }else if (!direction) {
+        // Backward direction: check that number of task messages = num_microbatches
+        if( this->coordinator_comm_->actual_task_message_count() >=
+            this->num_microbatches_) {
+          break;
         }
       }
-
-      // Check if all stages are idle
-      all_idle = std::all_of(stage_status.begin(), stage_status.end(),
-                             [](bool idle) { return idle; });
-
-      if (!all_idle) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-      }
-
-      attempts++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(5));
     }
 
     if (attempts >= max_attempts) {
@@ -350,6 +330,12 @@ private:
         current_comm->register_communicator("prev_stage", stage_comms[i - 1]);
         current_comm->register_recipient(
             "prev_stage", StageEndpoint::in_process(this->stage_names_[i - 1]));
+      } else {
+        // First stage receives from coordinator
+        current_comm->register_communicator("prev_stage",
+                                            this->coordinator_comm_);
+        current_comm->register_recipient(
+            "prev_stage", StageEndpoint::in_process("coordinator"));
       }
 
       // Register next stage

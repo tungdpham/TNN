@@ -154,7 +154,7 @@ signed main() {
     // Process a batch of data
     pipeline_coordinator.forward(batch_data);
 
-    pipeline_coordinator.join();
+    pipeline_coordinator.join(1);
 
     auto forward_end = std::chrono::high_resolution_clock::now();
     auto forward_duration = std::chrono::duration_cast<std::chrono::milliseconds>(forward_end - forward_start);
@@ -240,7 +240,9 @@ signed main() {
     // Backward pass
     pipeline_coordinator.backward(gradients);
 
-    pipeline_coordinator.join();
+    pipeline_coordinator.join(0);
+
+    pipeline_coordinator.get_task_messages(); // clear task messages
 
     pipeline_coordinator.update_parameters();
 
