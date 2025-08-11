@@ -25,15 +25,27 @@ public:
   // Wait for all stages to finish processing
   virtual void join() = 0;
 
-  // Get all tasks from coordinator communicator
-  std::vector<Task<T>> get_all_tasks() {
-    std::vector<Task<T>> all_tasks;
-    while (coordinator_comm_->has_input_task()) {
+  // Get all messages from coordinator communicator
+  std::vector<Message<T>> get_all_messages() {
+    std::vector<Message<T>> all_messages;
+    while (coordinator_comm_->has_input_message()) {
       try {
-        Task<T> task = coordinator_comm_->dequeue_input_task();
-        all_tasks.push_back(task);
+        Message<T> message = coordinator_comm_->dequeue_input_message();
+        all_messages.push_back(message);
       } catch (const std::runtime_error &e) {
         break;
+      }
+    }
+    return all_messages;
+  }
+
+  // Backward compatibility
+  std::vector<Task<T>> get_all_tasks() {
+    std::vector<Task<T>> all_tasks;
+    auto messages = get_all_messages();
+    for (const auto& message : messages) {
+      if (message.is_task()) {
+        all_tasks.push_back(message.template get_payload<Task<T>>());
       }
     }
     return all_tasks;
@@ -162,7 +174,8 @@ public:
 
     for (int i = 0; i < this->num_microbatches_; ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Forward, microbatches[i], i);
-      first_stage_comm->enqueue_input_task(task);
+      Message<T> message(CommandType::FORWARD_TASK, task, "coordinator", "stage_0");
+      first_stage_comm->enqueue_input_message(message);
     }
   }
 
@@ -177,8 +190,10 @@ public:
 
     for (size_t i = 0; i < gradients.size(); ++i) {
       tpipeline::Task<T> task(tpipeline::TaskType::Backward, gradients[i], i);
-
-      last_stage_comm->enqueue_input_task(task);
+      Message<T> message(CommandType::BACKWARD_TASK, task, 
+                        "coordinator", 
+                        "stage_" + std::to_string(this->num_stages_ - 1));
+      last_stage_comm->enqueue_input_message(message);
     }
   }
 
@@ -191,14 +206,53 @@ public:
     }
   }
 
+  // Send control commands to all stages
+  void send_start_training_command() {
+    Message<T> command(CommandType::START_TRAINING, true, "coordinator");
+    for (auto &stage : this->stages_) {
+      command.recipient_id = stage->name();
+      stage->get_communicator()->enqueue_input_message(command);
+    }
+  }
+
+  void send_stop_training_command() {
+    Message<T> command(CommandType::STOP_TRAINING, true, "coordinator");
+    for (auto &stage : this->stages_) {
+      command.recipient_id = stage->name();
+      stage->get_communicator()->enqueue_input_message(command);
+    }
+  }
+
+  // Request status from all stages
+  void request_status_from_all_stages() {
+    Message<T> request(CommandType::STATUS_REQUEST, true, "coordinator");
+    for (auto &stage : this->stages_) {
+      request.recipient_id = stage->name();
+      stage->get_communicator()->enqueue_input_message(request);
+    }
+  }
+
+  // Get status responses
+  std::vector<tpipeline::StatusInfo> get_status_responses() {
+    std::vector<tpipeline::StatusInfo> statuses;
+    auto messages = this->get_all_messages();
+    for (const auto& message : messages) {
+      if (message.command_type == CommandType::STATUS_RESPONSE && 
+          message.template has_payload<tpipeline::StatusInfo>()) {
+        statuses.push_back(message.template get_payload<tpipeline::StatusInfo>());
+      }
+    }
+    return statuses;
+  }
+
   void join() override {
     // Wait for all stages to complete processing all tasks
     bool all_done = false;
     while (!all_done) {
       all_done = true;
       for (const auto &stage : this->stages_) {
-        if (stage->get_communicator()->has_input_task() ||
-            stage->get_communicator()->has_output_task() ||
+        if (stage->get_communicator()->has_input_message() ||
+            stage->get_communicator()->has_output_message() ||
             stage->is_processing()) {
           all_done = false;
           break;
