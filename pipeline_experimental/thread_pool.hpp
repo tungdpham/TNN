@@ -4,13 +4,13 @@
 #include <functional>
 #include <future>
 #include <mutex>
+#include <pthread.h> // For pthread_setaffinity_np
 #include <queue>
+#include <sched.h> // For CPU_SET, sched_setaffinity
 #include <stdexcept>
 #include <thread>
 #include <tuple>
 #include <vector>
-#include <sched.h> // For CPU_SET, sched_setaffinity
-#include <pthread.h> // For pthread_setaffinity_np
 
 // For C++17 and later, we'll use std::apply
 #if __cplusplus >= 201703L
@@ -34,6 +34,8 @@ public:
   auto enqueue(F &&f, Args &&...args)
       -> std::future<decltype(std::declval<F>()(std::declval<Args>()...))>;
 #endif
+
+  inline size_t size() const { return workers.size(); }
 
 private:
   std::vector<std::thread> workers;
@@ -126,11 +128,12 @@ inline ThreadPool::~ThreadPool() {
 
 //             // Use pthread_setaffinity_np
 //             // This is a Linux-specific function
-//             int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
-//             if (rc != 0) {
+//             int rc = pthread_setaffinity_np(pthread_self(),
+//             sizeof(cpu_set_t), &cpuset); if (rc != 0) {
 //                 // Handle error: logging, throwing an exception, etc.
 //                 // For simplicity, we'll just print a message
-//                 fprintf(stderr, "Warning: Failed to set thread affinity for worker %zu\n", i);
+//                 fprintf(stderr, "Warning: Failed to set thread affinity for
+//                 worker %zu\n", i);
 //             }
 
 //             for (;;) {
@@ -138,7 +141,8 @@ inline ThreadPool::~ThreadPool() {
 //                 {
 //                     std::unique_lock<std::mutex> lock(this->queue_mutex);
 //                     this->condition.wait(
-//                         lock, [this] { return this->stop || !this->tasks.empty(); });
+//                         lock, [this] { return this->stop ||
+//                         !this->tasks.empty(); });
 //                     if (this->stop && this->tasks.empty())
 //                         return;
 //                     task = std::move(this->tasks.front());
@@ -149,4 +153,3 @@ inline ThreadPool::~ThreadPool() {
 //         });
 //     }
 // }
-

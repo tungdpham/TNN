@@ -75,7 +75,7 @@ public:
       auto stage_communicator =
           std::make_unique<InProcessPipelineCommunicator<T>>();
 
-      this->stages_.emplace_back(std::make_unique<InProcessPipelineStage<T>>(
+      this->stages_.emplace_back(std::make_unique<PipelineStage<T>>(
           std::move(model_ptr), std::move(stage_communicator),
           "stage_" + std::to_string(i)));
       printf("Created stage %d with model: %s\n", i,
@@ -212,7 +212,7 @@ public:
 
 private:
   std::vector<std::unique_ptr<tnn::Optimizer<T>>> optimizers_;
-  std::vector<std::unique_ptr<InProcessPipelineStage<T>>> stages_;
+  std::vector<std::unique_ptr<PipelineStage<T>>> stages_;
 };
 
 } // namespace tpipeline

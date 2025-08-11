@@ -84,17 +84,10 @@ protected:
 
         // Spawn a task processing thread
         thread_pool_.enqueue([this]() {
-          // auto thread_start = std::chrono::high_resolution_clock::now();
           tpipeline::Task<T> task = communicator_->dequeue_input_task();
           process_task(task);
           is_processing_ = false;
           notify_task_available();
-          // auto thread_end = std::chrono::high_resolution_clock::now();
-          // auto duration =
-          // std::chrono::duration_cast<std::chrono::milliseconds>(thread_end -
-          // thread_start); printf("Stage %s processed %s thread in %ld ms\n",
-          // name_.c_str(), task.type == TaskType::Forward ? "Forward" :
-          // "Backward", duration.count());
         });
       }
     }
@@ -136,16 +129,6 @@ protected:
   // Event-based synchronization
   std::mutex task_available_mutex_;
   std::condition_variable task_available_cv_;
-};
-
-template <typename T = float>
-class InProcessPipelineStage : public PipelineStage<T> {
-public:
-  explicit InProcessPipelineStage(
-      std::unique_ptr<tnn::Sequential<T>> model,
-      std::unique_ptr<PipelineCommunicator<T>> communicator,
-      const std::string &name = "")
-      : PipelineStage<T>(std::move(model), std::move(communicator), name) {}
 };
 
 } // namespace tpipeline
