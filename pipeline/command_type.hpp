@@ -41,7 +41,15 @@ enum class CommandType {
     
     // Resource Management
     MEMORY_REPORT,
-    RESOURCE_REQUEST
+    RESOURCE_REQUEST,
+    
+    // Parameter Management
+    UPDATE_PARAMETERS,
+    PARAMETERS_UPDATED,
+    
+    // Stage Management
+    QUERY_STAGE_INFO,
+    STAGE_INFO_RESPONSE
 };
 
 } // namespace tpipeline

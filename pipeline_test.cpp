@@ -1,9 +1,10 @@
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-#include "pipeline_experimental/pipeline_coordinator.hpp"
+#include "pipeline/pipeline_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/mnist_data_loader.hpp"
+#include "pipeline/message.hpp"
 using namespace tnn;
 using namespace data_loading;
 
@@ -130,6 +131,12 @@ signed main() {
   model.set_optimizer(std::move(optimizer));
   auto pipeline_coordinator =
       tpipeline::InProcessPipelineCoordinator<float>(model, 1, mnist_constants::NUM_MICROBATCHES);
+  // Get the stages from the coordinator
+  auto stages = pipeline_coordinator.get_stages();
+
+  for (auto &stage : stages) {
+    stage->start();
+  }
 
   // Prepare the training data loader
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
@@ -139,7 +146,7 @@ signed main() {
   Tensor<float> batch_labels;
   int batch_index = 0;
   printf("Starting training loop...\n");
-  pipeline_coordinator.start();
+  // pipeline_coordinator.start();
 
   auto epoch_start = std::chrono::high_resolution_clock::now();
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
@@ -157,13 +164,13 @@ signed main() {
 
     std::vector<tpipeline::Message<float>> all_messages =
         pipeline_coordinator.get_all_messages();
-    // printf("Total messages processed: %zu\n", all_messages.size());
+    printf("Total messages processed: %zu\n", all_messages.size());
 
     // Extract tasks from messages
     std::vector<tpipeline::Task<float>> all_tasks;
     for (const auto& message : all_messages) {
-      if (message.is_task()) {
-        all_tasks.push_back(message.template get_payload<tpipeline::Task<float>>());
+      if (message.is_task_message()) {
+        all_tasks.push_back(message.task.value());
       }
     }
 
@@ -173,7 +180,7 @@ signed main() {
            return a.micro_batch_id < b.micro_batch_id;
          });
     for (const auto &task : all_tasks) {
-      if (task.type == tpipeline::TaskType::Forward) {
+      if (task.type == tpipeline::TaskType::FORWARD) {
         outputs.push_back(task.data);
       } else {
         throw new std::runtime_error(
@@ -229,7 +236,7 @@ signed main() {
 
     pipeline_coordinator.join();
 
-    pipeline_coordinator.update_params();
+    pipeline_coordinator.update_parameters();
 
     auto backward_end = std::chrono::high_resolution_clock::now();
     auto backward_duration = std::chrono::duration_cast<std::chrono::milliseconds>(backward_end - backward_start);

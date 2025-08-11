@@ -3,7 +3,7 @@
 #include "../tensor/tensor.hpp"
 
 namespace tpipeline {
-enum TaskType { Forward, Backward };
+enum TaskType { FORWARD, BACKWARD };
 
 template <typename T = float> struct Task {
   TaskType type;
