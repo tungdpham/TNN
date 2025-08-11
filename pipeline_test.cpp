@@ -12,11 +12,11 @@ namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 20;
-constexpr size_t BATCH_SIZE = 256; // Good balance between memory and convergence
+constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
-constexpr int NUM_MICROBATCHES = 2; // Number of microbatches for pipeline processing
+constexpr int NUM_MICROBATCHES = 1; // Number of microbatches for pipeline processing
 } // namespace mnist_constants
 
 void apply_tensor_softmax(Tensor<float> &tensor) {
@@ -240,7 +240,7 @@ signed main() {
     // Backward pass
     pipeline_coordinator.backward(gradients);
 
-    pipeline_coordinator.join(0);
+    pipeline_coordinator.join(0); // join backward tasks
 
     pipeline_coordinator.get_task_messages(); // clear task messages
 

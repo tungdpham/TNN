@@ -22,10 +22,7 @@ public:
   ThreadPool(size_t threads);
   ~ThreadPool();
 
-  // Enqueue a function with arguments and return a future for the result
-  // WARNING: Avoid calling enqueue() from within a task that waits for another
-  // task's completion, as this can lead to deadlocks if all worker threads
-  // become blocked waiting for subtasks.
+
   template <class F, class... Args>
 #if __cplusplus >= 201703L
   auto enqueue(F &&f,
@@ -109,47 +106,3 @@ inline ThreadPool::~ThreadPool() {
     worker.join();
   }
 }
-
-// inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
-//     // Get the number of available CPUs
-//     size_t num_cpus = std::thread::hardware_concurrency();
-//     if (threads > num_cpus) {
-//         // Log a warning or handle this case appropriately
-//         // For simplicity, we'll just cap it to the number of CPUs
-//         threads = num_cpus;
-//     }
-
-//     for (size_t i = 0; i < threads; ++i) {
-//         workers.emplace_back([this, i, num_cpus] {
-//             // Set thread affinity here
-//             cpu_set_t cpuset;
-//             CPU_ZERO(&cpuset);
-//             CPU_SET(i % num_cpus, &cpuset); // Pin to core `i`
-
-//             // Use pthread_setaffinity_np
-//             // This is a Linux-specific function
-//             int rc = pthread_setaffinity_np(pthread_self(),
-//             sizeof(cpu_set_t), &cpuset); if (rc != 0) {
-//                 // Handle error: logging, throwing an exception, etc.
-//                 // For simplicity, we'll just print a message
-//                 fprintf(stderr, "Warning: Failed to set thread affinity for
-//                 worker %zu\n", i);
-//             }
-
-//             for (;;) {
-//                 std::function<void()> task;
-//                 {
-//                     std::unique_lock<std::mutex> lock(this->queue_mutex);
-//                     this->condition.wait(
-//                         lock, [this] { return this->stop ||
-//                         !this->tasks.empty(); });
-//                     if (this->stop && this->tasks.empty())
-//                         return;
-//                     task = std::move(this->tasks.front());
-//                     this->tasks.pop();
-//                 }
-//                 task();
-//             }
-//         });
-//     }
-// }

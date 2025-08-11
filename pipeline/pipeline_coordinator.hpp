@@ -5,6 +5,8 @@
 #include "pipeline_communicator.hpp"
 #include "pipeline_stage.hpp"
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 namespace tpipeline {
@@ -102,6 +104,12 @@ public:
     this->coordinator_comm_ =
         std::make_shared<InProcessPipelineCommunicator<T>>();
 
+    // Set up notification callback for task message arrivals
+    this->coordinator_comm_->set_message_notification_callback([this]() {
+      std::lock_guard<std::mutex> lock(task_notification_mutex_);
+      task_notification_cv_.notify_all();
+    });
+
     // Generate stage names
     for (int i = 0; i < this->num_stages_; ++i) {
       this->stage_names_.push_back("stage_" + std::to_string(i));
@@ -198,7 +206,7 @@ public:
     // Split batch into microbatches
     auto microbatches = batch.split(this->num_microbatches_);
 
-    printf("Forwarding %zu microbatches to first stage\n", microbatches.size());
+    // printf("Forwarding %zu microbatches to first stage\n", microbatches.size());
 
     // Send each microbatch to the first stage
     for (int i = 0; i < this->num_microbatches_; ++i) {
@@ -235,30 +243,30 @@ public:
   }
 
   void join(bool direction) override {
-    // Wait for all stages to complete processing
-    bool all_idle = false;
-    int max_attempts = 1000;
-    int attempts = 0;
+    // Set expected task count based on direction
+    expected_task_count_ = this->num_microbatches_;
+    
+    // printf("Waiting for %d task messages in %s direction\n", 
+    //        this->num_microbatches_, direction ? "forward" : "backward");
 
-    while (!all_idle && attempts < max_attempts) {
-      if (direction) {
-        // Forward direction: check that number of task messages = num_microbatches
-        if( this->coordinator_comm_->actual_task_message_count() >=
-            this->num_microbatches_) {
-          break;
-        } 
-      }else if (!direction) {
-        // Backward direction: check that number of task messages = num_microbatches
-        if( this->coordinator_comm_->actual_task_message_count() >=
-            this->num_microbatches_) {
-          break;
-        }
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(5));
-    }
+    std::unique_lock<std::mutex> lock(task_notification_mutex_);
+    
+    // Wait with timeout for the expected number of task messages to arrive
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    
+    bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
+      return this->coordinator_comm_->actual_task_message_count() >= 
+             static_cast<size_t>(expected_task_count_);
+    });
 
-    if (attempts >= max_attempts) {
-      printf("Warning: join() timed out waiting for stages to complete\n");
+    if (!success) {
+      printf("Warning: join() timed out waiting for task messages. "
+             "Expected: %d, Got: %zu\n", 
+             expected_task_count_.load(),
+             this->coordinator_comm_->actual_task_message_count());
+    } else {
+      printf("Successfully received %zu task messages\n",
+             this->coordinator_comm_->actual_task_message_count());
     }
   }
 
@@ -299,6 +307,11 @@ private:
   std::vector<std::unique_ptr<PipelineStage<T>>> temp_stages_;
   std::vector<std::shared_ptr<PipelineCommunicator<T>>>
       stage_comm_refs_; // Keep refs alive
+
+  // Synchronization for event-driven join()
+  mutable std::mutex task_notification_mutex_;
+  mutable std::condition_variable task_notification_cv_;
+  std::atomic<int> expected_task_count_{0};
 
   void setup_communication_network(
       const std::vector<std::shared_ptr<PipelineCommunicator<T>>>
