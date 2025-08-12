@@ -22,6 +22,8 @@
 /cifar10_cnn_trainer
 /uji_ips_trainer
 /pipeline_test
+/network_worker
+/distributed_pipeline_example
 /profile.json.gz
 
 
