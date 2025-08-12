@@ -101,14 +101,10 @@ protected:
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                           task_end - task_start)
                           .count();
-      printf("Stage %s processed task %s message in %ld ms\n", name_.c_str(), message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD",
-             duration);
     } break;
     case CommandType::UPDATE_PARAMETERS:
-      printf("Stage %s received UPDATE_PARAMETERS command\n", name_.c_str());
       if (model_) {
         model_->update_parameters();
-        // Send updated params confirmation back to coordinator
         auto response = Message<T>::parameters_updated(name_, "coordinator");
         communicator_->enqueue_output_message(response);
         communicator_->flush_output_messages();
@@ -117,18 +113,14 @@ protected:
       }
       break;
     case CommandType::START_TRAINING:
-      printf("Stage %s received START_TRAINING command\n", name_.c_str());
       this->start();
       break;
 
     case CommandType::STOP_TRAINING:
-      printf("Stage %s received STOP_TRAINING command\n", name_.c_str());
       this->stop();
       break;
 
     case CommandType::STATUS_REQUEST: {
-      printf("Stage %s received STATUS_REQUEST from %s\n", name_.c_str(),
-             message.sender_id.c_str());
       auto response = Message<T>::status_message(
           (communicator_->has_task_message() ? "busy" : "idle"), name_,
           message.sender_id);
@@ -138,8 +130,6 @@ protected:
     }
 
     case CommandType::ERROR_REPORT:
-      printf("Stage %s received ERROR_REPORT from %s\n", name_.c_str(),
-             message.sender_id.c_str());
       if (message.has_text()) {
         printf("Stage %s received error: %s from %s\n", name_.c_str(),
                message.text_data->c_str(), message.sender_id.c_str());
@@ -147,7 +137,6 @@ protected:
       break;
 
     case CommandType::PRINT_PROFILING:
-      printf("Stage %s received PRINT_PROFILING command\n", name_.c_str());
       if (model_) {
         model_->print_profiling_summary();
       } else {

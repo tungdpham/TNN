@@ -13,6 +13,8 @@
 #include "tensor/tensor.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/loss.hpp"
+#include "utils/cifar10_data_loader.hpp"
+#include "utils/ops.hpp"
 
 namespace cifar10_constants {
   constexpr float EPSILON = 1e-15f;
@@ -21,179 +23,13 @@ namespace cifar10_constants {
   constexpr size_t BATCH_SIZE = 32; // Batch size for training
   constexpr int LR_DECAY_INTERVAL = 10; // Learning rate decay interval
   constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
-  constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
+  constexpr float LR_INITIAL = 0.005f; // Initial learning rate for training
 } // namespace cifar_constants
-
-// CIFAR-10 data loader
-class CIFAR10DataLoader {
-private:
-  std::vector<std::vector<float>> data_;
-  std::vector<int> labels_;
-  size_t current_index_;
-  const int num_classes = 10;
-
-public:
-  bool load_data(const std::vector<std::string> &filenames) {
-    data_.clear();
-    labels_.clear();
-
-    for (const auto &filename : filenames) {
-      std::ifstream file(filename, std::ios::binary);
-      if (!file.is_open()) {
-        std::cerr << "Error: Could not open file " << filename << std::endl;
-        return false;
-      }
-
-      // CIFAR-10 binary format: [1-byte label][3072 bytes of pixel data]
-      const int record_size = 1 + 32 * 32 * 3;
-
-      char buffer[record_size];
-      while (file.read(buffer, record_size)) {
-        labels_.push_back(static_cast<int>(buffer[0]));
-
-        std::vector<float> image_data(32 * 32 * 3);
-        for (int i = 0; i < 3072; ++i) {
-          image_data[i] = static_cast<unsigned char>(buffer[i + 1]) / 255.0f;
-        }
-        data_.push_back(image_data);
-      }
-      std::cout << "Loaded " << data_.size() << " samples from " << filename
-                << std::endl;
-    }
-
-    current_index_ = 0;
-    return true;
-  }
-
-  void shuffle() {
-    std::vector<size_t> indices(data_.size());
-    std::iota(indices.begin(), indices.end(), 0);
-
-    std::random_device rd;
-    std::mt19937 g(rd());
-    std::shuffle(indices.begin(), indices.end(), g);
-
-    std::vector<std::vector<float>> shuffled_data(data_.size());
-    std::vector<int> shuffled_labels(labels_.size());
-
-    for (size_t i = 0; i < indices.size(); ++i) {
-      shuffled_data[i] = data_[indices[i]];
-      shuffled_labels[i] = labels_[indices[i]];
-    }
-
-    data_ = std::move(shuffled_data);
-    labels_ = std::move(shuffled_labels);
-    current_index_ = 0;
-  }
-
-  bool get_batch(int batch_size, Tensor<float> &batch_data,
-                 Tensor<float> &batch_labels) {
-    if (current_index_ >= data_.size()) {
-      return false; // No more data
-    }
-
-    int actual_batch_size =
-        std::min(batch_size, static_cast<int>(data_.size() - current_index_));
-
-    // Create batch data tensor for CNN: (batch_size, channels=3, height=32, width=32)
-    batch_data = Tensor<float>(
-        std::vector<size_t>{static_cast<size_t>(actual_batch_size), 3, 32, 32});
-
-    // Create batch labels tensor (batch_size, 10, 1, 1) - one-hot encoded
-    batch_labels = Tensor<float>(
-        std::vector<size_t>{static_cast<size_t>(actual_batch_size), (size_t)num_classes, 1, 1});
-    batch_labels.fill(0.0);
-
-    for (int i = 0; i < actual_batch_size; ++i) {
-      // Copy pixel data and reshape to 3x32x32
-      for (int c = 0; c < 3; ++c) {
-        for (int h = 0; h < 32; ++h) {
-          for (int w = 0; w < 32; ++w) {
-            // Data is stored in channel-major order: RRR...GGG...BBB...
-            batch_data(i, c, h, w) = data_[current_index_ + i][c * 1024 + h * 32 + w];
-          }
-        }
-      }
-
-      // Set one-hot label
-      int label = labels_[current_index_ + i];
-      batch_labels(i, label, 0, 0) = 1.0;
-    }
-
-    current_index_ += actual_batch_size;
-    return true;
-  }
-
-  void reset() { current_index_ = 0; }
-
-  size_t size() const { return data_.size(); }
-};
-
-// Softmax activation for tensors
-void apply_tensor_softmax(Tensor<float> &tensor) {
-  size_t batch_size = tensor.shape()[0];
-  size_t num_classes = tensor.shape()[1];
-
-  for (size_t batch = 0; batch < batch_size; ++batch) {
-    // Find max for numerical stability
-    float max_val = tensor(batch, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      max_val = std::max(max_val, tensor(batch, j, 0, 0));
-    }
-
-    // Compute exponentials and sum
-    float sum = 0.0;
-    for (size_t j = 0; j < num_classes; ++j) {
-      tensor(batch, j, 0, 0) = std::exp(tensor(batch, j, 0, 0) - max_val);
-      sum += tensor(batch, j, 0, 0);
-    }
-
-    // Normalize
-    for (size_t j = 0; j < num_classes; ++j) {
-      tensor(batch, j, 0, 0) /= sum;
-    }
-  }
-}
-
-// Accuracy calculation for tensors
-float calculate_tensor_accuracy(const Tensor<float> &predictions,
-                                const Tensor<float> &targets) {
-  int correct = 0;
-  size_t batch_size = predictions.shape()[0];
-  size_t num_classes = predictions.shape()[1];
-
-  for (size_t i = 0; i < batch_size; ++i) {
-    // Find predicted class (argmax)
-    int pred_class = 0;
-    float max_pred = predictions(i, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      if (predictions(i, j, 0, 0) > max_pred) {
-        max_pred = predictions(i, j, 0, 0);
-        pred_class = j;
-      }
-    }
-
-    // Find true class
-    int true_class = 0;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (targets(i, j, 0, 0) > 0.5) {
-        true_class = j;
-        break;
-      }
-    }
-
-    if (pred_class == true_class) {
-      correct++;
-    }
-  }
-
-  return static_cast<float>(correct) / batch_size;
-}
 
 // Training function for CNN tensor model
 void train_cnn_model(tnn::Sequential<float> &model,
-                     CIFAR10DataLoader &train_loader,
-                     CIFAR10DataLoader &test_loader, int epochs = 10,
+                     data_loading::CIFAR10DataLoader<float> &train_loader,
+                     data_loading::CIFAR10DataLoader<float> &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
   tnn::SGD<float> optimizer(learning_rate, 0.9);
   
@@ -220,12 +56,12 @@ void train_cnn_model(tnn::Sequential<float> &model,
     while (train_loader.get_batch(batch_size, batch_data, batch_labels)) {
       // Forward pass
       Tensor<float> predictions = model.forward(batch_data);
-      apply_tensor_softmax(predictions);
+      utils::apply_softmax<float>(predictions);
 
       // Compute loss and accuracy
       float loss =
           loss_function->compute_loss(predictions, batch_labels);
-      float accuracy = calculate_tensor_accuracy(predictions, batch_labels);
+      float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
 
       total_loss += loss;
       total_accuracy += accuracy;
@@ -265,11 +101,11 @@ void train_cnn_model(tnn::Sequential<float> &model,
 
     while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
       Tensor<float> predictions = model.forward(batch_data);
-      apply_tensor_softmax(predictions);
+      utils::apply_softmax<float>(predictions);
 
       val_loss +=
           loss_function->compute_loss(predictions, batch_labels);
-      val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
+      val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
       val_batches++;
     }
 
@@ -309,17 +145,18 @@ int main() {
     std::cout << std::string(50, '=') << std::endl;
 
     // Load data
-    CIFAR10DataLoader train_loader, test_loader;
+    data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
 
     std::vector<std::string> train_files;
     for (int i = 1; i <= 5; ++i) {
       train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + std::to_string(i) + ".bin");
     }
-    if (!train_loader.load_data(train_files)) {
+
+    if (!train_loader.load_multiple_files(train_files)) {
       return -1;
     }
 
-    if (!test_loader.load_data({"./data/cifar-10-batches-bin/test_batch.bin"})) {
+    if (!test_loader.load_multiple_files({"./data/cifar-10-batches-bin/test_batch.bin"})) {
       return -1;
     }
 
