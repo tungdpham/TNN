@@ -97,7 +97,7 @@ signed main() {
     return -1;
   }
 
-  omp_set_num_threads(1);
+  omp_set_num_threads(4);
   // Create a sequential model using the builder pattern
   auto model = SequentialBuilder<float>("mnist_cnn_classifier")
                    // C1: First convolution layer - 5x5 kernel, stride 1, ReLU

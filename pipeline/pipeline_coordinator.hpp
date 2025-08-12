@@ -228,7 +228,8 @@ public:
     }
 
     const std::string &last_stage = this->stage_names_[this->num_stages_ - 1];
-
+    printf("Sending %zu gradients to last stage: %s\n", gradients.size(),
+           last_stage.c_str());
     // Send each gradient to the last stage
     for (size_t i = 0; i < gradients.size(); ++i) {
       Task<T> task{TaskType::BACKWARD, gradients[i], static_cast<int>(i)};
@@ -238,6 +239,7 @@ public:
 
       this->send_message_to_stage(last_stage, backward_msg);
     }
+    printf("Sent %zu backward tasks to last stage\n", gradients.size());
 
     this->coordinator_comm_->flush_output_messages();
   }
@@ -246,13 +248,13 @@ public:
     // Set expected task count based on direction
     expected_task_count_ = this->num_microbatches_;
     
-    // printf("Waiting for %d task messages in %s direction\n", 
-    //        this->num_microbatches_, direction ? "forward" : "backward");
+    printf("Waiting for %d task messages in %s direction\n", 
+           this->num_microbatches_, direction ? "forward" : "backward");
 
     std::unique_lock<std::mutex> lock(task_notification_mutex_);
     
     // Wait with timeout for the expected number of task messages to arrive
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
     
     bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->actual_task_message_count() >= 

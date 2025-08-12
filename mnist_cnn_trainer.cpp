@@ -42,15 +42,8 @@ void train_cnn_model(tnn::Sequential<float> &model,
   
   // Create loss function using the new base class approach
   auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
-  // auto loss_function = tnn::LossFactory<float>::create_mse();
 
   Tensor<float> batch_data, batch_labels, predictions;
-
-  std::cout << "Starting optimized CNN tensor model training..." << std::endl;
-  std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
-            << ", Learning rate: " << learning_rate << std::endl;
-  std::cout << "OpenMP threads: " << omp_get_max_threads() << std::endl;
-  std::cout << std::string(70, '=') << std::endl;
 
   // Pre-compute batches for training and validation data
   std::cout << "\nPreparing training batches..." << std::endl;
@@ -157,7 +150,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
               << avg_val_accuracy * 100.0f << "%" << std::endl;
     std::cout << std::string(70, '=') << std::endl;
 
-    // Optimized learning rate decay with better scheduling
+    // Learning rate decay
     if ((epoch + 1) % mnist_constants::LR_DECAY_INTERVAL == 0) {
       const float current_lr = optimizer.get_learning_rate();
       const float new_lr = current_lr * mnist_constants::LR_DECAY_FACTOR;
@@ -169,7 +162,6 @@ void train_cnn_model(tnn::Sequential<float> &model,
   }
 }
 
-// Optimized main function with better error handling and resource management
 int main() {
   try {
     std::cout << "Optimized MNIST CNN Tensor<float> Neural Network Training"
@@ -204,7 +196,7 @@ int main() {
               << " samples" << std::endl;
 
     // Create optimized CNN model architecture
-    std::cout << "\nBuilding optimized CNN model architecture..." << std::endl;
+    std::cout << "\nBuilding CNN model architecture..." << std::endl;
 
     auto model =
         tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
@@ -236,6 +228,7 @@ int main() {
     auto optimizer = std::make_unique<tnn::Adam<float>>(
         mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
+    
     // Set loss function for the model
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss(std::move(loss_function));
