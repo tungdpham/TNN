@@ -50,7 +50,7 @@ int main() {
         // Create distributed coordinator
         std::cout << "\nCreating distributed coordinator..." << std::endl;
         DistributedPipelineCoordinator<float> coordinator(
-            std::move(model), endpoints, 4, 8000);
+            std::move(model), endpoints, 4, "localhost", 8000);
         
         // Deploy stages to remote machines
         std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
@@ -116,7 +116,7 @@ int main() {
         std::cout << "\nCreating dummy gradients for backward pass..." << std::endl;
         std::vector<Tensor<float>> gradients;
         for (int i = 0; i < 4; ++i) {
-            Tensor<float> grad({10}); // Gradient w.r.t. 10 output classes
+            Tensor<float> grad({1, 3, 32, 32}); // Gradient w.r.t. 10 output classes
             grad.fill_random_uniform(0.1f);
             gradients.push_back(grad);
         }

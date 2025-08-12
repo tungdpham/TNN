@@ -34,6 +34,7 @@ public:
     DistributedPipelineCoordinator(tnn::Sequential<T> model, 
                                  const std::vector<RemoteEndpoint>& endpoints,
                                  int num_microbatches = 4,
+                                const std::string& coordinator_host = "localhost",
                                  int coordinator_port = 8000)
         : PipelineCoordinator<T>(static_cast<int>(endpoints.size()), num_microbatches),
           remote_endpoints_(endpoints),
@@ -61,9 +62,14 @@ public:
             // Set up stage interconnections
             if (i > 0) {
                 config.prev_stage_endpoint = endpoints[i-1].host + ":" + std::to_string(endpoints[i-1].port);
+            }else {
+              // first stage connnects to coordinator
+                config.prev_stage_endpoint = coordinator_host + ":" + std::to_string(coordinator_port_);
             }
             if (i < endpoints.size() - 1) {
                 config.next_stage_endpoint = endpoints[i+1].host + ":" + std::to_string(endpoints[i+1].port);
+            }else {
+                config.next_stage_endpoint = coordinator_host + ":" + std::to_string(coordinator_port_);
             }
             
             stage_configs_.push_back(config);
@@ -73,6 +79,12 @@ public:
         // Create coordinator communicator
         this->coordinator_comm_ = std::make_unique<TcpPipelineCommunicator<T>>(
             io_context_, "localhost", coordinator_port_);
+        
+        // Set up message notification callback for event-driven processing
+        this->coordinator_comm_->set_message_notification_callback([this]() {
+            std::lock_guard<std::mutex> lock(task_notification_mutex_);
+            task_notification_cv_.notify_all();
+        });
         
         // Start IO context in background thread
         io_thread_ = std::thread([this]() {
@@ -300,6 +312,9 @@ private:
             auto config_msg = Message<T>::create_text_message(
                 CommandType::CONFIG_RECEIVED, config_json, "coordinator", endpoint.stage_id);
             
+            printf("Sending CONFIG_RECEIVED (type %d) to %s\n", 
+                   static_cast<int>(CommandType::CONFIG_RECEIVED), endpoint.stage_id.c_str());
+            
             this->send_message_to_stage(endpoint.stage_id, config_msg);
             this->coordinator_comm_->flush_output_messages();
             
@@ -318,6 +333,8 @@ private:
         auto start_time = std::chrono::steady_clock::now();
         const auto timeout = std::chrono::seconds(60); // Longer timeout for initial setup
         
+        printf("Waiting for %d stages to report ready...\n", this->num_stages_);
+        
         while (ready_count < this->num_stages_) {
             if (std::chrono::steady_clock::now() - start_time > timeout) {
                 printf("Timeout waiting for stage readiness (%d/%d ready)\n", 
@@ -325,24 +342,34 @@ private:
                 return false;
             }
             
-            // Process incoming messages
-            this->coordinator_comm_->receive_messages();
-            
-            // Check for readiness messages
-            while (this->coordinator_comm_->has_control_message()) {
-                try {
-                    auto message = this->coordinator_comm_->dequeue_message_by_type(CommandType::READY_SIGNAL);
-                    if (message.command_type == CommandType::READY_SIGNAL) {
-                        ready_count++;
-                        printf("Stage %s reported ready (%d/%d)\n", 
-                               message.sender_id.c_str(), ready_count, this->num_stages_);
+            // Check for any incoming messages (using simple polling)
+            if (this->coordinator_comm_->has_input_message()) {
+                printf("Coordinator has input messages available\n");
+                
+                // Process all available messages
+                while (this->coordinator_comm_->has_input_message()) {
+                    try {
+                        auto message = this->coordinator_comm_->dequeue_input_message();
+                        printf("Received message type %d from %s\n", 
+                               static_cast<int>(message.command_type), message.sender_id.c_str());
+                        
+                        if (message.command_type == CommandType::READY_SIGNAL) {
+                            ready_count++;
+                            printf("Stage %s reported ready (%d/%d)\n", 
+                                   message.sender_id.c_str(), ready_count, this->num_stages_);
+                        } else {
+                            printf("Received non-ready message type %d from %s during readiness wait\n",
+                                   static_cast<int>(message.command_type), message.sender_id.c_str());
+                        }
+                    } catch (const std::runtime_error& e) {
+                        printf("Error dequeuing message: %s\n", e.what());
+                        break; // No more messages
                     }
-                } catch (const std::runtime_error& e) {
-                    break; // No more control messages
                 }
             }
             
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            // Small delay to avoid busy waiting
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
         
         return true;
