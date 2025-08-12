@@ -69,7 +69,7 @@ struct Message {
 
     // Helper methods
     bool is_task_message() const {
-        return task.has_value();
+        return command_type == CommandType::FORWARD_TASK || command_type == CommandType::BACKWARD_TASK;
     }
     
     bool is_control_message() const {
@@ -129,6 +129,20 @@ struct Message {
     
     static Message<T> error_message(const std::string& error_text, const std::string& sender = "", const std::string& recipient = "") {
         Message<T> msg(CommandType::ERROR_REPORT, error_text);
+        msg.sender_id = sender;
+        msg.recipient_id = recipient;
+        return msg;
+    }
+    
+    static Message<T> create_text_message(CommandType cmd_type, const std::string& text, const std::string& sender = "", const std::string& recipient = "") {
+        Message<T> msg(cmd_type, text);
+        msg.sender_id = sender;
+        msg.recipient_id = recipient;
+        return msg;
+    }
+    
+    static Message<T> create_signal_message(CommandType cmd_type, bool signal_value, const std::string& sender = "", const std::string& recipient = "") {
+        Message<T> msg(cmd_type, signal_value);
         msg.sender_id = sender;
         msg.recipient_id = recipient;
         return msg;

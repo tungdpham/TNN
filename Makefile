@@ -91,7 +91,7 @@ ifeq ($(OS),Windows_NT)
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
 	rm -f matrix/*.o neural/*.o utils/*.o nn/*.o tensor/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test pipeline_test
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test pipeline_test network_worker distributed_pipeline_example
 	rm -f $(TEST_PROGRAMS)
 endif
 
@@ -169,6 +169,22 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
+# Network worker target
+network_worker: network_worker_main.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. -Ithird_party/asio/asio/include $< -o $@ ${CUDA_LDFLAGS} -pthread
+else
+	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
+endif
+
+# Distributed pipeline example target
+distributed_pipeline_example: distributed_pipeline_example.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. -Ithird_party/asio/asio/include $< -o $@ ${CUDA_LDFLAGS} -pthread
+else
+	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
+endif
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -191,6 +207,8 @@ help:
 	@echo "  cifar100_cnn_trainer - Build CIFAR-100 CNN trainer"
 	@echo "  mnist_cnn_test - Build MNIST CNN test program"
 	@echo "  mnist_cnn_pipeline_trainer - Build MNIST CNN pipeline trainer"
+	@echo "  network_worker - Build network pipeline stage worker"
+	@echo "  distributed_pipeline_example - Build distributed pipeline example"
 	@echo "  uji_ips_trainer    - Build IPS trainer"
 	@echo "  tests          - Build all test programs"
 	@echo "  clean          - Remove object files and executables"
@@ -199,4 +217,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test network_worker distributed_pipeline_example $(TEST_PROGRAMS)

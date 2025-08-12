@@ -56,18 +56,18 @@ inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
 
     for (size_t i = 0; i < threads; ++i) {
         workers.emplace_back([this, i] {
-#ifdef __linux__
-            // Set CPU affinity for this worker thread
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(this->num_cores - (i % this->num_cores), &cpuset); // Pin to a core, wrapping around if needed
-            std::cout << "Setting CPU affinity for thread " << i << " to core " << (this->num_cores - (i % this->num_cores)) << std::endl;
+// #ifdef __linux__
+//             // Set CPU affinity for this worker thread
+//             cpu_set_t cpuset;
+//             CPU_ZERO(&cpuset);
+//             CPU_SET(this->num_cores - (i % this->num_cores), &cpuset); // Pin to a core, wrapping around if needed
+//             std::cout << "Setting CPU affinity for thread " << i << " to core " << (this->num_cores - (i % this->num_cores)) << std::endl;
 
-            if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
-                // Error setting affinity, perhaps log this
-                std::cerr << "Warning: Could not set CPU affinity for thread " << i << std::endl;
-            }
-#endif
+//             if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
+//                 // Error setting affinity, perhaps log this
+//                 std::cerr << "Warning: Could not set CPU affinity for thread " << i << std::endl;
+//             }
+// #endif
             for (;;) {
                 std::function<void()> task;
                 {
