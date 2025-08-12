@@ -22,7 +22,30 @@ enum class MessagePriority {
 template <typename T = float> class PipelineCommunicator {
 public:
   PipelineCommunicator() = default;
-  virtual ~PipelineCommunicator() = default;
+  
+  virtual ~PipelineCommunicator() {
+    // Clear all message queues
+    std::lock_guard<std::mutex> in_lock(in_message_mutex_);
+    std::lock_guard<std::mutex> out_lock(out_message_mutex_);
+    std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
+    
+    // Clear queues
+    std::queue<tpipeline::Message<T>> empty_task;
+    std::queue<tpipeline::Message<T>> empty_control;
+    std::queue<tpipeline::Message<T>> empty_status;
+    std::queue<OutgoingMessage> empty_out;
+    
+    task_queue_.swap(empty_task);
+    control_queue_.swap(empty_control);
+    status_queue_.swap(empty_status);
+    out_message_queue_.swap(empty_out);
+    
+    // Clear maps
+    recipients_.clear();
+    
+    // Reset callback
+    message_notification_callback_ = nullptr;
+  }
 
   // Send a message to a specific recipient
   virtual void send_message(const std::string& recipient_id, const tpipeline::Message<T>& message) = 0;

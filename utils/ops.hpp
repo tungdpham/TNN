@@ -1,3 +1,5 @@
+#pragma once
+
 #include <memory>
 #include <stdlib.h>
 
@@ -22,6 +24,71 @@ void transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
       }
     }
   }
+}
+
+template <typename T>
+void apply_softmax(Tensor<float> &tensor) {
+  const size_t batch_size = tensor.shape()[0];
+  const size_t num_classes = tensor.shape()[1];
+
+#pragma omp parallel for if (batch_size > 16)
+  for (size_t batch = 0; batch < batch_size; ++batch) {
+    float max_val = tensor(batch, 0, 0, 0);
+    for (size_t j = 1; j < num_classes; ++j) {
+      max_val = std::max(max_val, tensor(batch, j, 0, 0));
+    }
+
+    float sum = 0.0f;
+    for (size_t j = 0; j < num_classes; ++j) {
+      const float exp_val = std::exp(tensor(batch, j, 0, 0) - max_val);
+      tensor(batch, j, 0, 0) = exp_val;
+      sum += exp_val;
+    }
+
+    const float inv_sum = 1.0f / std::max(sum, 1e-8f); 
+    for (size_t j = 0; j < num_classes; ++j) {
+      tensor(batch, j, 0, 0) *= inv_sum;
+    }
+  }
+}
+
+template <typename T>
+float compute_class_accuracy(const Tensor<float> &predictions,
+                                const Tensor<float> &targets) {
+  const size_t batch_size = predictions.shape()[0];
+  const size_t num_classes = predictions.shape()[1];
+
+  int total_correct = 0;
+
+// Parallelize accuracy computation with reduction
+#pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
+  for (size_t i = 0; i < batch_size; ++i) {
+    // Find predicted class (argmax) - more efficient implementation
+    int pred_class = 0;
+    float max_pred = predictions(i, 0, 0, 0);
+    for (size_t j = 1; j < num_classes; ++j) {
+      const float pred_val = predictions(i, j, 0, 0);
+      if (pred_val > max_pred) {
+        max_pred = pred_val;
+        pred_class = static_cast<int>(j);
+      }
+    }
+
+    // Find true class - early termination when found
+    int true_class = -1;
+    for (size_t j = 0; j < num_classes; ++j) {
+      if (targets(i, j, 0, 0) > 0.5f) {
+        true_class = static_cast<int>(j);
+        break;
+      }
+    }
+
+    if (pred_class == true_class && true_class != -1) {
+      total_correct++;
+    }
+  }
+
+  return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
 template <typename T>
@@ -105,4 +172,7 @@ T simd_dot_product_contiguous(const T *weights, const T *col_data,
 
   return sum;
 }
+
+
+
 } // namespace utils

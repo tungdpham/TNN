@@ -10,7 +10,7 @@ ENABLE_DEBUG ?= 0
 
 # Source files
 CXX_SOURCES = $(wildcard matrix/*.cpp nn/*.cpp utils/*.cpp)
-HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp tensor/*.hpp pipeline_experimental/*.hpp)
+HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp tensor/*.hpp pipeline/*.hpp)
 CU_SOURCES = $(wildcard matrix/*.cu neural/*.cu utils/*.cu)
 
 # Object files
@@ -23,18 +23,15 @@ else
 endif
 
 # Compilation flags - Updated to C++17 for compatibility
-CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=native -mavx -mavx2 -flto
+CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=haswell -mavx -mavx2 -flto
 NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
 CUDA_LDFLAGS = -lm -lcudart -lcublas -lcurand
 
-DEBUG_FLAGS = -g -fsanitize=address
+DEBUG_FLAGS = -std=c++17 -Wpedantic -O0 -march=haswell -mavx -mavx2 -flto -g -fsanitize=address
 
 ifeq ($(ENABLE_DEBUG),1)
-	CXXFLAGS += $(DEBUG_FLAGS)
-	NVCCFLAGS += $(DEBUG_FLAGS)
-	LDFLAGS += $(DEBUG_FLAGS)
-	CUDA_LDFLAGS += $(DEBUG_FLAGS)
+	CXXFLAGS = $(DEBUG_FLAGS)
 endif
 
 # Add OpenMP support

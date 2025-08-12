@@ -366,7 +366,7 @@ public:
   }
 
   // Parameter management
-  std::vector<Tensor<T> *> parameters() {
+  std::vector<Tensor<T> *> parameters() const {
     std::vector<Tensor<T> *> all_params;
     for (auto &layer : layers_) {
       auto layer_params = layer->parameters();
@@ -376,7 +376,7 @@ public:
     return all_params;
   }
 
-  std::vector<Tensor<T> *> gradients() {
+  std::vector<Tensor<T> *> gradients() const {
     std::vector<Tensor<T> *> all_grads;
     for (auto &layer : layers_) {
       auto layer_grads = layer->gradients();
@@ -607,10 +607,12 @@ public:
 
   // Update all parameters using an optimizer
   void update_parameters() const {
-    for (auto &layer : layers_) {
-      if (layer->has_parameters()) {
-        layer->update_parameters(*(this->optimizer_));
-      }
+    auto params = parameters();
+    auto grads = gradients();
+    if (optimizer_) {
+      optimizer_->update(params, grads);
+    } else {
+      throw std::runtime_error("No optimizer set for model: " + name_); 
     }
   }
 
@@ -860,7 +862,7 @@ public:
 };
 
 // Builder pattern for easy model construction
-template <typename T = double> class SequentialBuilder {
+template <typename T = float> class SequentialBuilder {
 private:
   Sequential<T> model_;
 

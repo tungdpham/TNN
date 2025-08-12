@@ -206,12 +206,12 @@ private:
                              T *weight_grad_data, size_t batch_size,
                              size_t input_features,
                              size_t output_features) const {
-    std::vector<T> input_transposed(input_features * batch_size);
-    std::vector<T> grad_output_transposed(output_features * batch_size);
+    auto input_transposed = std::make_unique<T[]>(input_features * batch_size);
+    auto grad_output_transposed = std::make_unique<T[]>(output_features * batch_size);
 
-    utils::transpose_2d(input_data, input_transposed.data(), 
+    utils::transpose_2d(input_data, input_transposed.get(), 
                         batch_size, input_features);
-    utils::transpose_2d(grad_output_data, grad_output_transposed.data(), 
+    utils::transpose_2d(grad_output_data, grad_output_transposed.get(), 
                         batch_size, output_features);
     
 #ifdef _OPENMP
@@ -233,8 +233,8 @@ private:
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
-    std::vector<T> weights_transposed(input_features * output_features);
-    utils::transpose_2d(weight_data, weights_transposed.data(), 
+    auto weights_transposed = std::make_unique<T[]>(input_features * output_features);
+    utils::transpose_2d(weight_data, weights_transposed.get(), 
                         output_features, input_features);
     
 #ifdef _OPENMP
@@ -462,7 +462,7 @@ protected:
 };
 
 // Activation Layer (stateless)
-template <typename T = double>
+template <typename T = float>
 class ActivationLayer : public StatelessLayer<T> {
 private:
   std::unique_ptr<ActivationFunction<T>> activation_;
@@ -518,7 +518,7 @@ public:
 };
 
 // 2D Convolutional Layer using im2col + GEMM
-template <typename T = double>
+template <typename T = float>
 class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
@@ -575,8 +575,8 @@ private:
     // Transpose im2col matrix for better memory access patterns
     // Original: col_data[kernel_size x output_size]
     // Transposed: col_data_T[output_size x kernel_size]
-    std::vector<T> col_data_transposed(kernel_size * output_size);
-    utils::transpose_2d(col_data, col_data_transposed.data(), kernel_size,
+    auto col_data_transposed = std::make_unique<T[]>(kernel_size * output_size);
+    utils::transpose_2d(col_data, col_data_transposed.get(), kernel_size,
                         output_size);
 
 #ifdef _OPENMP
@@ -618,12 +618,12 @@ private:
                                       const size_t out_channels) const {
 
     // Transpose grad_output matrix for better memory access patterns
-    std::vector<T> grad_output_transposed(out_channels * output_size);
-    utils::transpose_2d(grad_output_data, grad_output_transposed.data(),
+    auto grad_output_transposed = std::make_unique<T[]>(out_channels * output_size);
+    utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
                         out_channels, output_size);
 
-    std::vector<T> weights_transposed(out_channels * kernel_size);
-    utils::transpose_2d(weight_data, weights_transposed.data(), out_channels,
+    auto weights_transposed = std::make_unique<T[]>(kernel_size * out_channels);
+    utils::transpose_2d(weight_data, weights_transposed.get(), out_channels,
                         kernel_size);
 
 #ifdef _OPENMP
@@ -699,8 +699,8 @@ public:
     size_t output_size = batch_size * output_h * output_w;
 
     // Perform convolution using GEMM
-    std::vector<T> output_flat(out_channels_ * output_size);
-    conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.data(),
+    auto output_flat = std::make_unique<T[]>(out_channels_ * output_size);
+    conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.get(),
                       output_size, kernel_size, out_channels_);
 
     T *output_data = output.data();
@@ -803,7 +803,7 @@ public:
     size_t output_size = batch_size * output_h * output_w;
 
     // Flatten gradient output for GEMM
-    std::vector<T> grad_output_flat(out_channels_ * output_size);
+    auto grad_output_flat = std::make_unique<T[]>(out_channels_ * output_size);
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
@@ -821,7 +821,7 @@ public:
 
     // Compute weight gradients
     conv_gemm_weight_gradients(
-        cached_im2col_matrix.data(), grad_output_flat.data(),
+        cached_im2col_matrix.data(), grad_output_flat.get(),
         weight_gradients_.data(), output_size, kernel_size, out_channels_);
 
     // Compute bias gradients
@@ -844,7 +844,7 @@ public:
 
     // Compute input gradients
     Matrix<T> col_grad_matrix(kernel_size, output_size);
-    conv_gemm_input_gradients(grad_output_flat.data(), weights_.data(),
+    conv_gemm_input_gradients(grad_output_flat.get(), weights_.data(),
                               col_grad_matrix.data(), output_size, kernel_size,
                               out_channels_);
 
@@ -915,7 +915,7 @@ protected:
   }
 };
 
-template <typename T = double> class MaxPool2DLayer : public StatelessLayer<T> {
+template <typename T = float> class MaxPool2DLayer : public StatelessLayer<T> {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -1150,7 +1150,7 @@ public:
 };
 
 // Dropout Layer
-template <typename T = double> class DropoutLayer : public StatelessLayer<T> {
+template <typename T = float> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
   std::unordered_map<int, Tensor<T>> micro_batch_masks_;
@@ -1264,7 +1264,7 @@ public:
 };
 
 // Batch Normalization Layer
-template <typename T = double> class BatchNormLayer : public ParameterizedLayer<T> {
+template <typename T = float> class BatchNormLayer : public ParameterizedLayer<T> {
 private:
   size_t num_features_;
   T epsilon_;
@@ -1640,7 +1640,7 @@ protected:
 
 // Flatten Layer for converting from 4D to 2D tensors (for compatibility with
 // dense layers)
-template <typename T = double> class FlattenLayer : public StatelessLayer<T> {
+template <typename T = float> class FlattenLayer : public StatelessLayer<T> {
 private:
   std::unordered_map<int, std::vector<size_t>> micro_batch_original_shapes_;
 
@@ -1700,7 +1700,7 @@ public:
 };
 
 // Layer Factory
-template <typename T = double> class LayerFactory {
+template <typename T = float> class LayerFactory {
 private:
   static std::unordered_map<
       std::string,
@@ -1850,7 +1850,7 @@ std::unordered_map<
 // Convenience functions for creating layers
 namespace tnn {
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>>
 dense(size_t input_features, size_t output_features,
       const std::string &activation = "none", bool use_bias = true,
@@ -1866,7 +1866,7 @@ dense(size_t input_features, size_t output_features,
       input_features, output_features, std::move(act), use_bias, name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>>
 conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
        size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
@@ -1884,7 +1884,7 @@ conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
       pad_w, use_bias, std::move(act), name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>>
 activation(const std::string &activation_name,
            const std::string &name = "activation") {
@@ -1894,7 +1894,7 @@ activation(const std::string &activation_name,
   return std::make_unique<tnn::ActivationLayer<T>>(std::move(act), name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>>
 maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
           size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
@@ -1903,13 +1903,13 @@ maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
       pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>> dropout(T dropout_rate,
                                           const std::string &name = "dropout") {
   return std::make_unique<tnn::DropoutLayer<T>>(dropout_rate, name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>> batchnorm(size_t num_features, 
                                             T epsilon = T(1e-5), 
                                             T momentum = T(0.1), 
@@ -1918,7 +1918,7 @@ std::unique_ptr<tnn::Layer<T>> batchnorm(size_t num_features,
   return std::make_unique<tnn::BatchNormLayer<T>>(num_features, epsilon, momentum, affine, name);
 }
 
-template <typename T = double>
+template <typename T = float>
 std::unique_ptr<tnn::Layer<T>> flatten(const std::string &name = "flatten") {
   return std::make_unique<tnn::FlattenLayer<T>>(name);
 }

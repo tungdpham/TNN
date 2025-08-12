@@ -207,7 +207,7 @@ public:
     }
     Matrix result(rows_, other.cols_);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(static, 1)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (int r = 0; r < rows_; ++r) {
       for (int c = 0; c < other.cols_; ++c) {
@@ -238,7 +238,7 @@ public:
   Matrix transpose() const {
     Matrix result(cols_, rows_);
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(static, 1)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (int r = 0; r < rows_; ++r) {
       for (int c = 0; c < cols_; ++c) {
@@ -260,7 +260,7 @@ public:
     Matrix result(rows_ + 2 * padrows_, cols_ + 2 * padcols_);
     result.fill(value);
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (int r = 0; r < rows_; ++r) {
       for (int c = 0; c < cols_; ++c) {
@@ -327,7 +327,7 @@ public:
     T* result_data = result.data_;
     
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2) schedule(static, 1)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (int r = 0; r < a.rows_; ++r) {
       for (int c = 0; c < b.cols_; ++c) {

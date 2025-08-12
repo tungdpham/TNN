@@ -359,7 +359,7 @@ public:
     result.fill(value);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static, 1)
+#pragma omp parallel for collapse(4) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -392,7 +392,7 @@ public:
     Tensor<T, layout> result(batch_size(), channels(), new_height, new_width);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static, 1)
+#pragma omp parallel for collapse(4) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -446,7 +446,7 @@ public:
       Tensor<T, layout> result(batch_size(), new_channels, height(), width());
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static, 1)
+#pragma omp parallel for collapse(4) schedule(static)
 #endif
       for (size_t n = 0; n < batch_size(); ++n) {
         for (size_t c = 0; c < new_channels; ++c) {
@@ -478,7 +478,7 @@ public:
     Tensor<T, layout> result(shape_vec);
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx)
       result.data_[idx] = data_[idx] + other.data_[idx];
@@ -498,7 +498,7 @@ public:
     Tensor<T, layout> result(shape_vec);
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       result.data_[idx] = data_[idx] - other.data_[idx];
@@ -511,7 +511,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
     Tensor<T, layout> result(shape_vec);
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] * scalar;
@@ -527,7 +527,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
     Tensor<T, layout> result(shape_vec);
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] / scalar;
@@ -545,7 +545,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] += other.data_[idx];
@@ -563,7 +563,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] -= other.data_[idx];
@@ -582,7 +582,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] *= other.data_[idx];
@@ -593,7 +593,7 @@ public:
 
   Tensor<T, layout> &operator*=(T scalar) {
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] *= scalar;
@@ -607,7 +607,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for schedule(static, 1)
+#pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] /= scalar;
@@ -619,7 +619,7 @@ public:
   T mean() const {
     T sum = T(0);
 #ifdef _OPENMP
-#pragma omp parallel for reduction(+ : sum) schedule(static, 1)
+#pragma omp parallel for reduction(+ : sum) schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       sum += data_[i];
@@ -631,7 +631,7 @@ public:
     T m = mean();
     T sum_sq_diff = T(0);
 #ifdef _OPENMP
-#pragma omp parallel for reduction(+ : sum_sq_diff) schedule(static, 1)
+#pragma omp parallel for reduction(+ : sum_sq_diff) schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
       T diff = data_[i] - m;

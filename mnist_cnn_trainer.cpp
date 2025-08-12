@@ -19,6 +19,7 @@
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/mnist_data_loader.hpp"
+#include "utils/ops.hpp"
 
 // Constants for MNIST dataset
 namespace mnist_constants {
@@ -26,76 +27,12 @@ namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 1; 
-constexpr size_t BATCH_SIZE = 128; // Good balance between memory and convergence
+constexpr size_t BATCH_SIZE = 64; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
 
 } // namespace mnist_constants
-
-void apply_tensor_softmax(Tensor<float> &tensor) {
-  const size_t batch_size = tensor.shape()[0];
-  const size_t num_classes = tensor.shape()[1];
-
-#pragma omp parallel for if (batch_size > 16)
-  for (size_t batch = 0; batch < batch_size; ++batch) {
-    float max_val = tensor(batch, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      max_val = std::max(max_val, tensor(batch, j, 0, 0));
-    }
-
-    float sum = 0.0f;
-    for (size_t j = 0; j < num_classes; ++j) {
-      const float exp_val = std::exp(tensor(batch, j, 0, 0) - max_val);
-      tensor(batch, j, 0, 0) = exp_val;
-      sum += exp_val;
-    }
-
-    const float inv_sum = 1.0f / std::max(sum, mnist_constants::EPSILON);
-    for (size_t j = 0; j < num_classes; ++j) {
-      tensor(batch, j, 0, 0) *= inv_sum;
-    }
-  }
-}
-
-// Optimized accuracy calculation for tensors
-float calculate_tensor_accuracy(const Tensor<float> &predictions,
-                                const Tensor<float> &targets) {
-  const size_t batch_size = predictions.shape()[0];
-  const size_t num_classes = predictions.shape()[1];
-
-  int total_correct = 0;
-
-// Parallelize accuracy computation with reduction
-#pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
-  for (size_t i = 0; i < batch_size; ++i) {
-    // Find predicted class (argmax) - more efficient implementation
-    int pred_class = 0;
-    float max_pred = predictions(i, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      const float pred_val = predictions(i, j, 0, 0);
-      if (pred_val > max_pred) {
-        max_pred = pred_val;
-        pred_class = static_cast<int>(j);
-      }
-    }
-
-    // Find true class - early termination when found
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (targets(i, j, 0, 0) > 0.5f) {
-        true_class = static_cast<int>(j);
-        break;
-      }
-    }
-
-    if (pred_class == true_class && true_class != -1) {
-      total_correct++;
-    }
-  }
-
-  return static_cast<float>(total_correct) / static_cast<float>(batch_size);
-}
 
 void train_cnn_model(tnn::Sequential<float> &model,
                      data_loading::MNISTDataLoader<float> &train_loader,
@@ -145,13 +82,13 @@ void train_cnn_model(tnn::Sequential<float> &model,
 
       // Forward pass
       predictions = model.forward(batch_data);
-      apply_tensor_softmax(predictions);
+      utils::apply_softmax<float>(predictions);
 
       // Compute loss and accuracy
       const float loss =
           loss_function->compute_loss(predictions, batch_labels);
       const float accuracy =
-          calculate_tensor_accuracy(predictions, batch_labels);
+          utils::compute_class_accuracy<float>(predictions, batch_labels);
 
       total_loss += loss;
       total_accuracy += accuracy;
@@ -191,11 +128,11 @@ void train_cnn_model(tnn::Sequential<float> &model,
     // Use fast batch iteration with pre-computed validation batches
     while (test_loader.get_next_batch(batch_data, batch_labels)) {
       predictions = model.forward(batch_data);
-      apply_tensor_softmax(predictions);
+      utils::apply_softmax<float>(predictions);
 
       val_loss +=
           loss_function->compute_loss(predictions, batch_labels);
-      val_accuracy += calculate_tensor_accuracy(predictions, batch_labels);
+      val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
       ++val_batches;
     }
 
@@ -242,7 +179,7 @@ int main() {
     // Set OpenMP configuration for optimal performance
     const int num_threads = omp_get_max_threads();
     omp_set_num_threads(
-        std::min(num_threads, 4)); // Limit threads to avoid overhead
+        std::min(num_threads, 8)); // Limit threads to avoid overhead
 
     std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
               << std::endl;
@@ -274,8 +211,6 @@ int main() {
             // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
             // activation Input: 1x28x28 → Output: 8x24x24 (28-5+1=24)
             .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-            // .batchnorm(8, 1e-5, 0.1, true, "batchnorm1")
-            // .activation("relu", "relu1")
             // P1: Max pooling layer - 3x3 blocks, stride 3
             // Input: 8x24x24 → Output: 8x8x8 (24/3=8)
             .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
@@ -312,11 +247,6 @@ int main() {
     std::cout << "\nModel Architecture Summary:" << std::endl;
     model.print_summary(std::vector<size_t>{
         mnist_constants::BATCH_SIZE, 1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
-
-    // Train the CNN model with optimized hyperparameters
-    std::cout
-        << "\nStarting optimized CNN training with improved hyperparameters..."
-        << std::endl;
 
     train_cnn_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
                     mnist_constants::BATCH_SIZE, mnist_constants::LR_INITIAL);

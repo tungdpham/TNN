@@ -26,9 +26,11 @@ public:
       const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)),
         name_(name), should_stop_(false), is_processing_(false),
-        thread_pool_(2) {}
+        thread_pool_(1), task_handler_pool_(1) {}
 
-  virtual ~PipelineStage() { stop(); }
+  virtual ~PipelineStage() { 
+    stop(); 
+  }
 
   virtual void start() {
     should_stop_ = false;
@@ -61,7 +63,7 @@ protected:
 
       if (communicator_->has_input_message() && !is_processing_) {
         is_processing_ = true;
-        thread_pool_.enqueue([this]() {
+        task_handler_pool_.enqueue([this]() {
           try {
             tpipeline::Message<T> message =
                 communicator_->dequeue_input_message();
@@ -207,6 +209,7 @@ protected:
   std::atomic<bool> is_processing_task_;
 
   ThreadPool thread_pool_;
+  ThreadPool task_handler_pool_;
   std::future<void> event_listener_future_;
 
   std::mutex message_available_mutex_;
