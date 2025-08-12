@@ -14,6 +14,7 @@
 #include "optimizers.hpp"
 
 using nlohmann::json;
+
 namespace tnn {
 
 // Sequential model for layers
@@ -774,7 +775,7 @@ public:
   static Sequential<T> load_from_config(const nlohmann::json& config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-    
+    printf("Loading model from configuration: %s\n", model.name_.c_str());
     // Load optimizer if present
     if (config.contains("optimizer")) {
       printf("Loading optimizer configuration...\n");
@@ -785,9 +786,9 @@ public:
       if (config["optimizer"].contains("parameters")) {
         for (const auto& [key, value] : config["optimizer"]["parameters"].items()) {
           if (value.is_number_float()) {
-            opt_config.parameters[key] = value.get<float>();
+            opt_config.parameters[key] = value.template get<float>();
           } else if (value.is_number_integer()) {
-            opt_config.parameters[key] = value.get<int>();
+            opt_config.parameters[key] = value.template get<int>();
           }
         }
       }
@@ -805,9 +806,9 @@ public:
       if (config["loss"].contains("parameters")) {
         for (const auto& [key, value] : config["loss"]["parameters"].items()) {
           if (value.is_number_float()) {
-            loss_config.parameters[key] = value.get<float>();
+            loss_config.parameters[key] = value.template get<float>();
           } else if (value.is_number_integer()) {
-            loss_config.parameters[key] = value.get<int>();
+            loss_config.parameters[key] = value.template get<int>();
           }
         }
       }
@@ -828,13 +829,13 @@ public:
         if (layer_json.contains("parameters")) {
           for (const auto& [key, value] : layer_json["parameters"].items()) {
             if (value.is_number_integer()) {
-              layer_config.parameters[key] = value.get<size_t>();
+              layer_config.parameters[key] = value.template get<size_t>();
             } else if (value.is_number_float()) {
-              layer_config.parameters[key] = value.get<float>();
+              layer_config.parameters[key] = value.template get<float>();
             } else if (value.is_boolean()) {
-              layer_config.parameters[key] = value.get<bool>();
+              layer_config.parameters[key] = value.template get<bool>();
             } else if (value.is_string()) {
-              layer_config.parameters[key] = value.get<std::string>();
+              layer_config.parameters[key] = value.template get<std::string>();
             }
           }
         }

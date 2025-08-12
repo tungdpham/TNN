@@ -10,6 +10,11 @@
 using namespace tnn;
 using namespace tpipeline;
 
+namespace mnist_constants {
+    constexpr float LR_INITIAL = 0.001f;
+    constexpr float EPSILON = 1e-15f;
+}
+
 // Create a simple CNN model for demonstration
 Sequential<float> create_demo_model() {
     SequentialBuilder<float> builder("distributed_cnn");
@@ -23,7 +28,15 @@ Sequential<float> create_demo_model() {
            .dense(4096, 512, "relu")                      // 512
            .dense(512, 10, "none");                       // 10 (classes)
     
-    return builder.build();
+    Sequential<float> model = builder.build();
+    auto optimizer = std::make_unique<tnn::Adam<float>>(
+        mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    model.set_optimizer(std::move(optimizer));
+    
+    // Set loss function for the model
+    auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+    model.set_loss(std::move(loss_function));
+    return model;
 }
 
 int main() {

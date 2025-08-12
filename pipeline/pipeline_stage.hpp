@@ -70,6 +70,8 @@ protected:
             process_message(message);
           } catch (const std::exception &e) {
             // Send error message to coordinator
+            std::cerr << "Error processing message in stage "
+                      << name_ << ": " << e.what() << std::endl;
             auto error_msg = Message<T>::error_message(
                 std::string("Stage processing error: ") + e.what(), name_,
                 "coordinator");
@@ -120,7 +122,7 @@ protected:
       break;
 
     case CommandType::STOP_TRAINING:
-      printf("Stage %s received START_TRAINING command\n", name_.c_str());
+      printf("Stage %s received STOP_TRAINING command\n", name_.c_str());
       this->stop();
       break;
 

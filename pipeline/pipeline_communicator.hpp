@@ -385,7 +385,7 @@ public:
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
     MessagePriority target_priority = get_message_priority(target_type);
-    
+
     auto check_queue = [target_type](const std::queue<tpipeline::Message<T>>& queue) {
       auto temp_queue = queue;
       while (!temp_queue.empty()) {
@@ -416,7 +416,8 @@ public:
   }
 
   inline bool has_parameter_update_message() const {
-    return has_message_of_type(CommandType::PARAMETERS_UPDATED);
+    bool has_update = has_message_of_type(CommandType::PARAMETERS_UPDATED);
+    return has_update;
   }
 
   inline bool has_control_message() const {
