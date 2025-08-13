@@ -9,9 +9,9 @@ enum TaskType { FORWARD, BACKWARD };
 template <typename T = float> struct Task {
   TaskType type;
   Tensor<T> data;
-  int micro_batch_id;
+  size_t micro_batch_id;
 
-  Task(TaskType t, const Tensor<T> &d, int mb_id)
+  Task(TaskType t, const Tensor<T> &d, size_t mb_id)
       : type(t), data(d), micro_batch_id(mb_id) {}
 
   std::string to_string() const {

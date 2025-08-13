@@ -30,6 +30,20 @@ public:
 
   virtual ~PipelineStage() { }
 
+  virtual void start() {
+    if(!should_stop_) {
+      std::cerr << "Stage " << name_ << " is already running" << std::endl;
+      return;
+    }
+
+    should_stop_ = false;
+
+    communicator_->set_message_notification_callback(
+        [this]() {
+          process_message(communicator_->dequeue_input_message());
+        });
+  }
+
   void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
     case CommandType::FORWARD_TASK:
@@ -40,6 +54,7 @@ public:
       auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                           task_end - task_start)
                           .count();
+      printf("Stage %s processed task in %ld ms\n", name_.c_str(), duration);
     } break;
     case CommandType::UPDATE_PARAMETERS:
       if (model_) {
@@ -89,7 +104,6 @@ public:
     }
   }
 
-  bool is_processing() const { return is_processing_; }
   tnn::Sequential<T> *get_model() { return model_.get(); }
   std::string name() const { return name_; }
   PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }

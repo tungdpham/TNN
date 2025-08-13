@@ -12,7 +12,6 @@
 
 namespace tnn {
 
-// Forward declaration for WiFiDataLoader (needed for DistanceLoss)
 // Configuration structure for loss functions
 struct LossConfig {
     std::string type;

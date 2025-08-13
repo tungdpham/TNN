@@ -92,9 +92,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
       model.backward(loss_gradient);
 
       // Update parameters
-      auto params = model.parameters();
-      auto grads = model.gradients();
-      optimizer.update(params, grads);
+      model.update_parameters();
 
       // Print progress at intervals
       if (num_batches % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {

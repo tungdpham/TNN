@@ -39,7 +39,7 @@ signed main() {
                    // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
                    // activation Input: 1x28x28 → Output: 8x24x24 (28-5+1=24)
                    .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-                   
+
                    // P1: Max pooling layer - 3x3 blocks, stride 3
                    // Input: 8x24x24 → Output: 8x8x8 (24/3=8)
                    .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
@@ -84,11 +84,26 @@ signed main() {
   printf("Starting training loop...\n");
   // pipeline_coordinator.start();
 
+  auto loss_function = tnn::LossFactory<float>::create("crossentropy");
+
   auto epoch_start = std::chrono::high_resolution_clock::now();
+
+  float loss = 0.0f;
+  float avg_accuracy = 0.0f;
+
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
+    std::vector<Tensor<float>> micro_batches =
+        batch_data.split(mnist_constants::NUM_MICROBATCHES);
+
+    std::vector<Tensor<float>> micro_batch_labels =
+        batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
     auto forward_start = std::chrono::high_resolution_clock::now();
+
     // Process a batch of data
-    pipeline_coordinator.forward(batch_data);
+    for (int i = 0; i < micro_batches.size(); ++i) {
+      pipeline_coordinator.forward(micro_batches[i], i);
+    }
 
     pipeline_coordinator.join(1);
 
@@ -110,68 +125,42 @@ signed main() {
     }
 
     // Extract tasks from messages
-    std::vector<tpipeline::Task<float>> all_tasks;
+    std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
       if (message.is_task_message()) {
-        all_tasks.push_back(message.task.value());
+        forward_tasks.push_back(message.task.value());
       }
     }
 
-    std::vector<Tensor<float>> outputs;
-    sort(all_tasks.begin(), all_tasks.end(),
-         [](const tpipeline::Task<float> &a, const tpipeline::Task<float> &b) {
-           return a.micro_batch_id < b.micro_batch_id;
-         });
-    for (const auto &task : all_tasks) {
-      if (task.type == tpipeline::TaskType::FORWARD) {
-        outputs.push_back(task.data);
-      } else {
-        throw new std::runtime_error(
-            "Unexpected task type in forward processing: " +
-            std::to_string(static_cast<int>(task.type)));
-      }
+    std::vector<tpipeline::Task<float>> backward_tasks;
+    for (auto &task : forward_tasks) {
+      // Compute loss for each microbatch
+      loss = loss_function->compute_loss(task.data, 
+                                                       micro_batch_labels[task.micro_batch_id]);
+      avg_accuracy = utils::compute_class_accuracy<float>(
+          task.data, micro_batch_labels[task.micro_batch_id]);
+
+      Tensor<float> gradient =
+          loss_function->compute_gradient(task.data, micro_batch_labels[task.micro_batch_id]);
+
+      // Create backward task
+      tpipeline::Task<float> backward_task{tpipeline::TaskType::BACKWARD, gradient,
+                                           task.micro_batch_id};
+
+      backward_tasks.push_back(backward_task);
     }
 
-    // Compute loss and accuracy using the output tensors
-    // Apply softmax to outputs
-    for (auto &output : outputs) {
-      utils::apply_softmax<float>(output);
-    }
-
-    // Compute loss and accuracy using the output tensors
-    auto loss_function = tnn::LossFactory<float>::create("crossentropy");
-    float total_loss = 0.0f;
-
-    std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(mnist_constants::NUM_MICROBATCHES);
-
-    for (int i = 0; i < outputs.size(); ++i) {
-      total_loss +=
-          loss_function->compute_loss(outputs[i], micro_batch_labels[i]);
-    }
-
-    float accuracy = 0;
-
-    for (int i = 0; i < outputs.size(); ++i) {
-      accuracy += utils::compute_class_accuracy<float>(outputs[i], micro_batch_labels[i]);
-    }
-
-    accuracy /= outputs.size();
-
-    // Compute gradient with respect to the loss
-    std::vector<Tensor<float>> gradients;
-    for (int i = 0; i < micro_batch_labels.size(); ++i) {
-      gradients.push_back(
-          loss_function->compute_gradient(outputs[i], micro_batch_labels[i]));
-    }
     auto compute_loss_end = std::chrono::high_resolution_clock::now();
     auto compute_loss_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             compute_loss_end - compute_loss_start);
 
     auto backward_start = std::chrono::high_resolution_clock::now();
+
     // Backward pass
-    pipeline_coordinator.backward(gradients);
+    for (const auto &task : backward_tasks) {
+      pipeline_coordinator.backward(task.data, task.micro_batch_id);
+    }
 
     pipeline_coordinator.join(0); // join backward tasks
 
@@ -190,8 +179,8 @@ signed main() {
              compute_loss_duration.count());
       printf("Backward pass completed in %ld ms\n", backward_duration.count());
       printf("Batch %d/%zu - Loss: %.4f, Accuracy: %.2f%%\n", batch_index,
-             train_loader.size() / train_loader.get_batch_size(), total_loss,
-             accuracy * 100.0f);
+             train_loader.size() / train_loader.get_batch_size(), loss,
+             avg_accuracy * 100.0f);
       pipeline_coordinator.print_profiling_on_all_stages();
     }
     ++batch_index;

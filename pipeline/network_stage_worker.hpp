@@ -63,10 +63,6 @@ public:
     void stop() {
         is_running_ = false;
         
-        if (stage_) {
-            // stage_->stop();
-        }
-        
         message_cv_.notify_all();
         
         // if (message_thread_.joinable()) {

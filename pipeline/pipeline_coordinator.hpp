@@ -25,10 +25,18 @@ public:
 
   // Core interface - only communicates through messages
   virtual void start() = 0;
+
   virtual void stop() = 0;
+
   virtual void join(bool direction) = 0;
-  virtual void forward(const Tensor<T> &batch) = 0;
-  virtual void backward(const std::vector<Tensor<T>> &gradients) = 0;
+
+  virtual void forward(const Tensor<T> &input, size_t microbatch_id) = 0;
+
+  virtual void backward(const Tensor<T> &gradient, size_t microbatch_id) = 0;
+
+  virtual void update_parameters() = 0;
+
+  virtual void print_profiling_on_all_stages() = 0;
 
   // Message-based communication only
   void send_message_to_stage(const std::string &stage_id,
@@ -36,7 +44,7 @@ public:
     coordinator_comm_->send_message(stage_id, message);
   }
 
-  std::vector<Message<T>> get_task_messages(){
+  std::vector<Message<T>> get_task_messages() {
     std::vector<Message<T>> task_messages;
     while (coordinator_comm_->has_task_message()) {
       try {
@@ -68,7 +76,8 @@ public:
     std::vector<Message<T>> param_messages;
     while (this->coordinator_comm_->has_parameter_update_message()) {
       try {
-        Message<T> message = this->coordinator_comm_->dequeue_parameter_update_message();
+        Message<T> message =
+            this->coordinator_comm_->dequeue_parameter_update_message();
         param_messages.push_back(message);
       } catch (const std::runtime_error &e) {
         break; // No more parameter update messages available
@@ -198,46 +207,35 @@ public:
     printf("Stopped all pipeline stages\n");
   }
 
-  void forward(const Tensor<T> &batch) override {
+  void forward(const Tensor<T> &input, size_t microbatch_id) override {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
-    // Split batch into microbatches
-    auto microbatches = batch.split(this->num_microbatches_);
+    const std::string &first_stage = this->stage_names_[0];
 
-    // printf("Forwarding %zu microbatches to first stage\n", microbatches.size());
+    // Create task for the first stage
+    Task<T> task{TaskType::FORWARD, input, microbatch_id};
+    auto forward_msg = Message<T>::forward_task(task, "coordinator", first_stage);
+    forward_msg.sequence_number = microbatch_id;
 
-    // Send each microbatch to the first stage
-    for (int i = 0; i < this->num_microbatches_; ++i) {
-      Task<T> task{TaskType::FORWARD, microbatches[i],
-                   i}; // batch_id=0, microbatch_id=i
-      auto forward_msg =
-          Message<T>::forward_task(task, "coordinator", this->stage_names_[0]);
-      forward_msg.sequence_number = i;
-
-      this->send_message_to_stage(this->stage_names_[0], forward_msg);
-    }
+    this->send_message_to_stage(first_stage, forward_msg);
 
     this->coordinator_comm_->flush_output_messages();
   }
 
-  void backward(const std::vector<Tensor<T>> &gradients) override {
+  void backward(const Tensor<T> &gradient, size_t microbatch_id) override {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
-    const std::string &last_stage = this->stage_names_[this->num_stages_ - 1];
-    
-    // Send each gradient to the last stage
-    for (size_t i = 0; i < gradients.size(); ++i) {
-      Task<T> task{TaskType::BACKWARD, gradients[i], static_cast<int>(i)};
-      auto backward_msg =
-          Message<T>::backward_task(task, "coordinator", last_stage);
-      backward_msg.sequence_number = static_cast<int>(i);
+    const std::string &last_stage = this->stage_names_.back();
 
-      this->send_message_to_stage(last_stage, backward_msg);
-    }
+    Task<T> task{TaskType::BACKWARD, gradient, microbatch_id};
+    auto backward_msg = Message<T>::backward_task(task, "coordinator", last_stage);
+    backward_msg.sequence_number = microbatch_id;
+
+    this->send_message_to_stage(last_stage, backward_msg);
 
     this->coordinator_comm_->flush_output_messages();
   }
@@ -247,27 +245,26 @@ public:
     expected_task_count_ = this->num_microbatches_;
 
     std::unique_lock<std::mutex> lock(task_notification_mutex_);
-    
+
     // Wait with timeout for the expected number of task messages to arrive
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
-    
+
     bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->actual_task_message_count() >= 
+      return this->coordinator_comm_->actual_task_message_count() >=
              static_cast<size_t>(expected_task_count_);
     });
 
     if (!success) {
       printf("Warning: join() timed out waiting for task messages. "
-             "Expected: %d, Got: %zu\n", 
+             "Expected: %d, Got: %zu\n",
              expected_task_count_.load(),
              this->coordinator_comm_->actual_task_message_count());
     } else {
-      // printf("Successfully received %zu task messages\n",
-      //        this->coordinator_comm_->actual_task_message_count());
+
     }
   }
 
-  void print_profiling_on_all_stages() {
+  void print_profiling_on_all_stages() override {
     for (const auto &stage_names_ : this->stage_names_) {
       auto profiling_msg = Message<T>::create_control_message(
           CommandType::PRINT_PROFILING, "coordinator", stage_names_);
@@ -287,7 +284,7 @@ public:
     this->coordinator_comm_->flush_output_messages();
   }
 
-  void update_parameters() {
+  void update_parameters() override {
     for (const auto &stage_name : this->stage_names_) {
       auto update_msg = Message<T>(CommandType::UPDATE_PARAMETERS, true,
                                    "coordinator", stage_name);
