@@ -57,10 +57,12 @@ inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
         workers.emplace_back([this, i] {
 #ifdef __linux__
             // Set CPU affinity for this worker thread
+            size_t cpu_count = sched_getaffinity(0, sizeof(cpu_set_t), nullptr);
+            size_t core_id = cpu_count - (i % cpu_count) - 1; // Wrap around if more threads than cores
             cpu_set_t cpuset;
             CPU_ZERO(&cpuset);
-            CPU_SET(this->num_cores - (i % this->num_cores), &cpuset); // Pin to a core, wrapping around if needed
-            std::cout << "Setting CPU affinity for thread " << i << " to core " << (this->num_cores - (i % this->num_cores)) << std::endl;
+            CPU_SET(core_id, &cpuset); // Pin to a core, wrapping around if needed
+            std::cout << "Setting CPU affinity for thread " << i << " to core " << core_id << std::endl;
 
             if (pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset) != 0) {
                 // Error setting affinity, perhaps log this

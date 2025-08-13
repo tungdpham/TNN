@@ -233,18 +233,18 @@ private:
                    message.sender_id.c_str(), 
                    message.recipient_id.c_str());
             
-            // Update connection mapping if we have sender info
-            if (!message.sender_id.empty() && message.sender_id != connection_id) {
-                std::lock_guard<std::mutex> lock(connections_mutex_);
-                auto it = connections_.find(connection_id);
-                if (it != connections_.end()) {
-                    auto connection = it->second;
-                    connections_.erase(it);
-                    connections_[message.sender_id] = connection;
-                    printf("Updated connection mapping: %s -> %s\n", 
-                           connection_id.c_str(), message.sender_id.c_str());
-                }
-            }
+            // // Update connection mapping if we have sender info
+            // if (!message.sender_id.empty() && message.sender_id != connection_id) {
+            //     std::lock_guard<std::mutex> lock(connections_mutex_);
+            //     auto it = connections_.find(connection_id);
+            //     if (it != connections_.end()) {
+            //         auto connection = it->second;
+            //         connections_.erase(it);
+            //         connections_[message.sender_id] = connection;
+            //         printf("Updated connection mapping: %s -> %s\n", 
+            //                connection_id.c_str(), message.sender_id.c_str());
+            //     }
+            // }
             
             // Enqueue the message for processing
             this->enqueue_input_message(message);

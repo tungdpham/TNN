@@ -262,8 +262,8 @@ public:
              expected_task_count_.load(),
              this->coordinator_comm_->actual_task_message_count());
     } else {
-      printf("Successfully received %zu task messages\n",
-             this->coordinator_comm_->actual_task_message_count());
+      // printf("Successfully received %zu task messages\n",
+      //        this->coordinator_comm_->actual_task_message_count());
     }
   }
 
@@ -387,8 +387,6 @@ private:
       for (const auto &message : param_messages) {
         if (message.command_type == CommandType::PARAMETERS_UPDATED) {
           confirmations++;
-          printf("Received parameter update confirmation from %s\n", 
-                 message.sender_id.c_str());
         }
       }
 
@@ -403,7 +401,7 @@ private:
       if (confirmations < this->num_stages_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
       } else if (confirmations == this->num_stages_) {
-        printf("All stages confirmed parameter updates\n");
+        // printf("All stages confirmed parameter updates\n");
         break;
       }
     }

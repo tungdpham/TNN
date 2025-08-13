@@ -122,6 +122,7 @@ private:
         while (is_running_) {
             std::unique_lock<std::mutex> lock(message_mutex_);
             message_cv_.wait(lock, [this]() {
+                printf("Stage waiting for messages...\n");
                 return !is_running_ || communicator_->has_input_message();
             });
             
