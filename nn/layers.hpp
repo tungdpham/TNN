@@ -354,7 +354,7 @@ public:
     if (activation_) {
       Tensor<T> activation_grad =
           activation_->compute_gradient(it_pre_act->second, &current_grad);
-      current_grad = activation_grad;
+      current_grad = activation_grad.clone();
     }
 
     // Compute weight gradients
@@ -369,9 +369,11 @@ public:
 #pragma omp parallel for schedule(static)
 #endif
       for (size_t out_f = 0; out_f < output_features_; ++out_f) {
+        T grad_sum = T(0);
         for (size_t n = 0; n < batch_size; ++n) {
-          bias_gradients_(out_f, 0, 0, 0) += current_grad(n, out_f, 0, 0);
+          grad_sum += current_grad(n, out_f, 0, 0);
         }
+        bias_gradients_(out_f, 0, 0, 0) = grad_sum; 
       }
     }
 

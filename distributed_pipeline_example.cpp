@@ -26,7 +26,7 @@ Sequential<float> create_demo_model() {
            .maxpool2d(2, 2, 2, 2)                        // 8x8x64
            .flatten()                                     // 4096
            .dense(4096, 512, "relu")                      // 512
-           .dense(512, 10, "none");                       // 10 (classes)
+           .dense(512, 10, "relu");                       // 10 (classes)
     
     Sequential<float> model = builder.build();
     auto optimizer = std::make_unique<tnn::Adam<float>>(
@@ -45,7 +45,7 @@ int main() {
         
         // Create the model
         auto model = create_demo_model();
-        model.print_summary({32, 32, 32, 3});
+        model.print_summary({32, 3, 32, 32});
         
         // Define remote endpoints where stages will be deployed
         std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints = {
@@ -74,8 +74,8 @@ int main() {
         std::cout << std::endl;
         
         // Give user time to start workers
-        std::cout << "Waiting 5 seconds for workers to start..." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(5));
+        std::cout << "Waiting 2 seconds for workers to start..." << std::endl;
+        std::this_thread::sleep_for(std::chrono::seconds(2));
         
         if (!coordinator.deploy_stages()) {
             std::cerr << "Failed to deploy stages. Make sure workers are running." << std::endl;
@@ -129,7 +129,7 @@ int main() {
         std::cout << "\nCreating dummy gradients for backward pass..." << std::endl;
         std::vector<Tensor<float>> gradients;
         for (int i = 0; i < 4; ++i) {
-            Tensor<float> grad({1, 3, 32, 32}); // Gradient w.r.t. 10 output classes
+            Tensor<float> grad({1, 10, 1, 1}); // Gradient w.r.t. 10 output classes
             grad.fill_random_uniform(0.1f);
             gradients.push_back(grad);
         }

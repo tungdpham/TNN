@@ -98,6 +98,8 @@ public:
     }
     // Notify stage that a message is available
     if (message_notification_callback_) {
+      printf("Base communicator: Enqueued message of type %d, notifying callback\n", 
+             static_cast<int>(message.command_type));
       message_notification_callback_();
     }
   }

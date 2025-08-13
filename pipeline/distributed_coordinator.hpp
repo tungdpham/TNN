@@ -332,20 +332,16 @@ private:
         int ready_count = 0;
         auto start_time = std::chrono::steady_clock::now();
         const auto timeout = std::chrono::seconds(60); // Longer timeout for initial setup
-        
-        printf("Waiting for %d stages to report ready...\n", this->num_stages_);
-        
+                
         while (ready_count < this->num_stages_) {
             if (std::chrono::steady_clock::now() - start_time > timeout) {
                 printf("Timeout waiting for stage readiness (%d/%d ready)\n", 
                        ready_count, this->num_stages_);
                 return false;
             }
-            
+                   
             // Check for any incoming messages (using simple polling)
-            if (this->coordinator_comm_->has_input_message()) {
-                printf("Coordinator has input messages available\n");
-                
+            if (this->coordinator_comm_->has_input_message()) {                
                 // Process all available messages
                 while (this->coordinator_comm_->has_input_message()) {
                     try {

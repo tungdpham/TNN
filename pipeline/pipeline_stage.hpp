@@ -3,16 +3,16 @@
 #include "../nn/sequential.hpp"
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
-#include "thread_pool.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
-#include <future>
+#include <functional>
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <omp.h> // Include OpenMP header
 #include <queue>
 #include <string>
-#include <thread>
 
 namespace tpipeline {
 
@@ -25,71 +25,10 @@ public:
           communicator,
       const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)),
-        name_(name), should_stop_(false), is_processing_(false),
-        thread_pool_(1), task_handler_pool_(1) {}
-
-  virtual ~PipelineStage() { 
-    stop(); 
+        name_(name), should_stop_(true), is_processing_(false) {
   }
 
-  virtual void start() {
-    should_stop_ = false;
-    event_listener_future_ =
-        thread_pool_.enqueue([this]() { event_listener(); });
-    communicator_->set_message_notification_callback(
-        [this]() { notify_message_available(); });
-  }
-
-  virtual void stop() {
-    should_stop_ = true;
-    message_available_cv_.notify_all();
-    if (event_listener_future_.valid())
-      event_listener_future_.wait();
-  }
-
-  bool is_processing() const { return is_processing_; }
-  tnn::Sequential<T> *get_model() { return model_.get(); }
-  std::string name() const { return name_; }
-  PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }
-
-protected:
-  void event_listener() {
-    while (!should_stop_) {
-      std::unique_lock<std::mutex> lock(message_available_mutex_);
-      message_available_cv_.wait(lock, [this]() {
-        return should_stop_ ||
-               (communicator_->has_input_message() && !is_processing_);
-      });
-
-      if (communicator_->has_input_message() && !is_processing_) {
-        is_processing_ = true;
-        task_handler_pool_.enqueue([this]() {
-          try {
-            tpipeline::Message<T> message =
-                communicator_->dequeue_input_message();
-            process_message(message);
-          } catch (const std::exception &e) {
-            // Send error message to coordinator
-            std::cerr << "Error processing message in stage "
-                      << name_ << ": " << e.what() << std::endl;
-            auto error_msg = Message<T>::error_message(
-                std::string("Stage processing error: ") + e.what(), name_,
-                "coordinator");
-            communicator_->enqueue_output_message(error_msg);
-            communicator_->flush_output_messages();
-          }
-          // printf("Stage %s finished processing message\n", name_.c_str());
-          is_processing_ = false;
-          notify_message_available();
-        });
-      }
-    }
-  }
-
-  void notify_message_available() {
-    std::lock_guard<std::mutex> lock(message_available_mutex_);
-    message_available_cv_.notify_one();
-  }
+  virtual ~PipelineStage() { }
 
   void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
@@ -113,11 +52,11 @@ protected:
       }
       break;
     case CommandType::START_TRAINING:
-      this->start();
+      // this->start();
       break;
 
     case CommandType::STOP_TRAINING:
-      this->stop();
+      // this->stop();
       break;
 
     case CommandType::STATUS_REQUEST: {
@@ -150,6 +89,12 @@ protected:
     }
   }
 
+  bool is_processing() const { return is_processing_; }
+  tnn::Sequential<T> *get_model() { return model_.get(); }
+  std::string name() const { return name_; }
+  PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }
+
+protected:
   void process_task_message(const tpipeline::Message<T> &message) {
     if (!message.is_task_message()) {
       auto error_msg = Message<T>::error_message(
@@ -163,6 +108,8 @@ protected:
 
     if (message.command_type == CommandType::FORWARD_TASK) {
       // Forward pass
+      // NOTE: `this->model_->forward` can now safely contain its own
+      // `#pragma omp parallel for` directives.
       auto output_data = this->model_->forward(task.data);
       Task<T> output_task(TaskType::FORWARD, output_data, task.micro_batch_id);
 
@@ -174,6 +121,8 @@ protected:
 
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
       // Backward pass
+      // NOTE: `this->model_->backward` can also contain `#pragma omp parallel
+      // for`.
       auto output_data = this->model_->backward(task.data);
       Task<T> output_task(TaskType::BACKWARD, output_data, task.micro_batch_id);
 
@@ -197,11 +146,6 @@ protected:
 
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_processing_;
-  std::atomic<bool> is_processing_task_;
-
-  ThreadPool thread_pool_;
-  ThreadPool task_handler_pool_;
-  std::future<void> event_listener_future_;
 
   std::mutex message_available_mutex_;
   std::condition_variable message_available_cv_;

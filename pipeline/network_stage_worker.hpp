@@ -34,8 +34,9 @@ public:
         
         // Set up message notification callback
         communicator_->set_message_notification_callback([this]() {
+            printf("Tcp communicator: Message notification callback triggered\n");
             std::lock_guard<std::mutex> lock(message_mutex_);
-            message_cv_.notify_all();
+            process_message(communicator_->dequeue_input_message());
         });
     }
     
@@ -56,11 +57,6 @@ public:
             io_context_.run();
         });
         
-        // Start message processing thread
-        message_thread_ = std::thread([this]() {
-            message_loop();
-        });
-        
         printf("Network stage worker listening on port %d\n", listen_port_);
     }
     
@@ -68,14 +64,14 @@ public:
         is_running_ = false;
         
         if (stage_) {
-            stage_->stop();
+            // stage_->stop();
         }
         
         message_cv_.notify_all();
         
-        if (message_thread_.joinable()) {
-            message_thread_.join();
-        }
+        // if (message_thread_.joinable()) {
+        //     message_thread_.join();
+        // }
         
         work_guard_.reset();
         io_context_.stop();
@@ -116,31 +112,35 @@ private:
     std::mutex message_mutex_;
     std::condition_variable message_cv_;
     
-    void message_loop() {
-        printf("Starting message processing loop\n");
+    // void message_loop() {
+    //     printf("Starting message processing loop\n");
         
-        while (is_running_) {
-            std::unique_lock<std::mutex> lock(message_mutex_);
-            message_cv_.wait(lock, [this]() {
-                printf("Stage waiting for messages...\n");
-                return !is_running_ || communicator_->has_input_message();
-            });
+    //     while (is_running_) {
+    //         std::unique_lock<std::mutex> lock(message_mutex_);
+    //         message_cv_.wait(lock, [this]() {
+    //             printf("Stage waiting for messages...\n");
+    //             return !is_running_ || communicator_->has_input_message();
+    //         });
             
-            if (!is_running_) break;
+    //         if (!is_running_){
+    //             printf("Exiting message loop due to shutdown\n");
+    //             break; 
+    //         }
             
-            // Process all available messages
-            while (communicator_->has_input_message()) {
-                try {
-                    auto message = communicator_->dequeue_input_message();
-                    process_message(message);
-                } catch (const std::exception& e) {
-                    printf("Error processing message: %s\n", e.what());
-                }
-            }
-        }
+    //         // Process all available messages
+    //         while (communicator_->has_input_message()) {
+    //             try {
+    //                 printf("Worker processing input message\n");
+    //                 auto message = communicator_->dequeue_input_message();
+    //                 process_message(message);
+    //             } catch (const std::exception& e) {
+    //                 printf("Error processing message: %s\n", e.what());
+    //             }
+    //         }
+    //     }
         
-        printf("Message processing loop ended\n");
-    }
+    //     printf("Message processing loop ended\n");
+    // }
     
     void process_message(const Message<T>& message) {
         printf("Worker processing message type %d\n", static_cast<int>(message.command_type));
@@ -161,8 +161,10 @@ private:
             if (is_configured_ && stage_) {
                 printf("Forwarding message type %d to configured stage\n", 
                        static_cast<int>(message.command_type));
+            
                 // Forward the message to the stage's communicator
-                stage_->get_communicator()->enqueue_input_message(message);
+                // stage_->get_communicator()->enqueue_input_message(message);
+                stage_->process_message(message);
             } else {
                 printf("Received message type %d but stage not configured\n", 
                        static_cast<int>(message.command_type));
@@ -180,6 +182,9 @@ private:
         try {
             // Parse stage configuration
             nlohmann::json config_json = nlohmann::json::parse(message.text_data.value());
+            //print the configuration JSON
+            printf("Received configuration JSON: %s\n", config_json.dump(2).c_str());
+
             StageConfig config = StageConfig::from_json(config_json);
             
             stage_id_ = config.stage_id;
@@ -202,9 +207,6 @@ private:
             
             stage_ = std::make_unique<PipelineStage<T>>(
                 std::move(model), std::move(stage_comm_wrapper), stage_id_);
-            
-            // Start the stage
-            stage_->start();
             
             is_configured_ = true;
             

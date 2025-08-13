@@ -147,6 +147,22 @@ struct Message {
         msg.recipient_id = recipient;
         return msg;
     }
+
+    std::string to_string() const {
+        std::string result = "Message(" + std::to_string(static_cast<int>(command_type)) +
+                             ", sender: " + sender_id + ", recipient: " + recipient_id;
+        if (task) {
+            result += ", task: " + task->to_string();
+        }
+        if (text_data) {
+            result += ", text: " + *text_data;
+        }
+        if (signal) {
+            result += ", signal: " + std::to_string(*signal);
+        }
+        result += ")";
+        return result;
+    }
 };
 
 } // namespace tpipeline

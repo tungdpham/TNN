@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string>
 #include "../tensor/tensor.hpp"
 
 namespace tpipeline {
@@ -12,5 +13,11 @@ template <typename T = float> struct Task {
 
   Task(TaskType t, const Tensor<T> &d, int mb_id)
       : type(t), data(d), micro_batch_id(mb_id) {}
+
+  std::string to_string() const {
+    return "Task(type: " + std::to_string(static_cast<int>(type)) +
+           ", micro_batch_id: " + std::to_string(micro_batch_id) +
+           ", data_shape: " + data.shape_str() + ")";
+  }
 };
 } // namespace tpipeline
