@@ -17,7 +17,7 @@ constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
 constexpr int NUM_MICROBATCHES =
-    1; // Number of microbatches for pipeline processing
+    2; // Number of microbatches for pipeline processing
 } // namespace mnist_constants
 
 signed main() {
@@ -33,7 +33,7 @@ signed main() {
     return -1;
   }
 
-  omp_set_num_threads(8);
+  omp_set_num_threads(4);
   // Create a sequential model using the builder pattern
   auto model = tnn::SequentialBuilder<float>("mnist_cnn_classifier")
                    // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
@@ -66,7 +66,7 @@ signed main() {
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
   auto pipeline_coordinator = tpipeline::InProcessPipelineCoordinator<float>(
-      model, 1, mnist_constants::NUM_MICROBATCHES);
+      model, 2, mnist_constants::NUM_MICROBATCHES);
   // Get the stages from the coordinator
   auto stages = pipeline_coordinator.get_stages();
 

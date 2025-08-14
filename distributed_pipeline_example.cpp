@@ -50,6 +50,7 @@ Sequential<float> create_demo_model() {
                    .dense(48 * 2 * 2, mnist_constants::NUM_CLASSES, "linear",
                           true, "output")
                    .build();
+
   auto optimizer = std::make_unique<tnn::Adam<float>>(
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
@@ -73,8 +74,8 @@ int main() {
         endpoints = {
             {"localhost", 8001, "stage_0"}, // First stage
             {"localhost", 8002, "stage_1"}, // Second stage
-            {"localhost", 8003, "stage_2"}, // Third stage
-            {"localhost", 8004, "stage_3"}  // Fourth stage
+            // {"localhost", 8003, "stage_2"}, // Third stage
+            // {"localhost", 8004, "stage_3"}  // Fourth stage
         };
 
     std::cout << "\nConfigured " << endpoints.size()
@@ -87,7 +88,7 @@ int main() {
     // Create distributed coordinator
     std::cout << "\nCreating distributed coordinator..." << std::endl;
     DistributedPipelineCoordinator<float> coordinator(
-        std::move(model), endpoints, 4, "localhost", 8000);
+        std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, "localhost", 8000);
 
     // Deploy stages to remote machines
     std::cout << "\nDeploying stages to remote endpoints..." << std::endl;

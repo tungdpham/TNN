@@ -34,7 +34,6 @@ public:
         
         // Set up message notification callback
         communicator_->set_message_notification_callback([this]() {
-            printf("Tcp communicator: Message notification callback triggered\n");
             std::lock_guard<std::mutex> lock(message_mutex_);
             process_message(communicator_->dequeue_input_message());
         });
@@ -139,7 +138,6 @@ private:
     // }
     
     void process_message(const Message<T>& message) {
-        printf("Worker processing message type %d\n", static_cast<int>(message.command_type));
         
         switch (message.command_type) {
         case CommandType::CONFIG_RECEIVED:
@@ -155,8 +153,8 @@ private:
         default:
             // If we have a configured stage, delegate to it
             if (is_configured_ && stage_) {
-                printf("Forwarding message type %d to configured stage\n", 
-                       static_cast<int>(message.command_type));
+                // printf("Forwarding message type %d to configured stage\n", 
+                //        static_cast<int>(message.command_type));
             
                 // Forward the message to the stage's communicator
                 // stage_->get_communicator()->enqueue_input_message(message);

@@ -76,8 +76,8 @@ public:
     }
     
     void send_message(const std::string& recipient_id, const Message<T>& message) override {
-        printf("Queueing message to %s: %s\n", 
-               recipient_id.c_str(), message.to_string().c_str());
+        // printf("Queueing message to %s: %s\n", 
+        //        recipient_id.c_str(), message.to_string().c_str());
         auto serialized = BinarySerializer::serialize_message(message);
         
         // Add message length header (4 bytes)
@@ -100,8 +100,8 @@ public:
 
         while (!this->out_message_queue_.empty()) {
             auto& msg = this->out_message_queue_.front();
-            printf("Flushing message to %s: %s\n", 
-                   msg.recipient_id.c_str(), msg.message.to_string().c_str());
+            // printf("Flushing message to %s: %s\n", 
+            //        msg.recipient_id.c_str(), msg.message.to_string().c_str());
             send_message(msg.recipient_id, msg.message);
             this->out_message_queue_.pop();
         }
@@ -240,10 +240,10 @@ private:
             std::vector<uint8_t> msg_data(buffer.begin(), buffer.begin() + length);
             Message<T> message = BinarySerializer::deserialize_message<T>(msg_data);
             
-            printf("TCP Communicator received message type %d from %s to %s\n",
-                   static_cast<int>(message.command_type), 
-                   message.sender_id.c_str(), 
-                   message.recipient_id.c_str());
+            // printf("TCP Communicator received message type %d from %s to %s\n",
+            //        static_cast<int>(message.command_type), 
+            //        message.sender_id.c_str(), 
+            //        message.recipient_id.c_str());
             
             // Update connection mapping if we have sender info
             // if (!message.sender_id.empty() && message.sender_id != connection_id) {
@@ -293,16 +293,12 @@ private:
                 return;
             }
             connection = it->second;
-            printf("Connection found for %s, sending message of size %zu bytes\n", 
-                   recipient_id.c_str(), packet.size());
         }
         
         std::lock_guard<std::mutex> write_lock(connection->write_mutex);
         
         try {
             asio::write(connection->socket, asio::buffer(packet));
-            printf("Sent message to %s, size: %zu bytes\n", 
-                   recipient_id.c_str(), packet.size());
         } catch (const std::exception& e) {
             printf("Error sending message to %s: %s\n", recipient_id.c_str(), e.what());
             handle_connection_error(recipient_id, std::make_error_code(std::errc::connection_aborted));

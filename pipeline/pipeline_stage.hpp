@@ -48,13 +48,7 @@ public:
     switch (message.command_type) {
     case CommandType::FORWARD_TASK:
     case CommandType::BACKWARD_TASK: {
-      auto task_start = std::chrono::high_resolution_clock::now();
       process_task_message(message);
-      auto task_end = std::chrono::high_resolution_clock::now();
-      auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-                          task_end - task_start)
-                          .count();
-      printf("Stage %s processed task in %ld ms\n", name_.c_str(), duration);
     } break;
     case CommandType::UPDATE_PARAMETERS:
       if (model_) {
@@ -118,6 +112,7 @@ protected:
       return;
     }
 
+    auto task_start = std::chrono::high_resolution_clock::now();
     const auto &task = message.task.value();
 
     if (message.command_type == CommandType::FORWARD_TASK) {
@@ -149,6 +144,14 @@ protected:
 
     // Send all queued messages
     communicator_->flush_output_messages();
+
+    auto task_end = std::chrono::high_resolution_clock::now();
+    auto duration_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start)
+            .count();
+    printf("Stage %s processed %s task with microbatch ID %zu in %lld ms\n",
+           name_.c_str(), (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD"),
+           task.micro_batch_id, static_cast<long long>(duration_ms));
   }
 
 protected:

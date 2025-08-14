@@ -28,8 +28,8 @@ WORKER4_PID=$!
 echo "Started worker on port 8004 (PID: $WORKER4_PID)"
 
 # Wait a moment for workers to start
-echo "Waiting 3 seconds for workers to initialize..."
-sleep 3
+echo "Waiting 1 seconds for workers to initialize..."
+sleep 1
 
 # Check if workers are running
 echo "Checking worker processes..."

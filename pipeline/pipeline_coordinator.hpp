@@ -159,9 +159,6 @@ public:
     // Set up communication topology
     setup_communication_network(stage_communicators);
 
-    // NOTE: Don't clear temp_stages_ here - they need to stay alive!
-    // Call get_stages() to transfer ownership to caller
-
     printf("Pipeline coordinator initialized with %d stages\n",
            this->num_stages_);
   }

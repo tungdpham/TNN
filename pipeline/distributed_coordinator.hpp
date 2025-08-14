@@ -189,7 +189,7 @@ public:
       this->send_message_to_stage(stage_name, start_msg);
     }
 
-    this->coordinator_comm_->flush_output_messages();
+    // this->coordinator_comm_->flush_output_messages();
     printf("Started all %d distributed pipeline stages\n", this->num_stages_);
   }
 
@@ -201,7 +201,7 @@ public:
       this->send_message_to_stage(stage_name, stop_msg);
     }
 
-    this->coordinator_comm_->flush_output_messages();
+    // this->coordinator_comm_->flush_output_messages();
     printf("Stopped all distributed pipeline stages\n");
   }
 
@@ -220,7 +220,7 @@ public:
 
     this->send_message_to_stage(first_stage, forward_msg);
 
-    this->coordinator_comm_->flush_output_messages();
+    // this->coordinator_comm_->flush_output_messages();
   }
 
   void backward(const Tensor<T> &gradient, size_t microbatch_id) override {
@@ -237,7 +237,7 @@ public:
 
     this->send_message_to_stage(last_stage, backward_msg);
 
-    this->coordinator_comm_->flush_output_messages();
+    // this->coordinator_comm_->flush_output_messages();
   }
 
   void join(bool direction) override {
@@ -269,7 +269,7 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
-    this->coordinator_comm_->flush_output_messages();
+    // this->coordinator_comm_->flush_output_messages();
 
     // Wait for confirmations
     wait_for_parameter_updates();
@@ -422,8 +422,8 @@ private:
               this->coordinator_comm_->dequeue_parameter_update_message();
           if (message.command_type == CommandType::PARAMETERS_UPDATED) {
             confirmations++;
-            printf("Parameter update confirmed from stage %s (%d/%d)\n",
-                   message.sender_id.c_str(), confirmations, this->num_stages_);
+            // printf("Parameter update confirmed from stage %s (%d/%d)\n",
+            //        message.sender_id.c_str(), confirmations, this->num_stages_);
           }
         } catch (const std::runtime_error &e) {
           break;

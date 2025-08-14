@@ -1,6 +1,7 @@
 #include "pipeline/network_stage_worker.hpp"
 #include <iostream>
 #include <cstdlib>
+#include <omp.h>
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -8,6 +9,10 @@ int main(int argc, char* argv[]) {
         std::cerr << "Example: " << argv[0] << " 8001" << std::endl;
         return 1;
     }
+
+    omp_set_num_threads(1); // Set OpenMP thread count
+
+    printf("Number of OpenMP threads set to: %d\n", omp_get_max_threads());
     
     int listen_port = std::atoi(argv[1]);
     
