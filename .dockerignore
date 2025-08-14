@@ -1,0 +1,52 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.a
+
+# Executables (except the ones we specifically need)
+main
+mnist_trainer
+mnist_cnn_trainer
+mnist_cnn_pipeline_trainer
+cifar100_cnn_trainer
+cifar10_cnn_trainer
+uji_ips_trainer
+mnist_cnn_test
+pipeline_test
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation (optional, include if you want docs in container)
+# documentation/
+
+# Temporary files
+*.tmp
+*.log
+
+# Docker files (don't include in the image itself)
+Dockerfile
+docker-compose.yml
+.dockerignore
+docker-run.sh
+
+# Model snapshots (large files, mount if needed)
+model_snapshots/
+
+# Compressed files
+*.gz
+*.zip
+*.tar
+
+# OS generated files
+.DS_Store
+Thumbs.db

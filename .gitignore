@@ -24,8 +24,9 @@
 /pipeline_test
 /network_worker
 /distributed_pipeline_example
+/distributed_pipeline_docker
 /profile.json.gz
 
 
 # snapshots
-/model_snapshots/
+/model_snapshots/*

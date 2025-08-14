@@ -1,0 +1,228 @@
+#include "nn/layers.hpp"
+#include "nn/sequential.hpp"
+#include "pipeline/distributed_coordinator.hpp"
+#include "tensor/tensor.hpp"
+#include "utils/cifar10_data_loader.hpp"
+#include "utils/mnist_data_loader.hpp"
+#include "utils/ops.hpp"
+#include <chrono>
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <cstdlib>
+
+using namespace tnn;
+using namespace tpipeline;
+
+namespace mnist_constants {
+constexpr float LR_INITIAL = 0.001f;
+constexpr float EPSILON = 1e-15f;
+constexpr int NUM_MICROBATCHES =
+    4;                        // Number of microbatches for distributed training
+constexpr int NUM_EPOCHS = 1; // Number of epochs for training
+constexpr size_t PROGRESS_PRINT_INTERVAL =
+    100; // Print progress every 100 batches
+// NUM_CLASSES is already defined in mnist_data_loader.hpp
+} // namespace mnist_constants
+
+// Create a simple CNN model for demonstration
+Sequential<float> create_demo_model() {
+  auto model = tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+                   .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+                   .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+                   .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+                   .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+                   .dense(48 * 2 * 2, mnist_constants::NUM_CLASSES, "linear",
+                          true, "output")
+                   .build();
+
+  auto optimizer = std::make_unique<tnn::Adam<float>>(
+      mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+  model.set_optimizer(std::move(optimizer));
+
+  auto loss_function =
+      tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+  model.set_loss(std::move(loss_function));
+  return model;
+}
+
+// Helper function to get worker host from environment or use default
+std::string get_host(const std::string& env_var, const std::string& default_host) {
+    const char* env_value = std::getenv(env_var.c_str());
+    return env_value ? std::string(env_value) : default_host;
+}
+
+int main() {
+  try {
+    // Create the model
+    auto model = create_demo_model();
+
+    model.print_config();
+
+    // Define remote endpoints where stages will be deployed
+    // Use environment variables for Docker container hostnames, fallback to localhost
+    std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint>
+        endpoints = {
+            {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"}, // First stage
+            {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
+            {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage
+            {get_host("WORKER_HOST_8004", "localhost"), 8004, "stage_3"}  // Fourth stage
+        };
+
+    std::cout << "\nConfigured " << endpoints.size()
+              << " remote endpoints:" << std::endl;
+    for (const auto &ep : endpoints) {
+      std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port
+                << std::endl;
+    }
+
+    // Create distributed coordinator
+    std::cout << "\nCreating distributed coordinator..." << std::endl;
+    DistributedPipelineCoordinator<float> coordinator(
+        std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, get_host("COORDINATOR_HOST", "localhost"), 8000);
+
+    // Deploy stages to remote machines
+    std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
+    for (const auto &ep : endpoints) {
+      std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
+    }
+    
+    // Give workers time to fully start up their TCP servers
+    std::cout << "\nWaiting for workers to be ready..." << std::endl;
+    std::this_thread::sleep_for(std::chrono::seconds(3));
+    std::cout << std::endl;
+
+    if (!coordinator.deploy_stages()) {
+      std::cerr << "Failed to deploy stages. Make sure workers are running."
+                << std::endl;
+      return 1;
+    }
+
+    // Start the pipeline
+    std::cout << "\nStarting distributed pipeline..." << std::endl;
+    coordinator.start();
+
+    data_loading::MNISTDataLoader<float> train_loader, test_loader;
+
+    // Validate data loading
+    if (!train_loader.load_data("./data/mnist/train.csv")) {
+      std::cerr << "Failed to load training data!" << std::endl;
+      return -1;
+    }
+
+    if (!test_loader.load_data("./data/mnist/test.csv")) {
+      std::cerr << "Failed to load test data!" << std::endl;
+      return -1;
+    }
+
+    Tensor<float> batch_data, batch_labels;
+
+    float loss = 0.0f, avg_accuracy = 0.0f;
+
+    auto loss_function = tnn::LossFactory<float>::create("crossentropy");
+
+    size_t batch_index = 0;
+
+    while (train_loader.get_batch(32, batch_data, batch_labels)) {
+      std::vector<Tensor<float>> micro_batches =
+          batch_data.split(mnist_constants::NUM_MICROBATCHES);
+
+      std::vector<Tensor<float>> micro_batch_labels =
+          batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
+      auto forward_start = std::chrono::high_resolution_clock::now();
+
+      // Process a batch of data
+      for (int i = 0; i < micro_batches.size(); ++i) {
+        coordinator.forward(micro_batches[i], i);
+      }
+
+      coordinator.join(1);
+
+      auto forward_end = std::chrono::high_resolution_clock::now();
+      auto forward_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(forward_end -
+                                                                forward_start);
+      auto compute_loss_start = std::chrono::high_resolution_clock::now();
+
+      std::vector<tpipeline::Message<float>> all_messages =
+          coordinator.get_task_messages();
+      // printf("Total messages processed: %zu\n", all_messages.size());
+
+      if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
+        throw std::runtime_error(
+            "Unexpected number of messages: " +
+            std::to_string(all_messages.size()) +
+            ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
+      }
+
+      // Extract tasks from messages
+      std::vector<tpipeline::Task<float>> forward_tasks;
+      for (const auto &message : all_messages) {
+        if (message.is_task_message()) {
+          forward_tasks.push_back(message.task.value());
+        }
+      }
+
+      std::vector<tpipeline::Task<float>> backward_tasks;
+      for (auto &task : forward_tasks) {
+        // Compute loss for each microbatch
+        loss = loss_function->compute_loss(
+            task.data, micro_batch_labels[task.micro_batch_id]);
+        avg_accuracy = utils::compute_class_accuracy<float>(
+            task.data, micro_batch_labels[task.micro_batch_id]);
+
+        Tensor<float> gradient = loss_function->compute_gradient(
+            task.data, micro_batch_labels[task.micro_batch_id]);
+
+        // Create backward task
+        tpipeline::Task<float> backward_task{tpipeline::TaskType::BACKWARD,
+                                             gradient, task.micro_batch_id};
+
+        backward_tasks.push_back(backward_task);
+      }
+
+      auto compute_loss_end = std::chrono::high_resolution_clock::now();
+      auto compute_loss_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(
+              compute_loss_end - compute_loss_start);
+
+      auto backward_start = std::chrono::high_resolution_clock::now();
+
+      // Backward pass
+      for (const auto &task : backward_tasks) {
+        coordinator.backward(task.data, task.micro_batch_id);
+      }
+
+      coordinator.join(0); // join backward tasks
+
+      coordinator.get_task_messages(); // clear task messages
+
+      coordinator.update_parameters();
+
+      auto backward_end = std::chrono::high_resolution_clock::now();
+      auto backward_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(backward_end -
+                                                                backward_start);
+
+      if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+        printf("Forward pass completed in %ld ms\n", forward_duration.count());
+        printf("Loss computation completed in %ld ms\n",
+               compute_loss_duration.count());
+        printf("Backward pass completed in %ld ms\n",
+               backward_duration.count());
+        printf("Batch %zu/%zu - Loss: %.4f, Accuracy: %.2f%%\n", batch_index,
+               train_loader.size() / train_loader.get_batch_size(), loss,
+               avg_accuracy * 100.0f);
+        coordinator.print_profiling_on_all_stages();
+      }
+      ++batch_index;
+    }
+    return 0;
+
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << std::endl;
+    return 1;
+  }
+}

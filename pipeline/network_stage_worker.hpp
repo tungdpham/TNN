@@ -51,6 +51,12 @@ public:
         
         is_running_ = true;
         
+
+        printf("Starting network stage worker on port %d\n", listen_port_);
+
+        // Start the TCP server
+        communicator_->start_server();
+
         // Start IO context in background thread
         io_thread_ = std::thread([this]() {
             io_context_.run();
@@ -63,10 +69,6 @@ public:
         is_running_ = false;
         
         message_cv_.notify_all();
-        
-        // if (message_thread_.joinable()) {
-        //     message_thread_.join();
-        // }
         
         work_guard_.reset();
         io_context_.stop();
@@ -153,11 +155,6 @@ private:
         default:
             // If we have a configured stage, delegate to it
             if (is_configured_ && stage_) {
-                // printf("Forwarding message type %d to configured stage\n", 
-                //        static_cast<int>(message.command_type));
-            
-                // Forward the message to the stage's communicator
-                // stage_->get_communicator()->enqueue_input_message(message);
                 stage_->process_message(message);
             } else {
                 printf("Received message type %d but stage not configured\n", 
@@ -272,12 +269,9 @@ private:
     
     std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T>*)>>
     create_stage_communicator_wrapper() {
-        // Create a wrapper that uses the same underlying TCP communicator
-        // but provides the interface expected by PipelineStage
         return std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T>*)>>(
             communicator_.get(),
             [](PipelineCommunicator<T>*) {
-                // Don't delete - we manage the lifetime
             });
     }
     

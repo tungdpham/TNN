@@ -31,18 +31,20 @@ public:
           local_endpoint_(local_endpoint),
           is_running_(false) {
         
-        if (listen_port > 0) {
-            start_server();
-        }
+        // if (listen_port > 0) {
+        //     printf("Initializing TCP communicator on port %d\n", listen_port);
+        //     // start_server();
+        // }
     }
     
     ~TcpPipelineCommunicator() override {
-        // printf("Stopping TCP communicator\n");
         stop();
     }
     
     void start_server() {
-        if (listen_port_ <= 0) return;
+        if (listen_port_ <= 0){
+            throw std::invalid_argument("Listen port must be greater than 0");
+        }
         
         asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), listen_port_);
         acceptor_.open(endpoint.protocol());

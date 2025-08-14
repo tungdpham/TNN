@@ -91,7 +91,7 @@ ifeq ($(OS),Windows_NT)
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
 	rm -f matrix/*.o neural/*.o utils/*.o nn/*.o tensor/*.o *.o ${MAIN}
-	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test pipeline_test network_worker distributed_pipeline_example
+	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test pipeline_test network_worker distributed_pipeline_example distributed_pipeline_docker
 	rm -f $(TEST_PROGRAMS)
 endif
 
@@ -185,6 +185,14 @@ else
 	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
 endif
 
+# Docker version of distributed pipeline example
+distributed_pipeline_docker: distributed_pipeline_docker.cpp ${HEADERS}
+ifeq ($(ENABLE_CUDA), 1)
+	${NVCC} ${NVCCFLAGS} -I. -Ithird_party/asio/asio/include $< -o $@ ${CUDA_LDFLAGS} -pthread
+else
+	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
+endif
+
 # Build all tests
 tests: $(TEST_PROGRAMS)
 
@@ -217,4 +225,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test network_worker distributed_pipeline_example $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test network_worker distributed_pipeline_example distributed_pipeline_docker $(TEST_PROGRAMS)
