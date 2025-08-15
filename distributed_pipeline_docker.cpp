@@ -65,9 +65,9 @@ int main() {
     std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint>
         endpoints = {
             {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"}, // First stage
-            {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
-            {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage
-            {get_host("WORKER_HOST_8004", "localhost"), 8004, "stage_3"}  // Fourth stage
+            // {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
+            // {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage
+            // {get_host("WORKER_HOST_8004", "localhost"), 8004, "stage_3"}  // Fourth stage
         };
 
     std::cout << "\nConfigured " << endpoints.size()
@@ -87,11 +87,6 @@ int main() {
     for (const auto &ep : endpoints) {
       std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
     }
-    
-    // Give workers time to fully start up their TCP servers
-    std::cout << "\nWaiting for workers to be ready..." << std::endl;
-    std::this_thread::sleep_for(std::chrono::seconds(3));
-    std::cout << std::endl;
 
     if (!coordinator.deploy_stages()) {
       std::cerr << "Failed to deploy stages. Make sure workers are running."
@@ -148,7 +143,6 @@ int main() {
 
       std::vector<tpipeline::Message<float>> all_messages =
           coordinator.get_task_messages();
-      // printf("Total messages processed: %zu\n", all_messages.size());
 
       if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
         throw std::runtime_error(
@@ -207,14 +201,16 @@ int main() {
                                                                 backward_start);
 
       if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-        printf("Forward pass completed in %ld ms\n", forward_duration.count());
-        printf("Loss computation completed in %ld ms\n",
-               compute_loss_duration.count());
-        printf("Backward pass completed in %ld ms\n",
-               backward_duration.count());
-        printf("Batch %zu/%zu - Loss: %.4f, Accuracy: %.2f%%\n", batch_index,
-               train_loader.size() / train_loader.get_batch_size(), loss,
-               avg_accuracy * 100.0f);
+        std::cout << "Forward pass completed in " << forward_duration.count()
+                  << " ms" << std::endl;
+        std::cout << "Loss computation completed in "
+                  << compute_loss_duration.count() << " ms" << std::endl;
+        std::cout << "Backward pass completed in " << backward_duration.count()
+                  << " ms" << std::endl;
+        std::cout << "Batch " << batch_index << "/"
+                  << train_loader.size() / train_loader.get_batch_size()
+                  << " - Loss: " << loss << ", Accuracy: "
+                  << avg_accuracy * 100.0f << "%" << std::endl;
         coordinator.print_profiling_on_all_stages();
       }
       ++batch_index;

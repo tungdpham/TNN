@@ -469,7 +469,7 @@ public:
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
-        printf("Shape mismatch: %zu vs %zu\n", shape_[i], other.shape_[i]);
+        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
         throw std::invalid_argument("Tensor shapes must match for addition");
       }
     }
@@ -539,7 +539,7 @@ public:
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
-        printf("Shape mismatch: %zu vs %zu\n", shape_[i], other.shape_[i]);
+        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
         throw std::invalid_argument("Tensor shapes must match for addition");
       }
     }
@@ -929,7 +929,7 @@ public:
             }
           }
         }
-        printf("\n");
+  std::cout << std::endl;
       }
     }
     std::cout << std::endl;

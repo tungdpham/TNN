@@ -6,6 +6,7 @@
 #include "pipeline_stage.hpp"
 #include <chrono>
 #include <condition_variable>
+#include <iostream>
 #include <mutex>
 #include <thread>
 
@@ -152,15 +153,17 @@ public:
       // Store the stage temporarily for setup only
       temp_stages_.emplace_back(std::move(stage));
 
-      printf("Created stage %d with name: %s\n", i,
-             this->stage_names_[i].c_str());
+      std::cout << "Created stage: " << this->stage_names_[i]
+                << " with model layers: "
+                << temp_stages_.back()->get_model()->get_layers().size()
+                << std::endl;
     }
 
     // Set up communication topology
     setup_communication_network(stage_communicators);
 
-    printf("Pipeline coordinator initialized with %d stages\n",
-           this->num_stages_);
+    std::cout << "Pipeline coordinator initialized with " << this->num_stages_
+              << " stages" << std::endl;
   }
 
   // Transfer ownership of stages to caller and clear internal references
@@ -189,7 +192,8 @@ public:
     // Flush all outgoing messages
     this->coordinator_comm_->flush_output_messages();
 
-    printf("Started all %d pipeline stages\n", this->num_stages_);
+    std::cout << "Started all " << this->num_stages_ << " pipeline stages"
+              << std::endl;
   }
 
   void stop() override {
@@ -201,7 +205,7 @@ public:
     }
 
     this->coordinator_comm_->flush_output_messages();
-    printf("Stopped all pipeline stages\n");
+    std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
   void forward(const Tensor<T> &input, size_t microbatch_id) override {
@@ -213,7 +217,8 @@ public:
 
     // Create task for the first stage
     Task<T> task{TaskType::FORWARD, input, microbatch_id};
-    auto forward_msg = Message<T>::forward_task(task, "coordinator", first_stage);
+    auto forward_msg =
+        Message<T>::forward_task(task, "coordinator", first_stage);
     forward_msg.sequence_number = microbatch_id;
 
     this->send_message_to_stage(first_stage, forward_msg);
@@ -229,7 +234,8 @@ public:
     const std::string &last_stage = this->stage_names_.back();
 
     Task<T> task{TaskType::BACKWARD, gradient, microbatch_id};
-    auto backward_msg = Message<T>::backward_task(task, "coordinator", last_stage);
+    auto backward_msg =
+        Message<T>::backward_task(task, "coordinator", last_stage);
     backward_msg.sequence_number = microbatch_id;
 
     this->send_message_to_stage(last_stage, backward_msg);
@@ -252,12 +258,12 @@ public:
     });
 
     if (!success) {
-      printf("Warning: join() timed out waiting for task messages. "
-             "Expected: %d, Got: %zu\n",
-             expected_task_count_.load(),
-             this->coordinator_comm_->actual_task_message_count());
+      std::cout
+          << "Warning: join() timed out waiting for task messages. Expected: "
+          << expected_task_count_.load()
+          << ", Got: " << this->coordinator_comm_->actual_task_message_count()
+          << std::endl;
     } else {
-
     }
   }
 
@@ -268,7 +274,7 @@ public:
       this->send_message_to_stage(stage_names_, profiling_msg);
     }
     this->coordinator_comm_->flush_output_messages();
-    printf("Sent profiling request to all stages\n");
+    std::cout << "Sent profiling request to all stages" << std::endl;
   }
 
   // Status and monitoring through messages only
@@ -386,9 +392,9 @@ private:
 
       auto elapsed = std::chrono::steady_clock::now() - start_time;
       if (elapsed > timeout) {
-        printf("Warning: Timeout waiting for parameter updates. Got %d/%d "
-               "confirmations\n",
-               confirmations, this->num_stages_);
+        std::cout << "Warning: Timeout waiting for parameter updates. Got "
+                  << confirmations << "/" << this->num_stages_
+                  << " confirmations" << std::endl;
         break;
       }
 

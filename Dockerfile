@@ -7,6 +7,8 @@ ENV TZ=UTC
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
+    net-tools \
+    iputils-ping \
     build-essential \
     g++ \
     make \
@@ -29,14 +31,5 @@ RUN make clean && \
     make network_worker && \
     make distributed_pipeline_docker
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
-
-USER appuser
-
 # Expose ports that workers will use
 EXPOSE 8000 8001 8002 8003 8004
-
-# Default command (will be overridden in docker-compose)
-CMD ["./distributed_pipeline_docker"]

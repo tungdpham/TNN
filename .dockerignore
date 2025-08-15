@@ -37,7 +37,6 @@ pipeline_test
 Dockerfile
 docker-compose.yml
 .dockerignore
-docker-run.sh
 
 # Model snapshots (large files, mount if needed)
 model_snapshots/

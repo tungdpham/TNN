@@ -134,7 +134,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
                 << std::endl;
       float new_lr = 1.0f * optimizer.get_learning_rate() * 0.8f;
       optimizer.set_learning_rate(new_lr);
-      printf("Learning rate decayed to: %.6f\n", new_lr);
+      std::cout << "Decayed learning rate to: " << new_lr << std::endl;
     }
   }
 }

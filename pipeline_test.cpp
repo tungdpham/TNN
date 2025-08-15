@@ -81,7 +81,7 @@ signed main() {
   Tensor<float> batch_data;
   Tensor<float> batch_labels;
   int batch_index = 0;
-  printf("Starting training loop...\n");
+  std::cout << "Starting training..." << std::endl;
   // pipeline_coordinator.start();
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
@@ -115,7 +115,6 @@ signed main() {
 
     std::vector<tpipeline::Message<float>> all_messages =
         pipeline_coordinator.get_task_messages();
-    // printf("Total messages processed: %zu\n", all_messages.size());
 
     if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
       throw std::runtime_error(
@@ -174,13 +173,12 @@ signed main() {
                                                               backward_start);
 
     if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-      printf("Forward pass completed in %ld ms\n", forward_duration.count());
-      printf("Loss computation completed in %ld ms\n",
-             compute_loss_duration.count());
-      printf("Backward pass completed in %ld ms\n", backward_duration.count());
-      printf("Batch %d/%zu - Loss: %.4f, Accuracy: %.2f%%\n", batch_index,
-             train_loader.size() / train_loader.get_batch_size(), loss,
-             avg_accuracy * 100.0f);
+      std::cout << "Batch " << batch_index << " - Loss: " << loss
+                << ", Accuracy: " << avg_accuracy * 100.0f << "%"
+                << ", Forward time: " << forward_duration.count() << " ms"
+                << ", Loss time: " << compute_loss_duration.count() << " ms"
+                << ", Backward time: " << backward_duration.count() << " ms"
+                << std::endl;
       pipeline_coordinator.print_profiling_on_all_stages();
     }
     ++batch_index;
@@ -188,8 +186,8 @@ signed main() {
   auto epoch_end = std::chrono::high_resolution_clock::now();
   auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       epoch_end - epoch_start);
-  printf("Epoch completed in %ld ms\n", epoch_duration.count());
+  std::cout << "Epoch completed in " << epoch_duration.count() << " ms" << std::endl;
 
-  printf("Program stopped successfully.\n");
+  std::cout << "Program stopped successfully." << std::endl;
   return 0;
 }

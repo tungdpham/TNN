@@ -289,7 +289,7 @@ public:
   }
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
-    // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
+  // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
     micro_batch_inputs_[micro_batch_id] = input;
 
     const size_t batch_size = input.batch_size();
@@ -297,8 +297,7 @@ public:
         input.channels() * input.height() * input.width();
 
     if (total_input_features != input_features_) {
-      printf("Input shape: %zu features, expected: %zu features\n",
-             total_input_features, input_features_);
+      std::cerr << "Input shape: " << total_input_features << " features, expected: " << input_features_ << " features" << std::endl;
       throw std::invalid_argument("Input feature size mismatch in DenseLayer");
     }
 
@@ -327,13 +326,13 @@ public:
 
   Tensor<T> backward(const Tensor<T> &grad_output,
                      int micro_batch_id = 0) override {
-    // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
+  // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
     auto it_input = micro_batch_inputs_.find(micro_batch_id);
     auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
 
     if (it_input == micro_batch_inputs_.end()) {
       for (const auto &pair : micro_batch_inputs_) {
-        printf("Cached micro-batch IDs: %d\n", pair.first);
+        std::cout << "Cached micro-batch IDs: " << pair.first << std::endl;
       }
       throw std::runtime_error("No cached input found for micro-batch ID: " +
                                std::to_string(micro_batch_id));
@@ -672,8 +671,7 @@ public:
   // Forward and backward implementations moved from separate file
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (input.channels() != in_channels_) {
-      printf("Input shape: %zu channels, expected: %zu channels\n",
-             input.channels(), in_channels_);
+      std::cerr << "Input shape: " << input.channels() << " channels, expected: " << in_channels_ << " channels" << std::endl;
       throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
     }
 

@@ -12,6 +12,7 @@
 #include <iostream>
 // For C++17, we'll use std::apply and std::invoke_result_t
 #include <type_traits>
+#include <iostream>
 
 // Platform-specific headers for CPU affinity
 #ifdef __linux__
@@ -51,7 +52,7 @@ inline ThreadPool::ThreadPool(size_t threads) : stop(false) {
         // For this example, we'll just cap the number of threads.
         threads = num_cores;
     }
-    printf("Creating ThreadPool with %zu threads\n", threads);
+    std::cout << "Creating ThreadPool with " << threads << " threads" << std::endl;
 
     for (size_t i = 0; i < threads; ++i) {
         workers.emplace_back([this, i] {

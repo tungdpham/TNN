@@ -10,6 +10,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <iostream>
 
 namespace tpipeline {
 
@@ -43,9 +44,8 @@ public:
         is_deployed_(false) {
 
     if (model.get_layers().size() < endpoints.size()) {
-        printf(
-            "Error: Model has fewer layers (%zu) than remote endpoints (%zu)\n",
-            model.get_layers().size(), endpoints.size());
+        std::cout << "Error: Model has fewer layers (" << model.get_layers().size()
+                  << ") than remote endpoints (" << endpoints.size() << ")\n";
       throw std::invalid_argument(
           "Model must have at least as many layers as remote endpoints");
     }
@@ -96,27 +96,33 @@ public:
     // Start IO context in background thread
     io_thread_ = std::thread([this]() { io_context_.run(); });
 
-    printf("Distributed coordinator initialized with %zu remote endpoints\n",
-           endpoints.size());
+    std::cout << "Distributed coordinator initialized with " << endpoints.size()
+              << " remote endpoints\n";
   }
 
   ~DistributedPipelineCoordinator() {
+    // First stop the coordinator and clean up connections
     stop();
+    
+    // Reset the coordinator communicator before destroying io_context
+    this->coordinator_comm_.reset();
+    
+    // Then stop the io_context and cleanup
     work_guard_.reset();
     io_context_.stop();
     if (io_thread_.joinable()) {
-      io_thread_.join();
+        io_thread_.join();
     }
   }
 
   // Deploy stages to remote machines
   bool deploy_stages() {
     if (is_deployed_) {
-      printf("Stages already deployed\n");
+      std::cout << "Stages already deployed\n";
       return true;
     }
 
-    printf("Starting stage deployment...\n");
+    std::cout << "Starting deployment of distributed pipeline stages...\n";
 
     // Connect to all remote endpoints
     std::vector<std::future<bool>> connection_futures;
@@ -137,11 +143,11 @@ public:
     }
 
     if (!all_connected) {
-      printf("Failed to connect to all endpoints\n");
+      std::cout << "Failed to connect to all endpoints\n";
       return false;
     }
 
-    printf("Connected to all endpoints, sending stage configurations...\n");
+    std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
 
     // Send stage configurations
     std::vector<std::future<bool>> deployment_futures;
@@ -162,18 +168,18 @@ public:
     }
 
     if (!all_deployed) {
-      printf("Failed to deploy all stages\n");
+      std::cout << "Failed to deploy all stages\n";
       return false;
     }
 
     // Wait for readiness confirmations
     if (!wait_for_stage_readiness()) {
-      printf("Not all stages reported ready\n");
+      std::cout << "Not all stages reported ready\n";
       return false;
     }
 
     is_deployed_ = true;
-    printf("All stages deployed and ready!\n");
+    std::cout << "All stages deployed and ready!\n";
     return true;
   }
 
@@ -190,7 +196,8 @@ public:
     }
 
     // this->coordinator_comm_->flush_output_messages();
-    printf("Started all %d distributed pipeline stages\n", this->num_stages_);
+    std::cout << "Started all " << this->num_stages_
+              << " distributed pipeline stages\n";
   }
 
   void stop() override {
@@ -202,7 +209,7 @@ public:
     }
 
     // this->coordinator_comm_->flush_output_messages();
-    printf("Stopped all distributed pipeline stages\n");
+    std::cout << "Stopped all distributed pipeline stages\n";
   }
 
   void forward(const Tensor<T> &input, size_t microbatch_id) override {
@@ -255,10 +262,10 @@ public:
     });
 
     if (!success) {
-      printf("Warning: join() timed out waiting for task messages. "
-             "Expected: %d, Got: %zu\n",
-             expected_task_count_.load(),
-             this->coordinator_comm_->actual_task_message_count());
+      std::cout << "Warning: join() timed out waiting for task messages. "
+                << "Expected: " << expected_task_count_.load()
+                << ", Got: " << this->coordinator_comm_->actual_task_message_count()
+                << '\n';
     } else {
     }
   }
@@ -309,21 +316,23 @@ private:
 
   bool connect_to_endpoint(const RemoteEndpoint &endpoint) {
     try {
+      std::cout << "Connecting to stage " << endpoint.stage_id
+                << " at " << endpoint.host << ":" << endpoint.port << std::endl;
       auto tcp_comm = static_cast<TcpPipelineCommunicator<T> *>(
           this->coordinator_comm_.get());
       bool connected = tcp_comm->connect_to_peer(endpoint.stage_id,
                                                  endpoint.host, endpoint.port);
 
       if (connected) {
-        printf("Connected to stage %s at %s:%d\n", endpoint.stage_id.c_str(),
-               endpoint.host.c_str(), endpoint.port);
+        std::cout << "Connected to stage " << endpoint.stage_id
+                  << " at " << endpoint.host << ":" << endpoint.port << std::endl;
       }
 
       return connected;
 
     } catch (const std::exception &e) {
-      printf("Failed to connect to %s:%d - %s\n", endpoint.host.c_str(),
-             endpoint.port, e.what());
+      std::cout << "Failed to connect to " << endpoint.host << ":" << endpoint.port
+                << " - " << e.what() << '\n';
       return false;
     }
   }
@@ -337,19 +346,19 @@ private:
           CommandType::CONFIG_RECEIVED, config_json, "coordinator",
           endpoint.stage_id);
 
-      printf("Sending CONFIG_RECEIVED (type %d) to %s\n",
-             static_cast<int>(CommandType::CONFIG_RECEIVED),
-             endpoint.stage_id.c_str());
+      std::cout << "Sending CONFIG_RECEIVED (type "
+                << static_cast<int>(CommandType::CONFIG_RECEIVED)
+                << ") to " << endpoint.stage_id << '\n';
 
       this->send_message_to_stage(endpoint.stage_id, config_msg);
       this->coordinator_comm_->flush_output_messages();
 
-      printf("Sent configuration to stage %s\n", endpoint.stage_id.c_str());
+      std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
       return true;
 
     } catch (const std::exception &e) {
-      printf("Failed to deploy config to stage %s: %s\n",
-             endpoint.stage_id.c_str(), e.what());
+      std::cout << "Failed to deploy config to stage " << endpoint.stage_id
+                << ": " << e.what() << '\n';
       return false;
     }
   }
@@ -362,8 +371,8 @@ private:
 
     while (ready_count < this->num_stages_) {
       if (std::chrono::steady_clock::now() - start_time > timeout) {
-        printf("Timeout waiting for stage readiness (%d/%d ready)\n",
-               ready_count, this->num_stages_);
+        std::cout << "Timeout waiting for stage readiness (" << ready_count
+                  << "/" << this->num_stages_ << " ready)\n";
         return false;
       }
 
@@ -373,22 +382,21 @@ private:
         while (this->coordinator_comm_->has_input_message()) {
           try {
             auto message = this->coordinator_comm_->dequeue_input_message();
-            printf("Received message type %d from %s\n",
-                   static_cast<int>(message.command_type),
-                   message.sender_id.c_str());
+            // std::cout << "Received message type " << static_cast<int>(message.command_type)
+            //           << " from " << message.sender_id << '\n';
 
             if (message.command_type == CommandType::READY_SIGNAL) {
               ready_count++;
-              printf("Stage %s reported ready (%d/%d)\n",
-                     message.sender_id.c_str(), ready_count, this->num_stages_);
+              std::cout << "Stage " << message.sender_id << " reported ready ("
+                        << ready_count << "/" << this->num_stages_ << ")\n";
             } else {
-              printf("Received non-ready message type %d from %s during "
-                     "readiness wait\n",
-                     static_cast<int>(message.command_type),
-                     message.sender_id.c_str());
+              std::cout << "Received non-ready message type "
+                        << static_cast<int>(message.command_type)
+                        << " from " << message.sender_id
+                        << " during readiness wait\n";
             }
           } catch (const std::runtime_error &e) {
-            printf("Error dequeuing message: %s\n", e.what());
+            std::cout << "Error dequeuing message: " << e.what() << '\n';
             break; // No more messages
           }
         }
@@ -408,9 +416,8 @@ private:
 
     while (confirmations < this->num_stages_) {
       if (std::chrono::steady_clock::now() - start_time > timeout) {
-        printf("Timeout waiting for parameter update confirmations (%d/%d "
-               "received)\n",
-               confirmations, this->num_stages_);
+        std::cout << "Timeout waiting for parameter update confirmations ("
+                  << confirmations << "/" << this->num_stages_ << " received)\n";
         break;
       }
 
@@ -422,8 +429,8 @@ private:
               this->coordinator_comm_->dequeue_parameter_update_message();
           if (message.command_type == CommandType::PARAMETERS_UPDATED) {
             confirmations++;
-            // printf("Parameter update confirmed from stage %s (%d/%d)\n",
-            //        message.sender_id.c_str(), confirmations, this->num_stages_);
+            // std::cout << "Parameter update confirmed from stage " << message.sender_id
+            //           << " (" << confirmations << "/" << this->num_stages_ << ")\n";
           }
         } catch (const std::runtime_error &e) {
           break;

@@ -57,7 +57,7 @@ public:
         communicator_->enqueue_output_message(response);
         communicator_->flush_output_messages();
       } else {
-        printf("Warning: No model available to update parameters\n");
+        std::cout << "Warning: No model available to update parameters" << std::endl;
       }
       break;
     case CommandType::START_TRAINING:
@@ -79,8 +79,7 @@ public:
 
     case CommandType::ERROR_REPORT:
       if (message.has_text()) {
-        printf("Stage %s received error: %s from %s\n", name_.c_str(),
-               message.text_data->c_str(), message.sender_id.c_str());
+        std::cout << "Stage " << name_ << " received error: " << *message.text_data << " from " << message.sender_id << std::endl;
       }
       break;
 
@@ -88,12 +87,11 @@ public:
       if (model_) {
         model_->print_profiling_summary();
       } else {
-        printf("Warning: No model available to print profiling data\n");
+        std::cout << "Warning: No model available to print profiling data" << std::endl;
       }
       break;
     default:
-      printf("Stage %s received unknown command type: %d\n", name_.c_str(),
-             static_cast<int>(message.command_type));
+      std::cout << "Stage " << name_ << " received unknown command type: " << static_cast<int>(message.command_type) << std::endl;
       break;
     }
   }
@@ -149,9 +147,7 @@ protected:
     auto duration_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start)
             .count();
-    printf("Stage %s processed %s task with microbatch ID %zu in %lld ms\n",
-           name_.c_str(), (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD"),
-           task.micro_batch_id, static_cast<long long>(duration_ms));
+  std::cout << "Stage " << name_ << " processed " << (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD") << " task with microbatch ID " << task.micro_batch_id << " in " << static_cast<long long>(duration_ms) << " ms" << std::endl;
   }
 
 protected:

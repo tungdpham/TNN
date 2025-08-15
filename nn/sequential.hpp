@@ -624,7 +624,7 @@ public:
   
   void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
     this->optimizer_ = std::move(optimizer);
-    printf("Optimizer set to: %s\n", this->optimizer_->name().c_str());
+  std::cout << "Optimizer set to: " << this->optimizer_->name() << std::endl;
   }
   
   void set_loss(Loss<T> &loss) {
@@ -717,7 +717,7 @@ public:
     
     // Serialize optimizer
     if (optimizer_) {
-      printf("Saving optimizer configuration...\n");
+  std::cout << "Saving optimizer configuration..." << std::endl;
       OptimizerConfig opt_config = optimizer_->get_config();
       nlohmann::json opt_json;
       opt_json["type"] = opt_config.type;
@@ -775,10 +775,10 @@ public:
   static Sequential<T> load_from_config(const nlohmann::json& config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-    printf("Loading model from configuration: %s\n", model.name_.c_str());
+  std::cout << "Loading model from configuration: " << model.name_ << std::endl;
     // Load optimizer if present
     if (config.contains("optimizer")) {
-      printf("Loading optimizer configuration...\n");
+  std::cout << "Loading optimizer configuration..." << std::endl;
       OptimizerConfig opt_config;
       opt_config.type = config["optimizer"]["type"];
       opt_config.name = config["optimizer"]["name"];
@@ -798,7 +798,7 @@ public:
     
     // Load loss if present
     if (config.contains("loss")) {
-      printf("Loading loss configuration...\n");
+  std::cout << "Loading loss configuration..." << std::endl;
       LossConfig loss_config;
       loss_config.type = config["loss"]["type"];
       loss_config.name = config["loss"]["name"];
