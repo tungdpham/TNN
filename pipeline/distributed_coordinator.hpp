@@ -60,7 +60,7 @@ public:
       config.stage_index = static_cast<int>(i);
       config.model_config = splitted_models[i].get_config();
       config.coordinator_endpoint =
-          "localhost:" + std::to_string(coordinator_port_);
+          coordinator_host + ":" + std::to_string(coordinator_port_);
 
       // Set up stage interconnections
       if (i > 0) {
@@ -85,7 +85,7 @@ public:
 
     // Create coordinator communicator
     this->coordinator_comm_ = std::make_unique<TcpPipelineCommunicator<T>>(
-        io_context_, "localhost", coordinator_port_);
+        io_context_, coordinator_host, coordinator_port_);
 
     // Set up message notification callback for event-driven processing
     this->coordinator_comm_->set_message_notification_callback([this]() {

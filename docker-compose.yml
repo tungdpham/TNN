@@ -9,19 +9,21 @@ services:
     networks:
       - dcnn-network
 
-  # worker-8002:
-  #   build: .
-  #   container_name: dcnn-worker-8002
-  #   command: ["./network_worker", "8002"]
-  #   ports:
-  #     - "8002:8002"
-  #   # networks:
-  #   #   - dcnn-network
+  worker-8002:
+    build: .
+    container_name: dcnn-worker-8002
+    command: ["./network_worker", "8002"]
+    hostname: worker-8002
+    ports:
+      - "8002:8002"
+    networks:
+      - dcnn-network
 
   # worker-8003:
   #   build: .
   #   container_name: dcnn-worker-8003
   #   command: ["./network_worker", "8003"]
+  #   hostname: worker-8003
   #   ports:
   #     - "8003:8003"
   #   # networks:
@@ -31,6 +33,7 @@ services:
   #   build: .
   #   container_name: dcnn-worker-8004
   #   command: ["./network_worker", "8004"]
+  #   hostname: worker-8004
   #   ports:
   #     - "8004:8004"
   #   # networks:
@@ -48,12 +51,13 @@ services:
       - dcnn-network
     depends_on:
       - worker-8001
-      # - worker-8002
+      - worker-8002
       # - worker-8003
       # - worker-8004
     environment:
+      - COORDINATOR_HOST=coordinator
       - WORKER_HOST_8001=worker-8001
-      # - WORKER_HOST_8002=worker-8002
+      - WORKER_HOST_8002=worker-8002
       # - WORKER_HOST_8003=worker-8003
       # - WORKER_HOST_8004=worker-8004
 

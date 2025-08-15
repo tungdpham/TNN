@@ -60,15 +60,19 @@ int main() {
 
     model.print_config();
 
+    std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
+
     // Define remote endpoints where stages will be deployed
     // Use environment variables for Docker container hostnames, fallback to localhost
     std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint>
         endpoints = {
             {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"}, // First stage
-            // {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
+            {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
             // {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage
             // {get_host("WORKER_HOST_8004", "localhost"), 8004, "stage_3"}  // Fourth stage
         };
+
+    std::cout << "Using coordinator host: " << coordinator_host << std::endl;
 
     std::cout << "\nConfigured " << endpoints.size()
               << " remote endpoints:" << std::endl;
@@ -80,7 +84,7 @@ int main() {
     // Create distributed coordinator
     std::cout << "\nCreating distributed coordinator..." << std::endl;
     DistributedPipelineCoordinator<float> coordinator(
-        std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, get_host("COORDINATOR_HOST", "localhost"), 8000);
+        std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
     // Deploy stages to remote machines
     std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
