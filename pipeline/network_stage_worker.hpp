@@ -9,7 +9,6 @@
 #include <atomic>
 #include <iostream>
 #include <memory>
-#include <thread>
 
 namespace tpipeline {
 
@@ -36,7 +35,7 @@ public:
     // Set up message notification callback
     communicator_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_mutex_);
-      process_message(communicator_->dequeue_input_message());
+      message_cv_.notify_all();
     });
   }
 
@@ -58,6 +57,8 @@ public:
 
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
+
+    message_loop();
   }
 
   void stop() {
@@ -104,35 +105,33 @@ private:
   std::mutex message_mutex_;
   std::condition_variable message_cv_;
 
-  // void message_loop() {
-  //     printf("Starting message processing loop\n");
+  void message_loop() {
+    printf("Starting message processing loop\n");
 
-  //     while (is_running_) {
-  //         std::unique_lock<std::mutex> lock(message_mutex_);
-  //         message_cv_.wait(lock, [this]() {
-  //             printf("Stage waiting for messages...\n");
-  //             return !is_running_ || communicator_->has_input_message();
-  //         });
+    while (is_running_) {
+      std::unique_lock<std::mutex> lock(message_mutex_);
+      message_cv_.wait(lock, [this]() {
+        return !is_running_ || communicator_->has_input_message();
+      });
 
-  //         if (!is_running_){
-  //             printf("Exiting message loop due to shutdown\n");
-  //             break;
-  //         }
+      if (!is_running_) {
+        printf("Exiting message loop due to shutdown\n");
+        break;
+      }
 
-  //         // Process all available messages
-  //         while (communicator_->has_input_message()) {
-  //             try {
-  //                 printf("Worker processing input message\n");
-  //                 auto message = communicator_->dequeue_input_message();
-  //                 process_message(message);
-  //             } catch (const std::exception& e) {
-  //                 printf("Error processing message: %s\n", e.what());
-  //             }
-  //         }
-  //     }
+      // Process all available messages
+      while (communicator_->has_input_message()) {
+        try {
+          auto message = communicator_->dequeue_input_message();
+          process_message(message);
+        } catch (const std::exception &e) {
+          printf("Error processing message: %s\n", e.what());
+        }
+      }
+    }
 
-  //     printf("Message processing loop ended\n");
-  // }
+    printf("Message processing loop ended\n");
+  }
 
   void process_message(const Message<T> &message) {
 

@@ -10,7 +10,7 @@
 namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 20;
+constexpr int EPOCHS = 1;
 constexpr size_t BATCH_SIZE =
     128; // Good balance between memory and convergence
 constexpr int LR_DECAY_INTERVAL = 2;
@@ -66,7 +66,7 @@ signed main() {
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
   auto pipeline_coordinator = tpipeline::InProcessPipelineCoordinator<float>(
-      model, 2, mnist_constants::NUM_MICROBATCHES);
+      model, 1, mnist_constants::NUM_MICROBATCHES);
   // Get the stages from the coordinator
   auto stages = pipeline_coordinator.get_stages();
 
@@ -82,7 +82,6 @@ signed main() {
   Tensor<float> batch_labels;
   int batch_index = 0;
   std::cout << "Starting training..." << std::endl;
-  // pipeline_coordinator.start();
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
@@ -91,102 +90,124 @@ signed main() {
   float loss = 0.0f;
   float avg_accuracy = 0.0f;
 
-  while (train_loader.get_next_batch(batch_data, batch_labels)) {
-    std::vector<Tensor<float>> micro_batches =
-        batch_data.split(mnist_constants::NUM_MICROBATCHES);
-
-    std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(mnist_constants::NUM_MICROBATCHES);
-
-    auto forward_start = std::chrono::high_resolution_clock::now();
-
-    // Process a batch of data
-    for (int i = 0; i < micro_batches.size(); ++i) {
-      pipeline_coordinator.forward(micro_batches[i], i);
+#pragma omp parallel sections 
+{
+#pragma omp section
+  {
+    // Start the message loop for each stage
+    for (auto &stage : stages) {
+      stage->message_loop();
     }
-
-    pipeline_coordinator.join(1);
-
-    auto forward_end = std::chrono::high_resolution_clock::now();
-    auto forward_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(forward_end -
-                                                              forward_start);
-    auto compute_loss_start = std::chrono::high_resolution_clock::now();
-
-    std::vector<tpipeline::Message<float>> all_messages =
-        pipeline_coordinator.get_task_messages();
-
-    if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
-      throw std::runtime_error(
-          "Unexpected number of messages: " +
-          std::to_string(all_messages.size()) +
-          ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
-    }
-
-    // Extract tasks from messages
-    std::vector<tpipeline::Task<float>> forward_tasks;
-    for (const auto &message : all_messages) {
-      if (message.is_task_message()) {
-        forward_tasks.push_back(message.task.value());
-      }
-    }
-
-    std::vector<tpipeline::Task<float>> backward_tasks;
-    for (auto &task : forward_tasks) {
-      // Compute loss for each microbatch
-      loss = loss_function->compute_loss(task.data, 
-                                                       micro_batch_labels[task.micro_batch_id]);
-      avg_accuracy = utils::compute_class_accuracy<float>(
-          task.data, micro_batch_labels[task.micro_batch_id]);
-
-      Tensor<float> gradient =
-          loss_function->compute_gradient(task.data, micro_batch_labels[task.micro_batch_id]);
-
-      // Create backward task
-      tpipeline::Task<float> backward_task{tpipeline::TaskType::BACKWARD, gradient,
-                                           task.micro_batch_id};
-
-      backward_tasks.push_back(backward_task);
-    }
-
-    auto compute_loss_end = std::chrono::high_resolution_clock::now();
-    auto compute_loss_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            compute_loss_end - compute_loss_start);
-
-    auto backward_start = std::chrono::high_resolution_clock::now();
-
-    // Backward pass
-    for (const auto &task : backward_tasks) {
-      pipeline_coordinator.backward(task.data, task.micro_batch_id);
-    }
-
-    pipeline_coordinator.join(0); // join backward tasks
-
-    pipeline_coordinator.get_task_messages(); // clear task messages
-
-    pipeline_coordinator.update_parameters();
-
-    auto backward_end = std::chrono::high_resolution_clock::now();
-    auto backward_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(backward_end -
-                                                              backward_start);
-
-    if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-      std::cout << "Batch " << batch_index << " - Loss: " << loss
-                << ", Accuracy: " << avg_accuracy * 100.0f << "%"
-                << ", Forward time: " << forward_duration.count() << " ms"
-                << ", Loss time: " << compute_loss_duration.count() << " ms"
-                << ", Backward time: " << backward_duration.count() << " ms"
-                << std::endl;
-      pipeline_coordinator.print_profiling_on_all_stages();
-    }
-    ++batch_index;
   }
-  auto epoch_end = std::chrono::high_resolution_clock::now();
-  auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      epoch_end - epoch_start);
-  std::cout << "Epoch completed in " << epoch_duration.count() << " ms" << std::endl;
+#pragma omp section
+  {
+    // Main training loop
+    for (int epoch = 0; epoch < mnist_constants::EPOCHS; ++epoch) {
+      std::cout << "Epoch " << epoch + 1 << "/" << mnist_constants::EPOCHS
+                << std::endl;
+      train_loader.reset();
+      batch_index = 0;
+      while (train_loader.get_next_batch(batch_data, batch_labels)) {
+        std::vector<Tensor<float>> micro_batches =
+            batch_data.split(mnist_constants::NUM_MICROBATCHES);
+
+        std::vector<Tensor<float>> micro_batch_labels =
+            batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
+        auto forward_start = std::chrono::high_resolution_clock::now();
+
+        // Process a batch of data
+        for (int i = 0; i < micro_batches.size(); ++i) {
+          pipeline_coordinator.forward(micro_batches[i], i);
+        }
+
+        pipeline_coordinator.join(1);
+
+        auto forward_end = std::chrono::high_resolution_clock::now();
+        auto forward_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                forward_end - forward_start);
+        auto compute_loss_start = std::chrono::high_resolution_clock::now();
+
+        std::vector<tpipeline::Message<float>> all_messages =
+            pipeline_coordinator.get_task_messages();
+
+        if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
+          throw std::runtime_error(
+              "Unexpected number of messages: " +
+              std::to_string(all_messages.size()) + ", expected: " +
+              std::to_string(mnist_constants::NUM_MICROBATCHES));
+        }
+
+        // Extract tasks from messages
+        std::vector<tpipeline::Task<float>> forward_tasks;
+        for (const auto &message : all_messages) {
+          if (message.is_task_message()) {
+            forward_tasks.push_back(message.task.value());
+          }
+        }
+
+        std::vector<tpipeline::Task<float>> backward_tasks;
+        for (auto &task : forward_tasks) {
+          // Compute loss for each microbatch
+          loss = loss_function->compute_loss(
+              task.data, micro_batch_labels[task.micro_batch_id]);
+          avg_accuracy = utils::compute_class_accuracy<float>(
+              task.data, micro_batch_labels[task.micro_batch_id]);
+
+          Tensor<float> gradient = loss_function->compute_gradient(
+              task.data, micro_batch_labels[task.micro_batch_id]);
+
+          // Create backward task
+          tpipeline::Task<float> backward_task{tpipeline::TaskType::BACKWARD,
+                                               gradient, task.micro_batch_id};
+
+          backward_tasks.push_back(backward_task);
+        }
+
+        auto compute_loss_end = std::chrono::high_resolution_clock::now();
+        auto compute_loss_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                compute_loss_end - compute_loss_start);
+
+        auto backward_start = std::chrono::high_resolution_clock::now();
+
+        // Backward pass
+        for (const auto &task : backward_tasks) {
+          pipeline_coordinator.backward(task.data, task.micro_batch_id);
+        }
+
+        pipeline_coordinator.join(0); // join backward tasks
+
+        pipeline_coordinator.get_task_messages(); // clear task messages
+
+        pipeline_coordinator.update_parameters();
+
+        auto backward_end = std::chrono::high_resolution_clock::now();
+        auto backward_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                backward_end - backward_start);
+
+        if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+          std::cout << "Batch " << batch_index << " - Loss: " << loss
+                    << ", Accuracy: " << avg_accuracy * 100.0f << "%"
+                    << ", Forward time: " << forward_duration.count() << " ms"
+                    << ", Loss time: " << compute_loss_duration.count() << " ms"
+                    << ", Backward time: " << backward_duration.count() << " ms"
+                    << std::endl;
+          pipeline_coordinator.print_profiling_on_all_stages();
+        }
+        ++batch_index;
+      }
+      auto epoch_end = std::chrono::high_resolution_clock::now();
+      auto epoch_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
+                                                                epoch_start);
+      std::cout << "Epoch completed in " << epoch_duration.count() << " ms"
+                << std::endl;
+    }
+  }
+}
 
   std::cout << "Program stopped successfully." << std::endl;
   return 0;

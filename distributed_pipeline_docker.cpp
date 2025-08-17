@@ -15,14 +15,14 @@ using namespace tnn;
 using namespace tpipeline;
 
 namespace mnist_constants {
-constexpr float LR_INITIAL = 0.001f;
+constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
+constexpr int BATCH_SIZE = 64; // Batch size for training
 constexpr int NUM_MICROBATCHES =
-    4;                        // Number of microbatches for distributed training
+    1;                        // Number of microbatches for distributed training
 constexpr int NUM_EPOCHS = 1; // Number of epochs for training
 constexpr size_t PROGRESS_PRINT_INTERVAL =
     100; // Print progress every 100 batches
-// NUM_CLASSES is already defined in mnist_data_loader.hpp
 } // namespace mnist_constants
 
 // Create a simple CNN model for demonstration
@@ -67,7 +67,7 @@ int main() {
     std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint>
         endpoints = {
             {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"}, // First stage
-            {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
+            // {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage
             // {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage
             // {get_host("WORKER_HOST_8004", "localhost"), 8004, "stage_3"}  // Fourth stage
         };
@@ -117,13 +117,19 @@ int main() {
 
     Tensor<float> batch_data, batch_labels;
 
-    float loss = 0.0f, avg_accuracy = 0.0f;
-
     auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
     size_t batch_index = 0;
 
-    while (train_loader.get_batch(32, batch_data, batch_labels)) {
+    auto epoch_start = std::chrono::high_resolution_clock::now();
+
+    train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+    test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+
+    while (train_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data, batch_labels)) {
+      float loss = 0.0f, avg_accuracy = 0.0f;
+
+      // Split the batch into microbatches
       std::vector<Tensor<float>> micro_batches =
           batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
@@ -166,9 +172,9 @@ int main() {
       std::vector<tpipeline::Task<float>> backward_tasks;
       for (auto &task : forward_tasks) {
         // Compute loss for each microbatch
-        loss = loss_function->compute_loss(
+        loss += loss_function->compute_loss(
             task.data, micro_batch_labels[task.micro_batch_id]);
-        avg_accuracy = utils::compute_class_accuracy<float>(
+        avg_accuracy += utils::compute_class_accuracy<float>(
             task.data, micro_batch_labels[task.micro_batch_id]);
 
         Tensor<float> gradient = loss_function->compute_gradient(
@@ -180,6 +186,9 @@ int main() {
 
         backward_tasks.push_back(backward_task);
       }
+
+      loss /= mnist_constants::NUM_MICROBATCHES;
+      avg_accuracy /= mnist_constants::NUM_MICROBATCHES;
 
       auto compute_loss_end = std::chrono::high_resolution_clock::now();
       auto compute_loss_duration =
@@ -197,12 +206,19 @@ int main() {
 
       coordinator.get_task_messages(); // clear task messages
 
-      coordinator.update_parameters();
-
       auto backward_end = std::chrono::high_resolution_clock::now();
       auto backward_duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(backward_end -
                                                                 backward_start);
+    
+      auto update_start = std::chrono::high_resolution_clock::now();                                                       
+      coordinator.update_parameters();
+
+      auto update_end = std::chrono::high_resolution_clock::now();
+      auto update_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(update_end -
+                                                                update_start);
+
 
       if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
         std::cout << "Forward pass completed in " << forward_duration.count()
@@ -211,6 +227,8 @@ int main() {
                   << compute_loss_duration.count() << " ms" << std::endl;
         std::cout << "Backward pass completed in " << backward_duration.count()
                   << " ms" << std::endl;
+        std::cout << "Parameter update completed in "
+                  << update_duration.count() << " ms" << std::endl;
         std::cout << "Batch " << batch_index << "/"
                   << train_loader.size() / train_loader.get_batch_size()
                   << " - Loss: " << loss << ", Accuracy: "
@@ -219,6 +237,64 @@ int main() {
       }
       ++batch_index;
     }
+
+    auto epoch_end = std::chrono::high_resolution_clock::now();
+    auto epoch_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
+                                                              epoch_start);
+    std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1
+              << " completed in " << epoch_duration.count() << " ms" << std::endl;
+
+    // Validate the model on test data
+    double val_loss = 0.0;
+    double val_accuracy = 0.0;
+    int val_batches = 0;
+    while(test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data, batch_labels)){
+      // Split the batch into microbatches
+      std::vector<Tensor<float>> micro_batches =
+          batch_data.split(mnist_constants::NUM_MICROBATCHES);
+
+      std::vector<Tensor<float>> micro_batch_labels =
+          batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
+      for (int i = 0; i < micro_batches.size(); ++i) {
+        coordinator.forward(micro_batches[i], i);
+      }
+
+      coordinator.join(1);
+
+      std::vector<tpipeline::Message<float>> all_messages =
+          coordinator.get_task_messages();
+
+      if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
+        throw std::runtime_error(
+            "Unexpected number of messages: " +
+            std::to_string(all_messages.size()) +
+            ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
+      }
+
+      // Extract tasks from messages
+      std::vector<tpipeline::Task<float>> forward_tasks;
+      for (const auto &message : all_messages) {
+        if (message.is_task_message()) {
+          forward_tasks.push_back(message.task.value());
+        }
+      }
+
+      for (auto &task : forward_tasks) {
+        utils::apply_softmax<float>(task.data);
+        val_loss += loss_function->compute_loss(
+            task.data, micro_batch_labels[task.micro_batch_id]);
+        val_accuracy += utils::compute_class_accuracy<float>(
+            task.data, micro_batch_labels[task.micro_batch_id]);
+      }
+      ++val_batches;
+    }
+
+    std::cout << "\nValidation completed!" << std::endl;
+    std::cout << "Average Validation Loss: " << (val_loss / val_batches)
+              << ", Average Validation Accuracy: "
+              << (val_accuracy / val_batches / mnist_constants::NUM_MICROBATCHES) * 100.0f << "%" << std::endl;
     return 0;
 
   } catch (const std::exception &e) {

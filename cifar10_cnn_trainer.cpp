@@ -1,39 +1,43 @@
+#include "nn/layers.hpp"
+#include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
+#include "nn/sequential.hpp"
+#include "tensor/tensor.hpp"
+#include "utils/cifar10_data_loader.hpp"
+#include "utils/ops.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <omp.h>
+#include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 #include <random>
 #include <sstream>
 #include <vector>
-#include <omp.h>  
-#include "nn/layers.hpp"
-#include "nn/sequential.hpp"
-#include "tensor/tensor.hpp"
-#include "nn/optimizers.hpp"
-#include "nn/loss.hpp"
-#include "utils/cifar10_data_loader.hpp"
-#include "utils/ops.hpp"
 
 namespace cifar10_constants {
-  constexpr float EPSILON = 1e-15f;
-  constexpr int PROGRESS_PRINT_INTERVAL = 50;
-  constexpr int EPOCHS = 20; // Number of epochs for training
-  constexpr size_t BATCH_SIZE = 32; // Batch size for training
-  constexpr int LR_DECAY_INTERVAL = 10; // Learning rate decay interval
-  constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
-  constexpr float LR_INITIAL = 0.005f; // Initial learning rate for training
-} // namespace cifar_constants
+constexpr float EPSILON = 1e-15f;
+constexpr int PROGRESS_PRINT_INTERVAL = 50;
+constexpr int EPOCHS = 20;               // Number of epochs for training
+constexpr size_t BATCH_SIZE = 32;        // Batch size for training
+constexpr int LR_DECAY_INTERVAL = 10;    // Learning rate decay interval
+constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
+constexpr float LR_INITIAL = 0.005f;     // Initial learning rate for training
+} // namespace cifar10_constants
 
 // Training function for CNN tensor model
 void train_cnn_model(tnn::Sequential<float> &model,
                      data_loading::CIFAR10DataLoader<float> &train_loader,
-                     data_loading::CIFAR10DataLoader<float> &test_loader, int epochs = 10,
-                     int batch_size = 32, float learning_rate = 0.001) {
+                     data_loading::CIFAR10DataLoader<float> &test_loader,
+                     int epochs = 10, int batch_size = 32,
+                     float learning_rate = 0.001) {
   tnn::SGD<float> optimizer(learning_rate, 0.9);
-  
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+
+  auto loss_function =
+      tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
 
   std::cout << "Starting CNN tensor model training..." << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
@@ -59,9 +63,9 @@ void train_cnn_model(tnn::Sequential<float> &model,
       utils::apply_softmax<float>(predictions);
 
       // Compute loss and accuracy
-      float loss =
-          loss_function->compute_loss(predictions, batch_labels);
-      float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
+      float loss = loss_function->compute_loss(predictions, batch_labels);
+      float accuracy =
+          utils::compute_class_accuracy<float>(predictions, batch_labels);
 
       total_loss += loss;
       total_accuracy += accuracy;
@@ -103,9 +107,9 @@ void train_cnn_model(tnn::Sequential<float> &model,
       Tensor<float> predictions = model.forward(batch_data);
       utils::apply_softmax<float>(predictions);
 
-      val_loss +=
-          loss_function->compute_loss(predictions, batch_labels);
-      val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
+      val_loss += loss_function->compute_loss(predictions, batch_labels);
+      val_accuracy +=
+          utils::compute_class_accuracy<float>(predictions, batch_labels);
       val_batches++;
     }
 
@@ -141,7 +145,24 @@ void train_cnn_model(tnn::Sequential<float> &model,
 
 int main() {
   try {
-    std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
+#ifdef _OPENMP
+    // Set OpenMP configuration for optimal performance
+    const int num_threads = omp_get_max_threads();
+    omp_set_num_threads(
+        std::min(num_threads, 8)); // Limit threads to avoid overhead
+    std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
+              << std::endl;
+#endif
+
+#if defined(USE_TBB)
+    tbb::global_control c(tbb::global_control::max_allowed_parallelism, 8);
+    std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
+              << tbb::global_control::active_value(
+                     tbb::global_control::max_allowed_parallelism)
+              << "\n";
+#endif
+    std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training"
+              << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
     // Load data
@@ -149,14 +170,16 @@ int main() {
 
     std::vector<std::string> train_files;
     for (int i = 1; i <= 5; ++i) {
-      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + std::to_string(i) + ".bin");
+      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" +
+                            std::to_string(i) + ".bin");
     }
 
     if (!train_loader.load_multiple_files(train_files)) {
       return -1;
     }
 
-    if (!test_loader.load_multiple_files({"./data/cifar-10-batches-bin/test_batch.bin"})) {
+    if (!test_loader.load_multiple_files(
+            {"./data/cifar-10-batches-bin/test_batch.bin"})) {
       return -1;
     }
 
@@ -167,25 +190,29 @@ int main() {
     auto model =
         tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
             // Input: 3x32x32 (channels, height, width)
-            .conv2d(3, 16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 3x32x32 -> 32x30x30
+            .conv2d(3, 16, 3, 3, 1, 1, 0, 0, "relu", true,
+                    "conv1")                         // 3x32x32 -> 32x30x30
             .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1") // 32x30x30 -> 16x10x10
-            .conv2d(16, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 16x10x10 -> 64x8x8
+            .conv2d(16, 64, 3, 3, 1, 1, 0, 0, "relu", true,
+                    "conv2")                         // 16x10x10 -> 64x8x8
             .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2") // 64x8x8 -> 64x2x2
-            .dense(64 * 2 * 2, 10, "linear", true, "fc1") // Flatten to 256 -> 10
+            .dense(64 * 2 * 2, 10, "linear", true,
+                   "fc1") // Flatten to 256 -> 10
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
 
     // Print model summary
-    model.print_summary(std::vector<size_t>{
-        cifar10_constants::BATCH_SIZE, 3, 32, 32}); // Show summary with single image input
+    model.print_summary(
+        std::vector<size_t>{cifar10_constants::BATCH_SIZE, 3, 32,
+                            32}); // Show summary with single image input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,
-                    cifar10_constants::EPOCHS,  // epochs
+                    cifar10_constants::EPOCHS,     // epochs
                     cifar10_constants::BATCH_SIZE, // batch_size
-                    cifar10_constants::LR_INITIAL // learning_rate
+                    cifar10_constants::LR_INITIAL  // learning_rate
     );
 
     std::cout

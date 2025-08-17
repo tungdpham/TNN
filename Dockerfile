@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y \
     make \
     cmake \
     libomp-dev \
+    libtbb-dev \
     wget \
     curl \
     iproute2 \

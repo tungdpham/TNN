@@ -24,6 +24,7 @@
 #include "../utils/ops.hpp"
 #include "activations.hpp"
 #include "optimizers.hpp"
+#include "parallel_for.hpp"
 
 namespace tnn {
 // Convenience function for creating tensor activation functions
@@ -187,19 +188,28 @@ private:
   void gemm_impl(const T *input_data, const T *weight_data, T *output_data,
                  const size_t batch_size, const size_t input_features,
                  const size_t output_features) const {
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(
+        batch_size, output_features, [&](size_t n, size_t out_f) {
+          output_data[n * output_features + out_f] =
+              utils::simd_dot_product_contiguous(
+                  &weight_data[out_f * input_features],
+                  &input_data[n * input_features], input_features);
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t out_f = 0; out_f < output_features; ++out_f) {
         // Use SIMD-optimized dot product for contiguous memory access
-        output_data[n * output_features + out_f] = 
+        output_data[n * output_features + out_f] =
             utils::simd_dot_product_contiguous(
                 &weight_data[out_f * input_features],
-                &input_data[n * input_features], 
-                input_features);
+                &input_data[n * input_features], input_features);
       }
     }
+#endif
   }
 
   void weight_gradients_impl(const T *input_data, const T *grad_output_data,
@@ -207,52 +217,78 @@ private:
                              size_t input_features,
                              size_t output_features) const {
     auto input_transposed = std::make_unique<T[]>(input_features * batch_size);
-    auto grad_output_transposed = std::make_unique<T[]>(output_features * batch_size);
+    auto grad_output_transposed =
+        std::make_unique<T[]>(output_features * batch_size);
 
-    utils::transpose_2d(input_data, input_transposed.get(), 
-                        batch_size, input_features);
-    utils::transpose_2d(grad_output_data, grad_output_transposed.get(), 
+    utils::transpose_2d(input_data, input_transposed.get(), batch_size,
+                        input_features);
+    utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
                         batch_size, output_features);
-    
+
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(
+        output_features, input_features, [&](size_t out_f, size_t in_f) {
+          weight_grad_data[out_f * input_features + in_f] =
+              utils::simd_dot_product_contiguous(
+                  &grad_output_transposed[out_f * batch_size],
+                  &input_transposed[in_f * batch_size], batch_size);
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t out_f = 0; out_f < output_features; ++out_f) {
       for (size_t in_f = 0; in_f < input_features; ++in_f) {
         // Use SIMD-optimized dot product with contiguous memory access
-        weight_grad_data[out_f * input_features + in_f] = 
+        weight_grad_data[out_f * input_features + in_f] =
             utils::simd_dot_product_contiguous(
                 &grad_output_transposed[out_f * batch_size],
-                &input_transposed[in_f * batch_size],
-                batch_size);
+                &input_transposed[in_f * batch_size], batch_size);
       }
     }
+#endif
   }
 
   void input_gradients_impl(const T *grad_output_data, const T *weight_data,
                             T *grad_input_data, size_t batch_size,
                             size_t input_features,
                             size_t output_features) const {
-    auto weights_transposed = std::make_unique<T[]>(input_features * output_features);
-    utils::transpose_2d(weight_data, weights_transposed.get(), 
-                        output_features, input_features);
-    
+    auto weights_transposed =
+        std::make_unique<T[]>(input_features * output_features);
+    utils::transpose_2d(weight_data, weights_transposed.get(), output_features,
+                        input_features);
+
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(
+        batch_size, input_features, [&](size_t n, size_t in_f) {
+          grad_input_data[n * input_features + in_f] =
+              utils::simd_dot_product_contiguous(
+                  &grad_output_data[n * output_features],
+                  &weights_transposed[in_f * output_features], output_features);
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t in_f = 0; in_f < input_features; ++in_f) {
-        grad_input_data[n * input_features + in_f] = 
+        grad_input_data[n * input_features + in_f] =
             utils::simd_dot_product_contiguous(
                 &grad_output_data[n * output_features],
-                &weights_transposed[in_f * output_features],
-                output_features);
+                &weights_transposed[in_f * output_features], output_features);
       }
     }
+#endif
   }
 
   void add_bias_impl(T *output_data, const T *bias_data, size_t batch_size,
                      size_t output_features) const {
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(
+        batch_size, output_features, [&](size_t n, size_t out_f) {
+          output_data[n * output_features + out_f] += bias_data[out_f];
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -261,6 +297,7 @@ private:
         output_data[n * output_features + out_f] += bias_data[out_f];
       }
     }
+#endif
   }
 
 public:
@@ -289,7 +326,7 @@ public:
   }
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
-  // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
+    // printf("Forward pass for micro-batch ID: %d\n", micro_batch_id);
     micro_batch_inputs_[micro_batch_id] = input;
 
     const size_t batch_size = input.batch_size();
@@ -297,7 +334,9 @@ public:
         input.channels() * input.height() * input.width();
 
     if (total_input_features != input_features_) {
-      std::cerr << "Input shape: " << total_input_features << " features, expected: " << input_features_ << " features" << std::endl;
+      std::cerr << "Input shape: " << total_input_features
+                << " features, expected: " << input_features_ << " features"
+                << std::endl;
       throw std::invalid_argument("Input feature size mismatch in DenseLayer");
     }
 
@@ -326,7 +365,7 @@ public:
 
   Tensor<T> backward(const Tensor<T> &grad_output,
                      int micro_batch_id = 0) override {
-  // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
+    // printf("Backward pass for micro-batch ID: %d\n", micro_batch_id);
     auto it_input = micro_batch_inputs_.find(micro_batch_id);
     auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
 
@@ -364,6 +403,15 @@ public:
     // Compute bias gradients
     if (use_bias_) {
       bias_gradients_.fill(T(0));
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
+        T grad_sum = T(0);
+        for (size_t n = 0; n < batch_size; ++n) {
+          grad_sum += current_grad(n, out_f, 0, 0);
+        }
+        bias_gradients_(out_f, 0, 0, 0) = grad_sum;
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -372,8 +420,9 @@ public:
         for (size_t n = 0; n < batch_size; ++n) {
           grad_sum += current_grad(n, out_f, 0, 0);
         }
-        bias_gradients_(out_f, 0, 0, 0) = grad_sum; 
+        bias_gradients_(out_f, 0, 0, 0) = grad_sum;
       }
+#endif
     }
 
     // Compute input gradients
@@ -463,8 +512,7 @@ protected:
 };
 
 // Activation Layer (stateless)
-template <typename T = float>
-class ActivationLayer : public StatelessLayer<T> {
+template <typename T = float> class ActivationLayer : public StatelessLayer<T> {
 private:
   std::unique_ptr<ActivationFunction<T>> activation_;
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
@@ -519,8 +567,7 @@ public:
 };
 
 // 2D Convolutional Layer using im2col + GEMM
-template <typename T = float>
-class Conv2DLayer : public ParameterizedLayer<T> {
+template <typename T = float> class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
   size_t out_channels_;
@@ -580,6 +627,20 @@ private:
     utils::transpose_2d(col_data, col_data_transposed.get(), kernel_size,
                         output_size);
 
+#if defined(USE_TBB)
+    tbb::parallel_for(
+        tbb::blocked_range2d<size_t>(0, out_channels, 0, output_size),
+        [&](const tbb::blocked_range2d<size_t> &r) {
+          for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
+            for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
+              output_data[oc * output_size + os] =
+                  utils::simd_dot_product_contiguous(
+                      &weight_data[oc * kernel_size],
+                      &col_data_transposed[os * kernel_size], kernel_size);
+            }
+          }
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -590,6 +651,7 @@ private:
             &col_data_transposed[os * kernel_size], kernel_size);
       }
     }
+#endif
   }
 
   void conv_gemm_weight_gradients_impl(const T *col_data,
@@ -598,18 +660,32 @@ private:
                                        const size_t output_size,
                                        const size_t kernel_size,
                                        const size_t out_channels) const {
+#if defined(USE_TBB)
+    tbb::parallel_for(
+        tbb::blocked_range2d<size_t>(0, out_channels, 0, kernel_size),
+        [&](const tbb::blocked_range2d<size_t> &r) {
+          for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
+            for (size_t ks = r.cols().begin(); ks != r.cols().end(); ++ks) {
+              weight_grad_data[oc * kernel_size + ks] =
+                  utils::simd_dot_product_contiguous(
+                      &grad_output_data[oc * output_size],
+                      &col_data[ks * output_size], output_size);
+            }
+          }
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t oc = 0; oc < out_channels; ++oc) {
       for (size_t ks = 0; ks < kernel_size; ++ks) {
-        // SIMD-optimized dot product for weight gradients
         weight_grad_data[oc * kernel_size + ks] =
             utils::simd_dot_product_contiguous(
                 &grad_output_data[oc * output_size],
                 &col_data[ks * output_size], output_size);
       }
     }
+#endif
   }
 
   void conv_gemm_input_gradients_impl(const T *grad_output_data,
@@ -618,8 +694,11 @@ private:
                                       const size_t kernel_size,
                                       const size_t out_channels) const {
 
-    // Transpose grad_output matrix for better memory access patterns
-    auto grad_output_transposed = std::make_unique<T[]>(out_channels * output_size);
+    // Transpose operations are not parallelized in your code, so we leave them
+    // as-is.
+
+    auto grad_output_transposed =
+        std::make_unique<T[]>(out_channels * output_size);
     utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
                         out_channels, output_size);
 
@@ -627,6 +706,20 @@ private:
     utils::transpose_2d(weight_data, weights_transposed.get(), out_channels,
                         kernel_size);
 
+#if defined(USE_TBB)
+    tbb::parallel_for(
+        tbb::blocked_range2d<size_t>(0, kernel_size, 0, output_size),
+        [&](const tbb::blocked_range2d<size_t> &r) {
+          for (size_t ks = r.rows().begin(); ks != r.rows().end(); ++ks) {
+            for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
+              col_grad_data[ks * output_size + os] =
+                  utils::simd_dot_product_contiguous(
+                      &weights_transposed[ks * out_channels],
+                      &grad_output_transposed[os * out_channels], out_channels);
+            }
+          }
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -638,6 +731,7 @@ private:
                 &grad_output_transposed[os * out_channels], out_channels);
       }
     }
+#endif
   }
 
 public:
@@ -671,7 +765,9 @@ public:
   // Forward and backward implementations moved from separate file
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (input.channels() != in_channels_) {
-      std::cerr << "Input shape: " << input.channels() << " channels, expected: " << in_channels_ << " channels" << std::endl;
+      std::cerr << "Input shape: " << input.channels()
+                << " channels, expected: " << in_channels_ << " channels"
+                << std::endl;
       throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
     }
 
@@ -710,6 +806,18 @@ public:
     const size_t H_stride = output.stride(2);
     const size_t W_stride = output.stride(3);
 
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          size_t flat_idx =
+              oc * output_size + n * (output_h * output_w) + oh * output_w + ow;
+          output_data[n * N_stride + oc * C_stride + oh * H_stride +
+                      ow * W_stride] = output_flat[flat_idx];
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -725,9 +833,20 @@ public:
         }
       }
     }
+#endif
 
     // Add bias if enabled
     if (use_bias_) {
+#if defined(USE_TBB)
+      tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
+        T bias_val = bias_(oc, 0, 0, 0);
+        for (size_t oh = 0; oh < output_h; ++oh) {
+          for (size_t ow = 0; ow < output_w; ++ow) {
+            output(n, oc, oh, ow) += bias_val;
+          }
+        }
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -741,6 +860,7 @@ public:
           }
         }
       }
+#endif
     }
 
     // Store pre-activation output
@@ -805,6 +925,16 @@ public:
     // Flatten gradient output for GEMM
     auto grad_output_flat = std::make_unique<T[]>(out_channels_ * output_size);
 
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          grad_output_flat[oc * output_size + n * (output_h * output_w) +
+                           oh * output_w + ow] = current_grad(n, oc, oh, ow);
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -818,14 +948,28 @@ public:
         }
       }
     }
+#endif
 
     // Compute weight gradients
-    conv_gemm_weight_gradients(
-        cached_im2col_matrix.data(), grad_output_flat.get(),
-        weight_gradients_.data(), output_size, kernel_size, out_channels_);
+    conv_gemm_weight_gradients(cached_im2col_matrix.data(),
+                               grad_output_flat.get(), weight_gradients_.data(),
+                               output_size, kernel_size, out_channels_);
 
     // Compute bias gradients
     if (use_bias_) {
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, out_channels_, [&](size_t oc) {
+        T grad_sum = T(0);
+        for (size_t n = 0; n < batch_size; ++n) {
+          for (size_t oh = 0; oh < output_h; ++oh) {
+            for (size_t ow = 0; ow < output_w; ++ow) {
+              grad_sum += current_grad(n, oc, oh, ow);
+            }
+          }
+        }
+        bias_gradients_(oc, 0, 0, 0) = grad_sum;
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -840,6 +984,7 @@ public:
         }
         bias_gradients_(oc, 0, 0, 0) = grad_sum;
       }
+#endif
     }
 
     // Compute input gradients
@@ -1003,6 +1148,48 @@ public:
     T *output_data = output.data();
 
     // Unified pooling implementation - handles all cases cleanly
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+      const T *input_channel =
+          input_data + n * input_stride_n_ + c * input_stride_c_;
+      T *output_channel =
+          output_data + n * output_stride_n_ + c * output_stride_c_;
+
+      for (size_t out_h = 0; out_h < output_h; ++out_h) {
+        for (size_t out_w = 0; out_w < output_w; ++out_w) {
+          T max_val = -std::numeric_limits<T>::infinity();
+          size_t max_idx = 0;
+
+          // Pool over the kernel region
+          for (size_t ph = 0; ph < pool_h_; ++ph) {
+            for (size_t pw = 0; pw < pool_w_; ++pw) {
+              const int h_idx = static_cast<int>(out_h * stride_h_ + ph) -
+                                static_cast<int>(pad_h_);
+              const int w_idx = static_cast<int>(out_w * stride_w_ + pw) -
+                                static_cast<int>(pad_w_);
+
+              // Check bounds (handles padding naturally)
+              if (h_idx >= 0 && h_idx < static_cast<int>(input_h) &&
+                  w_idx >= 0 && w_idx < static_cast<int>(input_w)) {
+                T val = input_channel[h_idx * input_stride_h_ +
+                                      w_idx * input_stride_w_];
+                if (val > max_val) {
+                  max_val = val;
+                  max_idx = h_idx * input_w + w_idx;
+                }
+              }
+            }
+          }
+
+          output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] =
+              max_val;
+          const size_t output_idx =
+              ((n * channels + c) * output_h + out_h) * output_w + out_w;
+          mask_indices[output_idx] = max_idx;
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -1021,13 +1208,16 @@ public:
             // Pool over the kernel region
             for (size_t ph = 0; ph < pool_h_; ++ph) {
               for (size_t pw = 0; pw < pool_w_; ++pw) {
-                const int h_idx = static_cast<int>(out_h * stride_h_ + ph) - static_cast<int>(pad_h_);
-                const int w_idx = static_cast<int>(out_w * stride_w_ + pw) - static_cast<int>(pad_w_);
+                const int h_idx = static_cast<int>(out_h * stride_h_ + ph) -
+                                  static_cast<int>(pad_h_);
+                const int w_idx = static_cast<int>(out_w * stride_w_ + pw) -
+                                  static_cast<int>(pad_w_);
 
                 // Check bounds (handles padding naturally)
-                if (h_idx >= 0 && h_idx < static_cast<int>(input_h) && 
+                if (h_idx >= 0 && h_idx < static_cast<int>(input_h) &&
                     w_idx >= 0 && w_idx < static_cast<int>(input_w)) {
-                  T val = input_channel[h_idx * input_stride_h_ + w_idx * input_stride_w_];
+                  T val = input_channel[h_idx * input_stride_h_ +
+                                        w_idx * input_stride_w_];
                   if (val > max_val) {
                     max_val = val;
                     max_idx = h_idx * input_w + w_idx;
@@ -1036,13 +1226,16 @@ public:
               }
             }
 
-            output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] = max_val;
-            const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
+            output_channel[out_h * output_stride_h_ +
+                           out_w * output_stride_w_] = max_val;
+            const size_t output_idx =
+                ((n * channels + c) * output_h + out_h) * output_w + out_w;
             mask_indices[output_idx] = max_idx;
           }
         }
       }
     }
+#endif
 
     micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
     return output;
@@ -1084,13 +1277,11 @@ public:
     const size_t total_outputs = batch_size * channels * output_h * output_w;
 
     // Unified backward pass - handles all cases cleanly
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < total_outputs; ++i) {
+#if defined(USE_TBB)
+    tnn::parallel_for_range<size_t>(0, total_outputs, [&](size_t i) {
       const size_t output_hw = output_h * output_w;
       const size_t output_chw = channels * output_hw;
-      
+
       const size_t n = i / output_chw;
       const size_t c = (i % output_chw) / output_hw;
       const size_t out_h = (i % output_hw) / output_w;
@@ -1102,17 +1293,46 @@ public:
 
       // Bounds check (handles edge cases)
       if (max_h < input_h && max_w < input_w) {
-        const T grad_val = grad_output_data[n * output_stride_n_ + 
-                                           c * output_stride_c_ + 
-                                           out_h * output_stride_h_ + 
-                                           out_w * output_stride_w_];
+        const T grad_val =
+            grad_output_data[n * output_stride_n_ + c * output_stride_c_ +
+                             out_h * output_stride_h_ +
+                             out_w * output_stride_w_];
 
-        grad_input_data[n * input_stride_n_ + 
-                       c * input_stride_c_ + 
-                       max_h * input_stride_h_ + 
-                       max_w * input_stride_w_] += grad_val;
+        grad_input_data[n * input_stride_n_ + c * input_stride_c_ +
+                        max_h * input_stride_h_ + max_w * input_stride_w_] +=
+            grad_val;
+      }
+    });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for
+#endif
+    for (size_t i = 0; i < total_outputs; ++i) {
+      const size_t output_hw = output_h * output_w;
+      const size_t output_chw = channels * output_hw;
+
+      const size_t n = i / output_chw;
+      const size_t c = (i % output_chw) / output_hw;
+      const size_t out_h = (i % output_hw) / output_w;
+      const size_t out_w = i % output_w;
+
+      const size_t max_idx = mask_indices[i];
+      const size_t max_h = max_idx / input_w;
+      const size_t max_w = max_idx % input_w;
+
+      // Bounds check (handles edge cases)
+      if (max_h < input_h && max_w < input_w) {
+        const T grad_val =
+            grad_output_data[n * output_stride_n_ + c * output_stride_c_ +
+                             out_h * output_stride_h_ +
+                             out_w * output_stride_w_];
+
+        grad_input_data[n * input_stride_n_ + c * input_stride_c_ +
+                        max_h * input_stride_h_ + max_w * input_stride_w_] +=
+            grad_val;
       }
     }
+#endif
 
     return grad_input;
   }
@@ -1167,7 +1387,7 @@ public:
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (!this->is_training_) {
-      return input; 
+      return input;
     }
 
     Tensor<T> mask(input.shape());
@@ -1177,6 +1397,33 @@ public:
 
     T scale = T(1) / (T(1) - dropout_rate_);
 
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(
+        input.batch_size(), input.channels(), [&](size_t n, size_t c) {
+#ifdef _OPENMP
+          thread_local std::mt19937 local_generator(std::random_device{}());
+          thread_local std::uniform_real_distribution<T> local_distribution(
+              T(0), T(1));
+#else
+      std::uniform_real_distribution<T> local_distribution(T(0), T(1));
+#endif
+          for (size_t h = 0; h < input.height(); ++h) {
+            for (size_t w = 0; w < input.width(); ++w) {
+#ifdef _OPENMP
+              if (local_distribution(local_generator) < dropout_rate_) {
+#else
+          if (local_distribution(generator_) < dropout_rate_) {
+#endif
+                mask(n, c, h, w) = T(0);
+                output(n, c, h, w) = T(0);
+              } else {
+                mask(n, c, h, w) = scale;
+                output(n, c, h, w) *= scale;
+              }
+            }
+          }
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -1206,6 +1453,7 @@ public:
         }
       }
     }
+#endif
 
     micro_batch_masks_[micro_batch_id] = mask;
     return output;
@@ -1227,6 +1475,16 @@ public:
 
     Tensor<T> grad_input = grad_output;
 
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
+                         [&](size_t n, size_t c) {
+                           for (size_t h = 0; h < grad_output.height(); ++h) {
+                             for (size_t w = 0; w < grad_output.width(); ++w) {
+                               grad_input(n, c, h, w) *= mask(n, c, h, w);
+                             }
+                           }
+                         });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -1239,6 +1497,7 @@ public:
         }
       }
     }
+#endif
 
     // micro_batch_masks_.erase(it_mask);
     return grad_input;
@@ -1259,28 +1518,29 @@ public:
 
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const override {
-    return input_shape; 
+    return input_shape;
   }
 };
 
 // Batch Normalization Layer
-template <typename T = float> class BatchNormLayer : public ParameterizedLayer<T> {
+template <typename T = float>
+class BatchNormLayer : public ParameterizedLayer<T> {
 private:
   size_t num_features_;
   T epsilon_;
   T momentum_;
   bool affine_;
-  
+
   // Learnable parameters
-  Tensor<T> gamma_;  // Scale parameter
-  Tensor<T> beta_;   // Shift parameter
+  Tensor<T> gamma_; // Scale parameter
+  Tensor<T> beta_;  // Shift parameter
   Tensor<T> gamma_gradients_;
   Tensor<T> beta_gradients_;
-  
+
   // Running statistics (for inference)
   Tensor<T> running_mean_;
   Tensor<T> running_var_;
-  
+
   // Per-micro-batch state for training
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<int, Tensor<T>> micro_batch_normalized_;
@@ -1289,23 +1549,23 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_std_;
 
 public:
-  explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), 
+  explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5),
                           T momentum = T(0.1), bool affine = true,
                           const std::string &name = "batchnorm")
-      : ParameterizedLayer<T>(name), num_features_(num_features), 
+      : ParameterizedLayer<T>(name), num_features_(num_features),
         epsilon_(epsilon), momentum_(momentum), affine_(affine) {
-    
+
     if (affine_) {
       gamma_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
       beta_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
       gamma_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
       beta_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
-      
+
       // Initialize gamma to 1 and beta to 0
       gamma_.fill(T(1));
       beta_.fill(T(0));
     }
-    
+
     // Initialize running statistics
     running_mean_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
     running_var_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
@@ -1315,28 +1575,42 @@ public:
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
     if (input.channels() != num_features_) {
-      throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
+      throw std::invalid_argument(
+          "Input channels must match num_features in BatchNormLayer");
     }
-    
+
     micro_batch_inputs_[micro_batch_id] = input;
-    
+
     const size_t batch_size = input.batch_size();
     const size_t channels = input.channels();
     const size_t height = input.height();
     const size_t width = input.width();
-    
+
     Tensor<T> output(input.shape());
-    
+
     if (this->is_training_) {
       // Training mode: compute batch statistics
       Tensor<T> batch_mean(std::vector<size_t>{channels, 1, 1, 1});
       Tensor<T> batch_var(std::vector<size_t>{channels, 1, 1, 1});
-      
+
       // Compute mean for each channel
       batch_mean.fill(T(0));
       const size_t spatial_size = height * width;
       const size_t total_elements = batch_size * spatial_size;
-      
+
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+        T sum = T(0);
+        for (size_t n = 0; n < batch_size; ++n) {
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              sum += input(n, c, h, w);
+            }
+          }
+        }
+        batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -1351,9 +1625,25 @@ public:
         }
         batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
       }
-      
+#endif
+
       // Compute variance for each channel
       batch_var.fill(T(0));
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+        T sum_sq_diff = T(0);
+        T mean_val = batch_mean(c, 0, 0, 0);
+        for (size_t n = 0; n < batch_size; ++n) {
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              T diff = input(n, c, h, w) - mean_val;
+              sum_sq_diff += diff * diff;
+            }
+          }
+        }
+        batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -1370,20 +1660,32 @@ public:
         }
         batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
       }
-      
+#endif
+
       // Compute standard deviation
       Tensor<T> batch_std(std::vector<size_t>{channels, 1, 1, 1});
       for (size_t c = 0; c < channels; ++c) {
         batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
       }
-      
+
       // Store for backward pass
       micro_batch_mean_[micro_batch_id] = batch_mean;
       micro_batch_var_[micro_batch_id] = batch_var;
       micro_batch_std_[micro_batch_id] = batch_std;
-      
+
       // Normalize
       Tensor<T> normalized(input.shape());
+#if defined(USE_TBB)
+      tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+        T mean_val = batch_mean(c, 0, 0, 0);
+        T std_val = batch_std(c, 0, 0, 0);
+        for (size_t h = 0; h < height; ++h) {
+          for (size_t w = 0; w < width; ++w) {
+            normalized(n, c, h, w) = (input(n, c, h, w) - mean_val) / std_val;
+          }
+        }
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -1398,11 +1700,24 @@ public:
           }
         }
       }
-      
+#endif
+
       micro_batch_normalized_[micro_batch_id] = normalized;
-      
+
       // Apply affine transformation if enabled
       if (affine_) {
+#if defined(USE_TBB)
+        tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+          T gamma_val = gamma_(c, 0, 0, 0);
+          T beta_val = beta_(c, 0, 0, 0);
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              output(n, c, h, w) =
+                  gamma_val * normalized(n, c, h, w) + beta_val;
+            }
+          }
+        });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -1412,26 +1727,41 @@ public:
             T beta_val = beta_(c, 0, 0, 0);
             for (size_t h = 0; h < height; ++h) {
               for (size_t w = 0; w < width; ++w) {
-                output(n, c, h, w) = gamma_val * normalized(n, c, h, w) + beta_val;
+                output(n, c, h, w) =
+                    gamma_val * normalized(n, c, h, w) + beta_val;
               }
             }
           }
         }
+#endif
       } else {
         output = normalized;
       }
-      
+
       // Update running statistics
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+        running_mean_(c, 0, 0, 0) =
+            (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
+            momentum_ * batch_mean(c, 0, 0, 0);
+        running_var_(c, 0, 0, 0) =
+            (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
+            momentum_ * batch_var(c, 0, 0, 0);
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
       for (size_t c = 0; c < channels; ++c) {
-        running_mean_(c, 0, 0, 0) = (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + 
-                                    momentum_ * batch_mean(c, 0, 0, 0);
-        running_var_(c, 0, 0, 0) = (T(1) - momentum_) * running_var_(c, 0, 0, 0) + 
-                                   momentum_ * batch_var(c, 0, 0, 0);
+        running_mean_(c, 0, 0, 0) =
+            (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
+            momentum_ * batch_mean(c, 0, 0, 0);
+        running_var_(c, 0, 0, 0) =
+            (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
+            momentum_ * batch_var(c, 0, 0, 0);
       }
-      
+#endif
+
     } else {
       // Inference mode: use running statistics
 #ifdef _OPENMP
@@ -1442,12 +1772,13 @@ public:
           T mean_val = running_mean_(c, 0, 0, 0);
           T var_val = running_var_(c, 0, 0, 0);
           T std_val = std::sqrt(var_val + epsilon_);
-          
+
           for (size_t h = 0; h < height; ++h) {
             for (size_t w = 0; w < width; ++w) {
               T normalized_val = (input(n, c, h, w) - mean_val) / std_val;
               if (affine_) {
-                output(n, c, h, w) = gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
+                output(n, c, h, w) =
+                    gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
               } else {
                 output(n, c, h, w) = normalized_val;
               }
@@ -1456,68 +1787,90 @@ public:
         }
       }
     }
-    
+
     return output;
   }
 
-  Tensor<T> backward(const Tensor<T> &grad_output, int micro_batch_id = 0) override {
+  Tensor<T> backward(const Tensor<T> &grad_output,
+                     int micro_batch_id = 0) override {
     auto it_input = micro_batch_inputs_.find(micro_batch_id);
     auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
     auto it_mean = micro_batch_mean_.find(micro_batch_id);
     auto it_var = micro_batch_var_.find(micro_batch_id);
     auto it_std = micro_batch_std_.find(micro_batch_id);
-    
-    if (it_input == micro_batch_inputs_.end() || 
+
+    if (it_input == micro_batch_inputs_.end() ||
         it_normalized == micro_batch_normalized_.end() ||
         it_mean == micro_batch_mean_.end() ||
-        it_var == micro_batch_var_.end() ||
-        it_std == micro_batch_std_.end()) {
-      throw std::runtime_error("No cached data found for micro-batch ID in BatchNormLayer: " +
-                               std::to_string(micro_batch_id));
+        it_var == micro_batch_var_.end() || it_std == micro_batch_std_.end()) {
+      throw std::runtime_error(
+          "No cached data found for micro-batch ID in BatchNormLayer: " +
+          std::to_string(micro_batch_id));
     }
-    
+
     const Tensor<T> &input = it_input->second;
     const Tensor<T> &normalized = it_normalized->second;
     const Tensor<T> &mean = it_mean->second;
     const Tensor<T> &var = it_var->second;
     const Tensor<T> &std_val = it_std->second;
-    
+
     const size_t batch_size = input.batch_size();
     const size_t channels = input.channels();
     const size_t height = input.height();
     const size_t width = input.width();
     const size_t spatial_size = height * width;
     const size_t total_elements = batch_size * spatial_size;
-    
+
     Tensor<T> grad_input(input.shape());
-    
+
     if (affine_) {
       // Initialize gradients
       gamma_gradients_.fill(T(0));
       beta_gradients_.fill(T(0));
-      
+
       // Compute gradients for gamma and beta
+#if defined(USE_TBB)
+      tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+        T gamma_grad_sum = T(0);
+        T beta_grad_sum = T(0);
+
+        for (size_t n = 0; n < batch_size; ++n) {
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              gamma_grad_sum +=
+                  grad_output(n, c, h, w) * normalized(n, c, h, w);
+              beta_grad_sum += grad_output(n, c, h, w);
+            }
+          }
+        }
+
+        gamma_gradients_(c, 0, 0, 0) = gamma_grad_sum;
+        beta_gradients_(c, 0, 0, 0) = beta_grad_sum;
+      });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
       for (size_t c = 0; c < channels; ++c) {
         T gamma_grad_sum = T(0);
         T beta_grad_sum = T(0);
-        
+
         for (size_t n = 0; n < batch_size; ++n) {
           for (size_t h = 0; h < height; ++h) {
             for (size_t w = 0; w < width; ++w) {
-              gamma_grad_sum += grad_output(n, c, h, w) * normalized(n, c, h, w);
+              gamma_grad_sum +=
+                  grad_output(n, c, h, w) * normalized(n, c, h, w);
               beta_grad_sum += grad_output(n, c, h, w);
             }
           }
         }
-        
+
         gamma_gradients_(c, 0, 0, 0) = gamma_grad_sum;
         beta_gradients_(c, 0, 0, 0) = beta_grad_sum;
       }
+#endif
     }
-    
+
     // Compute gradient w.r.t. normalized input
     Tensor<T> grad_normalized(input.shape());
     if (affine_) {
@@ -1537,14 +1890,14 @@ public:
     } else {
       grad_normalized = grad_output;
     }
-    
+
     // Compute gradients w.r.t. variance and mean
     Tensor<T> grad_var(std::vector<size_t>{channels, 1, 1, 1});
     Tensor<T> grad_mean(std::vector<size_t>{channels, 1, 1, 1});
-    
+
     grad_var.fill(T(0));
     grad_mean.fill(T(0));
-    
+
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
@@ -1552,26 +1905,46 @@ public:
       T mean_val = mean(c, 0, 0, 0);
       T std_val_c = std_val(c, 0, 0, 0);
       T var_val = var(c, 0, 0, 0);
-      
+
       T grad_var_sum = T(0);
       T grad_mean_sum = T(0);
-      
+
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
             T x_centered = input(n, c, h, w) - mean_val;
-            grad_var_sum += grad_normalized(n, c, h, w) * x_centered * 
-                           (-T(0.5)) * std::pow(var_val + epsilon_, -T(1.5));
+            grad_var_sum += grad_normalized(n, c, h, w) * x_centered *
+                            (-T(0.5)) * std::pow(var_val + epsilon_, -T(1.5));
             grad_mean_sum += grad_normalized(n, c, h, w) * (-T(1)) / std_val_c;
           }
         }
       }
-      
+
       grad_var(c, 0, 0, 0) = grad_var_sum;
       grad_mean(c, 0, 0, 0) = grad_mean_sum;
     }
-    
+
     // Compute gradient w.r.t. input
+#if defined(USE_TBB)
+    tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+      T mean_val = mean(c, 0, 0, 0);
+      T std_val_c = std_val(c, 0, 0, 0);
+      T grad_var_val = grad_var(c, 0, 0, 0);
+      T grad_mean_val = grad_mean(c, 0, 0, 0);
+
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T x_centered = input(n, c, h, w) - mean_val;
+
+          grad_input(n, c, h, w) =
+              grad_normalized(n, c, h, w) / std_val_c +
+              grad_var_val * T(2) * x_centered /
+                  static_cast<T>(total_elements) +
+              grad_mean_val / static_cast<T>(total_elements);
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
@@ -1581,19 +1954,22 @@ public:
         T std_val_c = std_val(c, 0, 0, 0);
         T grad_var_val = grad_var(c, 0, 0, 0);
         T grad_mean_val = grad_mean(c, 0, 0, 0);
-        
+
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
             T x_centered = input(n, c, h, w) - mean_val;
-            
-            grad_input(n, c, h, w) = grad_normalized(n, c, h, w) / std_val_c +
-                                    grad_var_val * T(2) * x_centered / static_cast<T>(total_elements) +
-                                    grad_mean_val / static_cast<T>(total_elements);
+
+            grad_input(n, c, h, w) =
+                grad_normalized(n, c, h, w) / std_val_c +
+                grad_var_val * T(2) * x_centered /
+                    static_cast<T>(total_elements) +
+                grad_mean_val / static_cast<T>(total_elements);
           }
         }
       }
     }
-    
+#endif
+
     return grad_input;
   }
 
@@ -1610,7 +1986,8 @@ public:
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
-    return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_, momentum_, affine_, this->name_);
+    return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_,
+                                               momentum_, affine_, this->name_);
   }
 
   std::vector<size_t>
@@ -1815,14 +2192,15 @@ public:
         });
 
     // Batch normalization layer
-    register_layer(
-        "batchnorm", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-          size_t num_features = config.get<size_t>("num_features");
-          T epsilon = config.get<T>("epsilon", T(1e-5));
-          T momentum = config.get<T>("momentum", T(0.1));
-          bool affine = config.get<bool>("affine", true);
-          return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine, config.name);
-        });
+    register_layer("batchnorm",
+                   [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+                     size_t num_features = config.get<size_t>("num_features");
+                     T epsilon = config.get<T>("epsilon", T(1e-5));
+                     T momentum = config.get<T>("momentum", T(0.1));
+                     bool affine = config.get<bool>("affine", true);
+                     return std::make_unique<BatchNormLayer<T>>(
+                         num_features, epsilon, momentum, affine, config.name);
+                   });
 
     // Flatten layer
     register_layer("flatten",
@@ -1862,8 +2240,8 @@ dense(size_t input_features, size_t output_features,
     act = factory.create(activation);
   }
 
-  return std::make_unique<tnn::DenseLayer<T>>(
-      input_features, output_features, std::move(act), use_bias, name);
+  return std::make_unique<tnn::DenseLayer<T>>(input_features, output_features,
+                                              std::move(act), use_bias, name);
 }
 
 template <typename T = float>
@@ -1899,23 +2277,22 @@ std::unique_ptr<tnn::Layer<T>>
 maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
           size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
           const std::string &name = "maxpool2d") {
-  return std::make_unique<tnn::MaxPool2DLayer<T>>(
-      pool_h, pool_w, stride_h, stride_w, pad_h, pad_w, name);
+  return std::make_unique<tnn::MaxPool2DLayer<T>>(pool_h, pool_w, stride_h,
+                                                  stride_w, pad_h, pad_w, name);
 }
 
 template <typename T = float>
 std::unique_ptr<tnn::Layer<T>> dropout(T dropout_rate,
-                                          const std::string &name = "dropout") {
+                                       const std::string &name = "dropout") {
   return std::make_unique<tnn::DropoutLayer<T>>(dropout_rate, name);
 }
 
 template <typename T = float>
-std::unique_ptr<tnn::Layer<T>> batchnorm(size_t num_features, 
-                                            T epsilon = T(1e-5), 
-                                            T momentum = T(0.1), 
-                                            bool affine = true,
-                                            const std::string &name = "batchnorm") {
-  return std::make_unique<tnn::BatchNormLayer<T>>(num_features, epsilon, momentum, affine, name);
+std::unique_ptr<tnn::Layer<T>>
+batchnorm(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
+          bool affine = true, const std::string &name = "batchnorm") {
+  return std::make_unique<tnn::BatchNormLayer<T>>(num_features, epsilon,
+                                                  momentum, affine, name);
 }
 
 template <typename T = float>

@@ -6,6 +6,7 @@ NVCC = nvcc
 ENABLE_OPENMP ?= 1
 ENABLE_CUDA ?= 0
 ENABLE_BLAS ?= 0
+ENABLE_TBB ?= 0
 ENABLE_DEBUG ?= 0
 
 # Source files
@@ -38,6 +39,11 @@ endif
 ifeq ($(ENABLE_OPENMP), 1)
 	CXXFLAGS += -fopenmp
 	LDFLAGS += -fopenmp
+endif
+
+ifeq ($(ENABLE_TBB), 1)
+	CXXFLAGS += -DUSE_TBB
+	LDFLAGS += -ltbb
 endif
 
 # Add CUDA support

@@ -40,8 +40,29 @@ public:
 
     communicator_->set_message_notification_callback(
         [this]() {
-          process_message(communicator_->dequeue_input_message());
+          std::lock_guard<std::mutex> lock(message_available_mutex_);
+          message_available_cv_.notify_all();
         });
+    
+  }
+
+  void message_loop(){
+    while (!should_stop_) {
+      std::unique_lock<std::mutex> lock(message_available_mutex_);
+      message_available_cv_.wait(lock, [this]() {
+        return communicator_->has_input_message() || should_stop_;
+      });
+
+      if (should_stop_) {
+        break;
+      }
+
+      // Process all available messages
+      while (communicator_->has_input_message()) {
+        auto message = communicator_->dequeue_input_message();
+        process_message(message);
+      }
+    }
   }
 
   void process_message(const tpipeline::Message<T> &message) {
@@ -147,7 +168,7 @@ protected:
     auto duration_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start)
             .count();
-  std::cout << "Stage " << name_ << " processed " << (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD") << " task with microbatch ID " << task.micro_batch_id << " in " << static_cast<long long>(duration_ms) << " ms" << std::endl;
+  // std::cout << "Stage " << name_ << " processed " << (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD") << " task with microbatch ID " << task.micro_batch_id << " in " << static_cast<long long>(duration_ms) << " ms" << std::endl;
   }
 
 protected:

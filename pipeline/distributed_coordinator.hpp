@@ -89,8 +89,8 @@ public:
 
     // Set up message notification callback for event-driven processing
     this->coordinator_comm_->set_message_notification_callback([this]() {
-      std::lock_guard<std::mutex> lock(task_notification_mutex_);
-      task_notification_cv_.notify_all();
+      std::lock_guard<std::mutex> lock(message_notification_mutex);
+      message_notification_cv.notify_all();
     });
 
     // Start IO context in background thread
@@ -251,23 +251,29 @@ public:
     // Set expected task count based on direction
     expected_task_count_ = this->num_microbatches_;
 
-    std::unique_lock<std::mutex> lock(task_notification_mutex_);
+std::unique_lock<std::mutex> lock(message_notification_mutex);
 
     // Wait with timeout for the expected number of task messages to arrive
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
-    bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->actual_task_message_count() >=
-             static_cast<size_t>(expected_task_count_);
+    bool success = message_notification_cv.wait_until(lock, timeout, [this, direction]() {
+      if(direction) {
+        return this->coordinator_comm_->forward_message_count() >=
+               expected_task_count_.load();
+      } else {
+        return this->coordinator_comm_->backward_message_count() >=
+               expected_task_count_.load();
+      }
     });
 
     if (!success) {
       std::cout << "Warning: join() timed out waiting for task messages. "
                 << "Expected: " << expected_task_count_.load()
-                << ", Got: " << this->coordinator_comm_->actual_task_message_count()
+                << ", Got: " << (direction ? this->coordinator_comm_->forward_message_count() :
+                                            this->coordinator_comm_->backward_message_count())
                 << '\n';
-    } else {
     }
+    return;
   }
 
   void update_parameters() override {
@@ -276,7 +282,6 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
-    // this->coordinator_comm_->flush_output_messages();
 
     // Wait for confirmations
     wait_for_parameter_updates();
@@ -311,8 +316,8 @@ private:
   std::atomic<bool> is_deployed_;
   std::atomic<int> expected_task_count_{0};
 
-  mutable std::mutex task_notification_mutex_;
-  mutable std::condition_variable task_notification_cv_;
+  mutable std::mutex message_notification_mutex;
+  mutable std::condition_variable message_notification_cv;
 
   bool connect_to_endpoint(const RemoteEndpoint &endpoint) {
     try {
@@ -411,34 +416,24 @@ private:
 
   void wait_for_parameter_updates() {
     int confirmations = 0;
-    auto start_time = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::seconds(30);
 
-    while (confirmations < this->num_stages_) {
-      if (std::chrono::steady_clock::now() - start_time > timeout) {
-        std::cout << "Timeout waiting for parameter update confirmations ("
-                  << confirmations << "/" << this->num_stages_ << " received)\n";
-        break;
-      }
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
-      this->coordinator_comm_->receive_messages();
+std::unique_lock<std::mutex> lock(message_notification_mutex);
+    
+    bool success = message_notification_cv.wait_until(lock, timeout, [this]() {
+      return this->coordinator_comm_->params_updated_count() >=
+             static_cast<size_t>(this->num_stages_);
+    });
 
-      while (this->coordinator_comm_->has_parameter_update_message()) {
-        try {
-          auto message =
-              this->coordinator_comm_->dequeue_parameter_update_message();
-          if (message.command_type == CommandType::PARAMETERS_UPDATED) {
-            confirmations++;
-            // std::cout << "Parameter update confirmed from stage " << message.sender_id
-            //           << " (" << confirmations << "/" << this->num_stages_ << ")\n";
-          }
-        } catch (const std::runtime_error &e) {
-          break;
-        }
-      }
-
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if(!success) {
+      std::cout << "Warning: wait_for_parameter_updates() timed out. "
+                << "Expected: " << this->num_stages_
+                << ", Got: " << this->coordinator_comm_->params_updated_count()
+                << '\n';
+      return;
     }
+    return;
   }
 };
 
