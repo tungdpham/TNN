@@ -53,9 +53,6 @@ public:
   // Send all queued output messages
   virtual void flush_output_messages() = 0;
 
-  // Receive messages from the communication layer (for distributed implementations)
-  virtual void receive_messages() = 0;
-
   // Register a recipient endpoint
   virtual void register_recipient(const std::string& recipient_id, const tpipeline::StageEndpoint& endpoint) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
@@ -568,10 +565,6 @@ public:
         send_message(outgoing.recipient_id, outgoing.message);
       }
     }
-  }
-
-  void receive_messages() override {
-    // Not applicable for in-process communication
   }
 
   // Set reference to other communicators for in-process communication

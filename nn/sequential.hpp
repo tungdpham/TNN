@@ -715,7 +715,6 @@ public:
     
     // Serialize optimizer
     if (optimizer_) {
-  std::cout << "Saving optimizer configuration..." << std::endl;
       OptimizerConfig opt_config = optimizer_->get_config();
       nlohmann::json opt_json;
       opt_json["type"] = opt_config.type;
@@ -773,10 +772,8 @@ public:
   static Sequential<T> load_from_config(const nlohmann::json& config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-  std::cout << "Loading model from configuration: " << model.name_ << std::endl;
     // Load optimizer if present
     if (config.contains("optimizer")) {
-  std::cout << "Loading optimizer configuration..." << std::endl;
       OptimizerConfig opt_config;
       opt_config.type = config["optimizer"]["type"];
       opt_config.name = config["optimizer"]["name"];
@@ -796,7 +793,6 @@ public:
     
     // Load loss if present
     if (config.contains("loss")) {
-  std::cout << "Loading loss configuration..." << std::endl;
       LossConfig loss_config;
       loss_config.type = config["loss"]["type"];
       loss_config.name = config["loss"]["name"];

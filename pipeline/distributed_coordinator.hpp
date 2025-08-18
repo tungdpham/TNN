@@ -60,6 +60,7 @@ public:
       config.stage_id = endpoints[i].stage_id;
       config.stage_index = static_cast<int>(i);
       config.model_config = splitted_models[i].get_config();
+      config.model_config["name"] = endpoints[i].stage_id; // Set stage name
       config.coordinator_endpoint =
           coordinator_host + ":" + std::to_string(coordinator_port_);
 
@@ -210,7 +211,6 @@ public:
       this->send_message_to_stage(stage_name, stop_msg);
     }
 
-    // this->coordinator_comm_->flush_output_messages();
     std::cout << "Stopped all distributed pipeline stages\n";
   }
 
@@ -355,12 +355,7 @@ private:
           CommandType::CONFIG_RECEIVED, config_json, "coordinator",
           endpoint.stage_id);
 
-      std::cout << "Sending CONFIG_RECEIVED (type "
-                << static_cast<int>(CommandType::CONFIG_RECEIVED) << ") to "
-                << endpoint.stage_id << '\n';
-
       this->send_message_to_stage(endpoint.stage_id, config_msg);
-      this->coordinator_comm_->flush_output_messages();
 
       std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
       return true;

@@ -58,7 +58,6 @@ endif
 
 # Add BLAS support
 ifeq ($(ENABLE_BLAS), 1)
-	# Check for OpenBLAS with pkg-config
 	ifeq ($(shell pkg-config --exists openblas && echo 1), 1)
 		CXXFLAGS += -DUSE_OPENBLAS
 		CXXFLAGS += $(shell pkg-config --cflags openblas)
@@ -114,14 +113,6 @@ else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
 
-# MNIST trainer target
-mnist_trainer: mnist_trainer.cpp ${HEADERS}
-ifeq ($(ENABLE_CUDA), 1)
-	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
-else
-	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
-endif
-
 # MNIST CNN trainer target
 mnist_cnn_trainer: mnist_cnn_trainer.cpp ${HEADERS}
 ifeq ($(ENABLE_CUDA), 1)
@@ -137,14 +128,6 @@ ifeq ($(ENABLE_CUDA), 1)
 else
 	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
 endif
-
-# MNIST CNN pipeline trainer target
-mnist_cnn_pipeline_trainer: mnist_cnn_pipeline_trainer.cpp ${HEADERS}
-ifeq ($(ENABLE_CUDA), 1)
-	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
-else
-	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
-endif	
 
 # CIFAR-100 CNN trainer target
 cifar100_cnn_trainer: cifar100_cnn_trainer.cpp ${HEADERS}
@@ -183,14 +166,6 @@ else
 	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
 endif
 
-# Distributed pipeline example target
-distributed_pipeline_example: distributed_pipeline_example.cpp ${HEADERS}
-ifeq ($(ENABLE_CUDA), 1)
-	${NVCC} ${NVCCFLAGS} -I. -Ithird_party/asio/asio/include $< -o $@ ${CUDA_LDFLAGS} -pthread
-else
-	${CXX} ${TEST_CXXFLAGS} -Ithird_party/asio/asio/include $< -o $@ ${LDFLAGS} -pthread
-endif
-
 # Docker version of distributed pipeline example
 distributed_pipeline_docker: distributed_pipeline_docker.cpp ${HEADERS}
 ifeq ($(ENABLE_CUDA), 1)
@@ -215,14 +190,11 @@ run_tests: tests
 help:
 	@echo "Available targets:"
 	@echo "  main           - Build main MNIST program with current settings"
-	@echo "  mnist_trainer  - Build MNIST neural network trainer"
 	@echo "  mnist_cnn_trainer - Build MNIST CNN tensor neural network trainer"
 	@echo "  cifar10_cnn_trainer - Build CIFAR-10 CNN trainer"
 	@echo "  cifar100_cnn_trainer - Build CIFAR-100 CNN trainer"
 	@echo "  mnist_cnn_test - Build MNIST CNN test program"
-	@echo "  mnist_cnn_pipeline_trainer - Build MNIST CNN pipeline trainer"
 	@echo "  network_worker - Build network pipeline stage worker"
-	@echo "  distributed_pipeline_example - Build distributed pipeline example"
 	@echo "  uji_ips_trainer    - Build IPS trainer"
 	@echo "  tests          - Build all test programs"
 	@echo "  clean          - Remove object files and executables"
@@ -231,4 +203,4 @@ help:
 	@echo "  ENABLE_OPENMP  - Enable OpenMP (default: 1)"
 	@echo "  ENABLE_CUDA    - Enable CUDA (default: 0)"
 
-.PHONY: main clean help tests run_tests mnist_trainer mnist_cnn_trainer mnist_cnn_test mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test network_worker distributed_pipeline_example distributed_pipeline_docker $(TEST_PROGRAMS)
+.PHONY: main clean help tests run_tests mnist_cnn_trainer mnist_cnn_test cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer pipeline_test network_worker distributed_pipeline_docker $(TEST_PROGRAMS)

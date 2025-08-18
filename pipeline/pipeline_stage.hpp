@@ -30,8 +30,6 @@ public:
 
   virtual ~PipelineStage() { }
 
-  // Protected default constructor to allow derived classes to initialize
-  // model_ and communicator_ later (used by NetworkStageWorker).
 protected:
   PipelineStage()
       : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true), is_processing_(false) {}
@@ -50,8 +48,12 @@ public:
         [this]() {
           std::lock_guard<std::mutex> lock(message_available_mutex_);
           message_available_cv_.notify_all();
-        });
-    
+        }); 
+  }
+
+  virtual void stop() {
+    should_stop_ = true;
+    message_available_cv_.notify_all(); // Wake up any waiting threads
   }
 
   void message_loop(){
@@ -90,11 +92,11 @@ public:
       }
       break;
     case CommandType::START_TRAINING:
-      // this->start();
+      this->start();
       break;
 
     case CommandType::STOP_TRAINING:
-      // this->stop();
+      this->stop();
       break;
 
     case CommandType::STATUS_REQUEST: {

@@ -46,7 +46,7 @@ public:
 
   ~NetworkStageWorker() { stop(); }
 
-  void start() {
+  void start() override {
     if (is_running_) {
       std::cout << "Worker already running" << '\n';
       return;
@@ -67,10 +67,16 @@ public:
     message_loop();
   }
 
-  void stop() {
+  void stop() override {
+    if(!is_running_) {
+      return;
+    }
+
     is_running_ = false;
 
     message_cv_.notify_all();
+
+    tcp_communicator_->stop();
 
     work_guard_.reset();
     io_context_.stop();
@@ -117,7 +123,6 @@ private:
       });
 
       if (!is_running_) {
-        printf("Exiting message loop due to shutdown\n");
         break;
       }
 
@@ -127,12 +132,10 @@ private:
           auto message = tcp_communicator_->dequeue_input_message();
           this->process_message(message);
         } catch (const std::exception &e) {
-          printf("Error processing message: %s\n", e.what());
+          std::cerr << "Error processing message: " << e.what() << '\n';
         }
       }
     }
-
-    printf("Message processing loop ended\n");
   }
 
   void process_message(const Message<T> &message) override {
@@ -147,7 +150,6 @@ private:
       std::cout << "Handling handshake request" << '\n';
       handle_handshake(message);
       break;
-
     default:
       // If we have been configured, delegate to base PipelineStage message
       // handling which includes task processing.
@@ -289,8 +291,6 @@ template <typename T = float> class StandaloneNetworkWorker {
 public:
   static int run_worker(int listen_port) {
     try {
-      std::cout << "Running StandaloneNetworkWorker on port " << listen_port
-                << std::endl;
       NetworkStageWorker<T> worker(listen_port);
 
       // Set up signal handling for graceful shutdown

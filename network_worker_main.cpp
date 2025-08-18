@@ -21,14 +21,12 @@ int main(int argc, char* argv[]) {
 #endif 
 
 #ifdef _OPENMP
-    // omp_set_num_threads(8); // Set OpenMP thread count
-    omp_set_num_threads(4);
+    const int num_threads = omp_get_max_threads();
+    omp_set_num_threads(std::min(num_threads, 4)); // Limit threads to avoid overhead
     std::cout << "Number of OpenMP threads set to: " << omp_get_max_threads() << std::endl;
 #endif
     
     int listen_port = std::atoi(argv[1]);
-
-    std::cout << "Parsed listen port: " << listen_port << std::endl;
 
     if (listen_port <= 0 || listen_port > 65535) {
         std::cerr << "Invalid port number: " << listen_port << std::endl;
@@ -36,8 +34,6 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Using listen port: " << listen_port << std::endl;
-
-    std::cout << "Starting network pipeline stage worker..." << std::endl;
     
     tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port);
     return 0;

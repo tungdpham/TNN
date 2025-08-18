@@ -273,7 +273,6 @@ public:
           CommandType::PRINT_PROFILING, "coordinator", stage_names_);
       this->send_message_to_stage(stage_names_, profiling_msg);
     }
-    this->coordinator_comm_->flush_output_messages();
     std::cout << "Sent profiling request to all stages" << std::endl;
   }
 
@@ -284,7 +283,6 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, status_msg);
     }
-    this->coordinator_comm_->flush_output_messages();
   }
 
   void update_parameters() override {
@@ -293,8 +291,6 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
-    this->coordinator_comm_->flush_output_messages();
-
     // Wait for confirmations
     wait_for_parameter_updates();
   }
