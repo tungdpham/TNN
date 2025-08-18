@@ -10,8 +10,8 @@ ENABLE_TBB ?= 0
 ENABLE_DEBUG ?= 0
 
 # Source files
-CXX_SOURCES = $(wildcard matrix/*.cpp nn/*.cpp utils/*.cpp)
-HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp tensor/*.hpp pipeline/*.hpp)
+CXX_SOURCES = $(wildcard matrix/*.cpp nn/*.cpp nn/layers_impl/*.cpp utils/*.cpp)
+HEADERS = $(wildcard matrix/*.h neural/*.h utils/*.h matrix/*.hpp nn/*.hpp nn/layers_impl/*.hpp tensor/*.hpp pipeline/*.hpp)
 CU_SOURCES = $(wildcard matrix/*.cu neural/*.cu utils/*.cu)
 
 # Object files
