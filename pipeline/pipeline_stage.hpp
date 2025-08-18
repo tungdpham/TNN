@@ -30,6 +30,14 @@ public:
 
   virtual ~PipelineStage() { }
 
+  // Protected default constructor to allow derived classes to initialize
+  // model_ and communicator_ later (used by NetworkStageWorker).
+protected:
+  PipelineStage()
+      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true), is_processing_(false) {}
+
+public:
+
   virtual void start() {
     if(!should_stop_) {
       std::cerr << "Stage " << name_ << " is already running" << std::endl;
@@ -65,7 +73,7 @@ public:
     }
   }
 
-  void process_message(const tpipeline::Message<T> &message) {
+  virtual void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
     case CommandType::FORWARD_TASK:
     case CommandType::BACKWARD_TASK: {
@@ -168,7 +176,6 @@ protected:
     auto duration_ms =
         std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start)
             .count();
-  // std::cout << "Stage " << name_ << " processed " << (message.command_type == CommandType::FORWARD_TASK ? "FORWARD" : "BACKWARD") << " task with microbatch ID " << task.micro_batch_id << " in " << static_cast<long long>(duration_ms) << " ms" << std::endl;
   }
 
 protected:

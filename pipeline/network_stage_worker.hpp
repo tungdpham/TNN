@@ -18,19 +18,27 @@ namespace tpipeline {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline tasks.
  */
-template <typename T = float> class NetworkStageWorker {
+template <typename T = float> class NetworkStageWorker : public PipelineStage<T> {
 public:
   explicit NetworkStageWorker(int listen_port)
-      : listen_port_(listen_port), io_context_(),
+      : PipelineStage<T>(), listen_port_(listen_port), io_context_(),
         work_guard_(asio::make_work_guard(io_context_)), is_running_(false),
         is_configured_(false) {
 
-    // Create TCP communicator
-    communicator_ = std::make_unique<TcpPipelineCommunicator<T>>(
+    // Create TCP communicator and assign to base communicator_ pointer via a
+    // unique_ptr owning the TcpPipelineCommunicator. We keep a raw pointer
+    // to the owned communicator for internal use where needed.
+    tcp_communicator_ = std::make_unique<TcpPipelineCommunicator<T>>(
         io_context_, "localhost", listen_port_);
 
-    // Set up message notification callback
-    communicator_->set_message_notification_callback([this]() {
+    // Transfer ownership into the base communicator_ unique_ptr with a no-op
+    // deleter because tcp_communicator_ owns the communicator lifetime here.
+    this->communicator_ = std::unique_ptr<PipelineCommunicator<T>,
+        std::function<void(PipelineCommunicator<T> *)>>(tcp_communicator_.get(),
+            [](PipelineCommunicator<T> *) {});
+
+    // Forward notifications to our condition variable
+    tcp_communicator_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_mutex_);
       message_cv_.notify_all();
     });
@@ -55,6 +63,7 @@ public:
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
 
+    // Use message loop similar to PipelineStage but driven by communicator_
     message_loop();
   }
 
@@ -88,8 +97,8 @@ private:
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
 
-  std::unique_ptr<TcpPipelineCommunicator<T>> communicator_;
-  std::unique_ptr<PipelineStage<T>> stage_;
+  // Own the TCP communicator; the base class holds a non-owning view.
+  std::unique_ptr<TcpPipelineCommunicator<T>> tcp_communicator_;
 
   std::atomic<bool> is_running_;
   std::atomic<bool> is_configured_;
@@ -104,7 +113,7 @@ private:
     while (is_running_) {
       std::unique_lock<std::mutex> lock(message_mutex_);
       message_cv_.wait(lock, [this]() {
-        return !is_running_ || communicator_->has_input_message();
+        return !is_running_ || tcp_communicator_->has_input_message();
       });
 
       if (!is_running_) {
@@ -113,10 +122,10 @@ private:
       }
 
       // Process all available messages
-      while (communicator_->has_input_message()) {
+      while (tcp_communicator_->has_input_message()) {
         try {
-          auto message = communicator_->dequeue_input_message();
-          process_message(message);
+          auto message = tcp_communicator_->dequeue_input_message();
+          this->process_message(message);
         } catch (const std::exception &e) {
           printf("Error processing message: %s\n", e.what());
         }
@@ -126,7 +135,7 @@ private:
     printf("Message processing loop ended\n");
   }
 
-  void process_message(const Message<T> &message) {
+  void process_message(const Message<T> &message) override {
 
     switch (message.command_type) {
     case CommandType::CONFIG_RECEIVED:
@@ -140,9 +149,10 @@ private:
       break;
 
     default:
-      // If we have a configured stage, delegate to it
-      if (is_configured_ && stage_) {
-        stage_->process_message(message);
+      // If we have been configured, delegate to base PipelineStage message
+      // handling which includes task processing.
+      if (is_configured_ && this->get_model()) {
+        PipelineStage<T>::process_message(message);
       } else {
         std::cout << "Received message type "
                   << static_cast<int>(message.command_type)
@@ -172,30 +182,27 @@ private:
 
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
 
-      // Create the model from configuration
-      auto model = std::make_unique<tnn::Sequential<T>>(
+      // Create the model from configuration and assign to base model_
+      this->model_ = std::make_unique<tnn::Sequential<T>>(
           tnn::Sequential<T>::load_from_config(config.model_config));
 
-      model->enable_profiling(true);
+      this->model_->enable_profiling(true);
 
-      std::cout << "Created model with " << model->size() << " layers" << '\n';
+      std::cout << "Created model with " << this->model_->size() << " layers" << '\n';
 
       // Connect to other stages and coordinator
       setup_stage_connections(config);
 
-      // Create the pipeline stage with a custom communicator wrapper
-      auto stage_comm_wrapper = create_stage_communicator_wrapper();
-
-      stage_ = std::make_unique<PipelineStage<T>>(
-          std::move(model), std::move(stage_comm_wrapper), stage_id_);
+      // Set the name in base class
+      this->name_ = stage_id_;
 
       is_configured_ = true;
 
       // Send ready signal to coordinator
       auto ready_msg = Message<T>::create_signal_message(
           CommandType::READY_SIGNAL, true, stage_id_, "coordinator");
-      communicator_->enqueue_output_message(ready_msg);
-      communicator_->flush_output_messages();
+      tcp_communicator_->enqueue_output_message(ready_msg);
+      tcp_communicator_->flush_output_messages();
 
       std::cout << "Stage " << stage_id_ << " configured and ready" << '\n';
 
@@ -206,8 +213,8 @@ private:
       auto error_msg = Message<T>::error_message(
           std::string("Configuration failed: ") + e.what(),
           stage_id_.empty() ? "unknown" : stage_id_, "coordinator");
-      communicator_->enqueue_output_message(error_msg);
-      communicator_->flush_output_messages();
+      tcp_communicator_->enqueue_output_message(error_msg);
+      tcp_communicator_->flush_output_messages();
     }
   }
 
@@ -217,8 +224,8 @@ private:
         CommandType::HANDSHAKE_RESPONSE,
         stage_id_.empty() ? "worker" : stage_id_, message.sender_id);
 
-    communicator_->enqueue_output_message(response);
-    communicator_->flush_output_messages();
+    tcp_communicator_->enqueue_output_message(response);
+    tcp_communicator_->flush_output_messages();
 
     std::cout << "Responded to handshake from " << message.sender_id << '\n';
   }
@@ -227,7 +234,7 @@ private:
     // Connect to coordinator
     if (!config.coordinator_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.coordinator_endpoint);
-      if (!communicator_->connect_to_peer("coordinator", host, port)) {
+      if (!tcp_communicator_->connect_to_peer("coordinator", host, port)) {
         throw std::runtime_error("Failed to connect to coordinator");
       }
       std::cout << "Connected to coordinator at " << config.coordinator_endpoint
@@ -237,7 +244,7 @@ private:
     // Connect to next stage if specified
     if (!config.next_stage_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.next_stage_endpoint);
-      if (!communicator_->connect_to_peer("next_stage", host, port)) {
+      if (!tcp_communicator_->connect_to_peer("next_stage", host, port)) {
         std::cout << "Warning: Failed to connect to next stage at "
                   << config.next_stage_endpoint << '\n';
       } else {
@@ -249,7 +256,7 @@ private:
     // Connect to previous stage if specified
     if (!config.prev_stage_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.prev_stage_endpoint);
-      if (!communicator_->connect_to_peer("prev_stage", host, port)) {
+      if (!tcp_communicator_->connect_to_peer("prev_stage", host, port)) {
         std::cout << "Warning: Failed to connect to previous stage at "
                   << config.prev_stage_endpoint << '\n';
       } else {
@@ -257,14 +264,6 @@ private:
                   << config.prev_stage_endpoint << '\n';
       }
     }
-  }
-
-  std::unique_ptr<PipelineCommunicator<T>,
-                  std::function<void(PipelineCommunicator<T> *)>>
-  create_stage_communicator_wrapper() {
-    return std::unique_ptr<PipelineCommunicator<T>,
-                           std::function<void(PipelineCommunicator<T> *)>>(
-        communicator_.get(), [](PipelineCommunicator<T> *) {});
   }
 
   std::pair<std::string, int> parse_endpoint(const std::string &endpoint) {
