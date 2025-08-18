@@ -11,6 +11,8 @@
 
 # build
 /build/
+/CMakeCache.txt
+/CMakeFiles/
 
 # build artifacts
 /**/*.o

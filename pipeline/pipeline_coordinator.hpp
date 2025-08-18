@@ -116,8 +116,8 @@ public:
 
     // Set up notification callback for task message arrivals
     this->coordinator_comm_->set_message_notification_callback([this]() {
-      std::lock_guard<std::mutex> lock(task_notification_mutex_);
-      task_notification_cv_.notify_all();
+      std::lock_guard<std::mutex> lock(message_notification_mutex_);
+      message_notification_cv_.notify_all();
     });
 
     // Generate stage names
@@ -247,24 +247,31 @@ public:
     // Set expected task count based on direction
     expected_task_count_ = this->num_microbatches_;
 
-    std::unique_lock<std::mutex> lock(task_notification_mutex_);
+    std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     // Wait with timeout for the expected number of task messages to arrive
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
-    bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->actual_task_message_count() >=
-             static_cast<size_t>(expected_task_count_);
-    });
+    bool success =
+        message_notification_cv_.wait_until(lock, timeout, [this, direction]() {
+          if (direction) {
+            return this->coordinator_comm_->forward_message_count() >=
+                   expected_task_count_.load();
+          } else {
+            return this->coordinator_comm_->backward_message_count() >=
+                   expected_task_count_.load();
+          }
+        });
 
     if (!success) {
-      std::cout
-          << "Warning: join() timed out waiting for task messages. Expected: "
-          << expected_task_count_.load()
-          << ", Got: " << this->coordinator_comm_->actual_task_message_count()
-          << std::endl;
-    } else {
+      std::cout << "Warning: join() timed out waiting for task messages. "
+                << "Expected: " << expected_task_count_.load() << ", Got: "
+                << (direction
+                        ? this->coordinator_comm_->forward_message_count()
+                        : this->coordinator_comm_->backward_message_count())
+                << '\n';
     }
+    return;
   }
 
   void print_profiling_on_all_stages() override {
@@ -302,8 +309,8 @@ private:
       stage_comm_refs_; // Keep refs alive
 
   // Synchronization for event-driven join()
-  mutable std::mutex task_notification_mutex_;
-  mutable std::condition_variable task_notification_cv_;
+  mutable std::mutex message_notification_mutex_;
+  mutable std::condition_variable message_notification_cv_;
   std::atomic<int> expected_task_count_{0};
 
   void setup_communication_network(
