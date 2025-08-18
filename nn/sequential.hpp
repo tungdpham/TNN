@@ -13,8 +13,6 @@
 #include "loss.hpp"
 #include "optimizers.hpp"
 
-using nlohmann::json;
-
 namespace tnn {
 
 // Sequential model for layers

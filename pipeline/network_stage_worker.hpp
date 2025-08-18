@@ -25,9 +25,6 @@ public:
         work_guard_(asio::make_work_guard(io_context_)), is_running_(false),
         is_configured_(false) {
 
-    std::cout << "Creating network stage worker on port " << listen_port_
-              << '\n';
-
     // Create TCP communicator
     communicator_ = std::make_unique<TcpPipelineCommunicator<T>>(
         io_context_, "localhost", listen_port_);
@@ -77,9 +74,6 @@ public:
   }
 
   void wait_for_shutdown() {
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
     if (io_thread_.joinable()) {
       io_thread_.join();
     }
@@ -93,7 +87,6 @@ private:
   asio::io_context io_context_;
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
-  std::thread message_thread_;
 
   std::unique_ptr<TcpPipelineCommunicator<T>> communicator_;
   std::unique_ptr<PipelineStage<T>> stage_;
