@@ -77,10 +77,9 @@ int main() {
       {
           {get_host("WORKER_HOST_8001", "localhost"), 8001,
            "stage_0"}, // First stage
-          // {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, //
-          // Second stage {get_host("WORKER_HOST_8003", "localhost"), 8003,
-          // "stage_2"}, // Third stage {get_host("WORKER_HOST_8004",
-          // "localhost"), 8004, "stage_3"}  // Fourth stage
+          {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"}, // Second stage 
+          // {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, // Third stage 
+          // {get_host("WORKER_HOST_8004","localhost"), 8004, "stage_3"}  // Fourth stage
       };
 
   std::cout << "Using coordinator host: " << coordinator_host << std::endl;

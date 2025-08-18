@@ -21,7 +21,8 @@ int main(int argc, char* argv[]) {
 #endif 
 
 #ifdef _OPENMP
-    omp_set_num_threads(8); // Set OpenMP thread count
+    // omp_set_num_threads(8); // Set OpenMP thread count
+    omp_set_num_threads(4);
     std::cout << "Number of OpenMP threads set to: " << omp_get_max_threads() << std::endl;
 #endif
     
