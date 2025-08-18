@@ -1,20 +1,15 @@
 #pragma once
 
+#include <memory>
 #include <random>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
 #include "../../tensor/tensor.hpp"
-#include "../parallel_for.hpp"
+#include "../layers.hpp"
 
 namespace tnn {
-
-// Forward declarations
-template <typename T> class Layer;
-template <typename T> class StatelessLayer;
-struct LayerConfig;
 
 // Dropout Layer
 template <typename T = float> class DropoutLayer : public StatelessLayer<T> {
@@ -24,149 +19,22 @@ private:
   mutable std::mt19937 generator_;
 
 public:
-  explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout")
-      : StatelessLayer<T>(name), dropout_rate_(dropout_rate),
-        generator_(std::random_device{}()) {
-    if (dropout_rate < T(0) || dropout_rate >= T(1)) {
-      throw std::invalid_argument("Dropout rate must be in [0, 1)");
-    }
-  }
+  explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
-    if (!this->is_training_) {
-      return input;
-    }
-
-    Tensor<T> mask(input.shape());
-    Tensor<T> output = input;
-
-    std::uniform_real_distribution<T> distribution(T(0), T(1));
-
-    T scale = T(1) / (T(1) - dropout_rate_);
-
-#if defined(USE_TBB)
-    tnn::parallel_for_2d(
-        input.batch_size(), input.channels(), [&](size_t n, size_t c) {
-#ifdef _OPENMP
-          thread_local std::mt19937 local_generator(std::random_device{}());
-          thread_local std::uniform_real_distribution<T> local_distribution(
-              T(0), T(1));
-#else
-      std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-#endif
-          for (size_t h = 0; h < input.height(); ++h) {
-            for (size_t w = 0; w < input.width(); ++w) {
-#ifdef _OPENMP
-              if (local_distribution(local_generator) < dropout_rate_) {
-#else
-          if (local_distribution(generator_) < dropout_rate_) {
-#endif
-                mask(n, c, h, w) = T(0);
-                output(n, c, h, w) = T(0);
-              } else {
-                mask(n, c, h, w) = scale;
-                output(n, c, h, w) *= scale;
-              }
-            }
-          }
-        });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (size_t n = 0; n < input.batch_size(); ++n) {
-      for (size_t c = 0; c < input.channels(); ++c) {
-#ifdef _OPENMP
-        thread_local std::mt19937 local_generator(std::random_device{}());
-        thread_local std::uniform_real_distribution<T> local_distribution(T(0),
-                                                                          T(1));
-#else
-        std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-#endif
-        for (size_t h = 0; h < input.height(); ++h) {
-          for (size_t w = 0; w < input.width(); ++w) {
-#ifdef _OPENMP
-            if (local_distribution(local_generator) < dropout_rate_) {
-#else
-            if (local_distribution(generator_) < dropout_rate_) {
-#endif
-              mask(n, c, h, w) = T(0);
-              output(n, c, h, w) = T(0);
-            } else {
-              mask(n, c, h, w) = scale;
-              output(n, c, h, w) *= scale;
-            }
-          }
-        }
-      }
-    }
-#endif
-
-    micro_batch_masks_[micro_batch_id] = mask;
-    return output;
-  }
-
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override {
-    if (!this->is_training_) {
-      return grad_output;
-    }
+                     int micro_batch_id = 0) override;
 
-    auto it_mask = micro_batch_masks_.find(micro_batch_id);
-    if (it_mask == micro_batch_masks_.end()) {
-      throw std::runtime_error(
-          "No cached mask found for micro-batch ID in DropoutLayer: " +
-          std::to_string(micro_batch_id));
-    }
-    const Tensor<T> &mask = it_mask->second;
-
-    Tensor<T> grad_input = grad_output;
-
-#if defined(USE_TBB)
-    tnn::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
-                         [&](size_t n, size_t c) {
-                           for (size_t h = 0; h < grad_output.height(); ++h) {
-                             for (size_t w = 0; w < grad_output.width(); ++w) {
-                               grad_input(n, c, h, w) *= mask(n, c, h, w);
-                             }
-                           }
-                         });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < grad_output.batch_size(); ++n) {
-      for (size_t c = 0; c < grad_output.channels(); ++c) {
-        for (size_t h = 0; h < grad_output.height(); ++h) {
-          for (size_t w = 0; w < grad_output.width(); ++w) {
-            grad_input(n, c, h, w) *= mask(n, c, h, w);
-          }
-        }
-      }
-    }
-#endif
-
-    // micro_batch_masks_.erase(it_mask);
-    return grad_input;
-  }
-
-  std::string type() const override { return "dropout"; }
-
-  LayerConfig get_config() const override {
-    LayerConfig config;
-    config.name = this->name_;
-    config.parameters["dropout_rate"] = dropout_rate_;
-    return config;
-  }
-
-  std::unique_ptr<Layer<T>> clone() const override {
-    return std::make_unique<DropoutLayer<T>>(dropout_rate_, this->name_);
-  }
+  std::string type() const override;
+  LayerConfig get_config() const override;
+  std::unique_ptr<Layer<T>> clone() const override;
 
   std::vector<size_t>
-  compute_output_shape(const std::vector<size_t> &input_shape) const override {
-    return input_shape;
-  }
+  compute_output_shape(const std::vector<size_t> &input_shape) const override;
+
+public:
+  static std::unique_ptr<Layer<T>>
+  create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn

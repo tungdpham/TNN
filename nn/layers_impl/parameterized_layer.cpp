@@ -1,4 +1,4 @@
-#include "../layers.hpp"
+#include "parameterized_layer.hpp"
 
 namespace tnn {
 
@@ -20,9 +20,5 @@ template <typename T>
 void ParameterizedLayer<T>::update_parameters(Optimizer<T> &optimizer) {
     update_parameters_impl(optimizer);
 }
-
-// Explicit template instantiations
-template class ParameterizedLayer<float>;
-template class ParameterizedLayer<double>;
 
 } // namespace tnn

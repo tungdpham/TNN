@@ -1,6 +1,13 @@
 #pragma once
 
-#include "../layers.hpp"
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+#include "../../tensor/tensor.hpp"
+#include "../activations.hpp"
+#include "stateless_layer.hpp"
 
 namespace tnn {
 
@@ -12,51 +19,17 @@ private:
 
 public:
   explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
-                           const std::string &name = "activation")
-      : StatelessLayer<T>(name), activation_(std::move(activation)) {
-    if (!activation_) {
-      throw std::invalid_argument("Activation function cannot be null");
-    }
-  }
+                           const std::string &name = "activation");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override {
-    micro_batch_inputs_[micro_batch_id] = input;
-    Tensor<T> output = input; // Copy
-    activation_->apply(output);
-    return output;
-  }
-
+  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override {
-    auto it = micro_batch_inputs_.find(micro_batch_id);
-    if (it == micro_batch_inputs_.end()) {
-      throw std::runtime_error(
-          "No cached input found for micro-batch ID in ActivationLayer: " +
-          std::to_string(micro_batch_id));
-    }
-    const Tensor<T> &last_input = it->second;
-    Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
-    return grad;
-  }
+                     int micro_batch_id = 0) override;
 
-  std::string type() const override { return "activation"; }
-
-  LayerConfig get_config() const override {
-    LayerConfig config;
-    config.name = this->name_;
-    config.parameters["activation"] = activation_->name();
-    return config;
-  }
-
-  std::unique_ptr<Layer<T>> clone() const override {
-    return std::make_unique<ActivationLayer<T>>(activation_->clone(),
-                                                this->name_);
-  }
-
+  std::string type() const override;
+  LayerConfig get_config() const override;
+  std::unique_ptr<Layer<T>> clone() const override;
   std::vector<size_t>
-  compute_output_shape(const std::vector<size_t> &input_shape) const override {
-    return input_shape; // Activation doesn't change shape
-  }
+  compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 
 } // namespace tnn

@@ -5,7 +5,6 @@ NVCC = nvcc
 # Feature flags
 ENABLE_OPENMP ?= 1
 ENABLE_CUDA ?= 0
-ENABLE_BLAS ?= 0
 ENABLE_TBB ?= 0
 ENABLE_DEBUG ?= 0
 
@@ -23,7 +22,7 @@ else
 	OBJ = $(CXX_OBJ)
 endif
 
-# Compilation flags - Updated to C++17 for compatibility
+# Compilation flags
 CXXFLAGS = -std=c++17 -Wpedantic -O3 -march=haswell -mavx -mavx2 -flto
 NVCCFLAGS = -std=c++17 -O3 -arch=sm_89 --compiler-options -fPIC
 LDFLAGS = -lm
@@ -35,7 +34,6 @@ ifeq ($(ENABLE_DEBUG),1)
 	CXXFLAGS = $(DEBUG_FLAGS)
 endif
 
-# Add OpenMP support
 ifeq ($(ENABLE_OPENMP), 1)
 	CXXFLAGS += -fopenmp
 	LDFLAGS += -fopenmp
@@ -53,15 +51,6 @@ ifeq ($(ENABLE_CUDA), 1)
 	NVCC_EXISTS := $(shell command -v $(NVCC) 2> /dev/null)
 	ifeq ($(NVCC_EXISTS),)
 		$(error NVCC not found. Please install CUDA toolkit.)
-	endif
-endif
-
-# Add BLAS support
-ifeq ($(ENABLE_BLAS), 1)
-	ifeq ($(shell pkg-config --exists openblas && echo 1), 1)
-		CXXFLAGS += -DUSE_OPENBLAS
-		CXXFLAGS += $(shell pkg-config --cflags openblas)
-		LDFLAGS += $(shell pkg-config --libs openblas)
 	endif
 endif
 
@@ -89,13 +78,12 @@ endif
 clean:
 ifeq ($(OS),Windows_NT)
 	if exist matrix\*.o del matrix\*.o
-	if exist neural\*.o del neural\*.o  
 	if exist utils\*.o del utils\*.o
 	if exist *.o del *.o
 	if exist ${MAIN}.exe del ${MAIN}.exe
 	for %%f in ($(TEST_PROGRAMS)) do if exist %%f.exe del %%f.exe
 else
-	rm -f matrix/*.o neural/*.o utils/*.o nn/*.o tensor/*.o *.o ${MAIN}
+	rm -f matrix/*.o utils/*.o nn/**/*.o tensor/*.o *.o
 	rm -f main mnist_trainer mnist_cnn_trainer mnist_cnn_pipeline_trainer cifar100_cnn_trainer cifar10_cnn_trainer uji_ips_trainer mnist_cnn_test pipeline_test network_worker distributed_pipeline_example distributed_pipeline_docker
 	rm -f $(TEST_PROGRAMS)
 endif
@@ -114,11 +102,11 @@ else
 endif
 
 # MNIST CNN trainer target
-mnist_cnn_trainer: mnist_cnn_trainer.cpp ${HEADERS}
+mnist_cnn_trainer: mnist_cnn_trainer.cpp ${HEADERS} ${OBJ}
 ifeq ($(ENABLE_CUDA), 1)
 	${NVCC} ${NVCCFLAGS} -I. $< -o $@ ${CUDA_LDFLAGS}
 else
-	${CXX} ${TEST_CXXFLAGS} $< -o $@ ${LDFLAGS}
+	${CXX} ${TEST_CXXFLAGS} $< ${OBJ} -o $@ ${LDFLAGS}
 endif
 
 # MNIST CNN test target
