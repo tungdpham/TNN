@@ -324,8 +324,4 @@ MaxPool2DLayer<T>::create_from_config(const LayerConfig &config) {
                                              config.name);
 }
 
-// Explicit template instantiations
-template class MaxPool2DLayer<float>;
-template class MaxPool2DLayer<double>;
-
 } // namespace tnn

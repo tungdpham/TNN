@@ -27,3 +27,5 @@ protected:
   virtual void update_parameters_impl(Optimizer<T> &optimizer) = 0;
 };
 } // namespace tnn
+
+#include "parameterized_layer.tpp"

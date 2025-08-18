@@ -41,7 +41,7 @@ tnn::create_activation(const std::string &name) {
 
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/stateless_layer.hpp"
-#include "layers_impl/parameterized_layer.cpp"
+#include "layers_impl/parameterized_layer.hpp"
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/conv2d_layer.hpp"

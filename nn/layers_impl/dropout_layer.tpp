@@ -169,8 +169,4 @@ DropoutLayer<T>::create_from_config(const LayerConfig &config) {
   return std::make_unique<DropoutLayer<T>>(dropout_rate, config.name);
 }
 
-// Explicit template instantiations
-template class DropoutLayer<float>;
-template class DropoutLayer<double>;
-
 } // namespace tnn

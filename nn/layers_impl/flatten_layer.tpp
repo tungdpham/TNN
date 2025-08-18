@@ -75,8 +75,4 @@ FlattenLayer<T>::create_from_config(const LayerConfig &config) {
   return std::make_unique<FlattenLayer<T>>(config.name);
 }
 
-// Explicit template instantiations
-template class FlattenLayer<float>;
-template class FlattenLayer<double>;
-
 } // namespace tnn

@@ -38,3 +38,5 @@ public:
 };
 
 } // namespace tnn
+
+#include "dropout_layer.tpp"
