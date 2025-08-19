@@ -53,9 +53,6 @@ public:
   // Send all queued output messages
   virtual void flush_output_messages() = 0;
 
-  // Receive messages from the communication layer (for distributed implementations)
-  virtual void receive_messages() = 0;
-
   // Register a recipient endpoint
   virtual void register_recipient(const std::string& recipient_id, const tpipeline::StageEndpoint& endpoint) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
@@ -98,8 +95,6 @@ public:
     }
     // Notify stage that a message is available
     if (message_notification_callback_) {
-      // printf("Base communicator: Enqueued message of type %d, notifying callback\n", 
-      //        static_cast<int>(message.command_type));
       message_notification_callback_();
     }
   }
@@ -253,22 +248,16 @@ public:
            this->status_queue_.size();
   }
 
-  // Count only task messages (FORWARD_TASK, BACKWARD_TASK) in input queue
-  inline size_t actual_task_message_count() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    size_t count = 0;
-    
-    // Task messages should only be in task queue
-    auto temp_queue = this->task_queue_;
-    while (!temp_queue.empty()) {
-      auto message = temp_queue.front();
-      temp_queue.pop();
-      if (message.command_type == CommandType::FORWARD_TASK || 
-          message.command_type == CommandType::BACKWARD_TASK) {
-        count++;
-      }
-    }
-    return count;
+  inline size_t forward_message_count() const {
+    return message_count_by_type(CommandType::FORWARD_TASK);
+  }
+
+  inline size_t backward_message_count() const {
+    return message_count_by_type(CommandType::BACKWARD_TASK);
+  }
+
+  inline size_t params_updated_count() const {
+    return message_count_by_type(CommandType::PARAMETERS_UPDATED);
   }
 
   // Count messages of a specific type in input queue
@@ -576,10 +565,6 @@ public:
         send_message(outgoing.recipient_id, outgoing.message);
       }
     }
-  }
-
-  void receive_messages() override {
-    // Not applicable for in-process communication
   }
 
   // Set reference to other communicators for in-process communication

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <stdlib.h>
+#include <immintrin.h>  
 
 namespace utils {
 template <typename T>

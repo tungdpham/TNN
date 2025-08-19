@@ -2,6 +2,8 @@
 #include <iostream>
 #include <cstdlib>
 #include <omp.h>
+#include <tbb/global_control.h>
+#include <tbb/task_arena.h>
 
 int main(int argc, char* argv[]) {
     if (argc != 2) {
@@ -10,13 +12,21 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    omp_set_num_threads(4); // Set OpenMP thread count
+#if defined(USE_TBB)
+    tbb::global_control c(tbb::global_control::max_allowed_parallelism, 8);
+    std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
+              << tbb::global_control::active_value(
+                     tbb::global_control::max_allowed_parallelism)
+              << "\n";
+#endif 
 
+#ifdef _OPENMP
+    const int num_threads = omp_get_max_threads();
+    omp_set_num_threads(std::min(num_threads, 4)); // Limit threads to avoid overhead
     std::cout << "Number of OpenMP threads set to: " << omp_get_max_threads() << std::endl;
+#endif
     
     int listen_port = std::atoi(argv[1]);
-
-    std::cout << "Parsed listen port: " << listen_port << std::endl;
 
     if (listen_port <= 0 || listen_port > 65535) {
         std::cerr << "Invalid port number: " << listen_port << std::endl;
@@ -24,11 +34,7 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Using listen port: " << listen_port << std::endl;
-
-    std::cout << "Starting network pipeline stage worker..." << std::endl;
-
-    std::cout << "Running worker on port " << listen_port << std::endl;
-
+    
     tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port);
     return 0;
 }

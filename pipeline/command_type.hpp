@@ -52,6 +52,7 @@ enum class CommandType {
 
     // Debugging and Profiling
     PRINT_PROFILING,
+    CLEAR_PROFILING,
 };
 
 } // namespace tpipeline

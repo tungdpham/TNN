@@ -7,10 +7,10 @@
 #define ASIO_STANDALONE
 #include "../third_party/asio/asio/include/asio.hpp"
 #include <future>
+#include <iostream>
 #include <string>
 #include <thread>
 #include <vector>
-#include <iostream>
 
 namespace tpipeline {
 
@@ -44,8 +44,9 @@ public:
         is_deployed_(false) {
 
     if (model.get_layers().size() < endpoints.size()) {
-        std::cout << "Error: Model has fewer layers (" << model.get_layers().size()
-                  << ") than remote endpoints (" << endpoints.size() << ")\n";
+      std::cout << "Error: Model has fewer layers ("
+                << model.get_layers().size() << ") than remote endpoints ("
+                << endpoints.size() << ")\n";
       throw std::invalid_argument(
           "Model must have at least as many layers as remote endpoints");
     }
@@ -59,6 +60,7 @@ public:
       config.stage_id = endpoints[i].stage_id;
       config.stage_index = static_cast<int>(i);
       config.model_config = splitted_models[i].get_config();
+      config.model_config["name"] = endpoints[i].stage_id; // Set stage name
       config.coordinator_endpoint =
           coordinator_host + ":" + std::to_string(coordinator_port_);
 
@@ -89,8 +91,8 @@ public:
 
     // Set up message notification callback for event-driven processing
     this->coordinator_comm_->set_message_notification_callback([this]() {
-      std::lock_guard<std::mutex> lock(task_notification_mutex_);
-      task_notification_cv_.notify_all();
+      std::lock_guard<std::mutex> lock(message_notification_mutex);
+      message_notification_cv.notify_all();
     });
 
     // Start IO context in background thread
@@ -103,15 +105,15 @@ public:
   ~DistributedPipelineCoordinator() {
     // First stop the coordinator and clean up connections
     stop();
-    
+
     // Reset the coordinator communicator before destroying io_context
     this->coordinator_comm_.reset();
-    
+
     // Then stop the io_context and cleanup
     work_guard_.reset();
     io_context_.stop();
     if (io_thread_.joinable()) {
-        io_thread_.join();
+      io_thread_.join();
     }
   }
 
@@ -147,7 +149,8 @@ public:
       return false;
     }
 
-    std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
+    std::cout << "Connected to all endpoints, sending stage configurations...\n"
+              << std::endl;
 
     // Send stage configurations
     std::vector<std::future<bool>> deployment_futures;
@@ -208,7 +211,6 @@ public:
       this->send_message_to_stage(stage_name, stop_msg);
     }
 
-    // this->coordinator_comm_->flush_output_messages();
     std::cout << "Stopped all distributed pipeline stages\n";
   }
 
@@ -251,23 +253,31 @@ public:
     // Set expected task count based on direction
     expected_task_count_ = this->num_microbatches_;
 
-    std::unique_lock<std::mutex> lock(task_notification_mutex_);
+    std::unique_lock<std::mutex> lock(message_notification_mutex);
 
     // Wait with timeout for the expected number of task messages to arrive
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
-    bool success = task_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->actual_task_message_count() >=
-             static_cast<size_t>(expected_task_count_);
-    });
+    bool success =
+        message_notification_cv.wait_until(lock, timeout, [this, direction]() {
+          if (direction) {
+            return this->coordinator_comm_->forward_message_count() >=
+                   expected_task_count_.load();
+          } else {
+            return this->coordinator_comm_->backward_message_count() >=
+                   expected_task_count_.load();
+          }
+        });
 
     if (!success) {
       std::cout << "Warning: join() timed out waiting for task messages. "
-                << "Expected: " << expected_task_count_.load()
-                << ", Got: " << this->coordinator_comm_->actual_task_message_count()
+                << "Expected: " << expected_task_count_.load() << ", Got: "
+                << (direction
+                        ? this->coordinator_comm_->forward_message_count()
+                        : this->coordinator_comm_->backward_message_count())
                 << '\n';
-    } else {
     }
+    return;
   }
 
   void update_parameters() override {
@@ -276,7 +286,6 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
-    // this->coordinator_comm_->flush_output_messages();
 
     // Wait for confirmations
     wait_for_parameter_updates();
@@ -293,8 +302,19 @@ public:
           CommandType::PRINT_PROFILING, "coordinator", stage_name);
       this->send_message_to_stage(stage_name, profiling_msg);
     }
+  }
 
-    this->coordinator_comm_->flush_output_messages();
+  void clear_profiling_data() override {
+    if (!is_deployed_) {
+      throw std::runtime_error("Must deploy stages before clearing profiling data");
+    }
+
+    // Send clear profiling request to all stages
+    for (const auto &stage_name : this->stage_names_) {
+      auto clear_msg = Message<T>::create_control_message(
+          CommandType::CLEAR_PROFILING, "coordinator", stage_name);
+      this->send_message_to_stage(stage_name, clear_msg);
+    }
   }
 
   bool is_deployed() const { return is_deployed_; }
@@ -311,28 +331,28 @@ private:
   std::atomic<bool> is_deployed_;
   std::atomic<int> expected_task_count_{0};
 
-  mutable std::mutex task_notification_mutex_;
-  mutable std::condition_variable task_notification_cv_;
+  mutable std::mutex message_notification_mutex;
+  mutable std::condition_variable message_notification_cv;
 
   bool connect_to_endpoint(const RemoteEndpoint &endpoint) {
     try {
-      std::cout << "Connecting to stage " << endpoint.stage_id
-                << " at " << endpoint.host << ":" << endpoint.port << std::endl;
+      std::cout << "Connecting to stage " << endpoint.stage_id << " at "
+                << endpoint.host << ":" << endpoint.port << std::endl;
       auto tcp_comm = static_cast<TcpPipelineCommunicator<T> *>(
           this->coordinator_comm_.get());
       bool connected = tcp_comm->connect_to_peer(endpoint.stage_id,
                                                  endpoint.host, endpoint.port);
 
       if (connected) {
-        std::cout << "Connected to stage " << endpoint.stage_id
-                  << " at " << endpoint.host << ":" << endpoint.port << std::endl;
+        std::cout << "Connected to stage " << endpoint.stage_id << " at "
+                  << endpoint.host << ":" << endpoint.port << std::endl;
       }
 
       return connected;
 
     } catch (const std::exception &e) {
-      std::cout << "Failed to connect to " << endpoint.host << ":" << endpoint.port
-                << " - " << e.what() << '\n';
+      std::cout << "Failed to connect to " << endpoint.host << ":"
+                << endpoint.port << " - " << e.what() << '\n';
       return false;
     }
   }
@@ -346,12 +366,7 @@ private:
           CommandType::CONFIG_RECEIVED, config_json, "coordinator",
           endpoint.stage_id);
 
-      std::cout << "Sending CONFIG_RECEIVED (type "
-                << static_cast<int>(CommandType::CONFIG_RECEIVED)
-                << ") to " << endpoint.stage_id << '\n';
-
       this->send_message_to_stage(endpoint.stage_id, config_msg);
-      this->coordinator_comm_->flush_output_messages();
 
       std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
       return true;
@@ -382,8 +397,6 @@ private:
         while (this->coordinator_comm_->has_input_message()) {
           try {
             auto message = this->coordinator_comm_->dequeue_input_message();
-            // std::cout << "Received message type " << static_cast<int>(message.command_type)
-            //           << " from " << message.sender_id << '\n';
 
             if (message.command_type == CommandType::READY_SIGNAL) {
               ready_count++;
@@ -391,9 +404,8 @@ private:
                         << ready_count << "/" << this->num_stages_ << ")\n";
             } else {
               std::cout << "Received non-ready message type "
-                        << static_cast<int>(message.command_type)
-                        << " from " << message.sender_id
-                        << " during readiness wait\n";
+                        << static_cast<int>(message.command_type) << " from "
+                        << message.sender_id << " during readiness wait\n";
             }
           } catch (const std::runtime_error &e) {
             std::cout << "Error dequeuing message: " << e.what() << '\n';
@@ -411,34 +423,24 @@ private:
 
   void wait_for_parameter_updates() {
     int confirmations = 0;
-    auto start_time = std::chrono::steady_clock::now();
-    const auto timeout = std::chrono::seconds(30);
 
-    while (confirmations < this->num_stages_) {
-      if (std::chrono::steady_clock::now() - start_time > timeout) {
-        std::cout << "Timeout waiting for parameter update confirmations ("
-                  << confirmations << "/" << this->num_stages_ << " received)\n";
-        break;
-      }
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
-      this->coordinator_comm_->receive_messages();
+    std::unique_lock<std::mutex> lock(message_notification_mutex);
 
-      while (this->coordinator_comm_->has_parameter_update_message()) {
-        try {
-          auto message =
-              this->coordinator_comm_->dequeue_parameter_update_message();
-          if (message.command_type == CommandType::PARAMETERS_UPDATED) {
-            confirmations++;
-            // std::cout << "Parameter update confirmed from stage " << message.sender_id
-            //           << " (" << confirmations << "/" << this->num_stages_ << ")\n";
-          }
-        } catch (const std::runtime_error &e) {
-          break;
-        }
-      }
+    bool success = message_notification_cv.wait_until(lock, timeout, [this]() {
+      return this->coordinator_comm_->params_updated_count() >=
+             static_cast<size_t>(this->num_stages_);
+    });
 
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (!success) {
+      std::cout << "Warning: wait_for_parameter_updates() timed out. "
+                << "Expected: " << this->num_stages_
+                << ", Got: " << this->coordinator_comm_->params_updated_count()
+                << '\n';
+      return;
     }
+    return;
   }
 };
 

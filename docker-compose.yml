@@ -8,6 +8,7 @@ services:
       - "8001:8001"
     networks:
       - dcnn-network
+    cpuset: "0-3,9"
 
   worker-8002:
     build: .
@@ -18,6 +19,7 @@ services:
       - "8002:8002"
     networks:
       - dcnn-network
+    cpuset: "4-7,10"
 
   # worker-8003:
   #   build: .
@@ -39,7 +41,6 @@ services:
   #   # networks:
   #   #   - dcnn-network
 
-  # Coordinator node
   coordinator:
     build: .
     container_name: dcnn-coordinator
@@ -52,14 +53,13 @@ services:
     depends_on:
       - worker-8001
       - worker-8002
-      # - worker-8003
-      # - worker-8004
     environment:
       - COORDINATOR_HOST=coordinator
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
       # - WORKER_HOST_8003=worker-8003
       # - WORKER_HOST_8004=worker-8004
+    cpuset: "8"
 
 networks:
   dcnn-network:

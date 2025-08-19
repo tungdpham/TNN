@@ -13,6 +13,7 @@
 #include <type_traits>
 #include <vector>
 #include <fstream>
+#include "../nn/parallel_for.hpp"
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
 // but primarily NCHW and NCDHW.
@@ -741,6 +742,30 @@ public:
     size_t col_width = batch_size * out_h * out_w;
     Matrix<T> col_matrix(col_height, col_width);
 
+    // We'll parallelize over the output columns (each corresponds to a patch)
+    const size_t total_cols = col_width; // batch_size * out_h * out_w
+
+#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+    tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
+      size_t n = col_idx / (out_h * out_w);
+      size_t rem = col_idx % (out_h * out_w);
+      size_t out_h_idx = rem / out_w;
+      size_t out_w_idx = rem % out_w;
+
+      for (size_t c = 0; c < channels; ++c) {
+        for (size_t kh = 0; kh < kernel_h; ++kh) {
+          for (size_t kw = 0; kw < kernel_w; ++kw) {
+            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+            size_t in_h_idx = out_h_idx * stride_h + kh;
+            size_t in_w_idx = out_w_idx * stride_w + kw;
+            col_matrix(col_row_idx, col_idx) =
+                input_data[n * strides[0] + c * strides[1] +
+                           in_h_idx * strides[2] + in_w_idx * strides[3]];
+          }
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4)
 #endif
@@ -765,6 +790,7 @@ public:
         }
       }
     }
+#endif
     return col_matrix;
   }
 
@@ -788,6 +814,29 @@ public:
     size_t col_rows = channels * kernel_h * kernel_w;
     size_t col_cols = batch_size * num_output_patches;
 
+    // Parallelize over columns (patch positions)
+    const size_t total_cols = col_cols; // batch_size * output_h * output_w
+
+#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+    tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
+      size_t n = col_idx / (output_h * output_w);
+      size_t rem = col_idx % (output_h * output_w);
+      size_t h_out = rem / output_w;
+      size_t w_out = rem % output_w;
+
+      for (size_t c = 0; c < channels; ++c) {
+        for (size_t kh = 0; kh < kernel_h; ++kh) {
+          for (size_t kw = 0; kw < kernel_w; ++kw) {
+            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+            size_t h_dest = h_out * stride_h + kh;
+            size_t w_dest = w_out * stride_w + kw;
+            result_padded(n, c, h_dest, w_dest) +=
+                col_matrix(col_row_idx, col_idx);
+          }
+        }
+      }
+    });
+#else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(3)
 #endif
@@ -815,6 +864,7 @@ public:
         }
       }
     }
+#endif
 
     // Now handle the padding removal
     if (pad_h > 0 || pad_w > 0) {

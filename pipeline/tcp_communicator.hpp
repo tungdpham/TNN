@@ -106,11 +106,6 @@ public:
     }
   }
 
-  void receive_messages() override {
-    // Messages are received asynchronously through the accept/read loops
-    // This method is a no-op for async implementation
-  }
-
   // Connect to a remote endpoint
   bool connect_to_peer(const std::string &peer_id, const std::string &host,
                        int port) {
@@ -237,8 +232,6 @@ private:
               start_read(connection_id, connection); // Try to continue
             }
           } else {
-            std::cout << "Connection error while reading from " << connection_id
-                      << ": " << ec.message() << std::endl;
             handle_connection_error(connection_id, ec);
           }
         });
@@ -279,8 +272,18 @@ private:
   void handle_connection_error(const std::string &connection_id,
                                std::error_code ec) {
     if (ec) {
-      std::cout << "Connection error with " << connection_id << ": "
-                << ec.message() << std::endl;
+      if(ec == asio::error::eof) {
+        std::cout << "Connection closed by peer: " << connection_id << std::endl;
+      } else if (ec == asio::error::connection_reset) {
+        std::cout << "Connection reset by peer: " << connection_id << std::endl;
+      } else if (ec == asio::error::operation_aborted) {
+        std::cout << "Connection operation aborted: " << connection_id << std::endl;
+      } else if (ec == asio::error::connection_refused) {
+        std::cout << "Connection refused by peer: " << connection_id << std::endl;
+      }else {
+        std::cout << "Connection error with " << connection_id << ": "
+                  << ec.message() << std::endl;
+      }
     }
 
     // Remove the connection

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -12,8 +13,6 @@
 #include "layers.hpp"
 #include "loss.hpp"
 #include "optimizers.hpp"
-
-using nlohmann::json;
 
 namespace tnn {
 
@@ -31,9 +30,8 @@ private:
 
   // Performance profiling
   bool enable_profiling_;
-  std::vector<double> forward_times_ms_;
-  std::vector<double> backward_times_ms_;
-  std::vector<std::string> layer_names_;
+  std::map<std::string, double> forward_times_ms_;
+  std::map<std::string, double> backward_times_ms_;
 
 public:
   explicit Sequential(const std::string &name = "sequential")
@@ -59,11 +57,10 @@ public:
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
         is_training_(other.is_training_),
-        layer_outputs_(std::move(other.layer_outputs_)),
+        // layer_outputs_(std::move(other.layer_outputs_)),
         enable_profiling_(other.enable_profiling_),
         forward_times_ms_(std::move(other.forward_times_ms_)),
-        backward_times_ms_(std::move(other.backward_times_ms_)),
-        layer_names_(std::move(other.layer_names_)) {}
+        backward_times_ms_(std::move(other.backward_times_ms_)) {}
 
   // Assignment operators
   Sequential &operator=(const Sequential &other) {
@@ -77,10 +74,9 @@ public:
       name_ = other.name_;
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
-      layer_outputs_.clear();
+      // layer_outputs_.clear();
       forward_times_ms_.clear();
       backward_times_ms_.clear();
-      layer_names_.clear();
     }
     return *this;
   }
@@ -92,11 +88,10 @@ public:
       loss_ = std::move(other.loss_);
       name_ = std::move(other.name_);
       is_training_ = other.is_training_;
-      layer_outputs_ = std::move(other.layer_outputs_);
+      // layer_outputs_ = std::move(other.layer_outputs_);
       enable_profiling_ = other.enable_profiling_;
       forward_times_ms_ = std::move(other.forward_times_ms_);
       backward_times_ms_ = std::move(other.backward_times_ms_);
-      layer_names_ = std::move(other.layer_names_);
     }
     return *this;
   }
@@ -136,10 +131,8 @@ public:
 
   void clear() {
     layers_.clear();
-    layer_outputs_.clear();
     forward_times_ms_.clear();
     backward_times_ms_.clear();
-    layer_names_.clear();
   }
 
   // Access layers
@@ -183,9 +176,8 @@ public:
   void enable_profiling(bool enable = true) {
     enable_profiling_ = enable;
     if (enable) {
-      forward_times_ms_.reserve(layers_.size());
-      backward_times_ms_.reserve(layers_.size());
-      layer_names_.reserve(layers_.size());
+      forward_times_ms_.clear();
+      backward_times_ms_.clear();
     }
   }
 
@@ -194,20 +186,24 @@ public:
   void clear_profiling_data() {
     forward_times_ms_.clear();
     backward_times_ms_.clear();
-    layer_names_.clear();
+  }
+
+  // Explicit functions for clearing specific timing data
+  void clear_forward_times() {
+    forward_times_ms_.clear();
+  }
+
+  void clear_backward_times() {
+    backward_times_ms_.clear();
   }
 
   // Get profiling results
-  const std::vector<double> &get_forward_times() const {
+  const std::map<std::string, double> &get_forward_times() const {
     return forward_times_ms_;
   }
 
-  const std::vector<double> &get_backward_times() const {
+  const std::map<std::string, double> &get_backward_times() const {
     return backward_times_ms_;
-  }
-
-  const std::vector<std::string> &get_layer_names() const {
-    return layer_names_;
   }
 
   void print_profiling_summary() const {
@@ -230,16 +226,34 @@ public:
 
     double total_forward = 0.0, total_backward = 0.0;
 
-    for (size_t i = 0; i < forward_times_ms_.size(); ++i) {
-      double forward_time = forward_times_ms_[i];
-      double backward_time =
-          (i < backward_times_ms_.size()) ? backward_times_ms_[i] : 0.0;
+    // Loop through layers in order
+    for (size_t i = 0; i < layers_.size(); ++i) {
+      // Get layer name
+      std::string layer_name = layers_[i]->type();
+      auto config = layers_[i]->get_config();
+      if (!config.name.empty()) {
+        layer_name = config.name;
+      }
+
+      // Look up timing data in maps
+      double forward_time = 0.0;
+      auto forward_it = forward_times_ms_.find(layer_name);
+      if (forward_it != forward_times_ms_.end()) {
+        forward_time = forward_it->second;
+      }
+
+      double backward_time = 0.0;
+      auto backward_it = backward_times_ms_.find(layer_name);
+      if (backward_it != backward_times_ms_.end()) {
+        backward_time = backward_it->second;
+      }
+
       double total_time = forward_time + backward_time;
 
       total_forward += forward_time;
       total_backward += backward_time;
 
-      std::cout << std::left << std::setw(20) << layer_names_[i]
+      std::cout << std::left << std::setw(20) << layer_name
                 << std::setw(15) << std::fixed << std::setprecision(3)
                 << forward_time << std::setw(15) << std::fixed
                 << std::setprecision(3) << backward_time << std::setw(15)
@@ -264,20 +278,6 @@ public:
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
 
-    // Clear previous outputs and profiling data
-    layer_outputs_.clear();
-    layer_outputs_.reserve(layers_.size() + 1);
-
-    if (enable_profiling_) {
-      forward_times_ms_.clear();
-      forward_times_ms_.reserve(layers_.size());
-      layer_names_.clear();
-      layer_names_.reserve(layers_.size());
-    }
-
-    // Store input
-    layer_outputs_.push_back(input);
-
     Tensor<T> current_output = input;
 
     for (size_t i = 0; i < layers_.size(); ++i) {
@@ -290,20 +290,19 @@ public:
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
               end_time - start_time);
-          forward_times_ms_.push_back(duration.count() / 1000.0);
 
-          // Store layer name for profiling
+          // Store layer name and timing
           std::string layer_name = layers_[i]->type();
           auto config = layers_[i]->get_config();
           if (!config.name.empty()) {
             layer_name = config.name;
           }
-          layer_names_.push_back(layer_name);
+          forward_times_ms_[layer_name] += duration.count() / 1000.0;
         } else {
           current_output = layers_[i]->forward(current_output, micro_batch_id);
         }
 
-        layer_outputs_.push_back(current_output);
+        // layer_outputs_.push_back(current_output);
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in layer " + std::to_string(i) + " (" +
                                  layers_[i]->type() + "): " + e.what());
@@ -320,15 +319,6 @@ public:
           "Cannot backward through empty sequential model");
     }
 
-    if (layer_outputs_.empty()) {
-      throw std::runtime_error("Must call forward before backward");
-    }
-
-    if (enable_profiling_) {
-      backward_times_ms_.clear();
-      backward_times_ms_.reserve(layers_.size());
-    }
-
     Tensor<T> current_grad = grad_output;
 
     // Backward through layers in reverse order
@@ -342,9 +332,14 @@ public:
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
               end_time - start_time);
-          // Insert at beginning to maintain order (since we're going backwards)
-          backward_times_ms_.insert(backward_times_ms_.begin(),
-                                    duration.count() / 1000.0);
+
+          // Store layer name and timing
+          std::string layer_name = layers_[i]->type();
+          auto config = layers_[i]->get_config();
+          if (!config.name.empty()) {
+            layer_name = config.name;
+          }
+          backward_times_ms_[layer_name] += duration.count() / 1000.0;
         } else {
           current_grad = layers_[i]->backward(current_grad, micro_batch_id);
         }
@@ -416,17 +411,17 @@ public:
     return current_shape;
   }
 
-  // Get intermediate outputs (for debugging)
-  const std::vector<Tensor<T>> &get_layer_outputs() const {
-    return layer_outputs_;
-  }
+  // // Get intermediate outputs (for debugging)
+  // const std::vector<Tensor<T>> &get_layer_outputs() const {
+  //   return layer_outputs_;
+  // }
 
-  Tensor<T> get_layer_output(size_t layer_index) const {
-    if (layer_index >= layer_outputs_.size()) {
-      throw std::out_of_range("Layer output index out of range");
-    }
-    return layer_outputs_[layer_index];
-  }
+  // Tensor<T> get_layer_output(size_t layer_index) const {
+  //   if (layer_index >= layer_outputs_.size()) {
+  //     throw std::out_of_range("Layer output index out of range");
+  //   }
+  //   return layer_outputs_[layer_index];
+  // }
 
   // Model information
   void print_summary(const std::vector<size_t> &input_shape = {}) const {
@@ -717,7 +712,6 @@ public:
     
     // Serialize optimizer
     if (optimizer_) {
-  std::cout << "Saving optimizer configuration..." << std::endl;
       OptimizerConfig opt_config = optimizer_->get_config();
       nlohmann::json opt_json;
       opt_json["type"] = opt_config.type;
@@ -775,10 +769,8 @@ public:
   static Sequential<T> load_from_config(const nlohmann::json& config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-  std::cout << "Loading model from configuration: " << model.name_ << std::endl;
     // Load optimizer if present
     if (config.contains("optimizer")) {
-  std::cout << "Loading optimizer configuration..." << std::endl;
       OptimizerConfig opt_config;
       opt_config.type = config["optimizer"]["type"];
       opt_config.name = config["optimizer"]["name"];
@@ -798,7 +790,6 @@ public:
     
     // Load loss if present
     if (config.contains("loss")) {
-  std::cout << "Loading loss configuration..." << std::endl;
       LossConfig loss_config;
       loss_config.type = config["loss"]["type"];
       loss_config.name = config["loss"]["name"];
