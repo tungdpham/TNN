@@ -119,6 +119,17 @@ CMAKE_ARGS=(
 
 cmake .. "${CMAKE_ARGS[@]}"
 
+# Ensure the generated install script uses an absolute, correct install prefix
+# (project root). Prefer realpath, fallback to a safe pwd-based approach.
+if command -v realpath >/dev/null 2>&1; then
+    INSTALL_PREFIX="$(realpath ..)"
+else
+    INSTALL_PREFIX="$(cd .. && pwd)"
+fi
+CMAKE_ARGS+=( -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" )
+
+cmake .. "${CMAKE_ARGS[@]}"
+
 # Build
 echo -e "${GREEN}Building project...${NC}"
 if [ "$VERBOSE" = true ]; then

@@ -13,6 +13,9 @@
 /build/
 /CMakeCache.txt
 /CMakeFiles/
+/Makefile
+/**/*.cmake
+/**/*.cmake.in
 
 # build artifacts
 /**/*.o
