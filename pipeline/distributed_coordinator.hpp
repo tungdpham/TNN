@@ -228,8 +228,6 @@ public:
     forward_msg.sequence_number = microbatch_id;
 
     this->send_message_to_stage(first_stage, forward_msg);
-
-    // this->coordinator_comm_->flush_output_messages();
   }
 
   void backward(const Tensor<T> &gradient, size_t microbatch_id) override {
@@ -291,6 +289,63 @@ public:
     wait_for_parameter_updates();
   }
 
+  void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
+                           std::vector<Tensor<T>> &microbatch_labels) {
+    if (microbatch_inputs.size() != this->num_microbatches_ ||
+        microbatch_labels.size() != this->num_microbatches_) {
+      throw std::invalid_argument(
+          "Microbatch size mismatch with coordinator configuration");
+    }
+
+    if(loss_function_ == nullptr) {
+      throw std::runtime_error("Loss function not set for distributed coordinator");
+    }
+
+    for (size_t i = 0; i < this->num_microbatches_; ++i) {
+      // Forward pass
+      forward(microbatch_inputs[i], i);
+    }
+
+    // Backward on completion of any microbatch
+    size_t processed_microbatches_ = 0;
+    while (processed_microbatches_ < this->num_microbatches_) {
+      std::unique_lock<std::mutex> lock(message_notification_mutex);
+      message_notification_cv.wait(lock, [this]() {
+        return this->coordinator_comm_->forward_message_count() > 0;
+      });
+
+      auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(CommandType::FORWARD_TASK);
+
+      if (forward_msg.has_task()) {
+        ++processed_microbatches_;
+        // Process the forward task
+        const auto &task = forward_msg.task.value();
+
+        // Compute loss and prepare backward task
+        Tensor<T> predictions = task.data; // Assuming data contains predictions
+        Tensor<T> targets = microbatch_labels[task.micro_batch_id];
+        T loss_value = loss_function_->compute_loss(predictions, targets);
+        Tensor<T> gradients = loss_function_->compute_gradient(predictions, targets);
+
+        // Send backward task
+        backward(gradients, task.micro_batch_id);
+      } else {
+        throw std::runtime_error(
+            "Received forward message without task data");
+      }
+    }
+
+    std::unique_lock<std::mutex> lock(message_notification_mutex);
+
+    // Wait for all backward tasks to complete
+    message_notification_cv.wait(lock, [this]() {
+      return this->coordinator_comm_->backward_message_count() >=
+             this->num_microbatches_;
+    });
+
+    this->get_task_messages();
+  }
+
   void print_profiling_on_all_stages() override {
     if (!is_deployed_) {
       throw std::runtime_error("Must deploy stages before printing profiling");
@@ -306,7 +361,8 @@ public:
 
   void clear_profiling_data() override {
     if (!is_deployed_) {
-      throw std::runtime_error("Must deploy stages before clearing profiling data");
+      throw std::runtime_error(
+          "Must deploy stages before clearing profiling data");
     }
 
     // Send clear profiling request to all stages
@@ -319,7 +375,16 @@ public:
 
   bool is_deployed() const { return is_deployed_; }
 
+  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
+    loss_function_ = std::move(loss);
+  }
+
+  const std::unique_ptr<tnn::Loss<T>> &get_loss_function() const {
+    return loss_function_;
+  }
+
 private:
+  std::unique_ptr<tnn::Loss<T>> loss_function_;
   std::vector<RemoteEndpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
   int coordinator_port_;
@@ -379,45 +444,23 @@ private:
   }
 
   bool wait_for_stage_readiness() {
-    int ready_count = 0;
-    auto start_time = std::chrono::steady_clock::now();
-    const auto timeout =
-        std::chrono::seconds(60); // Longer timeout for initial setup
-
-    while (ready_count < this->num_stages_) {
-      if (std::chrono::steady_clock::now() - start_time > timeout) {
-        std::cout << "Timeout waiting for stage readiness (" << ready_count
-                  << "/" << this->num_stages_ << " ready)\n";
+    std::unique_lock<std::mutex> lock(message_notification_mutex);
+    
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    
+    // Use condition variable instead of polling
+    bool success = message_notification_cv.wait_until(lock, timeout, [this]() {
+        return this->coordinator_comm_->message_count_by_type(CommandType::READY_SIGNAL) >= 
+               static_cast<size_t>(this->num_stages_);
+    });
+    
+    if (!success) {
+        std::cout << "Timeout waiting for stage readiness\n";
         return false;
-      }
-
-      // Check for any incoming messages (using simple polling)
-      if (this->coordinator_comm_->has_input_message()) {
-        // Process all available messages
-        while (this->coordinator_comm_->has_input_message()) {
-          try {
-            auto message = this->coordinator_comm_->dequeue_input_message();
-
-            if (message.command_type == CommandType::READY_SIGNAL) {
-              ready_count++;
-              std::cout << "Stage " << message.sender_id << " reported ready ("
-                        << ready_count << "/" << this->num_stages_ << ")\n";
-            } else {
-              std::cout << "Received non-ready message type "
-                        << static_cast<int>(message.command_type) << " from "
-                        << message.sender_id << " during readiness wait\n";
-            }
-          } catch (const std::runtime_error &e) {
-            std::cout << "Error dequeuing message: " << e.what() << '\n';
-            break; // No more messages
-          }
-        }
-      }
-
-      // Small delay to avoid busy waiting
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
+    std::cout << "All stages reported ready!\n";
+    
     return true;
   }
 

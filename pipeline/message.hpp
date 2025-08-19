@@ -83,7 +83,8 @@ struct Message {
 
     bool has_signal() const { return signal.has_value(); }
 
-
+    bool has_task() const { return task.has_value(); }
+    
     // Convenience factory methods
     static Message<T> forward_task(const Task<T>& task, const std::string& sender = "", const std::string& recipient = "") {
         Message<T> msg(CommandType::FORWARD_TASK, task);
