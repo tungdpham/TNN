@@ -1,7 +1,7 @@
 # Intended architecture
-The pipelining model should consists of a Coordinator, multiple Stages. For modularity, the Coordinator and the Stages should only communicate via the Communicator, which have the ability to retrieve, store, and send Forward/Backward tasks (these tasks includes a Tensor either be the input or the gradient). 
+The pipelining model should consists of a Coordinator, multiple Stages. For modularity, the Coordinator and the Stages should only communicate via the Communicator, which have the ability to retrieve, store, and send messages (these tasks includes a Tensor either be the input or the gradient). For loose coupling, the Stages and the Coordinator does not know the method which the Communicator uses to communicate, they know these methods exists and call them. Allows nice scalability for different communication methods/frameworks. 
 
-This is because when first Stage have finished forwarding batch 2, second Stage might not have finished forwarding batch 1, so queues are needed. Note that each Stage should only be processing only 1 task, more would be meaningless and cause more overhead.
+Each stage will have a input message queue. This is because when first Stage have finished forwarding batch 2, second Stage might not have finished forwarding batch 1, so queues are needed. Note that each Stage should only be processing only 1 task, more would be meaningless and will cause unneccesary overhead.
 
 # Event-based Task processing:
 - For each stage, a main event will listen for incoming tasks, which will be done via its communicator. When it receives a task, the main event will spawns a thread which will process task and when it finishes processing, it will send the output task to the corresponding recipient. When the send succeeds, automatically closes the thread but does not terminate it (for thread pool re-usage).

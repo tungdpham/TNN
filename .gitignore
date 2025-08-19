@@ -5,9 +5,16 @@
 /**/*.sln
 /**/*.user
 
+# environments
+/.env
+/.env.local
+/.env.development
+/.env.production
+/.env.test
+/.env.staging
+
 # large files
-/data/
-/mojo/
+/data/*
 
 # build
 /build/
@@ -21,15 +28,15 @@
 /**/*.o
 /main
 /mnist_cnn_trainer
-/mnist_trainer
+/mnist_cnn_test
 /mnist_cnn_pipeline_trainer
 /cifar100_cnn_trainer
 /cifar10_cnn_trainer
 /uji_ips_trainer
 /pipeline_test
 /network_worker
-/distributed_pipeline_example
-/distributed_pipeline_docker
+/sync_pipeline_coordinator
+/semi_async_pipeline_coordinator
 /profile.json.gz
 
 

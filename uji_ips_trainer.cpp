@@ -321,7 +321,6 @@ void train_ips_model(tnn::Sequential<float>& model,
               << ", Learning rate: " << learning_rate << std::endl;
     std::cout << "Features: " << train_loader.num_features() 
               << ", Outputs: " << train_loader.num_outputs() << std::endl;
-    std::cout << "OpenMP threads: " << omp_get_max_threads() << std::endl;
     std::cout << std::string(80, '=') << std::endl;
     
     // Pre-compute batches
@@ -490,11 +489,12 @@ int main() {
         std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
         std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;
         std::cout << std::string(70, '=') << std::endl;
-        
+#ifdef _OPENMP
         // Configure OpenMP
         const int num_threads = omp_get_max_threads();
         omp_set_num_threads(std::min(num_threads, 8));
         std::cout << "Using " << omp_get_max_threads() << " OpenMP threads" << std::endl;
+#endif
         
         // Initialize data loaders
         // Set is_regression=true for coordinate prediction, false for classification

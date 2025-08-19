@@ -53,6 +53,9 @@ enum class CommandType {
     // Debugging and Profiling
     PRINT_PROFILING,
     CLEAR_PROFILING,
+
+    // IMPORTANT: ALWAYS LAST
+    _COUNT // Used to track the number of command types
 };
 
 } // namespace tpipeline

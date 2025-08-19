@@ -122,8 +122,8 @@ create_executable(pipeline_test pipeline_test.cpp)
 
 # Network executables
 create_executable(network_worker network_worker_main.cpp)
-create_executable(distributed_pipeline_docker distributed_pipeline_docker.cpp)
-create_executable(semi_async_pipeline semi_async_pipeline.cpp)
+create_executable(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
+create_executable(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
 
 # Unit tests
 file(GLOB TEST_SOURCES "unit_tests/*.cpp")

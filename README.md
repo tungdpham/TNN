@@ -71,32 +71,6 @@ After building, you'll find the following executables in the `build/` directory:
 - `network_worker` - Network pipeline stage worker
 - `distributed_pipeline_docker` - Distributed pipeline example
 
-## Running Programs
-
-```bash
-# Run from build directory
-cd build
-./mnist_cnn_trainer
-
-# Or run from project root
-./build/mnist_cnn_trainer
-```
-
-## Running Tests
-
-```bash
-cd build
-make run_tests
-```
-
-## Clean Build
-
-To completely clean your build:
-```bash
-rm -rf build/
-./build.sh
-```
-
 ## IDE Integration
 
 ### VS Code

@@ -17,9 +17,9 @@ using namespace tpipeline;
 namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 64; // Batch size for training
+constexpr int BATCH_SIZE = 128; // Batch size for training
 constexpr int NUM_MICROBATCHES =
-    1;                        // Number of microbatches for distributed training
+    2;                        // Number of microbatches for distributed training
 constexpr int NUM_EPOCHS = 1; // Number of epochs for training
 constexpr size_t PROGRESS_PRINT_INTERVAL =
     100; // Print progress every 100 batches

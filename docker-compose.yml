@@ -44,7 +44,7 @@ services:
   coordinator:
     build: .
     container_name: dcnn-coordinator
-    command: ["./distributed_pipeline_docker"]
+    entrypoint: ["/bin/sh", "-c", "./entry_point.sh"]
     hostname: coordinator
     ports:
       - "8000:8000"
@@ -55,6 +55,7 @@ services:
       - worker-8002
     environment:
       - COORDINATOR_HOST=coordinator
+      - PROFILE=${PROFILE}
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
       # - WORKER_HOST_8003=worker-8003
