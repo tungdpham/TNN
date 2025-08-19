@@ -2,18 +2,18 @@ services:
   worker-8001:
     build: .
     container_name: dcnn-worker-8001
-    command: ["./build/network_worker", "8001"]
+    command: ["./network_worker", "8001"]
     hostname: worker-8001
     ports:
       - "8001:8001"
     networks:
       - dcnn-network
-    cpuset: "0-3"
+    cpuset: "0-3,9"
 
   worker-8002:
     build: .
     container_name: dcnn-worker-8002
-    command: ["./build/network_worker", "8002"]
+    command: ["./network_worker", "8002"]
     hostname: worker-8002
     ports:
       - "8002:8002"
@@ -24,7 +24,7 @@ services:
   # worker-8003:
   #   build: .
   #   container_name: dcnn-worker-8003
-  #   command: ["./build/network_worker", "8003"]
+  #   command: ["./network_worker", "8003"]
   #   hostname: worker-8003
   #   ports:
   #     - "8003:8003"
@@ -34,7 +34,7 @@ services:
   # worker-8004:
   #   build: .
   #   container_name: dcnn-worker-8004
-  #   command: ["./build/network_worker", "8004"]
+  #   command: ["./network_worker", "8004"]
   #   hostname: worker-8004
   #   ports:
   #     - "8004:8004"
@@ -44,7 +44,7 @@ services:
   coordinator:
     build: .
     container_name: dcnn-coordinator
-    command: ["./build/distributed_pipeline_docker"]
+    command: ["./distributed_pipeline_docker"]
     hostname: coordinator
     ports:
       - "8000:8000"

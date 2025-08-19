@@ -302,8 +302,19 @@ public:
           CommandType::PRINT_PROFILING, "coordinator", stage_name);
       this->send_message_to_stage(stage_name, profiling_msg);
     }
+  }
 
-    this->coordinator_comm_->flush_output_messages();
+  void clear_profiling_data() override {
+    if (!is_deployed_) {
+      throw std::runtime_error("Must deploy stages before clearing profiling data");
+    }
+
+    // Send clear profiling request to all stages
+    for (const auto &stage_name : this->stage_names_) {
+      auto clear_msg = Message<T>::create_control_message(
+          CommandType::CLEAR_PROFILING, "coordinator", stage_name);
+      this->send_message_to_stage(stage_name, clear_msg);
+    }
   }
 
   bool is_deployed() const { return is_deployed_; }
@@ -386,9 +397,6 @@ private:
         while (this->coordinator_comm_->has_input_message()) {
           try {
             auto message = this->coordinator_comm_->dequeue_input_message();
-            // std::cout << "Received message type " <<
-            // static_cast<int>(message.command_type)
-            //           << " from " << message.sender_id << '\n';
 
             if (message.command_type == CommandType::READY_SIGNAL) {
               ready_count++;

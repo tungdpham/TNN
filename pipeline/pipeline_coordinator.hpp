@@ -39,6 +39,8 @@ public:
 
   virtual void print_profiling_on_all_stages() = 0;
 
+  virtual void clear_profiling_data() = 0;
+
   // Message-based communication only
   void send_message_to_stage(const std::string &stage_id,
                              const Message<T> &message) {
@@ -281,6 +283,15 @@ public:
       this->send_message_to_stage(stage_names_, profiling_msg);
     }
     std::cout << "Sent profiling request to all stages" << std::endl;
+  }
+
+  void clear_profiling_data() {
+    for (const auto &stage_name : this->stage_names_) {
+      auto clear_msg = Message<T>::create_control_message(
+          CommandType::CLEAR_PROFILING, "coordinator", stage_name);
+      this->send_message_to_stage(stage_name, clear_msg);
+    }
+    std::cout << "Sent clear profiling data request to all stages" << std::endl;
   }
 
   // Status and monitoring through messages only

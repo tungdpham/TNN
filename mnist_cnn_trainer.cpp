@@ -105,6 +105,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
                   << loss << ", Batch's Accuracy: " << std::setprecision(2)
                   << accuracy * 100.0f << "%" << std::endl;
       }
+      model.clear_profiling_data();
     }
 
     const float avg_train_loss = static_cast<float>(total_loss / num_batches);

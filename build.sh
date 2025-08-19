@@ -13,7 +13,7 @@ NC='\033[0m' # No Color
 
 # Default values
 BUILD_TYPE="Release"
-BUILD_DIR="build"
+BUILD_DIR="."
 ENABLE_OPENMP=ON
 ENABLE_CUDA=OFF
 ENABLE_TBB=OFF
@@ -33,7 +33,7 @@ show_help() {
     echo "  --cuda              Enable CUDA support"
     echo "  --tbb               Enable Intel TBB support"
     echo "  --no-openmp         Disable OpenMP support"
-    echo "  --build-dir DIR     Set custom build directory (default: build)"
+    echo "  --build-dir DIR     Set custom build directory (default: . [current dir])"
     echo ""
     echo "Examples:"
     echo "  $0                  # Build with default settings"
@@ -99,13 +99,23 @@ echo ""
 
 # Clean build directory if requested
 if [ "$CLEAN_BUILD" = true ]; then
-    echo -e "${YELLOW}Cleaning build directory...${NC}"
-    rm -rf "$BUILD_DIR"
+    echo -e "${YELLOW}Cleaning build artifacts...${NC}"
+    if [ "$BUILD_DIR" = "." ]; then
+        # Clean only build artifacts, not source files
+        rm -f cmake_install.cmake CMakeCache.txt Makefile
+        rm -rf CMakeFiles/
+        rm -f mnist_cnn_trainer cifar10_cnn_trainer cifar100_cnn_trainer uji_ips_trainer
+        rm -f mnist_cnn_test pipeline_test network_worker distributed_pipeline_docker
+    else
+        rm -rf "$BUILD_DIR"
+    fi
 fi
 
-# Create build directory
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
+# Create build directory only if it's not current directory
+if [ "$BUILD_DIR" != "." ]; then
+    mkdir -p "$BUILD_DIR"
+    cd "$BUILD_DIR"
+fi
 
 # Configure with CMake
 echo -e "${GREEN}Configuring with CMake...${NC}"
@@ -117,18 +127,22 @@ CMAKE_ARGS=(
     -DENABLE_DEBUG="$ENABLE_DEBUG"
 )
 
-cmake .. "${CMAKE_ARGS[@]}"
-
-# Ensure the generated install script uses an absolute, correct install prefix
-# (project root). Prefer realpath, fallback to a safe pwd-based approach.
-if command -v realpath >/dev/null 2>&1; then
-    INSTALL_PREFIX="$(realpath ..)"
+if [ "$BUILD_DIR" = "." ]; then
+    cmake . "${CMAKE_ARGS[@]}"
 else
-    INSTALL_PREFIX="$(cd .. && pwd)"
+    cmake .. "${CMAKE_ARGS[@]}"
+    
+    # Ensure the generated install script uses an absolute, correct install prefix
+    # (project root). Prefer realpath, fallback to a safe pwd-based approach.
+    if command -v realpath >/dev/null 2>&1; then
+        INSTALL_PREFIX="$(realpath ..)"
+    else
+        INSTALL_PREFIX="$(cd .. && pwd)"
+    fi
+    CMAKE_ARGS+=( -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" )
+    
+    cmake . "${CMAKE_ARGS[@]}"
 fi
-CMAKE_ARGS+=( -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" )
-
-cmake .. "${CMAKE_ARGS[@]}"
 
 # Build
 echo -e "${GREEN}Building project...${NC}"
@@ -140,18 +154,36 @@ fi
 
 echo -e "${GREEN}Build completed successfully!${NC}"
 echo ""
-echo -e "${YELLOW}Available executables in $BUILD_DIR/:${NC}"
-echo "  - mnist_cnn_trainer"
-echo "  - cifar10_cnn_trainer"
-echo "  - cifar100_cnn_trainer"
-echo "  - uji_ips_trainer"
-echo "  - mnist_cnn_test"
-echo "  - pipeline_test"
-echo "  - network_worker"
-echo "  - distributed_pipeline_docker"
-echo ""
-echo -e "${YELLOW}To run a specific executable:${NC}"
-echo "  cd $BUILD_DIR && ./mnist_cnn_trainer"
-echo ""
-echo -e "${YELLOW}To run tests:${NC}"
-echo "  cd $BUILD_DIR && make run_tests"
+if [ "$BUILD_DIR" = "." ]; then
+    echo -e "${YELLOW}Available executables in current directory:${NC}"
+    echo "  - mnist_cnn_trainer"
+    echo "  - cifar10_cnn_trainer"
+    echo "  - cifar100_cnn_trainer"
+    echo "  - uji_ips_trainer"
+    echo "  - mnist_cnn_test"
+    echo "  - pipeline_test"
+    echo "  - network_worker"
+    echo "  - distributed_pipeline_docker"
+    echo ""
+    echo -e "${YELLOW}To run a specific executable:${NC}"
+    echo "  ./mnist_cnn_trainer"
+    echo ""
+    echo -e "${YELLOW}To run tests:${NC}"
+    echo "  make run_tests"
+else
+    echo -e "${YELLOW}Available executables in $BUILD_DIR/:${NC}"
+    echo "  - mnist_cnn_trainer"
+    echo "  - cifar10_cnn_trainer"
+    echo "  - cifar100_cnn_trainer"
+    echo "  - uji_ips_trainer"
+    echo "  - mnist_cnn_test"
+    echo "  - pipeline_test"
+    echo "  - network_worker"
+    echo "  - distributed_pipeline_docker"
+    echo ""
+    echo -e "${YELLOW}To run a specific executable:${NC}"
+    echo "  cd $BUILD_DIR && ./mnist_cnn_trainer"
+    echo ""
+    echo -e "${YELLOW}To run tests:${NC}"
+    echo "  cd $BUILD_DIR && make run_tests"
+fi

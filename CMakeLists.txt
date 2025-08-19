@@ -151,7 +151,3 @@ foreach(test_source ${TEST_SOURCES})
         COMMENT "Running ${test_name}"
     )
 endforeach()
-
-# Install targets (optional)
-install(TARGETS mnist_cnn_trainer cifar10_cnn_trainer cifar100_cnn_trainer uji_ips_trainer
-        DESTINATION bin)

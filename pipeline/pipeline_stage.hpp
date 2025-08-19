@@ -79,7 +79,14 @@ public:
     switch (message.command_type) {
     case CommandType::FORWARD_TASK:
     case CommandType::BACKWARD_TASK: {
+      // auto process_start = std::chrono::high_resolution_clock::now();
       process_task_message(message);
+      // auto process_end = std::chrono::high_resolution_clock::now();
+      // auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(process_end - process_start)
+      //                        .count();
+      // std::cout << "Processed message type "
+      //           << static_cast<int>(message.command_type) << " in "
+      //           << duration_ms << " ms" << std::endl;
     } break;
     case CommandType::UPDATE_PARAMETERS:
       if (model_) {
@@ -116,9 +123,17 @@ public:
 
     case CommandType::PRINT_PROFILING:
       if (model_) {
+        std::cout << "Received profiling request for stage " << name_ << std::endl;
         model_->print_profiling_summary();
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
+      }
+      break;
+    case CommandType::CLEAR_PROFILING:
+      if (model_) {
+        model_->clear_profiling_data();
+      } else {
+        std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
       break;
     default:
@@ -141,7 +156,6 @@ protected:
       return;
     }
 
-    auto task_start = std::chrono::high_resolution_clock::now();
     const auto &task = message.task.value();
 
     if (message.command_type == CommandType::FORWARD_TASK) {
@@ -173,11 +187,6 @@ protected:
 
     // Send all queued messages
     communicator_->flush_output_messages();
-
-    auto task_end = std::chrono::high_resolution_clock::now();
-    auto duration_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(task_end - task_start)
-            .count();
   }
 
 protected:

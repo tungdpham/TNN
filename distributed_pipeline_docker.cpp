@@ -133,21 +133,25 @@ int main() {
 
   size_t batch_index = 0;
 
-  auto epoch_start = std::chrono::high_resolution_clock::now();
-
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+
+  auto epoch_start = std::chrono::high_resolution_clock::now();
 
   while (train_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
                                 batch_labels)) {
     float loss = 0.0f, avg_accuracy = 0.0f;
-
+    auto split_start = std::chrono::high_resolution_clock::now();
     // Split the batch into microbatches
     std::vector<Tensor<float>> micro_batches =
         batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+    auto split_end = std::chrono::high_resolution_clock::now();
+    auto split_duration =
+        std::chrono::duration_cast<std::chrono::milliseconds>(split_end -
+                                                              split_start);
 
     auto forward_start = std::chrono::high_resolution_clock::now();
 
@@ -233,6 +237,8 @@ int main() {
                                                               update_start);
 
     if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+      std::cout << "Split completed in " << split_duration.count()
+                << " ms" << std::endl;
       std::cout << "Forward pass completed in " << forward_duration.count()
                 << " ms" << std::endl;
       std::cout << "Loss computation completed in "
@@ -247,6 +253,7 @@ int main() {
                 << ", Accuracy: " << avg_accuracy * 100.0f << "%" << std::endl;
       coordinator.print_profiling_on_all_stages();
     }
+    coordinator.clear_profiling_data(); // Clear profiling data after each batch
     ++batch_index;
   }
 
