@@ -15,6 +15,7 @@
 #include <fstream>
 #include <cstdlib>
 #include <cstdint>
+#include <immintrin.h>  // For AVX2 intrinsics
 #include "../nn/parallel_for.hpp"
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
@@ -54,7 +55,6 @@ private:
     return index;
   }
 
-private:
   // Helper function to allocate aligned memory
   static T* allocate_aligned(size_t count) {
     if (count == 0) return nullptr;
@@ -80,10 +80,122 @@ private:
     }
   }
 
+  // Private AVX2-optimized fill method
+  void fill_avx2(T value) {
+    if (data_size_ == 0) return;
+    
+    if constexpr (std::is_same_v<T, float>) {
+      // AVX2 optimization for float
+      const size_t simd_size = 8; // AVX2 processes 8 floats at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      __m256 vec_value = _mm256_set1_ps(value);
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_ps(data_ + i, vec_value);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else if constexpr (std::is_same_v<T, double>) {
+      // AVX2 optimization for double
+      const size_t simd_size = 4; // AVX2 processes 4 doubles at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      __m256d vec_value = _mm256_set1_pd(value);
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_pd(data_ + i, vec_value);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
+      // AVX2 optimization for 32-bit integers
+      const size_t simd_size = 8; // AVX2 processes 8 32-bit ints at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      __m256i vec_value = _mm256_set1_epi32(static_cast<int32_t>(value));
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_si256(reinterpret_cast<__m256i*>(data_ + i), vec_value);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else {
+      // Fallback for other types
+      std::fill(data_, data_ + data_size_, value);
+    }
+  }
+
+  // Private AVX2-optimized copy method
+  void copy_avx2(const T* src) {
+    if (data_size_ == 0 || src == nullptr) return;
+    
+    if constexpr (std::is_same_v<T, float>) {
+      // AVX2 optimization for float
+      const size_t simd_size = 8; // AVX2 processes 8 floats at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256 vec_data = _mm256_loadu_ps(src + i);
+        _mm256_store_ps(data_ + i, vec_data);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else if constexpr (std::is_same_v<T, double>) {
+      // AVX2 optimization for double
+      const size_t simd_size = 4; // AVX2 processes 4 doubles at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256d vec_data = _mm256_loadu_pd(src + i);
+        _mm256_store_pd(data_ + i, vec_data);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
+      // AVX2 optimization for 32-bit integers
+      const size_t simd_size = 8; // AVX2 processes 8 32-bit ints at once
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+      
+      // Process aligned chunks with AVX2
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256i vec_data = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(src + i));
+        _mm256_store_si256(reinterpret_cast<__m256i*>(data_ + i), vec_data);
+      }
+      
+      // Handle remaining elements
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else {
+      // Fallback for other types
+      std::copy(src, src + data_size_, data_);
+    }
+  }
+
 public:
   // Constructors
   Tensor() : data_(nullptr), data_size_(0) {
-    std::fill(shape_, shape_ + dims, 0);
     compute_strides();
   }
 
@@ -101,7 +213,7 @@ public:
     compute_strides();
     data_size_ = batch * channels * height * width;
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0)); 
+    fill_avx2(T(0)); 
   }
 
   // 5D constructor for 3D CNNs
@@ -120,7 +232,7 @@ public:
     compute_strides();
     data_size_ = batch * channels * depth * height * width;
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0));
+    fill_avx2(T(0));
   }
 
   Tensor(const std::initializer_list<size_t> &shape) : data_(nullptr) {
@@ -134,7 +246,7 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0));
+    fill_avx2(T(0));
   }
 
   Tensor(const std::vector<size_t> &shape) : data_(nullptr) {
@@ -144,7 +256,7 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0));
+    fill_avx2(T(0));
   }
 
   // Constructor with initial data
@@ -159,7 +271,7 @@ public:
       throw std::invalid_argument("Data size doesn't match tensor shape");
     }
     data_ = allocate_aligned(data_size_);
-    std::copy(data.begin(), data.end(), data_);
+    copy_avx2(data.data());
   }
 
   ~Tensor() {
@@ -172,7 +284,7 @@ public:
     compute_strides();
     if (data_size_ > 0) {
       data_ = allocate_aligned(data_size_);
-      std::copy(other.data_, other.data_ + data_size_, data_);
+      copy_avx2(other.data_);
     }
   }
 
@@ -195,7 +307,7 @@ public:
       compute_strides();
       data_size_ = other.data_size_;
       data_ = allocate_aligned(data_size_);
-      std::copy(other.data_, other.data_ + data_size_, data_);
+      copy_avx2(other.data_);
     }
     return *this;
   }
@@ -329,7 +441,7 @@ public:
 
   // Fill operations
   void fill(T value) {
-    std::fill(data_, data_ + data_size_, value);
+    fill_avx2(value);
   }
 
   void fill_random_uniform(T range) {
@@ -747,7 +859,7 @@ public:
       throw std::runtime_error("from_vector is only supported for NCHW layout");
     }
 
-    std::copy(vec.begin(), vec.end(), data_);
+    copy_avx2(vec.data());
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
