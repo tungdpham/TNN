@@ -3,6 +3,11 @@
 #include <cstring>
 #include <iostream>
 #include <random>
+#include <immintrin.h> // For AVX2 intrinsics
+#include <algorithm>
+#include <vector>
+#include <cstdlib>     // For aligned_alloc and free
+#include <new>         // For std::bad_alloc
 
 // Matrix class without channels
 template <typename T = float> struct Matrix {
@@ -10,24 +15,227 @@ private:
   T *data_; 
   int rows_, cols_;
 
+  // Memory alignment helpers for AVX2 optimization
+  static constexpr size_t AVX2_ALIGNMENT = 32; // 32-byte alignment for AVX2
+  
+  // Aligned memory allocation
+  T* allocate_aligned(size_t count) {
+    if (count == 0) return nullptr;
+    
+    // Calculate total bytes needed including padding for alignment
+    size_t bytes = count * sizeof(T);
+    
+    // Use aligned_alloc for C++17 compliance
+    void* ptr = std::aligned_alloc(AVX2_ALIGNMENT, 
+                                   ((bytes + AVX2_ALIGNMENT - 1) / AVX2_ALIGNMENT) * AVX2_ALIGNMENT);
+    if (!ptr) {
+      throw std::bad_alloc();
+    }
+    
+    // Initialize to zero
+    std::memset(ptr, 0, bytes);
+    return static_cast<T*>(ptr);
+  }
+  
+  // Aligned memory deallocation
+  void deallocate_aligned(T* ptr) {
+    if (ptr) {
+      std::free(ptr);
+    }
+  }
+
+  // AVX2 helper functions for vectorized operations
+  inline void avx2_fill(T value, int size) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      const __m256 avx_value = _mm256_set1_ps(value);
+      
+      int i = 0;
+      // Process 8 elements at a time with aligned stores
+      for (; i + avx_size <= size; i += avx_size) {
+        _mm256_store_ps(data_ + i, avx_value); // Use aligned store
+      }
+      // Handle remaining elements
+      for (; i < size; ++i) {
+        data_[i] = value;
+      }
+    } else {
+      // Fallback for non-float types
+      for (int i = 0; i < size; ++i) {
+        data_[i] = value;
+      }
+    }
+  }
+
+  inline void avx2_add(const T* a, const T* b, T* result, int size) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      
+      int i = 0;
+      // Process 8 elements at a time with aligned loads/stores
+      for (; i + avx_size <= size; i += avx_size) {
+        __m256 va = _mm256_load_ps(a + i);     // Use aligned load
+        __m256 vb = _mm256_load_ps(b + i);     // Use aligned load
+        __m256 vresult = _mm256_add_ps(va, vb);
+        _mm256_store_ps(result + i, vresult);  // Use aligned store
+      }
+      // Handle remaining elements
+      for (; i < size; ++i) {
+        result[i] = a[i] + b[i];
+      }
+    } else {
+      // Fallback for non-float types
+      for (int i = 0; i < size; ++i) {
+        result[i] = a[i] + b[i];
+      }
+    }
+  }
+
+  inline void avx2_sub(const T* a, const T* b, T* result, int size) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      
+      int i = 0;
+      // Process 8 elements at a time with aligned loads/stores
+      for (; i + avx_size <= size; i += avx_size) {
+        __m256 va = _mm256_load_ps(a + i);     // Use aligned load
+        __m256 vb = _mm256_load_ps(b + i);     // Use aligned load
+        __m256 vresult = _mm256_sub_ps(va, vb);
+        _mm256_store_ps(result + i, vresult);  // Use aligned store
+      }
+      // Handle remaining elements
+      for (; i < size; ++i) {
+        result[i] = a[i] - b[i];
+      }
+    } else {
+      // Fallback for non-float types
+      for (int i = 0; i < size; ++i) {
+        result[i] = a[i] - b[i];
+      }
+    }
+  }
+
+  inline void avx2_mul_scalar(const T* a, T scalar, T* result, int size) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      const __m256 avx_scalar = _mm256_set1_ps(scalar);
+      
+      int i = 0;
+      // Process 8 elements at a time with aligned loads/stores
+      for (; i + avx_size <= size; i += avx_size) {
+        __m256 va = _mm256_load_ps(a + i);     // Use aligned load
+        __m256 vresult = _mm256_mul_ps(va, avx_scalar);
+        _mm256_store_ps(result + i, vresult);  // Use aligned store
+      }
+      // Handle remaining elements
+      for (; i < size; ++i) {
+        result[i] = a[i] * scalar;
+      }
+    } else {
+      // Fallback for non-float types
+      for (int i = 0; i < size; ++i) {
+        result[i] = a[i] * scalar;
+      }
+    }
+  }
+
+  inline void avx2_div_scalar(const T* a, T scalar, T* result, int size) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      const __m256 avx_scalar = _mm256_set1_ps(scalar);
+      
+      int i = 0;
+      // Process 8 elements at a time with aligned loads/stores
+      for (; i + avx_size <= size; i += avx_size) {
+        __m256 va = _mm256_load_ps(a + i);     // Use aligned load
+        __m256 vresult = _mm256_div_ps(va, avx_scalar);
+        _mm256_store_ps(result + i, vresult);  // Use aligned store
+      }
+      // Handle remaining elements
+      for (; i < size; ++i) {
+        result[i] = a[i] / scalar;
+      }
+    } else {
+      // Fallback for non-float types
+      for (int i = 0; i < size; ++i) {
+        result[i] = a[i] / scalar;
+      }
+    }
+  }
+
+  // AVX2-optimized matrix multiplication for float matrices
+  inline void avx2_matmul(const Matrix &a, const Matrix &b, Matrix &result) {
+    if constexpr (std::is_same_v<T, float>) {
+      const int avx_size = 8; // 8 floats per AVX2 register
+      
+      // Use tiled multiplication for better cache performance
+      const int tile_size = 64;
+      
+      for (int ii = 0; ii < a.rows_; ii += tile_size) {
+        for (int jj = 0; jj < b.cols_; jj += tile_size) {
+          for (int kk = 0; kk < a.cols_; kk += tile_size) {
+            
+            int i_end = std::min(ii + tile_size, a.rows_);
+            int j_end = std::min(jj + tile_size, b.cols_);
+            int k_end = std::min(kk + tile_size, a.cols_);
+            
+            for (int i = ii; i < i_end; ++i) {
+              for (int j = jj; j + avx_size <= j_end; j += avx_size) {
+                __m256 sum = _mm256_load_ps(&result.data_[i * b.cols_ + j]); // Use aligned load
+                
+                for (int k = kk; k < k_end; ++k) {
+                  __m256 a_val = _mm256_set1_ps(a.data_[i * a.cols_ + k]);
+                  __m256 b_val = _mm256_load_ps(&b.data_[k * b.cols_ + j]); // Use aligned load
+                  sum = _mm256_fmadd_ps(a_val, b_val, sum);
+                }
+                
+                _mm256_store_ps(&result.data_[i * b.cols_ + j], sum); // Use aligned store
+              }
+              
+              // Handle remaining columns
+              for (int j = (j_end / avx_size) * avx_size; j < j_end; ++j) {
+                T sum = result.data_[i * b.cols_ + j];
+                for (int k = kk; k < k_end; ++k) {
+                  sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
+                }
+                result.data_[i * b.cols_ + j] = sum;
+              }
+            }
+          }
+        }
+      }
+    } else {
+      // Fallback for non-float types - use standard algorithm
+      for (int i = 0; i < a.rows_; ++i) {
+        for (int j = 0; j < b.cols_; ++j) {
+          T sum = 0;
+          for (int k = 0; k < a.cols_; ++k) {
+            sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
+          }
+          result.data_[i * b.cols_ + j] = sum;
+        }
+      }
+    }
+  }
+
 public:
   // Default constructor
   Matrix() : rows_(0), cols_(0), data_(nullptr) {}
 
   Matrix(int rows_, int cols_, T *initialdata_ = nullptr)
       : rows_(rows_), cols_(cols_) {
-    data_ = new T[rows_ * cols_]();
+    data_ = allocate_aligned(rows_ * cols_);
     if (initialdata_ != nullptr) {
       memcpy(data_, initialdata_, rows_ * cols_ * sizeof(T));
     } else {
-      // Initialize with zeros if no initial data_ provided
-      (*this).fill(0.0);
+      // Initialize with zeros if no initial data_ provided (already done in allocate_aligned)
+      // (*this).fill(0.0);
     }
   }
 
   Matrix(const Matrix &other)
       : rows_(other.rows_), cols_(other.cols_) {
-    data_ = new T[rows_ * cols_];
+    data_ = allocate_aligned(rows_ * cols_);
     memcpy(data_, other.data_, rows_ * cols_ * sizeof(T));
   }
 
@@ -43,7 +251,7 @@ public:
   // Move Assignment Operator
   Matrix &operator=(Matrix &&other) noexcept {
     if (this != &other) {
-      delete[] data_; // Free existing memory
+      deallocate_aligned(data_); // Free existing memory
 
       // Steal data_ and dimensions from the other object
       rows_ = other.rows_;
@@ -59,7 +267,7 @@ public:
   }
 
   ~Matrix() {
-    delete[] data_; // delete[] nullptr is safe in C++
+    deallocate_aligned(data_); // deallocate_aligned handles nullptr safely
   }
 
   T &operator()(int row, int col) {
@@ -79,11 +287,14 @@ public:
   }
 
   void fill(T value) {
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      data_[i] = value;
+    int size = rows_ * cols_;
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_fill(value, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        data_[i] = value;
+      }
     }
   }
 
@@ -101,11 +312,15 @@ public:
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
     Matrix result(rows_, cols_);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      result.data_[i] = data_[i] + other.data_[i];
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_add(data_, other.data_, result.data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        result.data_[i] = data_[i] + other.data_[i];
+      }
     }
     return result;
   }
@@ -114,11 +329,15 @@ public:
     if (rows_ != other.rows_ || cols_ != other.cols_) {
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      data_[i] += other.data_[i];
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_add(data_, other.data_, data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        data_[i] += other.data_[i];
+      }
     }
     return *this;
   }
@@ -129,11 +348,15 @@ public:
           "Matrix dimensions must match for subtraction.");
     }
     Matrix result(rows_, cols_);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      result.data_[i] = data_[i] - other.data_[i];
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_sub(data_, other.data_, result.data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        result.data_[i] = data_[i] - other.data_[i];
+      }
     }
     return result;
   }
@@ -143,32 +366,44 @@ public:
       throw std::invalid_argument(
           "Matrix dimensions must match for subtraction.");
     }
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      data_[i] -= other.data_[i];
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_sub(data_, other.data_, data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        data_[i] -= other.data_[i];
+      }
     }
     return *this;
   }
 
   inline Matrix operator*(T scalar) const {
     Matrix result(rows_, cols_);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      result.data_[i] = data_[i] * scalar;
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_mul_scalar(data_, scalar, result.data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        result.data_[i] = data_[i] * scalar;
+      }
     }
     return result;
   }
 
   inline Matrix operator*=(T scalar) {
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      data_[i] *= scalar;
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_mul_scalar(data_, scalar, data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        data_[i] *= scalar;
+      }
     }
     return *this;
   }
@@ -178,11 +413,15 @@ public:
       throw std::invalid_argument("Division by zero.");
     }
     Matrix result(rows_, cols_);
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      result.data_[i] = data_[i] / scalar;
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_div_scalar(data_, scalar, result.data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        result.data_[i] = data_[i] / scalar;
+      }
     }
     return result;
   }
@@ -191,11 +430,15 @@ public:
     if (scalar == 0) {
       throw std::invalid_argument("Division by zero.");
     }
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
-      data_[i] /= scalar;
+    int size = rows_ * cols_;
+    
+    if (size > 32) { // Use AVX2 for larger arrays
+      avx2_div_scalar(data_, scalar, data_, size);
+    } else {
+      // Use simple loop for small arrays
+      for (int i = 0; i < size; ++i) {
+        data_[i] /= scalar;
+      }
     }
     return *this;
   }
@@ -206,6 +449,17 @@ public:
           "Matrix dimensions must match for multiplication.");
     }
     Matrix result(rows_, other.cols_);
+    result.fill(0.0); // Initialize to zero for accumulation
+    
+    // Use AVX2 for float matrices and larger sizes
+    if constexpr (std::is_same_v<T, float>) {
+      if (rows_ * other.cols_ > 1024) { // Use AVX2 for larger matrices
+        avx2_matmul(*this, other, result);
+        return result;
+      }
+    }
+    
+    // Fallback to standard algorithm for small matrices or non-float types
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
@@ -224,8 +478,8 @@ public:
   inline Matrix &operator=(const Matrix &other) {
     if (this != &other) {
       if (rows_ * cols_ != other.rows_ * other.cols_) {
-        delete[] data_;
-        data_ = new T[other.rows_ * other.cols_];
+        deallocate_aligned(data_);
+        data_ = allocate_aligned(other.rows_ * other.cols_);
       }
       rows_ = other.rows_;
       cols_ = other.cols_;
@@ -291,14 +545,44 @@ public:
   size_t cols() const { return cols_; }
 
   T mean() const {
+    int size = rows_ * cols_;
+    
+    if constexpr (std::is_same_v<T, float>) {
+      if (size > 32) { // Use AVX2 for larger arrays
+        const int avx_size = 8; // 8 floats per AVX2 register
+        __m256 sum_vec = _mm256_setzero_ps();
+        
+        int i = 0;
+        // Process 8 elements at a time with aligned loads
+        for (; i + avx_size <= size; i += avx_size) {
+          __m256 data_vec = _mm256_load_ps(data_ + i); // Use aligned load
+          sum_vec = _mm256_add_ps(sum_vec, data_vec);
+        }
+        
+        // Horizontal sum of the vector
+        float sum_array[8];
+        _mm256_storeu_ps(sum_array, sum_vec);
+        T sum = sum_array[0] + sum_array[1] + sum_array[2] + sum_array[3] +
+                sum_array[4] + sum_array[5] + sum_array[6] + sum_array[7];
+        
+        // Handle remaining elements
+        for (; i < size; ++i) {
+          sum += data_[i];
+        }
+        
+        return sum / (1.0 * size);
+      }
+    }
+    
+    // Fallback for small arrays or non-float types
     T sum = 0.0;
 #ifdef _OPENMP
 #pragma omp parallel for reduction(+ : sum)
 #endif
-    for (int i = 0; i < rows_ * cols_; ++i) {
+    for (int i = 0; i < size; ++i) {
       sum += data_[i];
     }
-    return (sum / (1.0 * rows_ * cols_));
+    return (sum / (1.0 * size));
   }
 
   int size() const { return rows_ * cols_; }
@@ -308,12 +592,12 @@ public:
       return; // Nothing to do
     }
 
-    delete[] data_;
+    deallocate_aligned(data_);
     rows_ = newrows_;
     cols_ = newcols_;
 
     int size = rows_ * cols_;
-    data_ = size > 0 ? new T[size]() : nullptr;
+    data_ = size > 0 ? allocate_aligned(size) : nullptr;
   }
 
   static void dot(const Matrix &a, const Matrix &b, Matrix &result) {
@@ -322,6 +606,17 @@ public:
           "Matrix dimensions must match for dot product.");
     }
 
+    result.fill(0.0); // Initialize to zero for accumulation
+    
+    // Use AVX2 for float matrices and larger sizes
+    if constexpr (std::is_same_v<T, float>) {
+      if (a.rows_ * b.cols_ > 1024) { // Use AVX2 for larger matrices
+        a.avx2_matmul(a, b, result);
+        return;
+      }
+    }
+    
+    // Fallback to standard algorithm
     const T* a_data = a.data_;
     const T* b_data = b.data_;
     T* result_data = result.data_;

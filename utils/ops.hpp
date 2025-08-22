@@ -93,7 +93,7 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 }
 
 template <typename T>
-// Optimized SIMD dot product for contiguous memory access
+// Optimized SIMD dot product for unaligned data
 T simd_dot_product_contiguous(const T *weights, const T *col_data,
                               size_t kernel_size) {
   T sum = T(0);
