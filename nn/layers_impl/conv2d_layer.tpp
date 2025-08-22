@@ -7,7 +7,7 @@
 #include "../../utils/ops.hpp"
 #include "../parallel_for.hpp"
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
 #include <tbb/blocked_range2d.h>
 #include <tbb/parallel_for.h>
 #endif
@@ -89,7 +89,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   const size_t H_stride = output.stride(2);
   const size_t W_stride = output.stride(3);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
     for (size_t oh = 0; oh < output_h; ++oh) {
       for (size_t ow = 0; ow < output_w; ++ow) {
@@ -120,7 +120,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   // Add bias if enabled
   if (use_bias_) {
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
       T bias_val = bias_(oc, 0, 0, 0);
       for (size_t oh = 0; oh < output_h; ++oh) {
@@ -210,7 +210,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   // Flatten gradient output for GEMM
   auto grad_output_flat = std::make_unique<T[]>(out_channels_ * output_size);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
     for (size_t oh = 0; oh < output_h; ++oh) {
       for (size_t ow = 0; ow < output_w; ++ow) {
@@ -242,7 +242,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
 
   // Compute bias gradients
   if (use_bias_) {
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, out_channels_, [&](size_t oc) {
       T grad_sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -334,7 +334,7 @@ void Conv2DLayer<T>::conv_gemm_forward_impl(const T *col_data,
   utils::transpose_2d(col_data, col_data_transposed.get(), kernel_size,
                       output_size);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tbb::parallel_for(
       tbb::blocked_range2d<size_t>(0, out_channels, 0, output_size),
       [&](const tbb::blocked_range2d<size_t> &r) {
@@ -368,7 +368,7 @@ void Conv2DLayer<T>::conv_gemm_weight_gradients_impl(const T *col_data,
                                                      const size_t output_size,
                                                      const size_t kernel_size,
                                                      const size_t out_channels) const {
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tbb::parallel_for(
       tbb::blocked_range2d<size_t>(0, out_channels, 0, kernel_size),
       [&](const tbb::blocked_range2d<size_t> &r) {
@@ -413,7 +413,7 @@ void Conv2DLayer<T>::conv_gemm_input_gradients_impl(const T *grad_output_data,
   utils::transpose_2d(weight_data, weights_transposed.get(), out_channels,
                       kernel_size);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tbb::parallel_for(
       tbb::blocked_range2d<size_t>(0, kernel_size, 0, output_size),
       [&](const tbb::blocked_range2d<size_t> &r) {

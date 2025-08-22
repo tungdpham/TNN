@@ -745,7 +745,7 @@ public:
     // We'll parallelize over the output columns (each corresponds to a patch)
     const size_t total_cols = col_width; // batch_size * out_h * out_w
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
       size_t n = col_idx / (out_h * out_w);
       size_t rem = col_idx % (out_h * out_w);
@@ -817,7 +817,7 @@ public:
     // Parallelize over columns (patch positions)
     const size_t total_cols = col_cols; // batch_size * output_h * output_w
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
       size_t n = col_idx / (output_h * output_w);
       size_t rem = col_idx % (output_h * output_w);

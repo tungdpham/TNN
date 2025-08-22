@@ -30,7 +30,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   T scale = T(1) / (T(1) - dropout_rate_);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(
       input.batch_size(), input.channels(), [&](size_t n, size_t c) {
 #ifdef _OPENMP
@@ -110,7 +110,7 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
 
   Tensor<T> grad_input = grad_output;
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
                        [&](size_t n, size_t c) {
                          for (size_t h = 0; h < grad_output.height(); ++h) {

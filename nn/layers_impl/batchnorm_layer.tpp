@@ -62,7 +62,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     const size_t spatial_size = height * width;
     const size_t total_elements = batch_size * spatial_size;
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -93,7 +93,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     // Compute variance for each channel
     batch_var.fill(T(0));
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum_sq_diff = T(0);
       T mean_val = batch_mean(c, 0, 0, 0);
@@ -139,7 +139,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     // Normalize
     Tensor<T> normalized(input.shape());
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
       T mean_val = batch_mean(c, 0, 0, 0);
       T std_val = batch_std(c, 0, 0, 0);
@@ -170,7 +170,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     // Apply affine transformation if enabled
     if (affine_) {
-#if defined(USE_TBB)
+#ifdef USE_TBB
       tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
         T gamma_val = gamma_(c, 0, 0, 0);
         T beta_val = beta_(c, 0, 0, 0);
@@ -203,7 +203,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     }
 
     // Update running statistics
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
           (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
@@ -295,7 +295,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
     beta_gradients_.fill(T(0));
 
     // Compute gradients for gamma and beta
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T gamma_grad_sum = T(0);
       T beta_grad_sum = T(0);
@@ -391,7 +391,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   }
 
   // Compute gradient w.r.t. input
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);

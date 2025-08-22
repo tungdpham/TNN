@@ -150,9 +150,7 @@ int main() {
 
   while (true) {
     auto get_next_batch_start = std::chrono::high_resolution_clock::now();
-    if (!train_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
-                                batch_labels)) {
-
+    if (!train_loader.get_next_batch(batch_data, batch_labels)) {
       break;
     }
     auto get_next_batch_end = std::chrono::high_resolution_clock::now();
@@ -160,7 +158,6 @@ int main() {
         std::chrono::duration_cast<std::chrono::microseconds>(
             get_next_batch_end - get_next_batch_start);
     
-    float loss = 0.0f, avg_accuracy = 0.0f;
     auto split_start = std::chrono::high_resolution_clock::now();
     // Split the batch into microbatches
     std::vector<Tensor<float>> micro_batches =
@@ -199,16 +196,12 @@ int main() {
       std::cout << "Parameter update completed in " << update_duration.count()
                 << " microseconds" << std::endl;
       std::cout << "Batch " << batch_index << "/"
-                << train_loader.size() / train_loader.get_batch_size()
-                << " - Loss: " << loss
-                << ", Accuracy: " << avg_accuracy * 100.0f << "%" << std::endl;
+                << train_loader.size() / train_loader.get_batch_size() << std::endl;
       coordinator.print_profiling_on_all_stages();
     }
     coordinator.clear_profiling_data(); // Clear profiling data after each batch
     ++batch_index;
   }
-
-  loss_function = coordinator.get_loss_function()->clone();
   
   auto epoch_end = std::chrono::high_resolution_clock::now();
   auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -216,6 +209,8 @@ int main() {
   std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1
             << " completed in " << epoch_duration.count() << " milliseconds"
             << std::endl;
+
+  loss_function = coordinator.get_loss_function()->clone();
 
   // Validate the model on test data
   double val_loss = 0.0;

@@ -70,7 +70,7 @@ public:
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
     });
@@ -95,7 +95,7 @@ public:
     size_t size = tensor.size();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -116,7 +116,7 @@ public:
     size_t size = tensor.size();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -141,7 +141,7 @@ public:
     const size_t size = pre_activation_values.size();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
     });
@@ -162,7 +162,7 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
       tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
         grad_data[i] *= upstream_data[i];
       });
@@ -186,7 +186,7 @@ public:
     size_t size = pre_activation_values.size();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? T(1) : negative_slope_;
     });
@@ -207,7 +207,7 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
       tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
         data[i] *= upstream_data[i];
       });
@@ -232,7 +232,7 @@ public:
     size_t width = tensor.width();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     {
       const size_t total = batch_size * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -275,7 +275,7 @@ public:
     }
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     {
       const size_t total = batch_size * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -312,7 +312,7 @@ public:
     size_t width = tensor.width();
 
 
-#if defined(USE_TBB) || defined(USE_INTEL_TBB)
+#ifdef USE_TBB 
     {
       const size_t total = channels * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {

@@ -82,7 +82,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
   T *output_data = output.data();
 
   // Unified pooling implementation - handles all cases cleanly
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     const T *input_channel =
         input_data + n * input_stride_n_ + c * input_stride_c_;
@@ -213,7 +213,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
   const size_t total_outputs = batch_size * channels * output_h * output_w;
 
   // Unified backward pass - handles all cases cleanly
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_range<size_t>(0, total_outputs, [&](size_t i) {
     const size_t output_hw = output_h * output_w;
     const size_t output_chw = channels * output_hw;

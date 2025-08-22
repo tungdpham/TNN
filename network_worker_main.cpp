@@ -12,7 +12,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tbb::global_control c(tbb::global_control::max_allowed_parallelism, 8);
     std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
               << tbb::global_control::active_value(

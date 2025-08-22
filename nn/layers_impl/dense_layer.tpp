@@ -116,7 +116,7 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
   // Compute bias gradients
   if (use_bias_) {
     bias_gradients_.fill(T(0));
-#if defined(USE_TBB)
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
       T grad_sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -190,7 +190,7 @@ void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
                               T *output_data, const size_t batch_size,
                               const size_t input_features,
                               const size_t output_features) const {
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] =
@@ -230,7 +230,7 @@ void DenseLayer<T>::weight_gradients_impl(const T *input_data,
   utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
                       batch_size, output_features);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
         weight_grad_data[out_f * input_features + in_f] =
@@ -265,7 +265,7 @@ void DenseLayer<T>::input_gradients_impl(const T *grad_output_data,
   utils::transpose_2d(weight_data, weights_transposed.get(), output_features,
                       input_features);
 
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, input_features, [&](size_t n, size_t in_f) {
         grad_input_data[n * input_features + in_f] =
@@ -292,7 +292,7 @@ template <typename T>
 void DenseLayer<T>::add_bias_impl(T *output_data, const T *bias_data,
                                   size_t batch_size,
                                   size_t output_features) const {
-#if defined(USE_TBB)
+#ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] += bias_data[out_f];

@@ -324,11 +324,10 @@ public:
         // Compute loss and prepare backward task
         Tensor<T> predictions = task.data; // Assuming data contains predictions
         Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-        T loss_value = loss_function_->compute_loss(predictions, targets);
-        Tensor<T> gradients = loss_function_->compute_gradient(predictions, targets);
+        Tensor<T> gradient = loss_function_->compute_gradient(predictions, targets);
 
         // Send backward task
-        backward(gradients, task.micro_batch_id);
+        backward(gradient, task.micro_batch_id);
       } else {
         throw std::runtime_error(
             "Received forward message without task data");

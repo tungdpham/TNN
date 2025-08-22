@@ -273,6 +273,7 @@ public:
             const size_t start_idx = batch_idx * batch_size;
             const size_t end_idx = std::min(start_idx + batch_size, num_samples);
             const int actual_batch_size = static_cast<int>(end_idx - start_idx);
+            assert(actual_batch_size > 0);
             
             // Create batch tensors
             Tensor<T> batch_data(std::vector<size_t>{
@@ -287,7 +288,7 @@ public:
                 mnist_constants::NUM_CLASSES, 
                 1, 1
             });
-            batch_labels.fill(static_cast<T>(0.0));
+            batch_labels.fill(T(0.0)); 
             
             // Fill batch data in parallel
             #pragma omp parallel for if(actual_batch_size > 16)
@@ -316,6 +317,8 @@ public:
         this->current_batch_index_ = 0;
         batches_prepared_ = true;
         std::cout << "Batch preparation completed!" << std::endl;
+        std::cout << "Prepared " << batched_data_.size() << " batches "
+                  << "of size " << batch_size << " each." << std::endl;
     }
 
     /**

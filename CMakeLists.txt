@@ -18,7 +18,7 @@ endif()
 
 # Compiler flags
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=haswell -mavx -mavx2 -flto -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fsanitize=address -march=haswell -mavx -mavx2 -flto")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=haswell -mavx -mavx2 -flto")
 
 # Add pedantic warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
