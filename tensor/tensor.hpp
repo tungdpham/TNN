@@ -13,6 +13,8 @@
 #include <type_traits>
 #include <vector>
 #include <fstream>
+#include <cstdlib>
+#include <cstdint>
 #include "../nn/parallel_for.hpp"
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
@@ -28,7 +30,7 @@ private:
   static constexpr size_t dims = View::dims;
   size_t shape_[dims];  // Shape of the tensor
   size_t strides[dims]; // Strides for each dimension
-  std::unique_ptr<T[]> data_;
+  T* data_;
 
   size_t data_size_; // Total number of elements in the tensor
 
@@ -52,15 +54,41 @@ private:
     return index;
   }
 
+private:
+  // Helper function to allocate aligned memory
+  static T* allocate_aligned(size_t count) {
+    if (count == 0) return nullptr;
+    
+    constexpr size_t alignment = 32; // 32-byte alignment for AVX2
+    size_t byte_size = count * sizeof(T);
+    
+    // Ensure the size is a multiple of alignment
+    size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
+    
+    void* ptr = nullptr;
+    if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
+      throw std::bad_alloc();
+    }
+    
+    return static_cast<T*>(ptr);
+  }
+  
+  // Helper function to deallocate aligned memory
+  static void deallocate_aligned(T* ptr) {
+    if (ptr != nullptr) {
+      free(ptr);
+    }
+  }
+
 public:
   // Constructors
-  Tensor() : data_size_(0) {
+  Tensor() : data_(nullptr), data_size_(0) {
     std::fill(shape_, shape_ + dims, 0);
-    data_ = nullptr;
     compute_strides();
   }
 
-  Tensor(size_t batch, size_t channels, size_t height, size_t width) {
+  Tensor(size_t batch, size_t channels, size_t height, size_t width) 
+      : data_(nullptr) {
     static_assert(dims == 4,
                   "4-parameter constructor only valid for 4D tensors");
     if (layout == NCDHW || layout == NDHWC) {
@@ -72,14 +100,13 @@ public:
     shape_[3] = width;
     compute_strides();
     data_size_ = batch * channels * height * width;
-    data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_,
-              T(0)); 
+    data_ = allocate_aligned(data_size_);
+    std::fill(data_, data_ + data_size_, T(0)); 
   }
 
   // 5D constructor for 3D CNNs
   Tensor(size_t batch, size_t channels, size_t depth, size_t height,
-         size_t width) {
+         size_t width) : data_(nullptr) {
     static_assert(dims == 5,
                   "5-parameter constructor only valid for 5D tensors");
     if (layout == NCHW || layout == NHWC) {
@@ -92,12 +119,11 @@ public:
     shape_[4] = width;
     compute_strides();
     data_size_ = batch * channels * depth * height * width;
-    data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_,
-              T(0));
+    data_ = allocate_aligned(data_size_);
+    std::fill(data_, data_ + data_size_, T(0));
   }
 
-  Tensor(const std::initializer_list<size_t> &shape) {
+  Tensor(const std::initializer_list<size_t> &shape) : data_(nullptr) {
     // Initialize from a initializer list of dimensions
     if (shape.size() != dims) {
       throw std::invalid_argument("Shape must have " + std::to_string(dims) +
@@ -107,23 +133,23 @@ public:
     compute_strides();
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
-    data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_,
-              T(0));
+    data_ = allocate_aligned(data_size_);
+    std::fill(data_, data_ + data_size_, T(0));
   }
 
-  Tensor(const std::vector<size_t> &shape) {
+  Tensor(const std::vector<size_t> &shape) : data_(nullptr) {
     assert(shape.size() == dims && "Shape must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
         std::accumulate(shape_, shape_ + dims, 1UL, std::multiplies<size_t>());
-    data_ = std::make_unique<T[]>(data_size_);
-    std::fill(data_.get(), data_.get() + data_size_, T(0));
+    data_ = allocate_aligned(data_size_);
+    std::fill(data_, data_ + data_size_, T(0));
   }
 
   // Constructor with initial data
-  Tensor(const std::vector<size_t> &shape, const std::vector<T> &data) {
+  Tensor(const std::vector<size_t> &shape, const std::vector<T> &data) 
+      : data_(nullptr) {
     assert(shape.size() == dims && "Shape must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
@@ -132,50 +158,59 @@ public:
     if (data.size() != data_size_) {
       throw std::invalid_argument("Data size doesn't match tensor shape");
     }
-    data_ = std::make_unique<T[]>(data_size_);
-    std::copy(data.begin(), data.end(), data_.get());
+    data_ = allocate_aligned(data_size_);
+    std::copy(data.begin(), data.end(), data_);
   }
 
-  ~Tensor() = default;
+  ~Tensor() {
+    deallocate_aligned(data_);
+  }
 
   // Copy constructor
-  Tensor(const Tensor &other) : data_size_(other.data_size_) {
+  Tensor(const Tensor &other) : data_(nullptr), data_size_(other.data_size_) {
     std::copy(other.shape_, other.shape_ + dims, shape_);
     compute_strides();
     if (data_size_ > 0) {
-      data_ = std::make_unique<T[]>(data_size_);
-      std::copy(other.data_.get(),
-                other.data_.get() + data_size_, data_.get());
+      data_ = allocate_aligned(data_size_);
+      std::copy(other.data_, other.data_ + data_size_, data_);
     }
   }
 
   // Move constructor
   Tensor(Tensor &&other) noexcept
-      : data_(std::move(other.data_)), data_size_(other.data_size_) {
+      : data_(other.data_), data_size_(other.data_size_) {
     std::copy(other.shape_, other.shape_ + dims, shape_);
     compute_strides();
+    other.data_ = nullptr;
     other.data_size_ = 0;
   }
 
   // Assignment operators
   Tensor &operator=(const Tensor &other) {
     if (this != &other) {
+      // Clean up current data
+      deallocate_aligned(data_);
+      
       std::copy(other.shape_, other.shape_ + dims, shape_);
       compute_strides();
       data_size_ = other.data_size_;
-      data_ = std::make_unique<T[]>(data_size_);
-      std::copy(other.data_.get(),
-                other.data_.get() + data_size_, data_.get());
+      data_ = allocate_aligned(data_size_);
+      std::copy(other.data_, other.data_ + data_size_, data_);
     }
     return *this;
   }
 
   Tensor &operator=(Tensor &&other) noexcept {
     if (this != &other) {
+      // Clean up current data
+      deallocate_aligned(data_);
+      
       std::copy(other.shape_, other.shape_ + dims, shape_);
       compute_strides();
-      data_ = std::move(other.data_);
+      data_ = other.data_;
       data_size_ = other.data_size_;
+      
+      other.data_ = nullptr;
       other.data_size_ = 0;
     }
     return *this;
@@ -276,21 +311,25 @@ public:
   size_t size() const { return data_size_; }
 
   // Data access
-  T *data() { return data_.get(); }
+  T *data() { return data_; }
 
-  const T *data() const { return data_.get(); }
+  const T *data() const { return data_; }
+
+  // Check if data is aligned to the specified boundary (default 32 bytes for AVX2)
+  bool is_aligned(size_t alignment = 32) const {
+    return (reinterpret_cast<uintptr_t>(data_) % alignment) == 0;
+  }
 
   // Clone
   Tensor<T, layout> clone() const {
     return Tensor<T, layout>(
         std::vector<size_t>(shape_, shape_ + dims),
-        std::vector<T>(data_.get(), data_.get() + data_size_));
+        std::vector<T>(data_, data_ + data_size_));
   }
 
   // Fill operations
   void fill(T value) {
-    std::fill(data_.get(), data_.get() + data_size_,
-              value);
+    std::fill(data_, data_ + data_size_, value);
   }
 
   void fill_random_uniform(T range) {
@@ -344,7 +383,7 @@ public:
     if (new_size != size()) {
       throw std::invalid_argument("New shape must have same total size");
     }
-    std::vector<T> temp_data(data_.get(), data_.get() + data_size_);
+    std::vector<T> temp_data(data_, data_ + data_size_);
     return Tensor<T, layout>(new_shape, temp_data);
   }
 
@@ -692,7 +731,7 @@ public:
   // To row major vector (for NCHW it's the same as data)
   std::vector<T> to_vector() const {
     if constexpr (layout == NCHW) {
-      return std::vector<T>(data_.get(), data_.get() + data_size_);
+      return std::vector<T>(data_, data_ + data_size_);
     } else {
       throw std::runtime_error("to_vector is only supported for NCHW layout");
     }
@@ -708,7 +747,7 @@ public:
       throw std::runtime_error("from_vector is only supported for NCHW layout");
     }
 
-    std::copy(vec.begin(), vec.end(), data_.get());
+    std::copy(vec.begin(), vec.end(), data_);
   }
 
   // CNN-specific operations (to be implemented with convolution layers)
@@ -1013,7 +1052,7 @@ public:
     // Write shape
     out.write(reinterpret_cast<const char *>(shape_), dims * sizeof(size_t));
     // Write data
-    out.write(reinterpret_cast<const char *>(data_.get()),
+    out.write(reinterpret_cast<const char *>(data_),
               data_size_ * sizeof(T));
   }
 
