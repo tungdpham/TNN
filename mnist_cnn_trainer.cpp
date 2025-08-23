@@ -212,18 +212,18 @@ int main() {
     auto model = tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
                      // C1: First convolution layer - 5x5 kernel, stride 1, ReLU
                      // activation Input: 1x28x28 → Output: 8x24x24 (28-5+1=24)
-                     .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+                     .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "elu", true, "conv1")
                      // P1: Max pooling layer - 3x3 blocks, stride 3
                      // Input: 8x24x24 → Output: 8x8x8 (24/3=8)
                      .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
 
                      // C2: Inception-style 1x1 convolution for dimensionality
                      // reduction Input: 8x8x8 → Output: 16x8x8
-                     .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+                     .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "elu", true, "conv2_1x1")
 
                      // C3: Second convolution layer - 5x5 kernel, stride 1,
                      // ReLU activation Input: 16x8x8 → Output: 48x4x4 (8-5+1=4)
-                     .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "sigmoid", true, "conv3")
+                     .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "elu", true, "conv3")
 
                      // P2: Second max pooling layer - 2x2 blocks, stride 2
                      // Input: 48x4x4 → Output: 48x2x2 (4/2=2)

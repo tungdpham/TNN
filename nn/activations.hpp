@@ -49,7 +49,7 @@ public:
     register_activation("relu",
                         []() { return std::make_unique<ReLU<T>>(); });
     register_activation("leaky_relu", []() {
-      return std::make_unique<ReLU<T>>(T(0.01));
+      return std::make_unique<LeakyReLU<T>>(T(0.01));
     });
     register_activation("sigmoid",
                         []() { return std::make_unique<Sigmoid<T>>(); });
@@ -57,6 +57,10 @@ public:
                         []() { return std::make_unique<Softmax<T>>(); });
     register_activation("linear",
                         []() { return std::make_unique<Linear<T>>(); });
+    register_activation("tanh",
+                        []() { return std::make_unique<Tanh<T>>(); });
+    register_activation("elu",
+                        []() { return std::make_unique<ELU<T>>(); });
   }
 
   static std::vector<std::string> get_available_activations() {

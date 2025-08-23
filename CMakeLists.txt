@@ -69,41 +69,28 @@ if(ENABLE_CUDA)
     )
 endif()
 
+# Create a static library with template instantiations
+add_library(dcnn_instantiations STATIC nn/instantiations.cpp)
+target_link_libraries(dcnn_instantiations PUBLIC m)
+
 # Create a header-only interface library
 add_library(dcnn_lib INTERFACE)
-add_library(dcnn_instantiations STATIC
-    "nn/instantiations.cpp"
-)
-
-# Set common properties for the new library
-target_link_libraries(dcnn_instantiations PRIVATE dcnn_lib)
-target_compile_features(dcnn_instantiations PRIVATE cxx_std_17)
-
-# Handle platform-specific dependencies for the instantiations
-if(ENABLE_OPENMP)
-    target_link_libraries(dcnn_instantiations PRIVATE OpenMP::OpenMP_CXX)
-endif()
-
-if(ENABLE_TBB)
-    target_link_libraries(dcnn_instantiations PRIVATE TBB::tbb)
-endif()
-
-if(ENABLE_CUDA)
-    target_link_libraries(dcnn_instantiations PRIVATE CUDA::cudart CUDA::cublas CUDA::curand)
-endif()
 
 # Link libraries to common library (INTERFACE for header-only)
-target_link_libraries(dcnn_lib INTERFACE m)
+target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations m)
 
 if(ENABLE_OPENMP)
+    target_link_libraries(dcnn_instantiations PUBLIC OpenMP::OpenMP_CXX)
     target_link_libraries(dcnn_lib INTERFACE OpenMP::OpenMP_CXX)
 endif()
 
 if(ENABLE_TBB)
+    target_link_libraries(dcnn_instantiations PUBLIC TBB::tbb)
     target_link_libraries(dcnn_lib INTERFACE TBB::tbb)
 endif()
 
 if(ENABLE_CUDA)
+    target_link_libraries(dcnn_instantiations PUBLIC CUDA::cudart CUDA::cublas CUDA::curand)
     target_link_libraries(dcnn_lib INTERFACE CUDA::cudart CUDA::cublas CUDA::curand)
 endif()
 
