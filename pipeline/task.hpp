@@ -14,6 +14,15 @@ template <typename T = float> struct Task {
   Task(TaskType t, const Tensor<T> &d, size_t mb_id)
       : type(t), data(d), micro_batch_id(mb_id) {}
 
+  Task operator=(const Task &other) {
+    if (this != &other) {
+      type = other.type;
+      data = other.data.clone();
+      micro_batch_id = other.micro_batch_id;
+    }
+    return *this;
+  }
+
   std::string to_string() const {
     return "Task(type: " + std::to_string(static_cast<int>(type)) +
            ", micro_batch_id: " + std::to_string(micro_batch_id) +

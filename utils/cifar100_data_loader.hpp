@@ -169,11 +169,11 @@ public:
             return false; // No more batches
         }
         
-        batch_data = batched_data_[this->current_batch_index_];
+        batch_data = batched_data_[this->current_batch_index_].clone();
         if (use_coarse_labels_) {
-            batch_labels = batched_coarse_labels_[this->current_batch_index_];
+            batch_labels = batched_coarse_labels_[this->current_batch_index_].clone();
         } else {
-            batch_labels = batched_fine_labels_[this->current_batch_index_];
+            batch_labels = batched_fine_labels_[this->current_batch_index_].clone();
         }
         ++this->current_batch_index_;
         

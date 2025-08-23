@@ -429,8 +429,8 @@ public:
             return false; // No more batches
         }
         
-        batch_features = batched_features_[current_batch_index_];
-        batch_targets = batched_targets_[current_batch_index_];
+        batch_features = batched_features_[current_batch_index_].clone();
+        batch_targets = batched_targets_[current_batch_index_].clone();
         ++current_batch_index_;
         
         return true;
