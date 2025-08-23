@@ -18,11 +18,11 @@
 namespace cifar100_constants {
   constexpr float EPSILON = 1e-15f;
   constexpr int PROGRESS_PRINT_INTERVAL = 50;
-  constexpr int EPOCHS = 20; // Number of epochs for training
-  constexpr size_t BATCH_SIZE = 32; // Batch size for training
-  constexpr int LR_DECAY_INTERVAL = 10; // Learning rate decay interval
-  constexpr float LR_DECAY_FACTOR = 0.85f; // Learning rate decay factor
-  constexpr float LR_INITIAL = 0.01f; // Initial learning rate for training
+  constexpr int EPOCHS = 50; // Increased epochs for better convergence
+  constexpr size_t BATCH_SIZE = 64; // Increased batch size for better stability
+  constexpr int LR_DECAY_INTERVAL = 15; // Learning rate decay interval
+  constexpr float LR_DECAY_FACTOR = 0.5f; // More aggressive decay
+  constexpr float LR_INITIAL = 0.001f; // Lower initial learning rate for Adam
 } // namespace cifar100_constants
 
 
@@ -32,7 +32,8 @@ void train_cnn_model(tnn::Sequential<float> &model,
                      data_loading::CIFAR100DataLoader<float> &train_loader,
                      data_loading::CIFAR100DataLoader<float> &test_loader, int epochs = 10,
                      int batch_size = 32, float learning_rate = 0.001) {
-  tnn::SGD<float> optimizer(learning_rate, 0.9);
+  // Use Adam optimizer for better convergence on CIFAR-100
+  tnn::Adam<float> optimizer(learning_rate, 0.9, 0.999, 1e-8);
 
   auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
 
@@ -130,11 +131,11 @@ void train_cnn_model(tnn::Sequential<float> &model,
               << avg_val_accuracy * 100 << "%" << std::endl;
     std::cout << std::string(70, '=') << std::endl;
 
-    // Learning rate decay (more aggressive for CNN)
-    if ((epoch + 1) % 2 == 0) {
+    // Learning rate decay (adjust for Adam optimizer)
+    if ((epoch + 1) % cifar100_constants::LR_DECAY_INTERVAL == 0) {
       std::cout << "Current learning rate: " << optimizer.get_learning_rate()
                 << std::endl;
-      float new_lr = 1.0f * optimizer.get_learning_rate() * 0.8f;
+      float new_lr = optimizer.get_learning_rate() * cifar100_constants::LR_DECAY_FACTOR;
       optimizer.set_learning_rate(new_lr);
       std::cout << "Decayed learning rate to: " << new_lr << std::endl;
     }
@@ -172,20 +173,23 @@ int main() {
 
     auto model =
         tnn::SequentialBuilder<float>("cifar100_cnn_classifier")
-            // Input: 32x32x3
-            .conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // 32x32x32
-            .maxpool2d(3, 3, 3, 3, 0, 0, "pool1") // 10x10x16
-            .conv2d(32, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // 10x10x64
-            .maxpool2d(4, 4, 4, 4, 0, 0, "pool2") // 2x2x64
-            .dense(64 * 2 * 2, 512, "relu", true, "fc1") // Flatten to 512
-            .dense(512, 100, "linear", true, "output") // Output layer with 100 classes
-            // .activation("softmax", "softmax_output") // Softmax activation
+            // Input: 3x32x32
+            .conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // Conv Layer 1 - Output: 32x30x30
+            .conv2d(32, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // Conv Layer 2 - Output: 64x28x28
+            .conv2d(64, 128, 5, 5, 1, 1, 0, 0, "relu", true, "conv2_1") // Conv Layer 2_1 - Output: 128x24x24
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")              // Max Pooling - Output: 128x12x12
+            .conv2d(128, 256, 3, 3, 1, 1, 0, 0, "relu", true, "conv3") // Conv Layer 3 - Output: 128x10x10
+            .conv2d(256, 256, 3, 3, 1, 1, 0, 0, "relu", true, "conv4") // Conv Layer 4 - Output: 128x8x8
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")              // Max Pooling - Output: 128x4x4
+            .dense(256 * 4 * 4, 512, "relu", true, "fc1")      // Fully Connected Layer 1
+            .batchnorm(512, 1e-5f, 0.1f, true, "bn1")       // Batch Norm
+            .dense(512, 100, "linear", true, "output")         // Output Layer for 100 classes
             .build();
 
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
     model.print_summary(std::vector<size_t>{
-        64, 3, 32, 32}); // Show summary with single image input
+        cifar100_constants::BATCH_SIZE, 3, 32, 32}); // Show summary with batch input
 
     // Train the CNN model with appropriate hyperparameters
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
