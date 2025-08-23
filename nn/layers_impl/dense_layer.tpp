@@ -39,7 +39,7 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
 // Forward pass
 template <typename T>
 Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
-  micro_batch_inputs_[micro_batch_id] = input;
+  micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
   const size_t total_input_features =
@@ -65,7 +65,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   }
 
   // Store pre-activation output
-  micro_batch_pre_activations_[micro_batch_id] = output;
+  micro_batch_pre_activations_[micro_batch_id] = output.clone();
 
   // Apply activation if provided
   if (activation_) {

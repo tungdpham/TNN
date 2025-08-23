@@ -43,7 +43,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
         "Input channels must match num_features in BatchNormLayer");
   }
 
-  micro_batch_inputs_[micro_batch_id] = input;
+  micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
   const size_t channels = input.channels();
@@ -133,9 +133,9 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     }
 
     // Store for backward pass
-    micro_batch_mean_[micro_batch_id] = batch_mean;
-    micro_batch_var_[micro_batch_id] = batch_var;
-    micro_batch_std_[micro_batch_id] = batch_std;
+    micro_batch_mean_[micro_batch_id] = batch_mean.clone();
+    micro_batch_var_[micro_batch_id] = batch_var.clone();
+    micro_batch_std_[micro_batch_id] = batch_std.clone();
 
     // Normalize
     Tensor<T> normalized(input.shape());
@@ -166,7 +166,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     }
 #endif
 
-    micro_batch_normalized_[micro_batch_id] = normalized;
+    micro_batch_normalized_[micro_batch_id] = normalized.clone();
 
     // Apply affine transformation if enabled
     if (affine_) {
@@ -199,7 +199,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       }
 #endif
     } else {
-      output = normalized;
+      output = normalized.clone();
     }
 
     // Update running statistics
@@ -354,7 +354,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       }
     }
   } else {
-    grad_normalized = grad_output;
+    grad_normalized = grad_output.clone();
   }
 
   // Compute gradients w.r.t. variance and mean

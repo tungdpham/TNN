@@ -48,7 +48,7 @@ template <typename T>
 Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
                                      int micro_batch_id) {
   // Store input for backward pass
-  micro_batch_inputs_[micro_batch_id] = input;
+  micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
   const size_t channels = input.channels();

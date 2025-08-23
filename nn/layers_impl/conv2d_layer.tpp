@@ -54,7 +54,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  micro_batch_inputs_[micro_batch_id] = input;
+  micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
   const size_t input_h = input.height();
@@ -147,7 +147,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   }
 
   // Store pre-activation output
-  micro_batch_pre_activations_[micro_batch_id] = output;
+  micro_batch_pre_activations_[micro_batch_id] = output.clone();
 
   // Apply activation if provided
   if (activation_) {

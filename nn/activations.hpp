@@ -878,7 +878,7 @@ public:
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
-      pre_activation_values = *upstream_gradient;
+      pre_activation_values = upstream_gradient->clone();
     } else {
       // If no upstream gradient, fill with ones (derivative of linear function
       // is 1)

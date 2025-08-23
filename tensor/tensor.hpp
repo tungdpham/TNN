@@ -20,13 +20,13 @@
 
 // 4D/5D Tensor template class for CNN operations, supporting various layouts
 // but primarily NCHW and NCDHW.
-template <typename T = float, Layout layout = NCHW> class Tensor {
+template <typename T = float, Layout L = NCHW> class Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
                 "Tensor type must be floating point or integral");
 
 private:
-  using View = TensorView<T, layout>;
+  using View = TensorView<T, L>;
 
   static constexpr size_t dims = View::dims;
   size_t shape_[dims];  // Shape of the tensor
@@ -203,8 +203,8 @@ public:
       : data_(nullptr) {
     static_assert(dims == 4,
                   "4-parameter constructor only valid for 4D tensors");
-    if (layout == NCDHW || layout == NDHWC) {
-      throw std::invalid_argument("5D layout specified for 4D constructor");
+    if (L == NCDHW || L == NDHWC) {
+      throw std::invalid_argument("5D L specified for 4D constructor");
     }
     shape_[0] = batch;
     shape_[1] = channels;
@@ -221,8 +221,8 @@ public:
          size_t width) : data_(nullptr) {
     static_assert(dims == 5,
                   "5-parameter constructor only valid for 5D tensors");
-    if (layout == NCHW || layout == NHWC) {
-      throw std::invalid_argument("4D layout specified for 5D constructor");
+    if (L == NCHW || L == NHWC) {
+      throw std::invalid_argument("4D L specified for 5D constructor");
     }
     shape_[0] = batch;
     shape_[1] = channels;
@@ -298,19 +298,36 @@ public:
   }
 
   // Assignment operators
-  Tensor &operator=(const Tensor &other) {
-    if (this != &other) {
-      // Clean up current data
-      deallocate_aligned(data_);
+  // Tensor &operator=(const Tensor &other) {
+  //   if (this != &other) {
+  //     // Clean up current data
+  //     deallocate_aligned(data_);
       
-      std::copy(other.shape_, other.shape_ + dims, shape_);
-      compute_strides();
-      data_size_ = other.data_size_;
-      data_ = allocate_aligned(data_size_);
-      copy_avx2(other.data_);
-    }
-    return *this;
-  }
+  //     std::copy(other.shape_, other.shape_ + dims, shape_);
+  //     compute_strides();
+  //     data_size_ = other.data_size_;
+  //     data_ = allocate_aligned(data_size_);
+  //     copy_avx2(other.data_);
+  //   }
+  //   return *this;
+  // }
+
+  Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
+
+  // Remove this incorrect assignment operator
+  // Tensor operator=(const Tensor &other) {
+  //   if (this != &other) {
+  //     // Clean up current data
+  //     deallocate_aligned(data_);
+  //     
+  //     std::copy(other.shape_, other.shape_ + dims, shape_);
+  //     compute_strides();
+  //     data_size_ = other.data_size_;
+  //     data_ = allocate_aligned(data_size_);
+  //     copy_avx2(other.data_);
+  //   }
+  //   return *this;
+  // }
 
   Tensor &operator=(Tensor &&other) noexcept {
     if (this != &other) {
@@ -433,8 +450,8 @@ public:
   }
 
   // Clone
-  Tensor<T, layout> clone() const {
-    return Tensor<T, layout>(
+  Tensor<T, L> clone() const {
+    return Tensor<T, L>(
         std::vector<size_t>(shape_, shape_ + dims),
         std::vector<T>(data_, data_ + data_size_));
   }
@@ -474,7 +491,7 @@ public:
   }
 
   // Reshape (must preserve total size)
-  Tensor<T, layout> reshape(const std::vector<size_t> &new_shape) const {
+  Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
     // Check if new shape is same as current shape
     bool same_shape = (new_shape.size() == dims);
     if (same_shape) {
@@ -496,17 +513,17 @@ public:
       throw std::invalid_argument("New shape must have same total size");
     }
     std::vector<T> temp_data(data_, data_ + data_size_);
-    return Tensor<T, layout>(new_shape, temp_data);
+    return Tensor<T, L>(new_shape, temp_data);
   }
 
   // Padding operations
-  Tensor<T, layout> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
+  Tensor<T, L> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
     assert(dims == 4 && "Padding only supported for 4D tensors");
     if (pad_h == 0 && pad_w == 0) {
       return *this; // No padding needed
     }
 
-    Tensor<T, layout> result(batch_size(), channels(), height() + 2 * pad_h,
+    Tensor<T, L> result(batch_size(), channels(), height() + 2 * pad_h,
                              width() + 2 * pad_w);
     result.fill(value);
 
@@ -527,7 +544,7 @@ public:
   }
 
   // Cropping operations for 4D tensors
-  Tensor<T, layout> crop(size_t start_h, size_t start_w, size_t end_h,
+  Tensor<T, L> crop(size_t start_h, size_t start_w, size_t end_h,
                          size_t end_w) const {
     if constexpr (dims != 4) {
       throw std::runtime_error("2D cropping only supported for 4D tensors");
@@ -541,7 +558,7 @@ public:
     size_t new_height = end_h - start_h + 1;
     size_t new_width = end_w - start_w + 1;
 
-    Tensor<T, layout> result(batch_size(), channels(), new_height, new_width);
+    Tensor<T, L> result(batch_size(), channels(), new_height, new_width);
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4) schedule(static)
@@ -560,7 +577,7 @@ public:
   }
 
   // Slicing operations
-  Tensor<T, layout> slice_batch(size_t start_batch, size_t end_batch) const {
+  Tensor<T, L> slice_batch(size_t start_batch, size_t end_batch) const {
     if (end_batch >= batch_size() || start_batch > end_batch) {
       throw std::invalid_argument("Invalid batch slice range");
     }
@@ -568,7 +585,7 @@ public:
     size_t new_batch_size = end_batch - start_batch + 1;
 
     if constexpr (dims == 4) {
-      Tensor<T, layout> result(new_batch_size, channels(), height(), width());
+      Tensor<T, L> result(new_batch_size, channels(), height(), width());
       T* result_data = result.data();
       size_t output_size = channels() * height() * width();
 #ifdef _OPENMP
@@ -587,7 +604,7 @@ public:
     }
   }
 
-  Tensor<T, layout> slice_channels(size_t start_ch, size_t end_ch) const {
+  Tensor<T, L> slice_channels(size_t start_ch, size_t end_ch) const {
     if (end_ch >= channels() || start_ch > end_ch) {
       throw std::invalid_argument("Invalid channel slice range");
     }
@@ -595,7 +612,7 @@ public:
     size_t new_channels = end_ch - start_ch + 1;
 
     if constexpr (dims == 4) {
-      Tensor<T, layout> result(batch_size(), new_channels, height(), width());
+      Tensor<T, L> result(batch_size(), new_channels, height(), width());
 
 #ifdef _OPENMP
 #pragma omp parallel for collapse(4) schedule(static)
@@ -617,7 +634,7 @@ public:
   }
 
   // Arithmetic operations
-  Tensor<T, layout> operator+(const Tensor<T, layout> &other) const {
+  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
@@ -627,7 +644,7 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
-    Tensor<T, layout> result(shape_vec);
+    Tensor<T, L> result(shape_vec);
 
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
@@ -638,7 +655,7 @@ public:
     return result;
   }
 
-  Tensor<T, layout> operator-(const Tensor<T, layout> &other) const {
+  Tensor<T, L> operator-(const Tensor<T, L> &other) const {
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
@@ -647,7 +664,7 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
-    Tensor<T, layout> result(shape_vec);
+    Tensor<T, L> result(shape_vec);
 
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
@@ -659,9 +676,9 @@ public:
     return result;
   }
 
-  Tensor<T, layout> operator*(T scalar) const {
+  Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
-    Tensor<T, layout> result(shape_vec);
+    Tensor<T, L> result(shape_vec);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -671,13 +688,13 @@ public:
     return result;
   }
 
-  Tensor<T, layout> operator/(T scalar) const {
+  Tensor<T, L> operator/(T scalar) const {
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims);
-    Tensor<T, layout> result(shape_vec);
+    Tensor<T, L> result(shape_vec);
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -687,7 +704,7 @@ public:
     return result;
   }
 
-  Tensor<T, layout> &operator+=(const Tensor<T, layout> &other) {
+  Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
@@ -706,7 +723,7 @@ public:
     return *this;
   }
 
-  Tensor<T, layout> &operator-=(const Tensor<T, layout> &other) {
+  Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
@@ -724,7 +741,7 @@ public:
     return *this;
   }
 
-  Tensor<T, layout> &operator*=(const Tensor<T, layout> &other) {
+  Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
     // Compare shapes element by element
     for (size_t i = 0; i < dims; ++i) {
       if (shape_[i] != other.shape_[i]) {
@@ -743,7 +760,7 @@ public:
     return *this;
   }
 
-  Tensor<T, layout> &operator*=(T scalar) {
+  Tensor<T, L> &operator*=(T scalar) {
 #ifdef _OPENMP
 #pragma omp parallel for schedule(static)
 #endif
@@ -753,7 +770,7 @@ public:
     return *this;
   }
 
-  Tensor<T, layout> &operator/=(T scalar) {
+  Tensor<T, L> &operator/=(T scalar) {
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
@@ -842,10 +859,10 @@ public:
 
   // To row major vector (for NCHW it's the same as data)
   std::vector<T> to_vector() const {
-    if constexpr (layout == NCHW) {
+    if constexpr (L == NCHW) {
       return std::vector<T>(data_, data_ + data_size_);
     } else {
-      throw std::runtime_error("to_vector is only supported for NCHW layout");
+      throw std::runtime_error("to_vector is only supported for NCHW L");
     }
   }
 
@@ -855,8 +872,8 @@ public:
       throw std::invalid_argument("Vector size does not match tensor size");
     }
 
-    if constexpr (layout != NCHW) {
-      throw std::runtime_error("from_vector is only supported for NCHW layout");
+    if constexpr (L != NCHW) {
+      throw std::runtime_error("from_vector is only supported for NCHW L");
     }
 
     copy_avx2(vec.data());
@@ -870,15 +887,15 @@ public:
                   "im2col is only supported for 4D tensors (NCHW/NHWC)");
 
     // Apply padding if needed - avoid copy when no padding
-    const Tensor<T, layout> *input_ptr = this;
-    std::unique_ptr<Tensor<T, layout>> padded_input_storage;
+    const Tensor<T, L> *input_ptr = this;
+    std::unique_ptr<Tensor<T, L>> padded_input_storage;
 
     if (pad_h > 0 || pad_w > 0) {
       padded_input_storage =
-          std::make_unique<Tensor<T, layout>>(pad(pad_h, pad_w));
+          std::make_unique<Tensor<T, L>>(pad(pad_h, pad_w));
       input_ptr = padded_input_storage.get();
     }
-    const Tensor<T, layout> &input_tensor = *input_ptr;
+    const Tensor<T, L> &input_tensor = *input_ptr;
     const T* input_data = input_tensor.data();
     const size_t *strides = input_tensor.strides_ptr();
 
@@ -945,7 +962,7 @@ public:
     return col_matrix;
   }
 
-  static Tensor<T, layout> col2im(
+  static Tensor<T, L> col2im(
       const Matrix<T> &col_matrix, size_t batch_size, size_t channels,
       size_t height, size_t width, size_t kernel_h, size_t kernel_w,
       size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
@@ -956,7 +973,7 @@ public:
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
     size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
 
-    Tensor<T, layout> result_padded(batch_size, channels, padded_h, padded_w);
+    Tensor<T, L> result_padded(batch_size, channels, padded_h, padded_w);
 
     // The total number of output "patches" is the number of columns in
     // col_matrix
@@ -1099,7 +1116,7 @@ public:
     }
     std::cout << "]" << std::endl;
     std::cout << "Layout: ";
-    switch (layout) {
+    switch (L) {
     case NCHW:
       std::cout << "NCHW";
       break;
@@ -1168,7 +1185,7 @@ public:
               data_size_ * sizeof(T));
   }
 
-  static Tensor<T, layout> load(std::ifstream &in) {
+  static Tensor<T, L> load(std::ifstream &in) {
     if (!in.is_open()) {
       throw std::runtime_error("File is not open for reading");
     }
@@ -1178,7 +1195,7 @@ public:
       throw std::runtime_error("Failed to read tensor shape from file");
     }
 
-    Tensor<T, layout> tensor(shape);
+    Tensor<T, L> tensor(shape);
     in.read(reinterpret_cast<char *>(tensor.data()), tensor.size() * sizeof(T));
     if (in.gcount() != tensor.size() * sizeof(T)) {
       throw std::runtime_error("Failed to read tensor data from file");
