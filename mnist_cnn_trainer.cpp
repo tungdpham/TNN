@@ -112,28 +112,28 @@ void train_cnn_model(tnn::Sequential<float> &model,
     const float avg_train_accuracy =
         static_cast<float>(total_accuracy / num_batches);
 
-    // // Optimized validation phase - use pre-computed batches
-    // model.eval();
-    // test_loader.reset();
+    // Optimized validation phase - use pre-computed batches
+    model.eval();
+    test_loader.reset();
 
-    // double val_loss = 0.0;
-    // double val_accuracy = 0.0;
-    // int val_batches = 0;
+    double val_loss = 0.0;
+    double val_accuracy = 0.0;
+    int val_batches = 0;
 
-    // // Use fast batch iteration with pre-computed validation batches
-    // while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    //   predictions = model.forward(batch_data);
-    //   utils::apply_softmax<float>(predictions);
+    // Use fast batch iteration with pre-computed validation batches
+    while (test_loader.get_next_batch(batch_data, batch_labels)) {
+      predictions = model.forward(batch_data);
+      utils::apply_softmax<float>(predictions);
 
-    //   val_loss += loss_function->compute_loss(predictions, batch_labels);
-    //   val_accuracy +=
-    //       utils::compute_class_accuracy<float>(predictions, batch_labels);
-    //   ++val_batches;
-    // }
+      val_loss += loss_function->compute_loss(predictions, batch_labels);
+      val_accuracy +=
+          utils::compute_class_accuracy<float>(predictions, batch_labels);
+      ++val_batches;
+    }
 
-    // const float avg_val_loss = static_cast<float>(val_loss / val_batches);
-    // const float avg_val_accuracy =
-    //     static_cast<float>(val_accuracy / val_batches);
+    const float avg_val_loss = static_cast<float>(val_loss / val_batches);
+    const float avg_val_accuracy =
+        static_cast<float>(val_accuracy / val_batches);
 
     const auto epoch_end = std::chrono::high_resolution_clock::now();
     const auto epoch_duration =
@@ -147,9 +147,9 @@ void train_cnn_model(tnn::Sequential<float> &model,
     std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4)
               << avg_train_loss << ", Accuracy: " << std::setprecision(2)
               << avg_train_accuracy * 100.0f << "%" << std::endl;
-    // std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4)
-    //           << avg_val_loss << ", Accuracy: " << std::setprecision(2)
-    //           << avg_val_accuracy * 100.0f << "%" << std::endl;
+    std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4)
+              << avg_val_loss << ", Accuracy: " << std::setprecision(2)
+              << avg_val_accuracy * 100.0f << "%" << std::endl;
     std::cout << std::string(70, '=') << std::endl;
 
     // Learning rate decay
@@ -223,7 +223,7 @@ int main() {
 
                      // C3: Second convolution layer - 5x5 kernel, stride 1,
                      // ReLU activation Input: 16x8x8 → Output: 48x4x4 (8-5+1=4)
-                     .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+                     .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "sigmoid", true, "conv3")
 
                      // P2: Second max pooling layer - 2x2 blocks, stride 2
                      // Input: 48x4x4 → Output: 48x2x2 (4/2=2)

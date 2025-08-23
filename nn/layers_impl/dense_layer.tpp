@@ -393,8 +393,4 @@ DenseLayer<T>::create_from_config(const LayerConfig &config) {
                                          config.name);
 }
 
-// Explicit template instantiations
-template class DenseLayer<float>;
-template class DenseLayer<double>;
-
 } // namespace tnn

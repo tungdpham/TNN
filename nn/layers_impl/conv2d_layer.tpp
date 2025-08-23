@@ -515,8 +515,4 @@ void Conv2DLayer<T>::update_parameters_impl(Optimizer<T> &optimizer) {
   optimizer.update(params, grads);
 }
 
-// Explicit template instantiations
-template class Conv2DLayer<float>;
-template class Conv2DLayer<double>;
-
 } // namespace tnn

@@ -508,8 +508,4 @@ BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
                                              affine, config.name);
 }
 
-// Explicit template instantiations
-template class BatchNormLayer<float>;
-template class BatchNormLayer<double>;
-
 } // namespace tnn

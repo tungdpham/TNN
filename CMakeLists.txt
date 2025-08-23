@@ -52,14 +52,13 @@ endif()
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/asio/include)
 
-# Collect header files (this is a header-only template library)
+# Collect header files
 file(GLOB_RECURSE HEADERS
-    "matrix/*.hpp"
-    "nn/*.hpp"
-    "nn/layers_impl/*.hpp"
-    "tensor/*.hpp"
-    "pipeline/*.hpp"
-    "utils/*.hpp"
+    "matrix/**/*.hpp"
+    "nn/**/*.hpp"
+    "tensor/**/*.hpp"
+    "pipeline/**/*.hpp"
+    "utils/**/*.hpp"
 )
 
 if(ENABLE_CUDA)
@@ -72,6 +71,26 @@ endif()
 
 # Create a header-only interface library
 add_library(dcnn_lib INTERFACE)
+add_library(dcnn_instantiations STATIC
+    "nn/instantiations.cpp"
+)
+
+# Set common properties for the new library
+target_link_libraries(dcnn_instantiations PRIVATE dcnn_lib)
+target_compile_features(dcnn_instantiations PRIVATE cxx_std_17)
+
+# Handle platform-specific dependencies for the instantiations
+if(ENABLE_OPENMP)
+    target_link_libraries(dcnn_instantiations PRIVATE OpenMP::OpenMP_CXX)
+endif()
+
+if(ENABLE_TBB)
+    target_link_libraries(dcnn_instantiations PRIVATE TBB::tbb)
+endif()
+
+if(ENABLE_CUDA)
+    target_link_libraries(dcnn_instantiations PRIVATE CUDA::cudart CUDA::cublas CUDA::curand)
+endif()
 
 # Link libraries to common library (INTERFACE for header-only)
 target_link_libraries(dcnn_lib INTERFACE m)

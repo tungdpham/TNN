@@ -17,6 +17,15 @@ template <typename T = float>
 std::unique_ptr<ActivationFunction<T>>
 create_activation(const std::string &name);
 
+// Include the implementation for the create_activation function
+template <typename T>
+std::unique_ptr<ActivationFunction<T>>
+create_activation(const std::string &name) {
+  // Ensure factory has default activations registered
+  ActivationFactory<T>::register_defaults();
+  return ActivationFactory<T>::create(name);
+}
+
 // Forward declarations for specific layers
 template <typename T> class DenseLayer;
 template <typename T> class ActivationLayer;
@@ -29,16 +38,7 @@ template <typename T> class BatchNormLayer;
 
 } // namespace tnn
 
-
-// Include the implementation for the create_activation function
-template <typename T>
-std::unique_ptr<ActivationFunction<T>>
-tnn::create_activation(const std::string &name) {
-  // Ensure factory has default activations registered
-  ActivationFactory<T>::register_defaults();
-  return ActivationFactory<T>::create(name);
-}
-
+// Actual layer implementations
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/stateless_layer.hpp"
 #include "layers_impl/parameterized_layer.hpp"

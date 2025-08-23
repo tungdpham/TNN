@@ -17,8 +17,8 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 // Forward pass
 template <typename T>
 Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
-  micro_batch_inputs_[micro_batch_id] = input;
-  Tensor<T> output = input; // Copy
+  micro_batch_inputs_[micro_batch_id] = input.clone();
+  Tensor<T> output = input.clone(); // Copy
   activation_->apply(output);
   return output;
 }

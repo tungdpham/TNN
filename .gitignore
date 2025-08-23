@@ -23,6 +23,8 @@
 /Makefile
 /**/*.cmake
 /**/*.cmake.in
+/cmake_install.cmake
+*.a
 
 # build artifacts
 /**/*.o

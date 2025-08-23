@@ -88,7 +88,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   }
 #endif
 
-  micro_batch_masks_[micro_batch_id] = mask;
+  micro_batch_masks_[micro_batch_id] = mask.clone();
   return output;
 }
 
