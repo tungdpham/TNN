@@ -14,6 +14,8 @@
 #include "nn/optimizers.hpp"
 #include "nn/loss.hpp"
 #include "utils/cifar100_data_loader.hpp"
+#include "utils/ops.hpp"
+#include "utils/train.hpp"
 
 namespace cifar100_constants {
   constexpr float EPSILON = 1e-15f;
@@ -24,123 +26,6 @@ namespace cifar100_constants {
   constexpr float LR_DECAY_FACTOR = 0.5f; // More aggressive decay
   constexpr float LR_INITIAL = 0.001f; // Lower initial learning rate for Adam
 } // namespace cifar100_constants
-
-
-
-// Training function for CNN tensor model
-void train_cnn_model(tnn::Sequential<float> &model,
-                     data_loading::CIFAR100DataLoader<float> &train_loader,
-                     data_loading::CIFAR100DataLoader<float> &test_loader, int epochs = 10,
-                     int batch_size = 32, float learning_rate = 0.001) {
-  // Use Adam optimizer for better convergence on CIFAR-100
-  tnn::Adam<float> optimizer(learning_rate, 0.9, 0.999, 1e-8);
-
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
-
-  std::cout << "Starting CNN tensor model training..." << std::endl;
-  std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
-            << ", Learning rate: " << learning_rate << std::endl;
-  std::cout << std::string(70, '=') << std::endl;
-
-  for (int epoch = 0; epoch < epochs; ++epoch) {
-    auto epoch_start = std::chrono::high_resolution_clock::now();
-
-    // Training phase
-    model.train();
-    train_loader.shuffle();
-    train_loader.reset();
-
-    float total_loss = 0.0;
-    float total_accuracy = 0.0;
-    int num_batches = 0;
-
-    Tensor<float> batch_data, batch_labels;
-    while (train_loader.get_batch(batch_size, batch_data, batch_labels)) {
-      // Forward pass
-      Tensor<float> predictions = model.forward(batch_data);
-      utils::apply_softmax<float>(predictions);
-
-      // Compute loss and accuracy
-      float loss =
-          loss_function->compute_loss(predictions, batch_labels);
-      float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
-
-      total_loss += loss;
-      total_accuracy += accuracy;
-      num_batches++;
-
-      // Backward pass
-      Tensor<float> loss_gradient =
-          loss_function->compute_gradient(predictions, batch_labels);
-      model.backward(loss_gradient);
-
-      // Update parameters
-      auto params = model.parameters();
-      auto grads = model.gradients();
-      optimizer.update(params, grads);
-
-      // Print progress every 10 batches (more frequent for CNN)
-      if (num_batches % 100 == 0) {
-        model.print_profiling_summary();
-        std::cout << "Epoch " << epoch + 1 << "/" << epochs << ", Batch "
-                  << num_batches << ", Loss: " << std::fixed
-                  << std::setprecision(4) << loss
-                  << ", Acc: " << std::setprecision(3) << accuracy * 100 << "%"
-                  << std::endl;
-      }
-
-      model.clear_profiling_data(); // Clear profiling data after each batch
-    }
-
-    float avg_train_loss = total_loss / num_batches;
-    float avg_train_accuracy = total_accuracy / num_batches;
-
-    // Validation phase
-    model.eval();
-    test_loader.reset();
-
-    float val_loss = 0.0;
-    float val_accuracy = 0.0;
-    int val_batches = 0;
-
-    while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
-      Tensor<float> predictions = model.forward(batch_data);
-
-      val_loss +=
-          loss_function->compute_loss(predictions, batch_labels);
-      val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
-      val_batches++;
-    }
-
-    float avg_val_loss = val_loss / val_batches;
-    float avg_val_accuracy = val_accuracy / val_batches;
-
-    auto epoch_end = std::chrono::high_resolution_clock::now();
-    auto epoch_duration = std::chrono::duration_cast<std::chrono::seconds>(
-        epoch_end - epoch_start);
-
-    // Print epoch summary
-    std::cout << std::string(70, '-') << std::endl;
-    std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
-              << epoch_duration.count() << "s" << std::endl;
-    std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4)
-              << avg_train_loss << ", Accuracy: " << std::setprecision(2)
-              << avg_train_accuracy * 100 << "%" << std::endl;
-    std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4)
-              << avg_val_loss << ", Accuracy: " << std::setprecision(2)
-              << avg_val_accuracy * 100 << "%" << std::endl;
-    std::cout << std::string(70, '=') << std::endl;
-
-    // Learning rate decay (adjust for Adam optimizer)
-    if ((epoch + 1) % cifar100_constants::LR_DECAY_INTERVAL == 0) {
-      std::cout << "Current learning rate: " << optimizer.get_learning_rate()
-                << std::endl;
-      float new_lr = optimizer.get_learning_rate() * cifar100_constants::LR_DECAY_FACTOR;
-      optimizer.set_learning_rate(new_lr);
-      std::cout << "Decayed learning rate to: " << new_lr << std::endl;
-    }
-  }
-}
 
 int main() {
   try {
@@ -162,11 +47,11 @@ int main() {
     std::cout << "\nDataset Information:" << std::endl;
     train_loader.print_data_stats();
     
-    // Prepare batches for efficient training
-    std::cout << "\nPreparing training batches..." << std::endl;
-    train_loader.prepare_batches(cifar100_constants::BATCH_SIZE);
-    test_loader.prepare_batches(cifar100_constants::BATCH_SIZE);
-
+    std::cout << "Successfully loaded training data: " << train_loader.size()
+              << " samples" << std::endl;
+    std::cout << "Successfully loaded test data: " << test_loader.size()
+              << " samples" << std::endl;
+    
     // Create CNN model architecture for CIFAR-100
     std::cout << "\nBuilding CNN model architecture for CIFAR-100..."
               << std::endl;
@@ -174,17 +59,29 @@ int main() {
     auto model =
         tnn::SequentialBuilder<float>("cifar100_cnn_classifier")
             // Input: 3x32x32
-            .conv2d(3, 32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // Conv Layer 1 - Output: 32x30x30
-            .conv2d(32, 64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // Conv Layer 2 - Output: 64x28x28
-            .conv2d(64, 128, 5, 5, 1, 1, 0, 0, "relu", true, "conv2_1") // Conv Layer 2_1 - Output: 128x24x24
+            .input({3, 32, 32})
+            .conv2d(32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1") // Conv Layer 1 - Output: 32x30x30
+            .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2") // Conv Layer 2 - Output: 64x28x28
+            .conv2d(128, 5, 5, 1, 1, 0, 0, "relu", true, "conv2_1") // Conv Layer 2_1 - Output: 128x24x24
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")              // Max Pooling - Output: 128x12x12
-            .conv2d(128, 256, 3, 3, 1, 1, 0, 0, "relu", true, "conv3") // Conv Layer 3 - Output: 128x10x10
-            .conv2d(256, 256, 3, 3, 1, 1, 0, 0, "relu", true, "conv4") // Conv Layer 4 - Output: 128x8x8
-            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")              // Max Pooling - Output: 128x4x4
-            .dense(256 * 4 * 4, 512, "relu", true, "fc1")      // Fully Connected Layer 1
+            .conv2d(256, 3, 3, 1, 1, 0, 0, "relu", true, "conv3") // Conv Layer 3 - Output: 256x10x10
+            .conv2d(256, 3, 3, 1, 1, 0, 0, "relu", true, "conv4") // Conv Layer 4 - Output: 256x8x8
+            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")              // Max Pooling - Output: 256x4x4
+            .flatten("flatten")
+            .dense(512, "relu", true, "fc1")      // Fully Connected Layer 1 - Auto-inferred input features
             .batchnorm(512, 1e-5f, 0.1f, true, "bn1")       // Batch Norm
-            .dense(512, 100, "linear", true, "output")         // Output Layer for 100 classes
+            .dense(100, "linear", true, "output")         // Output Layer for 100 classes
             .build();
+
+    // Set optimizer for the model
+    auto optimizer = std::make_unique<tnn::Adam<float>>(
+        cifar100_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    model.set_optimizer(std::move(optimizer));
+
+    // Set loss function for the model
+    auto loss_function =
+        tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
+    model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true); // Enable profiling for performance analysis
     // Print model summary
@@ -196,14 +93,23 @@ int main() {
     train_cnn_model(model, train_loader, test_loader,
                     cifar100_constants::EPOCHS,  // epochs
                     cifar100_constants::BATCH_SIZE, // batch_size
-                    cifar100_constants::LR_INITIAL // learning_rate
+                    cifar100_constants::LR_DECAY_FACTOR, // lr_decay_factor
+                    cifar100_constants::PROGRESS_PRINT_INTERVAL // progress_print_interval
     );
 
     std::cout
         << "\nCIFAR-100 CNN Tensor<float> model training completed successfully!"
         << std::endl;
 
-    model.save_to_file("model_snapshots/cifar100_cnn_model");
+    // Save model with error handling
+    try {
+      model.save_to_file("model_snapshots/cifar100_cnn_model");
+      std::cout << "Model saved to: model_snapshots/cifar100_cnn_model"
+                << std::endl;
+    } catch (const std::exception &save_error) {
+      std::cerr << "Warning: Failed to save model: " << save_error.what()
+                << std::endl;
+    }
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return -1;

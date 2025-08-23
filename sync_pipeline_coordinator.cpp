@@ -43,7 +43,7 @@ Sequential<float> create_demo_model() {
 
   auto loss_function =
       tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
-  model.set_loss(std::move(loss_function));
+  model.set_loss_function(std::move(loss_function));
   return model;
 }
 

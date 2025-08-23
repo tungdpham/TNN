@@ -374,7 +374,7 @@ public:
 
   bool is_deployed() const { return is_deployed_; }
 
-  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
+  void set_loss_function_function(std::unique_ptr<tnn::Loss<T>> loss) {
     loss_function_ = std::move(loss);
   }
 

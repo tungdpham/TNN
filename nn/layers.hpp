@@ -12,16 +12,9 @@
 #include "layers_impl/base_layer.hpp"
 namespace tnn {
 
-// Convenience function for creating tensor activation functions
-template <typename T = float>
-std::unique_ptr<ActivationFunction<T>>
-create_activation(const std::string &name);
-
-// Include the implementation for the create_activation function
 template <typename T>
 std::unique_ptr<ActivationFunction<T>>
 create_activation(const std::string &name) {
-  // Ensure factory has default activations registered
   ActivationFactory<T>::register_defaults();
   return ActivationFactory<T>::create(name);
 }
@@ -38,7 +31,7 @@ template <typename T> class BatchNormLayer;
 
 } // namespace tnn
 
-// Actual layer implementations
+// Layer implementations
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/stateless_layer.hpp"
 #include "layers_impl/parameterized_layer.hpp"
@@ -51,7 +44,6 @@ template <typename T> class BatchNormLayer;
 #include "layers_impl/layer_factory.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
 
-// Convenience functions for creating layers
 namespace tnn {
 
 template <typename T = float>
