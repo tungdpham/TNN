@@ -17,7 +17,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=haswell -mavx -mavx2 -flto -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=haswell -funroll-loops -mavx -mavx2 -flto -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=haswell -mavx -mavx2 -flto")
 
 # Add pedantic warnings

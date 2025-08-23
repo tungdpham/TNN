@@ -194,7 +194,7 @@ void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] =
-            utils::simd_dot_product_contiguous(
+            utils::simd_dot_product(
                 &weight_data[out_f * input_features],
                 &input_data[n * input_features], input_features);
       });
@@ -206,7 +206,7 @@ void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
     for (size_t out_f = 0; out_f < output_features; ++out_f) {
       // Use SIMD-optimized dot product for contiguous memory access
       output_data[n * output_features + out_f] =
-          utils::simd_dot_product_contiguous(
+          utils::simd_dot_product(
               &weight_data[out_f * input_features],
               &input_data[n * input_features], input_features);
     }
@@ -234,7 +234,7 @@ void DenseLayer<T>::weight_gradients_impl(const T *input_data,
   tnn::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
         weight_grad_data[out_f * input_features + in_f] =
-            utils::simd_dot_product_contiguous(
+            utils::simd_dot_product(
                 &grad_output_transposed[out_f * batch_size],
                 &input_transposed[in_f * batch_size], batch_size);
       });
@@ -246,7 +246,7 @@ void DenseLayer<T>::weight_gradients_impl(const T *input_data,
     for (size_t in_f = 0; in_f < input_features; ++in_f) {
       // Use SIMD-optimized dot product with contiguous memory access
       weight_grad_data[out_f * input_features + in_f] =
-          utils::simd_dot_product_contiguous(
+          utils::simd_dot_product(
               &grad_output_transposed[out_f * batch_size],
               &input_transposed[in_f * batch_size], batch_size);
     }
@@ -269,7 +269,7 @@ void DenseLayer<T>::input_gradients_impl(const T *grad_output_data,
   tnn::parallel_for_2d(
       batch_size, input_features, [&](size_t n, size_t in_f) {
         grad_input_data[n * input_features + in_f] =
-            utils::simd_dot_product_contiguous(
+            utils::simd_dot_product(
                 &grad_output_data[n * output_features],
                 &weights_transposed[in_f * output_features], output_features);
       });
@@ -280,7 +280,7 @@ void DenseLayer<T>::input_gradients_impl(const T *grad_output_data,
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t in_f = 0; in_f < input_features; ++in_f) {
       grad_input_data[n * input_features + in_f] =
-          utils::simd_dot_product_contiguous(
+          utils::simd_dot_product(
               &grad_output_data[n * output_features],
               &weights_transposed[in_f * output_features], output_features);
     }

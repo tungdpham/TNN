@@ -341,7 +341,7 @@ void Conv2DLayer<T>::conv_gemm_forward_impl(const T *col_data,
         for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
           for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
             output_data[oc * output_size + os] =
-                utils::simd_dot_product_contiguous(
+                utils::simd_dot_product(
                     &weight_data[oc * kernel_size],
                     &col_data_transposed[os * kernel_size], kernel_size);
           }
@@ -353,7 +353,7 @@ void Conv2DLayer<T>::conv_gemm_forward_impl(const T *col_data,
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t os = 0; os < output_size; ++os) {
-      output_data[oc * output_size + os] = utils::simd_dot_product_contiguous(
+      output_data[oc * output_size + os] = utils::simd_dot_product(
           &weight_data[oc * kernel_size],
           &col_data_transposed[os * kernel_size], kernel_size);
     }
@@ -375,7 +375,7 @@ void Conv2DLayer<T>::conv_gemm_weight_gradients_impl(const T *col_data,
         for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
           for (size_t ks = r.cols().begin(); ks != r.cols().end(); ++ks) {
             weight_grad_data[oc * kernel_size + ks] =
-                utils::simd_dot_product_contiguous(
+                utils::simd_dot_product(
                     &grad_output_data[oc * output_size],
                     &col_data[ks * output_size], output_size);
           }
@@ -388,7 +388,7 @@ void Conv2DLayer<T>::conv_gemm_weight_gradients_impl(const T *col_data,
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       weight_grad_data[oc * kernel_size + ks] =
-          utils::simd_dot_product_contiguous(
+          utils::simd_dot_product(
               &grad_output_data[oc * output_size],
               &col_data[ks * output_size], output_size);
     }
@@ -420,7 +420,7 @@ void Conv2DLayer<T>::conv_gemm_input_gradients_impl(const T *grad_output_data,
         for (size_t ks = r.rows().begin(); ks != r.rows().end(); ++ks) {
           for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
             col_grad_data[ks * output_size + os] =
-                utils::simd_dot_product_contiguous(
+                utils::simd_dot_product(
                     &weights_transposed[ks * out_channels],
                     &grad_output_transposed[os * out_channels], out_channels);
           }
@@ -433,7 +433,7 @@ void Conv2DLayer<T>::conv_gemm_input_gradients_impl(const T *grad_output_data,
   for (size_t ks = 0; ks < kernel_size; ++ks) {
     for (size_t os = 0; os < output_size; ++os) {
       col_grad_data[ks * output_size + os] =
-          utils::simd_dot_product_contiguous(
+          utils::simd_dot_product(
               &weights_transposed[ks * out_channels],
               &grad_output_transposed[os * out_channels], out_channels);
     }
