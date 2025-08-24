@@ -1,8 +1,4 @@
-/**
- * @file semi_async_pipeline.cpp
- * @brief Semi-asynchronous distributed pipeline implementation
- * microbatches are immediately backwarded once it reaches coordinator
- */
+
 
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
@@ -23,26 +19,23 @@ using namespace tpipeline;
 namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 128; // Batch size for training
-constexpr int NUM_MICROBATCHES =
-    2;                        // Number of microbatches for distributed training
-constexpr int NUM_EPOCHS = 1; // Number of epochs for training
-constexpr size_t PROGRESS_PRINT_INTERVAL =
-    100; // Print progress every 100 batches
+constexpr int BATCH_SIZE = 128;
+constexpr int NUM_MICROBATCHES = 2;
+constexpr int NUM_EPOCHS = 1;
+constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace mnist_constants
 
-// Create a simple CNN model for demonstration
 Sequential<float> create_demo_model() {
-  auto model = tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-                   .input({1, 28, 28}) // MNIST images are 28x28 grayscale
-                   .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-                   .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                   .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-                   .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
-                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                   .dense(mnist_constants::NUM_CLASSES, "linear",
-                          true, "output")
-                   .build();
+  auto model =
+      tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+          .input({1, 28, 28})
+          .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+          .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+          .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+          .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+          .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+          .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
+          .build();
 
   auto optimizer = std::make_unique<tnn::Adam<float>>(
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
@@ -54,7 +47,6 @@ Sequential<float> create_demo_model() {
   return model;
 }
 
-// Helper function to get worker host from environment or use default
 std::string get_host(const std::string &env_var,
                      const std::string &default_host) {
   const char *env_value = std::getenv(env_var.c_str());
@@ -63,32 +55,24 @@ std::string get_host(const std::string &env_var,
 
 int main() {
 #ifdef _OPENMP
-  // Set OpenMP configuration for optimal performance
+
   const int num_threads = omp_get_max_threads();
-  omp_set_num_threads(
-      std::min(num_threads, 1)); // Limit threads to avoid overhead
+  omp_set_num_threads(std::min(num_threads, 1));
   std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
             << std::endl;
 #endif
-  // Create the model
+
   auto model = create_demo_model();
 
   model.print_config();
 
   std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
 
-  // Define remote endpoints where stages will be deployed
-  // Use environment variables for Docker container hostnames, fallback to
-  // localhost
   std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints =
       {
-          {get_host("WORKER_HOST_8001", "localhost"), 8001,
-           "stage_0"}, // First stage
-          {get_host("WORKER_HOST_8002", "localhost"), 8002,
-           "stage_1"}, // Second stage
-          // {get_host("WORKER_HOST_8003", "localhost"), 8003, "stage_2"}, //
-          // Third stage {get_host("WORKER_HOST_8004","localhost"), 8004,
-          // "stage_3"}  // Fourth stage
+          {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
+          {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+
       };
 
   std::cout << "Using coordinator host: " << coordinator_host << std::endl;
@@ -100,13 +84,11 @@ int main() {
               << std::endl;
   }
 
-  // Create distributed coordinator
   std::cout << "\nCreating distributed coordinator..." << std::endl;
   DistributedPipelineCoordinator<float> coordinator(
       std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES,
       coordinator_host, 8000);
 
-  // Deploy stages to remote machines
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  Worker expected at " << ep.host << ":" << ep.port
@@ -119,13 +101,11 @@ int main() {
     return 1;
   }
 
-  // Start the pipeline
   std::cout << "\nStarting distributed pipeline..." << std::endl;
   coordinator.start();
 
   data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
-  // Validate data loading
   if (!train_loader.load_data("./data/mnist/train.csv")) {
     std::cerr << "Failed to load training data!" << std::endl;
     return -1;
@@ -158,9 +138,9 @@ int main() {
     auto get_next_batch_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(
             get_next_batch_end - get_next_batch_start);
-    
+
     auto split_start = std::chrono::high_resolution_clock::now();
-    // Split the batch into microbatches
+
     std::vector<Tensor<float>> micro_batches =
         batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
@@ -170,13 +150,12 @@ int main() {
     auto split_duration = std::chrono::duration_cast<std::chrono::microseconds>(
         split_end - split_start);
 
-
-    // Asynchronously process every microbatch
     auto process_start = std::chrono::high_resolution_clock::now();
     coordinator.async_process_batch(micro_batches, micro_batch_labels);
     auto process_end = std::chrono::high_resolution_clock::now();
-    auto process_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        process_end - process_start);
+    auto process_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(process_end -
+                                                              process_start);
 
     auto update_start = std::chrono::high_resolution_clock::now();
     coordinator.update_parameters();
@@ -187,23 +166,23 @@ int main() {
                                                               update_start);
 
     if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-      std::cout << "Get batch completed in "
-                << get_next_batch_duration.count() << " microseconds"
-                << std::endl;
+      std::cout << "Get batch completed in " << get_next_batch_duration.count()
+                << " microseconds" << std::endl;
       std::cout << "Split completed in " << split_duration.count()
                 << " microseconds" << std::endl;
-      std::cout << "Async process completed in "
-                << process_duration.count() << " microseconds" << std::endl;
+      std::cout << "Async process completed in " << process_duration.count()
+                << " microseconds" << std::endl;
       std::cout << "Parameter update completed in " << update_duration.count()
                 << " microseconds" << std::endl;
       std::cout << "Batch " << batch_index << "/"
-                << train_loader.size() / train_loader.get_batch_size() << std::endl;
+                << train_loader.size() / train_loader.get_batch_size()
+                << std::endl;
       coordinator.print_profiling_on_all_stages();
     }
-    coordinator.clear_profiling_data(); // Clear profiling data after each batch
+    coordinator.clear_profiling_data();
     ++batch_index;
   }
-  
+
   auto epoch_end = std::chrono::high_resolution_clock::now();
   auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
       epoch_end - epoch_start);
@@ -213,13 +192,12 @@ int main() {
 
   loss_function = coordinator.get_loss_function()->clone();
 
-  // Validate the model on test data
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
   while (test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
                                batch_labels)) {
-    // Split the batch into microbatches
+
     std::vector<Tensor<float>> micro_batches =
         batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
@@ -242,7 +220,6 @@ int main() {
           ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
     }
 
-    // Extract tasks from messages
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
       if (message.is_task_message()) {
