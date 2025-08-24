@@ -24,6 +24,9 @@
 /**/*.cmake
 /**/*.cmake.in
 /cmake_install.cmake
+/compile_commands.json
+/Testing/
+/CTestTestfile.cmake
 *.a
 
 # build artifacts

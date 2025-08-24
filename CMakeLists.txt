@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.18)
 project(DCNN LANGUAGES CXX)
 
+# Generate compile_commands.json for VS Code IntelliSense
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,8 +20,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=haswell -flto -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -mavx -mavx2 -flto")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto")
 
 # Add pedantic warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
@@ -49,28 +52,13 @@ if(ENABLE_CUDA)
 endif()
 
 # Include directories
-include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/asio/include)
-
-# Collect header files
-file(GLOB_RECURSE HEADERS
-    "matrix/**/*.hpp"
-    "nn/**/*.hpp"
-    "tensor/**/*.hpp"
-    "pipeline/**/*.hpp"
-    "utils/**/*.hpp"
+include_directories(
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/asio/include
 )
 
-if(ENABLE_CUDA)
-    file(GLOB_RECURSE CU_SOURCES
-        "matrix/*.cu"
-        "nn/*.cu"
-        "utils/*.cu"
-    )
-endif()
-
 # Create a static library with template instantiations
-add_library(dcnn_instantiations STATIC nn/instantiations.cpp)
+add_library(dcnn_instantiations STATIC src/instantiations.cpp)
 target_link_libraries(dcnn_instantiations PUBLIC m)
 
 # Create a header-only interface library
@@ -112,24 +100,17 @@ function(create_executable target_name source_file)
 endfunction()
 
 # Training executables
-create_executable(mnist_cnn_trainer mnist_cnn_trainer.cpp)
-create_executable(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
-create_executable(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
-create_executable(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
-create_executable(uji_ips_trainer uji_ips_trainer.cpp)
+create_executable(mnist_cnn_trainer examples/mnist_cnn_trainer.cpp)
+create_executable(cifar10_cnn_trainer examples/cifar10_cnn_trainer.cpp)
+create_executable(cifar10_cnn_trainer_v2 examples/cifar10_cnn_trainer_v2.cpp)
+create_executable(cifar100_cnn_trainer examples/cifar100_cnn_trainer.cpp)
+create_executable(uji_ips_trainer examples/uji_ips_trainer.cpp)
 
 # Test executables
-create_executable(mnist_cnn_test mnist_cnn_test.cpp)
-create_executable(pipeline_test pipeline_test.cpp)
+create_executable(mnist_cnn_test tests/mnist_cnn_test.cpp)
+create_executable(pipeline_test tests/pipeline_test.cpp)
 
 # Network executables
-create_executable(network_worker network_worker_main.cpp)
-create_executable(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
-create_executable(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
-
-# Unit tests
-file(GLOB TEST_SOURCES "unit_tests/*.cpp")
-foreach(test_source ${TEST_SOURCES})
-    get_filename_component(test_name ${test_source} NAME_WE)
-    create_executable(${test_name} ${test_source})
-endforeach()
+create_executable(network_worker examples/network_worker_main.cpp)
+create_executable(sync_pipeline_coordinator examples/sync_pipeline_coordinator.cpp)
+create_executable(semi_async_pipeline_coordinator examples/semi_async_pipeline_coordinator.cpp)
