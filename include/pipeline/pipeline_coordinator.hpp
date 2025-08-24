@@ -24,7 +24,7 @@ public:
 
   virtual ~PipelineCoordinator() = default;
 
-  // Core interface - only communicates through messages
+  
   virtual void start() = 0;
 
   virtual void stop() = 0;
@@ -41,7 +41,7 @@ public:
 
   virtual void clear_profiling_data() = 0;
 
-  // Message-based communication only
+  
   void send_message_to_stage(const std::string &stage_id,
                              const Message<T> &message) {
     coordinator_comm_->send_message(stage_id, message);
@@ -54,13 +54,13 @@ public:
         Message<T> message = coordinator_comm_->dequeue_task_message();
         task_messages.push_back(message);
       } catch (const std::runtime_error &e) {
-        break; // No more task messages available
+        break; 
       }
     }
     return task_messages;
   }
 
-  // Get all status messages specifically
+  
   std::vector<Message<T>> get_status_messages() {
     std::vector<Message<T>> status_messages;
     while (this->coordinator_comm_->has_status_message()) {
@@ -68,13 +68,13 @@ public:
         Message<T> message = this->coordinator_comm_->dequeue_status_message();
         status_messages.push_back(message);
       } catch (const std::runtime_error &e) {
-        break; // No more status messages available
+        break; 
       }
     }
     return status_messages;
   }
 
-  // Get all parameter update messages specifically
+  
   std::vector<Message<T>> get_parameter_update_messages() {
     std::vector<Message<T>> param_messages;
     while (this->coordinator_comm_->has_parameter_update_message()) {
@@ -83,7 +83,7 @@ public:
             this->coordinator_comm_->dequeue_parameter_update_message();
         param_messages.push_back(message);
       } catch (const std::runtime_error &e) {
-        break; // No more parameter update messages available
+        break; 
       }
     }
     return param_messages;
@@ -93,8 +93,8 @@ protected:
   int num_stages_;
   int num_microbatches_;
   std::shared_ptr<PipelineCommunicator<T>>
-      coordinator_comm_;                 // Changed to shared_ptr
-  std::vector<std::string> stage_names_; // Only keep stage identifiers
+      coordinator_comm_;                 
+  std::vector<std::string> stage_names_; 
 };
 
 template <typename T = float>
@@ -109,50 +109,50 @@ public:
           "Model must have at least as many layers as stages");
     }
 
-    // Split the model into stages
+    
     auto splitted_models = model.split(num_stages);
 
-    // Create coordinator communicator as shared_ptr
+    
     this->coordinator_comm_ =
         std::make_shared<InProcessPipelineCommunicator<T>>();
 
-    // Set up notification callback for task message arrivals
+    
     this->coordinator_comm_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.notify_all();
     });
 
-    // Generate stage names
+    
     for (int i = 0; i < this->num_stages_; ++i) {
       this->stage_names_.push_back("stage_" + std::to_string(i));
     }
 
-    // Create stages and establish communication network
+    
     std::vector<std::shared_ptr<PipelineCommunicator<T>>> stage_communicators;
 
     for (int i = 0; i < this->num_stages_; ++i) {
-      // Create stage model
+      
       splitted_models[i].enable_profiling(true);
       auto model_ptr =
           std::make_unique<tnn::Sequential<T>>(std::move(splitted_models[i]));
 
-      // Create stage communicator
+      
       auto stage_communicator =
           std::make_shared<InProcessPipelineCommunicator<T>>();
       stage_communicators.push_back(stage_communicator);
 
-      // Create stage - use raw pointer and manage lifetime manually
+      
       auto stage_comm_unique =
           std::unique_ptr<PipelineCommunicator<T>,
                           std::function<void(PipelineCommunicator<T> *)>>(
               stage_communicator.get(),
-              [](PipelineCommunicator<T> *) { /* no-op deleter */ });
+              [](PipelineCommunicator<T> *) {  });
 
       auto stage = std::make_unique<PipelineStage<T>>(
           std::move(model_ptr), std::move(stage_comm_unique),
           this->stage_names_[i]);
 
-      // Store the stage temporarily for setup only
+      
       temp_stages_.emplace_back(std::move(stage));
 
       std::cout << "Created stage: " << this->stage_names_[i]
@@ -161,21 +161,21 @@ public:
                 << std::endl;
     }
 
-    // Set up communication topology
+    
     setup_communication_network(stage_communicators);
 
     std::cout << "Pipeline coordinator initialized with " << this->num_stages_
               << " stages" << std::endl;
   }
 
-  // Transfer ownership of stages to caller and clear internal references
+  
   std::vector<std::unique_ptr<PipelineStage<T>>> get_stages() {
     auto stages = std::move(temp_stages_);
     temp_stages_.clear();
     return stages;
   }
 
-  // Check if stages have been transferred
+  
   bool stages_transferred() const { return temp_stages_.empty(); }
 
   void start() override {
@@ -184,14 +184,14 @@ public:
           "Must call get_stages() first to transfer stage ownership");
     }
 
-    // Send start command to all stages
+    
     for (const auto &stage_name : this->stage_names_) {
       auto start_msg = Message<T>::create_control_message(
           CommandType::START_TRAINING, "coordinator", stage_name);
       this->send_message_to_stage(stage_name, start_msg);
     }
 
-    // Flush all outgoing messages
+    
     this->coordinator_comm_->flush_output_messages();
 
     std::cout << "Started all " << this->num_stages_ << " pipeline stages"
@@ -199,7 +199,7 @@ public:
   }
 
   void stop() override {
-    // Send stop command to all stages
+    
     for (const auto &stage_name : this->stage_names_) {
       auto stop_msg = Message<T>::create_control_message(
           CommandType::STOP_TRAINING, "coordinator", stage_name);
@@ -217,7 +217,7 @@ public:
 
     const std::string &first_stage = this->stage_names_[0];
 
-    // Create task for the first stage
+    
     Task<T> task{TaskType::FORWARD, input, microbatch_id};
     auto forward_msg =
         Message<T>::forward_task(task, "coordinator", first_stage);
@@ -246,12 +246,12 @@ public:
   }
 
   void join(bool direction) override {
-    // Set expected task count based on direction
+    
     expected_task_count_ = this->num_microbatches_;
 
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    // Wait with timeout for the expected number of task messages to arrive
+    
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
     bool success =
@@ -294,7 +294,7 @@ public:
     std::cout << "Sent clear profiling data request to all stages" << std::endl;
   }
 
-  // Status and monitoring through messages only
+  
   void request_status_from_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true,
@@ -309,17 +309,17 @@ public:
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
-    // Wait for confirmations
+    
     wait_for_parameter_updates();
   }
 
 private:
-  // Temporary storage for stages during initialization only
+  
   std::vector<std::unique_ptr<PipelineStage<T>>> temp_stages_;
   std::vector<std::shared_ptr<PipelineCommunicator<T>>>
-      stage_comm_refs_; // Keep refs alive
+      stage_comm_refs_; 
 
-  // Synchronization for event-driven join()
+  
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;
   std::atomic<int> expected_task_count_{0};
@@ -328,14 +328,14 @@ private:
       const std::vector<std::shared_ptr<PipelineCommunicator<T>>>
           &stage_comms) {
 
-    // Store references to keep communicators alive
+    
     stage_comm_refs_ = stage_comms;
 
     auto coordinator_comm_shared =
         std::static_pointer_cast<InProcessPipelineCommunicator<T>>(
             this->coordinator_comm_);
 
-    // Register coordinator in all stage communicators
+    
     for (int i = 0; i < this->num_stages_; ++i) {
       auto stage_comm =
           std::static_pointer_cast<InProcessPipelineCommunicator<T>>(
@@ -343,44 +343,44 @@ private:
       stage_comm->register_communicator("coordinator", this->coordinator_comm_);
     }
 
-    // Set up inter-stage communication
+    
     for (int i = 0; i < this->num_stages_; ++i) {
       auto current_comm =
           std::static_pointer_cast<InProcessPipelineCommunicator<T>>(
               stage_comms[i]);
 
-      // Register previous stage
+      
       if (i > 0) {
         current_comm->register_communicator("prev_stage", stage_comms[i - 1]);
         current_comm->register_recipient(
             "prev_stage", StageEndpoint::in_process(this->stage_names_[i - 1]));
       } else {
-        // First stage receives from coordinator
+        
         current_comm->register_communicator("prev_stage",
                                             this->coordinator_comm_);
         current_comm->register_recipient(
             "prev_stage", StageEndpoint::in_process("coordinator"));
       }
 
-      // Register next stage
+      
       if (i < this->num_stages_ - 1) {
         current_comm->register_communicator("next_stage", stage_comms[i + 1]);
         current_comm->register_recipient(
             "next_stage", StageEndpoint::in_process(this->stage_names_[i + 1]));
       } else {
-        // Last stage sends to coordinator
+        
         current_comm->register_communicator("next_stage",
                                             this->coordinator_comm_);
         current_comm->register_recipient(
             "next_stage", StageEndpoint::in_process("coordinator"));
       }
 
-      // Register coordinator
+      
       current_comm->register_recipient(
           "coordinator", StageEndpoint::in_process("coordinator"));
     }
 
-    // Register stages in coordinator
+    
     for (int i = 0; i < this->num_stages_; ++i) {
       coordinator_comm_shared->register_communicator(this->stage_names_[i],
                                                      stage_comms[i]);
@@ -396,7 +396,7 @@ private:
     const auto timeout = std::chrono::seconds(10);
 
     while (confirmations < this->num_stages_) {
-      // Get specifically parameter update messages
+      
       auto param_messages = this->get_parameter_update_messages();
       for (const auto &message : param_messages) {
         if (message.command_type == CommandType::PARAMETERS_UPDATED) {
@@ -415,11 +415,11 @@ private:
       if (confirmations < this->num_stages_) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
       } else if (confirmations == this->num_stages_) {
-        // printf("All stages confirmed parameter updates\n");
+        
         break;
       }
     }
   }
 };
 
-} // namespace tpipeline
+} 

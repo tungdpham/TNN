@@ -13,12 +13,6 @@
 
 namespace tpipeline {
 
-/**
- * @brief TCP-based network communicator using ASIO
- *
- * Provides reliable network communication between distributed pipeline stages
- * using TCP connections with automatic reconnection and message queuing.
- */
 template <typename T = float>
 class TcpPipelineCommunicator : public PipelineCommunicator<T> {
 public:
@@ -61,16 +55,15 @@ public:
 
     if (acceptor_.is_open()) {
       std::error_code ec;
-      acceptor_.close(ec); // Use error_code version to avoid exceptions
+      acceptor_.close(ec);
     }
 
-    // Close all client connections
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
       for (auto &[id, conn] : connections_) {
         if (conn->socket.is_open()) {
           std::error_code ec;
-          conn->socket.close(ec); // Use error_code version
+          conn->socket.close(ec);
         }
       }
       connections_.clear();
@@ -81,7 +74,6 @@ public:
                     const Message<T> &message) override {
     auto serialized = BinarySerializer::serialize_message(message);
 
-    // Add message length header (4 bytes)
     std::vector<uint8_t> packet;
     uint32_t msg_length = static_cast<uint32_t>(serialized.size());
     packet.resize(4 + serialized.size());
@@ -96,7 +88,7 @@ public:
 
     if (this->out_message_queue_.empty()) {
       std::cout << "Warning: No output messages to flush\n" << std::endl;
-      return; // Nothing to flush
+      return;
     }
 
     while (!this->out_message_queue_.empty()) {
@@ -106,7 +98,6 @@ public:
     }
   }
 
-  // Connect to a remote endpoint
   bool connect_to_peer(const std::string &peer_id, const std::string &host,
                        int port) {
     try {
@@ -122,7 +113,6 @@ public:
         connections_[peer_id] = connection;
       }
 
-      // Start reading from this connection
       start_read(peer_id, connection);
 
       std::cout << "Connected to peer " << peer_id << " at " << host << ":"
@@ -171,7 +161,7 @@ private:
     acceptor_.async_accept(
         new_connection->socket, [this, new_connection](std::error_code ec) {
           if (!ec && is_running_) {
-            // We'll identify the connection when we receive the first message
+
             auto remote_endpoint = new_connection->socket.remote_endpoint();
             std::string temp_id = remote_endpoint.address().to_string() + ":" +
                                   std::to_string(remote_endpoint.port());
@@ -185,7 +175,6 @@ private:
             std::cout << "Accepted connection from " << temp_id << std::endl;
           }
 
-          // Continue accepting connections
           accept_connections();
         });
   }
@@ -195,19 +184,17 @@ private:
     if (!is_running_)
       return;
 
-    // Read message length first (4 bytes)
     asio::async_read(
         connection->socket, asio::buffer(connection->read_buffer.data(), 4),
         [this, connection_id, connection](std::error_code ec,
                                           std::size_t length) {
           if (!ec && is_running_) {
-            // Extract message length
+
             uint32_t msg_length;
             std::memcpy(&msg_length, connection->read_buffer.data(), 4);
 
-            if (msg_length > 0 && msg_length < 1024 * 1024) // Sanity check
-            {
-              // Read the actual message
+            if (msg_length > 0 && msg_length < 1024 * 1024) {
+
               if (connection->read_buffer.size() < msg_length) {
                 connection->read_buffer.resize(msg_length);
               }
@@ -220,7 +207,7 @@ private:
                     if (!ec2 && is_running_) {
                       handle_message(connection_id, connection->read_buffer,
                                      msg_length);
-                      // Continue reading
+
                       start_read(connection_id, connection);
                     } else {
                       handle_connection_error(connection_id, ec2);
@@ -229,7 +216,7 @@ private:
             } else {
               std::cout << "Invalid message length " << msg_length << " from "
                         << connection_id << std::endl;
-              start_read(connection_id, connection); // Try to continue
+              start_read(connection_id, connection);
             }
           } else {
             handle_connection_error(connection_id, ec);
@@ -243,24 +230,6 @@ private:
       std::vector<uint8_t> msg_data(buffer.begin(), buffer.begin() + length);
       Message<T> message = BinarySerializer::deserialize_message<T>(msg_data);
 
-      //   std::cout << "Received message from " << connection_id << " to "
-      //             << message.recipient_id << " of type "
-      //             << static_cast<int>(message.command_type) << std::endl;
-
-      // Update connection mapping if we have sender info
-      // if (!message.sender_id.empty() && message.sender_id != connection_id) {
-      //     std::lock_guard<std::mutex> lock(connections_mutex_);
-      //     auto it = connections_.find(connection_id);
-      //     if (it != connections_.end()) {
-      //         auto connection = it->second;
-      //         connections_.erase(it);
-      //         connections_[message.sender_id] = connection;
-      //         printf("Updated connection mapping: %s -> %s\n",
-      //                connection_id.c_str(), message.sender_id.c_str());
-      //     }
-      // }
-
-      // Enqueue the message for processing
       this->enqueue_input_message(message);
 
     } catch (const std::exception &e) {
@@ -272,21 +241,23 @@ private:
   void handle_connection_error(const std::string &connection_id,
                                std::error_code ec) {
     if (ec) {
-      if(ec == asio::error::eof) {
-        std::cout << "Connection closed by peer: " << connection_id << std::endl;
+      if (ec == asio::error::eof) {
+        std::cout << "Connection closed by peer: " << connection_id
+                  << std::endl;
       } else if (ec == asio::error::connection_reset) {
         std::cout << "Connection reset by peer: " << connection_id << std::endl;
       } else if (ec == asio::error::operation_aborted) {
-        std::cout << "Connection operation aborted: " << connection_id << std::endl;
+        std::cout << "Connection operation aborted: " << connection_id
+                  << std::endl;
       } else if (ec == asio::error::connection_refused) {
-        std::cout << "Connection refused by peer: " << connection_id << std::endl;
-      }else {
+        std::cout << "Connection refused by peer: " << connection_id
+                  << std::endl;
+      } else {
         std::cout << "Connection error with " << connection_id << ": "
                   << ec.message() << std::endl;
       }
     }
 
-    // Remove the connection
     std::lock_guard<std::mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
     if (it != connections_.end()) {
@@ -325,9 +296,6 @@ private:
   }
 };
 
-/**
- * @brief Factory for creating TCP communicators with proper configuration
- */
 class TcpCommunicatorFactory {
 public:
   template <typename T = float>

@@ -297,12 +297,13 @@ public:
           "Microbatch size mismatch with coordinator configuration");
     }
 
-    if(loss_function_ == nullptr) {
-      throw std::runtime_error("Loss function not set for distributed coordinator");
+    if (loss_function_ == nullptr) {
+      throw std::runtime_error(
+          "Loss function not set for distributed coordinator");
     }
 
     for (size_t i = 0; i < this->num_microbatches_; ++i) {
-      
+
       forward(microbatch_inputs[i], i);
     }
 
@@ -314,7 +315,8 @@ public:
         return this->coordinator_comm_->forward_message_count() > 0;
       });
 
-      auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(CommandType::FORWARD_TASK);
+      auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(
+          CommandType::FORWARD_TASK);
 
       if (forward_msg.has_task()) {
         ++processed_microbatches_;
@@ -324,13 +326,13 @@ public:
         // Compute loss and prepare backward task
         Tensor<T> predictions = task.data; // Assuming data contains predictions
         Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-        Tensor<T> gradient = loss_function_->compute_gradient(predictions, targets);
+        Tensor<T> gradient =
+            loss_function_->compute_gradient(predictions, targets);
 
         // Send backward task
         backward(gradient, task.micro_batch_id);
       } else {
-        throw std::runtime_error(
-            "Received forward message without task data");
+        throw std::runtime_error("Received forward message without task data");
       }
     }
 
@@ -444,22 +446,23 @@ private:
 
   bool wait_for_stage_readiness() {
     std::unique_lock<std::mutex> lock(message_notification_mutex);
-    
+
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-    
+
     // Use condition variable instead of polling
     bool success = message_notification_cv.wait_until(lock, timeout, [this]() {
-        return this->coordinator_comm_->message_count_by_type(CommandType::READY_SIGNAL) >= 
-               static_cast<size_t>(this->num_stages_);
+      return this->coordinator_comm_->message_count_by_type(
+                 CommandType::READY_SIGNAL) >=
+             static_cast<size_t>(this->num_stages_);
     });
-    
+
     if (!success) {
-        std::cout << "Timeout waiting for stage readiness\n";
-        return false;
+      std::cout << "Timeout waiting for stage readiness\n";
+      return false;
     }
 
     std::cout << "All stages reported ready!\n";
-    
+
     return true;
   }
 

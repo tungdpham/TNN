@@ -18,8 +18,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
 
@@ -92,11 +92,9 @@ function(create_executable target_name source_file)
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib)
     
-    # Add pthread for network-related executables
-    if(${target_name} MATCHES "network|distributed|pipeline")
-        target_link_libraries(${target_name} PRIVATE pthread)
-    endif()
+    # if(${target_name} MATCHES "network|distributed|pipeline")
+    #     target_link_libraries(${target_name} PRIVATE pthread)
+    # endif()
 endfunction()
 
-# Add subdirectories
 add_subdirectory(examples)

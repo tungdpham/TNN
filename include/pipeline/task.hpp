@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include "../tensor/tensor.hpp"
+#include <string>
 
 namespace tpipeline {
 enum TaskType { FORWARD, BACKWARD };

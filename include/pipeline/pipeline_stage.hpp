@@ -10,7 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <omp.h> // Include OpenMP header
+#include <omp.h>
 #include <queue>
 #include <string>
 
@@ -25,38 +25,36 @@ public:
           communicator,
       const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)),
-        name_(name), should_stop_(true), is_processing_(false) {
-  }
+        name_(name), should_stop_(true), is_processing_(false) {}
 
-  virtual ~PipelineStage() { }
+  virtual ~PipelineStage() {}
 
 protected:
   PipelineStage()
-      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true), is_processing_(false) {}
+      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
+        is_processing_(false) {}
 
 public:
-
   virtual void start() {
-    if(!should_stop_) {
+    if (!should_stop_) {
       std::cerr << "Stage " << name_ << " is already running" << std::endl;
       return;
     }
 
     should_stop_ = false;
 
-    communicator_->set_message_notification_callback(
-        [this]() {
-          std::lock_guard<std::mutex> lock(message_available_mutex_);
-          message_available_cv_.notify_all();
-        }); 
+    communicator_->set_message_notification_callback([this]() {
+      std::lock_guard<std::mutex> lock(message_available_mutex_);
+      message_available_cv_.notify_all();
+    });
   }
 
   virtual void stop() {
     should_stop_ = true;
-    message_available_cv_.notify_all(); // Wake up any waiting threads
+    message_available_cv_.notify_all();
   }
 
-  void message_loop(){
+  void message_loop() {
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
       message_available_cv_.wait(lock, [this]() {
@@ -67,7 +65,6 @@ public:
         break;
       }
 
-      // Process all available messages
       while (communicator_->has_input_message()) {
         auto message = communicator_->dequeue_input_message();
         process_message(message);
@@ -79,14 +76,9 @@ public:
     switch (message.command_type) {
     case CommandType::FORWARD_TASK:
     case CommandType::BACKWARD_TASK: {
-      // auto process_start = std::chrono::high_resolution_clock::now();
+
       process_task_message(message);
-      // auto process_end = std::chrono::high_resolution_clock::now();
-      // auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(process_end - process_start)
-      //                        .count();
-      // std::cout << "Processed message type "
-      //           << static_cast<int>(message.command_type) << " in "
-      //           << duration_ms << " ms" << std::endl;
+
     } break;
     case CommandType::UPDATE_PARAMETERS:
       if (model_) {
@@ -95,7 +87,8 @@ public:
         communicator_->enqueue_output_message(response);
         communicator_->flush_output_messages();
       } else {
-        std::cout << "Warning: No model available to update parameters" << std::endl;
+        std::cout << "Warning: No model available to update parameters"
+                  << std::endl;
       }
       break;
     case CommandType::START_TRAINING:
@@ -117,27 +110,33 @@ public:
 
     case CommandType::ERROR_REPORT:
       if (message.has_text()) {
-        std::cout << "Stage " << name_ << " received error: " << *message.text_data << " from " << message.sender_id << std::endl;
+        std::cout << "Stage " << name_
+                  << " received error: " << *message.text_data << " from "
+                  << message.sender_id << std::endl;
       }
       break;
 
     case CommandType::PRINT_PROFILING:
       if (model_) {
-        std::cout << "Received profiling request for stage " << name_ << std::endl;
+        std::cout << "Received profiling request for stage " << name_
+                  << std::endl;
         model_->print_profiling_summary();
       } else {
-        std::cout << "Warning: No model available to print profiling data" << std::endl;
+        std::cout << "Warning: No model available to print profiling data"
+                  << std::endl;
       }
       break;
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->clear_profiling_data();
       } else {
-        std::cout << "Warning: No model available to clear profiling data" << std::endl;
+        std::cout << "Warning: No model available to clear profiling data"
+                  << std::endl;
       }
       break;
     default:
-      std::cout << "Stage " << name_ << " received unknown command type: " << static_cast<int>(message.command_type) << std::endl;
+      std::cout << "Stage " << name_ << " received unknown command type: "
+                << static_cast<int>(message.command_type) << std::endl;
       break;
     }
   }
@@ -159,9 +158,7 @@ protected:
     const auto &task = message.task.value();
 
     if (message.command_type == CommandType::FORWARD_TASK) {
-      
-      // NOTE: `this->model_->forward` can now safely contain its own
-      // `#pragma omp parallel for` directives.
+
       auto output_data = this->model_->forward(task.data);
       Task<T> output_task(TaskType::FORWARD, output_data, task.micro_batch_id);
 
@@ -172,9 +169,7 @@ protected:
       communicator_->send_to_next_stage(output_message);
 
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
-      
-      // NOTE: `this->model_->backward` can also contain `#pragma omp parallel
-      // for`.
+
       auto output_data = this->model_->backward(task.data);
       Task<T> output_task(TaskType::BACKWARD, output_data, task.micro_batch_id);
 
@@ -185,7 +180,6 @@ protected:
       communicator_->send_to_prev_stage(output_message);
     }
 
-    // Send all queued messages
     communicator_->flush_output_messages();
   }
 

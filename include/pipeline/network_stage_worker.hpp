@@ -18,26 +18,22 @@ namespace tpipeline {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline tasks.
  */
-template <typename T = float> class NetworkStageWorker : public PipelineStage<T> {
+template <typename T = float>
+class NetworkStageWorker : public PipelineStage<T> {
 public:
   explicit NetworkStageWorker(int listen_port)
       : PipelineStage<T>(), listen_port_(listen_port), io_context_(),
         work_guard_(asio::make_work_guard(io_context_)), is_running_(false),
         is_configured_(false) {
 
-    // Create TCP communicator and assign to base communicator_ pointer via a
-    // unique_ptr owning the TcpPipelineCommunicator. We keep a raw pointer
-    // to the owned communicator for internal use where needed.
     tcp_communicator_ = std::make_unique<TcpPipelineCommunicator<T>>(
         io_context_, "localhost", listen_port_);
 
-    // Transfer ownership into the base communicator_ unique_ptr with a no-op
-    // deleter because tcp_communicator_ owns the communicator lifetime here.
-    this->communicator_ = std::unique_ptr<PipelineCommunicator<T>,
-        std::function<void(PipelineCommunicator<T> *)>>(tcp_communicator_.get(),
-            [](PipelineCommunicator<T> *) {});
+    this->communicator_ =
+        std::unique_ptr<PipelineCommunicator<T>,
+                        std::function<void(PipelineCommunicator<T> *)>>(
+            tcp_communicator_.get(), [](PipelineCommunicator<T> *) {});
 
-    // Forward notifications to our condition variable
     tcp_communicator_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_mutex_);
       message_cv_.notify_all();
@@ -63,12 +59,11 @@ public:
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
 
-    // Use message loop similar to PipelineStage but driven by communicator_
     message_loop();
   }
 
   void stop() override {
-    if(!is_running_) {
+    if (!is_running_) {
       return;
     }
 
@@ -190,7 +185,8 @@ private:
 
       this->model_->enable_profiling(true);
 
-      std::cout << "Created model with " << this->model_->size() << " layers" << '\n';
+      std::cout << "Created model with " << this->model_->size() << " layers"
+                << '\n';
 
       // Connect to other stages and coordinator
       setup_stage_connections(config);

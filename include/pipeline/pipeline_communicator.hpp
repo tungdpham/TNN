@@ -14,9 +14,9 @@
 namespace tpipeline {
 
 enum class MessagePriority {
-  TASK,    // FORWARD_TASK, BACKWARD_TASK, UPDATE_PARAMETERS
-  CONTROL, // Control commands like START_TRAINING, STOP_TRAINING, etc.
-  STATUS   // Status requests, stage info, misc messages
+  TASK,    
+  CONTROL, 
+  STATUS   
 };
 
 template <typename T = float> class PipelineCommunicator {
@@ -24,12 +24,12 @@ public:
   PipelineCommunicator() = default;
   
   virtual ~PipelineCommunicator() {
-    // Clear all message queues
+    
     std::lock_guard<std::mutex> in_lock(in_message_mutex_);
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
     std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
     
-    // Clear queues
+    
     std::queue<tpipeline::Message<T>> empty_task;
     std::queue<tpipeline::Message<T>> empty_control;
     std::queue<tpipeline::Message<T>> empty_status;
@@ -40,32 +40,32 @@ public:
     status_queue_.swap(empty_status);
     out_message_queue_.swap(empty_out);
     
-    // Clear maps
+    
     recipients_.clear();
     
-    // Reset callback
+    
     message_notification_callback_ = nullptr;
   }
 
-  // Send a message to a specific recipient
+  
   virtual void send_message(const std::string& recipient_id, const tpipeline::Message<T>& message) = 0;
   
-  // Send all queued output messages
+  
   virtual void flush_output_messages() = 0;
 
-  // Register a recipient endpoint
+  
   virtual void register_recipient(const std::string& recipient_id, const tpipeline::StageEndpoint& endpoint) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     recipients_[recipient_id] = endpoint;
   }
 
-  // Remove a recipient
+  
   virtual void unregister_recipient(const std::string& recipient_id) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     recipients_.erase(recipient_id);
   }
 
-  // Get recipient endpoint
+  
   virtual tpipeline::StageEndpoint get_recipient(const std::string& recipient_id) const {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     auto it = recipients_.find(recipient_id);
@@ -75,7 +75,7 @@ public:
     return it->second;
   }
 
-  // Enqueue a message into the input queue (called by other stages/coordinator)
+  
   inline virtual void enqueue_input_message(const tpipeline::Message<T>& message) {
     MessagePriority priority = get_message_priority(message.command_type);
     
@@ -93,19 +93,19 @@ public:
           break;
       }
     }
-    // Notify stage that a message is available
+    
     if (message_notification_callback_) {
       message_notification_callback_();
     }
   }
 
-  // Enqueue a message for sending (to be sent by send_message or flush)
+  
   inline void enqueue_output_message(const std::string& recipient_id, const tpipeline::Message<T>& message) {
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
     this->out_message_queue_.push({recipient_id, message});
   }
 
-  // Simplified version that uses message's recipient_id
+  
   inline void enqueue_output_message(const tpipeline::Message<T>& message) {
     if (message.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
@@ -113,25 +113,25 @@ public:
     enqueue_output_message(message.recipient_id, message);
   }
 
-  // Dequeue a message from the input queue (priority order: TASK -> CONTROL -> STATUS)
+  
   inline tpipeline::Message<T> dequeue_input_message() {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
-    // Try task queue first
+    
     if (!this->task_queue_.empty()) {
       tpipeline::Message<T> message = this->task_queue_.front();
       this->task_queue_.pop();
       return message;
     }
     
-    // Then control queue
+    
     if (!this->control_queue_.empty()) {
       tpipeline::Message<T> message = this->control_queue_.front();
       this->control_queue_.pop();
       return message;
     }
     
-    // Finally status queue
+    
     if (!this->status_queue_.empty()) {
       tpipeline::Message<T> message = this->status_queue_.front();
       this->status_queue_.pop();
@@ -141,7 +141,7 @@ public:
     throw std::runtime_error("No input messages available");
   }
 
-  // Dequeue a specific type of message (task, status, parameter update, etc.)
+  
   inline tpipeline::Message<T> dequeue_message_by_type(CommandType target_type) {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
@@ -164,7 +164,7 @@ public:
         }
       }
       
-      // Put back all non-target messages
+      
       while (!temp_queue.empty()) {
         queue.push(temp_queue.front());
         temp_queue.pop();
@@ -196,11 +196,11 @@ public:
     return result.value();
   }
 
-  // Convenience method to dequeue any task message (FORWARD_TASK or BACKWARD_TASK)
+  
   inline tpipeline::Message<T> dequeue_task_message() {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
-    // Task messages should only be in task queue
+    
     std::queue<tpipeline::Message<T>> temp_queue;
     tpipeline::Message<T> target_message;
     bool found = false;
@@ -218,7 +218,7 @@ public:
       }
     }
     
-    // Put back all non-task messages
+    
     while (!temp_queue.empty()) {
       this->task_queue_.push(temp_queue.front());
       temp_queue.pop();
@@ -231,12 +231,12 @@ public:
     return target_message;
   }
 
-  // Convenience method to dequeue status messages
+  
   inline tpipeline::Message<T> dequeue_status_message() {
     return dequeue_message_by_type(CommandType::STATUS_RESPONSE);
   }
 
-  // Convenience method to dequeue parameter update messages  
+  
   inline tpipeline::Message<T> dequeue_parameter_update_message() {
     return dequeue_message_by_type(CommandType::PARAMETERS_UPDATED);
   }
@@ -260,12 +260,12 @@ public:
     return message_count_by_type(CommandType::PARAMETERS_UPDATED);
   }
 
-  // Count messages of a specific type in input queue
+  
   inline size_t message_count_by_type(CommandType target_type) const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     size_t count = 0;
     
-    // Check all three queues based on the target type's priority
+    
     MessagePriority target_priority = get_message_priority(target_type);
     
     auto check_queue = [&count, target_type](const std::queue<tpipeline::Message<T>>& queue) {
@@ -294,7 +294,7 @@ public:
     return count;
   }
 
-  // Convenience methods for common message type counts
+  
   inline size_t status_message_count() const {
     return message_count_by_type(CommandType::STATUS_RESPONSE);
   }
@@ -303,7 +303,7 @@ public:
     return message_count_by_type(CommandType::PARAMETERS_UPDATED);
   }
 
-  // Check if the input queue is empty
+  
   inline bool has_input_message() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     return !this->task_queue_.empty() || 
@@ -312,16 +312,16 @@ public:
   }
 
 private:
-  // Helper function to determine message priority
+  
   static MessagePriority get_message_priority(CommandType command_type) {
     switch(command_type) {
-      // Task priority: Core pipeline tasks
+      
       case CommandType::FORWARD_TASK:
       case CommandType::BACKWARD_TASK:
       case CommandType::UPDATE_PARAMETERS:
         return MessagePriority::TASK;
         
-      // Control priority: Control commands
+      
       case CommandType::START_TRAINING:
       case CommandType::STOP_TRAINING:
       case CommandType::PAUSE_TRAINING:
@@ -338,7 +338,7 @@ private:
       case CommandType::CHECKPOINT_COMPLETE:
         return MessagePriority::CONTROL;
         
-      // Status priority: Status, info, misc messages
+      
       case CommandType::STATUS_REQUEST:
       case CommandType::STATUS_RESPONSE:
       case CommandType::HEALTH_CHECK:
@@ -354,11 +354,11 @@ private:
 
 public:
 
-  // Check if there are any task messages in the input queue
+  
   inline bool has_task_message() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
-    // Check task queue (where all task messages should be)
+    
     auto temp_queue = this->task_queue_;
     while (!temp_queue.empty()) {
       auto message = temp_queue.front();
@@ -371,7 +371,7 @@ public:
     return false;
   }
 
-  // Check if there are messages of a specific type in the input queue
+  
   inline bool has_message_of_type(CommandType target_type) const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
@@ -401,7 +401,7 @@ public:
     return false;
   }
 
-  // Convenience methods for common message type checks
+  
   inline bool has_status_message() const {
     return has_message_of_type(CommandType::STATUS_RESPONSE);
   }
@@ -414,7 +414,7 @@ public:
   inline bool has_control_message() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     
-    // Control messages should be in control queue
+    
     auto temp_queue = this->control_queue_;
     while (!temp_queue.empty()) {
       auto message = temp_queue.front();
@@ -434,21 +434,21 @@ public:
     
     std::vector<tpipeline::Message<T>> messages;
     
-    // Add task messages first
+    
     auto task_temp = this->task_queue_;
     while (!task_temp.empty()) {
       messages.push_back(task_temp.front());
       task_temp.pop();
     }
     
-    // Add control messages
+    
     auto control_temp = this->control_queue_;
     while (!control_temp.empty()) {
       messages.push_back(control_temp.front());
       control_temp.pop();
     }
     
-    // Add status messages
+    
     auto status_temp = this->status_queue_;
     while (!status_temp.empty()) {
       messages.push_back(status_temp.front());
@@ -463,7 +463,7 @@ public:
     return !this->out_message_queue_.empty();
   }
 
-  // Convenience methods for common communication patterns
+  
   inline void send_to_next_stage(const tpipeline::Message<T>& message) {
     enqueue_output_message("next_stage", message);
   }
@@ -476,12 +476,12 @@ public:
     enqueue_output_message("coordinator", message);
   }
 
-  // Set callback for message notification (event-based)
+  
   inline void set_message_notification_callback(std::function<void()> callback) {
     message_notification_callback_ = callback;
   }
 
-  // Additional convenience methods for priority-based queuing
+  
   inline size_t task_queue_size() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
     return this->task_queue_.size();
@@ -518,22 +518,22 @@ protected:
     tpipeline::Message<T> message;
   };
 
-  // Three priority queues for input messages
-  std::queue<tpipeline::Message<T>> task_queue_;     // FORWARD_TASK, BACKWARD_TASK, UPDATE_PARAMETERS
-  std::queue<tpipeline::Message<T>> control_queue_;  // Control commands
-  std::queue<tpipeline::Message<T>> status_queue_;   // Status, info, misc messages
+  
+  std::queue<tpipeline::Message<T>> task_queue_;     
+  std::queue<tpipeline::Message<T>> control_queue_;  
+  std::queue<tpipeline::Message<T>> status_queue_;   
   
   std::queue<OutgoingMessage> out_message_queue_;
   
-  // Mutex locks
+  
   mutable std::mutex in_message_mutex_;
   mutable std::mutex out_message_mutex_;
   mutable std::mutex recipients_mutex_;
 
-  // Event-based notification callback
+  
   std::function<void()> message_notification_callback_;
 
-  // Map of recipient IDs to their endpoints
+  
   std::unordered_map<std::string, tpipeline::StageEndpoint> recipients_;
 };
 
@@ -560,14 +560,14 @@ public:
         auto outgoing = this->out_message_queue_.front();
         this->out_message_queue_.pop();
         
-        // Release lock before sending to avoid deadlock
+        
         lock.~lock_guard();
         send_message(outgoing.recipient_id, outgoing.message);
       }
     }
   }
 
-  // Set reference to other communicators for in-process communication
+  
   void register_communicator(const std::string& recipient_id, 
                             std::shared_ptr<PipelineCommunicator<T>> communicator) {
     std::lock_guard<std::mutex> lock(communicators_mutex_);
@@ -579,4 +579,4 @@ private:
   mutable std::mutex communicators_mutex_;
 };
 
-} // namespace tpipeline
+} 

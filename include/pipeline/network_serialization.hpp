@@ -1,298 +1,264 @@
 #pragma once
 
 #include "../tensor/tensor.hpp"
+#include "command_type.hpp"
 #include "message.hpp"
 #include "task.hpp"
-#include "command_type.hpp"
-#include <nlohmann/json.hpp>
-#include <vector>
-#include <string>
 #include <cstring>
+#include <nlohmann/json.hpp>
+#include <string>
+#include <vector>
 
 namespace tpipeline {
 
-/**
- * @brief Binary serialization utilities for network communication
- * 
- * Provides efficient serialization/deserialization of pipeline messages,
- * tasks, and tensors for network transmission.
- */
 class BinarySerializer {
 public:
-    // Serialize a tensor to binary format
-    template<typename T>
-    static std::vector<uint8_t> serialize_tensor(const Tensor<T>& tensor) {
-        std::vector<uint8_t> buffer;
-        
-        // Write shape
-        auto shape = tensor.shape();
-        uint32_t shape_size = static_cast<uint32_t>(shape.size());
-        write_value(buffer, shape_size);
-        
-        for (size_t dim : shape) {
-            uint32_t dim_val = static_cast<uint32_t>(dim);
-            write_value(buffer, dim_val);
-        }
-        
-        // Write data
-        const T* data = tensor.data();
-        size_t data_size = tensor.size();
-        uint32_t data_count = static_cast<uint32_t>(data_size);
-        write_value(buffer, data_count);
-        
-        size_t data_bytes = data_size * sizeof(T);
-        size_t old_size = buffer.size();
-        buffer.resize(old_size + data_bytes);
-        std::memcpy(buffer.data() + old_size, data, data_bytes);
-        
-        return buffer;
+  template <typename T>
+  static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
+    std::vector<uint8_t> buffer;
+
+    auto shape = tensor.shape();
+    uint32_t shape_size = static_cast<uint32_t>(shape.size());
+    write_value(buffer, shape_size);
+
+    for (size_t dim : shape) {
+      uint32_t dim_val = static_cast<uint32_t>(dim);
+      write_value(buffer, dim_val);
     }
-    
-    // Deserialize a tensor from binary format
-    template<typename T>
-    static Tensor<T> deserialize_tensor(const std::vector<uint8_t>& buffer, size_t& offset) {
-        // Read shape
-        uint32_t shape_size = read_value<uint32_t>(buffer, offset);
-        std::vector<size_t> shape(shape_size);
-        
-        for (uint32_t i = 0; i < shape_size; ++i) {
-            uint32_t dim = read_value<uint32_t>(buffer, offset);
-            shape[i] = static_cast<size_t>(dim);
-        }
-        
-        // Read data
-        uint32_t data_count = read_value<uint32_t>(buffer, offset);
-        
-        Tensor<T> tensor(shape);
-        size_t data_bytes = data_count * sizeof(T);
-        
-        if (offset + data_bytes > buffer.size()) {
-            throw std::runtime_error("Invalid tensor data in buffer");
-        }
-        
-        std::memcpy(tensor.data(), buffer.data() + offset, data_bytes);
-        offset += data_bytes;
-        
-        return tensor;
+
+    const T *data = tensor.data();
+    size_t data_size = tensor.size();
+    uint32_t data_count = static_cast<uint32_t>(data_size);
+    write_value(buffer, data_count);
+
+    size_t data_bytes = data_size * sizeof(T);
+    size_t old_size = buffer.size();
+    buffer.resize(old_size + data_bytes);
+    std::memcpy(buffer.data() + old_size, data, data_bytes);
+
+    return buffer;
+  }
+
+  template <typename T>
+  static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer,
+                                      size_t &offset) {
+
+    uint32_t shape_size = read_value<uint32_t>(buffer, offset);
+    std::vector<size_t> shape(shape_size);
+
+    for (uint32_t i = 0; i < shape_size; ++i) {
+      uint32_t dim = read_value<uint32_t>(buffer, offset);
+      shape[i] = static_cast<size_t>(dim);
     }
-    
-    // Serialize a task to binary format
-    template<typename T>
-    static std::vector<uint8_t> serialize_task(const Task<T>& task) {
-        std::vector<uint8_t> buffer;
-        
-        // Write task type
-        write_value(buffer, static_cast<uint32_t>(task.type));
-        
-        // Write micro batch id
-        write_value(buffer, static_cast<uint32_t>(task.micro_batch_id));
-        
-        // Write tensor
-        auto tensor_data = serialize_tensor(task.data);
-        write_value(buffer, static_cast<uint32_t>(tensor_data.size()));
-        buffer.insert(buffer.end(), tensor_data.begin(), tensor_data.end());
-        
-        return buffer;
+
+    uint32_t data_count = read_value<uint32_t>(buffer, offset);
+
+    Tensor<T> tensor(shape);
+    size_t data_bytes = data_count * sizeof(T);
+
+    if (offset + data_bytes > buffer.size()) {
+      throw std::runtime_error("Invalid tensor data in buffer");
     }
-    
-    // Deserialize a task from binary format
-    template<typename T>
-    static Task<T> deserialize_task(const std::vector<uint8_t>& buffer, size_t& offset) {
-        // Read task type
-        uint32_t type_val = read_value<uint32_t>(buffer, offset);
-        TaskType type = static_cast<TaskType>(type_val);
-        
-        // Read micro batch id
-        uint32_t micro_batch_id = read_value<uint32_t>(buffer, offset);
-        
-        // Read tensor
-        uint32_t tensor_size = read_value<uint32_t>(buffer, offset);
-        if (offset + tensor_size > buffer.size()) {
-            throw std::runtime_error("Invalid task data in buffer");
-        }
-        
-        std::vector<uint8_t> tensor_buffer(buffer.begin() + offset, 
-                                          buffer.begin() + offset + tensor_size);
-        offset += tensor_size;
-        
-        size_t tensor_offset = 0;
-        Tensor<T> tensor = deserialize_tensor<T>(tensor_buffer, tensor_offset);
-        
-        return Task<T>(type, tensor, static_cast<int>(micro_batch_id));
+
+    std::memcpy(tensor.data(), buffer.data() + offset, data_bytes);
+    offset += data_bytes;
+
+    return tensor;
+  }
+
+  template <typename T>
+  static std::vector<uint8_t> serialize_task(const Task<T> &task) {
+    std::vector<uint8_t> buffer;
+
+    write_value(buffer, static_cast<uint32_t>(task.type));
+
+    write_value(buffer, static_cast<uint32_t>(task.micro_batch_id));
+
+    auto tensor_data = serialize_tensor(task.data);
+    write_value(buffer, static_cast<uint32_t>(tensor_data.size()));
+    buffer.insert(buffer.end(), tensor_data.begin(), tensor_data.end());
+
+    return buffer;
+  }
+
+  template <typename T>
+  static Task<T> deserialize_task(const std::vector<uint8_t> &buffer,
+                                  size_t &offset) {
+
+    uint32_t type_val = read_value<uint32_t>(buffer, offset);
+    TaskType type = static_cast<TaskType>(type_val);
+
+    uint32_t micro_batch_id = read_value<uint32_t>(buffer, offset);
+
+    uint32_t tensor_size = read_value<uint32_t>(buffer, offset);
+    if (offset + tensor_size > buffer.size()) {
+      throw std::runtime_error("Invalid task data in buffer");
     }
-    
-    // Serialize a message to binary format
-    template<typename T>
-    static std::vector<uint8_t> serialize_message(const Message<T>& message) {
-        std::vector<uint8_t> buffer;
-        
-        // Write command type
-        write_value(buffer, static_cast<uint32_t>(message.command_type));
-        
-        // Write sequence number
-        write_value(buffer, static_cast<uint32_t>(message.sequence_number));
-        
-        // Write sender_id
-        write_string(buffer, message.sender_id);
-        
-        // Write recipient_id
-        write_string(buffer, message.recipient_id);
-        
-        // Write optional fields flags
-        uint8_t flags = 0;
-        if (message.task.has_value()) flags |= 0x01;
-        if (message.text_data.has_value()) flags |= 0x02;
-        if (message.signal.has_value()) flags |= 0x04;
-        write_value(buffer, flags);
-        
-        // Write optional task
-        if (message.task.has_value()) {
-            auto task_data = serialize_task(message.task.value());
-            write_value(buffer, static_cast<uint32_t>(task_data.size()));
-            buffer.insert(buffer.end(), task_data.begin(), task_data.end());
-        }
-        
-        // Write optional text_data
-        if (message.text_data.has_value()) {
-            write_string(buffer, message.text_data.value());
-        }
-        
-        // Write optional signal
-        if (message.signal.has_value()) {
-            write_value(buffer, static_cast<uint8_t>(message.signal.value() ? 1 : 0));
-        }
-        
-        return buffer;
+
+    std::vector<uint8_t> tensor_buffer(buffer.begin() + offset,
+                                       buffer.begin() + offset + tensor_size);
+    offset += tensor_size;
+
+    size_t tensor_offset = 0;
+    Tensor<T> tensor = deserialize_tensor<T>(tensor_buffer, tensor_offset);
+
+    return Task<T>(type, tensor, static_cast<int>(micro_batch_id));
+  }
+
+  template <typename T>
+  static std::vector<uint8_t> serialize_message(const Message<T> &message) {
+    std::vector<uint8_t> buffer;
+
+    write_value(buffer, static_cast<uint32_t>(message.command_type));
+
+    write_value(buffer, static_cast<uint32_t>(message.sequence_number));
+
+    write_string(buffer, message.sender_id);
+
+    write_string(buffer, message.recipient_id);
+
+    uint8_t flags = 0;
+    if (message.task.has_value())
+      flags |= 0x01;
+    if (message.text_data.has_value())
+      flags |= 0x02;
+    if (message.signal.has_value())
+      flags |= 0x04;
+    write_value(buffer, flags);
+
+    if (message.task.has_value()) {
+      auto task_data = serialize_task(message.task.value());
+      write_value(buffer, static_cast<uint32_t>(task_data.size()));
+      buffer.insert(buffer.end(), task_data.begin(), task_data.end());
     }
-    
-    // Deserialize a message from binary format
-    template<typename T>
-    static Message<T> deserialize_message(const std::vector<uint8_t>& buffer) {
-        size_t offset = 0;
-        
-        // Read command type
-        uint32_t cmd_type = read_value<uint32_t>(buffer, offset);
-        CommandType command_type = static_cast<CommandType>(cmd_type);
-        
-        Message<T> message(command_type);
-        
-        // Read sequence number
-        message.sequence_number = static_cast<int>(read_value<uint32_t>(buffer, offset));
-        
-        // Read sender_id
-        message.sender_id = read_string(buffer, offset);
-        
-        // Read recipient_id
-        message.recipient_id = read_string(buffer, offset);
-        
-        // Read flags
-        uint8_t flags = read_value<uint8_t>(buffer, offset);
-        
-        // Read optional task
-        if (flags & 0x01) {
-            uint32_t task_size = read_value<uint32_t>(buffer, offset);
-            if (offset + task_size > buffer.size()) {
-                throw std::runtime_error("Invalid task data in message buffer");
-            }
-            
-            std::vector<uint8_t> task_buffer(buffer.begin() + offset,
-                                           buffer.begin() + offset + task_size);
-            offset += task_size;
-            
-            size_t task_offset = 0;
-            message.task = deserialize_task<T>(task_buffer, task_offset);
-        }
-        
-        // Read optional text_data
-        if (flags & 0x02) {
-            message.text_data = read_string(buffer, offset);
-        }
-        
-        // Read optional signal
-        if (flags & 0x04) {
-            uint8_t signal_val = read_value<uint8_t>(buffer, offset);
-            message.signal = (signal_val != 0);
-        }
-        
-        return message;
+
+    if (message.text_data.has_value()) {
+      write_string(buffer, message.text_data.value());
     }
+
+    if (message.signal.has_value()) {
+      write_value(buffer, static_cast<uint8_t>(message.signal.value() ? 1 : 0));
+    }
+
+    return buffer;
+  }
+
+  template <typename T>
+  static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
+    size_t offset = 0;
+
+    uint32_t cmd_type = read_value<uint32_t>(buffer, offset);
+    CommandType command_type = static_cast<CommandType>(cmd_type);
+
+    Message<T> message(command_type);
+
+    message.sequence_number =
+        static_cast<int>(read_value<uint32_t>(buffer, offset));
+
+    message.sender_id = read_string(buffer, offset);
+
+    message.recipient_id = read_string(buffer, offset);
+
+    uint8_t flags = read_value<uint8_t>(buffer, offset);
+
+    if (flags & 0x01) {
+      uint32_t task_size = read_value<uint32_t>(buffer, offset);
+      if (offset + task_size > buffer.size()) {
+        throw std::runtime_error("Invalid task data in message buffer");
+      }
+
+      std::vector<uint8_t> task_buffer(buffer.begin() + offset,
+                                       buffer.begin() + offset + task_size);
+      offset += task_size;
+
+      size_t task_offset = 0;
+      message.task = deserialize_task<T>(task_buffer, task_offset);
+    }
+
+    if (flags & 0x02) {
+      message.text_data = read_string(buffer, offset);
+    }
+
+    if (flags & 0x04) {
+      uint8_t signal_val = read_value<uint8_t>(buffer, offset);
+      message.signal = (signal_val != 0);
+    }
+
+    return message;
+  }
 
 private:
-    template<typename T>
-    static void write_value(std::vector<uint8_t>& buffer, const T& value) {
-        size_t old_size = buffer.size();
-        buffer.resize(old_size + sizeof(T));
-        std::memcpy(buffer.data() + old_size, &value, sizeof(T));
+  template <typename T>
+  static void write_value(std::vector<uint8_t> &buffer, const T &value) {
+    size_t old_size = buffer.size();
+    buffer.resize(old_size + sizeof(T));
+    std::memcpy(buffer.data() + old_size, &value, sizeof(T));
+  }
+
+  template <typename T>
+  static T read_value(const std::vector<uint8_t> &buffer, size_t &offset) {
+    if (offset + sizeof(T) > buffer.size()) {
+      throw std::runtime_error("Buffer underrun while reading value");
     }
-    
-    template<typename T>
-    static T read_value(const std::vector<uint8_t>& buffer, size_t& offset) {
-        if (offset + sizeof(T) > buffer.size()) {
-            throw std::runtime_error("Buffer underrun while reading value");
-        }
-        
-        T value;
-        std::memcpy(&value, buffer.data() + offset, sizeof(T));
-        offset += sizeof(T);
-        return value;
+
+    T value;
+    std::memcpy(&value, buffer.data() + offset, sizeof(T));
+    offset += sizeof(T);
+    return value;
+  }
+
+  static void write_string(std::vector<uint8_t> &buffer,
+                           const std::string &str) {
+    uint32_t length = static_cast<uint32_t>(str.length());
+    write_value(buffer, length);
+
+    size_t old_size = buffer.size();
+    buffer.resize(old_size + str.length());
+    std::memcpy(buffer.data() + old_size, str.data(), str.length());
+  }
+
+  static std::string read_string(const std::vector<uint8_t> &buffer,
+                                 size_t &offset) {
+    uint32_t length = read_value<uint32_t>(buffer, offset);
+
+    if (offset + length > buffer.size()) {
+      throw std::runtime_error("Buffer underrun while reading string");
     }
-    
-    static void write_string(std::vector<uint8_t>& buffer, const std::string& str) {
-        uint32_t length = static_cast<uint32_t>(str.length());
-        write_value(buffer, length);
-        
-        size_t old_size = buffer.size();
-        buffer.resize(old_size + str.length());
-        std::memcpy(buffer.data() + old_size, str.data(), str.length());
-    }
-    
-    static std::string read_string(const std::vector<uint8_t>& buffer, size_t& offset) {
-        uint32_t length = read_value<uint32_t>(buffer, offset);
-        
-        if (offset + length > buffer.size()) {
-            throw std::runtime_error("Buffer underrun while reading string");
-        }
-        
-        std::string str(reinterpret_cast<const char*>(buffer.data() + offset), length);
-        offset += length;
-        return str;
-    }
+
+    std::string str(reinterpret_cast<const char *>(buffer.data() + offset),
+                    length);
+    offset += length;
+    return str;
+  }
 };
 
-/**
- * @brief Stage configuration for network deployment
- */
 struct StageConfig {
-    std::string stage_id;
-    int stage_index;
-    nlohmann::json model_config;  // Sequential model configuration
-    std::string next_stage_endpoint;
-    std::string prev_stage_endpoint;
-    std::string coordinator_endpoint;
-    
-    // Convert to JSON for network transmission
-    nlohmann::json to_json() const {
-        return nlohmann::json{
-            {"stage_id", stage_id},
-            {"stage_index", stage_index},
-            {"model_config", model_config},
-            {"next_stage_endpoint", next_stage_endpoint},
-            {"prev_stage_endpoint", prev_stage_endpoint},
-            {"coordinator_endpoint", coordinator_endpoint}
-        };
-    }
-    
-    // Create from JSON
-    static StageConfig from_json(const nlohmann::json& j) {
-        StageConfig config;
-        config.stage_id = j["stage_id"];
-        config.stage_index = j["stage_index"];
-        config.model_config = j["model_config"];
-        config.next_stage_endpoint = j["next_stage_endpoint"];
-        config.prev_stage_endpoint = j["prev_stage_endpoint"];
-        config.coordinator_endpoint = j["coordinator_endpoint"];
-        return config;
-    }
+  std::string stage_id;
+  int stage_index;
+  nlohmann::json model_config;
+  std::string next_stage_endpoint;
+  std::string prev_stage_endpoint;
+  std::string coordinator_endpoint;
+
+  nlohmann::json to_json() const {
+    return nlohmann::json{{"stage_id", stage_id},
+                          {"stage_index", stage_index},
+                          {"model_config", model_config},
+                          {"next_stage_endpoint", next_stage_endpoint},
+                          {"prev_stage_endpoint", prev_stage_endpoint},
+                          {"coordinator_endpoint", coordinator_endpoint}};
+  }
+
+  static StageConfig from_json(const nlohmann::json &j) {
+    StageConfig config;
+    config.stage_id = j["stage_id"];
+    config.stage_index = j["stage_index"];
+    config.model_config = j["model_config"];
+    config.next_stage_endpoint = j["next_stage_endpoint"];
+    config.prev_stage_endpoint = j["prev_stage_endpoint"];
+    config.coordinator_endpoint = j["coordinator_endpoint"];
+    return config;
+  }
 };
 
 } // namespace tpipeline

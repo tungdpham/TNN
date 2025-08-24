@@ -1,28 +1,24 @@
-// Lightweight parallel-for helpers with optional Intel TBB backend.
+
 #pragma once
 
 #include <cstddef>
 #include <functional>
 
-#ifdef USE_TBB 
-// Allow either the project macro `USE_TBB` or `USE_INTEL_TBB` to enable
-// Intel/oneAPI TBB headers. Some installations expose headers under
-// <oneapi/tbb/...> while others use <tbb/...>, so prefer the oneapi path
-// when `USE_INTEL_TBB` is explicitly requested.
+#ifdef USE_TBB
+
 #if defined(USE_INTEL_TBB)
-#include <oneapi/tbb/parallel_for.h>
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/blocked_range2d.h>
+#include <oneapi/tbb/parallel_for.h>
 #else
-#include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
 #include <tbb/blocked_range2d.h>
+#include <tbb/parallel_for.h>
 #endif
 #endif
 
 namespace tnn {
 
-// 1D range with optional index type (allows parallel_for_range<Index>(...))
 template <typename Index = size_t, typename Func>
 inline void parallel_for_range(Index begin, Index end, Func f) {
 #ifdef USE_TBB
@@ -39,8 +35,6 @@ inline void parallel_for_range(Index begin, Index end, Func f) {
 #endif
 }
 
-// 2D range: dims are [dim0, dim1], callback gets (i, j)
-// 2D range with optional index type
 template <typename Index = size_t, typename Func>
 inline void parallel_for_2d(Index dim0, Index dim1, Func f) {
 #ifdef USE_TBB

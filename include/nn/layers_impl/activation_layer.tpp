@@ -16,7 +16,7 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 template <typename T>
 Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
-  Tensor<T> output = input.clone(); // Copy
+  Tensor<T> output = input.clone();
   activation_->apply(output);
   return output;
 }
@@ -41,7 +41,7 @@ std::string ActivationLayer<T>::type() const {
   return "activation";
 }
 
-// Configuration
+
 template <typename T>
 LayerConfig ActivationLayer<T>::get_config() const {
   LayerConfig config;
@@ -50,14 +50,12 @@ LayerConfig ActivationLayer<T>::get_config() const {
   return config;
 }
 
-// Clone method
 template <typename T>
 std::unique_ptr<Layer<T>> ActivationLayer<T>::clone() const {
   return std::make_unique<ActivationLayer<T>>(activation_->clone(),
                                               this->name_);
 }
 
-// Output shape computation
 template <typename T>
 std::vector<size_t>
 ActivationLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {

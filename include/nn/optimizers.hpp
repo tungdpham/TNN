@@ -11,7 +11,6 @@
 
 namespace tnn {
 
-// Configuration structure for optimizers
 struct OptimizerConfig {
     std::string type;
     std::string name;
@@ -31,7 +30,6 @@ struct OptimizerConfig {
     }
 };
 
-// Base class for all optimizers
 template <typename T = float>
 class Optimizer {
 public:
@@ -52,7 +50,6 @@ protected:
     float learning_rate_;
 };
 
-// Stochastic Gradient Descent (SGD) optimizer
 template <typename T = float>
 class SGD : public Optimizer<T> {
 public:
@@ -111,7 +108,6 @@ private:
     std::vector<Tensor<T>> velocities_;
 };
 
-// Adam optimizer
 template <typename T = float>
 class Adam : public Optimizer<T> {
 public:
@@ -191,7 +187,6 @@ private:
     std::vector<Tensor<T>> v_; // 2nd moment vector
 };
 
-// Optimizer Factory
 template <typename T = float>
 class OptimizerFactory {
 public:
