@@ -69,7 +69,7 @@ int main() {
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")              // Max Pooling - Output: 256x4x4
             .flatten("flatten")
             .dense(512, "relu", true, "fc1")      // Fully Connected Layer 1 - Auto-inferred input features
-            .batchnorm(512, 1e-5f, 0.1f, true, "bn1")       // Batch Norm
+            .batchnorm(1e-5f, 0.1f, true, "bn1")       // Batch Norm
             .dense(100, "linear", true, "output")         // Output Layer for 100 classes
             .build();
 

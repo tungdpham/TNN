@@ -2,8 +2,9 @@
 
 #include <memory>
 #include <stdlib.h>
+#if defined(__AVX2__) || defined(__SSE2__)
 #include <immintrin.h>  
-
+#endif
 namespace utils {
 template <typename T>
 void transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
@@ -159,6 +160,8 @@ T simd_dot_product(const T *weights, const T *col_data,
     }
 
 #else
+    std::cerr << "Warning: SIMD not supported, using scalar dot product."
+              << std::endl;
     // Fallback scalar implementation
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];

@@ -34,6 +34,7 @@
 /mnist_cnn_pipeline_trainer
 /cifar100_cnn_trainer
 /cifar10_cnn_trainer
+/cifar10_cnn_trainer_v2
 /uji_ips_trainer
 /pipeline_test
 /network_worker

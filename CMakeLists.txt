@@ -17,8 +17,8 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Compiler flags
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=haswell -funroll-loops -mavx -mavx2 -flto -DNDEBUG")
-set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=haswell -mavx -mavx2 -flto")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=haswell -flto -DNDEBUG")
+set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -mavx -mavx2 -flto")
 
 # Add pedantic warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
@@ -111,14 +111,10 @@ function(create_executable target_name source_file)
     endif()
 endfunction()
 
-# Main executable
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
-    create_executable(main main.cpp)
-endif()
-
 # Training executables
 create_executable(mnist_cnn_trainer mnist_cnn_trainer.cpp)
 create_executable(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
+create_executable(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
 create_executable(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_executable(uji_ips_trainer uji_ips_trainer.cpp)
 
@@ -136,25 +132,4 @@ file(GLOB TEST_SOURCES "unit_tests/*.cpp")
 foreach(test_source ${TEST_SOURCES})
     get_filename_component(test_name ${test_source} NAME_WE)
     create_executable(${test_name} ${test_source})
-endforeach()
-
-# Custom targets for convenience
-add_custom_target(tests)
-foreach(test_source ${TEST_SOURCES})
-    get_filename_component(test_name ${test_source} NAME_WE)
-    add_dependencies(tests ${test_name})
-endforeach()
-
-# Run tests target
-add_custom_target(run_tests
-    COMMENT "Running all tests"
-    DEPENDS tests
-)
-
-foreach(test_source ${TEST_SOURCES})
-    get_filename_component(test_name ${test_source} NAME_WE)
-    add_custom_command(TARGET run_tests POST_BUILD
-        COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${test_name}
-        COMMENT "Running ${test_name}"
-    )
 endforeach()

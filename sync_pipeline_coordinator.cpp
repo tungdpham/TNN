@@ -28,12 +28,12 @@ constexpr size_t PROGRESS_PRINT_INTERVAL =
 // Create a simple CNN model for demonstration
 Sequential<float> create_demo_model() {
   auto model = tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-                   .conv2d(1, 8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+                   .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
                    .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                   .conv2d(8, 16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-                   .conv2d(16, 48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+                   .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+                   .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                   .dense(48 * 2 * 2, mnist_constants::NUM_CLASSES, "linear",
+                   .dense(mnist_constants::NUM_CLASSES, "linear",
                           true, "output")
                    .build();
 

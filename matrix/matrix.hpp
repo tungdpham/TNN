@@ -3,7 +3,9 @@
 #include <cstring>
 #include <iostream>
 #include <random>
+#ifdef __AVX2__
 #include <immintrin.h> // For AVX2 intrinsics
+#endif
 #include <algorithm>
 #include <vector>
 #include <cstdlib>     // For aligned_alloc and free
@@ -46,6 +48,7 @@ private:
 
   // AVX2 helper functions for vectorized operations
   inline void avx2_fill(T value, int size) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       const __m256 avx_value = _mm256_set1_ps(value);
@@ -65,9 +68,14 @@ private:
         data_[i] = value;
       }
     }
+#else
+    // Fallback for non-AVX2 systems
+    std::fill(data_, data_ + size, value);
+#endif
   }
 
   inline void avx2_add(const T* a, const T* b, T* result, int size) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       
@@ -89,9 +97,16 @@ private:
         result[i] = a[i] + b[i];
       }
     }
+#else
+    std::copy(a, a + size, result);
+    for (int i = 0; i < size; ++i) {
+      result[i] += b[i];  
+    }
+#endif
   }
 
   inline void avx2_sub(const T* a, const T* b, T* result, int size) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       
@@ -113,9 +128,16 @@ private:
         result[i] = a[i] - b[i];
       }
     }
+#else
+    std::copy(a, a + size, result);
+    for (int i = 0; i < size; ++i) {
+      result[i] -= b[i];  
+    }
+#endif
   }
 
   inline void avx2_mul_scalar(const T* a, T scalar, T* result, int size) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       const __m256 avx_scalar = _mm256_set1_ps(scalar);
@@ -137,9 +159,16 @@ private:
         result[i] = a[i] * scalar;
       }
     }
+#else
+    std::copy(a, a + size, result);
+    for (int i = 0; i < size; ++i) {
+      result[i] *= scalar;
+    }
+#endif
   }
 
   inline void avx2_div_scalar(const T* a, T scalar, T* result, int size) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       const __m256 avx_scalar = _mm256_set1_ps(scalar);
@@ -161,10 +190,17 @@ private:
         result[i] = a[i] / scalar;
       }
     }
+#else
+    std::copy(a, a + size, result);
+    for (int i = 0; i < size; ++i) {
+      result[i] /= scalar;  
+    }
+#endif
   }
 
   // AVX2-optimized matrix multiplication for float matrices
   inline void avx2_matmul(const Matrix &a, const Matrix &b, Matrix &result) {
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; // 8 floats per AVX2 register
       
@@ -216,6 +252,18 @@ private:
         }
       }
     }
+#else
+    // Fallback for non-AVX2 systems - use standard algorithm
+    for (int i = 0; i < a.rows_; ++i) {
+      for (int j = 0; j < b.cols_; ++j) {
+        T sum = 0;
+        for (int k = 0; k < a.cols_; ++k) {
+          sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
+        }
+        result.data_[i * b.cols_ + j] = sum;  
+      }
+    }
+#endif
   }
 
 public:
@@ -547,6 +595,7 @@ public:
   T mean() const {
     int size = rows_ * cols_;
     
+#ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       if (size > 32) { // Use AVX2 for larger arrays
         const int avx_size = 8; // 8 floats per AVX2 register
@@ -573,6 +622,7 @@ public:
         return sum / (1.0 * size);
       }
     }
+#endif
     
     // Fallback for small arrays or non-float types
     T sum = 0.0;

@@ -912,18 +912,6 @@ public:
     return *this;
   }
 
-  // Overloaded dense for backward compatibility (manual input specification)
-  SequentialBuilder &dense(size_t input_features, size_t output_features,
-                          const std::string &activation = "none",
-                          bool use_bias = true,
-                          const std::string &name = "") {
-    auto layer = tnn::dense<T>(
-        input_features, output_features, activation, use_bias,
-        name.empty() ? "dense_" + std::to_string(model_.size()) : name);
-    model_.add(std::move(layer));
-    return *this;
-  }
-
   // Conv2D layer with automatic input channel inference
   SequentialBuilder &conv2d(size_t out_channels,
                            size_t kernel_h, size_t kernel_w,
@@ -942,22 +930,6 @@ public:
     // Shape format: [batch, channels, height, width] - take channels from index 1
     size_t in_channels = current_shape[1];
     
-    auto layer = tnn::conv2d<T>(
-        in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
-        pad_h, pad_w, activation, use_bias, 
-        name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
-    model_.add(std::move(layer));
-    return *this;
-  }
-
-  // Overloaded conv2d for backward compatibility (manual channel specification)
-  SequentialBuilder &conv2d(size_t in_channels, size_t out_channels,
-                           size_t kernel_h, size_t kernel_w,
-                           size_t stride_h = 1, size_t stride_w = 1,
-                           size_t pad_h = 0, size_t pad_w = 0,
-                           const std::string &activation = "none",
-                           bool use_bias = true,
-                           const std::string &name = "") {
     auto layer = tnn::conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
         pad_h, pad_w, activation, use_bias, 
@@ -988,17 +960,6 @@ public:
       num_features = current_shape[1];
     }
     
-    auto layer = tnn::batchnorm<T>(
-        num_features, epsilon, momentum, affine,
-        name.empty() ? "batchnorm_" + std::to_string(model_.size()) : name);
-    model_.add(std::move(layer));
-    return *this;
-  }
-
-  // Overloaded batchnorm for backward compatibility (manual feature specification)
-  SequentialBuilder &batchnorm(size_t num_features, T epsilon = T(1e-5),
-                              T momentum = T(0.1), bool affine = true,
-                              const std::string &name = "") {
     auto layer = tnn::batchnorm<T>(
         num_features, epsilon, momentum, affine,
         name.empty() ? "batchnorm_" + std::to_string(model_.size()) : name);
