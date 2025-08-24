@@ -18,6 +18,29 @@ sudo apt install libtbb-dev
 # Install CUDA (follow NVIDIA's installation guide)
 ```
 
+## Prepraring Data
+Download the dataset needed before running the examples.
+the structure should look like this. Alternatively, you change the path to data in the example code.
+
+- For MNIST dataset, use kaggle.
+- For CIFAR10 and CIFAR100, download from
+[here](https://www.cs.toronto.edu/~kriz/cifar.html)
+- For UJI and UTS indoor positioning dataset, download from their paper.
+
+```
+data/
+  mnist/
+    train.csv
+    test.csv
+  cifar-10-batches-bin/ (default extract)
+  cifar-100-binary/ (default extract)
+  uji/
+    train.csv
+    validation.csv
+  uts/
+    train.csv
+    test.csv
+```
 ## Quick Start
 
 ### Option 1: Using the build script (Recommended)
