@@ -143,7 +143,7 @@ for (int epoch = 0; epoch < num_epochs; ++epoch) {
     model.train();
     
     while (data_loader.get_next_batch(batch_data, batch_labels)) {
-        // Forward pass
+        
         Tensor<float> predictions = model.forward(batch_data);
         
         // Apply softmax for classification

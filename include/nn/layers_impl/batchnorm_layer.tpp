@@ -22,19 +22,17 @@ BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
     gamma_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
     beta_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
 
-    // Initialize gamma to 1 and beta to 0
     gamma_.fill(T(1));
     beta_.fill(T(0));
   }
 
-  // Initialize running statistics
   running_mean_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
   running_var_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
 }
 
-// Forward pass
+
 template <typename T>
 Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
                                      int micro_batch_id) {
@@ -53,7 +51,6 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
   Tensor<T> output(input.shape());
 
   if (this->is_training_) {
-    // Training mode: compute batch statistics
     Tensor<T> batch_mean(std::vector<size_t>{channels, 1, 1, 1});
     Tensor<T> batch_var(std::vector<size_t>{channels, 1, 1, 1});
 
@@ -255,7 +252,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
                                       int micro_batch_id) {
@@ -439,7 +436,6 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   return grad_input;
 }
 
-// Virtual method implementations
 template <typename T>
 std::string BatchNormLayer<T>::type() const {
   return "batchnorm";
@@ -465,10 +461,9 @@ std::unique_ptr<Layer<T>> BatchNormLayer<T>::clone() const {
 template <typename T>
 std::vector<size_t> BatchNormLayer<T>::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
-  return input_shape; // Batch normalization doesn't change shape
+  return input_shape;
 }
 
-// Protected method implementations
 template <typename T>
 void BatchNormLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
   if (affine_) {

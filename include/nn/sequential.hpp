@@ -272,7 +272,7 @@ public:
                  "====\n\n";
   }
 
-  // Forward pass
+  
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
@@ -312,7 +312,7 @@ public:
     return current_output;
   }
 
-  // Backward pass
+  
   Tensor<T> backward(const Tensor<T> &grad_output, int micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(

@@ -16,7 +16,7 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
   }
 }
 
-// Forward pass
+
 template <typename T>
 Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   if (!this->is_training_) {
@@ -92,7 +92,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
                                     int micro_batch_id) {
@@ -137,7 +137,7 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
   return grad_input;
 }
 
-// Virtual method implementations
+
 template <typename T>
 std::string DropoutLayer<T>::type() const {
   return "dropout";

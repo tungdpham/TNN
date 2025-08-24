@@ -302,7 +302,7 @@ public:
     }
 
     for (size_t i = 0; i < this->num_microbatches_; ++i) {
-      // Forward pass
+      
       forward(microbatch_inputs[i], i);
     }
 

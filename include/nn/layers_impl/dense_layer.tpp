@@ -36,7 +36,7 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
   weights_.fill_random_normal(T(0), std_dev);
 }
 
-// Forward pass
+
 template <typename T>
 Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
@@ -54,20 +54,16 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
 
-  // Perform matrix multiplication
   gemm_forward(input.data(), weights_.data(), output.data(), batch_size,
                input_features_, output_features_);
 
-  // Add bias
   if (use_bias_) {
     add_bias_vector(output.data(), bias_.data(), batch_size,
                     output_features_);
   }
 
-  // Store pre-activation output
   micro_batch_pre_activations_[micro_batch_id] = output.clone();
 
-  // Apply activation if provided
   if (activation_) {
     activation_->apply(output);
   }
@@ -75,7 +71,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
                                   int micro_batch_id) {
@@ -184,7 +180,7 @@ void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
   add_bias_impl(output_data, bias_data, batch_size, output_features);
 }
 
-// Implementation functions
+
 template <typename T>
 void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
                               T *output_data, const size_t batch_size,
@@ -309,7 +305,7 @@ void DenseLayer<T>::add_bias_impl(T *output_data, const T *bias_data,
 #endif
 }
 
-// Virtual method implementations
+
 template <typename T>
 std::string DenseLayer<T>::type() const {
   return "dense";

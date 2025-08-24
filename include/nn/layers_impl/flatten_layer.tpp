@@ -9,7 +9,7 @@ template <typename T>
 FlattenLayer<T>::FlattenLayer(const std::string &name)
     : StatelessLayer<T>(name) {}
 
-// Forward pass
+
 template <typename T>
 Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
@@ -22,7 +22,7 @@ Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &grad_output,
                                     int micro_batch_id) {
@@ -40,7 +40,7 @@ Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &grad_output,
   return grad_input;
 }
 
-// Virtual method implementations
+
 template <typename T>
 std::string FlattenLayer<T>::type() const {
   return "flatten";

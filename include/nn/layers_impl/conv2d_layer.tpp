@@ -44,7 +44,7 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
   weights_.fill_random_normal(T(0), std_dev);
 }
 
-// Forward pass
+
 template <typename T>
 Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   if (input.channels() != in_channels_) {
@@ -64,20 +64,18 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  // Perform im2col transformation
+  // im2col transformation
   Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_,
                                       stride_w_, pad_h_, pad_w_);
   micro_batch_im2col_matrices_[micro_batch_id] =
       col_matrix; // Cache for backward pass
 
-  // Create output tensor
   Tensor<T> output(batch_size, out_channels_, output_h, output_w);
 
-  // Prepare data for GEMM operation
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  // Perform convolution using GEMM
+  // Perform convolution via GEMM
   auto output_flat = std::make_unique<T[]>(out_channels_ * output_size);
   conv_gemm_forward(col_matrix.data(), weights_.data(), output_flat.get(),
                     output_size, kernel_size, out_channels_);
@@ -157,7 +155,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
                                    int micro_batch_id) {
@@ -191,23 +189,19 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
 
   Tensor<T> current_grad = grad_output;
 
-  // Backprop through activation
   if (activation_) {
     current_grad =
         activation_->compute_gradient(it_pre_act->second, &current_grad);
   }
 
-  // Initialize gradients
   weight_gradients_.fill(T(0));
   if (use_bias_) {
     bias_gradients_.fill(T(0));
   }
 
-  // Prepare data for GEMM operations
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  // Flatten gradient output for GEMM
   auto grad_output_flat = std::make_unique<T[]>(out_channels_ * output_size);
 
 #ifdef USE_TBB
@@ -235,12 +229,10 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   }
 #endif
 
-  // Compute weight gradients
   conv_gemm_weight_gradients(cached_im2col_matrix.data(),
                              grad_output_flat.get(), weight_gradients_.data(),
                              output_size, kernel_size, out_channels_);
 
-  // Compute bias gradients
   if (use_bias_) {
 #ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, out_channels_, [&](size_t oc) {
@@ -272,13 +264,11 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
 #endif
   }
 
-  // Compute input gradients
   Matrix<T> col_grad_matrix(kernel_size, output_size);
   conv_gemm_input_gradients(grad_output_flat.get(), weights_.data(),
                             col_grad_matrix.data(), output_size, kernel_size,
                             out_channels_);
 
-  // Use col2im to convert back to input gradient tensor
   Tensor<T> grad_input = Tensor<T>::col2im(
       col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
       kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
@@ -286,7 +276,6 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   return grad_input;
 }
 
-// Helper function implementations
 template <typename T>
 void Conv2DLayer<T>::conv_gemm_forward(const T *col_data, const T *weight_data,
                                        T *output_data, size_t output_size,
@@ -318,7 +307,7 @@ void Conv2DLayer<T>::conv_gemm_input_gradients(const T *grad_output_data,
                                  output_size, kernel_size, out_channels);
 }
 
-// Implementation functions
+
 template <typename T>
 void Conv2DLayer<T>::conv_gemm_forward_impl(const T *col_data,
                                             const T *weight_data,
@@ -326,10 +315,7 @@ void Conv2DLayer<T>::conv_gemm_forward_impl(const T *col_data,
                                             const size_t output_size,
                                             const size_t kernel_size,
                                             const size_t out_channels) const {
-
-  // Transpose im2col matrix for better memory access patterns
-  // Original: col_data[kernel_size x output_size]
-  // Transposed: col_data_T[output_size x kernel_size]
+  // Transpose for better memory access
   auto col_data_transposed = std::make_unique<T[]>(kernel_size * output_size);
   utils::transpose_2d(col_data, col_data_transposed.get(), kernel_size,
                       output_size);
@@ -441,7 +427,7 @@ void Conv2DLayer<T>::conv_gemm_input_gradients_impl(const T *grad_output_data,
 #endif
 }
 
-// Virtual method implementations
+
 template <typename T>
 std::string Conv2DLayer<T>::type() const {
   return "conv2d";

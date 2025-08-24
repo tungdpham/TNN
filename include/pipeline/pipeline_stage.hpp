@@ -159,7 +159,7 @@ protected:
     const auto &task = message.task.value();
 
     if (message.command_type == CommandType::FORWARD_TASK) {
-      // Forward pass
+      
       // NOTE: `this->model_->forward` can now safely contain its own
       // `#pragma omp parallel for` directives.
       auto output_data = this->model_->forward(task.data);
@@ -172,7 +172,7 @@ protected:
       communicator_->send_to_next_stage(output_message);
 
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
-      // Backward pass
+      
       // NOTE: `this->model_->backward` can also contain `#pragma omp parallel
       // for`.
       auto output_data = this->model_->backward(task.data);

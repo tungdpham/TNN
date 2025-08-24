@@ -19,11 +19,9 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  // Use more efficient storage for mask indices
   std::unordered_map<int, std::vector<size_t>> micro_batch_mask_indices_;
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
 
-  // Pre-computed stride values for faster access
   mutable size_t input_stride_n_, input_stride_c_, input_stride_h_,
       input_stride_w_;
   mutable size_t output_stride_n_, output_stride_c_, output_stride_h_,
@@ -34,7 +32,6 @@ public:
                  size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                  const std::string &name = "maxpool2d");
 
-  // Add method to clear cached data for memory management
   void clear_cache(int micro_batch_id = -1);
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;

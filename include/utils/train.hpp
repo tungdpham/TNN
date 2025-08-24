@@ -39,7 +39,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
     while (train_loader.get_next_batch(batch_data, batch_labels)) {
       ++num_batches;
 
-      // Forward pass
+      
       predictions = model.forward(batch_data);
       utils::apply_softmax<float>(predictions);
 
@@ -52,7 +52,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
       total_loss += loss;
       total_accuracy += accuracy;
 
-      // Backward pass
+      
       const Tensor<float> loss_gradient =
           model.loss_function()->compute_gradient(predictions, batch_labels);
       model.backward(loss_gradient);

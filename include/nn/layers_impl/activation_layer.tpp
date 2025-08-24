@@ -4,7 +4,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
                                     const std::string &name)
@@ -14,7 +13,6 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
   }
 }
 
-// Forward pass
 template <typename T>
 Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
@@ -23,7 +21,6 @@ Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id
   return output;
 }
 
-// Backward pass
 template <typename T>
 Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &grad_output,
                                        int micro_batch_id) {
@@ -38,7 +35,7 @@ Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &grad_output,
   return grad;
 }
 
-// Type identifier
+
 template <typename T>
 std::string ActivationLayer<T>::type() const {
   return "activation";

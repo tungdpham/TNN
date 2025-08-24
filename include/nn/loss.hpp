@@ -12,7 +12,6 @@
 
 namespace tnn {
 
-// Configuration structure for loss functions
 struct LossConfig {
     std::string type;
     std::string name;
@@ -32,25 +31,20 @@ struct LossConfig {
     }
 };
 
-// Base class for all loss functions
 template <typename T = float>
 class Loss {
 public:
     virtual ~Loss() = default;
     
-    // Pure virtual functions that must be implemented by derived classes
     virtual T compute_loss(const Tensor<T>& predictions, const Tensor<T>& targets) = 0;
     virtual Tensor<T> compute_gradient(const Tensor<T>& predictions, const Tensor<T>& targets) = 0;
     
-    // Serialization support
     virtual std::string name() const = 0;
     virtual LossConfig get_config() const = 0;
     virtual std::unique_ptr<Loss<T>> clone() const = 0;
     
-    // Optional: Get number of parameters (for losses that have learnable parameters)
     virtual size_t num_parameters() const { return 0; }
     
-    // Optional: Reset any internal state (useful for stateful losses)
     virtual void reset() {}
 };
 

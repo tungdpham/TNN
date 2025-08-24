@@ -46,7 +46,7 @@ private:
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const;
 
-  // Implementation functions
+  
   void gemm_impl(const T *input_data, const T *weight_data, T *output_data,
                  const size_t batch_size, const size_t input_features,
                  const size_t output_features) const;

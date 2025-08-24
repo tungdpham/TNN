@@ -21,7 +21,7 @@ namespace tnn {
 #include "activations_impl/leaky_relu.hpp"
 #include "activations_impl/softmax.hpp"
 
-// Factory for creating tensor activation functions
+// Factory for creating activation functions
 template <typename T = float> class ActivationFactory {
 private:
   static std::unordered_map<

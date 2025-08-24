@@ -43,7 +43,7 @@ void MaxPool2DLayer<T>::clear_cache(int micro_batch_id) {
   }
 }
 
-// Forward pass
+
 template <typename T>
 Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
                                      int micro_batch_id) {
@@ -175,7 +175,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
   return output;
 }
 
-// Backward pass
+
 template <typename T>
 Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
                                       int micro_batch_id) {
@@ -271,7 +271,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
   return grad_input;
 }
 
-// Virtual method implementations
+
 template <typename T>
 std::string MaxPool2DLayer<T>::type() const {
   return "maxpool2d";
