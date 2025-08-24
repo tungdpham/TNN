@@ -2,7 +2,7 @@ services:
   worker-8001:
     build: .
     container_name: dcnn-worker-8001
-    command: ["./network_worker", "8001"]
+    command: ["./bin/network_worker", "8001"]
     hostname: worker-8001
     ports:
       - "8001:8001"
@@ -13,7 +13,7 @@ services:
   worker-8002:
     build: .
     container_name: dcnn-worker-8002
-    command: ["./network_worker", "8002"]
+    command: ["./bin/network_worker", "8002"]
     hostname: worker-8002
     ports:
       - "8002:8002"
@@ -24,7 +24,7 @@ services:
   # worker-8003:
   #   build: .
   #   container_name: dcnn-worker-8003
-  #   command: ["./network_worker", "8003"]
+  #   command: ["./bin/network_worker", "8003"]
   #   hostname: worker-8003
   #   ports:
   #     - "8003:8003"
@@ -34,7 +34,7 @@ services:
   # worker-8004:
   #   build: .
   #   container_name: dcnn-worker-8004
-  #   command: ["./network_worker", "8004"]
+  #   command: ["./bin/network_worker", "8004"]
   #   hostname: worker-8004
   #   ports:
   #     - "8004:8004"
@@ -55,7 +55,7 @@ services:
       - worker-8002
     environment:
       - COORDINATOR_HOST=coordinator
-      - PROFILE=${PROFILE}
+      - PROFILE=${PROFILE} # optionally replace with "semi_async" or "sync"
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
       # - WORKER_HOST_8003=worker-8003

@@ -6,13 +6,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Build options
+# Defaults
 option(ENABLE_OPENMP "Enable OpenMP support" ON)
 option(ENABLE_CUDA "Enable CUDA support" OFF)
 option(ENABLE_TBB "Enable Intel TBB support" OFF)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)
 
-# Set build type
+# Build type
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
 endif()
@@ -21,7 +21,6 @@ endif()
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto -DNDEBUG")
 set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto")
 
-# Add pedantic warnings
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wpedantic")
 
 # Debug override
@@ -49,20 +48,22 @@ if(ENABLE_CUDA)
     set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
 endif()
 
+# Set output directories
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
 # Include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/asio/include
 )
 
-# Create a static library with template instantiations
 add_library(dcnn_instantiations STATIC src/instantiations.cpp)
 target_link_libraries(dcnn_instantiations PUBLIC m)
 
-# Create a header-only interface library
 add_library(dcnn_lib INTERFACE)
 
-# Link libraries to common library (INTERFACE for header-only)
 target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations m)
 
 if(ENABLE_OPENMP)
@@ -97,18 +98,5 @@ function(create_executable target_name source_file)
     endif()
 endfunction()
 
-# Training executables
-create_executable(mnist_cnn_trainer examples/mnist_cnn_trainer.cpp)
-create_executable(cifar10_cnn_trainer examples/cifar10_cnn_trainer.cpp)
-create_executable(cifar10_cnn_trainer_v2 examples/cifar10_cnn_trainer_v2.cpp)
-create_executable(cifar100_cnn_trainer examples/cifar100_cnn_trainer.cpp)
-create_executable(uji_ips_trainer examples/uji_ips_trainer.cpp)
-
-# Test executables
-create_executable(mnist_cnn_test tests/mnist_cnn_test.cpp)
-create_executable(pipeline_test tests/pipeline_test.cpp)
-
-# Network executables
-create_executable(network_worker examples/network_worker_main.cpp)
-create_executable(sync_pipeline_coordinator examples/sync_pipeline_coordinator.cpp)
-create_executable(semi_async_pipeline_coordinator examples/semi_async_pipeline_coordinator.cpp)
+# Add subdirectories
+add_subdirectory(examples)

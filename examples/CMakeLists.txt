@@ -1,0 +1,15 @@
+# Training executables
+create_executable(mnist_cnn_trainer mnist_cnn_trainer.cpp)
+create_executable(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
+create_executable(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
+create_executable(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
+create_executable(uji_ips_trainer uji_ips_trainer.cpp)
+
+# Test executables
+create_executable(mnist_cnn_test mnist_cnn_test.cpp)
+create_executable(pipeline_test pipeline_test.cpp)
+
+# Network executables
+create_executable(network_worker network_worker_main.cpp)
+create_executable(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
+create_executable(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)

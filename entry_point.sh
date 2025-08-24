@@ -3,10 +3,10 @@
 # Check the PROFILE environment variable and run the corresponding program
 case "$PROFILE" in
   sync)
-    exec ./sync_pipeline_coordinator
+    exec ./bin/sync_pipeline_coordinator
     ;;
   semi_async)
-    exec ./semi_async_pipeline_coordinator
+    exec ./bin/semi_async_pipeline_coordinator
     ;;
   async)
     echo "Async mode is not yet supported."

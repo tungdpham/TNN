@@ -71,26 +71,7 @@ After building, you'll find the following executables in the `build/` directory:
 - `network_worker` - Network pipeline stage worker
 - `distributed_pipeline_docker` - Distributed pipeline example
 
-## IDE Integration
-
-### VS Code
-1. Install the CMake Tools extension
-2. Open the project folder
-3. Press `Ctrl+Shift+P` and run "CMake: Configure"
-4. Press `F7` to build or use the status bar
-
-### CLion
-Just open the project folder - CLion will automatically detect the CMakeLists.txt file.
-
-## Troubleshooting
-
-### CUDA Issues
-If you have CUDA enabled but get errors:
-- Ensure CUDA toolkit is installed
-- Check that your GPU supports the architecture (currently set to sm_89)
-- Adjust `CMAKE_CUDA_FLAGS` in CMakeLists.txt if needed
-
-### Missing Dependencies
+## Missing Dependencies
 ```bash
 # Install OpenMP (usually comes with GCC)
 sudo apt install libomp-dev

@@ -16,35 +16,41 @@
 # large files
 /data/*
 
-# build
+# uild directories and artifacts
 /build/
-/CMakeCache.txt
-/CMakeFiles/
-/Makefile
-/**/*.cmake
-/**/*.cmake.in
-/cmake_install.cmake
-/compile_commands.json
-/Testing/
-/CTestTestfile.cmake
-*.a
+**/build/
+/lib/
+/bin/
 
-# build artifacts
-/**/*.o
-/main
-/mnist_cnn_trainer
-/mnist_cnn_test
-/mnist_cnn_pipeline_trainer
-/cifar100_cnn_trainer
-/cifar10_cnn_trainer
-/cifar10_cnn_trainer_v2
-/uji_ips_trainer
-/pipeline_test
-/network_worker
-/sync_pipeline_coordinator
-/semi_async_pipeline_coordinator
-/profile.json.gz
+# CMake generated files (anywhere in the project)
+CMakeCache.txt
+**/CMakeCache.txt
+CMakeFiles/
+**/CMakeFiles/
+cmake_install.cmake
+**/cmake_install.cmake
+Makefile
+**/Makefile
+compile_commands.json
+**/compile_commands.json
 
+# CMake testing
+Testing/
+**/Testing/
+CTestTestfile.cmake
+**/CTestTestfile.cmake
+DartConfiguration.tcl
+
+# CMake temporary and generated files
+*.cmake.in
+cmake_uninstall.cmake
+CMakeDoxyfile.in
+CMakeDoxygenDefaults.cmake
+install_manifest.txt
+
+# artifacts
+*.log
+*.out
 
 # snapshots
 /model_snapshots/*
