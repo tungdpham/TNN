@@ -1,5 +1,7 @@
 # editor configs
 /.vscode/
+/.idea/
+/.vs/
 /.direnv/
 /.envrc
 /**/*.sln
