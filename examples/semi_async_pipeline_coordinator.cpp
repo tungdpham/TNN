@@ -124,8 +124,14 @@ int main() {
 
   size_t batch_index = 0;
 
+  train_loader.shuffle();
+  test_loader.shuffle();
+
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+
+  train_loader.reset();
+  test_loader.reset();
 
   auto epoch_start = std::chrono::high_resolution_clock::now();
 
@@ -149,6 +155,11 @@ int main() {
 
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
+    for(auto &mb : micro_batches) {
+      std::cout << "Micro-batch shape: " << mb.shape_str() << std::endl;
+    }
+    
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration = std::chrono::duration_cast<std::chrono::microseconds>(
         split_end - split_start);

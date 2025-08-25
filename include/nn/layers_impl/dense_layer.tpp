@@ -91,6 +91,18 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
         std::to_string(micro_batch_id));
   }
 
+  // check if shapes match
+  if (grad_output.shape() != it_pre_act->second.shape()) {
+    std::cerr << "Gradient output shape: " << grad_output.shape_str()
+              << ", cached pre-activation shape: "
+              << it_pre_act->second.shape_str() << std::endl;
+    for (const auto &pair : micro_batch_pre_activations_) {
+      std::cout << "Cached micro-batch ID: " << pair.first << "'s pre activation shape" << pair.second.shape_str() << std::endl;
+    }
+    throw std::invalid_argument(
+        "Gradient output shape does not match cached pre-activation shape");
+  }
+
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
   Tensor<T> grad_input(last_input.shape());

@@ -120,9 +120,14 @@ int main() {
 
   size_t batch_index = 0;
 
+  train_loader.shuffle();
+
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
 
+  train_loader.reset();
+  test_loader.reset();
+  
   auto epoch_start = std::chrono::high_resolution_clock::now();
 
   while (true) {

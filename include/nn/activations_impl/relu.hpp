@@ -1,20 +1,18 @@
 #pragma once
 
 // ReLU Activation for Tensors
-template <typename T = float>
-class ReLU : public ActivationFunction<T> {
+template <typename T = float> class ReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;
 
 public:
-  explicit ReLU(T negative_slope = T(0))
-      : negative_slope_(negative_slope) {}
+  explicit ReLU(T negative_slope = T(0)) : negative_slope_(negative_slope) {}
 
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
     });
@@ -38,8 +36,7 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -59,8 +56,7 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -84,8 +80,7 @@ public:
     T *grad_data = gradient.data();
     const size_t size = pre_activation_values.size();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
     });
@@ -101,15 +96,18 @@ public:
     // If upstream gradient is provided, multiply element-wise
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
+        std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
+                  << " Pre activation shape"
+                  << pre_activation_values.shape_str() << std::endl;
+        std::cout << "All shapes of "
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
       const T *upstream_data = upstream_gradient->data();
 
-#ifdef USE_TBB 
-      tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        grad_data[i] *= upstream_data[i];
-      });
+#ifdef USE_TBB
+      tnn::parallel_for_range<size_t>(
+          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
 #else
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -129,8 +127,7 @@ public:
     T *data = pre_activation_values.data();
     size_t size = pre_activation_values.size();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? T(1) : negative_slope_;
     });
@@ -151,10 +148,9 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#ifdef USE_TBB 
-      tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        data[i] *= upstream_data[i];
-      });
+#ifdef USE_TBB
+      tnn::parallel_for_range<size_t>(
+          0, size, [&](size_t i) { data[i] *= upstream_data[i]; });
 #else
 #ifdef _OPENMP
 #pragma omp parallel for
@@ -175,8 +171,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     {
       const size_t total = batch_size * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -218,8 +213,7 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     {
       const size_t total = batch_size * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -255,8 +249,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-
-#ifdef USE_TBB 
+#ifdef USE_TBB
     {
       const size_t total = channels * height * width;
       tnn::parallel_for_range<size_t>(0, total, [&](size_t idx) {

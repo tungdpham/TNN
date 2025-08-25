@@ -329,6 +329,7 @@ public:
         Tensor<T> gradient =
             loss_function_->compute_gradient(predictions, targets);
 
+        std::cout << "Gradient shape for microbatch id " << task.micro_batch_id << " : " << gradient.shape_str() << std::endl;
         // Send backward task
         backward(gradient, task.micro_batch_id);
       } else {

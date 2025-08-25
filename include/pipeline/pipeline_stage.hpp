@@ -159,7 +159,7 @@ protected:
 
     if (message.command_type == CommandType::FORWARD_TASK) {
 
-      auto output_data = this->model_->forward(task.data);
+      auto output_data = this->model_->forward(task.data, task.micro_batch_id);
       Task<T> output_task(TaskType::FORWARD, output_data, task.micro_batch_id);
 
       auto output_message =
@@ -170,7 +170,7 @@ protected:
 
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
 
-      auto output_data = this->model_->backward(task.data);
+      auto output_data = this->model_->backward(task.data, task.micro_batch_id);
       Task<T> output_task(TaskType::BACKWARD, output_data, task.micro_batch_id);
 
       auto output_message =
