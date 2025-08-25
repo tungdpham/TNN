@@ -17,12 +17,10 @@
 #include <vector>
 
 #ifdef __AVX2__
-#include <immintrin.h> 
+#include <immintrin.h>
 #endif
 
 #include "../nn/parallel_for.hpp"
-
-
 
 template <typename T = float, Layout L = NCHW> class Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
@@ -33,41 +31,39 @@ private:
   using View = TensorView<T, L>;
 
   static constexpr size_t dims_ = View::dims;
-  size_t shape_[dims_];  
-  size_t strides[dims_]; 
+  size_t shape_[dims_];
+  size_t strides[dims_];
   T *data_;
 
-  size_t data_size_; 
+  size_t data_size_;
 
   inline void compute_strides() { View::compute_strides(strides, shape_); }
 
   inline size_t compute_index(size_t batch, size_t channel, size_t height,
                               size_t width) const {
-    static_assert(dims_ == 4, "compute_index only valid for 4D tensors");
     return batch * strides[0] + channel * strides[1] + height * strides[2] +
            width * strides[3];
   }
 
-  inline size_t compute_index(std::initializer_list<size_t> indices) const {
+  template <typename... Indices>
+  inline size_t compute_index(Indices... indices) const {
+    static_assert(sizeof...(indices) == dims_,
+                  "Incorrect number of dimensions");
+    size_t idx_array[] = {static_cast<size_t>(indices)...};
     size_t index = 0;
     for (size_t i = 0; i < dims_; ++i) {
-      if (i >= indices.size()) {
-        throw std::out_of_range("Index out of range for tensor dimensions");
-      }
-      index += *(indices.begin() + i) * strides[i];
+      index += idx_array[i] * strides[i];
     }
     return index;
   }
 
-  
   static T *allocate_aligned(size_t count) {
     if (count == 0)
       return nullptr;
 
-    constexpr size_t alignment = 32; 
+    constexpr size_t alignment = 32;
     size_t byte_size = count * sizeof(T);
 
-    
     size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
 
     void *ptr = nullptr;
@@ -78,141 +74,16 @@ private:
     return static_cast<T *>(ptr);
   }
 
-  
   static void deallocate_aligned(T *ptr) {
     if (ptr != nullptr) {
       free(ptr);
     }
   }
 
-  
-  void fill_avx2(T value) {
-    if (data_size_ == 0)
-      return;
-#ifdef __AVX2__
-    if constexpr (std::is_same_v<T, float>) {
-      
-      const size_t simd_size = 8; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256 vec_value = _mm256_set1_ps(value);
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_ps(data_ + i, vec_value);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else if constexpr (std::is_same_v<T, double>) {
-      
-      const size_t simd_size = 4; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256d vec_value = _mm256_set1_pd(value);
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_pd(data_ + i, vec_value);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
-      
-      const size_t simd_size = 8; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256i vec_value = _mm256_set1_epi32(static_cast<int32_t>(value));
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_value);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else {
-      
-      std::fill(data_, data_ + data_size_, value);
-    }
-#else
-    
-    std::fill(data_, data_ + data_size_, value);
-#endif
-  }
-
-  
-  void copy_avx2(const T *src) {
-    if (data_size_ == 0 || src == nullptr)
-      return;
-#ifdef __AVX2__
-    if constexpr (std::is_same_v<T, float>) {
-      
-      const size_t simd_size = 8; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256 vec_data = _mm256_loadu_ps(src + i);
-        _mm256_store_ps(data_ + i, vec_data);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else if constexpr (std::is_same_v<T, double>) {
-      
-      const size_t simd_size = 4; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256d vec_data = _mm256_loadu_pd(src + i);
-        _mm256_store_pd(data_ + i, vec_data);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
-      
-      const size_t simd_size = 8; 
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256i vec_data =
-            _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + i));
-        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_data);
-      }
-
-      
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else {
-      
-      std::copy(src, src + data_size_, data_);
-    }
-#else
-    
-    std::copy(src, src + data_size_, data_);
-#endif
-  }
-
 public:
-  
   Tensor() : data_(nullptr), data_size_(0) { compute_strides(); }
 
+  // Specialized constructor for 4D tensors
   Tensor(size_t batch, size_t channels, size_t height, size_t width)
       : data_(nullptr) {
     static_assert(dims_ == 4,
@@ -230,30 +101,23 @@ public:
     fill_avx2(T(0));
   }
 
-  
-  Tensor(size_t batch, size_t channels, size_t depth, size_t height,
-         size_t width)
-      : data_(nullptr) {
-    static_assert(dims_ == 5,
-                  "5-parameter constructor only valid for 5D tensors");
-    if (L == NCHW || L == NHWC) {
-      throw std::invalid_argument("4D L specified for 5D constructor");
-    }
-    shape_[0] = batch;
-    shape_[1] = channels;
-    shape_[2] = depth;
-    shape_[3] = height;
-    shape_[4] = width;
+  // For tensor of any rank
+  template <typename... Shape> Tensor(Shape... shape) : data_(nullptr) {
+    static_assert(sizeof...(Shape) == dims_,
+                  "Number of shape parameters must match tensor dimensions");
+    size_t temp_shape[] = {static_cast<size_t>(shape)...};
+    std::copy(temp_shape, temp_shape + dims_, shape_);
     compute_strides();
-    data_size_ = batch * channels * depth * height * width;
+    data_size_ =
+        std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     fill_avx2(T(0));
   }
 
-  Tensor(const std::initializer_list<size_t> &shape) : data_(nullptr) {
+  Tensor(std::vector<size_t> shape) : data_(nullptr) {
     if (shape.size() != dims_) {
-      throw std::invalid_argument("Shape must have " + std::to_string(dims_) +
-                                  " dimensions");
+      throw std::invalid_argument(
+          "Shape vector size must match tensor dimensions");
     }
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
@@ -263,26 +127,19 @@ public:
     fill_avx2(T(0));
   }
 
-  Tensor(const std::vector<size_t> &shape) : data_(nullptr) {
-    assert(shape.size() == dims_ && "Shape must match dimensions");
-    std::copy(shape.begin(), shape.end(), shape_);
-    compute_strides();
-    data_size_ =
-        std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
-    data_ = allocate_aligned(data_size_);
-    fill_avx2(T(0));
-  }
-
-  
-  Tensor(const std::vector<size_t> &shape, const std::vector<T> &data)
+  Tensor(std::vector<size_t> shape, const std::vector<T> &data)
       : data_(nullptr) {
-    assert(shape.size() == dims_ && "Shape must match dimensions");
+    if (shape.size() != dims_) {
+      throw std::invalid_argument(
+          "Shape vector size must match tensor dimensions");
+    }
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
         std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
     if (data.size() != data_size_) {
-      throw std::invalid_argument("Data size doesn't match tensor shape");
+      throw std::invalid_argument(
+          "Data size does not match tensor shape product");
     }
     data_ = allocate_aligned(data_size_);
     copy_avx2(data.data());
@@ -290,7 +147,6 @@ public:
 
   ~Tensor() { deallocate_aligned(data_); }
 
-  
   Tensor(const Tensor &other) : data_(nullptr), data_size_(other.data_size_) {
     std::copy(other.shape_, other.shape_ + dims_, shape_);
     compute_strides();
@@ -300,7 +156,6 @@ public:
     }
   }
 
-  
   Tensor(Tensor &&other) noexcept
       : data_(other.data_), data_size_(other.data_size_) {
     std::copy(other.shape_, other.shape_ + dims_, shape_);
@@ -309,12 +164,11 @@ public:
     other.data_size_ = 0;
   }
 
-  
   Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
 
   Tensor &operator=(Tensor &&other) noexcept {
     if (this != &other) {
-      
+
       deallocate_aligned(data_);
 
       std::copy(other.shape_, other.shape_ + dims_, shape_);
@@ -328,18 +182,18 @@ public:
     return *this;
   }
 
-  
   template <typename... Indices> T &operator()(Indices... indices) {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
+    static_assert(sizeof...(indices) == dims_,
+                  "Incorrect number of dimensions");
     return data_[compute_index(indices...)];
   }
 
   template <typename... Indices> const T &operator()(Indices... indices) const {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
+    static_assert(sizeof...(indices) == dims_,
+                  "Incorrect number of dimensions");
     return data_[compute_index(indices...)];
   }
 
-  
   std::vector<size_t> shape() const {
     return std::vector<size_t>(shape_, shape_ + dims_);
   }
@@ -357,34 +211,18 @@ public:
     return oss.str();
   }
 
-  const size_t *shape_ptr() const { return shape_; }
-
-  const size_t *strides_ptr() const { return strides; }
+  const size_t *strides_ptr() const { return strides; } 
 
   size_t batch_size() const { return shape_[0]; }
 
   size_t channels() const { return shape_[1]; }
 
   size_t height() const {
-    if constexpr (dims_ == 4) {
-      return shape_[2];
-    } else if constexpr (dims_ == 5) {
-      return shape_[3]; 
-    } else {
-      throw std::runtime_error(
-          "height() called on unsupported tensor dimensionality");
-    }
+    return shape_[dims_ - 2];
   }
 
   size_t width() const {
-    if constexpr (dims_ == 4) {
-      return shape_[3];
-    } else if constexpr (dims_ == 5) {
-      return shape_[4]; 
-    } else {
-      throw std::runtime_error(
-          "width() called on unsupported tensor dimensionality");
-    }
+    return shape_[dims_ - 1];
   }
 
   size_t depth() const {
@@ -395,7 +233,6 @@ public:
     }
   }
 
-  
   size_t dimension(size_t index) const {
     assert(index < dims_ && "Dimension index out of range");
     return shape_[index];
@@ -416,24 +253,19 @@ public:
 
   size_t size() const { return data_size_; }
 
-  
   T *data() { return data_; }
 
   const T *data() const { return data_; }
 
-  
-  
   bool is_aligned(size_t alignment = 32) const {
     return (reinterpret_cast<uintptr_t>(data_) % alignment) == 0;
   }
 
-  
   Tensor<T, L> clone() const {
     return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_),
                         std::vector<T>(data_, data_ + data_size_));
   }
 
-  
   void fill(T value) { fill_avx2(value); }
 
   void fill_random_uniform(T range) {
@@ -444,7 +276,7 @@ public:
         data_[i] = dis(gen);
       }
     } else {
-      
+
       auto int_range = static_cast<typename std::conditional<
           std::is_signed<T>::value, std::int64_t, std::uint64_t>::type>(range);
       std::uniform_int_distribution<decltype(int_range)> dis(-int_range,
@@ -465,9 +297,8 @@ public:
     }
   }
 
-  
   Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
-    
+
     bool same_shape = (new_shape.size() == dims_);
     if (same_shape) {
       for (size_t i = 0; i < dims_; ++i) {
@@ -491,11 +322,10 @@ public:
     return Tensor<T, L>(new_shape, temp_data);
   }
 
-  
   Tensor<T, L> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
     assert(dims_ == 4 && "Padding only supported for 4D tensors");
     if (pad_h == 0 && pad_w == 0) {
-      return *this; 
+      return *this;
     }
 
     Tensor<T, L> result(batch_size(), channels(), height() + 2 * pad_h,
@@ -518,7 +348,6 @@ public:
     return result;
   }
 
-  
   Tensor<T, L> crop(size_t start_h, size_t start_w, size_t end_h,
                     size_t end_w) const {
     if constexpr (dims_ != 4) {
@@ -551,7 +380,6 @@ public:
     return result;
   }
 
-  
   Tensor<T, L> slice_batch(size_t start_batch, size_t end_batch) const {
     if (end_batch >= batch_size() || start_batch > end_batch) {
       throw std::invalid_argument("Invalid batch slice range");
@@ -609,9 +437,8 @@ public:
     }
   }
 
-  
   Tensor<T, L> operator+(const Tensor<T, L> &other) const {
-    
+
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         std::cerr << "Shape mismatch: " << shape_[i] << " vs "
@@ -633,7 +460,7 @@ public:
   }
 
   Tensor<T, L> operator-(const Tensor<T, L> &other) const {
-    
+
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument("Tensor shapes must match for subtraction");
@@ -682,7 +509,7 @@ public:
   }
 
   Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
-    
+
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         std::cerr << "Shape mismatch: " << shape_[i] << " vs "
@@ -702,7 +529,7 @@ public:
   }
 
   Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
-    
+
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument("Tensor shapes must match for subtraction");
@@ -720,7 +547,7 @@ public:
   }
 
   Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
-    
+
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument(
@@ -762,7 +589,6 @@ public:
     return *this;
   }
 
-  
   T mean() const {
     T sum = T(0);
 #ifdef _OPENMP
@@ -787,7 +613,6 @@ public:
     return sum_sq_diff / static_cast<T>(data_size_);
   }
 
-  
   std::vector<T> channel_means() const {
     std::vector<T> means(channels(), T(0));
 
@@ -835,7 +660,6 @@ public:
     return splits;
   }
 
-  
   std::vector<T> to_vector() const {
     if constexpr (L == NCHW) {
       return std::vector<T>(data_, data_ + data_size_);
@@ -844,7 +668,6 @@ public:
     }
   }
 
-  
   void from_vector(const std::vector<T> &vec) {
     if (vec.size() != data_size_) {
       throw std::invalid_argument("Vector size does not match tensor size");
@@ -857,14 +680,12 @@ public:
     copy_avx2(vec.data());
   }
 
-  
   Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
                    size_t stride_w = 1, size_t pad_h = 0,
                    size_t pad_w = 0) const {
     static_assert(dims_ == 4,
                   "im2col is only supported for 4D tensors (NCHW/NHWC)");
 
-    
     const Tensor<T, L> *input_ptr = this;
     std::unique_ptr<Tensor<T, L>> padded_input_storage;
 
@@ -887,8 +708,7 @@ public:
     size_t col_width = batch_size * out_h * out_w;
     Matrix<T> col_matrix(col_height, col_width);
 
-    
-    const size_t total_cols = col_width; 
+    const size_t total_cols = col_width;
 
 #ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
@@ -944,7 +764,6 @@ public:
                              size_t kernel_h, size_t kernel_w, size_t stride_h,
                              size_t stride_w, size_t pad_h, size_t pad_w) {
 
-    
     size_t padded_h = height + 2 * pad_h;
     size_t padded_w = width + 2 * pad_w;
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
@@ -952,15 +771,12 @@ public:
 
     Tensor<T, L> result_padded(batch_size, channels, padded_h, padded_w);
 
-    
-    
     size_t num_output_patches = output_h * output_w;
 
     size_t col_rows = channels * kernel_h * kernel_w;
     size_t col_cols = batch_size * num_output_patches;
 
-    
-    const size_t total_cols = col_cols; 
+    const size_t total_cols = col_cols;
 
 #ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
@@ -988,7 +804,7 @@ public:
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h_out = 0; h_out < output_h; ++h_out) {
         for (size_t w_out = 0; w_out < output_w; ++w_out) {
-          
+
           size_t col_col_idx =
               n * output_h * output_w + h_out * output_w + w_out;
 
@@ -1011,7 +827,6 @@ public:
     }
 #endif
 
-    
     if (pad_h > 0 || pad_w > 0) {
       return result_padded.crop(pad_h, pad_w, padded_h - pad_h - 1,
                                 padded_w - pad_w - 1);
@@ -1020,9 +835,6 @@ public:
     }
   }
 
-  
-  
-  
   static Tensor<T> combine(std::vector<Tensor<T>> &tensors) {
     if (tensors.empty()) {
       throw std::invalid_argument("No tensors to combine");
@@ -1085,36 +897,6 @@ public:
     return result;
   }
 
-  
-  void print_info() const {
-    std::cout << "Tensor shape: [";
-    for (size_t i = 0; i < dims_; ++i) {
-      std::cout << shape_[i];
-      if (i < dims_ - 1)
-        std::cout << ", ";
-    }
-    std::cout << "]" << std::endl;
-    std::cout << "Layout: ";
-    switch (L) {
-    case NCHW:
-      std::cout << "NCHW";
-      break;
-    case NHWC:
-      std::cout << "NHWC";
-      break;
-    case NCDHW:
-      std::cout << "NCDHW";
-      break;
-    case NDHWC:
-      std::cout << "NDHWC";
-      break;
-    }
-    std::cout << std::endl;
-    std::cout << "Dimensions: " << num_dimensions() << "D" << std::endl;
-    std::cout << "Total size: " << size() << std::endl;
-    std::cout << "Mean: " << mean() << std::endl;
-  }
-
   void print_data() const {
     std::cout << "Tensor data: ";
     if constexpr (dims_ == 4) {
@@ -1132,8 +914,6 @@ public:
     std::cout << std::endl;
   }
 
-  
-  
   int argmax_channel(size_t n, size_t h, size_t w) const {
     if (n >= batch_size() || h >= height() || w >= width()) {
       throw std::out_of_range("Index out of range in argmax_channel");
@@ -1152,14 +932,13 @@ public:
     return max_idx;
   }
 
-  
   void save(std::ofstream &out) const {
     if (!out.is_open()) {
       throw std::runtime_error("File is not open for writing");
     }
-    
+
     out.write(reinterpret_cast<const char *>(shape_), dims_ * sizeof(size_t));
-    
+
     out.write(reinterpret_cast<const char *>(data_), data_size_ * sizeof(T));
   }
 
@@ -1179,5 +958,116 @@ public:
       throw std::runtime_error("Failed to read tensor data from file");
     }
     return tensor;
+  }
+
+private:
+  void fill_avx2(T value) {
+    if (data_size_ == 0)
+      return;
+#ifdef __AVX2__
+    if constexpr (std::is_same_v<T, float>) {
+
+      const size_t simd_size = 8;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      __m256 vec_value = _mm256_set1_ps(value);
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_ps(data_ + i, vec_value);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else if constexpr (std::is_same_v<T, double>) {
+
+      const size_t simd_size = 4;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      __m256d vec_value = _mm256_set1_pd(value);
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_pd(data_ + i, vec_value);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
+
+      const size_t simd_size = 8;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      __m256i vec_value = _mm256_set1_epi32(static_cast<int32_t>(value));
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_value);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = value;
+      }
+    } else {
+
+      std::fill(data_, data_ + data_size_, value);
+    }
+#else
+
+    std::fill(data_, data_ + data_size_, value);
+#endif
+  }
+
+  void copy_avx2(const T *src) {
+    if (data_size_ == 0 || src == nullptr)
+      return;
+#ifdef __AVX2__
+    if constexpr (std::is_same_v<T, float>) {
+
+      const size_t simd_size = 8;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256 vec_data = _mm256_loadu_ps(src + i);
+        _mm256_store_ps(data_ + i, vec_data);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else if constexpr (std::is_same_v<T, double>) {
+
+      const size_t simd_size = 4;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256d vec_data = _mm256_loadu_pd(src + i);
+        _mm256_store_pd(data_ + i, vec_data);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
+
+      const size_t simd_size = 8;
+      const size_t simd_end = (data_size_ / simd_size) * simd_size;
+
+      for (size_t i = 0; i < simd_end; i += simd_size) {
+        __m256i vec_data =
+            _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + i));
+        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_data);
+      }
+
+      for (size_t i = simd_end; i < data_size_; ++i) {
+        data_[i] = src[i];
+      }
+    } else {
+
+      std::copy(src, src + data_size_, data_);
+    }
+#else
+
+    std::copy(src, src + data_size_, data_);
+#endif
   }
 };

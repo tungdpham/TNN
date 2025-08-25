@@ -28,13 +28,13 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
       use_bias_(use_bias), activation_(std::move(activation)),
       micro_batch_im2col_matrices_() {
   weights_ = Tensor<T>(
-      std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+      out_channels, in_channels, kernel_h, kernel_w);
   weight_gradients_ = Tensor<T>(
-      std::vector<size_t>{out_channels, in_channels, kernel_h, kernel_w});
+      out_channels, in_channels, kernel_h, kernel_w);
 
   if (use_bias_) {
-    bias_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
-    bias_gradients_ = Tensor<T>(std::vector<size_t>{out_channels, 1, 1, 1});
+    bias_ = Tensor<T>(out_channels, 1, 1, 1);
+    bias_gradients_ = Tensor<T>(out_channels, 1, 1, 1);
   }
 
   // Xavier/Glorot initialization

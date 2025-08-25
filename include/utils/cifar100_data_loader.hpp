@@ -198,19 +198,19 @@ public:
         const int num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES : cifar100_constants::NUM_CLASSES;
 
         // Create batch data tensor for CNN: (batch_size, channels=3, height=32, width=32)
-        batch_data = Tensor<T>(std::vector<size_t>{
+        batch_data = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             cifar100_constants::NUM_CHANNELS,
             cifar100_constants::IMAGE_HEIGHT, 
             cifar100_constants::IMAGE_WIDTH
-        });
+        );
 
         // Create batch labels tensor (batch_size, num_classes, 1, 1) - one-hot encoded
-        batch_labels = Tensor<T>(std::vector<size_t>{
+        batch_labels = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             static_cast<size_t>(num_classes), 
             1, 1
-        });
+        );
         batch_labels.fill(static_cast<T>(0.0));
 
         // Parallelize batch processing for better performance
@@ -366,18 +366,18 @@ public:
             const int actual_batch_size = static_cast<int>(end_idx - start_idx);
             
             // Create batch tensors
-            Tensor<T> batch_data(std::vector<size_t>{
+            Tensor<T> batch_data(
                 static_cast<size_t>(actual_batch_size), 
                 cifar100_constants::NUM_CHANNELS,
                 cifar100_constants::IMAGE_HEIGHT, 
                 cifar100_constants::IMAGE_WIDTH
-            });
+            );
             
-            Tensor<T> batch_fine_labels(std::vector<size_t>{
+            Tensor<T> batch_fine_labels(
                 static_cast<size_t>(actual_batch_size), 
                 static_cast<size_t>(num_fine_classes), 
                 1, 1
-            });
+            );
             batch_fine_labels.fill(static_cast<T>(0.0));
             
             Tensor<T> batch_coarse_labels(std::vector<size_t>{

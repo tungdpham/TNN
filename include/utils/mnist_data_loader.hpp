@@ -141,19 +141,19 @@ public:
         const int actual_batch_size = std::min(batch_size, static_cast<int>(data_.size() - this->current_index_));
 
         // Create batch data tensor for CNN: (batch_size, channels=1, height=28, width=28)
-        batch_data = Tensor<T>(std::vector<size_t>{
+        batch_data = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             mnist_constants::NUM_CHANNELS,
             mnist_constants::IMAGE_HEIGHT, 
             mnist_constants::IMAGE_WIDTH
-        });
+        );
 
         // Create batch labels tensor (batch_size, 10, 1, 1) - one-hot encoded
-        batch_labels = Tensor<T>(std::vector<size_t>{
+        batch_labels = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             mnist_constants::NUM_CLASSES, 
             1, 1
-        });
+        );
         batch_labels.fill(static_cast<T>(0.0));
 
         // Parallelize batch processing for better performance

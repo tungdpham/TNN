@@ -17,7 +17,7 @@ Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   size_t batch_size = input.batch_size();
   size_t features = input.channels() * input.height() * input.width();
 
-  Tensor<T> output = input.reshape({batch_size, features, 1, 1});
+  Tensor<T> output = input.reshape(std::vector<size_t>{batch_size, features, 1, 1});
 
   return output;
 }

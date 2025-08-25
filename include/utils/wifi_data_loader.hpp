@@ -388,10 +388,10 @@ public:
             
             // Create batch tensors
             Tensor<float> batch_features(
-                std::vector<size_t>{static_cast<size_t>(actual_batch_size), num_features_, 1, 1});
+                static_cast<size_t>(actual_batch_size), num_features_, 1, 1);
             
             Tensor<float> batch_targets(
-                std::vector<size_t>{static_cast<size_t>(actual_batch_size), num_outputs_, 1, 1});
+                static_cast<size_t>(actual_batch_size), num_outputs_, 1, 1);
             
             // Fill batch data in parallel
             #pragma omp parallel for if(actual_batch_size > 16)

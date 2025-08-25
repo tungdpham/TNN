@@ -61,7 +61,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 
   // Create output tensor
   Tensor<T> output(
-      std::vector<size_t>{batch_size, channels, output_h, output_w});
+      batch_size, channels, output_h, output_w);
 
   // Pre-compute strides for efficient memory access
   input_stride_n_ = input.stride(0);
@@ -203,8 +203,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
   const size_t output_h = grad_output.height();
   const size_t output_w = grad_output.width();
 
-  Tensor<T> grad_input(
-      std::vector<size_t>{batch_size, channels, input_h, input_w});
+  Tensor<T> grad_input(batch_size, channels, input_h, input_w);
   grad_input.fill(T(0));
 
   const T *grad_output_data = grad_output.data();

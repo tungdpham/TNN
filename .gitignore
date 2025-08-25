@@ -16,7 +16,7 @@
 # large files
 /data/*
 
-# uild directories and artifacts
+# build directories and artifacts
 /build/
 **/build/
 /lib/
@@ -48,9 +48,8 @@ CMakeDoxyfile.in
 CMakeDoxygenDefaults.cmake
 install_manifest.txt
 
-# artifacts
-*.log
-*.out
+# artifacts and logs
+/logs/
 
 # snapshots
 /model_snapshots/*

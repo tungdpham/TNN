@@ -17,17 +17,17 @@ BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
       epsilon_(epsilon), momentum_(momentum), affine_(affine) {
 
   if (affine_) {
-    gamma_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
-    beta_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
-    gamma_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
-    beta_gradients_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
+    gamma_ = Tensor<T>(num_features, 1, 1, 1);
+    beta_ = Tensor<T>(num_features, 1, 1, 1);
+    gamma_gradients_ = Tensor<T>(num_features, 1, 1, 1);
+    beta_gradients_ = Tensor<T>(num_features, 1, 1, 1);
 
     gamma_.fill(T(1));
     beta_.fill(T(0));
   }
 
-  running_mean_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
-  running_var_ = Tensor<T>(std::vector<size_t>{num_features, 1, 1, 1});
+  running_mean_ = Tensor<T>(num_features, 1, 1, 1);
+  running_var_ = Tensor<T>(num_features, 1, 1, 1);
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
 }
@@ -51,8 +51,8 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
   Tensor<T> output(input.shape());
 
   if (this->is_training_) {
-    Tensor<T> batch_mean(std::vector<size_t>{channels, 1, 1, 1});
-    Tensor<T> batch_var(std::vector<size_t>{channels, 1, 1, 1});
+    Tensor<T> batch_mean(channels, 1, 1, 1);
+    Tensor<T> batch_var(channels, 1, 1, 1);
 
     // Compute mean for each channel
     batch_mean.fill(T(0));
@@ -124,7 +124,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 #endif
 
     // Compute standard deviation
-    Tensor<T> batch_std(std::vector<size_t>{channels, 1, 1, 1});
+    Tensor<T> batch_std(channels, 1, 1, 1);
     for (size_t c = 0; c < channels; ++c) {
       batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
     }
@@ -355,8 +355,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   }
 
   // Compute gradients w.r.t. variance and mean
-  Tensor<T> grad_var(std::vector<size_t>{channels, 1, 1, 1});
-  Tensor<T> grad_mean(std::vector<size_t>{channels, 1, 1, 1});
+  Tensor<T> grad_var(channels, 1, 1, 1);
+  Tensor<T> grad_mean(channels, 1, 1, 1);
 
   grad_var.fill(T(0));
   grad_mean.fill(T(0));

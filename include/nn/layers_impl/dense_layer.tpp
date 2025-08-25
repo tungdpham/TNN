@@ -19,14 +19,14 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
       output_features_(output_features), use_bias_(use_bias),
       activation_(std::move(activation)) {
   weights_ =
-      Tensor<T>(std::vector<size_t>{output_features, input_features, 1, 1});
+      Tensor<T>(output_features, input_features, 1, 1);
   weight_gradients_ =
-      Tensor<T>(std::vector<size_t>{output_features, input_features, 1, 1});
+      Tensor<T>(output_features, input_features, 1, 1);
 
   if (use_bias_) {
-    bias_ = Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
+    bias_ = Tensor<T>(output_features, 1, 1, 1);
     bias_gradients_ =
-        Tensor<T>(std::vector<size_t>{output_features, 1, 1, 1});
+        Tensor<T>(output_features, 1, 1, 1);
   }
 
   // Xavier initialization
@@ -52,7 +52,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  Tensor<T> output(std::vector<size_t>{batch_size, output_features_, 1, 1});
+  Tensor<T> output(batch_size, output_features_, 1, 1);
 
   gemm_forward(input.data(), weights_.data(), output.data(), batch_size,
                input_features_, output_features_);

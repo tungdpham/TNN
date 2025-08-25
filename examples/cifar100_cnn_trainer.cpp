@@ -80,8 +80,8 @@ int main() {
 
     model.enable_profiling(true);
 
-    model.print_summary(
-        std::vector<size_t>{cifar100_constants::BATCH_SIZE, 3, 32, 32});
+    model.print_summary(std::vector<size_t>{
+        cifar100_constants::BATCH_SIZE, 3, 32, 32});
 
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
     train_cnn_model(model, train_loader, test_loader,

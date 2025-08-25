@@ -83,18 +83,12 @@ endif()
 
 # Function to create executables
 function(create_executable target_name source_file)
+    add_executable(${target_name} ${source_file})
     if(ENABLE_CUDA)
-        add_executable(${target_name} ${source_file})
         set_property(TARGET ${target_name} PROPERTY CUDA_ARCHITECTURES 89)
-    else()
-        add_executable(${target_name} ${source_file})
     endif()
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib)
-    
-    # if(${target_name} MATCHES "network|distributed|pipeline")
-    #     target_link_libraries(${target_name} PRIVATE pthread)
-    # endif()
 endfunction()
 
 add_subdirectory(examples)
