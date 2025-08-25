@@ -222,7 +222,7 @@ public:
     const std::string &first_stage = this->stage_names_[0];
 
     // Create task for the first stage
-    Task<T> task{TaskType::FORWARD, input, microbatch_id};
+    Task<T> task(TaskType::FORWARD, input, microbatch_id);
     auto forward_msg =
         Message<T>::forward_task(task, "coordinator", first_stage);
     forward_msg.sequence_number = microbatch_id;
@@ -237,7 +237,7 @@ public:
 
     const std::string &last_stage = this->stage_names_.back();
 
-    Task<T> task{TaskType::BACKWARD, gradient, microbatch_id};
+    Task<T> task(TaskType::BACKWARD, gradient, microbatch_id);
     auto backward_msg =
         Message<T>::backward_task(task, "coordinator", last_stage);
     backward_msg.sequence_number = microbatch_id;

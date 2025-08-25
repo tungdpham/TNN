@@ -13,7 +13,7 @@
 
 namespace tnn {
 
-// 2D Convolutional Layer using im2col + GEMM
+// 2D Convolutional Layer using im2col + optimized convolution
 template <typename T = float> class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
@@ -38,37 +38,18 @@ private:
   mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 
   // Helper functions for convolution
-  void conv_gemm_forward(const T *col_data, const T *weight_data,
-                         T *output_data, size_t output_size, size_t kernel_size,
-                         size_t out_channels) const;
+  void compute_conv_forward(const T *col_data, const T *weight_data,
+                           T *output_data, size_t output_size, size_t kernel_size,
+                           size_t out_channels) const;
 
-  void conv_gemm_weight_gradients(const T *col_data, const T *grad_output_data,
-                                  T *weight_grad_data, size_t output_size,
-                                  size_t kernel_size,
-                                  size_t out_channels) const;
+  void compute_weight_gradients(const T *col_data, const T *grad_output_data,
+                               T *weight_grad_data, size_t output_size,
+                               size_t kernel_size, size_t out_channels) const;
 
-  void conv_gemm_input_gradients(const T *grad_output_data,
-                                 const T *weight_data, T *col_grad_data,
-                                 size_t output_size, size_t kernel_size,
-                                 size_t out_channels) const;
-
-  void conv_gemm_forward_impl(const T *col_data, const T *weight_data,
-                              T *output_data, const size_t output_size,
-                              const size_t kernel_size,
-                              const size_t out_channels) const;
-
-  void conv_gemm_weight_gradients_impl(const T *col_data,
-                                       const T *grad_output_data,
-                                       T *weight_grad_data,
-                                       const size_t output_size,
-                                       const size_t kernel_size,
-                                       const size_t out_channels) const;
-
-  void conv_gemm_input_gradients_impl(const T *grad_output_data,
-                                      const T *weight_data, T *col_grad_data,
-                                      const size_t output_size,
-                                      const size_t kernel_size,
-                                      const size_t out_channels) const;
+  void compute_input_gradients(const T *grad_output_data,
+                              const T *weight_data, T *col_grad_data,
+                              size_t output_size, size_t kernel_size,
+                              size_t out_channels) const;
 
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,

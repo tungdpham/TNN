@@ -1,6 +1,7 @@
 #include "activation_layer.hpp"
 
 #include <stdexcept>
+#include <cassert>
 
 namespace tnn {
 
@@ -25,11 +26,7 @@ template <typename T>
 Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &grad_output,
                                        int micro_batch_id) {
   auto it = micro_batch_inputs_.find(micro_batch_id);
-  if (it == micro_batch_inputs_.end()) {
-    throw std::runtime_error(
-        "No cached input found for micro-batch ID in ActivationLayer: " +
-        std::to_string(micro_batch_id));
-  }
+  assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
   Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
   return grad;

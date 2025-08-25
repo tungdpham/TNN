@@ -3,7 +3,7 @@
 #include "network_serialization.hpp"
 #include "pipeline_communicator.hpp"
 #define ASIO_STANDALONE
-#include "../third_party/asio/asio/include/asio.hpp"
+#include <asio.hpp>
 #include <atomic>
 #include <functional>
 #include <iostream>

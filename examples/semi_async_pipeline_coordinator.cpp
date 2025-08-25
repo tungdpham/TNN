@@ -20,7 +20,7 @@ namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 128;
-constexpr int NUM_MICROBATCHES = 2;
+constexpr int NUM_MICROBATCHES = 4;
 constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace mnist_constants
@@ -131,9 +131,12 @@ int main() {
 
   while (true) {
     auto get_next_batch_start = std::chrono::high_resolution_clock::now();
-    if (!train_loader.get_next_batch(batch_data, batch_labels)) {
+    bool is_valid_batch = train_loader.get_next_batch(batch_data, batch_labels);
+    if (!is_valid_batch) {
       break;
     }
+    std::cout << "Loaded batch " << batch_index << " with shape "
+              << batch_data.shape_str() << std::endl;
     auto get_next_batch_end = std::chrono::high_resolution_clock::now();
     auto get_next_batch_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(

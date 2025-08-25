@@ -16,11 +16,15 @@
 # large files
 /data/*
 
-# build directories and artifacts
+# build directories
 /build/
 **/build/
 /lib/
 /bin/
+
+# artifacts
+*.zip
+*.tar.gz
 
 # CMake generated files (anywhere in the project)
 CMakeCache.txt
@@ -48,7 +52,7 @@ CMakeDoxyfile.in
 CMakeDoxygenDefaults.cmake
 install_manifest.txt
 
-# artifacts and logs
+# logs
 /logs/
 
 # snapshots

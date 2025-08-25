@@ -54,8 +54,8 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   Tensor<T> output(batch_size, output_features_, 1, 1);
 
-  gemm_forward(input.data(), weights_.data(), output.data(), batch_size,
-               input_features_, output_features_);
+  compute_dense_forward(input.data(), weights_.data(), output.data(), batch_size,
+                       input_features_, output_features_);
 
   if (use_bias_) {
     add_bias_vector(output.data(), bias_.data(), batch_size,
@@ -105,9 +105,9 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
   }
 
   // Compute weight gradients
-  gemm_weight_gradients(last_input.data(), current_grad.data(),
-                        weight_gradients_.data(), batch_size, input_features_,
-                        output_features_);
+  compute_weight_gradients(last_input.data(), current_grad.data(),
+                          weight_gradients_.data(), batch_size, input_features_,
+                          output_features_);
 
   // Compute bias gradients
   if (use_bias_) {
@@ -135,57 +135,18 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
   }
 
   // Compute input gradients
-  gemm_input_gradients(current_grad.data(), weights_.data(),
-                       grad_input.data(), batch_size, input_features_,
-                       output_features_);
+  compute_input_gradients(current_grad.data(), weights_.data(),
+                         grad_input.data(), batch_size, input_features_,
+                         output_features_);
 
   return grad_input;
 }
 
-// Helper function implementations
 template <typename T>
-void DenseLayer<T>::gemm_forward(const T *input_data, const T *weight_data,
-                                 T *output_data, size_t batch_size,
-                                 size_t input_features,
-                                 size_t output_features) const {
-  gemm_impl(input_data, weight_data, output_data, batch_size, input_features,
-            output_features);
-}
-
-template <typename T>
-void DenseLayer<T>::gemm_weight_gradients(const T *input_data,
-                                          const T *grad_output_data,
-                                          T *weight_grad_data,
-                                          size_t batch_size,
+void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data,
+                                          T *output_data, size_t batch_size,
                                           size_t input_features,
                                           size_t output_features) const {
-  weight_gradients_impl(input_data, grad_output_data, weight_grad_data,
-                        batch_size, input_features, output_features);
-}
-
-template <typename T>
-void DenseLayer<T>::gemm_input_gradients(const T *grad_output_data,
-                                         const T *weight_data,
-                                         T *grad_input_data, size_t batch_size,
-                                         size_t input_features,
-                                         size_t output_features) const {
-  input_gradients_impl(grad_output_data, weight_data, grad_input_data,
-                       batch_size, input_features, output_features);
-}
-
-template <typename T>
-void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
-                                    size_t batch_size,
-                                    size_t output_features) const {
-  add_bias_impl(output_data, bias_data, batch_size, output_features);
-}
-
-
-template <typename T>
-void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
-                              T *output_data, const size_t batch_size,
-                              const size_t input_features,
-                              const size_t output_features) const {
 #ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
@@ -211,12 +172,12 @@ void DenseLayer<T>::gemm_impl(const T *input_data, const T *weight_data,
 }
 
 template <typename T>
-void DenseLayer<T>::weight_gradients_impl(const T *input_data,
-                                          const T *grad_output_data,
-                                          T *weight_grad_data,
-                                          size_t batch_size,
-                                          size_t input_features,
-                                          size_t output_features) const {
+void DenseLayer<T>::compute_weight_gradients(const T *input_data,
+                                             const T *grad_output_data,
+                                             T *weight_grad_data,
+                                             size_t batch_size,
+                                             size_t input_features,
+                                             size_t output_features) const {
   auto input_transposed = std::make_unique<T[]>(input_features * batch_size);
   auto grad_output_transposed =
       std::make_unique<T[]>(output_features * batch_size);
@@ -251,11 +212,11 @@ void DenseLayer<T>::weight_gradients_impl(const T *input_data,
 }
 
 template <typename T>
-void DenseLayer<T>::input_gradients_impl(const T *grad_output_data,
-                                         const T *weight_data,
-                                         T *grad_input_data, size_t batch_size,
-                                         size_t input_features,
-                                         size_t output_features) const {
+void DenseLayer<T>::compute_input_gradients(const T *grad_output_data,
+                                            const T *weight_data,
+                                            T *grad_input_data, size_t batch_size,
+                                            size_t input_features,
+                                            size_t output_features) const {
   auto weights_transposed =
       std::make_unique<T[]>(input_features * output_features);
   utils::transpose_2d(weight_data, weights_transposed.get(), output_features,
@@ -285,9 +246,9 @@ void DenseLayer<T>::input_gradients_impl(const T *grad_output_data,
 }
 
 template <typename T>
-void DenseLayer<T>::add_bias_impl(T *output_data, const T *bias_data,
-                                  size_t batch_size,
-                                  size_t output_features) const {
+void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
+                                    size_t batch_size,
+                                    size_t output_features) const {
 #ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {

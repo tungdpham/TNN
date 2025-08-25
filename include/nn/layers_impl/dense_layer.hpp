@@ -12,7 +12,7 @@
 
 namespace tnn {
 
-// Dense/Fully Connected Layer
+// Dense/Fully Connected Layer using SIMD-optimized operations
 template <typename T = float> class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
@@ -28,41 +28,21 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
 
-  // Helper functions
-  void gemm_forward(const T *input_data, const T *weight_data, T *output_data,
-                    size_t batch_size, size_t input_features,
-                    size_t output_features) const;
+  // Helper functions for dense layer computations
+  void compute_dense_forward(const T *input_data, const T *weight_data, 
+                             T *output_data, size_t batch_size, 
+                             size_t input_features, size_t output_features) const;
 
-  void gemm_weight_gradients(const T *input_data, const T *grad_output_data,
-                             T *weight_grad_data, size_t batch_size,
-                             size_t input_features,
-                             size_t output_features) const;
+  void compute_weight_gradients(const T *input_data, const T *grad_output_data,
+                               T *weight_grad_data, size_t batch_size,
+                               size_t input_features, size_t output_features) const;
 
-  void gemm_input_gradients(const T *grad_output_data, const T *weight_data,
-                            T *grad_input_data, size_t batch_size,
-                            size_t input_features,
-                            size_t output_features) const;
+  void compute_input_gradients(const T *grad_output_data, const T *weight_data,
+                              T *grad_input_data, size_t batch_size,
+                              size_t input_features, size_t output_features) const;
 
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const;
-
-  
-  void gemm_impl(const T *input_data, const T *weight_data, T *output_data,
-                 const size_t batch_size, const size_t input_features,
-                 const size_t output_features) const;
-
-  void weight_gradients_impl(const T *input_data, const T *grad_output_data,
-                             T *weight_grad_data, size_t batch_size,
-                             size_t input_features,
-                             size_t output_features) const;
-
-  void input_gradients_impl(const T *grad_output_data, const T *weight_data,
-                            T *grad_input_data, size_t batch_size,
-                            size_t input_features,
-                            size_t output_features) const;
-
-  void add_bias_impl(T *output_data, const T *bias_data, size_t batch_size,
-                     size_t output_features) const;
 
 public:
   DenseLayer(size_t input_features, size_t output_features,

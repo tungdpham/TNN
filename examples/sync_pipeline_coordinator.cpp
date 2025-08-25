@@ -18,7 +18,7 @@ namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 128;
-constexpr int NUM_MICROBATCHES = 2;
+constexpr int NUM_MICROBATCHES = 4;
 constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace mnist_constants
@@ -26,6 +26,7 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 Sequential<float> create_demo_model() {
   auto model =
       tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+          .input({1, 28, 28})
           .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
           .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
           .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
@@ -126,9 +127,8 @@ int main() {
 
   while (true) {
     auto get_next_batch_start = std::chrono::high_resolution_clock::now();
-    if (!train_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
-                                batch_labels)) {
-
+    bool is_valid_batch = train_loader.get_next_batch(batch_data, batch_labels);
+    if (!is_valid_batch) {
       break;
     }
     auto get_next_batch_end = std::chrono::high_resolution_clock::now();

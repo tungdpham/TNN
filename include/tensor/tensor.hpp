@@ -22,6 +22,8 @@
 
 #include "../nn/parallel_for.hpp"
 
+enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
+
 template <typename T = float, Layout L = NCHW> class Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
@@ -32,28 +34,20 @@ private:
 
   static constexpr size_t dims_ = View::dims;
   size_t shape_[dims_];
-  size_t strides[dims_];
+  size_t strides_[dims_];
   T *data_;
 
   size_t data_size_;
 
-  inline void compute_strides() { View::compute_strides(strides, shape_); }
-
-  inline size_t compute_index(size_t batch, size_t channel, size_t height,
-                              size_t width) const {
-    return batch * strides[0] + channel * strides[1] + height * strides[2] +
-           width * strides[3];
-  }
+  inline void compute_strides() { View::compute_strides(strides_, shape_); }
 
   template <typename... Indices>
   inline size_t compute_index(Indices... indices) const {
     static_assert(sizeof...(indices) == dims_,
                   "Incorrect number of dimensions");
-    size_t idx_array[] = {static_cast<size_t>(indices)...};
     size_t index = 0;
-    for (size_t i = 0; i < dims_; ++i) {
-      index += idx_array[i] * strides[i];
-    }
+    short count = 0;
+    ((index += indices * strides_[count++]), ...);
     return index;
   }
 
@@ -61,7 +55,7 @@ private:
     if (count == 0)
       return nullptr;
 
-    constexpr size_t alignment = 32;
+    constexpr size_t alignment = ALIGNMENT_TYPE::AVX2;
     size_t byte_size = count * sizeof(T);
 
     size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
@@ -211,19 +205,15 @@ public:
     return oss.str();
   }
 
-  const size_t *strides_ptr() const { return strides; } 
+  const size_t *strides_ptr() const { return strides_; }
 
   size_t batch_size() const { return shape_[0]; }
 
   size_t channels() const { return shape_[1]; }
 
-  size_t height() const {
-    return shape_[dims_ - 2];
-  }
+  size_t height() const { return shape_[dims_ - 2]; }
 
-  size_t width() const {
-    return shape_[dims_ - 1];
-  }
+  size_t width() const { return shape_[dims_ - 1]; }
 
   size_t depth() const {
     if constexpr (dims_ == 5) {
@@ -233,23 +223,9 @@ public:
     }
   }
 
-  size_t dimension(size_t index) const {
-    assert(index < dims_ && "Dimension index out of range");
-    return shape_[index];
-  }
+  size_t dimension(const size_t index) const { return shape_[index]; }
 
-  size_t stride(size_t index) const {
-    assert(index < dims_ && "Stride index out of range");
-    return strides[index];
-  }
-
-  size_t num_dimensions() const { return dims_; }
-
-  static constexpr size_t expected_dimensions() { return dims_; }
-
-  constexpr bool is_4d() const { return dims_ == 4; }
-
-  static constexpr bool is_expected_4d() { return dims_ == 4; }
+  size_t stride(const size_t index) const { return strides_[index]; }
 
   size_t size() const { return data_size_; }
 
@@ -333,7 +309,7 @@ public:
     result.fill(value);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -365,7 +341,7 @@ public:
     Tensor<T, L> result(batch_size(), channels(), new_height, new_width);
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
       for (size_t c = 0; c < channels(); ++c) {
@@ -398,7 +374,7 @@ public:
         for (size_t idx = 0; idx < output_size; ++idx) {
           size_t batch_idx = start_batch + n;
           result_data[n * output_size + idx] =
-              this->data_[batch_idx * strides[0] + idx];
+              this->data_[batch_idx * strides_[0] + idx];
         }
       }
       return result;
@@ -419,7 +395,7 @@ public:
       Tensor<T, L> result(batch_size(), new_channels, height(), width());
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4) schedule(static)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
       for (size_t n = 0; n < batch_size(); ++n) {
         for (size_t c = 0; c < new_channels; ++c) {
@@ -660,26 +636,6 @@ public:
     return splits;
   }
 
-  std::vector<T> to_vector() const {
-    if constexpr (L == NCHW) {
-      return std::vector<T>(data_, data_ + data_size_);
-    } else {
-      throw std::runtime_error("to_vector is only supported for NCHW L");
-    }
-  }
-
-  void from_vector(const std::vector<T> &vec) {
-    if (vec.size() != data_size_) {
-      throw std::invalid_argument("Vector size does not match tensor size");
-    }
-
-    if constexpr (L != NCHW) {
-      throw std::runtime_error("from_vector is only supported for NCHW L");
-    }
-
-    copy_avx2(vec.data());
-  }
-
   Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
                    size_t stride_w = 1, size_t pad_h = 0,
                    size_t pad_w = 0) const {
@@ -695,7 +651,6 @@ public:
     }
     const Tensor<T, L> &input_tensor = *input_ptr;
     const T *input_data = input_tensor.data();
-    const size_t *strides = input_tensor.strides_ptr();
 
     const size_t in_h = input_tensor.height();
     const size_t in_w = input_tensor.width();
@@ -724,15 +679,15 @@ public:
             size_t in_h_idx = out_h_idx * stride_h + kh;
             size_t in_w_idx = out_w_idx * stride_w + kw;
             col_matrix(col_row_idx, col_idx) =
-                input_data[n * strides[0] + c * strides[1] +
-                           in_h_idx * strides[2] + in_w_idx * strides[3]];
+                input_data[n * strides_[0] + c * strides_[1] +
+                           in_h_idx * strides_[2] + in_w_idx * strides_[3]];
           }
         }
       }
     });
 #else
 #ifdef _OPENMP
-#pragma omp parallel for collapse(4)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t c = 0; c < channels; ++c) {
@@ -747,8 +702,8 @@ public:
                     n * out_h * out_w + out_h_idx * out_w + out_w_idx;
 
                 col_matrix(col_row_idx, col_col_idx) =
-                    input_data[n * strides[0] + c * strides[1] +
-                               in_h_idx * strides[2] + in_w_idx * strides[3]];
+                    input_data[n * strides_[0] + c * strides_[1] +
+                               in_h_idx * strides_[2] + in_w_idx * strides_[3]];
               }
             }
           }
@@ -799,7 +754,7 @@ public:
     });
 #else
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h_out = 0; h_out < output_h; ++h_out) {
