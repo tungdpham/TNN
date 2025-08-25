@@ -99,7 +99,6 @@ public:
         std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
                   << " Pre activation shape"
                   << pre_activation_values.shape_str() << std::endl;
-        std::cout << "All shapes of "
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
