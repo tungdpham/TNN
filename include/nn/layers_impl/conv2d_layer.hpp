@@ -72,7 +72,6 @@ public:
 protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
-  void update_parameters_impl(Optimizer<T> &optimizer) override;
 };
 
 } // namespace tnn

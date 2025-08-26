@@ -332,17 +332,6 @@ void DenseLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
 }
 
 template <typename T>
-void DenseLayer<T>::update_parameters_impl(Optimizer<T> &optimizer) {
-  std::vector<Tensor<T> *> params = this->parameters();
-  std::vector<Tensor<T> *> grads = this->gradients();
-  if (params.size() != grads.size()) {
-    throw std::runtime_error(
-        "Parameter and gradient size mismatch in DenseLayer");
-  }
-  optimizer.update(params, grads);
-}
-
-template <typename T>
 std::unique_ptr<Layer<T>>
 DenseLayer<T>::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");

@@ -16,7 +16,7 @@
 
 namespace tnn {
 
-// Sequential model for layers
+// Sequential model for simple feedforward architectures
 template <typename T = float> class Sequential {
 private:
   std::vector<std::unique_ptr<Layer<T>>> layers_;
@@ -25,13 +25,26 @@ private:
   std::unique_ptr<Loss<T>> loss_ = nullptr;
   bool is_training_;
 
-  // Cache for intermediate outputs during forward pass (useful for debugging)
-  std::vector<Tensor<T>> layer_outputs_;
-
   // Performance profiling
   bool enable_profiling_;
   std::map<std::string, double> forward_times_ms_;
   std::map<std::string, double> backward_times_ms_;
+
+  void distribute_optimizer_to_layers() {
+    if (!optimizer_) {
+      return;
+    }
+    
+    for (auto &layer : layers_) {
+      if (layer->has_parameters()) {
+        // Try to cast to ParameterizedLayer to set the optimizer
+        auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+        if (param_layer) {
+          param_layer->set_optimizer(optimizer_->clone());
+        }
+      }
+    }
+  }
 
 public:
   explicit Sequential(const std::string &name = "sequential")
@@ -46,6 +59,7 @@ public:
     }
     if (other.optimizer_) {
       optimizer_ = other.optimizer_->clone();
+      distribute_optimizer_to_layers();
     }
     if (other.loss_) {
       loss_ = other.loss_->clone();
@@ -70,6 +84,9 @@ public:
         layers_.push_back(layer->clone());
       }
       optimizer_ = other.optimizer_ ? other.optimizer_->clone() : nullptr;
+      if (optimizer_) {
+        distribute_optimizer_to_layers();
+      }
       loss_ = other.loss_ ? other.loss_->clone() : nullptr;
       name_ = other.name_;
       is_training_ = other.is_training_;
@@ -102,6 +119,15 @@ public:
       throw std::invalid_argument("Cannot add null layer");
     }
     layer->set_training(is_training_);
+    
+    // Set optimizer for parameterized layers
+    if (optimizer_ && layer->has_parameters()) {
+      auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+      if (param_layer) {
+        param_layer->set_optimizer(optimizer_->clone());
+      }
+    }
+    
     layers_.push_back(std::move(layer));
   }
 
@@ -119,6 +145,14 @@ public:
       throw std::out_of_range("Insert index out of range");
     }
     layer->set_training(is_training_);
+    
+    if (optimizer_ && layer->has_parameters()) {
+      auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+      if (param_layer) {
+        param_layer->set_optimizer(optimizer_->clone());
+      }
+    }
+    
     layers_.insert(layers_.begin() + index, std::move(layer));
   }
 
@@ -213,16 +247,13 @@ public:
       return;
     }
 
-    std::cout << "\n==========================================================="
-                 "======\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << "Performance Profile: " << name_ << "\n";
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer" << std::setw(15)
               << "Forward (ms)" << std::setw(15) << "Backward (ms)"
               << std::setw(15) << "Total (ms)" << "\n";
-    std::cout << "-------------------------------------------------------------"
-                 "----\n";
+    std::cout << std::string(70, '-') << "\n";
 
     double total_forward = 0.0, total_backward = 0.0;
 
@@ -413,15 +444,12 @@ public:
 
   // Model information
   void print_summary(const std::vector<size_t> &input_shape = {}) const {
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << "Model: " << name_ << "\n";
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer (type)" << std::setw(25)
               << "Output Shape" << std::setw(15) << "Param #" << "\n";
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '-') << "\n";
 
     std::vector<size_t> current_shape = input_shape;
     size_t total_params = 0;
@@ -467,11 +495,9 @@ public:
                 << shape_str << std::setw(15) << layer_params << "\n";
     }
 
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '-') << "\n";
     std::cout << "Total params: " << total_params << "\n";
-    std::cout << "============================================================="
-                 "====\n";
+    std::cout << std::string(70, '=') << "\n";
   }
 
   void print_config() const {
@@ -590,24 +616,23 @@ public:
 
   auto end() const { return layers_.end(); }
 
-  // Update all parameters using an optimizer
   void update_parameters() const {
-    auto params = parameters();
-    auto grads = gradients();
-    if (optimizer_) {
-      optimizer_->update(params, grads);
-    } else {
-      throw std::runtime_error("No optimizer set for model: " + name_); 
+    for (const auto &layer : layers_) {
+      if (layer->has_parameters()) {
+        layer->update_parameters();
+      }
     }
   }
 
   void set_optimizer(Optimizer<T> &optimizer) {
     this->optimizer_ = optimizer.clone();
+    distribute_optimizer_to_layers();
   }
   
   void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
     this->optimizer_ = std::move(optimizer);
-  std::cout << "Optimizer set to: " << this->optimizer_->name() << std::endl;
+    distribute_optimizer_to_layers();
+    std::cout << "Optimizer set to: " << this->optimizer_->name() << std::endl;
   }
   
   void set_loss_function(Loss<T> &loss) {

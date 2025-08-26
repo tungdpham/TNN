@@ -481,17 +481,6 @@ void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
 }
 
 template <typename T>
-void BatchNormLayer<T>::update_parameters_impl(Optimizer<T> &optimizer) {
-  std::vector<Tensor<T> *> params = this->parameters();
-  std::vector<Tensor<T> *> grads = this->gradients();
-  if (params.size() != grads.size()) {
-    throw std::runtime_error(
-        "Parameter and gradient size mismatch in BatchNormLayer");
-  }
-  optimizer.update(params, grads);
-}
-
-template <typename T>
 std::unique_ptr<Layer<T>>
 BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");

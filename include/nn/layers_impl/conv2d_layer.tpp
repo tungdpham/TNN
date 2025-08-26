@@ -455,15 +455,4 @@ void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
   }
 }
 
-template <typename T>
-void Conv2DLayer<T>::update_parameters_impl(Optimizer<T> &optimizer) {
-  std::vector<Tensor<T> *> params = this->parameters();
-  std::vector<Tensor<T> *> grads = this->gradients();
-  if (params.size() != grads.size()) {
-    throw std::runtime_error(
-        "Parameter and gradient size mismatch in Conv2DLayer");
-  }
-  optimizer.update(params, grads);
-}
-
 } // namespace tnn

@@ -48,7 +48,7 @@ public:
   virtual std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
-  virtual void update_parameters(Optimizer<T> &optimizer) {}
+  virtual void update_parameters() {}
 
   std::string name() const { return name_; }
 
