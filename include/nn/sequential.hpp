@@ -247,13 +247,13 @@ public:
       return;
     }
 
-    std::cout << std::string(70, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
     std::cout << "Performance Profile: " << name_ << "\n";
-    std::cout << std::string(70, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer" << std::setw(15)
               << "Forward (ms)" << std::setw(15) << "Backward (ms)"
               << std::setw(15) << "Total (ms)" << "\n";
-    std::cout << std::string(70, '-') << "\n";
+    std::cout << std::string(60, '-') << "\n";
 
     double total_forward = 0.0, total_backward = 0.0;
 
@@ -291,16 +291,14 @@ public:
                 << std::fixed << std::setprecision(3) << total_time << "\n";
     }
 
-    std::cout << "-------------------------------------------------------------"
-                 "----\n";
+    std::cout << std::string(60, '-') << "\n";
     std::cout << std::left << std::setw(20) << "TOTAL" << std::setw(15)
               << std::fixed << std::setprecision(3) << total_forward
               << std::setw(15) << std::fixed << std::setprecision(3)
               << total_backward << std::setw(15) << std::fixed
               << std::setprecision(3) << (total_forward + total_backward)
               << "\n";
-    std::cout << "============================================================="
-                 "====\n\n";
+    std::cout << std::string(60, '=') << "\n\n";
   }
 
   
@@ -444,12 +442,12 @@ public:
 
   // Model information
   void print_summary(const std::vector<size_t> &input_shape = {}) const {
-    std::cout << std::string(70, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
     std::cout << "Model: " << name_ << "\n";
-    std::cout << std::string(70, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer (type)" << std::setw(25)
               << "Output Shape" << std::setw(15) << "Param #" << "\n";
-    std::cout << std::string(70, '-') << "\n";
+    std::cout << std::string(60, '-') << "\n";
 
     std::vector<size_t> current_shape = input_shape;
     size_t total_params = 0;
@@ -495,9 +493,9 @@ public:
                 << shape_str << std::setw(15) << layer_params << "\n";
     }
 
-    std::cout << std::string(70, '-') << "\n";
+    std::cout << std::string(60, '-') << "\n";
     std::cout << "Total params: " << total_params << "\n";
-    std::cout << std::string(70, '=') << "\n";
+    std::cout << std::string(60, '=') << "\n";
   }
 
   void print_config() const {

@@ -1,5 +1,8 @@
 services:
   worker-8001:
+    profiles:
+      - sync
+      - semi_async
     build: .
     container_name: dcnn-worker-8001
     command: ["./bin/network_worker", "8001"]
@@ -11,6 +14,9 @@ services:
     cpuset: "0-3,9"
 
   worker-8002:
+    profiles:
+      - sync
+      - semi_async
     build: .
     container_name: dcnn-worker-8002
     command: ["./bin/network_worker", "8002"]
@@ -22,6 +28,9 @@ services:
     cpuset: "4-7,10"
 
   # worker-8003:
+    # profiles:
+    #   - sync
+    #   - semi_async
   #   build: .
   #   container_name: dcnn-worker-8003
   #   command: ["./bin/network_worker", "8003"]
@@ -32,6 +41,9 @@ services:
   #   #   - dcnn-network
 
   # worker-8004:
+    # profiles:
+    #   - sync
+    #   - semi_async
   #   build: .
   #   container_name: dcnn-worker-8004
   #   command: ["./bin/network_worker", "8004"]
@@ -41,10 +53,12 @@ services:
   #   # networks:
   #   #   - dcnn-network
 
-  coordinator:
+  sync-coordinator:
+    profiles:
+      - sync
     build: .
     container_name: dcnn-coordinator
-    entrypoint: ["/bin/sh", "-c", "./entry_point.sh"]
+    command: ["./bin/sync_pipeline_coordinator"]
     hostname: coordinator
     ports:
       - "8000:8000"
@@ -61,6 +75,37 @@ services:
       # - WORKER_HOST_8003=worker-8003
       # - WORKER_HOST_8004=worker-8004
     cpuset: "8"
+
+  semi-async-coordinator:
+    profiles:
+      - semi_async
+    build: .
+    container_name: dcnn-coordinator
+    command: ["./bin/semi_async_pipeline_coordinator"]
+    hostname: semi-async-coordinator
+    ports:
+      - "8000:8000"
+    networks:
+      - dcnn-network
+    depends_on:
+      - worker-8001
+      - worker-8002
+    environment:
+      - COORDINATOR_HOST=semi-async-coordinator
+      - PROFILE=semi_async
+      - WORKER_HOST_8001=worker-8001
+      - WORKER_HOST_8002=worker-8002
+      # - WORKER_HOST_8003=worker-8003
+      # - WORKER_HOST_8004=worker-8004
+    cpuset: "8"
+  
+  single-model:
+    profiles:
+      - single-model
+    build: .
+    container_name: dcnn-single-model
+    command: ["./bin/mnist_cnn_trainer"]
+    cpuset: "0-11"
 
 networks:
   dcnn-network:

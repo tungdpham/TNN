@@ -63,6 +63,7 @@ public:
 protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
+  void clear_gradients() override;
 
 public:
   static std::unique_ptr<Layer<T>>

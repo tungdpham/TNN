@@ -193,11 +193,6 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
         activation_->compute_gradient(it_pre_act->second, &current_grad);
   }
 
-  weight_gradients_.fill(T(0));
-  if (use_bias_) {
-    bias_gradients_.fill(T(0));
-  }
-
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
@@ -243,7 +238,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
           }
         }
       }
-      bias_gradients_(oc, 0, 0, 0) = grad_sum;
+      bias_gradients_(oc, 0, 0, 0) += grad_sum;
     });
 #else
 #ifdef _OPENMP
@@ -258,7 +253,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
           }
         }
       }
-      bias_gradients_(oc, 0, 0, 0) = grad_sum;
+      bias_gradients_(oc, 0, 0, 0) += grad_sum;
     }
 #endif
   }
@@ -326,7 +321,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
       [&](const tbb::blocked_range2d<size_t> &r) {
         for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
           for (size_t ks = r.cols().begin(); ks != r.cols().end(); ++ks) {
-            weight_grad_data[oc * kernel_size + ks] =
+            weight_grad_data[oc * kernel_size + ks] +=
                 utils::simd_dot_product(
                     &grad_output_data[oc * output_size],
                     &col_data[ks * output_size], output_size);
@@ -339,7 +334,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t ks = 0; ks < kernel_size; ++ks) {
-      weight_grad_data[oc * kernel_size + ks] =
+      weight_grad_data[oc * kernel_size + ks] +=
           utils::simd_dot_product(
               &grad_output_data[oc * output_size],
               &col_data[ks * output_size], output_size);
@@ -453,6 +448,14 @@ void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
   if (use_bias_) {
     grads.push_back(&bias_gradients_);
   }
+}
+
+template <typename T>
+void Conv2DLayer<T>::clear_gradients() {
+  weight_gradients_.fill(T(0));
+  if (use_bias_) {
+    bias_gradients_.fill(T(0));
+  } 
 }
 
 } // namespace tnn

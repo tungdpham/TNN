@@ -123,14 +123,13 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
 
   // Compute bias gradients
   if (use_bias_) {
-    bias_gradients_.fill(T(0));
 #ifdef USE_TBB
     tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
       T grad_sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
         grad_sum += current_grad(n, out_f, 0, 0);
       }
-      bias_gradients_(out_f, 0, 0, 0) = grad_sum;
+      bias_gradients_(out_f, 0, 0, 0) += grad_sum;
     });
 #else
 #ifdef _OPENMP
@@ -141,7 +140,7 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
       for (size_t n = 0; n < batch_size; ++n) {
         grad_sum += current_grad(n, out_f, 0, 0);
       }
-      bias_gradients_(out_f, 0, 0, 0) = grad_sum;
+      bias_gradients_(out_f, 0, 0, 0) += grad_sum;
     }
 #endif
   }
@@ -173,7 +172,6 @@ void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_d
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      // Use SIMD-optimized dot product for contiguous memory access
       output_data[n * output_features + out_f] =
           utils::simd_dot_product(
               &weight_data[out_f * input_features],
@@ -202,7 +200,7 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data,
 #ifdef USE_TBB
   tnn::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
-        weight_grad_data[out_f * input_features + in_f] =
+        weight_grad_data[out_f * input_features + in_f] +=
             utils::simd_dot_product(
                 &grad_output_transposed[out_f * batch_size],
                 &input_transposed[in_f * batch_size], batch_size);
@@ -213,8 +211,7 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data,
 #endif
   for (size_t out_f = 0; out_f < output_features; ++out_f) {
     for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      // Use SIMD-optimized dot product with contiguous memory access
-      weight_grad_data[out_f * input_features + in_f] =
+      weight_grad_data[out_f * input_features + in_f] +=
           utils::simd_dot_product(
               &grad_output_transposed[out_f * batch_size],
               &input_transposed[in_f * batch_size], batch_size);
@@ -328,6 +325,14 @@ void DenseLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
   grads.push_back(&weight_gradients_);
   if (use_bias_) {
     grads.push_back(&bias_gradients_);
+  }
+}
+
+template <typename T>
+void DenseLayer<T>::clear_gradients() {
+  weight_gradients_.fill(T(0));
+  if (use_bias_) {
+    bias_gradients_.fill(T(0));
   }
 }
 

@@ -20,7 +20,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
-  std::cout << std::string(70, '=') << std::endl;
+  std::cout << std::string(60, '=') << std::endl;
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
     const auto epoch_start = std::chrono::high_resolution_clock::now();
@@ -105,7 +105,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
                                                          epoch_start);
 
     // Print epoch summary with improved formatting
-    std::cout << std::string(70, '-') << std::endl;
+    std::cout << std::string(60, '-') << std::endl;
     std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
               << epoch_duration.count() << "s" << std::endl;
     std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4)
@@ -114,7 +114,7 @@ void train_cnn_model(tnn::Sequential<float> &model,
     std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4)
               << avg_val_loss << ", Accuracy: " << std::setprecision(2)
               << avg_val_accuracy * 100.0f << "%" << std::endl;
-    std::cout << std::string(70, '=') << std::endl;
+    std::cout << std::string(60, '=') << std::endl;
 
     // Learning rate decay
     if ((epoch + 1) % progress_print_interval == 0) {

@@ -27,6 +27,7 @@ protected:
   std::unique_ptr<Optimizer<T>> layer_optimizer_ = nullptr;  // Layer's own optimizer
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
+  virtual void clear_gradients() = 0;
 };
 } // namespace tnn
 

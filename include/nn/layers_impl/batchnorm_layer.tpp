@@ -287,9 +287,9 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   Tensor<T> grad_input(input.shape());
 
   if (affine_) {
-    // Initialize gradients
-    gamma_gradients_.fill(T(0));
-    beta_gradients_.fill(T(0));
+    // Don't clear gradients - accumulate across microbatches
+    // gamma_gradients_.fill(T(0));
+    // beta_gradients_.fill(T(0));
 
     // Compute gradients for gamma and beta
 #ifdef USE_TBB
@@ -307,8 +307,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
         }
       }
 
-      gamma_gradients_(c, 0, 0, 0) = gamma_grad_sum;
-      beta_gradients_(c, 0, 0, 0) = beta_grad_sum;
+      gamma_gradients_(c, 0, 0, 0) += gamma_grad_sum;
+      beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
     });
 #else
 #ifdef _OPENMP
@@ -328,8 +328,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
         }
       }
 
-      gamma_gradients_(c, 0, 0, 0) = gamma_grad_sum;
-      beta_gradients_(c, 0, 0, 0) = beta_grad_sum;
+      gamma_gradients_(c, 0, 0, 0) += gamma_grad_sum;
+      beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
     }
 #endif
   }
@@ -490,6 +490,12 @@ BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
 
   return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum,
                                              affine, config.name);
+}
+
+template <typename T>
+void BatchNormLayer<T>::clear_gradients() {
+  gamma_gradients_.fill(T(0));
+  beta_gradients_.fill(T(0));
 }
 
 } // namespace tnn

@@ -24,6 +24,7 @@ void ParameterizedLayer<T>::update_parameters() {
     auto params = parameters();
     auto grads = gradients();
     layer_optimizer_->update(params, grads);
+    clear_gradients();
 }
 
 template <typename T>
