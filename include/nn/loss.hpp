@@ -48,7 +48,6 @@ public:
     virtual void reset() {}
 };
 
-// Cross-entropy loss for multi-class classification
 template <typename T = float>
 class CrossEntropyLoss : public Loss<T> {
 public:
@@ -115,7 +114,6 @@ private:
     T epsilon_;
 };
 
-// Mean Squared Error loss for regression tasks
 template <typename T = float>
 class MSELoss : public Loss<T> {
 public:
@@ -174,7 +172,6 @@ public:
     }
 };
 
-// Mean Absolute Error loss for regression tasks
 template <typename T = float>
 class MAELoss : public Loss<T> {
 public:
@@ -233,7 +230,6 @@ public:
     }
 };
 
-// Huber loss for robust regression (less sensitive to outliers than MSE)
 template <typename T = float>
 class HuberLoss : public Loss<T> {
 public:
@@ -310,7 +306,6 @@ private:
     T delta_;
 };
 
-// Factory class for creating loss functions
 template <typename T = float>
 class LossFactory {
 public:

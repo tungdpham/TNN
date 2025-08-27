@@ -13,16 +13,16 @@
 #include "data_loader.hpp"
 #include "../tensor/tensor.hpp"
 
-// Constants for CIFAR-100 dataset
+
 namespace cifar100_constants {
     constexpr size_t IMAGE_HEIGHT = 32;
     constexpr size_t IMAGE_WIDTH = 32;
-    constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3; // RGB channels
+    constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3; 
     constexpr size_t NUM_CLASSES = 100;
-    constexpr size_t NUM_COARSE_CLASSES = 20; // Superclasses
+    constexpr size_t NUM_COARSE_CLASSES = 20; 
     constexpr size_t NUM_CHANNELS = 3;
     constexpr float NORMALIZATION_FACTOR = 255.0f;
-    constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE; // 1 byte coarse label + 1 byte fine label + 3072 bytes pixel data
+    constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE; 
 }
 
 namespace data_loading {
@@ -35,17 +35,17 @@ template<typename T = float>
 class CIFAR100DataLoader : public ImageClassificationDataLoader<T> {
 private:
     std::vector<std::vector<T>> data_;
-    std::vector<int> fine_labels_;  // Fine-grained labels (100 classes)
-    std::vector<int> coarse_labels_; // Coarse-grained labels (20 superclasses)
+    std::vector<int> fine_labels_;  
+    std::vector<int> coarse_labels_; 
     
-    // Pre-computed batch storage for efficiency
+    
     std::vector<Tensor<T>> batched_data_;
     std::vector<Tensor<T>> batched_fine_labels_;
     std::vector<Tensor<T>> batched_coarse_labels_;
     bool batches_prepared_;
-    bool use_coarse_labels_; // Flag to use coarse or fine labels
+    bool use_coarse_labels_; 
 
-    // CIFAR-100 fine class names
+    
     std::vector<std::string> fine_class_names_ = {
         "apple", "aquarium_fish", "baby", "bear", "beaver", "bed", "bee", "beetle",
         "bicycle", "bottle", "bowl", "boy", "bridge", "bus", "butterfly", "camel",
@@ -63,7 +63,7 @@ private:
         "tulip", "turtle", "wardrobe", "whale", "willow_tree", "wolf", "woman", "worm"
     };
 
-    // CIFAR-100 coarse class names (superclasses)
+    
     std::vector<std::string> coarse_class_names_ = {
         "aquatic_mammals", "fish", "flowers", "food_containers", "fruit_and_vegetables",
         "household_electrical_devices", "household_furniture", "insects", "large_carnivores",
@@ -77,8 +77,8 @@ public:
         : ImageClassificationDataLoader<T>(), 
           batches_prepared_(false), 
           use_coarse_labels_(use_coarse_labels) {
-        // Reserve space to reduce allocations
-        data_.reserve(50000); // CIFAR-100 train set size
+        
+        data_.reserve(50000); 
         fine_labels_.reserve(50000);
         coarse_labels_.reserve(50000);
     }
@@ -91,15 +91,15 @@ public:
      * @return true if successful, false otherwise
      */
     bool load_data(const std::string& source) override {
-        // Check if source is a single file or multiple files
+        
         std::vector<std::string> filenames;
         
-        // If source ends with .bin, treat as single file
+        
         if (source.find(".bin") != std::string::npos) {
             filenames.push_back(source);
         } else {
-            // Otherwise, assume it's a directory pattern or multiple files
-            // For now, we'll expect the user to call load_multiple_files instead
+            
+            
             std::cerr << "Error: For multiple files, use load_multiple_files() method" << std::endl;
             return false;
         }
@@ -124,18 +124,18 @@ public:
                 return false;
             }
 
-            // CIFAR-100 binary format: [1-byte coarse label][1-byte fine label][3072 bytes of pixel data]
+            
             char buffer[cifar100_constants::RECORD_SIZE];
             size_t records_loaded = 0;
 
             while (file.read(buffer, cifar100_constants::RECORD_SIZE)) {
-                // First byte is the coarse label
+                
                 coarse_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
                 
-                // Second byte is the fine label
+                
                 fine_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[1])));
 
-                // Remaining bytes are pixel data - reserve space for efficiency
+                
                 std::vector<T> image_data;
                 image_data.reserve(cifar100_constants::IMAGE_SIZE);
                 
@@ -166,7 +166,7 @@ public:
         }
         
         if (this->current_batch_index_ >= batched_data_.size()) {
-            return false; // No more batches
+            return false; 
         }
         
         batch_data = batched_data_[this->current_batch_index_].clone();
@@ -184,20 +184,20 @@ public:
      * Get a specific batch size (supports both pre-computed and on-demand batches)
      */
     bool get_batch(int batch_size, Tensor<T>& batch_data, Tensor<T>& batch_labels) override {
-        // If batches are prepared and batch size matches, use fast path
+        
         if (batches_prepared_ && batch_size == this->batch_size_) {
             return get_next_batch(batch_data, batch_labels);
         }
         
-        // Fallback to original implementation for different batch sizes
+        
         if (this->current_index_ >= data_.size()) {
-            return false; // No more data
+            return false; 
         }
 
         const int actual_batch_size = std::min(batch_size, static_cast<int>(data_.size() - this->current_index_));
         const int num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES : cifar100_constants::NUM_CLASSES;
 
-        // Create batch data tensor for CNN: (batch_size, channels=3, height=32, width=32)
+        
         batch_data = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             cifar100_constants::NUM_CHANNELS,
@@ -205,7 +205,7 @@ public:
             cifar100_constants::IMAGE_WIDTH
         );
 
-        // Create batch labels tensor (batch_size, num_classes, 1, 1) - one-hot encoded
+        
         batch_labels = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             static_cast<size_t>(num_classes), 
@@ -213,13 +213,13 @@ public:
         );
         batch_labels.fill(static_cast<T>(0.0));
 
-        // Parallelize batch processing for better performance
+        
         #pragma omp parallel for if(actual_batch_size > 16)
         for (int i = 0; i < actual_batch_size; ++i) {
             const auto& image_data = data_[this->current_index_ + i];
             
-            // Copy pixel data and reshape to 3x32x32
-            // CIFAR-100 data is stored in channel-major order: RRR...GGG...BBB...
+            
+            
             for (int c = 0; c < static_cast<int>(cifar100_constants::NUM_CHANNELS); ++c) {
                 for (int h = 0; h < static_cast<int>(cifar100_constants::IMAGE_HEIGHT); ++h) {
                     for (int w = 0; w < static_cast<int>(cifar100_constants::IMAGE_WIDTH); ++w) {
@@ -230,7 +230,7 @@ public:
                 }
             }
 
-            // Set one-hot label (fine or coarse based on flag)
+            
             const int label = use_coarse_labels_ ? coarse_labels_[this->current_index_ + i] : fine_labels_[this->current_index_ + i];
             if (label >= 0 && label < num_classes) {
                 batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
@@ -257,7 +257,7 @@ public:
         
         std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-        // Use move semantics for better performance
+        
         std::vector<std::vector<T>> shuffled_data;
         std::vector<int> shuffled_fine_labels;
         std::vector<int> shuffled_coarse_labels;
@@ -276,7 +276,7 @@ public:
         coarse_labels_ = std::move(shuffled_coarse_labels);
         this->current_index_ = 0;
         
-        // Invalidate pre-computed batches since data order changed
+        
         batches_prepared_ = false;
     }
 
@@ -313,7 +313,7 @@ public:
      */
     void set_use_coarse_labels(bool use_coarse) {
         use_coarse_labels_ = use_coarse;
-        // Invalidate pre-computed batches since label type changed
+        
         batches_prepared_ = false;
     }
 
@@ -350,7 +350,7 @@ public:
         batched_coarse_labels_.clear();
         
         const size_t num_samples = data_.size();
-        const size_t num_batches = (num_samples + batch_size - 1) / batch_size; // Ceiling division
+        const size_t num_batches = (num_samples + batch_size - 1) / batch_size; 
         const int num_fine_classes = cifar100_constants::NUM_CLASSES;
         const int num_coarse_classes = cifar100_constants::NUM_COARSE_CLASSES;
         
@@ -365,7 +365,7 @@ public:
             const size_t end_idx = std::min(start_idx + batch_size, num_samples);
             const int actual_batch_size = static_cast<int>(end_idx - start_idx);
             
-            // Create batch tensors
+            
             Tensor<T> batch_data(
                 static_cast<size_t>(actual_batch_size), 
                 cifar100_constants::NUM_CHANNELS,
@@ -387,14 +387,14 @@ public:
             });
             batch_coarse_labels.fill(static_cast<T>(0.0));
             
-            // Fill batch data in parallel
+            
             #pragma omp parallel for if(actual_batch_size > 16)
             for (int i = 0; i < actual_batch_size; ++i) {
                 const size_t sample_idx = start_idx + i;
                 const auto& image_data = data_[sample_idx];
                 
-                // Copy pixel data and reshape to 3x32x32
-                // CIFAR-100 data is stored in channel-major order: RRR...GGG...BBB...
+                
+                
                 for (int c = 0; c < static_cast<int>(cifar100_constants::NUM_CHANNELS); ++c) {
                     for (int h = 0; h < static_cast<int>(cifar100_constants::IMAGE_HEIGHT); ++h) {
                         for (int w = 0; w < static_cast<int>(cifar100_constants::IMAGE_WIDTH); ++w) {
@@ -405,13 +405,13 @@ public:
                     }
                 }
                 
-                // Set one-hot fine label
+                
                 const int fine_label = fine_labels_[sample_idx];
                 if (fine_label >= 0 && fine_label < num_fine_classes) {
                     batch_fine_labels(i, fine_label, 0, 0) = static_cast<T>(1.0);
                 }
                 
-                // Set one-hot coarse label
+                
                 const int coarse_label = coarse_labels_[sample_idx];
                 if (coarse_label >= 0 && coarse_label < num_coarse_classes) {
                     batch_coarse_labels(i, coarse_label, 0, 0) = static_cast<T>(1.0);
@@ -451,7 +451,7 @@ public:
             return;
         }
 
-        // Calculate fine label distribution
+        
         std::vector<int> fine_label_counts(cifar100_constants::NUM_CLASSES, 0);
         for (const auto& label : fine_labels_) {
             if (label >= 0 && label < static_cast<int>(cifar100_constants::NUM_CLASSES)) {
@@ -459,7 +459,7 @@ public:
             }
         }
 
-        // Calculate coarse label distribution
+        
         std::vector<int> coarse_label_counts(cifar100_constants::NUM_COARSE_CLASSES, 0);
         for (const auto& label : coarse_labels_) {
             if (label >= 0 && label < static_cast<int>(cifar100_constants::NUM_COARSE_CLASSES)) {
@@ -482,7 +482,7 @@ public:
             std::cout << "  " << coarse_class_names_[i] << " (" << i << "): " << coarse_label_counts[i] << " samples" << std::endl;
         }
 
-        // Calculate pixel value statistics for first image
+        
         if (!data_.empty()) {
             T min_val = *std::min_element(data_[0].begin(), data_[0].end());
             T max_val = *std::max_element(data_[0].begin(), data_[0].end());
@@ -495,8 +495,8 @@ public:
     }
 };
 
-// Type aliases for convenience
+
 using CIFAR100DataLoaderFloat = CIFAR100DataLoader<float>;
 using CIFAR100DataLoaderDouble = CIFAR100DataLoader<double>;
 
-} // namespace data_loading
+} 

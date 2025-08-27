@@ -13,15 +13,14 @@
 #include "data_loader.hpp"
 #include "../tensor/tensor.hpp"
 
-// Constants for CIFAR-10 dataset
 namespace cifar10_constants {
     constexpr size_t IMAGE_HEIGHT = 32;
     constexpr size_t IMAGE_WIDTH = 32;
-    constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3; // RGB channels
+    constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3;
     constexpr size_t NUM_CLASSES = 10;
     constexpr size_t NUM_CHANNELS = 3;
     constexpr float NORMALIZATION_FACTOR = 255.0f;
-    constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE; // 1 byte label + 3072 bytes pixel data
+    constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE;
 }
 
 namespace data_loading {
@@ -35,13 +34,11 @@ class CIFAR10DataLoader : public ImageClassificationDataLoader<T> {
 private:
     std::vector<std::vector<T>> data_;
     std::vector<int> labels_;
-    
-    // Pre-computed batch storage for efficiency
+
     std::vector<Tensor<T>> batched_data_;
     std::vector<Tensor<T>> batched_labels_;
     bool batches_prepared_;
 
-    // CIFAR-10 class names
     std::vector<std::string> class_names_ = {
         "airplane", "automobile", "bird", "cat", "deer", 
         "dog", "frog", "horse", "ship", "truck"
@@ -49,9 +46,9 @@ private:
 
 public:
     CIFAR10DataLoader() : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
-        // Reserve space to reduce allocations
-        data_.reserve(50000); // CIFAR-10 train set size
-        labels_.reserve(50000);
+
+      data_.reserve(50000);
+      labels_.reserve(50000);
     }
 
     virtual ~CIFAR10DataLoader() = default;
@@ -62,15 +59,13 @@ public:
      * @return true if successful, false otherwise
      */
     bool load_data(const std::string& source) override {
-        // Check if source is a single file or multiple files
+
         std::vector<std::string> filenames;
-        
-        // If source ends with .bin, treat as single file
+
         if (source.find(".bin") != std::string::npos) {
             filenames.push_back(source);
         } else {
-            // Otherwise, assume it's a directory pattern or multiple files
-            // For now, we'll expect the user to call load_multiple_files instead
+
             std::cerr << "Error: For multiple files, use load_multiple_files() method" << std::endl;
             return false;
         }
@@ -94,15 +89,13 @@ public:
                 return false;
             }
 
-            // CIFAR-10 binary format: [1-byte label][3072 bytes of pixel data]
             char buffer[cifar10_constants::RECORD_SIZE];
             size_t records_loaded = 0;
 
             while (file.read(buffer, cifar10_constants::RECORD_SIZE)) {
-                // First byte is the label
+
                 labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
 
-                // Remaining bytes are pixel data - reserve space for efficiency
                 std::vector<T> image_data;
                 image_data.reserve(cifar10_constants::IMAGE_SIZE);
                 
@@ -132,7 +125,7 @@ public:
         }
         
         if (this->current_batch_index_ >= batched_data_.size()) {
-            return false; // No more batches
+          return false;
         }
         
         batch_data = batched_data_[this->current_batch_index_].clone();
@@ -146,19 +139,17 @@ public:
      * Get a specific batch size (supports both pre-computed and on-demand batches)
      */
     bool get_batch(int batch_size, Tensor<T>& batch_data, Tensor<T>& batch_labels) override {
-        // If batches are prepared and batch size matches, use fast path
+
         if (batches_prepared_ && batch_size == this->batch_size_) {
             return get_next_batch(batch_data, batch_labels);
         }
-        
-        // Fallback to original implementation for different batch sizes
+
         if (this->current_index_ >= data_.size()) {
-            return false; // No more data
+          return false;
         }
 
         const int actual_batch_size = std::min(batch_size, static_cast<int>(data_.size() - this->current_index_));
 
-        // Create batch data tensor for CNN: (batch_size, channels=3, height=32, width=32)
         batch_data = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             cifar10_constants::NUM_CHANNELS,
@@ -166,7 +157,6 @@ public:
             cifar10_constants::IMAGE_WIDTH
         );
 
-        // Create batch labels tensor (batch_size, 10, 1, 1) - one-hot encoded
         batch_labels = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             cifar10_constants::NUM_CLASSES, 
@@ -174,13 +164,10 @@ public:
         );
         batch_labels.fill(static_cast<T>(0.0));
 
-        // Parallelize batch processing for better performance
-        #pragma omp parallel for if(actual_batch_size > 16)
+#pragma omp parallel for if(actual_batch_size > 16)
         for (int i = 0; i < actual_batch_size; ++i) {
             const auto& image_data = data_[this->current_index_ + i];
-            
-            // Copy pixel data and reshape to 3x32x32
-            // CIFAR-10 data is stored in channel-major order: RRR...GGG...BBB...
+
             for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
                 for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
                     for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++w) {
@@ -191,7 +178,6 @@ public:
                 }
             }
 
-            // Set one-hot label
             const int label = labels_[this->current_index_ + i];
             if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
                 batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
@@ -218,7 +204,6 @@ public:
         
         std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-        // Use move semantics for better performance
         std::vector<std::vector<T>> shuffled_data;
         std::vector<int> shuffled_labels;
         shuffled_data.reserve(data_.size());
@@ -232,8 +217,7 @@ public:
         data_ = std::move(shuffled_data);
         labels_ = std::move(shuffled_labels);
         this->current_index_ = 0;
-        
-        // Invalidate pre-computed batches since data order changed
+
         batches_prepared_ = false;
     }
 
@@ -280,8 +264,8 @@ public:
         batched_labels_.clear();
         
         const size_t num_samples = data_.size();
-        const size_t num_batches = (num_samples + batch_size - 1) / batch_size; // Ceiling division
-        
+        const size_t num_batches = (num_samples + batch_size - 1) / batch_size;
+
         batched_data_.reserve(num_batches);
         batched_labels_.reserve(num_batches);
         
@@ -291,8 +275,7 @@ public:
             const size_t start_idx = batch_idx * batch_size;
             const size_t end_idx = std::min(start_idx + batch_size, num_samples);
             const int actual_batch_size = static_cast<int>(end_idx - start_idx);
-            
-            // Create batch tensors
+
             Tensor<T> batch_data(
                 static_cast<size_t>(actual_batch_size), 
                 cifar10_constants::NUM_CHANNELS,
@@ -306,15 +289,12 @@ public:
                 1, 1
             );
             batch_labels.fill(static_cast<T>(0.0));
-            
-            // Fill batch data in parallel
-            #pragma omp parallel for if(actual_batch_size > 16)
+
+#pragma omp parallel for if(actual_batch_size > 16)
             for (int i = 0; i < actual_batch_size; ++i) {
                 const size_t sample_idx = start_idx + i;
                 const auto& image_data = data_[sample_idx];
-                
-                // Copy pixel data and reshape to 3x32x32
-                // CIFAR-10 data is stored in channel-major order: RRR...GGG...BBB...
+
                 for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
                     for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
                         for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++w) {
@@ -324,8 +304,7 @@ public:
                         }
                     }
                 }
-                
-                // Set one-hot label
+
                 const int label = labels_[sample_idx];
                 if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
                     batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
@@ -364,7 +343,6 @@ public:
             return;
         }
 
-        // Calculate label distribution
         std::vector<int> label_counts(cifar10_constants::NUM_CLASSES, 0);
         for (const auto& label : labels_) {
             if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
@@ -381,7 +359,6 @@ public:
             std::cout << "  " << class_names_[i] << " (" << i << "): " << label_counts[i] << " samples" << std::endl;
         }
 
-        // Calculate pixel value statistics for first image
         if (!data_.empty()) {
             T min_val = *std::min_element(data_[0].begin(), data_[0].end());
             T max_val = *std::max_element(data_[0].begin(), data_[0].end());
@@ -394,7 +371,6 @@ public:
     }
 };
 
-// Type aliases for convenience
 using CIFAR10DataLoaderFloat = CIFAR10DataLoader<float>;
 using CIFAR10DataLoaderDouble = CIFAR10DataLoader<double>;
 

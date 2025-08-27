@@ -13,7 +13,7 @@
 #include "data_loader.hpp"
 #include "../tensor/tensor.hpp"
 
-// Constants for MNIST dataset
+
 namespace mnist_constants {
     constexpr size_t IMAGE_HEIGHT = 28;
     constexpr size_t IMAGE_WIDTH = 28;
@@ -35,15 +35,15 @@ private:
     std::vector<std::vector<T>> data_;
     std::vector<int> labels_;
     
-    // Pre-computed batch storage for efficiency
+    
     std::vector<Tensor<T>> batched_data_;
     std::vector<Tensor<T>> batched_labels_;
     bool batches_prepared_;
 
 public:
     MNISTDataLoader() : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
-        // Reserve space to reduce allocations
-        data_.reserve(60000); // MNIST train set size
+        
+        data_.reserve(60000); 
         labels_.reserve(60000);
     }
 
@@ -62,9 +62,9 @@ public:
         }
 
         std::string line;
-        line.reserve(3136); // Reserve space for MNIST line (784 pixels + label)
+        line.reserve(3136); 
         
-        // Skip header line
+        
         if (!std::getline(file, line)) {
             std::cerr << "Error: Empty file " << source << std::endl;
             return false;
@@ -77,11 +77,11 @@ public:
             std::stringstream ss(line);
             std::string cell;
 
-            // First column is label
+            
             if (!std::getline(ss, cell, ',')) continue;
             labels_.push_back(std::stoi(cell));
 
-            // Remaining columns are pixel values - reserve space for efficiency
+            
             std::vector<T> row;
             row.reserve(mnist_constants::IMAGE_SIZE);
             
@@ -89,7 +89,7 @@ public:
                 row.push_back(static_cast<T>(std::stod(cell) / mnist_constants::NORMALIZATION_FACTOR));
             }
             
-            // Validate image size
+            
             if (row.size() != mnist_constants::IMAGE_SIZE) {
                 std::cerr << "Warning: Invalid image size " << row.size() 
                           << " expected " << mnist_constants::IMAGE_SIZE << std::endl;
@@ -114,7 +114,7 @@ public:
         }
         
         if (this->current_batch_index_ >= batched_data_.size()) {
-            return false; // No more batches
+            return false; 
         }
         
         batch_data = batched_data_[this->current_batch_index_].clone();
@@ -128,19 +128,19 @@ public:
      * Get a specific batch size (supports both pre-computed and on-demand batches)
      */
     bool get_batch(int batch_size, Tensor<T>& batch_data, Tensor<T>& batch_labels) override {
-        // If batches are prepared and batch size matches, use fast path
+        
         if (batches_prepared_ && batch_size == this->batch_size_) {
             return get_next_batch(batch_data, batch_labels);
         }
         
-        // Fallback to original implementation for different batch sizes
+        
         if (this->current_index_ >= data_.size()) {
-            return false; // No more data
+            return false; 
         }
 
         const int actual_batch_size = std::min(batch_size, static_cast<int>(data_.size() - this->current_index_));
 
-        // Create batch data tensor for CNN: (batch_size, channels=1, height=28, width=28)
+        
         batch_data = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             mnist_constants::NUM_CHANNELS,
@@ -148,7 +148,7 @@ public:
             mnist_constants::IMAGE_WIDTH
         );
 
-        // Create batch labels tensor (batch_size, 10, 1, 1) - one-hot encoded
+        
         batch_labels = Tensor<T>(
             static_cast<size_t>(actual_batch_size), 
             mnist_constants::NUM_CLASSES, 
@@ -156,19 +156,19 @@ public:
         );
         batch_labels.fill(static_cast<T>(0.0));
 
-        // Parallelize batch processing for better performance
+        
         #pragma omp parallel for if(actual_batch_size > 16)
         for (int i = 0; i < actual_batch_size; ++i) {
             const auto& image_data = data_[this->current_index_ + i];
             
-            // Copy pixel data and reshape to 28x28 with better cache locality
+            
             for (int h = 0; h < static_cast<int>(mnist_constants::IMAGE_HEIGHT); ++h) {
                 for (int w = 0; w < static_cast<int>(mnist_constants::IMAGE_WIDTH); ++w) {
                     batch_data(i, 0, h, w) = image_data[h * mnist_constants::IMAGE_WIDTH + w];
                 }
             }
 
-            // Set one-hot label
+            
             const int label = labels_[this->current_index_ + i];
             if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
                 batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
@@ -195,7 +195,7 @@ public:
         
         std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-        // Use move semantics for better performance
+        
         std::vector<std::vector<T>> shuffled_data;
         std::vector<int> shuffled_labels;
         shuffled_data.reserve(data_.size());
@@ -210,7 +210,7 @@ public:
         labels_ = std::move(shuffled_labels);
         this->current_index_ = 0;
         
-        // Invalidate pre-computed batches since data order changed
+        
         batches_prepared_ = false;
     }
 
@@ -262,7 +262,7 @@ public:
         batched_labels_.clear();
         
         const size_t num_samples = data_.size();
-        const size_t num_batches = (num_samples + batch_size - 1) / batch_size; // Ceiling division
+        const size_t num_batches = (num_samples + batch_size - 1) / batch_size; 
         
         batched_data_.reserve(num_batches);
         batched_labels_.reserve(num_batches);
@@ -275,7 +275,7 @@ public:
             const int actual_batch_size = static_cast<int>(end_idx - start_idx);
             assert(actual_batch_size > 0);
             
-            // Create batch tensors
+            
             Tensor<T> batch_data(std::vector<size_t>{
                 static_cast<size_t>(actual_batch_size), 
                 mnist_constants::NUM_CHANNELS,
@@ -290,20 +290,20 @@ public:
             });
             batch_labels.fill(T(0.0)); 
             
-            // Fill batch data in parallel
+            
             #pragma omp parallel for if(actual_batch_size > 16)
             for (int i = 0; i < actual_batch_size; ++i) {
                 const size_t sample_idx = start_idx + i;
                 const auto& image_data = data_[sample_idx];
                 
-                // Copy pixel data and reshape to 28x28 with better cache locality
+                
                 for (int h = 0; h < static_cast<int>(mnist_constants::IMAGE_HEIGHT); ++h) {
                     for (int w = 0; w < static_cast<int>(mnist_constants::IMAGE_WIDTH); ++w) {
                         batch_data(i, 0, h, w) = image_data[h * mnist_constants::IMAGE_WIDTH + w];
                     }
                 }
                 
-                // Set one-hot label
+                
                 const int label = labels_[sample_idx];
                 if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
                     batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
@@ -336,8 +336,8 @@ public:
     }
 };
 
-// Type alias for convenience
+
 using MNISTDataLoaderFloat = MNISTDataLoader<float>;
 using MNISTDataLoaderDouble = MNISTDataLoader<double>;
 
-} // namespace data_loading
+} 

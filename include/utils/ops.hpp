@@ -62,10 +62,10 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
-// Parallelize accuracy computation with reduction
+
 #pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
   for (size_t i = 0; i < batch_size; ++i) {
-    // Find predicted class (argmax) - more efficient implementation
+    
     int pred_class = 0;
     float max_pred = predictions(i, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {
@@ -76,7 +76,7 @@ float compute_class_accuracy(const Tensor<float> &predictions,
       }
     }
 
-    // Find true class - early termination when found
+    
     int true_class = -1;
     for (size_t j = 0; j < num_classes; ++j) {
       if (targets(i, j, 0, 0) > 0.5f) {
@@ -94,15 +94,15 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 }
 
 template <typename T>
-// Optimized SIMD dot product for unaligned data
+
 T simd_dot_product(const T *weights, const T *col_data,
                               size_t kernel_size) {
   T sum = T(0);
 
-  // Use SIMD for float type only
+  
   if constexpr (std::is_same_v<T, float>) {
 #if defined(__AVX2__)
-    // AVX2 implementation - process 8 floats at once
+    
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 8);
 
@@ -111,50 +111,50 @@ T simd_dot_product(const T *weights, const T *col_data,
 
       __m256 c_vec = _mm256_loadu_ps(&col_data[ks]);
 
-      // Fused multiply-add
+      
       sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
     }
 
-    // Horizontal sum of the vector
+    
     __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
     __m128 sum_low = _mm256_castps256_ps128(sum_vec);
     __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
 
-    // Sum the 4 elements in the 128-bit vector
+    
     sum_128 = _mm_hadd_ps(sum_128, sum_128);
     sum_128 = _mm_hadd_ps(sum_128, sum_128);
     sum = _mm_cvtss_f32(sum_128);
 
-    // Handle remaining elements
+    
     for (size_t ks = simd_end; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
 
-    _mm256_zeroupper(); // Clear upper bits for AVX2
+    _mm256_zeroupper(); 
 
 #elif defined(__SSE2__)
-    // SSE2 implementation - process 4 floats at once
+    
     __m128 sum_vec = _mm_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 4);
 
     for (size_t ks = 0; ks < simd_end; ks += 4) {
-      // Load 4 weights (contiguous)
+      
       __m128 w_vec = _mm_loadu_ps(&weights[ks]);
 
-      // Load 4 col_data values (now contiguous!)
+      
       __m128 c_vec = _mm_loadu_ps(&col_data[ks]);
 
-      // Multiply and add
+      
       __m128 prod = _mm_mul_ps(w_vec, c_vec);
       sum_vec = _mm_add_ps(sum_vec, prod);
     }
 
-    // Horizontal sum of the vector
+    
     sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
     sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
     sum = _mm_cvtss_f32(sum_vec);
 
-    // Handle remaining elements
+    
     for (size_t ks = simd_end; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
@@ -162,13 +162,13 @@ T simd_dot_product(const T *weights, const T *col_data,
 #else
     std::cerr << "Warning: SIMD not supported, using scalar dot product."
               << std::endl;
-    // Fallback scalar implementation
+    
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
 #endif
   } else {
-    // For non-float types, use scalar implementation
+    
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
@@ -179,4 +179,4 @@ T simd_dot_product(const T *weights, const T *col_data,
 
 
 
-} // namespace utils
+} 

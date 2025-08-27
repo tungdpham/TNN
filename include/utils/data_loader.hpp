@@ -21,7 +21,7 @@ class BaseDataLoader {
 public:
     virtual ~BaseDataLoader() = default;
     
-    // Pure virtual functions that must be implemented by derived classes
+    
     
     /**
      * Load data from file(s)
@@ -62,7 +62,7 @@ public:
      */
     virtual size_t size() const = 0;
     
-    // Common functionality with default implementations
+    
     
     /**
      * Prepare batches for efficient training
@@ -87,7 +87,7 @@ public:
      */
     virtual size_t num_batches() const {
         if (!batched_prepared_ || size() == 0) return 0;
-        return (size() + batch_size_ - 1) / batch_size_; // Ceiling division
+        return (size() + batch_size_ - 1) / batch_size_; 
     }
     
     /**
@@ -118,7 +118,7 @@ public:
     const std::mt19937& get_rng() const { return rng_; }
 
 protected:
-    // Common member variables
+    
     size_t current_index_ = 0;
     size_t current_batch_index_ = 0;
     int batch_size_ = 32;
@@ -139,7 +139,7 @@ protected:
      * Utility function to create one-hot encoded labels
      */
     void create_one_hot_label(Tensor<T>& label_tensor, int batch_idx, int class_idx, int num_classes) {
-        // Ensure the tensor is properly sized: (batch_size, num_classes, 1, 1)
+        
         label_tensor(batch_idx, class_idx, 0, 0) = static_cast<T>(1.0);
     }
     
@@ -258,8 +258,8 @@ protected:
  */
 template<typename T = float>
 std::unique_ptr<BaseDataLoader<T>> create_data_loader(const std::string& dataset_type) {
-    // This would be implemented by derived classes or a factory
-    // For now, just return nullptr as this is an abstract interface
+    
+    
     return nullptr;
 }
 
@@ -312,7 +312,7 @@ namespace utils {
         stats.min_val = std::numeric_limits<T>::max();
         stats.max_val = std::numeric_limits<T>::lowest();
         
-        // Calculate means and min/max
+        
         for (const auto& sample : data) {
             for (size_t i = 0; i < num_features; ++i) {
                 stats.means[i] += sample[i];
@@ -325,7 +325,7 @@ namespace utils {
             mean /= static_cast<T>(num_samples);
         }
         
-        // Calculate standard deviations
+        
         for (const auto& sample : data) {
             for (size_t i = 0; i < num_features; ++i) {
                 T diff = sample[i] - stats.means[i];
@@ -339,6 +339,6 @@ namespace utils {
         
         return stats;
     }
-} // namespace utils
+} 
 
-} // namespace data_loading
+} 
