@@ -51,6 +51,24 @@ private:
                               size_t output_size, size_t kernel_size,
                               size_t out_channels) const;
 
+  void compute_bias_gradients(const T *grad_output_data, T *bias_grad_data,
+                             size_t batch_size, size_t output_h, 
+                             size_t output_w, size_t out_channels) const;
+
+  void add_bias_to_output(T *output_data, const T *bias_data,
+                         size_t batch_size, size_t output_h, size_t output_w,
+                         size_t out_channels, size_t N_stride, size_t C_stride,
+                         size_t H_stride, size_t W_stride) const;
+
+  void flatten_grad_output(const Tensor<T> &grad_tensor, T *flat_data,
+                          size_t batch_size, size_t output_h, size_t output_w,
+                          size_t out_channels) const;
+
+  void copy_flat_to_tensor(const T *flat_data, T *tensor_data,
+                          size_t batch_size, size_t output_h, size_t output_w,
+                          size_t out_channels, size_t N_stride, size_t C_stride,
+                          size_t H_stride, size_t W_stride) const;
+
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
               size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,

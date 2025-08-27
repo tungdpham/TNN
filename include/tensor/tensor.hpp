@@ -234,6 +234,7 @@ public:
   const T *data() const { return data_; }
 
   bool is_aligned(size_t alignment = 32) const {
+    std::cout << "Data pointer address: " << reinterpret_cast<uintptr_t>(data_) << std::endl;
     return (reinterpret_cast<uintptr_t>(data_) % alignment) == 0;
   }
 

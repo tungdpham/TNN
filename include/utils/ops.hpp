@@ -6,13 +6,13 @@
 #include <immintrin.h>  
 #endif
 namespace utils {
+
 template <typename T>
-void transpose_2d(const T *src, T *dst, size_t rows, size_t cols) {
-  // Use cache-friendly blocking for large matrices
-  const size_t block_size = 64; // Tuned for typical L1 cache
+void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
+  const size_t block_size = 64;
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t i = 0; i < rows; i += block_size) {
     for (size_t j = 0; j < cols; j += block_size) {

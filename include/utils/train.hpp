@@ -38,7 +38,6 @@ void train_cnn_model(tnn::Sequential<float> &model,
     // Use fast batch iteration with pre-computed batches
     while (train_loader.get_next_batch(batch_data, batch_labels)) {
       ++num_batches;
-
       
       predictions = model.forward(batch_data);
       utils::apply_softmax<float>(predictions);
@@ -70,15 +69,21 @@ void train_cnn_model(tnn::Sequential<float> &model,
       }
       model.clear_profiling_data();
     }
+    std::cout << std::endl; // New line after batch processing
 
     const float avg_train_loss = static_cast<float>(total_loss / num_batches);
     const float avg_train_accuracy =
         static_cast<float>(total_accuracy / num_batches);
 
+    const auto epoch_end = std::chrono::high_resolution_clock::now();
+    const auto epoch_duration =
+        std::chrono::duration_cast<std::chrono::seconds>(epoch_end -
+                                                         epoch_start);
     // Optimized validation phase - use pre-computed batches
     model.eval();
     test_loader.reset();
 
+    std::cout << "Starting validation..." << std::endl;
     double val_loss = 0.0;
     double val_accuracy = 0.0;
     int val_batches = 0;
@@ -98,11 +103,6 @@ void train_cnn_model(tnn::Sequential<float> &model,
     const float avg_val_loss = static_cast<float>(val_loss / val_batches);
     const float avg_val_accuracy =
         static_cast<float>(val_accuracy / val_batches);
-
-    const auto epoch_end = std::chrono::high_resolution_clock::now();
-    const auto epoch_duration =
-        std::chrono::duration_cast<std::chrono::seconds>(epoch_end -
-                                                         epoch_start);
 
     // Print epoch summary with improved formatting
     std::cout << std::string(60, '-') << std::endl;

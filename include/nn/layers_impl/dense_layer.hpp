@@ -1,14 +1,13 @@
 #pragma once
 
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
-
 #include "../../tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "../optimizers.hpp"
 #include "parameterized_layer.hpp"
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace tnn {
 
@@ -29,17 +28,23 @@ private:
   std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
 
   // Helper functions for dense layer computations
-  void compute_dense_forward(const T *input_data, const T *weight_data, 
-                             T *output_data, size_t batch_size, 
-                             size_t input_features, size_t output_features) const;
+  void compute_dense_forward(const T *input_data, const T *weight_data,
+                             T *output_data, size_t batch_size,
+                             size_t input_features,
+                             size_t output_features) const;
 
   void compute_weight_gradients(const T *input_data, const T *grad_output_data,
-                               T *weight_grad_data, size_t batch_size,
-                               size_t input_features, size_t output_features) const;
+                                T *weight_grad_data, size_t batch_size,
+                                size_t input_features,
+                                size_t output_features) const;
 
   void compute_input_gradients(const T *grad_output_data, const T *weight_data,
-                              T *grad_input_data, size_t batch_size,
-                              size_t input_features, size_t output_features) const;
+                               T *grad_input_data, size_t batch_size,
+                               size_t input_features,
+                               size_t output_features) const;
+
+  void compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
+                              size_t batch_size, size_t output_features) const;
 
   void add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                        size_t output_features) const;

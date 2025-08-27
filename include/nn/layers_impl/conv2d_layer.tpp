@@ -75,8 +75,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   size_t output_size = batch_size * output_h * output_w;
 
   // Perform convolution
-  auto output_flat = std::make_unique<T[]>(out_channels_ * output_size);
-  compute_conv_forward(col_matrix.data(), weights_.data(), output_flat.get(),
+  T* output_flat = (T*)malloc(sizeof(T) * out_channels_ * output_size);
+  compute_conv_forward(col_matrix.data(), weights_.data(), output_flat,
                        output_size, kernel_size, out_channels_);
 
   T *output_data = output.data();
@@ -86,61 +86,15 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   const size_t H_stride = output.stride(2);
   const size_t W_stride = output.stride(3);
 
-#ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
-    for (size_t oh = 0; oh < output_h; ++oh) {
-      for (size_t ow = 0; ow < output_w; ++ow) {
-        size_t flat_idx =
-            oc * output_size + n * (output_h * output_w) + oh * output_w + ow;
-        output_data[n * N_stride + oc * C_stride + oh * H_stride +
-                    ow * W_stride] = output_flat[flat_idx];
-      }
-    }
-  });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t oc = 0; oc < out_channels_; ++oc) {
-      for (size_t oh = 0; oh < output_h; ++oh) {
-        for (size_t ow = 0; ow < output_w; ++ow) {
-          size_t flat_idx = oc * output_size + n * (output_h * output_w) +
-                            oh * output_w + ow;
-          output_data[n * N_stride + oc * C_stride + oh * H_stride +
-                      ow * W_stride] = output_flat[flat_idx];
-        }
-      }
-    }
-  }
-#endif
+  copy_flat_to_tensor(output_flat, output_data, batch_size, output_h, output_w,
+                     out_channels_, N_stride, C_stride, H_stride, W_stride);
+
+  free(output_flat);
 
   // Add bias if enabled
   if (use_bias_) {
-#ifdef USE_TBB
-    tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
-      T bias_val = bias_(oc, 0, 0, 0);
-      for (size_t oh = 0; oh < output_h; ++oh) {
-        for (size_t ow = 0; ow < output_w; ++ow) {
-          output(n, oc, oh, ow) += bias_val;
-        }
-      }
-    });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t oc = 0; oc < out_channels_; ++oc) {
-        T bias_val = bias_(oc, 0, 0, 0);
-        for (size_t oh = 0; oh < output_h; ++oh) {
-          for (size_t ow = 0; ow < output_w; ++ow) {
-            output(n, oc, oh, ow) += bias_val;
-          }
-        }
-      }
-    }
-#endif
+    add_bias_to_output(output.data(), bias_.data(), batch_size, output_h, 
+                      output_w, out_channels_, N_stride, C_stride, H_stride, W_stride);
   }
 
   // Store pre-activation output
@@ -196,77 +150,29 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  auto grad_output_flat = std::make_unique<T[]>(out_channels_ * output_size);
-
-#ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, out_channels_, [&](size_t n, size_t oc) {
-    for (size_t oh = 0; oh < output_h; ++oh) {
-      for (size_t ow = 0; ow < output_w; ++ow) {
-        grad_output_flat[oc * output_size + n * (output_h * output_w) +
-                         oh * output_w + ow] = current_grad(n, oc, oh, ow);
-      }
-    }
-  });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for collapse(2)
-#endif
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t oc = 0; oc < out_channels_; ++oc) {
-      for (size_t oh = 0; oh < output_h; ++oh) {
-        for (size_t ow = 0; ow < output_w; ++ow) {
-          grad_output_flat[oc * output_size + n * (output_h * output_w) +
-                           oh * output_w + ow] = current_grad(n, oc, oh, ow);
-        }
-      }
-    }
-  }
-#endif
+  T* grad_output_flat = (T *)malloc(sizeof(T) * out_channels_ * output_size);
+  flatten_grad_output(current_grad, grad_output_flat, batch_size, output_h, 
+                     output_w, out_channels_);
 
   compute_weight_gradients(cached_im2col_matrix.data(),
-                          grad_output_flat.get(), weight_gradients_.data(),
+                          grad_output_flat, weight_gradients_.data(),
                           output_size, kernel_size, out_channels_);
 
   if (use_bias_) {
-#ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, out_channels_, [&](size_t oc) {
-      T grad_sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t oh = 0; oh < output_h; ++oh) {
-          for (size_t ow = 0; ow < output_w; ++ow) {
-            grad_sum += current_grad(n, oc, oh, ow);
-          }
-        }
-      }
-      bias_gradients_(oc, 0, 0, 0) += grad_sum;
-    });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
-    for (size_t oc = 0; oc < out_channels_; ++oc) {
-      T grad_sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t oh = 0; oh < output_h; ++oh) {
-          for (size_t ow = 0; ow < output_w; ++ow) {
-            grad_sum += current_grad(n, oc, oh, ow);
-          }
-        }
-      }
-      bias_gradients_(oc, 0, 0, 0) += grad_sum;
-    }
-#endif
+    compute_bias_gradients(current_grad.data(), bias_gradients_.data(),
+                          batch_size, output_h, output_w, out_channels_);
   }
 
   Matrix<T> col_grad_matrix(kernel_size, output_size);
-  compute_input_gradients(grad_output_flat.get(), weights_.data(),
+  compute_input_gradients(grad_output_flat, weights_.data(),
                          col_grad_matrix.data(), output_size, kernel_size,
                          out_channels_);
 
   Tensor<T> grad_input = Tensor<T>::col2im(
       col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
       kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
-
+  
+  free(grad_output_flat);
   return grad_input;
 }
 
@@ -276,11 +182,9 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
                                           const size_t output_size,
                                           const size_t kernel_size,
                                           const size_t out_channels) const {
-  // Transpose for better memory access
-  auto col_data_transposed = std::make_unique<T[]>(kernel_size * output_size);
-  utils::transpose_2d(col_data, col_data_transposed.get(), kernel_size,
+  T* col_data_transposed = (T*)malloc(sizeof(T) * kernel_size * output_size);
+  utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size,
                       output_size);
-
 #ifdef USE_TBB
   tbb::parallel_for(
       tbb::blocked_range2d<size_t>(0, out_channels, 0, output_size),
@@ -306,6 +210,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
     }
   }
 #endif
+  free(col_data_transposed);
 }
 
 template <typename T>
@@ -350,13 +255,12 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
                                              const size_t output_size,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
-  auto grad_output_transposed =
-      std::make_unique<T[]>(out_channels * output_size);
-  utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
+  T* grad_output_transposed = (T*)malloc(sizeof(T) * output_size * out_channels);
+  utils::transpose_2d_inplace(grad_output_data, grad_output_transposed,
                       out_channels, output_size);
 
-  auto weights_transposed = std::make_unique<T[]>(kernel_size * out_channels);
-  utils::transpose_2d(weight_data, weights_transposed.get(), out_channels,
+  T* weights_transposed = (T*)malloc(sizeof(T) * kernel_size * out_channels);
+  utils::transpose_2d_inplace(weight_data, weights_transposed, out_channels,
                       kernel_size);
 
 #ifdef USE_TBB
@@ -385,8 +289,146 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
     }
   }
 #endif
+
+  free(grad_output_transposed);
+  free(weights_transposed);
 }
 
+template <typename T>
+void Conv2DLayer<T>::compute_bias_gradients(const T *grad_output_data,
+                                           T *bias_grad_data,
+                                           size_t batch_size, size_t output_h,
+                                           size_t output_w, size_t out_channels) const {
+  const size_t N_stride = out_channels * output_h * output_w;
+  const size_t C_stride = output_h * output_w;
+  
+#ifdef USE_TBB
+  tnn::parallel_for_range<size_t>(0, out_channels, [&](size_t oc) {
+    T grad_sum = T(0);
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          grad_sum += grad_output_data[n * N_stride + oc * C_stride + oh * output_w + ow];
+        }
+      }
+    }
+    bias_grad_data[oc] += grad_sum;
+  });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+  for (size_t oc = 0; oc < out_channels; ++oc) {
+    T grad_sum = T(0);
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          grad_sum += grad_output_data[n * N_stride + oc * C_stride + oh * output_w + ow];
+        }
+      }
+    }
+    bias_grad_data[oc] += grad_sum;
+  }
+#endif
+}
+
+template <typename T>
+void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
+                                        size_t batch_size, size_t output_h,
+                                        size_t output_w, size_t out_channels,
+                                        size_t N_stride, size_t C_stride,
+                                        size_t H_stride, size_t W_stride) const {
+#ifdef USE_TBB
+  tnn::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
+    // For bias_ tensor with shape (out_channels, 1, 1, 1)
+    T bias_val = bias_data[oc * 1 * 1 * 1];
+    for (size_t oh = 0; oh < output_h; ++oh) {
+      for (size_t ow = 0; ow < output_w; ++ow) {
+        output_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] += bias_val;
+      }
+    }
+  });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t oc = 0; oc < out_channels; ++oc) {
+      // For bias_ tensor with shape (out_channels, 1, 1, 1)
+      T bias_val = bias_data[oc * 1 * 1 * 1];
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          output_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] += bias_val;
+        }
+      }
+    }
+  }
+#endif
+}
+
+template <typename T>
+void Conv2DLayer<T>::flatten_grad_output(const Tensor<T> &grad_tensor, T *flat_data,
+                                         size_t batch_size, size_t output_h,
+                                         size_t output_w, size_t out_channels) const {
+#ifdef USE_TBB
+  tnn::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
+    for (size_t oh = 0; oh < output_h; ++oh) {
+      for (size_t ow = 0; ow < output_w; ++ow) {
+        flat_data[oc * (batch_size * output_h * output_w) + n * (output_h * output_w) +
+                  oh * output_w + ow] = grad_tensor(n, oc, oh, ow);
+      }
+    }
+  });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t oc = 0; oc < out_channels; ++oc) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          flat_data[oc * (batch_size * output_h * output_w) + n * (output_h * output_w) +
+                    oh * output_w + ow] = grad_tensor(n, oc, oh, ow);
+        }
+      }
+    }
+  }
+#endif
+}
+
+template <typename T>
+void Conv2DLayer<T>::copy_flat_to_tensor(const T *flat_data, T *tensor_data,
+                                         size_t batch_size, size_t output_h,
+                                         size_t output_w, size_t out_channels,
+                                         size_t N_stride, size_t C_stride,
+                                         size_t H_stride, size_t W_stride) const {
+#ifdef USE_TBB
+  tnn::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
+    for (size_t oh = 0; oh < output_h; ++oh) {
+      for (size_t ow = 0; ow < output_w; ++ow) {
+        size_t flat_idx = oc * (batch_size * output_h * output_w) + 
+                         n * (output_h * output_w) + oh * output_w + ow;
+        tensor_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] = flat_data[flat_idx];
+      }
+    }
+  });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for collapse(2)
+#endif
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t oc = 0; oc < out_channels; ++oc) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          size_t flat_idx = oc * (batch_size * output_h * output_w) + 
+                           n * (output_h * output_w) + oh * output_w + ow;
+          tensor_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] = flat_data[flat_idx];
+        }
+      }
+    }
+  }
+#endif
+}
 
 template <typename T>
 std::string Conv2DLayer<T>::type() const {

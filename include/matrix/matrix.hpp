@@ -35,7 +35,7 @@ private:
     }
     
     
-    std::memset(ptr, 0, bytes);
+    // std::memset(ptr, 0, bytes);
     return static_cast<T*>(ptr);
   }
   
@@ -276,8 +276,6 @@ public:
     if (initialdata_ != nullptr) {
       memcpy(data_, initialdata_, rows_ * cols_ * sizeof(T));
     } else {
-      
-      
     }
   }
 

@@ -82,10 +82,10 @@ int main() {
         tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
             .input({1, ::mnist_constants::IMAGE_HEIGHT,
                     ::mnist_constants::IMAGE_WIDTH})
-            .conv2d(8, 5, 5, 1, 1, 0, 0, "elu", true, "conv1")
+            .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
             .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-            .conv2d(16, 1, 1, 1, 1, 0, 0, "elu", true, "conv2_1x1")
-            .conv2d(48, 5, 5, 1, 1, 0, 0, "elu", true, "conv3")
+            .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+            .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
             .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
             .flatten("flatten")
             .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")

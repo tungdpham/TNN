@@ -18,15 +18,12 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
     : ParameterizedLayer<T>(name), input_features_(input_features),
       output_features_(output_features), use_bias_(use_bias),
       activation_(std::move(activation)) {
-  weights_ =
-      Tensor<T>(output_features, input_features, 1, 1);
-  weight_gradients_ =
-      Tensor<T>(output_features, input_features, 1, 1);
+  weights_ = Tensor<T>(output_features, input_features, 1, 1);
+  weight_gradients_ = Tensor<T>(output_features, input_features, 1, 1);
 
   if (use_bias_) {
     bias_ = Tensor<T>(output_features, 1, 1, 1);
-    bias_gradients_ =
-        Tensor<T>(output_features, 1, 1, 1);
+    bias_gradients_ = Tensor<T>(output_features, 1, 1, 1);
   }
 
   // Xavier initialization
@@ -35,7 +32,6 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
   T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
   weights_.fill_random_normal(T(0), std_dev);
 }
-
 
 template <typename T>
 Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
@@ -54,12 +50,11 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   Tensor<T> output(batch_size, output_features_, 1, 1);
 
-  compute_dense_forward(input.data(), weights_.data(), output.data(), batch_size,
-                       input_features_, output_features_);
+  compute_dense_forward(input.data(), weights_.data(), output.data(),
+                        batch_size, input_features_, output_features_);
 
   if (use_bias_) {
-    add_bias_vector(output.data(), bias_.data(), batch_size,
-                    output_features_);
+    add_bias_vector(output.data(), bias_.data(), batch_size, output_features_);
   }
 
   micro_batch_pre_activations_[micro_batch_id] = output.clone();
@@ -70,7 +65,6 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   return output;
 }
-
 
 template <typename T>
 Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
@@ -93,12 +87,6 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
 
   // check if shapes match
   if (grad_output.shape() != it_pre_act->second.shape()) {
-    std::cerr << "Gradient output shape: " << grad_output.shape_str()
-              << ", cached pre-activation shape: "
-              << it_pre_act->second.shape_str() << std::endl;
-    for (const auto &pair : micro_batch_pre_activations_) {
-      std::cout << "Cached micro-batch ID: " << pair.first << "'s pre activation shape" << pair.second.shape_str() << std::endl;
-    }
     throw std::invalid_argument(
         "Gradient output shape does not match cached pre-activation shape");
   }
@@ -118,53 +106,35 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
 
   // Compute weight gradients
   compute_weight_gradients(last_input.data(), current_grad.data(),
-                          weight_gradients_.data(), batch_size, input_features_,
-                          output_features_);
+                           weight_gradients_.data(), batch_size,
+                           input_features_, output_features_);
 
   // Compute bias gradients
   if (use_bias_) {
-#ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
-      T grad_sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        grad_sum += current_grad(n, out_f, 0, 0);
-      }
-      bias_gradients_(out_f, 0, 0, 0) += grad_sum;
-    });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for schedule(static)
-#endif
-    for (size_t out_f = 0; out_f < output_features_; ++out_f) {
-      T grad_sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        grad_sum += current_grad(n, out_f, 0, 0);
-      }
-      bias_gradients_(out_f, 0, 0, 0) += grad_sum;
-    }
-#endif
+    compute_bias_gradients(current_grad.data(), bias_gradients_.data(),
+                           batch_size, output_features_);
   }
 
   // Compute input gradients
   compute_input_gradients(current_grad.data(), weights_.data(),
-                         grad_input.data(), batch_size, input_features_,
-                         output_features_);
+                          grad_input.data(), batch_size, input_features_,
+                          output_features_);
 
   return grad_input;
 }
 
 template <typename T>
-void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data,
-                                          T *output_data, size_t batch_size,
+void DenseLayer<T>::compute_dense_forward(const T *input_data,
+                                          const T *weight_data, T *output_data,
+                                          size_t batch_size,
                                           size_t input_features,
                                           size_t output_features) const {
 #ifdef USE_TBB
   tnn::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
-        output_data[n * output_features + out_f] =
-            utils::simd_dot_product(
-                &weight_data[out_f * input_features],
-                &input_data[n * input_features], input_features);
+        output_data[n * output_features + out_f] = utils::simd_dot_product(
+            &weight_data[out_f * input_features],
+            &input_data[n * input_features], input_features);
       });
 #else
 #ifdef _OPENMP
@@ -172,38 +142,34 @@ void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_d
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      output_data[n * output_features + out_f] =
-          utils::simd_dot_product(
-              &weight_data[out_f * input_features],
-              &input_data[n * input_features], input_features);
+      output_data[n * output_features + out_f] = utils::simd_dot_product(
+          &weight_data[out_f * input_features], &input_data[n * input_features],
+          input_features);
     }
   }
 #endif
 }
 
 template <typename T>
-void DenseLayer<T>::compute_weight_gradients(const T *input_data,
-                                             const T *grad_output_data,
-                                             T *weight_grad_data,
-                                             size_t batch_size,
-                                             size_t input_features,
-                                             size_t output_features) const {
-  auto input_transposed = std::make_unique<T[]>(input_features * batch_size);
-  auto grad_output_transposed =
-      std::make_unique<T[]>(output_features * batch_size);
+void DenseLayer<T>::compute_weight_gradients(
+    const T *input_data, const T *grad_output_data, T *weight_grad_data,
+    size_t batch_size, size_t input_features, size_t output_features) const {
+  T *input_transposed = (T *)malloc(sizeof(T) * input_features * batch_size);
+  T *grad_output_transposed =
+      (T *)malloc(sizeof(T) * output_features * batch_size);
 
-  utils::transpose_2d(input_data, input_transposed.get(), batch_size,
-                      input_features);
-  utils::transpose_2d(grad_output_data, grad_output_transposed.get(),
-                      batch_size, output_features);
+  utils::transpose_2d_inplace(input_data, input_transposed, batch_size,
+                              input_features);
+  utils::transpose_2d_inplace(grad_output_data, grad_output_transposed,
+                              batch_size, output_features);
 
 #ifdef USE_TBB
   tnn::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
         weight_grad_data[out_f * input_features + in_f] +=
-            utils::simd_dot_product(
-                &grad_output_transposed[out_f * batch_size],
-                &input_transposed[in_f * batch_size], batch_size);
+            utils::simd_dot_product(&grad_output_transposed[out_f * batch_size],
+                                    &input_transposed[in_f * batch_size],
+                                    batch_size);
       });
 #else
 #ifdef _OPENMP
@@ -212,44 +178,68 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data,
   for (size_t out_f = 0; out_f < output_features; ++out_f) {
     for (size_t in_f = 0; in_f < input_features; ++in_f) {
       weight_grad_data[out_f * input_features + in_f] +=
-          utils::simd_dot_product(
-              &grad_output_transposed[out_f * batch_size],
-              &input_transposed[in_f * batch_size], batch_size);
+          utils::simd_dot_product(&grad_output_transposed[out_f * batch_size],
+                                  &input_transposed[in_f * batch_size],
+                                  batch_size);
     }
   }
 #endif
+  free(input_transposed);
+  free(grad_output_transposed);
 }
 
 template <typename T>
-void DenseLayer<T>::compute_input_gradients(const T *grad_output_data,
-                                            const T *weight_data,
-                                            T *grad_input_data, size_t batch_size,
-                                            size_t input_features,
-                                            size_t output_features) const {
-  auto weights_transposed =
-      std::make_unique<T[]>(input_features * output_features);
-  utils::transpose_2d(weight_data, weights_transposed.get(), output_features,
-                      input_features);
+void DenseLayer<T>::compute_input_gradients(
+    const T *grad_output_data, const T *weight_data, T *grad_input_data,
+    size_t batch_size, size_t input_features, size_t output_features) const {
+  T *weights_transposed =
+      (T *)malloc(sizeof(T) * output_features * input_features);
+  utils::transpose_2d_inplace(weight_data, weights_transposed, output_features,
+                              input_features);
 
 #ifdef USE_TBB
-  tnn::parallel_for_2d(
-      batch_size, input_features, [&](size_t n, size_t in_f) {
-        grad_input_data[n * input_features + in_f] =
-            utils::simd_dot_product(
-                &grad_output_data[n * output_features],
-                &weights_transposed[in_f * output_features], output_features);
-      });
+  tnn::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
+    grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
+        &grad_output_data[n * output_features],
+        &weights_transposed[in_f * output_features], output_features);
+  });
 #else
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      grad_input_data[n * input_features + in_f] =
-          utils::simd_dot_product(
-              &grad_output_data[n * output_features],
-              &weights_transposed[in_f * output_features], output_features);
+      grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
+          &grad_output_data[n * output_features],
+          &weights_transposed[in_f * output_features], output_features);
     }
+  }
+#endif
+
+  free(weights_transposed);
+}
+
+template <typename T>
+void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
+                            size_t batch_size, size_t output_features) const {
+#ifdef USE_TBB
+  tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
+    T grad_sum = T(0);
+    for (size_t n = 0; n < batch_size; ++n) {
+      grad_sum += current_grad_data[n * output_features + out_f];
+    }
+    bias_gradient_data[out_f] += grad_sum;
+  });
+#else
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
+  for (size_t out_f = 0; out_f < output_features; ++out_f) {
+    T grad_sum = T(0);
+    for (size_t n = 0; n < batch_size; ++n) {
+      grad_sum += current_grad_data[n * output_features + out_f];
+    }
+    bias_gradient_data[out_f] += grad_sum;
   }
 #endif
 }
@@ -275,14 +265,11 @@ void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
 #endif
 }
 
-
-template <typename T>
-std::string DenseLayer<T>::type() const {
+template <typename T> std::string DenseLayer<T>::type() const {
   return "dense";
 }
 
-template <typename T>
-LayerConfig DenseLayer<T>::get_config() const {
+template <typename T> LayerConfig DenseLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.parameters["input_features"] = input_features_;
@@ -294,17 +281,16 @@ LayerConfig DenseLayer<T>::get_config() const {
   return config;
 }
 
-template <typename T>
-std::unique_ptr<Layer<T>> DenseLayer<T>::clone() const {
+template <typename T> std::unique_ptr<Layer<T>> DenseLayer<T>::clone() const {
   auto activation_clone = activation_ ? activation_->clone() : nullptr;
   return std::make_unique<DenseLayer<T>>(input_features_, output_features_,
-                                         std::move(activation_clone),
-                                         use_bias_, this->name_);
+                                         std::move(activation_clone), use_bias_,
+                                         this->name_);
 }
 
 template <typename T>
-std::vector<size_t>
-DenseLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> DenseLayer<T>::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("DenseLayer expects 4D input");
   }
@@ -328,8 +314,7 @@ void DenseLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
   }
 }
 
-template <typename T>
-void DenseLayer<T>::clear_gradients() {
+template <typename T> void DenseLayer<T>::clear_gradients() {
   weight_gradients_.fill(T(0));
   if (use_bias_) {
     bias_gradients_.fill(T(0));
