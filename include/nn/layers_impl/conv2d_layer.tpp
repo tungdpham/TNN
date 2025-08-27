@@ -143,8 +143,9 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   Tensor<T> current_grad = grad_output;
 
   if (activation_) {
-    current_grad =
-        activation_->compute_gradient(it_pre_act->second, &current_grad);
+    // current_grad =
+    //     activation_->compute_gradient(it_pre_act->second, &current_grad);
+    activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
   }
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;

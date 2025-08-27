@@ -279,9 +279,12 @@ public:
     }
   }
 
-  Matrix(const Matrix &other)
-      : rows_(other.rows_), cols_(other.cols_) {
-    data_ = allocate_aligned(rows_ * cols_);
+  Matrix(const Matrix &other) {
+    if(this->size() != other.size()){
+      deallocate_aligned(this->data_);
+    }
+    this->rows_ = other.rows_;
+    this->cols_ = other.cols_;
     memcpy(data_, other.data_, rows_ * cols_ * sizeof(T));
   }
 

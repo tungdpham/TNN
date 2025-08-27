@@ -120,45 +120,31 @@ public:
   }
 
   void compute_gradient_inplace(
-      Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
-    T *data = pre_activation_values.data();
+      const Tensor<T> &pre_activation_values,
+      Tensor<T> &upstream_gradient) const override {
+    if (upstream_gradient.shape() != pre_activation_values.shape()) {
+      throw std::invalid_argument("Upstream gradient must have the same "
+                                  "shape as pre-activation values");
+    }
+
+    const T *input_data = pre_activation_values.data();
+    T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
 #ifdef USE_TBB 
     tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      data[i] = data[i] > T(0) ? T(1) : alpha_ * std::exp(data[i]);
+      T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
+      grad_data[i] *= local_grad;
     });
 #else
 #ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
-      data[i] = data[i] > T(0) ? T(1) : alpha_ * std::exp(data[i]);
+      T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
+      grad_data[i] *= local_grad;
     }
 #endif
-
-    // If upstream gradient is provided, multiply element-wise
-    if (upstream_gradient != nullptr) {
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      const T *upstream_data = upstream_gradient->data();
-
-#ifdef USE_TBB 
-      tnn::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        data[i] *= upstream_data[i];
-      });
-#else
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
-      for (size_t i = 0; i < size; ++i) {
-        data[i] *= upstream_data[i];
-      }
-#endif
-    }
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {

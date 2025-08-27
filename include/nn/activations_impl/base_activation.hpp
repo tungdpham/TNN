@@ -15,8 +15,8 @@ public:
   compute_gradient(const Tensor<T> &pre_activation_values,
                    const Tensor<T> *upstream_gradient = nullptr) const = 0;
   virtual void compute_gradient_inplace(
-      Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const = 0;
+      const Tensor<T> &pre_activation_values,
+      Tensor<T> &upstream_gradient) const = 0;
 
   // Channel-wise operations (useful for batch normalization, etc.)
   virtual void apply_channel_wise(Tensor<T> &tensor, int channel) const = 0;

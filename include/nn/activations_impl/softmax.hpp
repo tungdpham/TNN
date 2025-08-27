@@ -113,47 +113,41 @@ public:
   }
 
   void compute_gradient_inplace(
-      Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
+      const Tensor<T> &pre_activation_values,
+      Tensor<T> &upstream_gradient) const override {
     size_t batch_size = pre_activation_values.batch_size();
     size_t channels = pre_activation_values.channels();
     size_t height = pre_activation_values.height();
     size_t width = pre_activation_values.width();
 
+    // Check shapes match
+    if (upstream_gradient.shape() != pre_activation_values.shape()) {
+      throw std::invalid_argument("Upstream gradient must have the same "
+                                  "shape as pre-activation values");
+    }
+
     // First compute softmax from pre-activation values
     Tensor<T> softmax_values = pre_activation_values; // Copy
     apply(softmax_values); // Apply softmax to get activated values
 
-    if (upstream_gradient == nullptr) {
-      throw std::invalid_argument(
-          "Upstream gradient must be provided for softmax gradient computation");
-    } else {
-      // Proper softmax gradient computation with upstream gradient
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-
 #ifdef _OPENMP
 #pragma omp parallel for collapse(3)
 #endif
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            // Compute the dot product of softmax outputs and upstream gradients
-            T dot_product = T(0);
-            for (size_t j = 0; j < channels; ++j) {
-              dot_product +=
-                  softmax_values(n, j, h, w) * (*upstream_gradient)(n, j, h, w);
-            }
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          // Compute the dot product of softmax outputs and upstream gradients
+          T dot_product = T(0);
+          for (size_t j = 0; j < channels; ++j) {
+            dot_product +=
+                softmax_values(n, j, h, w) * upstream_gradient(n, j, h, w);
+          }
 
-            // Compute gradient for each channel at this spatial location
-            for (size_t i = 0; i < channels; ++i) {
-              T s_i = softmax_values(n, i, h, w);
-              T upstream_i = (*upstream_gradient)(n, i, h, w);
-              pre_activation_values(n, i, h, w) =
-                  s_i * (upstream_i - dot_product);
-            }
+          // Compute gradient for each channel at this spatial location
+          for (size_t i = 0; i < channels; ++i) {
+            T s_i = softmax_values(n, i, h, w);
+            T upstream_i = upstream_gradient(n, i, h, w);
+            upstream_gradient(n, i, h, w) = s_i * (upstream_i - dot_product);
           }
         }
       }

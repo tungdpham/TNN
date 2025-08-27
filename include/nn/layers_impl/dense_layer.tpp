@@ -95,13 +95,13 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
   size_t batch_size = last_input.batch_size();
   Tensor<T> grad_input(last_input.shape());
 
-  Tensor<T> current_grad = grad_output;
+  Tensor<T> current_grad = grad_output.clone();
 
   // Backprop through activation
   if (activation_) {
-    Tensor<T> activation_grad =
-        activation_->compute_gradient(it_pre_act->second, &current_grad);
-    current_grad = activation_grad.clone();
+    // current_grad =
+    //     activation_->compute_gradient(it_pre_act->second, &current_grad);
+    activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
   }
 
   // Compute weight gradients

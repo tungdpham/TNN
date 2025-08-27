@@ -45,6 +45,9 @@ public:
     if (upstream_gradient != nullptr) {
       // For linear activation, gradient is just the upstream gradient
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
+        std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
+                  << " Pre activation shape: "
+                  << pre_activation_values.shape_str() << std::endl;
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
@@ -59,20 +62,15 @@ public:
   }
 
   void compute_gradient_inplace(
-      Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
-    if (upstream_gradient != nullptr) {
-      // For linear activation, gradient is just the upstream gradient
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      pre_activation_values = upstream_gradient->clone();
-    } else {
-      // If no upstream gradient, fill with ones (derivative of linear function
-      // is 1)
-      pre_activation_values.fill(T(1));
+      const Tensor<T> &pre_activation_values,
+      Tensor<T> &upstream_gradient) const override {
+    // For linear activation, gradient is 1, so upstream_gradient remains unchanged
+    // We just verify the shapes match
+    if (upstream_gradient.shape() != pre_activation_values.shape()) {
+      throw std::invalid_argument("Upstream gradient must have the same "
+                                  "shape as pre-activation values");
     }
+    // No modification needed since derivative of linear function is 1
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
