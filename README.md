@@ -95,6 +95,9 @@ cmake --build . -j$(nproc)
 | `ENABLE_DEBUG` | OFF | Enable debug build with AddressSanitizer |
 
 # Running the examples
+There are two different ways to run the examples
+
+## Directly running them
 There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI IPS datasets. You should see them in bin/ after building successfully. 
 
 ```bash
@@ -103,4 +106,22 @@ There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI I
 
 # Example: 
 ./bin/mnist_cnn_trainer
+```
+
+## Containerized run
+
+```bash
+# First build the docker images
+docker compose build
+
+# Run the profile you want
+
+## For single model
+docker compose --profile single-model up -d
+
+## For sync
+docker compose --profile sync up -d
+
+## For semi async
+docker compose --profile semi_async up -d
 ```
