@@ -1,6 +1,7 @@
 #pragma once
 
-#include "../nn/sequential.hpp"
+#include "nn/sequential.hpp"
+
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
 #include <atomic>

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "../nn/optimizers.hpp"
-#include "../nn/sequential.hpp"
+#include "nn/sequential.hpp"
+#include "nn/optimizers.hpp"
+#include "nn/loss.hpp"
+
 #include "pipeline_communicator.hpp"
 #include "pipeline_stage.hpp"
 #include <chrono>

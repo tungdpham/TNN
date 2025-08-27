@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include "command_type.hpp"
 #include "message.hpp"
 #include "task.hpp"

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../nn/sequential.hpp"
+#include "nn/sequential.hpp"
 #include "network_serialization.hpp"
 #include "pipeline_coordinator.hpp"
 #include "tcp_communicator.hpp"
