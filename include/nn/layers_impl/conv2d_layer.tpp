@@ -349,13 +349,12 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t oc = 0; oc < out_channels; ++oc) {
       T bias_val = bias_data[oc];
-      // for (size_t oh = 0; oh < output_h; ++oh) {
-      //   for (size_t ow = 0; ow < output_w; ++ow) {
-      //     output_data[n * N_stride + oc * C_stride + oh * H_stride +
-      //                 ow * W_stride] += bias_val;
-      //   }
-      // }
-      std::
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          output_data[n * N_stride + oc * C_stride + oh * H_stride +
+                      ow * W_stride] += bias_val;
+        }
+      }
     }
   }
 #endif
