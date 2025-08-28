@@ -106,7 +106,7 @@ int main() {
                                             ::mnist_constants::IMAGE_HEIGHT,
                                             ::mnist_constants::IMAGE_WIDTH});
 
-    train_cnn_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
+    train_classification_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
                     mnist_constants::BATCH_SIZE,
                     mnist_constants::LR_DECAY_FACTOR,
                     mnist_constants::PROGRESS_PRINT_INTERVAL);

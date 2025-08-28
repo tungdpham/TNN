@@ -115,32 +115,6 @@ public:
   }
 };
 
-void apply_tensor_softmax(Tensor<float> &tensor) {
-  const size_t batch_size = tensor.shape()[0];
-  const size_t num_classes = tensor.shape()[1];
-
-#pragma omp parallel for if (batch_size > 16)
-  for (size_t batch = 0; batch < batch_size; ++batch) {
-
-    float max_val = tensor(batch, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      max_val = std::max(max_val, tensor(batch, j, 0, 0));
-    }
-
-    float sum = 0.0f;
-    for (size_t j = 0; j < num_classes; ++j) {
-      const float exp_val = std::exp(tensor(batch, j, 0, 0) - max_val);
-      tensor(batch, j, 0, 0) = exp_val;
-      sum += exp_val;
-    }
-
-    const float inv_sum = 1.0f / std::max(sum, ips_constants::EPSILON);
-    for (size_t j = 0; j < num_classes; ++j) {
-      tensor(batch, j, 0, 0) *= inv_sum;
-    }
-  }
-}
-
 float calculate_positioning_accuracy(const Tensor<float> &predictions,
                                      const Tensor<float> &targets,
                                      const WiFiDataLoader &data_loader,
@@ -365,7 +339,7 @@ void train_ips_model(tnn::Sequential<float> &model,
             predictions, batch_targets, train_loader);
       } else {
 
-        apply_tensor_softmax(predictions);
+        utils::apply_softmax<float>(predictions);
         loss = classification_loss->compute_loss(predictions, batch_targets);
         accuracy =
             calculate_classification_accuracy(predictions, batch_targets);
@@ -381,9 +355,7 @@ void train_ips_model(tnn::Sequential<float> &model,
 
       model.backward(loss_gradient);
 
-      auto params = model.parameters();
-      auto grads = model.gradients();
-      optimizer.update(params, grads);
+      model.update_parameters();
 
       if (num_batches % ips_constants::PROGRESS_PRINT_INTERVAL == 0) {
         std::cout << "Batch " << num_batches << " - Loss: " << std::fixed
@@ -435,7 +407,7 @@ void train_ips_model(tnn::Sequential<float> &model,
               predictions, batch_targets, test_loader);
         }
       } else {
-        apply_tensor_softmax(predictions);
+        utils::apply_softmax<float>(predictions);
         val_loss +=
             classification_loss->compute_loss(predictions, batch_targets);
         val_accuracy +=
@@ -572,7 +544,7 @@ int main() {
     const std::string output_activation = is_regression ? "linear" : "linear";
 
     auto model = tnn::SequentialBuilder<float>("ips_classifier")
-
+                     .input({input_features, 1, 1})
                      .dense(192, "linear", true, "hidden1")
                      .batchnorm(1e-5, 0.1, true, "batchnorm1")
                      .activation("relu", "hidden1_relu")
@@ -595,6 +567,10 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
+    model.set_optimizer(std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f,
+                                                            1e-8f));
+    model.set_loss_function(
+        tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;
     model.print_summary(std::vector<size_t>{ips_constants::MAX_BATCH_SIZE,
                                             input_features, 1, 1});

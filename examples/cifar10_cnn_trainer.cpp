@@ -98,7 +98,7 @@ int main() {
         cifar10_constants::BATCH_SIZE, 3, 32, 32});
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_cnn_model(model, train_loader, test_loader, cifar10_constants::EPOCHS,
+    train_classification_model(model, train_loader, test_loader, cifar10_constants::EPOCHS,
                     cifar10_constants::BATCH_SIZE,
                     cifar10_constants::LR_DECAY_FACTOR,
                     cifar10_constants::PROGRESS_PRINT_INTERVAL);

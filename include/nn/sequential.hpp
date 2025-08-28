@@ -29,7 +29,8 @@ private:
   bool enable_profiling_;
   std::map<std::string, double> forward_times_ms_;
   std::map<std::string, double> backward_times_ms_;
-
+  
+  // just a helper function to set optimizers of all layers when the model's optimizer is set or changed
   void distribute_optimizer_to_layers() {
     if (!optimizer_) {
       return;

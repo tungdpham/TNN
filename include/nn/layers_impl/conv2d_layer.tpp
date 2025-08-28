@@ -64,8 +64,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   Matrix<T> col_matrix =
       input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  micro_batch_im2col_matrices_[micro_batch_id] = col_matrix;
-
   Tensor<T> output(batch_size, out_channels_, output_h, output_w);
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
@@ -75,14 +73,10 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat,
                        output_size, kernel_size, out_channels_);
 
-  T *output_data = output.data();
+  // cache the value since we are no longer using it
+  micro_batch_im2col_matrices_[micro_batch_id] = std::move(col_matrix);
 
-  const size_t N_stride = output.stride(0);
-  const size_t C_stride = output.stride(1);
-  const size_t H_stride = output.stride(2);
-  const size_t W_stride = output.stride(3);
-
-  utils::cnhw_to_nchw(output_flat, output_data, batch_size, out_channels_,
+  utils::cnhw_to_nchw(output_flat, output.data(), batch_size, out_channels_,
                       output_h, output_w);
 
   free(output_flat);
@@ -135,7 +129,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
   const size_t output_h = grad_output.height();
   const size_t output_w = grad_output.width();
 
-  Tensor<T> current_grad = grad_output;
+  Tensor<T> current_grad = grad_output.clone();
 
   if (activation_) {
     activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
@@ -194,7 +188,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
       });
 #else
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t os = 0; os < output_size; ++os) {
@@ -228,7 +222,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
       });
 #else
 #ifdef _OPENMP
-#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t ks = 0; ks < kernel_size; ++ks) {
@@ -355,12 +349,13 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t oc = 0; oc < out_channels; ++oc) {
       T bias_val = bias_data[oc];
-      for (size_t oh = 0; oh < output_h; ++oh) {
-        for (size_t ow = 0; ow < output_w; ++ow) {
-          output_data[n * N_stride + oc * C_stride + oh * H_stride +
-                      ow * W_stride] += bias_val;
-        }
-      }
+      // for (size_t oh = 0; oh < output_h; ++oh) {
+      //   for (size_t ow = 0; ow < output_w; ++ow) {
+      //     output_data[n * N_stride + oc * C_stride + oh * H_stride +
+      //                 ow * W_stride] += bias_val;
+      //   }
+      // }
+      std::
     }
   }
 #endif

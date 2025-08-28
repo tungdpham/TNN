@@ -37,7 +37,6 @@ private:
   mutable std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 
-  // Helper functions for convolution
   void compute_conv_forward(const T *col_data, const T *weight_data,
                            T *output_data, size_t output_size, size_t kernel_size,
                            size_t out_channels) const;
