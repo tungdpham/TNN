@@ -1,4 +1,4 @@
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
@@ -20,10 +20,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy only binaries
-COPY ./bin/. .
+COPY . .
 
-RUN chmod +x tcpem_cpu_logger.sh  && \
+RUN chmod +x ./tcpem_cpu_logger.sh
 
 RUN mkdir -p /logs
 

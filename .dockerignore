@@ -8,7 +8,6 @@
 # Virtual environment
 .venv/
 .build/
-bin/
 
 # Git
 .git/
