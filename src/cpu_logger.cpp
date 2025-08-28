@@ -195,7 +195,7 @@ static std::string now_iso_utc() {
 int main(int argc, char** argv) {
     double interval = 0.01;            // === mặc định 10ms ===
     double duration = 300.0;            // tổng thời gian (s)
-    std::string outfile = "/logs/cpu.csv";
+    std::string outfile = "./logs/cpu.csv";
     std::string tag = "container";
 
     for (int i = 1; i < argc; ++i) {

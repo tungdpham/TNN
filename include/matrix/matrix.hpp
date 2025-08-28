@@ -74,7 +74,7 @@ private:
 #endif
   }
 
-  inline void avx2_add(const T* a, const T* b, T* result, int size) {
+  inline void avx2_add(const T* a, const T* b, T* result, int size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; 
@@ -105,7 +105,7 @@ private:
 #endif
   }
 
-  inline void avx2_sub(const T* a, const T* b, T* result, int size) {
+  inline void avx2_sub(const T* a, const T* b, T* result, int size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; 
@@ -136,7 +136,7 @@ private:
 #endif
   }
 
-  inline void avx2_mul_scalar(const T* a, T scalar, T* result, int size) {
+  inline void avx2_mul_scalar(const T* a, T scalar, T* result, int size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; 
@@ -167,7 +167,7 @@ private:
 #endif
   }
 
-  inline void avx2_div_scalar(const T* a, T scalar, T* result, int size) {
+  inline void avx2_div_scalar(const T* a, T scalar, T* result, int size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; 
@@ -199,7 +199,7 @@ private:
   }
 
   
-  inline void avx2_matmul(const Matrix &a, const Matrix &b, Matrix &result) {
+  inline void avx2_matmul(const Matrix &a, const Matrix &b, Matrix &result) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       const int avx_size = 8; 

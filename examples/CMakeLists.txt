@@ -13,6 +13,3 @@ create_executable(pipeline_test pipeline_test.cpp)
 create_executable(network_worker network_worker_main.cpp)
 create_executable(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
 create_executable(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
-
-#cpu utilization utility
-create_executable(cpu_logger cpu_logger.cpp)
