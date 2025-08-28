@@ -108,6 +108,14 @@ There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI I
 ./bin/mnist_cnn_trainer
 ```
 
+## CPU Monitor uses:
+1. set sync or semi_async cofiguration in docker-compose.yml
+2. run ./build.sh --clean
+3. run docker compose build 
+4. then docker compose up
+5. if (profile is semi_async for example) run the following command to draw cpu load
+  python3 plot_cpu_range.py --logs ./logs --out cpu_usage_sync_0_25.png --tmin 0 --tmax 25
+
 ## Containerized run
 
 ```bash

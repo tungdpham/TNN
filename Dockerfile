@@ -20,11 +20,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY . .
+# Copy only binaries
+COPY ./bin/. .
 
-RUN chmod +x build.sh && \
-    ./build.sh --clean && \
-    chmod +x entry_point.sh 
-    
+RUN chmod +x tcpem_cpu_logger.sh  && \
+
+RUN mkdir -p /logs
+
 # Expose ports that workers will use
 EXPOSE 8000 8001 8002 8003 8004
