@@ -47,13 +47,10 @@ public:
     message_notification_callback_ = nullptr;
   }
 
-  
   virtual void send_message(const std::string& recipient_id, const tpipeline::Message<T>& message) = 0;
-  
   
   virtual void flush_output_messages() = 0;
 
-  
   virtual void register_recipient(const std::string& recipient_id, const tpipeline::StageEndpoint& endpoint) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     recipients_[recipient_id] = endpoint;
@@ -566,7 +563,6 @@ public:
       }
     }
   }
-
   
   void register_communicator(const std::string& recipient_id, 
                             std::shared_ptr<PipelineCommunicator<T>> communicator) {
