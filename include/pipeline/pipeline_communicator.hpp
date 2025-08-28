@@ -10,7 +10,6 @@
 #include <stdexcept>
 #include <unordered_map>
 #include <string>
-
 namespace tpipeline {
 
 enum class MessagePriority {
@@ -28,8 +27,7 @@ public:
     std::lock_guard<std::mutex> in_lock(in_message_mutex_);
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
     std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
-    
-    
+
     std::queue<tpipeline::Message<T>> empty_task;
     std::queue<tpipeline::Message<T>> empty_control;
     std::queue<tpipeline::Message<T>> empty_status;
@@ -121,13 +119,11 @@ public:
       return message;
     }
     
-    
     if (!this->control_queue_.empty()) {
       tpipeline::Message<T> message = this->control_queue_.front();
       this->control_queue_.pop();
       return message;
     }
-    
     
     if (!this->status_queue_.empty()) {
       tpipeline::Message<T> message = this->status_queue_.front();

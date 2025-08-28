@@ -6,7 +6,7 @@ services:
   worker-8001:
     profiles:
       - sync
-      - semi_async
+      - semi-async
     image: dcnn:latest
     container_name: dcnn-worker-8001
     command: ["./bin/network_worker", "8001"]
@@ -22,7 +22,7 @@ services:
   worker-8002:
     profiles:
       - sync
-      - semi_async
+      - semi-async
     image: dcnn:latest
     container_name: dcnn-worker-8002
     command: ["./bin/network_worker", "8002"]
@@ -59,7 +59,7 @@ services:
 
   semi-async-coordinator:
     profiles:
-      - semi_async
+      - semi-async
     image: dcnn:latest
     container_name: dcnn-coordinator
     command: ["./bin/semi_async_pipeline_coordinator"]
@@ -82,7 +82,7 @@ services:
   single-model:
     profiles:
       - single-model
-    image: dcnn:latests
+    image: dcnn:latest
     container_name: dcnn-single-model
     command: ["./bin/mnist_cnn_trainer"]
     cpuset: "0-11"

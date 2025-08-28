@@ -6,6 +6,9 @@ namespace tpipeline {
  * @brief Enumeration of all possible command types in the pipeline system.
  */
 enum class CommandType {
+  // START (DO NOT REMOVE)
+  START = 0,
+
   // Pipeline Tasks
   FORWARD_TASK,
   BACKWARD_TASK,
@@ -51,7 +54,7 @@ enum class CommandType {
   CLEAR_PROFILING,
 
   // IMPORTANT: ALWAYS LAST
-  _COUNT // Used to track the number of command types
+  _COUNT // track the number of command types
 };
 
 } // namespace tpipeline

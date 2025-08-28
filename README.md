@@ -115,7 +115,10 @@ There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI I
 docker compose build
 
 # Run the profile you want
+## Using the shell script
+./docker_start.sh -p semi-async
 
+## Manually
 ## For single model
 docker compose --profile single-model up -d
 
@@ -123,5 +126,5 @@ docker compose --profile single-model up -d
 docker compose --profile sync up -d
 
 ## For semi async
-docker compose --profile semi_async up -d
+docker compose --profile semi-async up -d
 ```

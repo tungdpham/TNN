@@ -161,7 +161,7 @@ protected:
     if (message.command_type == CommandType::FORWARD_TASK) {
 
       auto output_data = this->model_->forward(task.data, task.micro_batch_id);
-      Task<T> output_task(TaskType::FORWARD, output_data, task.micro_batch_id);
+      Task<T> output_task(TaskType::FORWARD, std::move(output_data), task.micro_batch_id);
 
       auto output_message =
           Message<T>::forward_task(output_task, name_, "next_stage");
@@ -172,7 +172,7 @@ protected:
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
 
       auto output_data = this->model_->backward(task.data, task.micro_batch_id);
-      Task<T> output_task(TaskType::BACKWARD, output_data, task.micro_batch_id);
+      Task<T> output_task(TaskType::BACKWARD, std::move(output_data), task.micro_batch_id);
 
       auto output_message =
           Message<T>::backward_task(output_task, name_, "prev_stage");
