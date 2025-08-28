@@ -22,7 +22,7 @@ sudo apt install libtbb-dev
 Download the dataset needed before running the examples.
 the structure should look like this. Alternatively, you change the path to data in the example code.
 
-- For MNIST dataset, use kaggle.
+- For MNIST dataset, download from [kaggle](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv).
 - For CIFAR10 and CIFAR100, download from
 [here](https://www.cs.toronto.edu/~kriz/cifar.html)
 - For UJI and UTS indoor positioning dataset, download from their paper.
