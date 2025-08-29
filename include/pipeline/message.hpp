@@ -3,7 +3,7 @@
 #include "command_type.hpp"
 #include "task.hpp"
 #include <chrono>
-#include <optional>
+#include <variant>
 #include <string>
 
 namespace tpipeline {
@@ -11,9 +11,8 @@ namespace tpipeline {
 template <typename T = float> struct Message {
   CommandType command_type;
 
-  std::optional<Task<T>> task;
-  std::optional<std::string> text_data;
-  std::optional<bool> signal;
+  using PayloadType = std::variant<std::monostate, Task<T>, std::string, bool>;
+  PayloadType payload;
 
   std::string sender_id;
   std::string recipient_id;
@@ -21,36 +20,32 @@ template <typename T = float> struct Message {
   std::chrono::steady_clock::time_point timestamp;
   int sequence_number = 0;
 
-  Message() {}
+  Message() : payload(std::monostate{}) {}
 
   Message(CommandType cmd_type)
-      : command_type(cmd_type), timestamp(std::chrono::steady_clock::now()) {}
+      : command_type(cmd_type), payload(std::monostate{}), 
+        timestamp(std::chrono::steady_clock::now()) {}
 
   Message(CommandType cmd_type, const Task<T> &task_data)
-      : command_type(cmd_type), task(task_data),
+      : command_type(cmd_type), payload(task_data),
         timestamp(std::chrono::steady_clock::now()) {}
 
   Message(CommandType cmd_type, const std::string &text)
-      : command_type(cmd_type), text_data(text),
+      : command_type(cmd_type), payload(text),
         timestamp(std::chrono::steady_clock::now()) {}
 
   Message(CommandType cmd_type, bool signal_value)
-      : command_type(cmd_type), signal(signal_value),
+      : command_type(cmd_type), payload(signal_value),
         timestamp(std::chrono::steady_clock::now()) {}
 
-  template <typename PayloadType>
-  Message(CommandType cmd_type, const PayloadType &payload,
-          const std::string &sender, const std::string &recipient)
-      : command_type(cmd_type), sender_id(sender), recipient_id(recipient),
-        timestamp(std::chrono::steady_clock::now()) {
-    if constexpr (std::is_same_v<PayloadType, Task<T>>) {
-      task = payload;
-    } else if constexpr (std::is_same_v<PayloadType, std::string>) {
-      text_data = payload;
-    } else if constexpr (std::is_same_v<PayloadType, bool>) {
-      signal = payload;
-    }
-  }
+  // Helper methods using std::holds_alternative and std::get
+  bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
+  bool has_text() const { return std::holds_alternative<std::string>(payload); }
+  bool has_signal() const { return std::holds_alternative<bool>(payload); }
+  
+  const Task<T>& get_task() const { return std::get<Task<T>>(payload); }
+  const std::string& get_text() const { return std::get<std::string>(payload); }
+  bool get_signal() const { return std::get<bool>(payload); }
 
   bool is_task_message() const {
     return command_type == CommandType::FORWARD_TASK ||
@@ -63,12 +58,6 @@ template <typename T = float> struct Message {
            command_type == CommandType::PAUSE_TRAINING ||
            command_type == CommandType::RESUME_TRAINING;
   }
-
-  bool has_text() const { return text_data.has_value(); }
-
-  bool has_signal() const { return signal.has_value(); }
-
-  bool has_task() const { return task.has_value(); }
 
   static Message<T> forward_task(const Task<T> &task,
                                  const std::string &sender = "",
@@ -155,14 +144,14 @@ template <typename T = float> struct Message {
     std::string result =
         "Message(" + std::to_string(static_cast<int>(command_type)) +
         ", sender: " + sender_id + ", recipient: " + recipient_id;
-    if (task) {
-      result += ", task: " + task->to_string();
+    if (has_task()) {
+      result += ", task: " + get_task().to_string();
     }
-    if (text_data) {
-      result += ", text: " + *text_data;
+    if (has_text()) {
+      result += ", text: " + get_text();
     }
-    if (signal) {
-      result += ", signal: " + std::to_string(*signal);
+    if (has_signal()) {
+      result += ", signal: " + std::to_string(get_signal());
     }
     result += ")";
     return result;

@@ -118,26 +118,26 @@ public:
     write_string(buffer, message.recipient_id);
 
     uint8_t flags = 0;
-    if (message.task.has_value())
+    if (message.has_task())
       flags |= 0x01;
-    if (message.text_data.has_value())
+    if (message.has_text())
       flags |= 0x02;
-    if (message.signal.has_value())
+    if (message.has_signal())
       flags |= 0x04;
     write_value(buffer, flags);
 
-    if (message.task.has_value()) {
-      auto task_data = serialize_task(message.task.value());
+    if (message.has_task()) {
+      auto task_data = serialize_task(message.get_task());
       write_value(buffer, static_cast<uint32_t>(task_data.size()));
       buffer.insert(buffer.end(), task_data.begin(), task_data.end());
     }
 
-    if (message.text_data.has_value()) {
-      write_string(buffer, message.text_data.value());
+    if (message.has_text()) {
+      write_string(buffer, message.get_text());
     }
 
-    if (message.signal.has_value()) {
-      write_value(buffer, static_cast<uint8_t>(message.signal.value() ? 1 : 0));
+    if (message.has_signal()) {
+      write_value(buffer, static_cast<uint8_t>(message.get_signal() ? 1 : 0));
     }
 
     return buffer;
@@ -172,16 +172,18 @@ public:
       offset += task_size;
 
       size_t task_offset = 0;
-      message.task = deserialize_task<T>(task_buffer, task_offset);
+      Task<T> task = deserialize_task<T>(task_buffer, task_offset);
+      message.payload = task;
     }
 
     if (flags & 0x02) {
-      message.text_data = read_string(buffer, offset);
+      std::string text = read_string(buffer, offset);
+      message.payload = text;
     }
 
     if (flags & 0x04) {
       uint8_t signal_val = read_value<uint8_t>(buffer, offset);
-      message.signal = (signal_val != 0);
+      message.payload = (signal_val != 0);
     }
 
     return message;

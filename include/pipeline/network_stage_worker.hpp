@@ -160,7 +160,7 @@ private:
   }
 
   void handle_configuration(const Message<T> &message) {
-    if (!message.text_data.has_value()) {
+    if (!message.has_text()) {
       std::cout << "Configuration message missing text data" << '\n';
       return;
     }
@@ -168,7 +168,7 @@ private:
     try {
       // Parse stage configuration
       nlohmann::json config_json =
-          nlohmann::json::parse(message.text_data.value());
+          nlohmann::json::parse(message.get_text());
       // print the configuration JSON
       std::cout << "Received configuration JSON: " << config_json.dump(2)
                 << '\n';

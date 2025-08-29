@@ -146,7 +146,7 @@ public:
       if (forward_msg.has_task()) {
         ++processed_microbatches_;
         // Process the forward task
-        const auto &task = forward_msg.task.value();
+        const auto &task = forward_msg.get_task();
 
         // Compute loss and prepare backward task
         Tensor<T> predictions = task.data; // Assuming data contains predictions
@@ -198,7 +198,7 @@ public:
 
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
-      auto update_msg = Message<T>(CommandType::UPDATE_PARAMETERS, true,
+      auto update_msg = Message<T>::create_signal_message(CommandType::UPDATE_PARAMETERS, true,
                                    "coordinator", stage_name);
       this->send_message_to_stage(stage_name, update_msg);
     }
@@ -353,10 +353,10 @@ public:
 
     setup_communication_network(stage_communicators);
 
+    this->add_message_callback();
+    
     std::cout << "Pipeline coordinator initialized with " << this->num_stages_
               << " stages" << std::endl;
-
-    this->add_message_callback();
   }
 
   std::vector<std::unique_ptr<PipelineStage<T>>> get_stages() {
