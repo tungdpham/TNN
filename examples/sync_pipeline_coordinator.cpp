@@ -173,7 +173,7 @@ int main() {
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
       if (message.is_task_message()) {
-        forward_tasks.push_back(message.task.value());
+        forward_tasks.push_back(message.get_task());
       }
     }
 
@@ -287,7 +287,7 @@ int main() {
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
       if (message.is_task_message()) {
-        forward_tasks.push_back(message.task.value());
+        forward_tasks.push_back(message.get_task());
       }
     }
 

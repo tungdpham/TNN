@@ -59,6 +59,7 @@ public:
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
       message_available_cv_.wait(lock, [this]() {
+        std::cout << "Waiting for input" << std::endl;
         return communicator_->has_input_message() || should_stop_;
       });
 
@@ -112,7 +113,7 @@ public:
     case CommandType::ERROR_REPORT:
       if (message.has_text()) {
         std::cout << "Stage " << name_
-                  << " received error: " << *message.text_data << " from "
+                  << " received error: " << message.get_text() << " from "
                   << message.sender_id << std::endl;
       }
       break;
@@ -151,12 +152,11 @@ protected:
     if (!message.is_task_message()) {
       auto error_msg = Message<T>::error_message(
           "Expected task payload but got different type", name_, "coordinator");
-      communicator_->enqueue_output_message(error_msg);
-      communicator_->flush_output_messages();
+      communicator_->send_to_coordinator(error_msg);
       return;
     }
 
-    const auto &task = message.task.value();
+    const auto &task = message.get_task();
 
     if (message.command_type == CommandType::FORWARD_TASK) {
 

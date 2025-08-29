@@ -6,6 +6,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <queue>
 #include <stdexcept>
 #include <unordered_map>
@@ -458,15 +459,15 @@ public:
 
   
   inline void send_to_next_stage(const tpipeline::Message<T>& message) {
-    enqueue_output_message("next_stage", message);
+    send_message("next_stage", message);
   }
 
   inline void send_to_prev_stage(const tpipeline::Message<T>& message) {
-    enqueue_output_message("prev_stage", message);
+    send_message("prev_stage", message);
   }
 
   inline void send_to_coordinator(const tpipeline::Message<T>& message) {
-    enqueue_output_message("coordinator", message);
+    send_message("coordinator", message);
   }
 
   
