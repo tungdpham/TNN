@@ -92,7 +92,7 @@ public:
 
     while (!this->out_message_queue_.empty()) {
       auto &msg = this->out_message_queue_.front();
-      send_message(msg.message);
+      send_message(msg);
       this->out_message_queue_.pop();
     }
   }

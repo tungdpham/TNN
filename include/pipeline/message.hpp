@@ -38,7 +38,6 @@ template <typename T = float> struct Message {
       : command_type(cmd_type), payload(signal_value),
         timestamp(std::chrono::steady_clock::now()) {}
 
-  // Helper methods using std::holds_alternative and std::get
   bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
   bool has_text() const { return std::holds_alternative<std::string>(payload); }
   bool has_signal() const { return std::holds_alternative<bool>(payload); }
@@ -46,18 +45,6 @@ template <typename T = float> struct Message {
   const Task<T>& get_task() const { return std::get<Task<T>>(payload); }
   const std::string& get_text() const { return std::get<std::string>(payload); }
   bool get_signal() const { return std::get<bool>(payload); }
-
-  bool is_task_message() const {
-    return command_type == CommandType::FORWARD_TASK ||
-           command_type == CommandType::BACKWARD_TASK;
-  }
-
-  bool is_control_message() const {
-    return command_type == CommandType::START_TRAINING ||
-           command_type == CommandType::STOP_TRAINING ||
-           command_type == CommandType::PAUSE_TRAINING ||
-           command_type == CommandType::RESUME_TRAINING;
-  }
 
   static Message<T> forward_task(const Task<T> &task,
                                  const std::string &sender = "",
