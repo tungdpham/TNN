@@ -227,7 +227,6 @@ int main(int argc, char** argv) {
         double cpu = cpu_percent_container(interval, n_eff, &method);
         out << now_iso_utc() << ',' << t << ',' << tag << ',' << cpu << ',' << n_eff << "\n";
         out.flush();
-        // cpu_percent_container() đã sleep(interval) bên trong
     }
     return 0;
 }

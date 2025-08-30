@@ -3,20 +3,21 @@
 #include <memory>
 #include <stdlib.h>
 #if defined(__AVX2__) || defined(__SSE2__)
-#include <immintrin.h>  
+#include <immintrin.h>
 #endif
 namespace utils {
 
 template <typename T>
 void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels,
-                     size_t height, size_t width) {
+                  size_t height, size_t width) {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {   
+    for (size_t c = 0; c < channels; ++c) {
       std::copy(&src[n * channels * height * width + c * height * width],
-                &src[n * channels * height * width + c * height * width + height * width],
+                &src[n * channels * height * width + c * height * width +
+                     height * width],
                 &dst[c * batch_size * height * width + n * height * width]);
     }
   }
@@ -24,14 +25,15 @@ void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels,
 
 template <typename T>
 void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
-                     size_t height, size_t width) {
+                  size_t height, size_t width) {
 #ifdef _OPENMP
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {   
+    for (size_t c = 0; c < channels; ++c) {
       std::copy(&src[c * batch_size * height * width + n * height * width],
-                &src[c * batch_size * height * width + n * height * width + height * width],
+                &src[c * batch_size * height * width + n * height * width +
+                     height * width],
                 &dst[n * channels * height * width + c * height * width]);
     }
   }
@@ -58,8 +60,7 @@ void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
   }
 }
 
-template <typename T>
-void apply_softmax(Tensor<float> &tensor) {
+template <typename T> void apply_softmax(Tensor<float> &tensor) {
   const size_t batch_size = tensor.shape()[0];
   const size_t num_classes = tensor.shape()[1];
 
@@ -77,7 +78,7 @@ void apply_softmax(Tensor<float> &tensor) {
       sum += exp_val;
     }
 
-    const float inv_sum = 1.0f / std::max(sum, 1e-8f); 
+    const float inv_sum = 1.0f / std::max(sum, 1e-8f);
     for (size_t j = 0; j < num_classes; ++j) {
       tensor(batch, j, 0, 0) *= inv_sum;
     }
@@ -86,16 +87,15 @@ void apply_softmax(Tensor<float> &tensor) {
 
 template <typename T>
 float compute_class_accuracy(const Tensor<float> &predictions,
-                                const Tensor<float> &targets) {
+                             const Tensor<float> &targets) {
   const size_t batch_size = predictions.shape()[0];
   const size_t num_classes = predictions.shape()[1];
 
   int total_correct = 0;
 
-
 #pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
   for (size_t i = 0; i < batch_size; ++i) {
-    
+
     int pred_class = 0;
     float max_pred = predictions(i, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {
@@ -106,7 +106,6 @@ float compute_class_accuracy(const Tensor<float> &predictions,
       }
     }
 
-    
     int true_class = -1;
     for (size_t j = 0; j < num_classes; ++j) {
       if (targets(i, j, 0, 0) > 0.5f) {
@@ -125,14 +124,12 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 
 template <typename T>
 
-T simd_dot_product(const T *weights, const T *col_data,
-                              size_t kernel_size) {
+T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
-  
   if constexpr (std::is_same_v<T, float>) {
 #if defined(__AVX2__)
-    
+
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 8);
 
@@ -141,50 +138,42 @@ T simd_dot_product(const T *weights, const T *col_data,
 
       __m256 c_vec = _mm256_loadu_ps(&col_data[ks]);
 
-      
       sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
     }
 
-    
     __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
     __m128 sum_low = _mm256_castps256_ps128(sum_vec);
     __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
 
-    
     sum_128 = _mm_hadd_ps(sum_128, sum_128);
     sum_128 = _mm_hadd_ps(sum_128, sum_128);
     sum = _mm_cvtss_f32(sum_128);
 
-    
     for (size_t ks = simd_end; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
 
-    _mm256_zeroupper(); 
+    _mm256_zeroupper();
 
 #elif defined(__SSE2__)
-    
+
     __m128 sum_vec = _mm_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 4);
 
     for (size_t ks = 0; ks < simd_end; ks += 4) {
-      
+
       __m128 w_vec = _mm_loadu_ps(&weights[ks]);
 
-      
       __m128 c_vec = _mm_loadu_ps(&col_data[ks]);
 
-      
       __m128 prod = _mm_mul_ps(w_vec, c_vec);
       sum_vec = _mm_add_ps(sum_vec, prod);
     }
 
-    
     sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
     sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
     sum = _mm_cvtss_f32(sum_vec);
 
-    
     for (size_t ks = simd_end; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
@@ -192,13 +181,13 @@ T simd_dot_product(const T *weights, const T *col_data,
 #else
     std::cerr << "Warning: SIMD not supported, using scalar dot product."
               << std::endl;
-    
+
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
 #endif
   } else {
-    
+
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }
@@ -207,6 +196,4 @@ T simd_dot_product(const T *weights, const T *col_data,
   return sum;
 }
 
-
-
-} 
+} // namespace utils

@@ -206,23 +206,23 @@ public:
       labels_ = std::move(shuffled_labels);
       this->current_index_ = 0;
 
-    }else{ 
-        std::vector<size_t> indices =
-            this->generate_shuffled_indices(batched_data_.size());
-    
-        std::vector<Tensor<T>> shuffled_data;
-        std::vector<Tensor<T>> shuffled_labels;
-        shuffled_data.reserve(batched_data_.size());
-        shuffled_labels.reserve(batched_labels_.size());
-    
-        for (const auto &idx : indices) {
-            shuffled_data.emplace_back(std::move(batched_data_[idx]));
-            shuffled_labels.emplace_back(std::move(batched_labels_[idx]));
-        }
-    
-        batched_data_ = std::move(shuffled_data);
-        batched_labels_ = std::move(shuffled_labels);
-        this->current_batch_index_ = 0;
+    } else {
+      std::vector<size_t> indices =
+          this->generate_shuffled_indices(batched_data_.size());
+
+      std::vector<Tensor<T>> shuffled_data;
+      std::vector<Tensor<T>> shuffled_labels;
+      shuffled_data.reserve(batched_data_.size());
+      shuffled_labels.reserve(batched_labels_.size());
+
+      for (const auto &idx : indices) {
+        shuffled_data.emplace_back(std::move(batched_data_[idx]));
+        shuffled_labels.emplace_back(std::move(batched_labels_[idx]));
+      }
+
+      batched_data_ = std::move(shuffled_data);
+      batched_labels_ = std::move(shuffled_labels);
+      this->current_batch_index_ = 0;
     }
   }
 
