@@ -7,7 +7,7 @@ namespace tpipeline {
  */
 enum class CommandType {
   // START (DO NOT REMOVE)
-  START = 0,
+  START,
 
   // Pipeline Tasks
   FORWARD_TASK,

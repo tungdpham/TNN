@@ -70,8 +70,7 @@ public:
     }
   }
 
-  void send_message(const std::string &recipient_id,
-                    const Message<T> &message) override {
+  void send_message(const Message<T> &message) override {
     auto serialized = BinarySerializer::serialize_message(message);
 
     std::vector<uint8_t> packet;
@@ -80,7 +79,7 @@ public:
     std::memcpy(packet.data(), &msg_length, 4);
     std::memcpy(packet.data() + 4, serialized.data(), serialized.size());
 
-    send_packet(recipient_id, packet);
+    send_packet(message.recipient_id, packet);
   }
 
   void flush_output_messages() override {
@@ -93,7 +92,7 @@ public:
 
     while (!this->out_message_queue_.empty()) {
       auto &msg = this->out_message_queue_.front();
-      send_message(msg.recipient_id, msg.message);
+      send_message(msg.message);
       this->out_message_queue_.pop();
     }
   }

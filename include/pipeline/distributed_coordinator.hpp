@@ -225,7 +225,7 @@ private:
           CommandType::CONFIG_RECEIVED, config_json, "coordinator",
           endpoint.stage_id);
 
-      this->send_message_to_stage(endpoint.stage_id, config_msg);
+      this->coordinator_comm_->send_message(config_msg);
 
       std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
       return true;

@@ -33,12 +33,17 @@ signed main() {
     return -1;
   }
 
-  omp_set_num_threads(4);
+  train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+  test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+
+
+  omp_set_num_threads(16);
+
   // Create a sequential model using the builder pattern
   auto model =
       tnn::SequentialBuilder<float>("mnist_cnn_classifier")
-          .input({1, ::mnist_constants::IMAGE_HEIGHT,
-                  ::mnist_constants::IMAGE_WIDTH})
+          .input({1, mnist_constants::IMAGE_HEIGHT,
+                  mnist_constants::IMAGE_WIDTH})
           .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
           .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
           .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
@@ -51,8 +56,15 @@ signed main() {
   auto optimizer = std::make_unique<tnn::Adam<float>>(
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
+
+  auto loss_functions = tnn::LossFactory<float>::create_crossentropy(
+      mnist_constants::EPSILON);
+
   auto coordinator = tpipeline::InProcessPipelineCoordinator<float>(
       model, 1, mnist_constants::NUM_MICROBATCHES);
+
+  coordinator.set_loss_function(std::move(loss_functions));
+
   // Get the stages from the coordinator
   auto stages = coordinator.get_stages();
 
@@ -94,8 +106,88 @@ signed main() {
         train_loader.reset();
         batch_index = 0;
 
+        train_loader.shuffle();
+        test_loader.shuffle();
+
+        train_loader.reset();
+        test_loader.reset();
+
+        auto epoch_start = std::chrono::high_resolution_clock::now();
+
+        while (true) {
+          auto get_next_batch_start = std::chrono::high_resolution_clock::now();
+          bool is_valid_batch =
+              train_loader.get_next_batch(batch_data, batch_labels);
+          if (!is_valid_batch) {
+            break;
+          }
+          auto get_next_batch_end = std::chrono::high_resolution_clock::now();
+          auto get_next_batch_duration =
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  get_next_batch_end - get_next_batch_start);
+
+          auto split_start = std::chrono::high_resolution_clock::now();
+
+          std::vector<Tensor<float>> micro_batches =
+              batch_data.split(mnist_constants::NUM_MICROBATCHES);
+
+          std::vector<Tensor<float>> micro_batch_labels =
+              batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+
+          auto split_end = std::chrono::high_resolution_clock::now();
+          auto split_duration =
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  split_end - split_start);
+
+          auto process_start = std::chrono::high_resolution_clock::now();
+          coordinator.async_process_batch(micro_batches, micro_batch_labels);
+          auto process_end = std::chrono::high_resolution_clock::now();
+          auto process_duration =
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  process_end - process_start);
+
+          auto update_start = std::chrono::high_resolution_clock::now();
+          coordinator.update_parameters();
+
+          auto update_end = std::chrono::high_resolution_clock::now();
+          auto update_duration =
+              std::chrono::duration_cast<std::chrono::microseconds>(
+                  update_end - update_start);
+
+          if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+            std::cout << "Get batch completed in "
+                      << get_next_batch_duration.count() << " microseconds"
+                      << std::endl;
+            std::cout << "Split completed in " << split_duration.count()
+                      << " microseconds" << std::endl;
+            std::cout << "Async process completed in "
+                      << process_duration.count() << " microseconds"
+                      << std::endl;
+            std::cout << "Parameter update completed in "
+                      << update_duration.count() << " microseconds"
+                      << std::endl;
+            std::cout << "Batch " << batch_index << "/"
+                      << train_loader.size() / train_loader.get_batch_size()
+                      << std::endl;
+            coordinator.print_profiling_on_all_stages();
+          }
+          coordinator.clear_profiling_data();
+          ++batch_index;
+        }
+
+        auto epoch_end = std::chrono::high_resolution_clock::now();
+        auto epoch_duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
+                                                                  epoch_start);
+        std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1
+                  << " completed in " << epoch_duration.count()
+                  << " milliseconds" << std::endl;
+
+        loss_function = coordinator.get_loss_function()->clone();
+
         double val_loss = 0.0;
         double val_accuracy = 0.0;
+        int val_batches = 0;
         while (test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
                                      batch_labels)) {
 
@@ -135,8 +227,16 @@ signed main() {
             val_accuracy += utils::compute_class_accuracy<float>(
                 task.data, micro_batch_labels[task.micro_batch_id]);
           }
-          ++batch_index;
+          ++val_batches;
         }
+
+        std::cout << "\nValidation completed!" << std::endl;
+        std::cout << "Average Validation Loss: " << (val_loss / val_batches)
+                  << ", Average Validation Accuracy: "
+                  << (val_accuracy / val_batches /
+                      mnist_constants::NUM_MICROBATCHES) *
+                         100.0f
+                  << "%" << std::endl;
       }
     }
   }
