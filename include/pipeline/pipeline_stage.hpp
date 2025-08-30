@@ -63,8 +63,7 @@ public:
       });
 
       if (should_stop_) {
-        std::cout << "Stage " << name_ << " stopping message loop"
-                  << std::endl;
+        std::cout << "Stage " << name_ << " stopping message loop" << std::endl;
         break;
       }
 
@@ -77,22 +76,38 @@ public:
 
   virtual void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
-    case CommandType::FORWARD_TASK:
-    case CommandType::BACKWARD_TASK: {
+    case CommandType::FORWARD_TASK: {
+      const Task<T> &forward_task = message.get_task();
+      Tensor<T> output_data =
+          this->model_->forward(forward_task.data, forward_task.micro_batch_id);
+      Task<T> output_task(TaskType::FORWARD, std::move(output_data),
+                          forward_task.micro_batch_id);
 
-      process_task_message(message);
+      auto output_message =
+          Message<T>::forward_task(output_task, name_, "next_stage");
+      output_message.sequence_number = message.sequence_number;
+
+      communicator_->send_message(output_message);
     } break;
-    case CommandType::UPDATE_PARAMETERS:
-      if (model_) {
-        model_->update_parameters();
-        auto response = Message<T>::parameters_updated(name_, "coordinator");
-        communicator_->enqueue_output_message(response);
-        communicator_->flush_output_messages();
-      } else {
-        std::cout << "Warning: No model available to update parameters"
-                  << std::endl;
-      }
-      break;
+    case CommandType::BACKWARD_TASK: {
+      const Task<T> &backward_task = message.get_task();
+      Tensor<T> output_data = this->model_->backward(
+          backward_task.data, backward_task.micro_batch_id);
+      Task<T> output_task(TaskType::BACKWARD, std::move(output_data),
+                          backward_task.micro_batch_id);
+
+      auto output_message =
+          Message<T>::backward_task(output_task, name_, "prev_stage");
+      output_message.sequence_number = message.sequence_number;
+
+      communicator_->send_message(output_message);
+    } break;
+    case CommandType::UPDATE_PARAMETERS: {
+      model_->update_parameters();
+      auto response = Message<T>::parameters_updated(name_, "coordinator");
+      communicator_->enqueue_output_message(response);
+      communicator_->flush_output_messages();
+    } break;
     case CommandType::START_TRAINING:
       this->start();
       break;
@@ -119,8 +134,6 @@ public:
 
     case CommandType::PRINT_PROFILING:
       if (model_) {
-        std::cout << "Received profiling request for stage " << name_
-                  << std::endl;
         model_->print_profiling_summary();
       } else {
         std::cout << "Warning: No model available to print profiling data"
@@ -145,40 +158,6 @@ public:
   tnn::Sequential<T> *get_model() { return model_.get(); }
   std::string name() const { return name_; }
   PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }
-
-protected:
-  void process_task_message(const tpipeline::Message<T> &message) {
-    if (!message.is_task_message()) {
-      auto error_msg = Message<T>::error_message(
-          "Expected task payload but got different type", name_, "coordinator");
-      communicator_->send_message(error_msg);
-      return;
-    }
-
-    const auto &task = message.get_task();
-
-    if (message.command_type == CommandType::FORWARD_TASK) {
-
-      auto output_data = this->model_->forward(task.data, task.micro_batch_id);
-      Task<T> output_task(TaskType::FORWARD, std::move(output_data), task.micro_batch_id);
-
-      auto output_message =
-          Message<T>::forward_task(output_task, name_, "next_stage");
-      output_message.sequence_number = message.sequence_number;
-
-      communicator_->send_message(output_message);
-    } else if (message.command_type == CommandType::BACKWARD_TASK) {
-
-      auto output_data = this->model_->backward(task.data, task.micro_batch_id);
-      Task<T> output_task(TaskType::BACKWARD, std::move(output_data), task.micro_batch_id);
-
-      auto output_message =
-          Message<T>::backward_task(output_task, name_, "prev_stage");
-      output_message.sequence_number = message.sequence_number;
-
-      communicator_->send_message(output_message);
-    }
-  }
 
 protected:
   std::unique_ptr<tnn::Sequential<T>> model_;
