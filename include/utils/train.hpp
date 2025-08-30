@@ -3,12 +3,12 @@
 #include "data_loader.hpp"
 #include "nn/sequential.hpp"
 
-void train_classification_model(tnn::Sequential<float> &model,
-                     data_loading::BaseDataLoader<float> &train_loader,
-                     data_loading::BaseDataLoader<float> &test_loader,
-                     int epochs = 10, int batch_size = 32,
-                     float lr_decay_factor = 0.9f,
-                     int progress_print_interval = 100) {
+void train_classification_model(
+    tnn::Sequential<float> &model,
+    data_loading::BaseDataLoader<float> &train_loader,
+    data_loading::BaseDataLoader<float> &test_loader, int epochs = 10,
+    int batch_size = 32, float lr_decay_factor = 0.9f,
+    int progress_print_interval = 100) {
 
   Tensor<float> batch_data, batch_labels, predictions;
 
@@ -72,7 +72,7 @@ void train_classification_model(tnn::Sequential<float> &model,
     const auto epoch_end = std::chrono::high_resolution_clock::now();
     const auto epoch_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
-                                                         epoch_start);
+                                                              epoch_start);
 
     model.eval();
     test_loader.reset();
