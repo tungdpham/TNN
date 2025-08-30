@@ -122,7 +122,7 @@ public:
     size_t width = tensor.width();
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
@@ -150,7 +150,7 @@ public:
     }
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
@@ -172,7 +172,7 @@ public:
     size_t width = tensor.width();
 
 #ifdef _OPENMP
-#pragma omp parallel for collapse(3)
+#pragma omp parallel for collapse(2)
 #endif
     for (size_t c = 0; c < channels; ++c) {
       for (size_t h = 0; h < height; ++h) {
