@@ -22,11 +22,15 @@ public:
       throw std::invalid_argument(
           "Number of stages and microbatches must be at least 1");
     }
+
+    std::cout << "PipelineCoordinator initialized with " << num_stages_
+              << " stages and " << num_microbatches_ << " microbatches."
+              << std::endl;
   }
 
   virtual ~PipelineCoordinator() = default;
 
-  void add_message_callback(){
+  void add_message_callback() {
     this->coordinator_comm_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(this->message_notification_mutex_);
       this->message_notification_cv_.notify_all();
@@ -37,7 +41,7 @@ public:
     for (const auto &stage_name : this->stage_names_) {
       auto start_msg = Message<T>::create_control_message(
           CommandType::START_TRAINING, "coordinator", stage_name);
-      this->send_message_to_stage(stage_name, start_msg);
+      this->coordinator_comm_->send_message(start_msg);
     }
 
     std::cout << "Started all " << this->num_stages_ << " pipeline stages"
@@ -48,7 +52,7 @@ public:
     for (const auto &stage_name : this->stage_names_) {
       auto stop_msg = Message<T>::create_control_message(
           CommandType::STOP_TRAINING, "coordinator", stage_name);
-      this->send_message_to_stage(stage_name, stop_msg);
+      this->coordinator_comm_->send_message(stop_msg);
     }
 
     std::cout << "Stopped all pipeline stages" << std::endl;
@@ -66,8 +70,7 @@ public:
         Message<T>::forward_task(task, "coordinator", first_stage);
     forward_msg.sequence_number = microbatch_id;
 
-    this->send_message_to_stage(first_stage, forward_msg);
-
+    this->coordinator_comm_->send_message(forward_msg);
   }
 
   void backward(const Tensor<T> &gradient, size_t microbatch_id) {
@@ -82,8 +85,7 @@ public:
         Message<T>::backward_task(task, "coordinator", last_stage);
     backward_msg.sequence_number = microbatch_id;
 
-    this->send_message_to_stage(last_stage, backward_msg);
-
+    this->coordinator_comm_->send_message(backward_msg);
   }
 
   void join(const bool direction) {
@@ -140,24 +142,29 @@ public:
         return this->coordinator_comm_->forward_message_count() > 0;
       });
 
-      auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(
-          CommandType::FORWARD_TASK);
+      while (this->coordinator_comm_->forward_message_count() > 0) {
+        auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(
+            CommandType::FORWARD_TASK);
 
-      if (forward_msg.has_task()) {
-        ++processed_microbatches_;
-        // Process the forward task
-        const auto &task = forward_msg.get_task();
+        if (forward_msg.has_task()) {
+          ++processed_microbatches_;
+          // Process the forward task
+          const auto &task = forward_msg.get_task();
 
-        // Compute loss and prepare backward task
-        Tensor<T> predictions = task.data; // Assuming data contains predictions
-        Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-        Tensor<T> gradient =
-            loss_function_->compute_gradient(predictions, targets);
-
-        // Send backward task
-        this->backward(gradient, task.micro_batch_id);
-      } else {
-        throw std::runtime_error("Received forward message without task data");
+          // Compute loss and prepare backward task
+          Tensor<T> predictions =
+              task.data; // Assuming data contains predictions
+          Tensor<T> targets = microbatch_labels[task.micro_batch_id];
+          Tensor<T> gradient =
+              loss_function_->compute_gradient(predictions, targets);
+          
+          // Send backward task
+          this->backward(gradient, task.micro_batch_id);
+        } else {
+          std::cerr << "Fatal error occured: task not found in forward task" << std::endl;
+          throw std::runtime_error(
+              "Received forward message without task data");
+        }
       }
     }
 
@@ -165,6 +172,7 @@ public:
 
     // Wait for all backward tasks to complete
     message_notification_cv_.wait(lock, [this]() {
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
       return this->coordinator_comm_->backward_message_count() >=
              this->num_microbatches_;
     });
@@ -176,7 +184,7 @@ public:
     for (const auto &stage_names_ : this->stage_names_) {
       auto profiling_msg = Message<T>::create_control_message(
           CommandType::PRINT_PROFILING, "coordinator", stage_names_);
-      this->send_message_to_stage(stage_names_, profiling_msg);
+      this->coordinator_comm_->send_message(profiling_msg);
     }
   }
 
@@ -184,7 +192,7 @@ public:
     for (const auto &stage_name : this->stage_names_) {
       auto clear_msg = Message<T>::create_control_message(
           CommandType::CLEAR_PROFILING, "coordinator", stage_name);
-      this->send_message_to_stage(stage_name, clear_msg);
+      this->coordinator_comm_->send_message(clear_msg);
     }
   }
 
@@ -192,23 +200,18 @@ public:
     for (const auto &stage_name : this->stage_names_) {
       auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true,
                                    "coordinator", stage_name);
-      this->send_message_to_stage(stage_name, status_msg);
+      this->coordinator_comm_->send_message(status_msg);
     }
   }
 
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
-      auto update_msg = Message<T>::create_signal_message(CommandType::UPDATE_PARAMETERS, true,
-                                   "coordinator", stage_name);
-      this->send_message_to_stage(stage_name, update_msg);
+      auto update_msg = Message<T>::create_signal_message(
+          CommandType::UPDATE_PARAMETERS, true, "coordinator", stage_name);
+      this->coordinator_comm_->send_message(update_msg);
     }
 
     wait_for_parameter_updates();
-  }
-
-  void send_message_to_stage(const std::string &stage_id,
-                             const Message<T> &message) {
-    coordinator_comm_->send_message(stage_id, message);
   }
 
   std::vector<Message<T>> get_task_messages() {
@@ -259,7 +262,7 @@ public:
     return true;
   }
 
-  void set_loss_function_function(std::unique_ptr<tnn::Loss<T>> loss) {
+  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
     loss_function_ = std::move(loss);
   }
 
@@ -354,7 +357,7 @@ public:
     setup_communication_network(stage_communicators);
 
     this->add_message_callback();
-    
+
     std::cout << "Pipeline coordinator initialized with " << this->num_stages_
               << " stages" << std::endl;
   }

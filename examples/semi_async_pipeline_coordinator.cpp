@@ -120,15 +120,15 @@ int main() {
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
-  coordinator.set_loss_function_function(std::move(loss_function));
+  coordinator.set_loss_function(std::move(loss_function));
 
   size_t batch_index = 0;
 
-  train_loader.shuffle();
-  test_loader.shuffle();
-
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+
+  train_loader.shuffle();
+  test_loader.shuffle();
 
   train_loader.reset();
   test_loader.reset();

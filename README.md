@@ -6,7 +6,7 @@ Download the MNIST dataset from kaggle (preferred) and put it in data/mnist. Nam
 # Build Instructions
 
 ## Dependencies
-You should have these dependencies installed before building:
+You should have these dependencies for the main programs installed before building:
 
 ```bash
 # Install OpenMP (usually comes with GCC)
@@ -16,6 +16,9 @@ sudo apt install libomp-dev
 sudo apt install libtbb-dev
 
 # Install CUDA (follow NVIDIA's installation guide)
+
+# For python scripts, install the dependencies from requirements.txt
+pip install -r requirements.txt
 ```
 
 ## Prepraring Data
@@ -108,14 +111,6 @@ There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI I
 ./bin/mnist_cnn_trainer
 ```
 
-## CPU Monitor uses:
-1. set sync or semi_async cofiguration in docker-compose.yml
-2. run ./build.sh --clean
-3. run docker compose build 
-4. then docker compose up
-5. if (profile is semi_async for example) run the following command to draw cpu load
-  python3 plot_cpu_range.py --logs ./logs --out cpu_usage_sync_0_25.png --tmin 0 --tmax 25
-
 ## Containerized run
 
 ```bash
@@ -123,7 +118,7 @@ There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI I
 docker compose build
 
 # Run the profile you want
-## Using the shell script
+## Using the shell script (Example)
 ./docker_start.sh -p semi-async
 
 ## Manually
@@ -135,4 +130,12 @@ docker compose --profile sync up -d
 
 ## For semi async
 docker compose --profile semi-async up -d
+```
+
+## Other utilities for debugging/monitoring
+### CPU Monitor uses:
+If (profile is semi_async for example) run the following command to draw cpu load:
+
+```bash
+python3 plot_cpu_range.py --logs ./logs --out cpu_usage_sync_0_25.png --tmin 0 --tmax 25
 ```

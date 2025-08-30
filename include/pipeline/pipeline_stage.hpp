@@ -59,11 +59,12 @@ public:
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
       message_available_cv_.wait(lock, [this]() {
-        std::cout << "Waiting for input" << std::endl;
         return communicator_->has_input_message() || should_stop_;
       });
 
       if (should_stop_) {
+        std::cout << "Stage " << name_ << " stopping message loop"
+                  << std::endl;
         break;
       }
 
@@ -80,7 +81,6 @@ public:
     case CommandType::BACKWARD_TASK: {
 
       process_task_message(message);
-
     } break;
     case CommandType::UPDATE_PARAMETERS:
       if (model_) {
@@ -105,8 +105,7 @@ public:
       auto response = Message<T>::status_message(
           (communicator_->has_task_message() ? "busy" : "idle"), name_,
           message.sender_id);
-      communicator_->enqueue_output_message(response);
-      communicator_->flush_output_messages();
+      communicator_->send_message(response);
       break;
     }
 
@@ -152,7 +151,7 @@ protected:
     if (!message.is_task_message()) {
       auto error_msg = Message<T>::error_message(
           "Expected task payload but got different type", name_, "coordinator");
-      communicator_->send_to_coordinator(error_msg);
+      communicator_->send_message(error_msg);
       return;
     }
 
@@ -167,8 +166,7 @@ protected:
           Message<T>::forward_task(output_task, name_, "next_stage");
       output_message.sequence_number = message.sequence_number;
 
-      communicator_->send_to_next_stage(output_message);
-
+      communicator_->send_message(output_message);
     } else if (message.command_type == CommandType::BACKWARD_TASK) {
 
       auto output_data = this->model_->backward(task.data, task.micro_batch_id);
@@ -178,10 +176,8 @@ protected:
           Message<T>::backward_task(output_task, name_, "prev_stage");
       output_message.sequence_number = message.sequence_number;
 
-      communicator_->send_to_prev_stage(output_message);
+      communicator_->send_message(output_message);
     }
-
-    communicator_->flush_output_messages();
   }
 
 protected:
