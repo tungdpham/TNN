@@ -1,0 +1,2 @@
+# Benchmark
+This directory includes some performance comparison scripts that benchmark different methods against each other. This is purely for experimental purposes and not part of the main library that I built.
