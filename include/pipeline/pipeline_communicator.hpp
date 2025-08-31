@@ -9,6 +9,7 @@
 #include "message.hpp"
 #include "pipeline_endpoint.hpp"
 #include "task.hpp"
+#include <atomic>
 #include <condition_variable>
 #include <functional>
 #include <memory>
@@ -22,8 +23,6 @@
 
 namespace tpipeline {
 
-enum class MessagePriority { TASK, CONTROL, STATUS };
-
 template <typename T = float> class PipelineCommunicator {
 public:
   PipelineCommunicator() = default;
@@ -34,14 +33,14 @@ public:
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
     std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
 
-    std::queue<Message<T>> empty_task;
-    std::queue<Message<T>> empty_control;
-    std::queue<Message<T>> empty_status;
-    std::queue<Message<T>> empty_out;
+    // Clear all command type queues
+    for (auto& pair : message_queues_) {
+      std::queue<Message<T>> empty_queue;
+      pair.second.swap(empty_queue);
+    }
+    message_queues_.clear();
 
-    task_queue_.swap(empty_task);
-    control_queue_.swap(empty_control);
-    status_queue_.swap(empty_status);
+    std::queue<Message<T>> empty_out;
     out_message_queue_.swap(empty_out);
 
     recipients_.clear();
@@ -79,20 +78,10 @@ public:
       std::cerr << "WARNING: Unknown Sender ID" << std::endl;
       return;
     }
-    MessagePriority priority = get_message_priority(message.command_type);
+    
     {
       std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-      switch (priority) {
-      case MessagePriority::TASK:
-        this->task_queue_.push(message);
-        break;
-      case MessagePriority::CONTROL:
-        this->control_queue_.push(message);
-        break;
-      case MessagePriority::STATUS:
-        this->status_queue_.push(message);
-        break;
-      }
+      message_queues_[message.command_type].push(message);
     }
 
     if (message_notification_callback_) {
@@ -102,6 +91,7 @@ public:
 
   inline void enqueue_output_message(const Message<T> &message) {
     if(message.recipient_id.empty()) {
+      std::cout << message.to_string() << std::endl;
       throw std::runtime_error("Message recipient_id is empty");
     }
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
@@ -111,22 +101,63 @@ public:
   inline Message<T> dequeue_input_message() {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
 
-    if (!this->task_queue_.empty()) {
-      Message<T> message = this->task_queue_.front();
-      this->task_queue_.pop();
+    if (!message_queues_[CommandType::FORWARD_TASK].empty()) {
+      Message<T> message = message_queues_[CommandType::FORWARD_TASK].front();
+      message_queues_[CommandType::FORWARD_TASK].pop();
       return message;
     }
 
-    if (!this->control_queue_.empty()) {
-      Message<T> message = this->control_queue_.front();
-      this->control_queue_.pop();
+    if (!message_queues_[CommandType::BACKWARD_TASK].empty()) {
+      Message<T> message = message_queues_[CommandType::BACKWARD_TASK].front();
+      message_queues_[CommandType::BACKWARD_TASK].pop();
       return message;
     }
 
-    if (!this->status_queue_.empty()) {
-      Message<T> message = this->status_queue_.front();
-      this->status_queue_.pop();
+    if (!message_queues_[CommandType::UPDATE_PARAMETERS].empty()) {
+      Message<T> message = message_queues_[CommandType::UPDATE_PARAMETERS].front();
+      message_queues_[CommandType::UPDATE_PARAMETERS].pop();
       return message;
+    }
+
+    // Then control messages
+    for (auto& pair : message_queues_) {
+      CommandType cmd_type = pair.first;
+      if (cmd_type != CommandType::FORWARD_TASK && 
+          cmd_type != CommandType::BACKWARD_TASK && 
+          cmd_type != CommandType::UPDATE_PARAMETERS &&
+          cmd_type != CommandType::STATUS_REQUEST &&
+          cmd_type != CommandType::STATUS_RESPONSE &&
+          cmd_type != CommandType::HEALTH_CHECK &&
+          cmd_type != CommandType::MEMORY_REPORT &&
+          cmd_type != CommandType::RESOURCE_REQUEST &&
+          cmd_type != CommandType::QUERY_STAGE_INFO &&
+          cmd_type != CommandType::STAGE_INFO_RESPONSE &&
+          cmd_type != CommandType::PRINT_PROFILING) {
+        if (!pair.second.empty()) {
+          Message<T> message = pair.second.front();
+          pair.second.pop();
+          return message;
+        }
+      }
+    }
+
+    // Finally status messages
+    for (auto& pair : message_queues_) {
+      CommandType cmd_type = pair.first;
+      if (cmd_type == CommandType::STATUS_REQUEST ||
+          cmd_type == CommandType::STATUS_RESPONSE ||
+          cmd_type == CommandType::HEALTH_CHECK ||
+          cmd_type == CommandType::MEMORY_REPORT ||
+          cmd_type == CommandType::RESOURCE_REQUEST ||
+          cmd_type == CommandType::QUERY_STAGE_INFO ||
+          cmd_type == CommandType::STAGE_INFO_RESPONSE ||
+          cmd_type == CommandType::PRINT_PROFILING) {
+        if (!pair.second.empty()) {
+          Message<T> message = pair.second.front();
+          pair.second.pop();
+          return message;
+        }
+      }
     }
 
     throw std::runtime_error("No input messages available");
@@ -136,102 +167,31 @@ public:
   dequeue_message_by_type(CommandType target_type) {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
 
-    MessagePriority target_priority = get_message_priority(target_type);
-
-    auto search_and_dequeue =
-        [target_type](std::queue<Message<T>> &queue)
-        -> std::optional<Message<T>> {
-      std::queue<Message<T>> temp_queue;
-      Message<T> target_message;
-      bool found = false;
-
-      while (!queue.empty()) {
-        auto message = queue.front();
-        queue.pop();
-
-        if (!found && message.command_type == target_type) {
-          target_message = message;
-          found = true;
-        } else {
-          temp_queue.push(message);
-        }
-      }
-
-      while (!temp_queue.empty()) {
-        queue.push(temp_queue.front());
-        temp_queue.pop();
-      }
-
-      if (found) {
-        return target_message;
-      }
-      return std::nullopt;
-    };
-
-    std::optional<Message<T>> result;
-    switch (target_priority) {
-    case MessagePriority::TASK:
-      result = search_and_dequeue(this->task_queue_);
-      break;
-    case MessagePriority::CONTROL:
-      result = search_and_dequeue(this->control_queue_);
-      break;
-    case MessagePriority::STATUS:
-      result = search_and_dequeue(this->status_queue_);
-      break;
-    }
-
-    if (!result) {
+    if (message_queues_[target_type].empty()) {
       throw std::runtime_error("No message of specified type available");
     }
 
-    return result.value();
+    Message<T> message = message_queues_[target_type].front();
+    message_queues_[target_type].pop();
+    return message;
   }
 
-  inline Message<T> dequeue_task_message() {
+  inline std::vector<Message<T>> dequeue_all_messages_by_type(CommandType target_type) {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
 
-    std::queue<Message<T>> temp_queue;
-    Message<T> target_message;
-    bool found = false;
-
-    while (!this->task_queue_.empty()) {
-      auto message = this->task_queue_.front();
-      this->task_queue_.pop();
-
-      if (!found && (message.command_type == CommandType::FORWARD_TASK ||
-                     message.command_type == CommandType::BACKWARD_TASK)) {
-        target_message = message;
-        found = true;
-      } else {
-        temp_queue.push(message);
-      }
+    std::vector<Message<T>> messages;
+    auto& queue = message_queues_[target_type];
+    
+    while (!queue.empty()) {
+      messages.push_back(queue.front());
+      queue.pop();
     }
 
-    while (!temp_queue.empty()) {
-      this->task_queue_.push(temp_queue.front());
-      temp_queue.pop();
+    if (messages.empty()) {
+      throw std::runtime_error("No messages of specified type available");
     }
 
-    if (!found) {
-      throw std::runtime_error("No task message available");
-    }
-
-    return target_message;
-  }
-
-  inline Message<T> dequeue_status_message() {
-    return dequeue_message_by_type(CommandType::STATUS_RESPONSE);
-  }
-
-  inline Message<T> dequeue_parameter_update_message() {
-    return dequeue_message_by_type(CommandType::PARAMETERS_UPDATED);
-  }
-
-  inline size_t input_queue_size() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return this->task_queue_.size() + this->control_queue_.size() +
-           this->status_queue_.size();
+    return messages;
   }
 
   inline size_t forward_message_count() const {
@@ -248,35 +208,12 @@ public:
 
   inline size_t message_count_by_type(CommandType target_type) const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    size_t count = 0;
-
-    MessagePriority target_priority = get_message_priority(target_type);
-
-    auto check_queue =
-        [&count, target_type](const std::queue<Message<T>> &queue) {
-          auto temp_queue = queue;
-          while (!temp_queue.empty()) {
-            auto message = temp_queue.front();
-            temp_queue.pop();
-            if (message.command_type == target_type) {
-              count++;
-            }
-          }
-        };
-
-    switch (target_priority) {
-    case MessagePriority::TASK:
-      check_queue(this->task_queue_);
-      break;
-    case MessagePriority::CONTROL:
-      check_queue(this->control_queue_);
-      break;
-    case MessagePriority::STATUS:
-      check_queue(this->status_queue_);
-      break;
+    
+    auto it = message_queues_.find(target_type);
+    if (it != message_queues_.end()) {
+      return it->second.size();
     }
-
-    return count;
+    return 0;
   }
 
   inline size_t status_message_count() const {
@@ -289,91 +226,29 @@ public:
 
   inline bool has_input_message() const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return !this->task_queue_.empty() || !this->control_queue_.empty() ||
-           !this->status_queue_.empty();
-  }
-
-private:
-  static MessagePriority get_message_priority(CommandType command_type) {
-    switch (command_type) {
-
-    case CommandType::FORWARD_TASK:
-    case CommandType::BACKWARD_TASK:
-    case CommandType::UPDATE_PARAMETERS:
-      return MessagePriority::TASK;
-
-    case CommandType::TRAIN_MODE:
-    case CommandType::EVAL_MODE:
-    case CommandType::SHUTDOWN:
-    case CommandType::HANDSHAKE_REQUEST:
-    case CommandType::HANDSHAKE_RESPONSE:
-    case CommandType::READY_SIGNAL:
-    case CommandType::CONFIG_RECEIVED:
-    case CommandType::PARAMETERS_UPDATED:
-    case CommandType::ERROR_REPORT:
-    case CommandType::TASK_FAILURE:
-    case CommandType::BARRIER_SYNC:
-    case CommandType::CHECKPOINT_REQUEST:
-    case CommandType::CHECKPOINT_COMPLETE:
-      return MessagePriority::CONTROL;
-
-    case CommandType::STATUS_REQUEST:
-    case CommandType::STATUS_RESPONSE:
-    case CommandType::HEALTH_CHECK:
-    case CommandType::MEMORY_REPORT:
-    case CommandType::RESOURCE_REQUEST:
-    case CommandType::QUERY_STAGE_INFO:
-    case CommandType::STAGE_INFO_RESPONSE:
-    case CommandType::PRINT_PROFILING:
-    default:
-      return MessagePriority::STATUS;
-    }
-  }
-
-public:
-  inline bool has_task_message() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-
-    auto temp_queue = this->task_queue_;
-    while (!temp_queue.empty()) {
-      auto message = temp_queue.front();
-      temp_queue.pop();
-      if (message.command_type == CommandType::FORWARD_TASK ||
-          message.command_type == CommandType::BACKWARD_TASK) {
+    for (const auto& pair : message_queues_) {
+      if (!pair.second.empty()) {
         return true;
       }
     }
     return false;
   }
 
+  inline bool has_task_message() const {
+    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
+    
+    auto forward_it = message_queues_.find(CommandType::FORWARD_TASK);
+    auto backward_it = message_queues_.find(CommandType::BACKWARD_TASK);
+    
+    return (forward_it != message_queues_.end() && !forward_it->second.empty()) ||
+           (backward_it != message_queues_.end() && !backward_it->second.empty());
+  }
+
   inline bool has_message_of_type(CommandType target_type) const {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-
-    MessagePriority target_priority = get_message_priority(target_type);
-
-    auto check_queue =
-        [target_type](const std::queue<Message<T>> &queue) {
-          auto temp_queue = queue;
-          while (!temp_queue.empty()) {
-            auto message = temp_queue.front();
-            temp_queue.pop();
-            if (message.command_type == target_type) {
-              return true;
-            }
-          }
-          return false;
-        };
-
-    switch (target_priority) {
-    case MessagePriority::TASK:
-      return check_queue(this->task_queue_);
-    case MessagePriority::CONTROL:
-      return check_queue(this->control_queue_);
-    case MessagePriority::STATUS:
-      return check_queue(this->status_queue_);
-    }
-
-    return false;
+    
+    auto it = message_queues_.find(target_type);
+    return it != message_queues_.end() && !it->second.empty();
   }
 
   inline bool has_status_message() const {
@@ -384,28 +259,18 @@ public:
     bool has_update = has_message_of_type(CommandType::PARAMETERS_UPDATED);
     return has_update;
   }
-  
+
   inline std::vector<Message<T>> get_input_messages() {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
 
     std::vector<Message<T>> messages;
 
-    auto task_temp = this->task_queue_;
-    while (!task_temp.empty()) {
-      messages.push_back(task_temp.front());
-      task_temp.pop();
-    }
-
-    auto control_temp = this->control_queue_;
-    while (!control_temp.empty()) {
-      messages.push_back(control_temp.front());
-      control_temp.pop();
-    }
-
-    auto status_temp = this->status_queue_;
-    while (!status_temp.empty()) {
-      messages.push_back(status_temp.front());
-      status_temp.pop();
+    for (const auto& pair : message_queues_) {
+      auto temp_queue = pair.second;
+      while (!temp_queue.empty()) {
+        messages.push_back(temp_queue.front());
+        temp_queue.pop();
+      }
     }
 
     return messages;
@@ -421,40 +286,8 @@ public:
     message_notification_callback_ = callback;
   }
 
-  inline size_t task_queue_size() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return this->task_queue_.size();
-  }
-
-  inline size_t control_queue_size() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return this->control_queue_.size();
-  }
-
-  inline size_t status_queue_size() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return this->status_queue_.size();
-  }
-
-  inline bool has_task_queue_message() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return !this->task_queue_.empty();
-  }
-
-  inline bool has_control_queue_message() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return !this->control_queue_.empty();
-  }
-
-  inline bool has_status_queue_message() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-    return !this->status_queue_.empty();
-  }
-
 protected:
-  std::queue<Message<T>> task_queue_;
-  std::queue<Message<T>> control_queue_;
-  std::queue<Message<T>> status_queue_;
+  std::unordered_map<CommandType, std::queue<Message<T>>> message_queues_;
 
   std::queue<Message<T>> out_message_queue_;
 
@@ -470,9 +303,13 @@ protected:
 template <typename T>
 class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
 public:
-  InProcessPipelineCommunicator() { start_delivery_thread(); }
+  InProcessPipelineCommunicator() : shutdown_flag_(false) { 
+    start_delivery_thread(); 
+  }
 
   ~InProcessPipelineCommunicator() {
+    shutdown_flag_ = true;
+    outgoing_cv_.notify_one();
     if (delivery_thread_.joinable()) {
       delivery_thread_.join();
     }
@@ -483,27 +320,40 @@ public:
     if(message.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
-    {
-      std::lock_guard<std::mutex> lock(outgoing_queue_mutex_);
-      outgoing_queue_.push(message);
-    }
-    outgoing_cv_.notify_one(); // Wake up the consumer thread
+    this->enqueue_output_message(message);
+
+    outgoing_cv_.notify_one();
   }
 
   void start_delivery_thread() {
     delivery_thread_ = std::thread([this]() {
-      while (true) { // might as well add a flag
-        std::unique_lock<std::mutex> lock(outgoing_queue_mutex_);
-        outgoing_cv_.wait(lock, [this]() { return !outgoing_queue_.empty(); });
+      while (!shutdown_flag_) {
+        std::unique_lock<std::mutex> lock(this->out_message_mutex_);
+        outgoing_cv_.wait(lock, [this]() { 
+          return !this->out_message_queue_.empty() || shutdown_flag_; 
+        });
+        
+        if (shutdown_flag_) {
+          break;
+        }
 
-        Message<T> outgoing = outgoing_queue_.front();
-        outgoing_queue_.pop();
+        if (this->out_message_queue_.empty()) {
+          continue;
+        }
+
+        // Use move semantics to avoid copy issues
+        Message<T> outgoing = std::move(this->out_message_queue_.front());
+        this->out_message_queue_.pop();
         lock.unlock();
 
-        std::lock_guard<std::mutex> comm_lock(communicators_mutex_);
-        auto it = communicators_.find(outgoing.recipient_id);
-        if (it != communicators_.end() && it->second) {
-          it->second->enqueue_input_message(outgoing);
+        try {
+          std::lock_guard<std::mutex> comm_lock(communicators_mutex_);
+          auto it = communicators_.find(outgoing.recipient_id);
+          if (it != communicators_.end() && it->second) {
+            it->second->enqueue_input_message(outgoing);
+          }
+        } catch (const std::exception& e) {
+          std::cerr << "Error delivering message: " << e.what() << std::endl;
         }
       }
     });
@@ -526,13 +376,12 @@ public:
   }
 
 private:
-  std::queue<Message<T>> outgoing_queue_;
-  std::mutex outgoing_queue_mutex_;
   std::condition_variable outgoing_cv_;
   std::thread delivery_thread_;
   std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator<T>>>
       communicators_;
   mutable std::mutex communicators_mutex_;
+  std::atomic<bool> shutdown_flag_;
 };
 
 } // namespace tpipeline
