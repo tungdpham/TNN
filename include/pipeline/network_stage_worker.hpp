@@ -6,8 +6,8 @@
  */
 #pragma once
 
-#include "nn/sequential.hpp"
 #include "network_serialization.hpp"
+#include "nn/sequential.hpp"
 #include "pipeline_stage.hpp"
 #include "tcp_communicator.hpp"
 #define ASIO_STANDALONE
@@ -39,44 +39,26 @@ public:
         std::unique_ptr<PipelineCommunicator<T>,
                         std::function<void(PipelineCommunicator<T> *)>>(
             tcp_communicator_.get(), [](PipelineCommunicator<T> *) {});
-
-    tcp_communicator_->set_message_notification_callback([this]() {
-      std::lock_guard<std::mutex> lock(message_mutex_);
-      message_cv_.notify_all();
-    });
   }
 
   ~NetworkStageWorker() { stop(); }
 
   void start() override {
-    if (is_running_) {
-      std::cout << "Worker already running" << '\n';
-      return;
-    }
-
-    is_running_ = true;
+    if(!this->should_stop_) return;
+    
+    PipelineStage<T>::start();
 
     std::cout << "Starting network stage worker on port " << listen_port_
               << '\n';
 
-    // Start IO context in background thread
     io_thread_ = std::thread([this]() { io_context_.run(); });
 
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
-
-    message_loop();
-    // std::thread([this]() { message_loop(); }).detach();
   }
 
   void stop() override {
-    if (!is_running_) {
-      return;
-    }
-
-    is_running_ = false;
-
-    message_cv_.notify_all();
+    PipelineStage<T>::stop();
 
     tcp_communicator_->stop();
 
@@ -88,12 +70,6 @@ public:
     }
 
     std::cout << "Network stage worker stopped" << '\n';
-  }
-
-  void wait_for_shutdown() {
-    if (io_thread_.joinable()) {
-      io_thread_.join();
-    }
   }
 
   bool is_configured() const { return is_configured_; }
@@ -112,36 +88,7 @@ private:
   std::atomic<bool> is_configured_;
   std::string stage_id_;
 
-  std::mutex message_mutex_;
-  std::condition_variable message_cv_;
-
-  void message_loop() {
-    printf("Starting message processing loop\n");
-
-    while (is_running_) {
-      std::unique_lock<std::mutex> lock(message_mutex_);
-      message_cv_.wait(lock, [this]() {
-        return !is_running_ || tcp_communicator_->has_input_message();
-      });
-
-      if (!is_running_) {
-        break;
-      }
-
-      // Process all available messages
-      while (tcp_communicator_->has_input_message()) {
-        try {
-          auto message = tcp_communicator_->dequeue_input_message();
-          this->process_message(message);
-        } catch (const std::exception &e) {
-          std::cerr << "Error processing message: " << e.what() << '\n';
-        }
-      }
-    }
-  }
-
   void process_message(const Message<T> &message) override {
-
     switch (message.command_type) {
     case CommandType::CONFIG_RECEIVED:
       std::cout << "Handling configuration message" << '\n';
@@ -153,8 +100,6 @@ private:
       handle_handshake(message);
       break;
     default:
-      // If we have been configured, delegate to base PipelineStage message
-      // handling which includes task processing.
       if (is_configured_ && this->get_model()) {
         PipelineStage<T>::process_message(message);
       } else {
@@ -174,8 +119,7 @@ private:
 
     try {
       // Parse stage configuration
-      nlohmann::json config_json =
-          nlohmann::json::parse(message.get_text());
+      nlohmann::json config_json = nlohmann::json::parse(message.get_text());
       // print the configuration JSON
       std::cout << "Received configuration JSON: " << config_json.dump(2)
                 << '\n';
@@ -186,7 +130,6 @@ private:
 
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
 
-      // Create the model from configuration and assign to base model_
       this->model_ = std::make_unique<tnn::Sequential<T>>(
           tnn::Sequential<T>::load_from_config(config.model_config));
 
@@ -308,11 +251,9 @@ public:
       std::cout << "Network stage worker started on port " << listen_port
                 << std::endl;
 
-      // Wait indefinitely
-      worker.wait_for_shutdown();
+      worker.message_loop();
 
       return 0;
-
     } catch (const std::exception &e) {
       std::cout << "Worker failed: " << e.what() << '\n';
       return -1;

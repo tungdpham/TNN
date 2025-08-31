@@ -75,7 +75,7 @@ public:
 
       while (communicator_->has_input_message()) {
         auto message = communicator_->dequeue_input_message();
-        process_message(message);
+        this->process_message(message);
       }
     }
   }
@@ -114,12 +114,12 @@ public:
       communicator_->enqueue_output_message(response);
       communicator_->flush_output_messages();
     } break;
-    case CommandType::START_TRAINING:
-      this->start();
+    case CommandType::TRAIN_MODE:
+      this->model_->train();
       break;
 
-    case CommandType::STOP_TRAINING:
-      this->stop();
+    case CommandType::EVAL_MODE:
+      this->model_->eval();
       break;
 
     case CommandType::STATUS_REQUEST: {
@@ -153,6 +153,9 @@ public:
         std::cout << "Warning: No model available to clear profiling data"
                   << std::endl;
       }
+      break;
+    case CommandType::SHUTDOWN:
+      this->stop();
       break;
     default:
       std::cout << "Stage " << name_ << " received unknown command type: "

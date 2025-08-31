@@ -55,7 +55,6 @@ std::string get_host(const std::string &env_var,
 
 int main() {
 #ifdef _OPENMP
-
   const int num_threads = omp_get_max_threads();
   omp_set_num_threads(std::min(num_threads, 1));
   std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"

@@ -6,6 +6,10 @@
 #include <tbb/task_arena.h>
 
 int main(int argc, char *argv[]) {
+  std::cout.tie(nullptr);
+  std::cin.tie(nullptr);
+  std::ios::sync_with_stdio(false);
+  
   if (argc != 2) {
     std::cerr << "Usage: " << argv[0] << " <listen_port>" << std::endl;
     std::cerr << "Example: " << argv[0] << " 8001" << std::endl;
@@ -33,8 +37,6 @@ int main(int argc, char *argv[]) {
     std::cerr << "Invalid port number: " << listen_port << std::endl;
     return 1;
   }
-
-  std::cout << "Using listen port: " << listen_port << std::endl;
 
   tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port);
   return 0;

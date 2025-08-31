@@ -302,10 +302,9 @@ private:
     case CommandType::UPDATE_PARAMETERS:
       return MessagePriority::TASK;
 
-    case CommandType::START_TRAINING:
-    case CommandType::STOP_TRAINING:
-    case CommandType::PAUSE_TRAINING:
-    case CommandType::RESUME_TRAINING:
+    case CommandType::TRAIN_MODE:
+    case CommandType::EVAL_MODE:
+    case CommandType::SHUTDOWN:
     case CommandType::HANDSHAKE_REQUEST:
     case CommandType::HANDSHAKE_RESPONSE:
     case CommandType::READY_SIGNAL:
@@ -385,24 +384,7 @@ public:
     bool has_update = has_message_of_type(CommandType::PARAMETERS_UPDATED);
     return has_update;
   }
-
-  inline bool has_control_message() const {
-    std::lock_guard<std::mutex> lock(this->in_message_mutex_);
-
-    auto temp_queue = this->control_queue_;
-    while (!temp_queue.empty()) {
-      auto message = temp_queue.front();
-      temp_queue.pop();
-      if (message.command_type == CommandType::START_TRAINING ||
-          message.command_type == CommandType::STOP_TRAINING ||
-          message.command_type == CommandType::PAUSE_TRAINING ||
-          message.command_type == CommandType::RESUME_TRAINING) {
-        return true;
-      }
-    }
-    return false;
-  }
-
+  
   inline std::vector<Message<T>> get_input_messages() {
     std::lock_guard<std::mutex> lock(this->in_message_mutex_);
 

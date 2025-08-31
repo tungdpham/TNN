@@ -45,8 +45,9 @@ public:
 
   void start() {
     for (const auto &stage_name : this->stage_names_) {
+      // currently defaults to train mode
       auto start_msg = Message<T>::create_control_message(
-          CommandType::START_TRAINING, "coordinator", stage_name);
+          CommandType::TRAIN_MODE, "coordinator", stage_name);
       this->coordinator_comm_->send_message(start_msg);
     }
 
@@ -57,7 +58,7 @@ public:
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
       auto stop_msg = Message<T>::create_control_message(
-          CommandType::STOP_TRAINING, "coordinator", stage_name);
+          CommandType::SHUTDOWN, "coordinator", stage_name);
       this->coordinator_comm_->send_message(stop_msg);
     }
 
