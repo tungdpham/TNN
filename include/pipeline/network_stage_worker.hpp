@@ -65,7 +65,8 @@ public:
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
 
-    message_loop();
+    // message_loop();
+    std::thread([this]() { message_loop(); }).detach();
   }
 
   void stop() override {
