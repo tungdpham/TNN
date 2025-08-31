@@ -36,8 +36,9 @@ signed main() {
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
 
-
+#ifdef _OPENMP
   omp_set_num_threads(16);
+#endif
 
   // Create a sequential model using the builder pattern
   auto model =
