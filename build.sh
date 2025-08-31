@@ -67,6 +67,7 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --tbb)
+            ENABLE_OPENMP=OFF
             ENABLE_TBB=ON
             shift
             ;;

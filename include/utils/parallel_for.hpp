@@ -11,19 +11,12 @@
 #include <functional>
 
 #ifdef USE_TBB
-
-#if defined(USE_INTEL_TBB)
 #include <oneapi/tbb/blocked_range.h>
 #include <oneapi/tbb/blocked_range2d.h>
 #include <oneapi/tbb/parallel_for.h>
-#else
-#include <tbb/blocked_range.h>
-#include <tbb/blocked_range2d.h>
-#include <tbb/parallel_for.h>
-#endif
 #endif
 
-namespace tnn {
+namespace utils {
 
 template <typename Index = size_t, typename Func>
 inline void parallel_for_range(Index begin, Index end, Func f) {
@@ -33,7 +26,7 @@ inline void parallel_for_range(Index begin, Index end, Func f) {
                       [&](const tbb::blocked_range<Index> &r) {
                         for (Index i = r.begin(); i != r.end(); ++i)
                           f(i);
-                      });
+                      }, tbb::static_partitioner());
   }
 #else
   for (Index i = begin; i < end; ++i)
@@ -53,7 +46,7 @@ inline void parallel_for_2d(Index dim0, Index dim1, Func f) {
               f(i, j);
             }
           }
-        });
+        }, tbb::static_partitioner());
   }
 #else
   for (Index i = 0; i < dim0; ++i) {

@@ -14,7 +14,7 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -32,7 +32,7 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -45,7 +45,7 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -62,7 +62,7 @@ public:
     T *grad_data = gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -78,7 +78,7 @@ public:
                                     "shape as pre-activation values");
       }
       const T *upstream_data = upstream_gradient->data();
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
       for (size_t i = 0; i < size; ++i) {
@@ -101,7 +101,7 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -121,7 +121,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -149,7 +149,7 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -171,7 +171,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t c = 0; c < channels; ++c) {

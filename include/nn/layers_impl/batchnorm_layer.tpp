@@ -10,7 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "../parallel_for.hpp"
+#include "utils/parallel_for.hpp"
 #include "parameterized_layer.hpp"
 
 namespace tnn {
@@ -66,7 +66,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     const size_t total_elements = batch_size * spatial_size;
 
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t h = 0; h < height; ++h) {
@@ -78,7 +78,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t c = 0; c < channels; ++c) {
@@ -97,7 +97,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     // Compute variance for each channel
     batch_var.fill(T(0));
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum_sq_diff = T(0);
       T mean_val = batch_mean(c, 0, 0, 0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -111,7 +111,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t c = 0; c < channels; ++c) {
@@ -143,7 +143,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     // Normalize
     Tensor<T> normalized(input.shape());
 #ifdef USE_TBB
-    tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
       T mean_val = batch_mean(c, 0, 0, 0);
       T std_val = batch_std(c, 0, 0, 0);
       for (size_t h = 0; h < height; ++h) {
@@ -153,7 +153,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       }
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -174,7 +174,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     // Apply affine transformation if enabled
     if (affine_) {
 #ifdef USE_TBB
-      tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+      utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
         T gamma_val = gamma_(c, 0, 0, 0);
         T beta_val = beta_(c, 0, 0, 0);
         for (size_t h = 0; h < height; ++h) {
@@ -185,7 +185,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
         }
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
@@ -207,7 +207,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     // Update running statistics
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
           (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
           momentum_ * batch_mean(c, 0, 0, 0);
@@ -216,7 +216,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
           momentum_ * batch_var(c, 0, 0, 0);
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t c = 0; c < channels; ++c) {
@@ -231,7 +231,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
   } else {
     // Inference mode: use running statistics
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -299,7 +299,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
 
     // Compute gradients for gamma and beta
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T gamma_grad_sum = T(0);
       T beta_grad_sum = T(0);
 
@@ -317,7 +317,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t c = 0; c < channels; ++c) {
@@ -343,7 +343,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   // Compute gradient w.r.t. normalized input
   Tensor<T> grad_normalized(input.shape());
   if (affine_) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -367,7 +367,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   grad_var.fill(T(0));
   grad_mean.fill(T(0));
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
   for (size_t c = 0; c < channels; ++c) {
@@ -395,7 +395,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
 
   // Compute gradient w.r.t. input
 #ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+  utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);
     T grad_var_val = grad_var(c, 0, 0, 0);
@@ -414,7 +414,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
     }
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {

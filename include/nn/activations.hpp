@@ -14,8 +14,8 @@
 #include <string>
 #include <unordered_map>
 
-#include "../tensor/tensor.hpp"
-#include "parallel_for.hpp"
+#include "tensor/tensor.hpp"
+#include "utils/parallel_for.hpp"
 
 namespace tnn {
 

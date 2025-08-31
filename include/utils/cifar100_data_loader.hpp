@@ -275,30 +275,57 @@ public:
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (data_.empty())
-      return;
+    if (!batches_prepared_) {
+      if (data_.empty())
+        return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+      std::vector<size_t> indices =
+          this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<T>> shuffled_data;
-    std::vector<int> shuffled_fine_labels;
-    std::vector<int> shuffled_coarse_labels;
-    shuffled_data.reserve(data_.size());
-    shuffled_fine_labels.reserve(fine_labels_.size());
-    shuffled_coarse_labels.reserve(coarse_labels_.size());
+      std::vector<std::vector<T>> shuffled_data;
+      std::vector<int> shuffled_fine_labels;
+      std::vector<int> shuffled_coarse_labels;
+      shuffled_data.reserve(data_.size());
+      shuffled_fine_labels.reserve(fine_labels_.size());
+      shuffled_coarse_labels.reserve(coarse_labels_.size());
 
-    for (const auto &idx : indices) {
-      shuffled_data.emplace_back(std::move(data_[idx]));
-      shuffled_fine_labels.emplace_back(fine_labels_[idx]);
-      shuffled_coarse_labels.emplace_back(coarse_labels_[idx]);
+      for (const auto &idx : indices) {
+        shuffled_data.emplace_back(std::move(data_[idx]));
+        shuffled_fine_labels.emplace_back(fine_labels_[idx]);
+        shuffled_coarse_labels.emplace_back(coarse_labels_[idx]);
+      }
+
+      data_ = std::move(shuffled_data);
+      fine_labels_ = std::move(shuffled_fine_labels);
+      coarse_labels_ = std::move(shuffled_coarse_labels);
+      this->current_index_ = 0;
+
+    } else {
+      this->current_batch_index_ = 0;
+
+      std::vector<size_t> indices =
+          this->generate_shuffled_indices(batched_data_.size());
+
+      std::vector<Tensor<T>> shuffled_data;
+      std::vector<Tensor<T>> shuffled_fine_labels;
+      std::vector<Tensor<T>> shuffled_coarse_labels;
+      shuffled_data.reserve(batched_data_.size());
+      shuffled_fine_labels.reserve(batched_fine_labels_.size());
+      shuffled_coarse_labels.reserve(batched_coarse_labels_.size());
+
+      for (const auto &idx : indices) {
+        shuffled_data.emplace_back(std::move(batched_data_[idx]));
+        shuffled_fine_labels.emplace_back(
+            std::move(batched_fine_labels_[idx]));
+        shuffled_coarse_labels.emplace_back(
+            std::move(batched_coarse_labels_[idx]));
+      }
+
+      batched_data_ = std::move(shuffled_data);
+      batched_fine_labels_ = std::move(shuffled_fine_labels);
+      batched_coarse_labels_ = std::move(shuffled_coarse_labels);
+
     }
-
-    data_ = std::move(shuffled_data);
-    fine_labels_ = std::move(shuffled_fine_labels);
-    coarse_labels_ = std::move(shuffled_coarse_labels);
-    this->current_index_ = 0;
-
-    batches_prepared_ = false;
   }
 
   /**

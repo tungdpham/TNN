@@ -9,7 +9,7 @@
 #include <limits>
 #include <stdexcept>
 
-#include "../parallel_for.hpp"
+#include "utils/parallel_for.hpp"
 
 namespace tnn {
 
@@ -89,7 +89,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 
   // Unified pooling implementation - handles all cases cleanly
 #ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+  utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     const T *input_channel =
         input_data + n * input_stride_n_ + c * input_stride_c_;
     T *output_channel =
@@ -130,7 +130,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
     }
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
@@ -219,7 +219,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
 
   // Unified backward pass - handles all cases cleanly
 #ifdef USE_TBB
-  tnn::parallel_for_range<size_t>(0, total_outputs, [&](size_t i) {
+  utils::parallel_for_range<size_t>(0, total_outputs, [&](size_t i) {
     const size_t output_hw = output_h * output_w;
     const size_t output_chw = channels * output_hw;
 
@@ -244,7 +244,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
     }
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
   for (size_t i = 0; i < total_outputs; ++i) {

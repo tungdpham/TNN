@@ -72,7 +72,7 @@ public:
             initialized_ = true;
         }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
         for (size_t i = 0; i < params.size(); ++i) {

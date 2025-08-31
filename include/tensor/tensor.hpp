@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "../matrix/matrix.hpp"
+#include "matrix/matrix.hpp"
 #include "tensor_view.hpp"
 #include <cassert>
 #include <cstdint>
@@ -21,12 +21,11 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include "utils/parallel_for.hpp"
 
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
-
-#include "../nn/parallel_for.hpp"
 
 enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
 
@@ -316,7 +315,7 @@ public:
                         width() + 2 * pad_w);
     result.fill(value);
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
@@ -348,7 +347,7 @@ public:
 
     Tensor<T, L> result(batch_size(), channels(), new_height, new_width);
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
     for (size_t n = 0; n < batch_size(); ++n) {
@@ -375,7 +374,7 @@ public:
       Tensor<T, L> result(new_batch_size, channels(), height(), width());
       T *result_data = result.data();
       size_t output_size = channels() * height() * width();
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
       for (size_t n = 0; n < new_batch_size; ++n) {
@@ -402,7 +401,7 @@ public:
     if constexpr (dims_ == 4) {
       Tensor<T, L> result(batch_size(), new_channels, height(), width());
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
       for (size_t n = 0; n < batch_size(); ++n) {
@@ -434,7 +433,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx)
@@ -454,7 +453,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
@@ -467,7 +466,7 @@ public:
   Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -483,7 +482,7 @@ public:
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -502,7 +501,7 @@ public:
       }
     }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
@@ -520,7 +519,7 @@ public:
       }
     }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
@@ -539,7 +538,7 @@ public:
       }
     }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
@@ -550,7 +549,7 @@ public:
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -564,7 +563,7 @@ public:
       throw std::invalid_argument("Division by zero");
     }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -575,7 +574,7 @@ public:
 
   T mean() const {
     T sum = T(0);
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : sum) schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -587,7 +586,7 @@ public:
   T variance() const {
     T m = mean();
     T sum_sq_diff = T(0);
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : sum_sq_diff) schedule(static)
 #endif
     for (size_t i = 0; i < data_size_; ++i) {
@@ -671,30 +670,28 @@ public:
     size_t col_width = batch_size * out_h * out_w;
     Matrix<T> col_matrix(col_height, col_width);
 
-    const size_t total_cols = col_width;
-
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
-      size_t n = col_idx / (out_h * out_w);
-      size_t rem = col_idx % (out_h * out_w);
-      size_t out_h_idx = rem / out_w;
-      size_t out_w_idx = rem % out_w;
+    utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+      for (size_t kh = 0; kh < kernel_h; ++kh) {
+        for (size_t kw = 0; kw < kernel_w; ++kw) {
+          size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+          for (size_t out_h_idx = 0; out_h_idx < out_h; ++out_h_idx) {
+            for (size_t out_w_idx = 0; out_w_idx < out_w; ++out_w_idx) {
+              size_t in_h_idx = out_h_idx * stride_h + kh;
+              size_t in_w_idx = out_w_idx * stride_w + kw;
+              size_t col_col_idx =
+                  n * out_h * out_w + out_h_idx * out_w + out_w_idx;
 
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            size_t in_h_idx = out_h_idx * stride_h + kh;
-            size_t in_w_idx = out_w_idx * stride_w + kw;
-            col_matrix(col_row_idx, col_idx) =
-                input_data[n * strides_[0] + c * strides_[1] +
-                           in_h_idx * strides_[2] + in_w_idx * strides_[3]];
+              col_matrix(col_row_idx, col_col_idx) =
+                  input_data[n * strides_[0] + c * strides_[1] +
+                             in_h_idx * strides_[2] + in_w_idx * strides_[3]];
+            }
           }
         }
       }
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -739,29 +736,31 @@ public:
     size_t col_rows = channels * kernel_h * kernel_w;
     size_t col_cols = batch_size * num_output_patches;
 
-    const size_t total_cols = col_cols;
-
 #ifdef USE_TBB
-    tnn::parallel_for_range<size_t>(0, total_cols, [&](size_t col_idx) {
-      size_t n = col_idx / (output_h * output_w);
-      size_t rem = col_idx % (output_h * output_w);
-      size_t h_out = rem / output_w;
-      size_t w_out = rem % output_w;
+    utils::parallel_for_2d<size_t>(batch_size, output_h, [&](size_t n, size_t h_out) {
+      for (size_t w_out = 0; w_out < output_w; ++w_out) {
 
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            size_t h_dest = h_out * stride_h + kh;
-            size_t w_dest = w_out * stride_w + kw;
-            result_padded(n, c, h_dest, w_dest) +=
-                col_matrix(col_row_idx, col_idx);
+        size_t col_col_idx =
+            n * output_h * output_w + h_out * output_w + w_out;
+
+        for (size_t c = 0; c < channels; ++c) {
+          for (size_t kh = 0; kh < kernel_h; ++kh) {
+            for (size_t kw = 0; kw < kernel_w; ++kw) {
+
+              size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+
+              size_t h_dest = h_out * stride_h + kh;
+              size_t w_dest = w_out * stride_w + kw;
+
+              result_padded(n, c, h_dest, w_dest) +=
+                  col_matrix(col_row_idx, col_col_idx);
+            }
           }
         }
       }
     });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
