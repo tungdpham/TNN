@@ -11,7 +11,7 @@
 #include <stdexcept>
 
 #include "../../utils/ops.hpp"
-#include "../parallel_for.hpp"
+#include "utils/parallel_for.hpp"
 #include "parameterized_layer.hpp"
 
 namespace tnn {
@@ -136,14 +136,14 @@ void DenseLayer<T>::compute_dense_forward(const T *input_data,
                                           size_t input_features,
                                           size_t output_features) const {
 #ifdef USE_TBB
-  tnn::parallel_for_2d(
+  utils::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] = utils::simd_dot_product(
             &weight_data[out_f * input_features],
             &input_data[n * input_features], input_features);
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
@@ -170,7 +170,7 @@ void DenseLayer<T>::compute_weight_gradients(
                               batch_size, output_features);
 
 #ifdef USE_TBB
-  tnn::parallel_for_2d(
+  utils::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
         weight_grad_data[out_f * input_features + in_f] +=
             utils::simd_dot_product(&grad_output_transposed[out_f * batch_size],
@@ -178,7 +178,7 @@ void DenseLayer<T>::compute_weight_gradients(
                                     batch_size);
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t out_f = 0; out_f < output_features; ++out_f) {
@@ -204,13 +204,13 @@ void DenseLayer<T>::compute_input_gradients(
                               input_features);
 
 #ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
+  utils::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
     grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
         &grad_output_data[n * output_features],
         &weights_transposed[in_f * output_features], output_features);
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
@@ -229,7 +229,7 @@ template <typename T>
 void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
                             size_t batch_size, size_t output_features) const {
 #ifdef USE_TBB
-  tnn::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
+  utils::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       grad_sum += current_grad_data[n * output_features + out_f];
@@ -237,7 +237,7 @@ void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_g
     bias_gradient_data[out_f] += grad_sum;
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
   for (size_t out_f = 0; out_f < output_features; ++out_f) {
@@ -255,12 +255,12 @@ void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
                                     size_t batch_size,
                                     size_t output_features) const {
 #ifdef USE_TBB
-  tnn::parallel_for_2d(
+  utils::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] += bias_data[out_f];
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {

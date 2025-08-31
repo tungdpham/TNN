@@ -8,7 +8,7 @@
 
 #include <stdexcept>
 
-#include "../parallel_for.hpp"
+#include "utils/parallel_for.hpp"
 
 namespace tnn {
 
@@ -37,9 +37,9 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   T scale = T(1) / (T(1) - dropout_rate_);
 
 #ifdef USE_TBB
-  tnn::parallel_for_2d(
+  utils::parallel_for_2d(
       input.batch_size(), input.channels(), [&](size_t n, size_t c) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
         thread_local std::mt19937 local_generator(std::random_device{}());
         thread_local std::uniform_real_distribution<T> local_distribution(
             T(0), T(1));
@@ -48,7 +48,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 #endif
         for (size_t h = 0; h < input.height(); ++h) {
           for (size_t w = 0; w < input.width(); ++w) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
             if (local_distribution(local_generator) < dropout_rate_) {
 #else
             if (local_distribution(generator_) < dropout_rate_) {
@@ -63,12 +63,12 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
         }
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
   for (size_t n = 0; n < input.batch_size(); ++n) {
     for (size_t c = 0; c < input.channels(); ++c) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
       thread_local std::mt19937 local_generator(std::random_device{}());
       thread_local std::uniform_real_distribution<T> local_distribution(T(0),
                                                                         T(1));
@@ -77,7 +77,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 #endif
       for (size_t h = 0; h < input.height(); ++h) {
         for (size_t w = 0; w < input.width(); ++w) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
           if (local_distribution(local_generator) < dropout_rate_) {
 #else
           if (local_distribution(generator_) < dropout_rate_) {
@@ -117,7 +117,7 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
   Tensor<T> grad_input = grad_output;
 
 #ifdef USE_TBB
-  tnn::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
+  utils::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
                        [&](size_t n, size_t c) {
                          for (size_t h = 0; h < grad_output.height(); ++h) {
                            for (size_t w = 0; w < grad_output.width(); ++w) {
@@ -126,7 +126,7 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
                          }
                        });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < grad_output.batch_size(); ++n) {

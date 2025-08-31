@@ -11,7 +11,7 @@
 #include <stdexcept>
 
 #include "../../utils/ops.hpp"
-#include "../parallel_for.hpp"
+#include "utils/parallel_for.hpp"
 
 #ifdef USE_TBB
 #include <tbb/blocked_range2d.h>
@@ -193,7 +193,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
         }
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
@@ -227,7 +227,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
         }
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
@@ -271,7 +271,7 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
         }
       });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t ks = 0; ks < kernel_size; ++ks) {
@@ -297,7 +297,7 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *grad_output_data,
   const size_t C_stride = output_h * output_w;
 
 #ifdef USE_TBB
-  tnn::parallel_for_range<size_t>(0, out_channels, [&](size_t oc) {
+  utils::parallel_for_range<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oh = 0; oh < output_h; ++oh) {
@@ -310,7 +310,7 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *grad_output_data,
     bias_grad_data[oc] += grad_sum;
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
@@ -338,8 +338,7 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
   const size_t H_stride = output_w;
   const size_t W_stride = 1;
 #ifdef USE_TBB
-  tnn::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
-    // For bias_ tensor with shape (out_channels, 1, 1, 1)
+  utils::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
     T bias_val = bias_data[oc * 1 * 1 * 1];
     for (size_t oh = 0; oh < output_h; ++oh) {
       for (size_t ow = 0; ow < output_w; ++ow) {
@@ -349,7 +348,7 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
     }
   });
 #else
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
   for (size_t n = 0; n < batch_size; ++n) {
@@ -408,7 +407,6 @@ std::vector<size_t> Conv2DLayer<T>::compute_output_shape(
   return {input_shape[0], out_channels_, output_h, output_w};
 }
 
-// Protected method implementations
 template <typename T>
 void Conv2DLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
   params.push_back(&weights_);

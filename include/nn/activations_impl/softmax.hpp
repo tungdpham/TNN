@@ -16,7 +16,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     // Apply softmax across channels for each spatial location
@@ -40,7 +40,7 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -56,7 +56,7 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
       for (size_t i = 0; i < size; ++i) {
@@ -91,7 +91,7 @@ public:
                                     "shape as pre-activation values");
       }
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
       for (size_t n = 0; n < batch_size; ++n) {
@@ -136,7 +136,7 @@ public:
     Tensor<T> softmax_values = pre_activation_values; // Copy
     apply(softmax_values); // Apply softmax to get activated values
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t n = 0; n < batch_size; ++n) {
@@ -182,7 +182,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
     for (size_t h = 0; h < height; ++h) {

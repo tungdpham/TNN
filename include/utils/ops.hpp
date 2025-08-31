@@ -11,14 +11,16 @@
 #if defined(__AVX2__) || defined(__SSE2__)
 #include <immintrin.h>
 #endif
+
+#include "parallel_for.hpp"
+
 namespace utils {
 
 template <typename T>
 void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels,
                   size_t height, size_t width) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
-#endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t c = 0; c < channels; ++c) {
       std::copy(&src[n * channels * height * width + c * height * width],
@@ -27,14 +29,21 @@ void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels,
                 &dst[c * batch_size * height * width + n * height * width]);
     }
   }
+#elif defined(USE_TBB)
+  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    std::copy(&src[n * channels * height * width + c * height * width],
+              &src[n * channels * height * width + c * height * width +
+                   height * width],
+              &dst[c * batch_size * height * width + n * height * width]);
+  });
+#endif
 }
 
 template <typename T>
 void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
                   size_t height, size_t width) {
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
-#endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t c = 0; c < channels; ++c) {
       std::copy(&src[c * batch_size * height * width + n * height * width],
@@ -43,13 +52,21 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
                 &dst[n * channels * height * width + c * height * width]);
     }
   }
+#elif defined(USE_TBB)
+  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    std::copy(&src[c * batch_size * height * width + n * height * width],
+              &src[c * batch_size * height * width + n * height * width +
+                   height * width],
+              &dst[n * channels * height * width + c * height * width]);
+  });
+#endif
 }
 
 template <typename T>
 void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
   const size_t block_size = 64;
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
   for (size_t i = 0; i < rows; i += block_size) {

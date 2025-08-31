@@ -214,26 +214,44 @@ public:
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (data_.empty())
-      return;
+    if (!batches_prepared_) {
+      if (data_.empty())
+        return;
 
-    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+      std::vector<size_t> indices =
+          this->generate_shuffled_indices(data_.size());
 
-    std::vector<std::vector<T>> shuffled_data;
-    std::vector<int> shuffled_labels;
-    shuffled_data.reserve(data_.size());
-    shuffled_labels.reserve(labels_.size());
+      std::vector<std::vector<T>> shuffled_data;
+      std::vector<int> shuffled_labels;
+      shuffled_data.reserve(data_.size());
+      shuffled_labels.reserve(labels_.size());
 
-    for (const auto &idx : indices) {
-      shuffled_data.emplace_back(std::move(data_[idx]));
-      shuffled_labels.emplace_back(labels_[idx]);
+      for (const auto &idx : indices) {
+        shuffled_data.emplace_back(std::move(data_[idx]));
+        shuffled_labels.emplace_back(labels_[idx]);
+      }
+
+      data_ = std::move(shuffled_data);
+      labels_ = std::move(shuffled_labels);
+      this->current_index_ = 0;
+    } else {
+      this->current_batch_index_ = 0;
+
+      std::vector<size_t> indices =
+          this->generate_shuffled_indices(batched_data_.size());
+
+      std::vector<Tensor<T>> shuffled_data;
+      std::vector<Tensor<T>> shuffled_labels;
+
+      for (const auto &idx : indices) {
+        shuffled_data.emplace_back(std::move(batched_data_[idx]));
+        shuffled_labels.emplace_back(std::move(batched_labels_[idx]));
+      }
+
+      batched_data_ = std::move(shuffled_data);
+      batched_labels_ = std::move(shuffled_labels);
+      this->current_batch_index_ = 0;
     }
-
-    data_ = std::move(shuffled_data);
-    labels_ = std::move(shuffled_labels);
-    this->current_index_ = 0;
-
-    batches_prepared_ = false;
   }
 
   /**

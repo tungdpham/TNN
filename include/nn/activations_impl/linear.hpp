@@ -23,7 +23,7 @@ public:
     T *data = tensor.data();
     const T *bias_data = bias.data();
     const size_t size = tensor.size();
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
     for (size_t i = 0; i < size; ++i) {
@@ -36,7 +36,7 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for
 #endif
       for (size_t i = 0; i < size; ++i) {
