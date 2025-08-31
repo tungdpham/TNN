@@ -148,11 +148,11 @@ public:
       message_notification_cv_.wait(lock, [this]() {
         return this->coordinator_comm_->forward_message_count() > 0;
       });
+      std::vector<Message<T>> forward_messages =
+          this->coordinator_comm_->dequeue_all_messages_by_type(
+              CommandType::FORWARD_TASK);
 
-      while (this->coordinator_comm_->forward_message_count() > 0) {
-        auto forward_msg = this->coordinator_comm_->dequeue_message_by_type(
-            CommandType::FORWARD_TASK);
-
+      for (const auto &forward_msg : forward_messages) {
         if (forward_msg.has_task()) {
           ++processed_microbatches_;
           // Process the forward task
@@ -164,13 +164,9 @@ public:
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
           Tensor<T> gradient =
               loss_function_->compute_gradient(predictions, targets);
-          
+
           // Send backward task
           this->backward(gradient, task.micro_batch_id);
-        } else {
-          std::cerr << "Fatal error occured: task not found in forward task" << std::endl;
-          throw std::runtime_error(
-              "Received forward message without task data");
         }
       }
     }
@@ -179,12 +175,12 @@ public:
 
     // Wait for all backward tasks to complete
     message_notification_cv_.wait(lock, [this]() {
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
       return this->coordinator_comm_->backward_message_count() >=
              this->num_microbatches_;
     });
 
-    this->get_task_messages();
+    this->coordinator_comm_->dequeue_all_messages_by_type(
+        CommandType::BACKWARD_TASK);
   }
 
   void print_profiling_on_all_stages() {
@@ -221,30 +217,8 @@ public:
     wait_for_parameter_updates();
   }
 
-  std::vector<Message<T>> get_task_messages() {
-    std::vector<Message<T>> task_messages;
-    while (coordinator_comm_->has_task_message()) {
-      try {
-        Message<T> message = coordinator_comm_->dequeue_task_message();
-        task_messages.push_back(message);
-      } catch (const std::runtime_error &e) {
-        break;
-      }
-    }
-    return task_messages;
-  }
-
-  std::vector<Message<T>> get_status_messages() {
-    std::vector<Message<T>> status_messages;
-    while (this->coordinator_comm_->has_status_message()) {
-      try {
-        Message<T> message = this->coordinator_comm_->dequeue_status_message();
-        status_messages.push_back(message);
-      } catch (const std::runtime_error &e) {
-        break;
-      }
-    }
-    return status_messages;
+  std::vector<Message<T>> dequeue_all_messages(CommandType target_type) {
+    return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
   }
 
   bool wait_for_stage_readiness() {

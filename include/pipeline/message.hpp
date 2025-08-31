@@ -44,6 +44,8 @@ template <typename T = float> struct Message {
       : command_type(cmd_type), payload(signal_value),
         timestamp(std::chrono::steady_clock::now()) {}
 
+  ~Message() = default;
+
   bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
   bool has_text() const { return std::holds_alternative<std::string>(payload); }
   bool has_signal() const { return std::holds_alternative<bool>(payload); }

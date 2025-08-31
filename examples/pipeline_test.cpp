@@ -205,7 +205,7 @@ signed main() {
           coordinator.join(1);
 
           std::vector<tpipeline::Message<float>> all_messages =
-              coordinator.get_task_messages();
+              coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
           if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
             throw std::runtime_error(
