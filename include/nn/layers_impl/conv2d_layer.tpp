@@ -10,7 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "../../utils/ops.hpp"
+#include "utils/ops.hpp"
 #include "utils/parallel_for.hpp"
 
 #ifdef USE_TBB
@@ -180,22 +180,16 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
   utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size,
                               output_size);
-#ifdef USE_TBB
-  tbb::parallel_for(
-      tbb::blocked_range2d<size_t>(0, out_channels, 0, output_size),
-      [&](const tbb::blocked_range2d<size_t> &r) {
-        for (size_t oc = r.rows().begin(); oc != r.rows().end(); ++oc) {
-          for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
-            output_data[oc * output_size + os] = utils::simd_dot_product(
-                &weight_data[oc * kernel_size],
-                &col_data_transposed[os * kernel_size], kernel_size);
-          }
-        }
-      });
-#else
-#if defined(_OPENMP)
+#if defined(USE_TBB)
+  utils::parallel_for_2d(out_channels, output_size, 
+    [output_data, weight_data, col_data_transposed, kernel_size, output_size](size_t oc, size_t os) {
+      output_data[oc * output_size + os] = utils::simd_dot_product(
+          &weight_data[oc * kernel_size], 
+          &col_data_transposed[os * kernel_size],
+          kernel_size);
+    });
+#elif defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
-#endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t os = 0; os < output_size; ++os) {
       output_data[oc * output_size + os] = utils::simd_dot_product(
@@ -247,10 +241,7 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
                                              const size_t output_size,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
-  // manual memory management for faster allocation that will be overwritten
-  // anyway
-  T *grad_output_transposed =
-      (T *)malloc(sizeof(T) * output_size * out_channels);
+  T *grad_output_transposed = (T *)malloc(sizeof(T) * output_size * out_channels);
   utils::transpose_2d_inplace(grad_output_data, grad_output_transposed,
                               out_channels, output_size);
 
@@ -259,17 +250,13 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
                               kernel_size);
 
 #ifdef USE_TBB
-  tbb::parallel_for(
-      tbb::blocked_range2d<size_t>(0, kernel_size, 0, output_size),
-      [&](const tbb::blocked_range2d<size_t> &r) {
-        for (size_t ks = r.rows().begin(); ks != r.rows().end(); ++ks) {
-          for (size_t os = r.cols().begin(); os != r.cols().end(); ++os) {
-            col_grad_data[ks * output_size + os] = utils::simd_dot_product(
-                &weights_transposed[ks * out_channels],
-                &grad_output_transposed[os * out_channels], out_channels);
-          }
-        }
-      });
+  // Capture only necessary pointers and sizes
+  utils::parallel_for_2d(kernel_size, output_size, 
+    [col_grad_data, weights_transposed, grad_output_transposed, out_channels, output_size](size_t ks, size_t os) {
+      col_grad_data[ks * output_size + os] = utils::simd_dot_product(
+          &weights_transposed[ks * out_channels],
+          &grad_output_transposed[os * out_channels], out_channels);
+    });
 #else
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2)

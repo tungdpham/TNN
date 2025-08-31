@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "../../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include "base_layer.hpp"
 #include "../optimizers.hpp"
 

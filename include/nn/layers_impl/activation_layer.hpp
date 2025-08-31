@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "stateless_layer.hpp"
 

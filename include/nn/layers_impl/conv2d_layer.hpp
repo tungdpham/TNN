@@ -11,8 +11,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../matrix/matrix.hpp"
-#include "../../tensor/tensor.hpp"
+#include "matrix/matrix.hpp"
+#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "../optimizers.hpp"
 #include "parameterized_layer.hpp"
