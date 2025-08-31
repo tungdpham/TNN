@@ -22,10 +22,9 @@ enum class CommandType {
   UPDATE_PARAMETERS,
 
   // Control Commands
-  START_TRAINING,
-  STOP_TRAINING,
-  PAUSE_TRAINING,
-  RESUME_TRAINING,
+  TRAIN_MODE,
+  EVAL_MODE,
+  SHUTDOWN,
 
   // Network Management
   HANDSHAKE_REQUEST,
