@@ -68,7 +68,6 @@ void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
 
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
-#endif
   for (size_t i = 0; i < rows; i += block_size) {
     for (size_t j = 0; j < cols; j += block_size) {
       size_t max_i = std::min(i + block_size, rows);
@@ -81,6 +80,11 @@ void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
       }
     }
   }
+#elif defined(USE_TBB)
+  parallel_for_2d(rows, cols, [&](size_t i, size_t j) {
+    dst[j * rows + i] = src[i * cols + j];
+  });
+#endif
 }
 
 template <typename T> void apply_softmax(Tensor<float> &tensor) {

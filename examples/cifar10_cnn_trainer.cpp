@@ -22,7 +22,7 @@
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 50;
-constexpr int EPOCHS = 20;
+constexpr int EPOCHS = 3;
 constexpr size_t BATCH_SIZE = 32;
 constexpr int LR_DECAY_INTERVAL = 10;
 constexpr float LR_DECAY_FACTOR = 0.85f;

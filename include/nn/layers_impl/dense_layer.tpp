@@ -10,7 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "../../utils/ops.hpp"
+#include "utils/ops.hpp"
 #include "utils/parallel_for.hpp"
 #include "parameterized_layer.hpp"
 

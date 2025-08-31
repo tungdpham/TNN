@@ -12,7 +12,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include "../layers.hpp"
 
 namespace tnn {
