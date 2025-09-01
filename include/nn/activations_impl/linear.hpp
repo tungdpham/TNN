@@ -11,6 +11,7 @@ template <typename T = float>
 class Linear : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
+    (void)tensor; // Suppress unused parameter warning
     // Linear activation does nothing to the values
   }
 
@@ -80,6 +81,8 @@ public:
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
+    (void)tensor; // Suppress unused parameter warning
+    (void)channel; // Suppress unused parameter warning
     // Linear activation does nothing
   }
 
@@ -108,6 +111,8 @@ public:
   }
 
   void apply_batch_wise(Tensor<T> &tensor, int batch_idx) const override {
+    (void)tensor; // Suppress unused parameter warning
+    (void)batch_idx; // Suppress unused parameter warning
     // Linear activation does nothing
   }
 
@@ -119,10 +124,12 @@ public:
 
 protected:
   void apply_single_value(T &value) const override {
+    (void)value; // Suppress unused parameter warning
     // Linear activation does nothing
   }
 
   T compute_single_gradient(T pre_activation_value) const override {
+    (void)pre_activation_value; // Suppress unused parameter warning
     return T(1);
   }
 };

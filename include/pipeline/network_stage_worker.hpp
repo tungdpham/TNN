@@ -15,6 +15,7 @@
 #include <atomic>
 #include <iostream>
 #include <memory>
+#include <csignal>
 
 namespace tpipeline {
 

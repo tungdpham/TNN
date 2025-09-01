@@ -1,4 +1,4 @@
 #include "matrix/matrix.hpp"
 
-template class Matrix<float>;
-template class Matrix<double>;
+template struct Matrix<float>;
+template struct Matrix<double>;

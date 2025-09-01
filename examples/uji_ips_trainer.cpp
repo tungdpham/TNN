@@ -546,22 +546,22 @@ int main() {
     auto model = tnn::SequentialBuilder<float>("ips_classifier")
                      .input({input_features, 1, 1})
                      .dense(192, "linear", true, "hidden1")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm1")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm1")
                      .activation("relu", "hidden1_relu")
                      .dropout(0.25f, "dropout1")
 
                      .dense(64, "linear", true, "hidden2")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm2")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm2")
                      .activation("relu", "hidden2_relu")
 
                      .dense(32, "linear", true, "hidden3")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm3")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm3")
                      .activation("relu", "hidden3_relu")
 
                      .dropout(0.25f, "dropout3")
 
                      .dense(16, "linear", true, "hidden4")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm4")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm4")
                      .activation("relu", "hidden4_relu")
 
                      .dense(output_size, output_activation, true, "output")

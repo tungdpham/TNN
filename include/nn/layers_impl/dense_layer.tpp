@@ -54,7 +54,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  Tensor<T> output(batch_size, output_features_, 1, 1);
+  Tensor<T> output(batch_size, output_features_, size_t(1), size_t(1));
 
   compute_dense_forward(input.data(), weights_.data(), output.data(),
                         batch_size, input_features_, output_features_);
