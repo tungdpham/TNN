@@ -126,8 +126,8 @@ public:
 
   void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
                            std::vector<Tensor<T>> &microbatch_labels) {
-    if (microbatch_inputs.size() != this->num_microbatches_ ||
-        microbatch_labels.size() != this->num_microbatches_) {
+    if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
+        microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument(
           "Microbatch size mismatch with coordinator configuration");
     }
@@ -176,7 +176,7 @@ public:
     // Wait for all backward tasks to complete
     message_notification_cv_.wait(lock, [this]() {
       return this->coordinator_comm_->backward_message_count() >=
-             this->num_microbatches_;
+             static_cast<size_t>(this->num_microbatches_);
     });
 
     this->coordinator_comm_->dequeue_all_messages_by_type(
@@ -230,7 +230,7 @@ public:
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
                  CommandType::READY_SIGNAL) >=
-             this->num_stages_;
+             static_cast<size_t>(this->num_stages_);
     });
 
     if (!success) {
@@ -272,7 +272,7 @@ private:
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->params_updated_count() >=
-             this->num_stages_;
+             static_cast<size_t>(this->num_stages_);
     });
 
     if (!success) {
@@ -293,7 +293,7 @@ public:
                                int num_microbatches = 4)
       : PipelineCoordinator<T>(num_stages, num_microbatches) {
 
-    if (model.get_layers().size() < num_stages) {
+    if (model.get_layers().size() < static_cast<size_t>(num_stages)) {
       throw std::invalid_argument(
           "Model must have at least as many layers as stages");
     }

@@ -93,6 +93,7 @@ template <typename T> void apply_softmax(Tensor<float> &tensor) {
 
 #ifdef _OPENMP
 #pragma omp parallel for if (batch_size > 16)
+#endif
   for (size_t batch = 0; batch < batch_size; ++batch) {
     float max_val = tensor(batch, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {

@@ -24,8 +24,8 @@
 
 template <typename T = float> struct Matrix {
 private:
-  T *data_; 
   size_t rows_, cols_;
+  T *data_;
 
   
   static constexpr size_t AVX2_ALIGNMENT = 32; 

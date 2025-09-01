@@ -166,7 +166,7 @@ int main() {
 
     auto forward_start = std::chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < micro_batches.size(); ++i) {
+    for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 
@@ -279,7 +279,7 @@ int main() {
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
 
-    for (int i = 0; i < micro_batches.size(); ++i) {
+    for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 
