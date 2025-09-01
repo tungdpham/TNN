@@ -358,7 +358,7 @@ public:
     Tensor<T> current_grad = grad_output;
 
     
-    for (int i = layers_.size() - 1; i >= 0; --i) {
+    for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
@@ -707,18 +707,18 @@ public:
       
       for (const auto& [key, value] : layer_config.parameters) {
         try {
-          if (auto* ptr = std::any_cast<int>(&value)) {
-            layer_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<size_t>(&value)) {
-            layer_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<float>(&value)) {
-            layer_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<double>(&value)) {
-            layer_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<bool>(&value)) {
-            layer_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<std::string>(&value)) {
-            layer_json["parameters"][key] = *ptr;
+          if (auto* int_ptr = std::any_cast<int>(&value)) {
+            layer_json["parameters"][key] = *int_ptr;
+          } else if (auto* size_ptr = std::any_cast<size_t>(&value)) {
+            layer_json["parameters"][key] = *size_ptr;
+          } else if (auto* float_ptr = std::any_cast<float>(&value)) {
+            layer_json["parameters"][key] = *float_ptr;
+          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+            layer_json["parameters"][key] = *double_ptr;
+          } else if (auto* bool_ptr = std::any_cast<bool>(&value)) {
+            layer_json["parameters"][key] = *bool_ptr;
+          } else if (auto* string_ptr = std::any_cast<std::string>(&value)) {
+            layer_json["parameters"][key] = *string_ptr;
           }
         } catch (const std::bad_any_cast&) {
           
@@ -738,10 +738,10 @@ public:
       
       for (const auto& [key, value] : opt_config.parameters) {
         try {
-          if (auto* ptr = std::any_cast<float>(&value)) {
-            opt_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<double>(&value)) {
-            opt_json["parameters"][key] = *ptr;
+          if (auto* float_ptr = std::any_cast<float>(&value)) {
+            opt_json["parameters"][key] = *float_ptr;
+          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+            opt_json["parameters"][key] = *double_ptr;
           }
         } catch (const std::bad_any_cast&) {
           
@@ -760,10 +760,10 @@ public:
       
       for (const auto& [key, value] : loss_config.parameters) {
         try {
-          if (auto* ptr = std::any_cast<float>(&value)) {
-            loss_json["parameters"][key] = *ptr;
-          } else if (auto* ptr = std::any_cast<double>(&value)) {
-            loss_json["parameters"][key] = *ptr;
+          if (auto* float_ptr = std::any_cast<float>(&value)) {
+            loss_json["parameters"][key] = *float_ptr;
+          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+            loss_json["parameters"][key] = *double_ptr;
           }
         } catch (const std::bad_any_cast&) {
           

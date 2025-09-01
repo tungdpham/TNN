@@ -39,6 +39,11 @@ Makefile
 **/Makefile
 compile_commands.json
 **/compile_commands.json
+CMakeLists.txt.user
+*.vcxproj
+*.vcxproj.filters
+*.dir
+x64/
 
 # CMake testing
 Testing/

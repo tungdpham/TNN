@@ -1,4 +1,4 @@
 #include "tensor/tensor.hpp"
 
-template class Tensor<float>;
-template class Tensor<double>;
+template struct Tensor<float>;
+template struct Tensor<double>;

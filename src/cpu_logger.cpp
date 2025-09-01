@@ -7,7 +7,11 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>     // sysconf
+#endif
 #include <algorithm>
 #include <cstdint>
 #include <cmath>        // std::floor

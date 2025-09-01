@@ -126,13 +126,18 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
                          }
                        });
 #else
+  const size_t batch_size = grad_output.batch_size();
+  const size_t channels = grad_output.channels();
+  const size_t height = grad_output.height();
+  const size_t width = grad_output.width();
+
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2)
 #endif
-  for (size_t n = 0; n < grad_output.batch_size(); ++n) {
-    for (size_t c = 0; c < grad_output.channels(); ++c) {
-      for (size_t h = 0; h < grad_output.height(); ++h) {
-        for (size_t w = 0; w < grad_output.width(); ++w) {
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t c = 0; c < channels; ++c) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
           grad_input(n, c, h, w) *= mask(n, c, h, w);
         }
       }

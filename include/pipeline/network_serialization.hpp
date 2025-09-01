@@ -54,7 +54,7 @@ public:
 
     for (uint32_t i = 0; i < shape_size; ++i) {
       uint32_t dim = read_value<uint32_t>(buffer, offset);
-      shape[i] = static_cast<size_t>(dim);
+      shape[i] = dim;
     }
 
     uint32_t data_count = read_value<uint32_t>(buffer, offset);

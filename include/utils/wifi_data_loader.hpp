@@ -358,14 +358,14 @@ public:
     batches_prepared_ = false;
   }
 
-  void prepare_batches(int batch_size) {
+  void prepare_batches(size_t batch_size) {
     if (features_.empty()) {
       std::cerr << "Warning: No data loaded, cannot prepare batches!"
                 << std::endl;
       return;
     }
 
-    batch_size_ = batch_size;
+    batch_size_ = static_cast<int>(batch_size);
     batched_features_.clear();
     batched_targets_.clear();
 

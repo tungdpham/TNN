@@ -8,7 +8,7 @@
 
 #include <memory>
 #include <stdlib.h>
-#if defined(__AVX2__) || defined(__SSE2__)
+#if defined(__AVX2__) || defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 #include <immintrin.h>
 #endif
 
@@ -155,7 +155,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
-#if defined(__AVX2__)
+#if defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 8);
@@ -182,7 +182,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 
     _mm256_zeroupper();
 
-#elif defined(__SSE2__)
+#elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m128 sum_vec = _mm_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 4);
@@ -208,7 +208,6 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 #else
     std::cerr << "Warning: SIMD not supported, using scalar dot product."
               << std::endl;
-
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }

@@ -65,7 +65,7 @@ public:
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
-  void forward(const Tensor<T> &input, size_t microbatch_id) {
+  void forward(const Tensor<T> &input, int microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
@@ -80,7 +80,7 @@ public:
     this->coordinator_comm_->send_message(forward_msg);
   }
 
-  void backward(const Tensor<T> &gradient, size_t microbatch_id) {
+  void backward(const Tensor<T> &gradient, int microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
@@ -137,12 +137,12 @@ public:
           "Loss function not set for distributed coordinator");
     }
 
-    for (size_t i = 0; i < this->num_microbatches_; ++i) {
+    for (int i = 0; i < this->num_microbatches_; ++i) {
       this->forward(microbatch_inputs[i], i);
     }
 
     // Backward on completion of any microbatch
-    size_t processed_microbatches_ = 0;
+    int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(lock, [this]() {
@@ -184,9 +184,9 @@ public:
   }
 
   void print_profiling_on_all_stages() {
-    for (const auto &stage_names_ : this->stage_names_) {
+    for (const auto &stage_name : this->stage_names_) {
       auto profiling_msg = Message<T>::create_control_message(
-          CommandType::PRINT_PROFILING, "coordinator", stage_names_);
+          CommandType::PRINT_PROFILING, "coordinator", stage_name);
       this->coordinator_comm_->send_message(profiling_msg);
     }
   }
@@ -230,7 +230,7 @@ public:
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
                  CommandType::READY_SIGNAL) >=
-             static_cast<size_t>(this->num_stages_);
+             this->num_stages_;
     });
 
     if (!success) {
@@ -264,6 +264,7 @@ protected:
 private:
   void wait_for_parameter_updates() {
     int confirmations = 0;
+    (void)confirmations; // Suppress unused variable warning
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
@@ -271,7 +272,7 @@ private:
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->params_updated_count() >=
-             static_cast<size_t>(this->num_stages_);
+             this->num_stages_;
     });
 
     if (!success) {

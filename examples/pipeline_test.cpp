@@ -84,11 +84,7 @@ signed main() {
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
-  auto epoch_start = std::chrono::high_resolution_clock::now();
-
-  float loss = 0.0f;
-  float avg_accuracy = 0.0f;
-
+  
 #pragma omp parallel sections
   {
 #pragma omp section
