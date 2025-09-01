@@ -244,7 +244,9 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
+#ifdef _OPENMP
 #pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
+#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     int pred_class = 0;

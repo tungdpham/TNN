@@ -67,7 +67,7 @@ std::string get_host(const std::string &env_var,
 int main() {
 #ifdef _OPENMP
   const int num_threads = omp_get_max_threads();
-  omp_set_num_threads(std::min(num_threads, 1));
+  omp_set_num_threads(std::min(num_threads, 2));
   std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
             << std::endl;
 #endif
@@ -134,11 +134,11 @@ int main() {
 
   size_t batch_index = 0;
 
-  train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
-  test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
-
   train_loader.shuffle();
   test_loader.shuffle();
+
+  train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+  test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
 
   train_loader.reset();
   test_loader.reset();
@@ -196,7 +196,6 @@ int main() {
                 << train_loader.size() / train_loader.get_batch_size()
                 << std::endl;
       coordinator.print_profiling_on_all_stages();
-      std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
     coordinator.clear_profiling_data();
     ++batch_index;
