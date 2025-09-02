@@ -65,7 +65,7 @@ public:
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
-  void forward(const Tensor<T> &input, size_t microbatch_id) {
+  void forward(const Tensor<T> &input, int microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
@@ -80,7 +80,7 @@ public:
     this->coordinator_comm_->send_message(forward_msg);
   }
 
-  void backward(const Tensor<T> &gradient, size_t microbatch_id) {
+  void backward(const Tensor<T> &gradient, int microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
@@ -126,8 +126,8 @@ public:
 
   void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
                            std::vector<Tensor<T>> &microbatch_labels) {
-    if (microbatch_inputs.size() != this->num_microbatches_ ||
-        microbatch_labels.size() != this->num_microbatches_) {
+    if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
+        microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument(
           "Microbatch size mismatch with coordinator configuration");
     }
@@ -137,12 +137,12 @@ public:
           "Loss function not set for distributed coordinator");
     }
 
-    for (size_t i = 0; i < this->num_microbatches_; ++i) {
+    for (int i = 0; i < this->num_microbatches_; ++i) {
       this->forward(microbatch_inputs[i], i);
     }
 
     // Backward on completion of any microbatch
-    size_t processed_microbatches_ = 0;
+    int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(lock, [this]() {
@@ -176,7 +176,7 @@ public:
     // Wait for all backward tasks to complete
     message_notification_cv_.wait(lock, [this]() {
       return this->coordinator_comm_->backward_message_count() >=
-             this->num_microbatches_;
+             static_cast<size_t>(this->num_microbatches_);
     });
 
     this->coordinator_comm_->dequeue_all_messages_by_type(
@@ -184,9 +184,9 @@ public:
   }
 
   void print_profiling_on_all_stages() {
-    for (const auto &stage_names_ : this->stage_names_) {
+    for (const auto &stage_name : this->stage_names_) {
       auto profiling_msg = Message<T>::create_control_message(
-          CommandType::PRINT_PROFILING, "coordinator", stage_names_);
+          CommandType::PRINT_PROFILING, "coordinator", stage_name);
       this->coordinator_comm_->send_message(profiling_msg);
     }
   }
@@ -264,6 +264,7 @@ protected:
 private:
   void wait_for_parameter_updates() {
     int confirmations = 0;
+    (void)confirmations; // Suppress unused variable warning
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 
@@ -292,7 +293,7 @@ public:
                                int num_microbatches = 4)
       : PipelineCoordinator<T>(num_stages, num_microbatches) {
 
-    if (model.get_layers().size() < num_stages) {
+    if (model.get_layers().size() < static_cast<size_t>(num_stages)) {
       throw std::invalid_argument(
           "Model must have at least as many layers as stages");
     }

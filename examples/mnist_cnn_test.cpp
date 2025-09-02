@@ -31,9 +31,9 @@ void run_test() {
         return;
     }
 
-    int batch_size = 100;
-    int correct_predictions = 0;
-    int total_samples = 0;
+    size_t batch_size = 100;
+    size_t correct_predictions = 0;
+    size_t total_samples = 0;
 
     Tensor<float> batch_data, batch_labels;
     while (loader.get_batch(batch_size, batch_data, batch_labels)) {

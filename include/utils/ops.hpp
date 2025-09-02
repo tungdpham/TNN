@@ -8,7 +8,7 @@
 
 #include <memory>
 #include <stdlib.h>
-#if defined(__AVX2__) || defined(__SSE2__)
+#if defined(__AVX2__) || defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 #include <immintrin.h>
 #endif
 
@@ -64,9 +64,9 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
 
 template <typename T>
 void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
+#if defined(_OPENMP)
   const size_t block_size = 64;
 
-#if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
   for (size_t i = 0; i < rows; i += block_size) {
     for (size_t j = 0; j < cols; j += block_size) {
@@ -91,7 +91,9 @@ template <typename T> void apply_softmax(Tensor<float> &tensor) {
   const size_t batch_size = tensor.shape()[0];
   const size_t num_classes = tensor.shape()[1];
 
+#ifdef _OPENMP
 #pragma omp parallel for if (batch_size > 16)
+#endif
   for (size_t batch = 0; batch < batch_size; ++batch) {
     float max_val = tensor(batch, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {
@@ -120,7 +122,9 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
+#ifdef _OPENMP
 #pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
+#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     int pred_class = 0;
@@ -155,7 +159,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
-#if defined(__AVX2__)
+#if defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 8);
@@ -182,7 +186,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 
     _mm256_zeroupper();
 
-#elif defined(__SSE2__)
+#elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m128 sum_vec = _mm_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 4);
@@ -208,7 +212,6 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 #else
     std::cerr << "Warning: SIMD not supported, using scalar dot product."
               << std::endl;
-
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       sum += weights[ks] * col_data[ks];
     }

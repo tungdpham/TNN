@@ -43,8 +43,9 @@ public:
       return 0.0f;
 
     double total_loss = 0.0;
-
+#ifdef _OPENMP
 #pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
+#endif
     for (size_t i = 0; i < batch_size; ++i) {
 
       std::vector<float> pred_coords(output_size), target_coords(output_size);
@@ -89,7 +90,9 @@ public:
 
     const float scale = 2.0f / static_cast<float>(batch_size);
 
+#ifdef _OPENMP
 #pragma omp parallel for if (batch_size > 32)
+#endif
     for (size_t i = 0; i < batch_size; ++i) {
 
       std::vector<float> pred_coords(output_size), target_coords(output_size);
@@ -241,7 +244,9 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
+#ifdef _OPENMP
 #pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
+#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     int pred_class = 0;
@@ -546,22 +551,22 @@ int main() {
     auto model = tnn::SequentialBuilder<float>("ips_classifier")
                      .input({input_features, 1, 1})
                      .dense(192, "linear", true, "hidden1")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm1")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm1")
                      .activation("relu", "hidden1_relu")
                      .dropout(0.25f, "dropout1")
 
                      .dense(64, "linear", true, "hidden2")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm2")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm2")
                      .activation("relu", "hidden2_relu")
 
                      .dense(32, "linear", true, "hidden3")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm3")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm3")
                      .activation("relu", "hidden3_relu")
 
                      .dropout(0.25f, "dropout3")
 
                      .dense(16, "linear", true, "hidden4")
-                     .batchnorm(1e-5, 0.1, true, "batchnorm4")
+                     .batchnorm(1e-5f, 0.1f, true, "batchnorm4")
                      .activation("relu", "hidden4_relu")
 
                      .dense(output_size, output_activation, true, "output")

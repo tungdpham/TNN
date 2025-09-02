@@ -17,10 +17,16 @@
 #include <memory>
 #include <numeric>
 #include <random>
-#include <span>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+#include <sstream>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <malloc.h>
+#endif
+
 #include "utils/parallel_for.hpp"
 
 #ifdef __AVX2__
@@ -29,7 +35,7 @@
 
 enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
 
-template <typename T = float, Layout L = NCHW> class Tensor {
+template <typename T = float, Layout L = NCHW> struct Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
                 "Tensor type must be floating point or integral");
@@ -58,24 +64,35 @@ private:
 
   static T *allocate_aligned(size_t count) {
     if (count == 0)
-      return nullptr;
+        return nullptr;
 
     constexpr size_t alignment = ALIGNMENT_TYPE::AVX2;
     size_t byte_size = count * sizeof(T);
-
     size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
 
     void *ptr = nullptr;
-    if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
-      throw std::bad_alloc();
-    }
 
+#ifdef _WIN32
+    ptr = _aligned_malloc(aligned_size, alignment);
+    if (ptr == nullptr) {
+        throw std::bad_alloc();
+    }
+#else
+    if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
+        throw std::bad_alloc();
+    }
+#endif
     return static_cast<T *>(ptr);
-  }
+}
+
 
   static void deallocate_aligned(T *ptr) {
     if (ptr != nullptr) {
+#ifdef _WIN32
+      _aligned_free(ptr);
+#else
       free(ptr);
+#endif
     }
   }
 
@@ -87,7 +104,7 @@ public:
       : data_(nullptr) {
     static_assert(dims_ == 4,
                   "4-parameter constructor only valid for 4D tensors");
-    if (L == NCDHW || L == NDHWC) {
+    if constexpr (L == NCDHW || L == NDHWC) {
       throw std::invalid_argument("5D L specified for 4D constructor");
     }
     shape_[0] = batch;
@@ -108,7 +125,7 @@ public:
     std::copy(temp_shape, temp_shape + dims_, shape_);
     compute_strides();
     data_size_ =
-        std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
+        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     fill_avx2(T(0));
   }
@@ -121,7 +138,7 @@ public:
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
-        std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
+        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     fill_avx2(T(0));
   }
@@ -135,7 +152,7 @@ public:
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ =
-        std::accumulate(shape_, shape_ + dims_, 1UL, std::multiplies<size_t>());
+        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     if (data.size() != data_size_) {
       throw std::invalid_argument(
           "Data size does not match tensor shape product");
@@ -296,7 +313,7 @@ public:
       return *this;
     }
 
-    size_t new_size = std::accumulate(new_shape.begin(), new_shape.end(), 1UL,
+    size_t new_size = std::accumulate(new_shape.begin(), new_shape.end(), size_t(1),
                                       std::multiplies<size_t>());
     if (new_size != size()) {
       throw std::invalid_argument("New shape must have same total size");
@@ -311,17 +328,22 @@ public:
       return *this;
     }
 
-    Tensor<T, L> result(batch_size(), channels(), height() + 2 * pad_h,
-                        width() + 2 * pad_w);
+    const size_t batch_size_ = batch_size();
+    const size_t channels_ = channels();
+    const size_t height_ = height();
+    const size_t width_ = width();
+
+    Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h,
+                        width_ + 2 * pad_w);
     result.fill(value);
 
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
-    for (size_t n = 0; n < batch_size(); ++n) {
-      for (size_t c = 0; c < channels(); ++c) {
-        for (size_t h = 0; h < height(); ++h) {
-          for (size_t w = 0; w < width(); ++w) {
+    for (size_t n = 0; n < batch_size_; ++n) {
+      for (size_t c = 0; c < channels_; ++c) {
+        for (size_t h = 0; h < height_; ++h) {
+          for (size_t w = 0; w < width_; ++w) {
             result(n, c, h + pad_h, w + pad_w) = (*this)(n, c, h, w);
           }
         }
@@ -331,8 +353,8 @@ public:
     return result;
   }
 
-  Tensor<T, L> crop(size_t start_h, size_t start_w, size_t end_h,
-                    size_t end_w) const {
+  Tensor<T, L> crop(const size_t start_h, const size_t start_w, const size_t end_h,
+                    const size_t end_w) const {
     if constexpr (dims_ != 4) {
       throw std::runtime_error("2D cropping only supported for 4D tensors");
     }
@@ -342,16 +364,18 @@ public:
       throw std::invalid_argument("Invalid crop dimensions");
     }
 
-    size_t new_height = end_h - start_h + 1;
-    size_t new_width = end_w - start_w + 1;
+    const size_t new_height = end_h - start_h + 1;
+    const size_t new_width = end_w - start_w + 1;
 
-    Tensor<T, L> result(batch_size(), channels(), new_height, new_width);
+    const size_t batch_size_ = batch_size();
+    const size_t channels_ = channels();
+    Tensor<T, L> result(batch_size_, channels_, new_height, new_width);
 
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
-    for (size_t n = 0; n < batch_size(); ++n) {
-      for (size_t c = 0; c < channels(); ++c) {
+    for (size_t n = 0; n < batch_size_; ++n) {
+      for (size_t c = 0; c < channels_; ++c) {
         for (size_t h = 0; h < new_height; ++h) {
           for (size_t w = 0; w < new_width; ++w) {
             result(n, c, h, w) = (*this)(n, c, start_h + h, start_w + w);
@@ -668,7 +692,7 @@ public:
 
     size_t col_height = channels * kernel_h * kernel_w;
     size_t col_width = batch_size * out_h * out_w;
-    Matrix<T> col_matrix(col_height, col_width);
+    Matrix<T> col_matrix(static_cast<int>(col_height), static_cast<int>(col_width));
 
 #ifdef USE_TBB
     utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
@@ -706,7 +730,7 @@ public:
                 size_t col_col_idx =
                     n * out_h * out_w + out_h_idx * out_w + out_w_idx;
 
-                col_matrix(col_row_idx, col_col_idx) =
+                col_matrix(static_cast<int>(col_row_idx), static_cast<int>(col_col_idx)) =
                     input_data[n * strides_[0] + c * strides_[1] +
                                in_h_idx * strides_[2] + in_w_idx * strides_[3]];
               }
@@ -731,10 +755,6 @@ public:
 
     Tensor<T, L> result_padded(batch_size, channels, padded_h, padded_w);
 
-    size_t num_output_patches = output_h * output_w;
-
-    size_t col_rows = channels * kernel_h * kernel_w;
-    size_t col_cols = batch_size * num_output_patches;
 
 #ifdef USE_TBB
     utils::parallel_for_2d<size_t>(batch_size, output_h, [&](size_t n, size_t h_out) {
@@ -780,7 +800,7 @@ public:
                 size_t w_dest = w_out * stride_w + kw;
 
                 result_padded(n, c, h_dest, w_dest) +=
-                    col_matrix(col_row_idx, col_col_idx);
+                    col_matrix(static_cast<int>(col_row_idx), static_cast<int>(col_col_idx));
               }
             }
           }
@@ -814,7 +834,7 @@ public:
     }
 
     size_t total_batch_size =
-        std::accumulate(tensors.begin(), tensors.end(), 0UL,
+        std::accumulate(tensors.begin(), tensors.end(), size_t(0),
                         [](size_t sum, const Tensor<T> &tensor) {
                           return sum + tensor.batch_size();
                         });
@@ -888,7 +908,7 @@ public:
       T val = operator()(n, c, h, w);
       if (val > max_val) {
         max_val = val;
-        max_idx = c;
+        max_idx = static_cast<int>(c);
       }
     }
     return max_idx;
@@ -916,7 +936,7 @@ public:
 
     Tensor<T, L> tensor(shape);
     in.read(reinterpret_cast<char *>(tensor.data()), tensor.size() * sizeof(T));
-    if (in.gcount() != tensor.size() * sizeof(T)) {
+    if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
     return tensor;

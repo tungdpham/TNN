@@ -84,11 +84,7 @@ signed main() {
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
-  auto epoch_start = std::chrono::high_resolution_clock::now();
-
-  float loss = 0.0f;
-  float avg_accuracy = 0.0f;
-
+  
 #pragma omp parallel sections
   {
 #pragma omp section
@@ -198,7 +194,7 @@ signed main() {
           std::vector<Tensor<float>> micro_batch_labels =
               batch_labels.split(mnist_constants::NUM_MICROBATCHES);
 
-          for (int i = 0; i < micro_batches.size(); ++i) {
+          for (size_t i = 0; i < micro_batches.size(); ++i) {
             coordinator.forward(micro_batches[i], i);
           }
 
