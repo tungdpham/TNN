@@ -7,7 +7,11 @@
 #include <sstream>
 #include <string>
 #include <thread>
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>     // sysconf
+#endif
 #include <algorithm>
 #include <cstdint>
 #include <cmath>        // std::floor
@@ -156,7 +160,8 @@ static double cpu_percent_container(double interval_sec, int ncpus_eff, std::str
             double du_sec = double(u1 - u0) / 1e6; // usec -> sec
             double pct = 100.0 * du_sec / (interval_sec * ncpus_eff);
             if (method) *method = "cgroupv2";
-            if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+            if (pct < 0) pct = 0; 
+            if (pct > 100) pct = 100;
             return pct;
         }
     }
@@ -169,7 +174,8 @@ static double cpu_percent_container(double interval_sec, int ncpus_eff, std::str
             double du_sec = double(n1 - n0) / 1e9; // ns -> sec
             double pct = 100.0 * du_sec / (interval_sec * ncpus_eff);
             if (method) *method = "cgroupv1";
-            if (pct < 0) pct = 0; if (pct > 100) pct = 100;
+            if (pct < 0) pct = 0; 
+            if (pct > 100) pct = 100;
             return pct;
         }
     }

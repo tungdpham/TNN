@@ -9,7 +9,7 @@
 #include "network_serialization.hpp"
 #include "pipeline_communicator.hpp"
 #define ASIO_STANDALONE
-#include <asio.hpp>
+#include "asio.hpp"
 #include <atomic>
 #include <functional>
 #include <iostream>
@@ -43,7 +43,7 @@ public:
       throw std::invalid_argument("Listen port must be greater than 0");
     }
 
-    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), listen_port_);
+    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), static_cast<asio::ip::port_type>(listen_port_));
     acceptor_.open(endpoint.protocol());
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);

@@ -15,8 +15,10 @@
 #include <omp.h>
 #include <random>
 #include <sstream>
+#ifdef USE_TBB
 #include <tbb/global_control.h>
 #include <tbb/task_arena.h>
+#endif
 #include <vector>
 
 namespace cifar10_constants {

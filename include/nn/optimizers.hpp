@@ -145,12 +145,12 @@ public:
             Tensor<T> grad_sq = (*grads[i]);
             grad_sq *= (*grads[i]); // Element-wise square
             v_[i] *= beta2_;
-            grad_sq *= (1.0f - beta2_);
+            grad_sq *= (static_cast<T>(1.0) - beta2_);
             v_[i] += grad_sq;
 
             // Bias correction
-            Tensor<T> m_hat = m_[i] / (1.0f - std::pow(beta1_, t_));
-            Tensor<T> v_hat = v_[i] / (1.0f - std::pow(beta2_, t_));
+            Tensor<T> m_hat = m_[i] / (static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_)));
+            Tensor<T> v_hat = v_[i] / (static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_)));
 
             // Update parameters
             // param -= learning_rate * m_hat / (sqrt(v_hat) + epsilon)

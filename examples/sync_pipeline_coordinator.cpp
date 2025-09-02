@@ -47,8 +47,19 @@ Sequential<float> create_demo_model() {
 
 std::string get_host(const std::string &env_var,
                      const std::string &default_host) {
+#ifdef _WIN32
+  char* env_value = nullptr;
+  size_t len = 0;
+  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
+    std::string result(env_value);
+    free(env_value);
+    return result;
+  }
+  return default_host;
+#else
   const char *env_value = std::getenv(env_var.c_str());
   return env_value ? std::string(env_value) : default_host;
+#endif
 }
 
 int main() {
@@ -155,7 +166,7 @@ int main() {
 
     auto forward_start = std::chrono::high_resolution_clock::now();
 
-    for (int i = 0; i < micro_batches.size(); ++i) {
+    for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 
@@ -268,7 +279,7 @@ int main() {
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
 
-    for (int i = 0; i < micro_batches.size(); ++i) {
+    for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 

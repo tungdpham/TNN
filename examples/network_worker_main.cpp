@@ -2,8 +2,11 @@
 #include <cstdlib>
 #include <iostream>
 #include <omp.h>
+
+#ifdef USE_TBB
 #include <tbb/global_control.h>
 #include <tbb/task_arena.h>
+#endif
 
 int main(int argc, char *argv[]) {
   // std::cout.tie(nullptr);

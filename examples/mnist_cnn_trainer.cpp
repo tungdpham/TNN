@@ -11,8 +11,10 @@
 #include <random>
 #include <sstream>
 #include <string_view>
+#ifdef USE_TBB
 #include <tbb/global_control.h>
 #include <tbb/task_arena.h>
+#endif
 #include <vector>
 
 #include "nn/layers.hpp"

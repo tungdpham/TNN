@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 #pragma once
-
 #include "../tensor/tensor.hpp"
 #include <algorithm>
 #include <iostream>
@@ -49,7 +48,7 @@ public:
    * @param batch_labels Output tensor for labels/targets
    * @return true if batch was retrieved, false if no more data
    */
-  virtual bool get_batch(int batch_size, Tensor<T> &batch_data,
+  virtual bool get_batch(size_t batch_size, Tensor<T> &batch_data,
                          Tensor<T> &batch_labels) = 0;
 
   /**
@@ -71,7 +70,7 @@ public:
    * Prepare batches for efficient training
    * @param batch_size Size of each batch
    */
-  virtual void prepare_batches(int batch_size) {
+  virtual void prepare_batches(size_t batch_size) {
     if (size() == 0) {
       std::cerr << "Warning: Cannot prepare batches - no data loaded"
                 << std::endl;
@@ -103,7 +102,7 @@ public:
   /**
    * Get current batch size
    */
-  virtual int get_batch_size() const { return batch_size_; }
+  virtual int get_batch_size() const { return static_cast<int>(batch_size_); }
 
   /**
    * Set random seed for reproducible shuffling
@@ -119,7 +118,7 @@ public:
 protected:
   size_t current_index_ = 0;
   size_t current_batch_index_ = 0;
-  int batch_size_ = 32;
+  size_t batch_size_ = 32;
   bool batched_prepared_ = false;
   mutable std::mt19937 rng_{std::random_device{}()};
 

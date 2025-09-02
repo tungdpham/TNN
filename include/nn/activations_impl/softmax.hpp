@@ -161,6 +161,8 @@ public:
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
+    (void)tensor; // Suppress unused parameter warning
+    (void)channel; // Suppress unused parameter warning
     // For softmax, channel-wise application doesn't make much sense
     // as softmax needs to see all channels to normalize properly
     throw std::runtime_error("Channel-wise softmax is not supported. Use full "
@@ -169,6 +171,9 @@ public:
 
   void apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
                                     const std::vector<T> &bias) const override {
+    (void)tensor; // Suppress unused parameter warning
+    (void)channel; // Suppress unused parameter warning
+    (void)bias; // Suppress unused parameter warning
     throw std::runtime_error("Channel-wise softmax is not supported. Use full "
                              "tensor softmax instead.");
   }
@@ -196,6 +201,7 @@ public:
   // specific spatial location
   void apply_spatial(Tensor<T> &tensor, int batch, int channel, int height,
                      int width) const override {
+    (void)channel; // Suppress unused parameter warning
     // For softmax, we need to apply it across all channels at this spatial
     // location We can't just apply it to a single value - that's mathematically
     // meaningless
@@ -210,6 +216,7 @@ public:
 
 protected:
   void apply_single_value(T &value) const override {
+    (void)value; // Suppress unused parameter warning
     // Single value softmax is mathematically meaningless - softmax requires
     // normalization across a group
     throw std::runtime_error("Single value softmax is not supported. Softmax "
@@ -217,6 +224,7 @@ protected:
   }
 
   T compute_single_gradient(T pre_activation_value) const override {
+    (void)pre_activation_value; // Suppress unused parameter warning
     // Single value softmax gradient is not well-defined without the full
     // softmax context
     throw std::runtime_error("Single value softmax gradient is not supported. "

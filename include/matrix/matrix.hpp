@@ -18,11 +18,14 @@
 #include <cstdlib>     
 #include <new>         
 
+#ifdef _WIN32
+#include <malloc.h>
+#endif
 
 template <typename T = float> struct Matrix {
 private:
-  T *data_; 
-  int rows_, cols_;
+  size_t rows_, cols_;
+  T *data_;
 
   
   static constexpr size_t AVX2_ALIGNMENT = 32; 
@@ -34,10 +37,13 @@ private:
     
     size_t bytes = count * sizeof(T);
     
-    
+#ifdef _WIN32
+    void* ptr = _aligned_malloc(bytes, AVX2_ALIGNMENT);
+#else
     void* ptr = std::aligned_alloc(AVX2_ALIGNMENT, 
                                    ((bytes + AVX2_ALIGNMENT - 1) / AVX2_ALIGNMENT) * AVX2_ALIGNMENT);
-    if (!ptr) {
+#endif
+                                   if (!ptr) {
       throw std::bad_alloc();
     }
     
@@ -49,18 +55,22 @@ private:
   
   void deallocate_aligned(T* ptr) {
     if (ptr) {
-      std::free(ptr);
+#ifdef _WIN32
+      _aligned_free(ptr);
+#else
+      free(ptr);
+#endif
     }
   }
 
   
-  inline void avx2_fill(T value, int size) {
+  inline void avx2_fill(T value, size_t size) {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       const __m256 avx_value = _mm256_set1_ps(value);
       
-      int i = 0;
+      size_t i = 0;
       
       for (; i + avx_size <= size; i += avx_size) {
         _mm256_store_ps(data_ + i, avx_value); 
@@ -71,7 +81,7 @@ private:
       }
     } else {
       
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         data_[i] = value;
       }
     }
@@ -81,12 +91,12 @@ private:
 #endif
   }
 
-  inline void avx2_add(const T* a, const T* b, T* result, int size) const {
+  inline void avx2_add(const T* a, const T* b, T* result, size_t size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       
-      int i = 0;
+      size_t i = 0;
       
       for (; i + avx_size <= size; i += avx_size) {
         __m256 va = _mm256_load_ps(a + i);     
@@ -100,24 +110,24 @@ private:
       }
     } else {
       
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         result[i] = a[i] + b[i];
       }
     }
 #else
     std::copy(a, a + size, result);
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
       result[i] += b[i];  
     }
 #endif
   }
 
-  inline void avx2_sub(const T* a, const T* b, T* result, int size) const {
+  inline void avx2_sub(const T* a, const T* b, T* result, size_t size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       
-      int i = 0;
+      size_t i = 0;
       
       for (; i + avx_size <= size; i += avx_size) {
         __m256 va = _mm256_load_ps(a + i);     
@@ -131,25 +141,25 @@ private:
       }
     } else {
       
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         result[i] = a[i] - b[i];
       }
     }
 #else
     std::copy(a, a + size, result);
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
       result[i] -= b[i];  
     }
 #endif
   }
 
-  inline void avx2_mul_scalar(const T* a, T scalar, T* result, int size) const {
+  inline void avx2_mul_scalar(const T* a, T scalar, T* result, size_t size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       const __m256 avx_scalar = _mm256_set1_ps(scalar);
       
-      int i = 0;
+      size_t i = 0;
       
       for (; i + avx_size <= size; i += avx_size) {
         __m256 va = _mm256_load_ps(a + i);     
@@ -162,25 +172,25 @@ private:
       }
     } else {
       
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         result[i] = a[i] * scalar;
       }
     }
 #else
     std::copy(a, a + size, result);
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
       result[i] *= scalar;
     }
 #endif
   }
 
-  inline void avx2_div_scalar(const T* a, T scalar, T* result, int size) const {
+  inline void avx2_div_scalar(const T* a, T scalar, T* result, size_t size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       const __m256 avx_scalar = _mm256_set1_ps(scalar);
       
-      int i = 0;
+      size_t i = 0;
       
       for (; i + avx_size <= size; i += avx_size) {
         __m256 va = _mm256_load_ps(a + i);     
@@ -193,13 +203,13 @@ private:
       }
     } else {
       
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         result[i] = a[i] / scalar;
       }
     }
 #else
     std::copy(a, a + size, result);
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
       result[i] /= scalar;  
     }
 #endif
@@ -209,24 +219,24 @@ private:
   inline void avx2_matmul(const Matrix &a, const Matrix &b, Matrix &result) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
-      const int avx_size = 8; 
+      const size_t avx_size = 8; 
       
       
-      const int tile_size = 64;
+      const size_t tile_size = 64;
       
-      for (int ii = 0; ii < a.rows_; ii += tile_size) {
-        for (int jj = 0; jj < b.cols_; jj += tile_size) {
-          for (int kk = 0; kk < a.cols_; kk += tile_size) {
+      for (size_t ii = 0; ii < a.rows_; ii += tile_size) {
+        for (size_t jj = 0; jj < b.cols_; jj += tile_size) {
+          for (size_t kk = 0; kk < a.cols_; kk += tile_size) {
             
-            int i_end = std::min(ii + tile_size, a.rows_);
-            int j_end = std::min(jj + tile_size, b.cols_);
-            int k_end = std::min(kk + tile_size, a.cols_);
+            size_t i_end = std::min(ii + tile_size, a.rows_);
+            size_t j_end = std::min(jj + tile_size, b.cols_);
+            size_t k_end = std::min(kk + tile_size, a.cols_);
             
-            for (int i = ii; i < i_end; ++i) {
-              for (int j = jj; j + avx_size <= j_end; j += avx_size) {
+            for (size_t i = ii; i < i_end; ++i) {
+              for (size_t j = jj; j + avx_size <= j_end; j += avx_size) {
                 __m256 sum = _mm256_load_ps(&result.data_[i * b.cols_ + j]); 
                 
-                for (int k = kk; k < k_end; ++k) {
+                for (size_t k = kk; k < k_end; ++k) {
                   __m256 a_val = _mm256_set1_ps(a.data_[i * a.cols_ + k]);
                   __m256 b_val = _mm256_load_ps(&b.data_[k * b.cols_ + j]); 
                   sum = _mm256_fmadd_ps(a_val, b_val, sum);
@@ -236,9 +246,9 @@ private:
               }
               
               
-              for (int j = (j_end / avx_size) * avx_size; j < j_end; ++j) {
+              for (size_t j = (j_end / avx_size) * avx_size; j < j_end; ++j) {
                 T sum = result.data_[i * b.cols_ + j];
-                for (int k = kk; k < k_end; ++k) {
+                for (size_t k = kk; k < k_end; ++k) {
                   sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
                 }
                 result.data_[i * b.cols_ + j] = sum;
@@ -249,10 +259,10 @@ private:
       }
     } else {
       
-      for (int i = 0; i < a.rows_; ++i) {
-        for (int j = 0; j < b.cols_; ++j) {
+      for (size_t i = 0; i < a.rows_; ++i) {
+        for (size_t j = 0; j < b.cols_; ++j) {
           T sum = 0;
-          for (int k = 0; k < a.cols_; ++k) {
+          for (size_t k = 0; k < a.cols_; ++k) {
             sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
           }
           result.data_[i * b.cols_ + j] = sum;
@@ -261,10 +271,10 @@ private:
     }
 #else
     
-    for (int i = 0; i < a.rows_; ++i) {
-      for (int j = 0; j < b.cols_; ++j) {
+    for (size_t i = 0; i < a.rows_; ++i) {
+      for (size_t j = 0; j < b.cols_; ++j) {
         T sum = 0;
-        for (int k = 0; k < a.cols_; ++k) {
+        for (size_t k = 0; k < a.cols_; ++k) {
           sum += a.data_[i * a.cols_ + k] * b.data_[k * b.cols_ + j];
         }
         result.data_[i * b.cols_ + j] = sum;  
@@ -277,7 +287,7 @@ public:
   
   Matrix() : rows_(0), cols_(0), data_(nullptr) {}
 
-  Matrix(int rows_, int cols_, T *initialdata_ = nullptr)
+  Matrix(size_t rows_, size_t cols_, T *initialdata_ = nullptr)
       : rows_(rows_), cols_(cols_) {
     data_ = allocate_aligned(rows_ * cols_);
     if (initialdata_ != nullptr) {
@@ -326,11 +336,11 @@ public:
     deallocate_aligned(data_); 
   }
 
-  T &operator()(int row, int col) {
+  T &operator()(size_t row, size_t col) {
     return data_[row * cols_ + col];
   }
 
-  const T &operator()(int row, int col) const {
+  const T &operator()(size_t row, size_t col) const {
     return data_[row * cols_ + col];
   }
 
@@ -343,20 +353,19 @@ public:
   }
 
   void fill(T value) {
-    int size = rows_ * cols_;
+    size_t size = rows_ * cols_;
     if (size > 32) { 
       avx2_fill(value, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         data_[i] = value;
       }
     }
   }
 
   void print() const {
-    for (int r = 0; r < rows_; ++r) {
-      for (int c = 0; c < cols_; ++c) {
+    for (size_t r = 0; r < rows_; ++r) {
+      for (size_t c = 0; c < cols_; ++c) {
         std::cout << (*this)(r, c) << " ";
       }
       std::cout << std::endl;
@@ -368,13 +377,13 @@ public:
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
     Matrix result(rows_, cols_);
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_add(data_, other.data_, result.data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         result.data_[i] = data_[i] + other.data_[i];
       }
     }
@@ -385,13 +394,13 @@ public:
     if (rows_ != other.rows_ || cols_ != other.cols_) {
       throw std::invalid_argument("Matrix dimensions must match for addition.");
     }
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_add(data_, other.data_, data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         data_[i] += other.data_[i];
       }
     }
@@ -404,13 +413,13 @@ public:
           "Matrix dimensions must match for subtraction.");
     }
     Matrix result(rows_, cols_);
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_sub(data_, other.data_, result.data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         result.data_[i] = data_[i] - other.data_[i];
       }
     }
@@ -422,13 +431,13 @@ public:
       throw std::invalid_argument(
           "Matrix dimensions must match for subtraction.");
     }
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {  
       avx2_sub(data_, other.data_, data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         data_[i] -= other.data_[i];
       }
     }
@@ -437,13 +446,12 @@ public:
 
   inline Matrix operator*(T scalar) const {
     Matrix result(rows_, cols_);
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_mul_scalar(data_, scalar, result.data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+      for (size_t i = 0; i < size; ++i) {
         result.data_[i] = data_[i] * scalar;
       }
     }
@@ -451,13 +459,13 @@ public:
   }
 
   inline Matrix operator*=(T scalar) {
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_mul_scalar(data_, scalar, data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         data_[i] *= scalar;
       }
     }
@@ -469,13 +477,13 @@ public:
       throw std::invalid_argument("Division by zero.");
     }
     Matrix result(rows_, cols_);
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {  
       avx2_div_scalar(data_, scalar, result.data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         result.data_[i] = data_[i] / scalar;
       }
     }
@@ -486,13 +494,13 @@ public:
     if (scalar == 0) {
       throw std::invalid_argument("Division by zero.");
     }
-    int size = rows_ * cols_;
-    
-    if (size > 32) { 
+    size_t size = rows_ * cols_;
+
+    if (size > 32) {
       avx2_div_scalar(data_, scalar, data_, size);
     } else {
-      
-      for (int i = 0; i < size; ++i) {
+
+      for (size_t i = 0; i < size; ++i) {
         data_[i] /= scalar;
       }
     }
@@ -514,15 +522,16 @@ public:
         return result;
       }
     }
-    
-    
+
+    size_t other_cols = other.cols();
+
 #if defined(_OPENMP)
 #pragma omp parallel for collapse(2) schedule(static)
 #endif
-    for (int r = 0; r < rows_; ++r) {
-      for (int c = 0; c < other.cols_; ++c) {
+    for (size_t r = 0; r < rows_; ++r) {
+      for (size_t c = 0; c < other_cols; ++c) {
         T sum = 0.0;
-        for (int k = 0; k < cols_; ++k) {
+        for (size_t k = 0; k < cols_; ++k) {
           sum += (*this)(r, k) * other(k, c);
         }
         result(r, c) = sum;
@@ -539,18 +548,20 @@ public:
 
   Matrix transpose() const {
     Matrix result(cols_, rows_);
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
-    for (int r = 0; r < rows_; ++r) {
-      for (int c = 0; c < cols_; ++c) {
-        result(c, r) = (*this)(r, c);
+
+    T* result_data = result.data();
+  #if defined(_OPENMP)
+  #pragma omp parallel for schedule(static)
+  #endif
+      for (size_t r = 0; r < rows_; ++r) {
+        for (size_t c = 0; c < cols_; ++c) {
+          result_data[c * rows_ + r] = this->data_[r * cols_ + c];
+        }
       }
-    }
     return result;
   }
 
-  Matrix reshape(int newrows_, int newcols_) const {
+  Matrix reshape(size_t newrows_, size_t newcols_) const {
     if (rows_ * cols_ != newrows_ * newcols_) {
       throw std::invalid_argument(
           "Total number of elements must remain the same for reshape.");
@@ -558,21 +569,21 @@ public:
     return Matrix(newrows_, newcols_, data_);
   }
 
-  Matrix pad(int padrows_, int padcols_, T value = 0.0) const {
+  Matrix pad(size_t padrows_, size_t padcols_, T value = 0.0) const {
     Matrix result(rows_ + 2 * padrows_, cols_ + 2 * padcols_);
     result.fill(value);
 #if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
 #endif
-    for (int r = 0; r < rows_; ++r) {
-      for (int c = 0; c < cols_; ++c) {
+    for (size_t r = 0; r < rows_; ++r) {
+      for (size_t c = 0; c < cols_; ++c) {
         result(r + padrows_, c + padcols_) = (*this)(r, c);
       }
     }
     return result;
   }
 
-  Matrix crop(int startRow, int startCol, int endRow, int endCol) const {
+  Matrix crop(size_t startRow, size_t startCol, size_t endRow, size_t endCol) const {
     if (startRow < 0 || startCol < 0 || endRow >= rows_ || endCol >= cols_ ||
         startRow >= endRow || startCol >= endCol) {
       throw std::invalid_argument("Invalid crop dimensions.");
@@ -581,8 +592,8 @@ public:
 #if defined(_OPENMP)
 #pragma omp parallel for
 #endif
-    for (int r = startRow; r <= endRow; ++r) {
-      for (int c = startCol; c <= endCol; ++c) {
+    for (size_t r = startRow; r <= endRow; ++r) {
+      for (size_t c = startCol; c <= endCol; ++c) {
         result(r - startRow, c - startCol) = (*this)(r, c);
       }
     }
@@ -593,15 +604,15 @@ public:
   size_t cols() const { return cols_; }
 
   T mean() const {
-    int size = rows_ * cols_;
-    
+    size_t size = rows_ * cols_;
+
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
       if (size > 32) { 
-        const int avx_size = 8; 
+        const size_t avx_size = 8; 
         __m256 sum_vec = _mm256_setzero_ps();
         
-        int i = 0;
+        size_t i = 0;
         
         for (; i + avx_size <= size; i += avx_size) {
           __m256 data_vec = _mm256_load_ps(data_ + i); 
@@ -618,26 +629,26 @@ public:
         for (; i < size; ++i) {
           sum += data_[i];
         }
-        
-        return sum / (1.0 * size);
+
+        return sum / static_cast<T>(1.0 * size);
       }
     }
 #endif
     
     
-    T sum = 0.0;
+    T sum = T(0);
 #if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : sum)
 #endif
-    for (int i = 0; i < size; ++i) {
+    for (size_t i = 0; i < size; ++i) {
       sum += data_[i];
     }
-    return (sum / (1.0 * size));
+    return (sum / (T(1) * size));
   }
 
-  int size() const { return rows_ * cols_; }
+  size_t size() const { return rows_ * cols_; }
 
-  void resize(int newrows_, int newcols_) {
+  void resize(size_t newrows_, size_t newcols_) {
     if (newrows_ == rows_ && newcols_ == cols_) {
       return; 
     }
@@ -646,7 +657,7 @@ public:
     rows_ = newrows_;
     cols_ = newcols_;
 
-    int size = rows_ * cols_;
+    size_t size = rows_ * cols_;
     data_ = size > 0 ? allocate_aligned(size) : nullptr;
   }
 
@@ -672,12 +683,12 @@ public:
     T* result_data = result.data_;
     
 #if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
+#pragma omp parallel for schedule(static)
 #endif
-    for (int r = 0; r < a.rows_; ++r) {
-      for (int c = 0; c < b.cols_; ++c) {
-        T sum = 0.0;
-        for (int k = 0; k < a.cols_; ++k) {
+    for (size_t r = 0; r < a.rows_; ++r) {
+      for (size_t c = 0; c < b.cols_; ++c) {
+        T sum = T(0);
+        for (size_t k = 0; k < a.cols_; ++k) {
           sum += a_data[r * a.cols_ + k] * b_data[k * b.cols_ + c]; 
         }
         result_data[r * b.cols_ + c] = sum;
@@ -692,7 +703,7 @@ public:
     void fill_random_uniform(T range) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<T> dis(-range, range);
-    for (int i = 0; i < rows_ * cols_; ++i) {
+    for (size_t i = 0; i < rows_ * cols_; ++i) {
       data_[i] = dis(gen);
     }
   }
@@ -701,7 +712,7 @@ public:
     std::random_device rd;
     std::mt19937 gen(rd());
     std::normal_distribution<T> dis(0, stddev);
-    for (int i = 0; i < rows_ * cols_; ++i) {
+    for (size_t i = 0; i < rows_ * cols_; ++i) {
       data_[i] = dis(gen);
     }
   }

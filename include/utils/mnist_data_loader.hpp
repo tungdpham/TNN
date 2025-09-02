@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 #pragma once
-
 #include "../tensor/tensor.hpp"
 #include "data_loader.hpp"
 #include <algorithm>
@@ -133,7 +132,7 @@ public:
    * Get a specific batch size (supports both pre-computed and on-demand
    * batches)
    */
-  bool get_batch(int batch_size, Tensor<T> &batch_data,
+  bool get_batch(size_t batch_size, Tensor<T> &batch_data,
                  Tensor<T> &batch_labels) override {
 
     if (batches_prepared_ && batch_size == this->batch_size_) {
@@ -144,25 +143,24 @@ public:
       return false;
     }
 
-    const int actual_batch_size = std::min(
-        batch_size, static_cast<int>(data_.size() - this->current_index_));
+    const size_t actual_batch_size = std::min(
+        batch_size, data_.size() - this->current_index_);
 
     batch_data = Tensor<T>(
-        static_cast<size_t>(actual_batch_size), mnist_constants::NUM_CHANNELS,
+        actual_batch_size, mnist_constants::NUM_CHANNELS,
         mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
 
-    batch_labels = Tensor<T>(static_cast<size_t>(actual_batch_size),
-                             mnist_constants::NUM_CLASSES, 1, 1);
+    batch_labels = Tensor<T>(actual_batch_size,
+                             mnist_constants::NUM_CLASSES, 1UL, 1UL);
     batch_labels.fill(static_cast<T>(0.0));
-
+#ifdef _OPENMP
 #pragma omp parallel for if (actual_batch_size > 16)
-    for (int i = 0; i < actual_batch_size; ++i) {
+#endif
+    for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
-      for (int h = 0; h < static_cast<int>(mnist_constants::IMAGE_HEIGHT);
-           ++h) {
-        for (int w = 0; w < static_cast<int>(mnist_constants::IMAGE_WIDTH);
-             ++w) {
+      for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
+        for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
           batch_data(i, 0, h, w) =
               image_data[h * mnist_constants::IMAGE_WIDTH + w];
         }
@@ -267,7 +265,7 @@ public:
   /**
    * Pre-compute all batches for efficient training
    */
-  void prepare_batches(int batch_size) override {
+  void prepare_batches(size_t batch_size) override {
     if (data_.empty()) {
       std::cerr << "Warning: No data loaded, cannot prepare batches!"
                 << std::endl;
@@ -291,27 +289,26 @@ public:
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
-      const int actual_batch_size = static_cast<int>(end_idx - start_idx);
+      const size_t actual_batch_size = end_idx - start_idx;
       assert(actual_batch_size > 0);
 
       Tensor<T> batch_data(std::vector<size_t>{
-          static_cast<size_t>(actual_batch_size), mnist_constants::NUM_CHANNELS,
+          actual_batch_size, mnist_constants::NUM_CHANNELS,
           mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
       Tensor<T> batch_labels(
-          std::vector<size_t>{static_cast<size_t>(actual_batch_size),
-                              mnist_constants::NUM_CLASSES, 1, 1});
+          std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
       batch_labels.fill(T(0.0));
 
+#ifdef _OPENMP
 #pragma omp parallel for if (actual_batch_size > 16)
-      for (int i = 0; i < actual_batch_size; ++i) {
+#endif
+      for (size_t i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
         const auto &image_data = data_[sample_idx];
 
-        for (int h = 0; h < static_cast<int>(mnist_constants::IMAGE_HEIGHT);
-             ++h) {
-          for (int w = 0; w < static_cast<int>(mnist_constants::IMAGE_WIDTH);
-               ++w) {
+        for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
+          for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
             batch_data(i, 0, h, w) =
                 image_data[h * mnist_constants::IMAGE_WIDTH + w];
           }
