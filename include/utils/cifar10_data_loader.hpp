@@ -292,7 +292,7 @@ public:
     }
 
     this->batch_size_ = batch_size;
-    this->batched_prepared_ = true;
+    this->batches_prepared_ = true;
     batched_data_.clear();
     batched_labels_.clear();
 
@@ -317,8 +317,9 @@ public:
       Tensor<T> batch_labels(actual_batch_size,
                              cifar10_constants::NUM_CLASSES, 1, 1);
       batch_labels.fill(static_cast<T>(0.0));
-
+#ifdef _OPENMP
 #pragma omp parallel for if (actual_batch_size > 16)
+#endif
       for (size_t i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
         const auto &image_data = data_[sample_idx];

@@ -78,7 +78,7 @@ public:
     }
 
     batch_size_ = batch_size;
-    batched_prepared_ = true;
+    batches_prepared_ = true;
     current_batch_index_ = 0;
 
     std::cout << "Preparing batches with size " << batch_size << " for "
@@ -89,7 +89,7 @@ public:
    * Get number of batches when using prepared batches
    */
   virtual size_t num_batches() const {
-    if (!batched_prepared_ || size() == 0)
+    if (!batches_prepared_ || size() == 0)
       return 0;
     return (size() + batch_size_ - 1) / batch_size_;
   }
@@ -97,7 +97,7 @@ public:
   /**
    * Check if batches are prepared
    */
-  virtual bool are_batches_prepared() const { return batched_prepared_; }
+  virtual bool are_batches_prepared() const { return batches_prepared_; }
 
   /**
    * Get current batch size
@@ -119,7 +119,7 @@ protected:
   size_t current_index_ = 0;
   size_t current_batch_index_ = 0;
   size_t batch_size_ = 32;
-  bool batched_prepared_ = false;
+  bool batches_prepared_ = false;
   mutable std::mt19937 rng_{std::random_device{}()};
 
   /**

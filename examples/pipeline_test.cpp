@@ -84,7 +84,7 @@ signed main() {
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
 
-  
+
 #pragma omp parallel sections
   {
 #pragma omp section

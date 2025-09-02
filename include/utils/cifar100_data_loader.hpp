@@ -389,7 +389,7 @@ public:
     }
 
     this->batch_size_ = batch_size;
-    this->batched_prepared_ = true;
+    this->batches_prepared_ = true;
     batched_data_.clear();
     batched_fine_labels_.clear();
     batched_coarse_labels_.clear();
