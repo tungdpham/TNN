@@ -129,9 +129,10 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions,
     return 0.0f;
 
   int accurate_predictions = 0;
-
+#if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : accurate_predictions) if (batch_size >  \
-                                                                     16)
+                                                  16)
+#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     std::vector<float> pred_coords(output_size), target_coords(output_size);
@@ -208,8 +209,9 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
       }
     }
   }
-
+#if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : total_error) if (batch_size > 16)
+#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     std::vector<float> pred_coords(output_size), target_coords(output_size);

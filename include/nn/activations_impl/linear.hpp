@@ -71,13 +71,10 @@ public:
   void compute_gradient_inplace(
       const Tensor<T> &pre_activation_values,
       Tensor<T> &upstream_gradient) const override {
-    // For linear activation, gradient is 1, so upstream_gradient remains unchanged
-    // We just verify the shapes match
     if (upstream_gradient.shape() != pre_activation_values.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");
     }
-    // No modification needed since derivative of linear function is 1
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {

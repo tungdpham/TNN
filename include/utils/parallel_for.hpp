@@ -19,15 +19,16 @@
 namespace utils {
 
 template <typename Index = size_t, typename Func>
-inline void parallel_for_range(Index begin, Index end, Func f) {
+inline void parallel_for_range(const Index begin, const Index end, Func f) {
+  assert(end >= begin && "Invalid range");
 #ifdef USE_TBB
-  if (end > begin) {
-    tbb::parallel_for(tbb::blocked_range<Index>(begin, end),
-                      [&](const tbb::blocked_range<Index> &r) {
-                        for (Index i = r.begin(); i != r.end(); ++i)
-                          f(i);
-                      }, tbb::static_partitioner());
-  }
+  tbb::parallel_for(
+      tbb::blocked_range<Index>(begin, end),
+      [&](const tbb::blocked_range<Index> &r) {
+        for (Index i = r.begin(); i != r.end(); ++i)
+          f(i);
+      },
+      tbb::static_partitioner());
 #else
   for (Index i = begin; i < end; ++i)
     f(i);
@@ -35,19 +36,19 @@ inline void parallel_for_range(Index begin, Index end, Func f) {
 }
 
 template <typename Index = size_t, typename Func>
-inline void parallel_for_2d(Index dim0, Index dim1, Func f) {
+inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
+  assert(dim0 >= 0 && dim1 >= 0 && "Invalid dimensions");
 #ifdef USE_TBB
-  if (dim0 > 0 && dim1 > 0) {
-    tbb::parallel_for(
-        tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
-        [&](const tbb::blocked_range2d<Index> &r) {
-          for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
-            for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
-              f(i, j);
-            }
+  tbb::parallel_for(
+      tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
+      [&](const tbb::blocked_range2d<Index> &r) {
+        for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
+          for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
+            f(i, j);
           }
-        }, tbb::static_partitioner());
-  }
+        }
+      },
+      tbb::static_partitioner());
 #else
   for (Index i = 0; i < dim0; ++i) {
     for (Index j = 0; j < dim1; ++j) {
@@ -57,4 +58,4 @@ inline void parallel_for_2d(Index dim0, Index dim1, Func f) {
 #endif
 }
 
-} // namespace tnn
+} // namespace utils

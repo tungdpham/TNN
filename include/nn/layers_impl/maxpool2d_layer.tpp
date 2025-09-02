@@ -87,8 +87,51 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
   const T *input_data = input.data();
   T *output_data = output.data();
 
+  const T MIN_VALUE = -std::numeric_limits<T>::infinity();
   // Unified pooling implementation - handles all cases cleanly
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t c = 0; c < channels; ++c) {
+      const T *input_channel =
+          input_data + n * input_stride_n_ + c * input_stride_c_;
+      T *output_channel =
+          output_data + n * output_stride_n_ + c * output_stride_c_;
+
+      for (size_t out_h = 0; out_h < output_h; ++out_h) {
+        for (size_t out_w = 0; out_w < output_w; ++out_w) {
+          T max_val = MIN_VALUE;
+          size_t max_idx = 0;
+
+          for (size_t ph = 0; ph < pool_h_; ++ph) {
+            for (size_t pw = 0; pw < pool_w_; ++pw) {
+              const size_t h_idx = out_h * stride_h_ + ph - pad_h_;
+              const size_t w_idx = out_w * stride_w_ + pw - pad_w_;
+
+              if (h_idx < input_h && w_idx < input_w) {
+                T val = input_channel[h_idx * input_stride_h_ +
+                                      w_idx * input_stride_w_];
+                if (val > max_val) {
+                  max_val = val;
+                  max_idx = h_idx * input_w + w_idx;
+                }
+              }
+            }
+          }
+
+          output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] =
+              max_val;
+          const size_t output_idx =
+              ((n * channels + c) * output_h + out_h) * output_w + out_w;
+          mask_indices[output_idx] = max_idx;
+        }
+      }
+    }
+  }
+
+  micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
+  return output;
+#elif defined(USE_TBB)
   utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     const T *input_channel =
         input_data + n * input_stride_n_ + c * input_stride_c_;
@@ -97,7 +140,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
-        T max_val = -std::numeric_limits<T>::infinity();
+        T max_val = MIN_VALUE;
         size_t max_idx = 0;
 
         // Pool over the kernel region
@@ -108,14 +151,14 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
             const int w_idx = static_cast<int>(out_w * stride_w_ + pw) -
                               static_cast<int>(pad_w_);
 
-            // Check bounds (handles padding naturally)
             if (h_idx >= 0 && h_idx < static_cast<int>(input_h) &&
                 w_idx >= 0 && w_idx < static_cast<int>(input_w)) {
-              T val = input_channel[h_idx * input_stride_h_ +
-                                    w_idx * input_stride_w_];
+              const T val = input_channel[h_idx * input_stride_h_ +
+                                          w_idx * input_stride_w_];
               if (val > max_val) {
                 max_val = val;
-                max_idx = h_idx * input_w + w_idx;
+                max_idx = static_cast<size_t>(h_idx) * input_w +
+                          static_cast<size_t>(w_idx);
               }
             }
           }
@@ -123,16 +166,16 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 
         output_channel[out_h * output_stride_h_ + out_w * output_stride_w_] =
             max_val;
-        const size_t output_idx =
-            ((n * channels + c) * output_h + out_h) * output_w + out_w;
+
+        const size_t output_idx = n * channels * output_h * output_w +
+                                  c * output_h * output_w +
+                                  out_h * output_w + out_w;
         mask_indices[output_idx] = max_idx;
       }
     }
   });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
+  std::cout << "WARNING: Doing normal unparallelized loops" << std::endl;
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t c = 0; c < channels; ++c) {
       const T *input_channel =
@@ -218,7 +261,36 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
   const size_t total_outputs = batch_size * channels * output_h * output_w;
 
   // Unified backward pass - handles all cases cleanly
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for
+  for (size_t i = 0; i < total_outputs; ++i) {
+    const size_t output_hw = output_h * output_w;
+    const size_t output_chw = channels * output_hw;
+
+    const size_t n = i / output_chw;
+    const size_t c = (i % output_chw) / output_hw;
+    const size_t out_h = (i % output_hw) / output_w;
+    const size_t out_w = i % output_w;
+
+    const size_t max_idx = mask_indices[i];
+    const size_t max_h = max_idx / input_w;
+    const size_t max_w = max_idx % input_w;
+
+    // Bounds check (handles edge cases)
+    if (max_h < input_h && max_w < input_w) {
+      const size_t input_idx =
+          n * input_stride_n_ + c * input_stride_c_ +
+          max_h * input_stride_h_ + max_w * input_stride_w_;
+      const size_t output_idx =
+          n * output_stride_n_ + c * output_stride_c_ +
+          out_h * output_stride_h_ + out_w * output_stride_w_;
+
+      // Atomic add to handle race conditions
+#pragma omp atomic
+      grad_input_data[input_idx] += grad_output_data[output_idx];
+    }
+  }
+#elif defined(USE_TBB)
   utils::parallel_for_range<size_t>(0, total_outputs, [&](size_t i) {
     const size_t output_hw = output_h * output_w;
     const size_t output_chw = channels * output_hw;
@@ -244,9 +316,6 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
     }
   });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
   for (size_t i = 0; i < total_outputs; ++i) {
     const size_t output_hw = output_h * output_w;
     const size_t output_chw = channels * output_hw;

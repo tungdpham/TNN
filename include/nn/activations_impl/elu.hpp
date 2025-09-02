@@ -19,14 +19,16 @@ public:
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      data[i] = data[i] > T(0) ? data[i] : alpha_ * (std::exp(data[i]) - T(1));
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? data[i] : alpha_ * (std::exp(data[i]) - T(1));
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       data[i] = data[i] > T(0) ? data[i] : alpha_ * (std::exp(data[i]) - T(1));
     }
@@ -43,15 +45,18 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias_data[i];
+      data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
@@ -63,15 +68,18 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias;
+      data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
@@ -87,14 +95,16 @@ public:
     T *grad_data = gradient.data();
     const size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      grad_data[i] = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
     }
@@ -108,14 +118,16 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+      for (size_t i = 0; i < size; ++i) {
+        grad_data[i] *= upstream_data[i];
+      }
+#elif defined(USE_TBB)
       utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
         grad_data[i] *= upstream_data[i];
       });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
       for (size_t i = 0; i < size; ++i) {
         grad_data[i] *= upstream_data[i];
       }
@@ -137,15 +149,18 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
+      grad_data[i] *= local_grad;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
       grad_data[i] *= local_grad;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
       grad_data[i] *= local_grad;
@@ -162,7 +177,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(n, channel, h, w);
+          val = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -175,9 +200,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -204,7 +226,17 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T val = tensor(n, channel, h, w) + bias[h * width + w];
+          tensor(n, channel, h, w) = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -217,9 +249,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -240,7 +269,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t c = 0; c < channels; ++c) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(batch_idx, c, h, w);
+          val = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = channels * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -253,9 +292,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t c = 0; c < channels; ++c) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {

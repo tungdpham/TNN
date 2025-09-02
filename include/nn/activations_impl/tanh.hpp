@@ -14,14 +14,16 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      data[i] = std::tanh(data[i]);
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = std::tanh(data[i]);
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       data[i] = std::tanh(data[i]);
     }
@@ -38,15 +40,18 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias_data[i];
+      data[i] = std::tanh(val);
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = std::tanh(val);
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias_data[i];
       data[i] = std::tanh(val);
@@ -58,15 +63,18 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias;
+      data[i] = std::tanh(val);
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = std::tanh(val);
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias;
       data[i] = std::tanh(val);
@@ -82,16 +90,20 @@ public:
     T *grad_data = gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
+      T tanh_val = std::tanh(input_data[i]);
+      grad_data[i] = T(1) - tanh_val * tanh_val;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
       T tanh_val = std::tanh(input_data[i]);
       grad_data[i] = T(1) - tanh_val * tanh_val;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
       T tanh_val = std::tanh(input_data[i]);
@@ -107,14 +119,16 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+      for (size_t i = 0; i < size; ++i) {
+        grad_data[i] *= upstream_data[i];
+      }
+#elif defined(USE_TBB)
       utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
         grad_data[i] *= upstream_data[i];
       });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
       for (size_t i = 0; i < size; ++i) {
         grad_data[i] *= upstream_data[i];
       }
@@ -136,7 +150,15 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
+      T tanh_val = std::tanh(input_data[i]);
+      T local_grad = T(1) - tanh_val * tanh_val;
+      grad_data[i] *= local_grad;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
       T tanh_val = std::tanh(input_data[i]);
@@ -144,9 +166,6 @@ public:
       grad_data[i] *= local_grad;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
       T tanh_val = std::tanh(input_data[i]);
@@ -165,7 +184,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(n, channel, h, w);
+          val = std::tanh(val);
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -178,9 +207,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -207,7 +233,17 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T val = tensor(n, channel, h, w) + bias[h * width + w];
+          tensor(n, channel, h, w) = std::tanh(val);
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -220,9 +256,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -243,7 +276,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t c = 0; c < channels; ++c) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(batch_idx, c, h, w);
+          val = std::tanh(val);
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = channels * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -256,9 +299,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t c = 0; c < channels; ++c) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {

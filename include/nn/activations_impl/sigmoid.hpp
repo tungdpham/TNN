@@ -5,10 +5,10 @@
  * project root for the full license text.
  */
 #pragma once
+#include "utils/parallel_for.hpp"
 
 // Sigmoid Activation for Tensors
-template <typename T = float>
-class Sigmoid : public ActivationFunction<T> {
+template <typename T = float> class Sigmoid : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
@@ -16,10 +16,18 @@ public:
 
 #if defined(_OPENMP)
 #pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       data[i] = T(1) / (T(1) + std::exp(-data[i]));
     }
+#elif defined(USE_TBB)
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+      data[i] = T(1) / (T(1) + std::exp(-data[i]));
+    });
+#else
+    for (size_t i = 0; i < size; ++i) {
+      data[i] = T(1) / (T(1) + std::exp(-data[i]));
+    }
+#endif
   }
 
   void apply_with_bias(Tensor<T> &tensor,
@@ -34,11 +42,21 @@ public:
 
 #if defined(_OPENMP)
 #pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias_data[i];
       data[i] = T(1) / (T(1) + std::exp(-val));
     }
+#elif defined(USE_TBB)
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+        T val = data[i] + bias_data[i];
+        data[i] = T(1) / (T(1) + std::exp(-val));
+      });
+#else
+      for (size_t i = 0; i < size; ++i) {
+        T val = data[i] + bias_data[i];
+        data[i] = T(1) / (T(1) + std::exp(-val));
+      }
+#endif
   }
 
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override {
@@ -47,11 +65,21 @@ public:
 
 #if defined(_OPENMP)
 #pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias;
       data[i] = T(1) / (T(1) + std::exp(-val));
     }
+#elif defined(USE_TBB)
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+        T val = data[i] + bias;
+        data[i] = T(1) / (T(1) + std::exp(-val));
+      });
+#else
+      for (size_t i = 0; i < size; ++i) {
+        T val = data[i] + bias;
+        data[i] = T(1) / (T(1) + std::exp(-val));
+      }
+#endif
   }
 
   Tensor<T> compute_gradient(
@@ -89,9 +117,8 @@ public:
     return gradient;
   }
 
-  void compute_gradient_inplace(
-      const Tensor<T> &pre_activation_values,
-      Tensor<T> &upstream_gradient) const override {
+  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+                                Tensor<T> &upstream_gradient) const override {
     if (upstream_gradient.shape() != pre_activation_values.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");

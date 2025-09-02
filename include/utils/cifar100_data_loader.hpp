@@ -232,8 +232,9 @@ public:
     batch_labels = Tensor<T>(actual_batch_size,
                              static_cast<size_t>(num_classes), 1, 1);
     batch_labels.fill(static_cast<T>(0.0));
-
+#if defined(_OPENMP)
 #pragma omp parallel for if (actual_batch_size > 16)
+#endif
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
@@ -425,7 +426,9 @@ public:
                               static_cast<size_t>(num_coarse_classes), 1, 1});
       batch_coarse_labels.fill(static_cast<T>(0.0));
 
+#if defined(_OPENMP)
 #pragma omp parallel for if (actual_batch_size > 16)
+#endif
       for (int i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
         const auto &image_data = data_[sample_idx];

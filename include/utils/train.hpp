@@ -29,7 +29,7 @@ void train_classification_model(
   std::cout << std::string(60, '=') << std::endl;
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
-    const auto epoch_start = std::chrono::high_resolution_clock::now();
+    auto epoch_start = std::chrono::high_resolution_clock::now();
 
     model.train();
     train_loader.shuffle();
@@ -75,8 +75,8 @@ void train_classification_model(
     const float avg_train_accuracy =
         static_cast<float>(total_accuracy / num_batches);
 
-    const auto epoch_end = std::chrono::high_resolution_clock::now();
-    const auto epoch_duration =
+    auto epoch_end = std::chrono::high_resolution_clock::now();
+    auto epoch_duration =
         std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
                                                               epoch_start);
 

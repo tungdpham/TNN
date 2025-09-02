@@ -71,6 +71,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_TBB=ON
             shift
             ;;
+        --openmp)
+            ENABLE_OPENMP=ON #if we want both openmp and tbb
+            shift
+            ;;
         --no-openmp)
             ENABLE_OPENMP=OFF
             shift

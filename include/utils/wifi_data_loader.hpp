@@ -373,8 +373,9 @@ public:
 
       target_means_ = target_means;
       target_stds_ = target_stds;
-
+#if defined(_OPENMP)
 #pragma omp parallel for
+#endif
       for (size_t s = 0; s < targets_.size(); ++s)
       {
         for (size_t i = 0; i < num_outputs_; ++i)
@@ -455,8 +456,9 @@ public:
 
       Tensor<float> batch_targets(static_cast<size_t>(actual_batch_size),
                                   num_outputs_, 1, 1);
-
+#if defined(_OPENMP)
 #pragma omp parallel for if (actual_batch_size > 16)
+#endif
       for (int i = 0; i < actual_batch_size; ++i)
       {
         const size_t sample_idx = start_idx + i;

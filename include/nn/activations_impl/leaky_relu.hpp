@@ -7,26 +7,28 @@
 #pragma once
 
 // Leaky ReLU Activation for Tensors
-template <typename T = float>
-class LeakyReLU : public ActivationFunction<T> {
+template <typename T = float> class LeakyReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;
 
 public:
-  explicit LeakyReLU(T negative_slope = T(0.01)) : negative_slope_(negative_slope) {}
+  explicit LeakyReLU(T negative_slope = T(0.01))
+      : negative_slope_(negative_slope) {}
 
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
     }
@@ -43,15 +45,18 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias_data[i];
+      data[i] = val > T(0) ? val : negative_slope_ * val;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : negative_slope_ * val;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias_data[i];
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -63,15 +68,18 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i] + bias;
+      data[i] = val > T(0) ? val : negative_slope_ * val;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : negative_slope_ * val;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T val = data[i] + bias;
       data[i] = val > T(0) ? val : negative_slope_ * val;
@@ -87,14 +95,16 @@ public:
     T *grad_data = gradient.data();
     const size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
     }
@@ -108,14 +118,15 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-#ifdef USE_TBB 
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        grad_data[i] *= upstream_data[i];
-      });
-#else
 #if defined(_OPENMP)
 #pragma omp parallel for
-#endif
+      for (size_t i = 0; i < size; ++i) {
+        grad_data[i] *= upstream_data[i];
+      }
+#elif defined(USE_TBB)
+      utils::parallel_for_range<size_t>(
+          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
+#else
       for (size_t i = 0; i < size; ++i) {
         grad_data[i] *= upstream_data[i];
       }
@@ -125,9 +136,8 @@ public:
     return gradient;
   }
 
-  void compute_gradient_inplace(
-      const Tensor<T> &pre_activation_values,
-      Tensor<T> &upstream_gradient) const override {
+  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+                                Tensor<T> &upstream_gradient) const override {
     if (upstream_gradient.shape() != pre_activation_values.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");
@@ -137,15 +147,18 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for
+    for (size_t i = 0; i < size; ++i) {
+      T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;
+      grad_data[i] *= local_grad;
+    }
+#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;
       grad_data[i] *= local_grad;
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
     for (size_t i = 0; i < size; ++i) {
       T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;
       grad_data[i] *= local_grad;
@@ -162,7 +175,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(n, channel, h, w);
+          val = val > T(0) ? val : negative_slope_ * val;
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -175,9 +198,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -204,7 +224,17 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T val = tensor(n, channel, h, w) + bias[h * width + w];
+          tensor(n, channel, h, w) = val > T(0) ? val : negative_slope_ * val;
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = batch_size * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -217,9 +247,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
@@ -240,7 +267,17 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#ifdef USE_TBB 
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+    for (size_t c = 0; c < channels; ++c) {
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T &val = tensor(batch_idx, c, h, w);
+          val = val > T(0) ? val : negative_slope_ * val;
+        }
+      }
+    }
+#elif defined(USE_TBB)
     {
       const size_t total = channels * height * width;
       utils::parallel_for_range<size_t>(0, total, [&](size_t idx) {
@@ -253,9 +290,6 @@ public:
       });
     }
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
     for (size_t c = 0; c < channels; ++c) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {

@@ -180,7 +180,16 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
   utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size,
                               output_size);
-#if defined(USE_TBB)
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2) schedule(static)
+  for (size_t oc = 0; oc < out_channels; ++oc) {
+    for (size_t os = 0; os < output_size; ++os) {
+      output_data[oc * output_size + os] = utils::simd_dot_product(
+          &weight_data[oc * kernel_size],
+          &col_data_transposed[os * kernel_size], kernel_size);
+    }
+  }
+#elif defined(USE_TBB)
   utils::parallel_for_2d(out_channels, output_size, 
     [output_data, weight_data, col_data_transposed, kernel_size, output_size](size_t oc, size_t os) {
       output_data[oc * output_size + os] = utils::simd_dot_product(
@@ -188,8 +197,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
           &col_data_transposed[os * kernel_size],
           kernel_size);
     });
-#elif defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
+#else
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t os = 0; os < output_size; ++os) {
       output_data[oc * output_size + os] = utils::simd_dot_product(
@@ -208,7 +216,16 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
                                               const size_t output_size,
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2) schedule(static)
+  for (size_t oc = 0; oc < out_channels; ++oc) {
+    for (size_t ks = 0; ks < kernel_size; ++ks) {
+      weight_grad_data[oc * kernel_size + ks] +=
+          utils::simd_dot_product(&grad_output_data[oc * output_size],
+                                  &col_data[ks * output_size], output_size);
+    }
+  }
+#elif defined(USE_TBB)
   tbb::parallel_for(
       tbb::blocked_range2d<size_t>(0, out_channels, 0, kernel_size),
       [&](const tbb::blocked_range2d<size_t> &r) {
@@ -221,9 +238,6 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
         }
       });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     for (size_t ks = 0; ks < kernel_size; ++ks) {
       weight_grad_data[oc * kernel_size + ks] +=
@@ -249,7 +263,16 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
   utils::transpose_2d_inplace(weight_data, weights_transposed, out_channels,
                               kernel_size);
 
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+  for (size_t ks = 0; ks < kernel_size; ++ks) {
+    for (size_t os = 0; os < output_size; ++os) {
+      col_grad_data[ks * output_size + os] = utils::simd_dot_product(
+          &weights_transposed[ks * out_channels],
+          &grad_output_transposed[os * out_channels], out_channels);
+    }
+  }
+#elif defined(USE_TBB)
   // Capture only necessary pointers and sizes
   utils::parallel_for_2d(kernel_size, output_size, 
     [col_grad_data, weights_transposed, grad_output_transposed, out_channels, output_size](size_t ks, size_t os) {
@@ -258,9 +281,6 @@ void Conv2DLayer<T>::compute_input_gradients(const T *grad_output_data,
           &grad_output_transposed[os * out_channels], out_channels);
     });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
   for (size_t ks = 0; ks < kernel_size; ++ks) {
     for (size_t os = 0; os < output_size; ++os) {
       col_grad_data[ks * output_size + os] = utils::simd_dot_product(
@@ -283,7 +303,21 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *grad_output_data,
   const size_t N_stride = out_channels * output_h * output_w;
   const size_t C_stride = output_h * output_w;
 
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static)
+  for (size_t oc = 0; oc < out_channels; ++oc) {
+    T grad_sum = T(0);
+    for (size_t n = 0; n < batch_size; ++n) {
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          grad_sum += grad_output_data[n * N_stride + oc * C_stride +
+                                       oh * output_w + ow];
+        }
+      }
+    }
+    bias_grad_data[oc] += grad_sum;
+  }
+#elif defined(USE_TBB)
   utils::parallel_for_range<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
@@ -297,9 +331,6 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *grad_output_data,
     bias_grad_data[oc] += grad_sum;
   });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
   for (size_t oc = 0; oc < out_channels; ++oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
@@ -324,7 +355,20 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
   const size_t C_stride = output_h * output_w;
   const size_t H_stride = output_w;
   const size_t W_stride = 1;
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2)
+  for (size_t n = 0; n < batch_size; ++n) {
+    for (size_t oc = 0; oc < out_channels; ++oc) {
+      T bias_val = bias_data[oc];
+      for (size_t oh = 0; oh < output_h; ++oh) {
+        for (size_t ow = 0; ow < output_w; ++ow) {
+          output_data[n * N_stride + oc * C_stride + oh * H_stride +
+                      ow * W_stride] += bias_val;
+        }
+      }
+    }
+  }
+#elif defined(USE_TBB)
   utils::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
     T bias_val = bias_data[oc * 1 * 1 * 1];
     for (size_t oh = 0; oh < output_h; ++oh) {
@@ -335,9 +379,6 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
     }
   });
 #else
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t oc = 0; oc < out_channels; ++oc) {
       T bias_val = bias_data[oc];
