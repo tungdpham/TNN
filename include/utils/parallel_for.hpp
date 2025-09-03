@@ -16,12 +16,21 @@
 #include <oneapi/tbb/parallel_for.h>
 #endif
 
+#ifdef _OPENMP
+#include <omp.h>
+#endif
+
 namespace utils {
 
 template <typename Index = size_t, typename Func>
 inline void parallel_for_range(const Index begin, const Index end, Func f) {
   assert(end >= begin && "Invalid range");
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for schedule(static)
+  for (Index i = begin; i < end; ++i) {
+    f(i);
+  }
+#elif defined(USE_TBB)
   tbb::parallel_for(
       tbb::blocked_range<Index>(begin, end),
       [&](const tbb::blocked_range<Index> &r) {
@@ -38,7 +47,14 @@ inline void parallel_for_range(const Index begin, const Index end, Func f) {
 template <typename Index = size_t, typename Func>
 inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
   assert(dim0 >= 0 && dim1 >= 0 && "Invalid dimensions");
-#ifdef USE_TBB
+#if defined(_OPENMP)
+#pragma omp parallel for collapse(2) schedule(static)
+  for (Index i = 0; i < dim0; ++i) {
+    for (Index j = 0; j < dim1; ++j) {
+      f(i, j);
+    }
+  }
+#elif defined(USE_TBB)
   tbb::parallel_for(
       tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
       [&](const tbb::blocked_range2d<Index> &r) {

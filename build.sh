@@ -101,18 +101,24 @@ echo "  Intel TBB: $ENABLE_TBB"
 echo "  Debug Mode: $ENABLE_DEBUG"
 echo ""
 
-# Clean build directory if requested
+# Clean build if requested
 if [ "$CLEAN_BUILD" = true ]; then
-    echo -e "${YELLOW}Cleaning build artifacts...${NC}"
+    echo -e "${YELLOW}Cleaning build directory...${NC}"
     if [ "$BUILD_DIR" = "." ]; then
-        # Clean only build artifacts, not source files
-        rm -f cmake_install.cmake CMakeCache.txt Makefile
-        rm -rf CMakeFiles/
-        rm -f mnist_cnn_trainer cifar10_cnn_trainer cifar100_cnn_trainer uji_ips_trainer
-        rm -f mnist_cnn_test pipeline_test network_worker distributed_pipeline_docker
+        # Clean current directory
+        rm -rf CMakeCache.txt CMakeFiles/ Makefile cmake_install.cmake
+        rm -rf bin/ lib/ compile_commands.json
+        echo "Cleaned build files from current directory"
     else
-        rm -rf "$BUILD_DIR"
+        # Clean or recreate build directory
+        if [ -d "$BUILD_DIR" ]; then
+            rm -rf "$BUILD_DIR"
+            echo "Removed build directory: $BUILD_DIR"
+        fi
+        mkdir -p "$BUILD_DIR"
+        echo "Created fresh build directory: $BUILD_DIR"
     fi
+    echo ""
 fi
 
 # Create build directory only if it's not current directory

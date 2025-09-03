@@ -14,20 +14,9 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t i = 0; i < size; ++i) {
-      data[i] = T(1) / (T(1) + std::exp(-data[i]));
-    }
-#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] = T(1) / (T(1) + std::exp(-data[i]));
     });
-#else
-    for (size_t i = 0; i < size; ++i) {
-      data[i] = T(1) / (T(1) + std::exp(-data[i]));
-    }
-#endif
   }
 
   void apply_with_bias(Tensor<T> &tensor,
@@ -40,46 +29,20 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t i = 0; i < size; ++i) {
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = T(1) / (T(1) + std::exp(-val));
-    }
-#elif defined(USE_TBB)
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        T val = data[i] + bias_data[i];
-        data[i] = T(1) / (T(1) + std::exp(-val));
-      });
-#else
-      for (size_t i = 0; i < size; ++i) {
-        T val = data[i] + bias_data[i];
-        data[i] = T(1) / (T(1) + std::exp(-val));
-      }
-#endif
+    });
   }
 
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override {
     T *data = tensor.data();
     size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t i = 0; i < size; ++i) {
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = T(1) / (T(1) + std::exp(-val));
-    }
-#elif defined(USE_TBB)
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        T val = data[i] + bias;
-        data[i] = T(1) / (T(1) + std::exp(-val));
-      });
-#else
-      for (size_t i = 0; i < size; ++i) {
-        T val = data[i] + bias;
-        data[i] = T(1) / (T(1) + std::exp(-val));
-      }
-#endif
+    });
   }
 
   Tensor<T> compute_gradient(
@@ -90,14 +53,11 @@ public:
     T *grad_data = gradient.data();
     size_t size = pre_activation_values.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < size; ++i) {
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       // Compute sigmoid and its gradient from pre-activation
       T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
       grad_data[i] = sigmoid_val * (T(1) - sigmoid_val);
-    }
+    });
 
     // If upstream gradient is provided, multiply element-wise
     if (upstream_gradient != nullptr) {
@@ -106,12 +66,10 @@ public:
                                     "shape as pre-activation values");
       }
       const T *upstream_data = upstream_gradient->data();
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-      for (size_t i = 0; i < size; ++i) {
+      
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
         grad_data[i] *= upstream_data[i];
-      }
+      });
     }
 
     return gradient;
@@ -128,15 +86,12 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < size; ++i) {
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       // Compute sigmoid and its gradient from pre-activation
       T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
       T local_grad = sigmoid_val * (T(1) - sigmoid_val);
       grad_data[i] *= local_grad;
-    }
+    });
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
@@ -148,17 +103,14 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
+    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T &val = tensor(n, channel, h, w);
           val = T(1) / (T(1) + std::exp(-val));
         }
       }
-    }
+    });
   }
 
   void apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
@@ -176,17 +128,14 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
+    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T val = tensor(n, channel, h, w) + bias[h * width + w];
           tensor(n, channel, h, w) = T(1) / (T(1) + std::exp(-val));
         }
       }
-    }
+    });
   }
 
   void apply_batch_wise(Tensor<T> &tensor, int batch_idx) const override {
@@ -198,17 +147,14 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t c = 0; c < channels; ++c) {
+    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T &val = tensor(batch_idx, c, h, w);
           val = T(1) / (T(1) + std::exp(-val));
         }
       }
-    }
+    });
   }
 
   std::string name() const override { return "sigmoid"; }

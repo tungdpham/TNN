@@ -24,12 +24,10 @@ public:
     T *data = tensor.data();
     const T *bias_data = bias.data();
     const size_t size = tensor.size();
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < size; ++i) {
+    
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] += bias_data[i];
-    }
+    });
   }
 
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override {
@@ -37,12 +35,9 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-      for (size_t i = 0; i < size; ++i) {
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
         data[i] += bias;
-      }
+      });
     }
   }
 

@@ -10,8 +10,8 @@
 #include <iostream>
 #include <stdexcept>
 
-#include "utils/parallel_for.hpp"
 #include "parameterized_layer.hpp"
+#include "utils/parallel_for.hpp"
 
 namespace tnn {
 
@@ -38,7 +38,6 @@ BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
   running_var_.fill(T(1));
 }
 
-
 template <typename T>
 Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
                                      int micro_batch_id) {
@@ -60,25 +59,9 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
     Tensor<T> batch_mean(channels, 1, 1, 1);
     Tensor<T> batch_var(channels, 1, 1, 1);
 
-    // Compute mean for each channel
-    batch_mean.fill(T(0));
     const size_t spatial_size = height * width;
     const size_t total_elements = batch_size * spatial_size;
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t c = 0; c < channels; ++c) {
-      T sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            sum += input(n, c, h, w);
-          }
-        }
-      }
-      batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
-    }
-#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -90,38 +73,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       }
       batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
     });
-#else
-    for (size_t c = 0; c < channels; ++c) {
-      T sum = T(0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            sum += input(n, c, h, w);
-          }
-        }
-      }
-      batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
-    }
-#endif
 
-    // Compute variance for each channel
-    batch_var.fill(T(0));
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t c = 0; c < channels; ++c) {
-      T sum_sq_diff = T(0);
-      T mean_val = batch_mean(c, 0, 0, 0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            T diff = input(n, c, h, w) - mean_val;
-            sum_sq_diff += diff * diff;
-          }
-        }
-      }
-      batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
-    }
-#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T sum_sq_diff = T(0);
       T mean_val = batch_mean(c, 0, 0, 0);
@@ -135,21 +87,6 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       }
       batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
     });
-#else
-    for (size_t c = 0; c < channels; ++c) {
-      T sum_sq_diff = T(0);
-      T mean_val = batch_mean(c, 0, 0, 0);
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            T diff = input(n, c, h, w) - mean_val;
-            sum_sq_diff += diff * diff;
-          }
-        }
-      }
-      batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
-    }
-#endif
 
     // Compute standard deviation
     Tensor<T> batch_std(channels, 1, 1, 1);
@@ -164,20 +101,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     // Normalize
     Tensor<T> normalized(input.shape());
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        T mean_val = batch_mean(c, 0, 0, 0);
-        T std_val = batch_std(c, 0, 0, 0);
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            normalized(n, c, h, w) = (input(n, c, h, w) - mean_val) / std_val;
-          }
-        }
-      }
-    }
-#elif defined(USE_TBB)
+
     utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
       T mean_val = batch_mean(c, 0, 0, 0);
       T std_val = batch_std(c, 0, 0, 0);
@@ -187,127 +111,56 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
         }
       }
     });
-#else
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        T mean_val = batch_mean(c, 0, 0, 0);
-        T std_val = batch_std(c, 0, 0, 0);
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            normalized(n, c, h, w) = (input(n, c, h, w) - mean_val) / std_val;
-          }
-        }
-      }
-    }
-#endif
 
     micro_batch_normalized_[micro_batch_id] = normalized.clone();
 
     // Apply affine transformation if enabled
     if (affine_) {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t c = 0; c < channels; ++c) {
-          T gamma_val = gamma_(c, 0, 0, 0);
-          T beta_val = beta_(c, 0, 0, 0);
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              output(n, c, h, w) =
-                  gamma_val * normalized(n, c, h, w) + beta_val;
-            }
-          }
-        }
-      }
-#elif defined(USE_TBB)
       utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
         T gamma_val = gamma_(c, 0, 0, 0);
         T beta_val = beta_(c, 0, 0, 0);
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
-            output(n, c, h, w) =
-                gamma_val * normalized(n, c, h, w) + beta_val;
+            output(n, c, h, w) = gamma_val * normalized(n, c, h, w) + beta_val;
           }
         }
       });
-#else
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t c = 0; c < channels; ++c) {
-          T gamma_val = gamma_(c, 0, 0, 0);
-          T beta_val = beta_(c, 0, 0, 0);
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              output(n, c, h, w) =
-                  gamma_val * normalized(n, c, h, w) + beta_val;
-            }
-          }
-        }
-      }
-#endif
     } else {
       output = normalized.clone();
     }
 
-    // Update running statistics
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t c = 0; c < channels; ++c) {
-      running_mean_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
-          momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
-          momentum_ * batch_var(c, 0, 0, 0);
-    }
-#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
           (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
           momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
-          momentum_ * batch_var(c, 0, 0, 0);
+      running_var_(c, 0, 0, 0) = (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
+                                 momentum_ * batch_var(c, 0, 0, 0);
     });
-#else
-    for (size_t c = 0; c < channels; ++c) {
-      running_mean_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
-          momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
-          momentum_ * batch_var(c, 0, 0, 0);
-    }
-#endif
 
   } else {
-    // Inference mode: use running statistics
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        T mean_val = running_mean_(c, 0, 0, 0);
-        T var_val = running_var_(c, 0, 0, 0);
-        T std_val = std::sqrt(var_val + epsilon_);
 
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            T normalized_val = (input(n, c, h, w) - mean_val) / std_val;
-            if (affine_) {
-              output(n, c, h, w) =
-                  gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
-            } else {
-              output(n, c, h, w) = normalized_val;
+    utils::parallel_for_2d<size_t>(
+        batch_size, channels, [&](size_t n, size_t c) {
+          T mean_val = running_mean_(c, 0, 0, 0);
+          T var_val = running_var_(c, 0, 0, 0);
+          T std_val = std::sqrt(var_val + epsilon_);
+
+          for (size_t h = 0; h < height; ++h) {
+            for (size_t w = 0; w < width; ++w) {
+              T normalized_val = (input(n, c, h, w) - mean_val) / std_val;
+              if (affine_) {
+                output(n, c, h, w) =
+                    gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
+              } else {
+                output(n, c, h, w) = normalized_val;
+              }
             }
           }
-        }
-      }
-    }
+        });
   }
 
   return output;
 }
-
 
 template <typename T>
 Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
@@ -320,8 +173,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
 
   if (it_input == micro_batch_inputs_.end() ||
       it_normalized == micro_batch_normalized_.end() ||
-      it_mean == micro_batch_mean_.end() ||
-      it_var == micro_batch_var_.end() || it_std == micro_batch_std_.end()) {
+      it_mean == micro_batch_mean_.end() || it_var == micro_batch_var_.end() ||
+      it_std == micro_batch_std_.end()) {
     throw std::runtime_error(
         "No cached data found for micro-batch ID in BatchNormLayer: " +
         std::to_string(micro_batch_id));
@@ -343,31 +196,6 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   Tensor<T> grad_input(input.shape());
 
   if (affine_) {
-    // Don't clear gradients - accumulate across microbatches
-    // gamma_gradients_.fill(T(0));
-    // beta_gradients_.fill(T(0));
-
-    // Compute gradients for gamma and beta
-#if defined(_OPENMP)
-#pragma omp parallel for
-    for (size_t c = 0; c < channels; ++c) {
-      T gamma_grad_sum = T(0);
-      T beta_grad_sum = T(0);
-
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            gamma_grad_sum +=
-                grad_output(n, c, h, w) * normalized(n, c, h, w);
-            beta_grad_sum += grad_output(n, c, h, w);
-          }
-        }
-      }
-
-      gamma_gradients_(c, 0, 0, 0) += gamma_grad_sum;
-      beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
-    }
-#elif defined(USE_TBB)
     utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       T gamma_grad_sum = T(0);
       T beta_grad_sum = T(0);
@@ -375,8 +203,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
-            gamma_grad_sum +=
-                grad_output(n, c, h, w) * normalized(n, c, h, w);
+            gamma_grad_sum += grad_output(n, c, h, w) * normalized(n, c, h, w);
             beta_grad_sum += grad_output(n, c, h, w);
           }
         }
@@ -385,43 +212,19 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       gamma_gradients_(c, 0, 0, 0) += gamma_grad_sum;
       beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
     });
-#else
-    for (size_t c = 0; c < channels; ++c) {
-      T gamma_grad_sum = T(0);
-      T beta_grad_sum = T(0);
-
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            gamma_grad_sum +=
-                grad_output(n, c, h, w) * normalized(n, c, h, w);
-            beta_grad_sum += grad_output(n, c, h, w);
-          }
-        }
-      }
-
-      gamma_gradients_(c, 0, 0, 0) += gamma_grad_sum;
-      beta_gradients_(c, 0, 0, 0) += beta_grad_sum;
-    }
-#endif
   }
 
   // Compute gradient w.r.t. normalized input
   Tensor<T> grad_normalized(input.shape());
   if (affine_) {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t c = 0; c < channels; ++c) {
-        T gamma_val = gamma_(c, 0, 0, 0);
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            grad_normalized(n, c, h, w) = grad_output(n, c, h, w) * gamma_val;
-          }
+    utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+      T gamma_val = gamma_(c, 0, 0, 0);
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          grad_normalized(n, c, h, w) = grad_output(n, c, h, w) * gamma_val;
         }
       }
-    }
+    });
   } else {
     grad_normalized = grad_output.clone();
   }
@@ -433,10 +236,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
   grad_var.fill(T(0));
   grad_mean.fill(T(0));
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-  for (size_t c = 0; c < channels; ++c) {
+  utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);
     T var_val = var(c, 0, 0, 0);
@@ -448,8 +248,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T x_centered = input(n, c, h, w) - mean_val;
-          grad_var_sum += grad_normalized(n, c, h, w) * x_centered *
-                          (-T(0.5)) * std::pow(var_val + epsilon_, -T(1.5));
+          grad_var_sum += grad_normalized(n, c, h, w) * x_centered * (-T(0.5)) *
+                          std::pow(var_val + epsilon_, -T(1.5));
           grad_mean_sum += grad_normalized(n, c, h, w) * (-T(1)) / std_val_c;
         }
       }
@@ -457,33 +257,9 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
 
     grad_var(c, 0, 0, 0) = grad_var_sum;
     grad_mean(c, 0, 0, 0) = grad_mean_sum;
-  }
+  });
 
-  // Compute gradient w.r.t. input
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {
-      T mean_val = mean(c, 0, 0, 0);
-      T std_val_c = std_val(c, 0, 0, 0);
-      T grad_var_val = grad_var(c, 0, 0, 0);
-      T grad_mean_val = grad_mean(c, 0, 0, 0);
-
-      for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; ++w) {
-          T x_centered = input(n, c, h, w) - mean_val;
-
-          grad_input(n, c, h, w) =
-              grad_normalized(n, c, h, w) / std_val_c +
-              grad_var_val * T(2) * x_centered /
-                  static_cast<T>(total_elements) +
-              grad_mean_val / static_cast<T>(total_elements);
-        }
-      }
-    }
-  }
-#elif defined(USE_TBB)
-  utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);
     T grad_var_val = grad_var(c, 0, 0, 0);
@@ -495,45 +271,20 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
 
         grad_input(n, c, h, w) =
             grad_normalized(n, c, h, w) / std_val_c +
-            grad_var_val * T(2) * x_centered /
-                static_cast<T>(total_elements) +
+            grad_var_val * T(2) * x_centered / static_cast<T>(total_elements) +
             grad_mean_val / static_cast<T>(total_elements);
       }
     }
   });
-#else
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {
-      T mean_val = mean(c, 0, 0, 0);
-      T std_val_c = std_val(c, 0, 0, 0);
-      T grad_var_val = grad_var(c, 0, 0, 0);
-      T grad_mean_val = grad_mean(c, 0, 0, 0);
-
-      for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; ++w) {
-          T x_centered = input(n, c, h, w) - mean_val;
-
-          grad_input(n, c, h, w) =
-              grad_normalized(n, c, h, w) / std_val_c +
-              grad_var_val * T(2) * x_centered /
-                  static_cast<T>(total_elements) +
-              grad_mean_val / static_cast<T>(total_elements);
-        }
-      }
-    }
-  }
-#endif
 
   return grad_input;
 }
 
-template <typename T>
-std::string BatchNormLayer<T>::type() const {
+template <typename T> std::string BatchNormLayer<T>::type() const {
   return "batchnorm";
 }
 
-template <typename T>
-LayerConfig BatchNormLayer<T>::get_config() const {
+template <typename T> LayerConfig BatchNormLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.parameters["num_features"] = num_features_;
@@ -545,8 +296,8 @@ LayerConfig BatchNormLayer<T>::get_config() const {
 
 template <typename T>
 std::unique_ptr<Layer<T>> BatchNormLayer<T>::clone() const {
-  return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_,
-                                             momentum_, affine_, this->name_);
+  return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_, momentum_,
+                                             affine_, this->name_);
 }
 
 template <typename T>
@@ -583,8 +334,7 @@ BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
                                              affine, config.name);
 }
 
-template <typename T>
-void BatchNormLayer<T>::clear_gradients() {
+template <typename T> void BatchNormLayer<T>::clear_gradients() {
   gamma_gradients_.fill(T(0));
   beta_gradients_.fill(T(0));
 }

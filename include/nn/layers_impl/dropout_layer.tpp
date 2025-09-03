@@ -36,15 +36,10 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
   T scale = T(1) / (T(1) - dropout_rate_);
 
-#if defined(_OPENMP)
-#pragma omp parallel
-  {
-    thread_local std::mt19937 local_generator(std::random_device{}());
-    thread_local std::uniform_real_distribution<T> local_distribution(T(0),
-                                                                       T(1));
-#pragma omp for collapse(2)
-    for (size_t n = 0; n < input.batch_size(); ++n) {
-      for (size_t c = 0; c < input.channels(); ++c) {
+  utils::parallel_for_2d(
+      input.batch_size(), input.channels(), [&](size_t n, size_t c) {
+        thread_local std::mt19937 local_generator(std::random_device{}());
+        thread_local std::uniform_real_distribution<T> local_distribution(T(0), T(1));
         for (size_t h = 0; h < input.height(); ++h) {
           for (size_t w = 0; w < input.width(); ++w) {
             if (local_distribution(local_generator) < dropout_rate_) {
@@ -56,43 +51,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
             }
           }
         }
-      }
-    }
-  }
-#elif defined(USE_TBB)
-  utils::parallel_for_2d(
-      input.batch_size(), input.channels(), [&](size_t n, size_t c) {
-        std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-        for (size_t h = 0; h < input.height(); ++h) {
-          for (size_t w = 0; w < input.width(); ++w) {
-            if (local_distribution(generator_) < dropout_rate_) {
-              mask(n, c, h, w) = T(0);
-              output(n, c, h, w) = T(0);
-            } else {
-              mask(n, c, h, w) = scale;
-              output(n, c, h, w) *= scale;
-            }
-          }
-        }
       });
-#else
-  for (size_t n = 0; n < input.batch_size(); ++n) {
-    for (size_t c = 0; c < input.channels(); ++c) {
-      std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-      for (size_t h = 0; h < input.height(); ++h) {
-        for (size_t w = 0; w < input.width(); ++w) {
-          if (local_distribution(generator_) < dropout_rate_) {
-            mask(n, c, h, w) = T(0);
-            output(n, c, h, w) = T(0);
-          } else {
-            mask(n, c, h, w) = scale;
-            output(n, c, h, w) *= scale;
-          }
-        }
-      }
-    }
-  }
-#endif
 
   micro_batch_masks_[micro_batch_id] = mask.clone();
   return output;
@@ -116,18 +75,6 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
 
   Tensor<T> grad_input = grad_output;
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t n = 0; n < grad_output.batch_size(); ++n) {
-    for (size_t c = 0; c < grad_output.channels(); ++c) {
-      for (size_t h = 0; h < grad_output.height(); ++h) {
-        for (size_t w = 0; w < grad_output.width(); ++w) {
-          grad_input(n, c, h, w) *= mask(n, c, h, w);
-        }
-      }
-    }
-  }
-#elif defined(USE_TBB)
   utils::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
                        [&](size_t n, size_t c) {
                          for (size_t h = 0; h < grad_output.height(); ++h) {
@@ -136,17 +83,6 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
                            }
                          }
                        });
-#else
-  for (size_t n = 0; n < grad_output.batch_size(); ++n) {
-    for (size_t c = 0; c < grad_output.channels(); ++c) {
-      for (size_t h = 0; h < grad_output.height(); ++h) {
-        for (size_t w = 0; w < grad_output.width(); ++w) {
-          grad_input(n, c, h, w) *= mask(n, c, h, w);
-        }
-      }
-    }
-  }
-#endif
 
   return grad_input;
 }

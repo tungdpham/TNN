@@ -135,31 +135,12 @@ void DenseLayer<T>::compute_dense_forward(const T *input_data,
                                           size_t batch_size,
                                           size_t input_features,
                                           size_t output_features) const {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      output_data[n * output_features + out_f] = utils::simd_dot_product(
-          &weight_data[out_f * input_features], &input_data[n * input_features],
-          input_features);
-    }
-  }
-#elif defined(USE_TBB)
   utils::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] = utils::simd_dot_product(
             &weight_data[out_f * input_features],
             &input_data[n * input_features], input_features);
       });
-#else
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      output_data[n * output_features + out_f] = utils::simd_dot_product(
-          &weight_data[out_f * input_features], &input_data[n * input_features],
-          input_features);
-    }
-  }
-#endif
 }
 
 template <typename T>
@@ -175,17 +156,6 @@ void DenseLayer<T>::compute_weight_gradients(
   utils::transpose_2d_inplace(grad_output_data, grad_output_transposed,
                               batch_size, output_features);
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t out_f = 0; out_f < output_features; ++out_f) {
-    for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      weight_grad_data[out_f * input_features + in_f] +=
-          utils::simd_dot_product(&grad_output_transposed[out_f * batch_size],
-                                  &input_transposed[in_f * batch_size],
-                                  batch_size);
-    }
-  }
-#elif defined(USE_TBB)
   utils::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
         weight_grad_data[out_f * input_features + in_f] +=
@@ -193,16 +163,7 @@ void DenseLayer<T>::compute_weight_gradients(
                                     &input_transposed[in_f * batch_size],
                                     batch_size);
       });
-#else
-  for (size_t out_f = 0; out_f < output_features; ++out_f) {
-    for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      weight_grad_data[out_f * input_features + in_f] +=
-          utils::simd_dot_product(&grad_output_transposed[out_f * batch_size],
-                                  &input_transposed[in_f * batch_size],
-                                  batch_size);
-    }
-  }
-#endif
+
   free(input_transposed);
   free(grad_output_transposed);
 }
@@ -216,30 +177,11 @@ void DenseLayer<T>::compute_input_gradients(
   utils::transpose_2d_inplace(weight_data, weights_transposed, output_features,
                               input_features);
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
-          &grad_output_data[n * output_features],
-          &weights_transposed[in_f * output_features], output_features);
-    }
-  }
-#elif defined(USE_TBB)
   utils::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
     grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
         &grad_output_data[n * output_features],
         &weights_transposed[in_f * output_features], output_features);
   });
-#else
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t in_f = 0; in_f < input_features; ++in_f) {
-      grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
-          &grad_output_data[n * output_features],
-          &weights_transposed[in_f * output_features], output_features);
-    }
-  }
-#endif
 
   free(weights_transposed);
 }
@@ -247,57 +189,23 @@ void DenseLayer<T>::compute_input_gradients(
 template <typename T>
 void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
                             size_t batch_size, size_t output_features) const {
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-  for (size_t out_f = 0; out_f < output_features; ++out_f) {
-    T grad_sum = T(0);
-    for (size_t n = 0; n < batch_size; ++n) {
-      grad_sum += current_grad_data[n * output_features + out_f];
-    }
-    bias_gradient_data[out_f] += grad_sum;
-  }
-#elif defined(USE_TBB)
-  utils::parallel_for_range<size_t>(0, output_features_, [&](size_t out_f) {
+  utils::parallel_for_range<size_t>(0, output_features, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       grad_sum += current_grad_data[n * output_features + out_f];
     }
     bias_gradient_data[out_f] += grad_sum;
   });
-#else
-  for (size_t out_f = 0; out_f < output_features; ++out_f) {
-    T grad_sum = T(0);
-    for (size_t n = 0; n < batch_size; ++n) {
-      grad_sum += current_grad_data[n * output_features + out_f];
-    }
-    bias_gradient_data[out_f] += grad_sum;
-  }
-#endif
 }
 
 template <typename T>
 void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data,
                                     size_t batch_size,
                                     size_t output_features) const {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      output_data[n * output_features + out_f] += bias_data[out_f];
-    }
-  }
-#elif defined(USE_TBB)
   utils::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] += bias_data[out_f];
       });
-#else
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t out_f = 0; out_f < output_features; ++out_f) {
-      output_data[n * output_features + out_f] += bias_data[out_f];
-    }
-  }
-#endif
 }
 
 template <typename T> std::string DenseLayer<T>::type() const {

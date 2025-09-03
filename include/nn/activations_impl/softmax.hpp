@@ -16,17 +16,13 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    // Apply softmax across channels for each spatial location
-    for (size_t n = 0; n < batch_size; ++n) {
+    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           apply_softmax_spatial(tensor, n, h, w);
         }
       }
-    }
+    });
   }
 
   void apply_with_bias(Tensor<T> &tensor,
@@ -40,12 +36,9 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < size; ++i) {
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       data[i] += bias_data[i];
-    }
+    });
 
     // Then apply softmax
     apply(tensor);
@@ -56,12 +49,9 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-      for (size_t i = 0; i < size; ++i) {
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
         data[i] += bias;
-      }
+      });
     }
 
     apply(tensor);
@@ -91,10 +81,7 @@ public:
                                     "shape as pre-activation values");
       }
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-      for (size_t n = 0; n < batch_size; ++n) {
+      utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
             // Compute the dot product of softmax outputs and upstream gradients
@@ -112,7 +99,7 @@ public:
             }
           }
         }
-      }
+      });
     }
 
     return gradient;
@@ -136,10 +123,7 @@ public:
     Tensor<T> softmax_values = pre_activation_values; // Copy
     apply(softmax_values); // Apply softmax to get activated values
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t n = 0; n < batch_size; ++n) {
+    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           // Compute the dot product of softmax outputs and upstream gradients
@@ -157,7 +141,7 @@ public:
           }
         }
       }
-    }
+    });
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
@@ -187,14 +171,11 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2)
-#endif
-    for (size_t h = 0; h < height; ++h) {
+    utils::parallel_for_range<size_t>(0, height, [&](size_t h) {
       for (size_t w = 0; w < width; ++w) {
         apply_softmax_spatial(tensor, batch_idx, h, w);
       }
-    }
+    });
   }
 
   // Override apply_spatial to properly handle softmax across channels at a
