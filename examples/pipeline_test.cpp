@@ -2,7 +2,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "pipeline/message.hpp"
-#include "pipeline/pipeline_coordinator.hpp"
+#include "pipeline/in_process_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
