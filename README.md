@@ -63,6 +63,9 @@ data/
 # Enable Intel TBB support
 ./build.sh --tbb
 
+# Enable OpenMP support
+./build.sh --openmp
+
 # Disable OpenMP (enabled by default)
 ./build.sh --no-openmp
 
@@ -92,9 +95,9 @@ cmake --build . -j$(nproc)
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `ENABLE_OPENMP` | ON | Enable OpenMP parallel processing |
+| `ENABLE_OPENMP` | OFF | Enable OpenMP parallel processing |
 | `ENABLE_CUDA` | OFF | Enable CUDA GPU acceleration |
-| `ENABLE_TBB` | OFF | Enable Intel Threading Building Blocks |
+| `ENABLE_TBB` | ON | Enable Intel Threading Building Blocks |
 | `ENABLE_DEBUG` | OFF | Enable debug build with AddressSanitizer |
 
 # Running the examples

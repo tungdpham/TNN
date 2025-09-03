@@ -2,7 +2,6 @@ services:
   dcnn-base:
     build: .
     image: dcnn:latest
-    # command: tail -f /dev/null
     
   worker-8001:
     profiles:
@@ -32,7 +31,7 @@ services:
       - "8002:8002"
     networks:
       - dcnn-network
-    cpuset: "3-7"
+    cpuset: "4-7"
     depends_on:
       - dcnn-base
 
@@ -43,8 +42,6 @@ services:
     container_name: dcnn-sync-coordinator
     command: ["./bin/sync_pipeline_coordinator"]
     hostname: coordinator
-    volumes:
-      - ./data:/app/data
     ports:
       - "8000:8000"
     networks:
@@ -87,7 +84,7 @@ services:
     image: dcnn:latest
     container_name: dcnn-single-model
     command: ["./bin/mnist_cnn_trainer"]
-    # cpuset: "0-11"
+    cpuset: "0-7"
     depends_on:
       - dcnn-base
 

@@ -101,7 +101,7 @@ int main() {
         tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
-    model.enable_profiling(true);
+    // model.enable_profiling(true);
 
     std::cout << "\nModel Architecture Summary:" << std::endl;
     model.print_summary(std::vector<size_t>{mnist_constants::BATCH_SIZE, 1,

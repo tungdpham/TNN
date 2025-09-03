@@ -13,9 +13,9 @@ NC='\033[0m'
 # Default values
 BUILD_TYPE="Release"
 BUILD_DIR="."
-ENABLE_OPENMP=ON
+ENABLE_OPENMP=OFF
 ENABLE_CUDA=OFF
-ENABLE_TBB=OFF
+ENABLE_TBB=ON
 ENABLE_DEBUG=OFF
 CLEAN_BUILD=false
 VERBOSE=false
@@ -30,8 +30,8 @@ show_help() {
     echo "  -d, --debug         Enable debug build with sanitizers"
     echo "  -v, --verbose       Enable verbose build output"
     echo "  --cuda              Enable CUDA support"
-    echo "  --tbb               Enable Intel TBB support"
-    echo "  --no-openmp         Disable OpenMP support"
+    echo "  --tbb               Enable Intel TBB support (on by default)"
+    echo "  --openmp            Enable OpenMP support"
     echo "  --build-dir DIR     Set custom build directory (default: . [current dir])"
     echo ""
     echo "Examples:"
@@ -67,16 +67,11 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --tbb)
-            ENABLE_OPENMP=OFF
             ENABLE_TBB=ON
             shift
             ;;
         --openmp)
             ENABLE_OPENMP=ON #if we want both openmp and tbb
-            shift
-            ;;
-        --no-openmp)
-            ENABLE_OPENMP=OFF
             shift
             ;;
         --build-dir)

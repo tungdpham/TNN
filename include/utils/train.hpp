@@ -61,13 +61,17 @@ void train_classification_model(
       model.update_parameters();
 
       if (num_batches % progress_print_interval == 0) {
-        model.print_profiling_summary();
+        if(model.is_profiling_enabled()){
+          model.print_profiling_summary();
+        }
         std::cout << "Batch ID: " << num_batches
                   << ", Batch's Loss: " << std::fixed << std::setprecision(4)
                   << loss << ", Batch's Accuracy: " << std::setprecision(2)
                   << accuracy * 100.0f << "%" << std::endl;
       }
-      model.clear_profiling_data();
+      if (model.is_profiling_enabled()) {
+        model.clear_profiling_data();
+      }
     }
     std::cout << std::endl;
 
