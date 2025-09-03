@@ -119,7 +119,6 @@ private:
     }
 
     try {
-      // Parse stage configuration
       nlohmann::json config_json = nlohmann::json::parse(message.get_text());
       // print the configuration JSON
       std::cout << "Received configuration JSON: " << config_json.dump(2)
@@ -240,7 +239,6 @@ public:
     try {
       NetworkStageWorker<T> worker(listen_port);
 
-      // Set up signal handling for graceful shutdown
       std::signal(SIGINT, [](int) {
         std::cout << '\n'
                   << "Received interrupt signal, shutting down..." << '\n';

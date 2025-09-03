@@ -10,7 +10,6 @@
 
 namespace tnn {
 
-// Layer Factory
 template <typename T = float> class LayerFactory {
 private:
   static std::unordered_map<
@@ -39,7 +38,6 @@ public:
   }
 
   static void register_defaults() {
-    // Dense layer
     register_layer(
         "dense", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t input_features = config.get<size_t>("input_features");
@@ -60,7 +58,6 @@ public:
               config.name);
         });
 
-    // Conv2D layer
     register_layer(
         "conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           size_t in_channels = config.get<size_t>("in_channels");
@@ -87,7 +84,6 @@ public:
               pad_h, pad_w, use_bias, std::move(activation), config.name);
         });
 
-    // Activation layer
     register_layer("activation",
                    [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
                      std::string activation_name =
@@ -103,7 +99,6 @@ public:
                          std::move(activation), config.name);
                    });
 
-    // MaxPool2D layer
     register_layer("maxpool2d",
                    [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
                      size_t pool_h = config.get<size_t>("pool_h");
@@ -118,14 +113,12 @@ public:
                          config.name);
                    });
 
-    // Dropout layer
     register_layer(
         "dropout", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
           T dropout_rate = config.get<T>("dropout_rate");
           return std::make_unique<DropoutLayer<T>>(dropout_rate, config.name);
         });
 
-    // Batch normalization layer
     register_layer("batchnorm",
                    [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
                      size_t num_features = config.get<size_t>("num_features");
@@ -136,7 +129,6 @@ public:
                          num_features, epsilon, momentum, affine, config.name);
                    });
 
-    // Flatten layer
     register_layer("flatten",
                    [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
                      return std::make_unique<FlattenLayer<T>>(config.name);
