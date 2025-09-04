@@ -70,7 +70,6 @@ public:
       config.coordinator_endpoint =
           coordinator_host + ":" + std::to_string(coordinator_port_);
 
-      // Set up stage interconnections
       if (i > 0) {
         config.prev_stage_endpoint =
             endpoints[i - 1].host + ":" + std::to_string(endpoints[i - 1].port);
@@ -177,7 +176,7 @@ public:
     }
 
     // Wait for readiness confirmations
-    if (!this->wait_for_stage_readiness()) {
+    if (!this->wait_for_config_received()) {
       std::cout << "Not all stages reported ready\n";
       return false;
     }
@@ -228,16 +227,37 @@ private:
       // Send stage configuration as a text message
       std::string config_json = config.to_json().dump();
       auto config_msg = Message<T>::create_text_message(
-          CommandType::CONFIG_RECEIVED, config_json, "coordinator",
+          CommandType::CONFIG_TRANSFER, config_json, "coordinator",
           endpoint.stage_id);
 
       this->coordinator_comm_->send_message(config_msg);
-
+      
       std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
+      
       return true;
-
     } catch (const std::exception &e) {
       std::cout << "Failed to deploy config to stage " << endpoint.stage_id
+                << ": " << e.what() << '\n';
+      return false;
+    }
+  }
+
+  bool deploy_stage_weights(const RemoteEndpoint &endpoint,
+                             const tnn::Sequential<T> &model) {
+    try {
+      // Serialize model weights
+      
+
+      // Send weights as a binary message, should add a variant to message as binary data
+     
+
+      // this->coordinator_comm_->send_message(weights_msg);
+
+      std::cout << "Sent weights to stage " << endpoint.stage_id << '\n';
+
+      return true;
+    } catch (const std::exception &e) {
+      std::cout << "Failed to send weights to stage " << endpoint.stage_id
                 << ": " << e.what() << '\n';
       return false;
     }

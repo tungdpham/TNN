@@ -122,10 +122,7 @@ public:
       break;
 
     case CommandType::STATUS_REQUEST: {
-      auto response = Message<T>::status_message(
-          (communicator_->has_task_message() ? "busy" : "idle"), name_,
-          message.sender_id);
-      communicator_->send_message(response);
+      throw new std::runtime_error("Not implemented yet");
       break;
     }
 

@@ -91,7 +91,7 @@ private:
 
   void process_message(const Message<T> &message) override {
     switch (message.command_type) {
-    case CommandType::CONFIG_RECEIVED:
+    case CommandType::CONFIG_TRANSFER:
       std::cout << "Handling configuration message" << '\n';
       handle_configuration(message);
       break;
@@ -148,7 +148,7 @@ private:
 
       // Send ready signal to coordinator
       auto ready_msg = Message<T>::create_signal_message(
-          CommandType::READY_SIGNAL, true, stage_id_, "coordinator");
+          CommandType::CONFIG_RECEIVED, true, stage_id_, "coordinator");
       tcp_communicator_->enqueue_output_message(ready_msg);
       tcp_communicator_->flush_output_messages();
 

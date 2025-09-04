@@ -10,11 +10,13 @@
 namespace tpipeline {
 
 /**
- * @brief Enumeration of all possible command types in the pipeline system.
+ * @brief Enumeration of all possible command types in the pipeline system. 
+ * If you want to modify its contents, please also update the COUNT to have the highest value, and START to be lowest. 
+ * Ordering the enum by priority is advised.
  */
 enum class CommandType {
   // START (DO NOT REMOVE)
-  START,
+  _START,
 
   // Pipeline Tasks
   FORWARD_TASK,
@@ -29,8 +31,10 @@ enum class CommandType {
   // Network Management
   HANDSHAKE_REQUEST,
   HANDSHAKE_RESPONSE,
-  READY_SIGNAL,
+  CONFIG_TRANSFER,
   CONFIG_RECEIVED,
+  WEIGHTS_TRANSFER,
+  WEIGHTS_RECEIVED,
 
   // System State
   STATUS_REQUEST,

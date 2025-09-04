@@ -98,14 +98,6 @@ template <typename T = float> struct Message {
     return msg;
   }
 
-  static Message<T> ready_signal(const std::string &sender = "",
-                                 const std::string &recipient = "") {
-    Message<T> msg(CommandType::READY_SIGNAL, true);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
   static Message<T> error_message(const std::string &error_text,
                                   const std::string &sender = "",
                                   const std::string &recipient = "") {

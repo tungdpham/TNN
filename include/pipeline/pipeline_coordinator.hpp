@@ -126,8 +126,10 @@ public:
 
   void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
                            std::vector<Tensor<T>> &microbatch_labels) {
-    if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
-        microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
+    if (microbatch_inputs.size() !=
+            static_cast<size_t>(this->num_microbatches_) ||
+        microbatch_labels.size() !=
+            static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument(
           "Microbatch size mismatch with coordinator configuration");
     }
@@ -158,9 +160,7 @@ public:
           // Process the forward task
           const auto &task = forward_msg.get_task();
 
-          // Compute loss and prepare backward task
-          Tensor<T> predictions =
-              task.data; // Assuming data contains predictions
+          Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
           Tensor<T> gradient =
               loss_function_->compute_gradient(predictions, targets);
@@ -221,24 +221,44 @@ public:
     return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
   }
 
-  bool wait_for_stage_readiness() {
+  bool wait_for_config_received() {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
 
-    // Use condition variable instead of polling
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
-                 CommandType::READY_SIGNAL) >=
+                 CommandType::CONFIG_RECEIVED) >=
              static_cast<size_t>(this->num_stages_);
     });
 
     if (!success) {
-      std::cout << "Timeout waiting for stage readiness\n";
+      std::cout << "Timeout waiting for config received confirmations\n";
       return false;
     }
 
-    std::cout << "All stages reported ready!\n";
+    std::cout << "All stages confirmed configuration received!\n";
+
+    return true;
+  }
+
+  bool wait_for_weights_received() {
+    std::unique_lock<std::mutex> lock(message_notification_mutex_);
+
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+
+    bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
+      return this->coordinator_comm_->message_count_by_type(
+                 CommandType::WEIGHTS_RECEIVED) >=
+             static_cast<size_t>(this->num_stages_);
+    });
+
+    if (!success) {
+      std::cout << "Timeout waiting for weights received confirmations\n";
+      return false;
+    }
+
+    std::cout << "All stages confirmed weights received!\n";
 
     return true;
   }
