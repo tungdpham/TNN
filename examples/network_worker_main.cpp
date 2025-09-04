@@ -1,12 +1,7 @@
 #include "pipeline/network_stage_worker.hpp"
 #include <cstdlib>
 #include <iostream>
-#include <omp.h>
-
-#ifdef USE_TBB
-#include <tbb/global_control.h>
-#include <tbb/task_arena.h>
-#endif
+#include "utils/misc.hpp"
 
 int main(int argc, char *argv[]) {
   // std::cout.tie(nullptr);
@@ -19,20 +14,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-#ifdef USE_TBB
-  tbb::global_control c(tbb::global_control::max_allowed_parallelism, 4);
-  std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
-            << tbb::global_control::active_value(
-                   tbb::global_control::max_allowed_parallelism)
-            << "\n";
-#endif
-
-#ifdef _OPENMP
-  const int num_threads = omp_get_max_threads();
-  omp_set_num_threads(std::min(num_threads, 4));
-  std::cout << "Number of OpenMP threads set to: " << omp_get_max_threads()
-            << std::endl;
-#endif
+  utils::set_num_threads(8);
 
   int listen_port = std::atoi(argv[1]);
 

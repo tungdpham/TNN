@@ -198,7 +198,7 @@ private:
             uint32_t msg_length;
             std::memcpy(&msg_length, connection->read_buffer.data(), 4);
 
-            if (msg_length > 0 && msg_length < 1024 * 1024) {
+            if (msg_length > 0 && msg_length < 2048 * 2048) {
 
               if (connection->read_buffer.size() < msg_length) {
                 connection->read_buffer.resize(msg_length);

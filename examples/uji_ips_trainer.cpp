@@ -1,3 +1,13 @@
+#include "nn/layers.hpp"
+#include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
+#include "nn/sequential.hpp"
+#include "tensor/tensor.hpp"
+#include "utils/wifi_data_loader.hpp"
+#include "utils/ops.hpp"
+#include "utils/train.hpp"
+#include "utils/misc.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -12,13 +22,6 @@
 #include <sstream>
 #include <string_view>
 #include <vector>
-
-#include "nn/layers.hpp"
-#include "nn/loss.hpp"
-#include "nn/optimizers.hpp"
-#include "nn/sequential.hpp"
-#include "tensor/tensor.hpp"
-#include "utils/wifi_data_loader.hpp"
 
 namespace ips_constants {
 constexpr float EPSILON = 1e-15f;
@@ -482,13 +485,8 @@ int main() {
     std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets"
               << std::endl;
     std::cout << std::string(70, '=') << std::endl;
-#ifdef _OPENMP
 
-    const int num_threads = omp_get_max_threads();
-    omp_set_num_threads(std::min(num_threads, 8));
-    std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
-              << std::endl;
-#endif
+    utils::set_num_threads(8);
 
     bool is_regression = true;
     WiFiDataLoader train_loader(is_regression), test_loader(is_regression);

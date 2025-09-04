@@ -27,15 +27,25 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 
 Sequential<float> create_demo_model() {
   auto model =
-      tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-          .input({1, 28, 28})
-          .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-          .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-          .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-          .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
-          .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-          .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
-          .build();
+      // tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+      //     .input({1, 28, 28})
+      //     .input({3, 32, 32})
+      //     .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+      //     .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+      //     .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+      //     .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+      //     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+      //     .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
+      //     .build();
+      tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
+                     .input({3, 32, 32})
+                     .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
+                     .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
+                     .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
+                     .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
+                     .flatten("flatten")
+                     .dense(10, "linear", true, "fc1")
+                     .build();
 
   auto optimizer = std::make_unique<tnn::Adam<float>>(
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
@@ -65,12 +75,7 @@ std::string get_host(const std::string &env_var,
 }
 
 int main() {
-#ifdef _OPENMP
-  const int num_threads = omp_get_max_threads();
-  omp_set_num_threads(std::min(num_threads, 1));
-  std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
-            << std::endl;
-#endif
+  utils::set_num_threads(1);
 
   auto model = create_demo_model();
 
@@ -114,14 +119,31 @@ int main() {
   std::cout << "\nStarting distributed pipeline..." << std::endl;
   coordinator.start();
 
-  data_loading::MNISTDataLoader<float> train_loader, test_loader;
+  // data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
-  if (!train_loader.load_data("./data/mnist/train.csv")) {
+  // if (!train_loader.load_data("./data/mnist/train.csv")) {
+  //   std::cerr << "Failed to load training data!" << std::endl;
+  //   return -1;
+  // }
+
+  // if (!test_loader.load_data("./data/mnist/test.csv")) {
+  //   std::cerr << "Failed to load test data!" << std::endl;
+  //   return -1;
+  // }
+
+  data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
+
+  if (!train_loader.load_multiple_files(
+          {"./data/cifar-10-batches-bin/data_batch_1.bin",
+           "./data/cifar-10-batches-bin/data_batch_2.bin",
+           "./data/cifar-10-batches-bin/data_batch_3.bin",
+           "./data/cifar-10-batches-bin/data_batch_4.bin",
+           "./data/cifar-10-batches-bin/data_batch_5.bin"})) {
     std::cerr << "Failed to load training data!" << std::endl;
     return -1;
   }
 
-  if (!test_loader.load_data("./data/mnist/test.csv")) {
+  if (!test_loader.load_data("./data/cifar-10-batches-bin/test_batch.bin")) {
     std::cerr << "Failed to load test data!" << std::endl;
     return -1;
   }

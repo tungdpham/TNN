@@ -6,19 +6,16 @@
 #include "utils/cifar10_data_loader.hpp"
 #include "utils/ops.hpp"
 #include "utils/train.hpp"
+#include "utils/misc.hpp"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <omp.h>
 #include <random>
 #include <sstream>
-#ifdef USE_TBB
-#include <tbb/global_control.h>
-#include <tbb/task_arena.h>
-#endif
 #include <vector>
 
 namespace cifar10_constants {
@@ -33,21 +30,8 @@ constexpr float LR_INITIAL = 0.001f;
 
 int main() {
   try {
-#ifdef _OPENMP
+    utils::set_num_threads(8);
 
-    const int num_threads = omp_get_max_threads();
-    omp_set_num_threads(std::min(num_threads, 32));
-    std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
-              << std::endl;
-#endif
-
-#ifdef USE_TBB
-    tbb::global_control c(tbb::global_control::max_allowed_parallelism, 8);
-    std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
-              << tbb::global_control::active_value(
-                     tbb::global_control::max_allowed_parallelism)
-              << "\n";
-#endif
     std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training"
               << std::endl;
     std::cout << std::string(50, '=') << std::endl;

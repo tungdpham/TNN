@@ -6,6 +6,7 @@
 #include "tensor/tensor.hpp"
 #include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
+#include "utils/misc.hpp"
 
 namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
@@ -32,13 +33,11 @@ signed main() {
     std::cerr << "Failed to load test data!" << std::endl;
     return -1;
   }
+  
+  utils::set_num_threads(4);
 
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
   test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
-
-#ifdef _OPENMP
-  omp_set_num_threads(16);
-#endif
 
   // Create a sequential model using the builder pattern
   auto model =

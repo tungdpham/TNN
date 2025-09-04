@@ -7,14 +7,9 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
-#include <omp.h>
 #include <random>
 #include <sstream>
 #include <string_view>
-#ifdef USE_TBB
-#include <tbb/global_control.h>
-#include <tbb/task_arena.h>
-#endif
 #include <vector>
 
 #include "nn/layers.hpp"
@@ -25,6 +20,7 @@
 #include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
 #include "utils/train.hpp"
+#include "utils/misc.hpp"
 
 namespace mnist_constants {
 
@@ -43,16 +39,8 @@ int main() {
   std::cin.tie(nullptr);
   std::ios::sync_with_stdio(false);
   try {
-#ifdef _OPENMP
-
-    const int num_threads = omp_get_max_threads();
-    omp_set_num_threads(std::min(num_threads, 8));
-    std::cout << "Using " << omp_get_max_threads() << " OpenMP threads"
-              << std::endl;
-#endif
-
+    utils::set_num_threads(8);
 #ifdef USE_TBB
-    tbb::global_control c(tbb::global_control::max_allowed_parallelism, 8);
     std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
               << tbb::global_control::active_value(
                      tbb::global_control::max_allowed_parallelism)
