@@ -57,7 +57,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  micro_batch_inputs_[micro_batch_id] = input.clone();
+  micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(), input.width()};
 
   const size_t batch_size = input.batch_size();
   const size_t input_h = input.height();
@@ -70,7 +70,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
   Matrix<T> col_matrix =
       input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  Tensor<T> output(batch_size, out_channels_, output_h, output_w);
+  Tensor<T> output(batch_size, out_channels_, output_h, output_w, false);
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
@@ -107,14 +107,15 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 template <typename T>
 Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
                                    int micro_batch_id) {
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
+  auto it_input_shape = micro_batch_input_shapes_.find(micro_batch_id);
   auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
   auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
 
-  if (it_input == micro_batch_inputs_.end()) {
-    throw std::runtime_error("No cached input found for micro-batch ID: " +
+  if (it_input_shape == micro_batch_input_shapes_.end()) {
+    throw std::runtime_error("No cached input shape found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
+  
   if (it_im2col == micro_batch_im2col_matrices_.end()) {
     throw std::runtime_error(
         "No cached im2col matrix found for micro-batch ID: " +
@@ -126,12 +127,12 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
         std::to_string(micro_batch_id));
   }
 
-  const Tensor<T> &last_input = it_input->second;
+  const auto& input_shape = it_input_shape->second;
   const Matrix<T> &cached_im2col_matrix = it_im2col->second;
 
-  const size_t batch_size = last_input.batch_size();
-  const size_t input_h = last_input.height();
-  const size_t input_w = last_input.width();
+  const size_t batch_size = input_shape[0];
+  const size_t input_h = input_shape[2];
+  const size_t input_w = input_shape[3];
   const size_t output_h = grad_output.height();
   const size_t output_w = grad_output.width();
 

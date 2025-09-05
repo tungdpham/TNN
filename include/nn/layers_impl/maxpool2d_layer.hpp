@@ -33,12 +33,22 @@ private:
   mutable size_t output_stride_n_, output_stride_c_, output_stride_h_,
       output_stride_w_;
 
+  void compute_max_pool_forward(const T *input_data, T *output_data,
+                                size_t batch_size, size_t channels,
+                                size_t input_h, size_t input_w,
+                                size_t output_h, size_t output_w,
+                                std::vector<size_t> &mask_indices) const;
+                                
+  void compute_max_pool_backward(const T *grad_output_data, const T *input_data,
+                                 T *grad_input_data, size_t batch_size,
+                                 size_t channels, size_t input_h,
+                                 size_t input_w, size_t output_h,
+                                 size_t output_w,
+                                 const std::vector<size_t> &mask_indices) const;
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
                  size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                  const std::string &name = "maxpool2d");
-
-  void clear_cache(int micro_batch_id = -1);
 
   Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,

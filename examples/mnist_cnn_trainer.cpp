@@ -69,7 +69,7 @@ int main() {
         << std::endl;
 
     auto model =
-        tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
+        tnn::SequentialBuilder<float>("mnist_cnn_model")
             .input({1, ::mnist_constants::IMAGE_HEIGHT,
                     ::mnist_constants::IMAGE_WIDTH})
             .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
@@ -89,7 +89,7 @@ int main() {
         tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
-    // model.enable_profiling(true);
+    model.enable_profiling(true);
 
     std::cout << "\nModel Architecture Summary:" << std::endl;
     model.print_summary(std::vector<size_t>{mnist_constants::BATCH_SIZE, 1,

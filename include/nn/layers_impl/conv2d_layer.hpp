@@ -39,7 +39,7 @@ private:
   Tensor<T> bias_gradients_;
 
   // Per-micro-batch state
-  mutable std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  mutable std::unordered_map<int, std::vector<size_t>> micro_batch_input_shapes_;
   mutable std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
 

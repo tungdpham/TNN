@@ -100,7 +100,7 @@ public:
   Tensor() : data_(nullptr), data_size_(0) { compute_strides(); }
 
   // Specialized constructor for 4D tensors
-  Tensor(size_t batch, size_t channels, size_t height, size_t width)
+  Tensor(size_t batch, size_t channels, size_t height, size_t width, bool fill_zero = true)
       : data_(nullptr) {
     static_assert(dims_ == 4,
                   "4-parameter constructor only valid for 4D tensors");
@@ -114,11 +114,13 @@ public:
     compute_strides();
     data_size_ = batch * channels * height * width;
     data_ = allocate_aligned(data_size_);
-    fill_avx2(T(0));
+    if(fill_zero)
+      fill_avx2(T(0));
   }
 
   // For tensor of any rank
-  template <typename... Shape> Tensor(Shape... shape) : data_(nullptr) {
+  template <typename... Shape> Tensor(Shape... shape, bool fill_zero = true)
+      : data_(nullptr) {
     static_assert(sizeof...(Shape) == dims_,
                   "Number of shape parameters must match tensor dimensions");
     size_t temp_shape[] = {static_cast<size_t>(shape)...};
@@ -127,10 +129,11 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    fill_avx2(T(0));
+    if(fill_zero)
+      fill_avx2(T(0));
   }
 
-  Tensor(std::vector<size_t> shape) : data_(nullptr) {
+  Tensor(std::vector<size_t> shape, bool fill_zero = true) : data_(nullptr) {
     if (shape.size() != dims_) {
       throw std::invalid_argument(
           "Shape vector size must match tensor dimensions");
@@ -140,11 +143,11 @@ public:
     data_size_ =
         std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    fill_avx2(T(0));
+    if(fill_zero)
+      fill_avx2(T(0));
   }
 
-  Tensor(std::vector<size_t> shape, const std::vector<T> &data)
-      : data_(nullptr) {
+  Tensor(std::vector<size_t> shape, const std::vector<T> &data) : data_(nullptr) {
     if (shape.size() != dims_) {
       throw std::invalid_argument(
           "Shape vector size must match tensor dimensions");
@@ -163,7 +166,7 @@ public:
 
   ~Tensor() { deallocate_aligned(data_); }
 
-  Tensor(const Tensor &other) : data_(nullptr), data_size_(other.data_size_) {
+  Tensor(const Tensor &other) : data_size_(other.data_size_) {
     std::copy(other.shape_, other.shape_ + dims_, shape_);
     compute_strides();
     if (data_size_ > 0) {
@@ -335,21 +338,57 @@ public:
 
     Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h,
                         width_ + 2 * pad_w);
-    result.fill(value);
+    
+    if(value != T(0))
+      result.fill(value);
+    
+    const T* input_data = this->data();
+    T* result_data = result.data();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
-    for (size_t n = 0; n < batch_size_; ++n) {
-      for (size_t c = 0; c < channels_; ++c) {
-        for (size_t h = 0; h < height_; ++h) {
-          for (size_t w = 0; w < width_; ++w) {
-            result(n, c, h + pad_h, w + pad_w) = (*this)(n, c, h, w);
-          }
-        }
+    utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+      for (size_t h = 0; h < height_; ++h) {
+        const size_t new_h = h + pad_h;
+        std::copy(
+            &input_data[((n * channels_ + c) * height_ + h) * width_],
+            &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
+            &result_data[((n * channels_ + c) * (height_ + 2 * pad_h) + new_h) * (width_ + 2 * pad_w) + pad_w]);
       }
+    });
+
+    return result;
+  }
+
+  Tensor<T, L> unpad(size_t pad_h, size_t pad_w) const {
+    assert(dims_ == 4 && "Unpadding only supported for 4D tensors");
+    if (pad_h == 0 && pad_w == 0) {
+      return this->clone();
     }
 
+    const size_t batch_size_ = batch_size();
+    const size_t channels_ = channels();
+    const size_t height_ = height();
+    const size_t width_ = width();
+
+    if (height_ <= 2 * pad_h || width_ <= 2 * pad_w) {
+      throw std::invalid_argument("Padding size too large for unpadding");
+    }
+
+    Tensor<T, L> result(batch_size_, channels_, height_ - 2 * pad_h,
+                        width_ - 2 * pad_w);
+
+    const T* input_data = this->data();
+    T* result_data = result.data();
+    
+    utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+      for (size_t h = 0; h < height_ - 2 * pad_h; ++h) {
+        const size_t src_h = h + pad_h;
+        std::copy(
+            &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w],
+            &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w] + (width_ - 2 * pad_w),
+            &result_data[((n * channels_ + c) * (height_ - 2 * pad_h) + h) * (width_ - 2 * pad_w)]);
+      }
+    });
+    
     return result;
   }
 

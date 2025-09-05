@@ -31,8 +31,8 @@ private:
   std::unique_ptr<Loss<T>> loss_ = nullptr;
   bool is_training_;
 
-  
-  bool enable_profiling_;
+
+  bool enable_profiling_ = false;
   std::map<std::string, double> forward_times_ms_;
   std::map<std::string, double> backward_times_ms_;
   
