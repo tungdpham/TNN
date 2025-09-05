@@ -19,8 +19,8 @@ using namespace tpipeline;
 namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 128;
-constexpr int NUM_MICROBATCHES = 2;
+constexpr int BATCH_SIZE = 32;
+constexpr int NUM_MICROBATCHES = 1;
 constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace mnist_constants

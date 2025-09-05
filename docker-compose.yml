@@ -83,7 +83,7 @@ services:
       - single-model
     image: dcnn:latest
     container_name: dcnn-single-model
-    command: ["./bin/mnist_cnn_trainer"]
+    command: ["./bin/cifar10_cnn_trainer"]
     cpuset: "0-16"
     depends_on:
       - dcnn-base

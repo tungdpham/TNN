@@ -8,6 +8,7 @@ create_executable(uji_ips_trainer uji_ips_trainer.cpp)
 # Test executables
 create_executable(mnist_cnn_test mnist_cnn_test.cpp)
 create_executable(pipeline_test pipeline_test.cpp)
+create_executable(cpu_info_test cpu_info_test.cpp)
 
 # Network executables
 create_executable(network_worker network_worker_main.cpp)
