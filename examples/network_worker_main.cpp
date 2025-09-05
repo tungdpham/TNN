@@ -4,10 +4,10 @@
 #include "utils/misc.hpp"
 
 int main(int argc, char *argv[]) {
-  // std::cout.tie(nullptr);
-  // std::cin.tie(nullptr);
-  // std::ios::sync_with_stdio(false);
-  
+  std::cout.tie(nullptr);
+  std::cin.tie(nullptr);
+  std::ios::sync_with_stdio(false);
+
   if (argc != 2) {
     std::cerr << "Usage: " << argv[0] << " <listen_port>" << std::endl;
     std::cerr << "Example: " << argv[0] << " 8001" << std::endl;

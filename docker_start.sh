@@ -3,6 +3,10 @@ PROFILE=single-model
 # parse command line arguments
 while [[ $# -gt 0 ]]; do
   case $1 in
+    --clean | -c)
+      docker compose --profile "*" down
+      shift 1
+      ;;
     --profile | -p)
       PROFILE="$2"
       shift 2

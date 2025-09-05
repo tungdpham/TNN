@@ -28,15 +28,15 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 Sequential<float> create_demo_model() {
   auto model =
       // tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-      //     .input({1, 28, 28})
-      //     .input({3, 32, 32})
-      //     .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-      //     .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-      //     .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-      //     .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
-      //     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-      //     .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
-      //     .build();
+          // .input({1, 28, 28})
+          // .input({3, 32, 32})
+          // .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+          // .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+          // .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+          // .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+          // .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+          // .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
+          // .build();
       tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
                      .input({3, 32, 32})
                      .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
@@ -119,6 +119,8 @@ int main() {
   std::cout << "\nStarting distributed pipeline..." << std::endl;
   coordinator.start();
 
+
+  //uncomment according to dataset
   // data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
   // if (!train_loader.load_data("./data/mnist/train.csv")) {
