@@ -313,15 +313,17 @@ bool CpuInfo::init_memory_hierarchy() {
         
         for (int node = 0; node < memory_hierarchy_.numa_nodes; ++node) {
             struct bitmask* cpus = numa_allocate_cpumask();
-            numa_node_to_cpus(node, cpus);
+            int ret = numa_node_to_cpus(node, (unsigned long*)cpus->maskp, cpus->size);
             
-            std::vector<int> cpu_list;
-            for (int cpu = 0; cpu < logical_cores_; ++cpu) {
-                if (numa_bitmask_isbitset(cpus, cpu)) {
-                    cpu_list.push_back(cpu);
+            if (ret == 0) {
+                std::vector<int> cpu_list;
+                for (int cpu = 0; cpu < logical_cores_; ++cpu) {
+                    if (numa_bitmask_isbitset(cpus, cpu)) {
+                        cpu_list.push_back(cpu);
+                    }
                 }
+                memory_hierarchy_.numa_cpu_map[node] = cpu_list;
             }
-            memory_hierarchy_.numa_cpu_map[node] = cpu_list;
             
             numa_free_cpumask(cpus);
         }
@@ -383,13 +385,6 @@ bool CpuInfo::init_container_detection() {
 }
 
 bool CpuInfo::detect_pcore_ecore_topology() {
-    // This is Intel-specific for 12th gen and later
-    if (vendor_.find("Intel") == std::string::npos) {
-        performance_cores_ = physical_cores_;
-        efficiency_cores_ = 0;
-        return true;
-    }
-    
 #ifdef __linux__
     // For Intel 12th gen+, read from CPU topology more carefully
     std::map<int, std::vector<int>> core_to_threads;
@@ -439,6 +434,7 @@ bool CpuInfo::detect_pcore_ecore_topology() {
         
         for (const auto& [core_id, threads] : core_to_threads) {
             double freq = core_max_freq[core_id];
+            std::cout << "core_id: " << core_id << ", freq: " << freq << " MHz, threads: " << threads.size() << std::endl;
             bool is_p_core = (freq >= p_core_threshold) && (threads.size() > 1); // P-cores have hyperthreading
             
             if (is_p_core) {
@@ -466,27 +462,8 @@ bool CpuInfo::detect_pcore_ecore_topology() {
         
         std::cout << "DEBUG: Detected " << performance_cores_ << " P-cores and " 
                   << efficiency_cores_ << " E-cores based on topology and frequency" << std::endl;
-    } else {
-        // Fallback: For 14900HX, we know the configuration
-        if (model_name_.find("14900HX") != std::string::npos) {
-            performance_cores_ = 8;  // 8 P-cores
-            efficiency_cores_ = 16; // 16 E-cores
-            
-            // Mark first 16 logical CPUs as P-cores (8 cores * 2 threads)
-            for (int i = 0; i < 16 && i < static_cast<int>(cores_.size()); ++i) {
-                cores_[i].is_performance_core = true;
-            }
-            // Mark remaining as E-cores
-            for (int i = 16; i < logical_cores_ && i < static_cast<int>(cores_.size()); ++i) {
-                cores_[i].is_performance_core = false;
-            }
-            
-            std::cout << "DEBUG: Using known 14900HX configuration: 8 P-cores + 16 E-cores" << std::endl;
-        } else {
-            // Generic fallback
-            performance_cores_ = physical_cores_;
-            efficiency_cores_ = 0;
-        }
+    }else {
+        std::cout << "DEBUG: Unable to determine P/E core topology, defaulting all to P-cores" << std::endl;
     }
 #else
     // For non-Linux platforms, assume all cores are P-cores for now
@@ -567,31 +544,43 @@ bool CpuInfo::read_proc_stat_linux() {
     prev_cpu_times_ = current_times;
     
     // Read per-core statistics
-    prev_core_times_.clear();
-    prev_core_times_.resize(logical_cores_);
+    std::vector<CpuTimes> current_core_times(logical_cores_);
     
     for (int core = 0; core < logical_cores_; ++core) {
         if (std::getline(stat_file, line)) {
             std::istringstream core_iss(line);
             std::string core_label;
-            CpuTimes core_times;
             
-            core_iss >> core_label >> core_times.user >> core_times.nice >> core_times.system 
-                     >> core_times.idle >> core_times.iowait >> core_times.irq 
-                     >> core_times.softirq >> core_times.steal;
-            
-            // Calculate per-core utilization (simplified)
-            unsigned long long core_total = core_times.user + core_times.nice + core_times.system + 
-                                           core_times.idle + core_times.iowait + core_times.irq + 
-                                           core_times.softirq + core_times.steal;
-            
-            if (core_total > 0) {
-                cores_[core].utilization_percent = 100.0 * (core_total - core_times.idle) / core_total;
-            }
-            
-            prev_core_times_[core] = core_times;
+            core_iss >> core_label >> current_core_times[core].user >> current_core_times[core].nice >> current_core_times[core].system 
+                     >> current_core_times[core].idle >> current_core_times[core].iowait >> current_core_times[core].irq 
+                     >> current_core_times[core].softirq >> current_core_times[core].steal;
         }
     }
+    
+    // Calculate per-core utilization based on difference from previous sample
+    if (!prev_core_times_.empty() && prev_core_times_.size() == static_cast<size_t>(logical_cores_)) {
+        for (int core = 0; core < logical_cores_; ++core) {
+            unsigned long long prev_idle = prev_core_times_[core].idle + prev_core_times_[core].iowait;
+            unsigned long long idle = current_core_times[core].idle + current_core_times[core].iowait;
+            
+            unsigned long long prev_non_idle = prev_core_times_[core].user + prev_core_times_[core].nice +
+                                               prev_core_times_[core].system + prev_core_times_[core].irq +
+                                               prev_core_times_[core].softirq + prev_core_times_[core].steal;
+            unsigned long long non_idle = current_core_times[core].user + current_core_times[core].nice +
+                                          current_core_times[core].system + current_core_times[core].irq +
+                                          current_core_times[core].softirq + current_core_times[core].steal;
+
+            unsigned long long total_diff = (idle + non_idle) - (prev_idle + prev_non_idle);
+            unsigned long long idle_diff = idle - prev_idle;
+
+            if (total_diff > 0) {
+                cores_[core].utilization_percent = 100.0 * (total_diff - idle_diff) / total_diff;
+            }
+        }
+    }
+    
+    // Update previous values for the next call
+    prev_core_times_ = current_core_times;
     
     return true;
 #else
@@ -758,130 +747,19 @@ CoreInfo CpuInfo::get_core_info(int logical_core_id) const {
 }
 
 int CpuInfo::get_optimal_thread_count() const {
-    if (!initialized_) {
-        return std::thread::hardware_concurrency();
-    }
-    
-    // For NN/CNN workloads, consider several factors:
-    
-    // 1. Thermal throttling - reduce thread count if throttling
-    int optimal_threads = logical_cores_;
-    
-    if (thermal_info_.thermal_throttling) {
-        optimal_threads = std::max(1, optimal_threads / 2);
-    }
-    
-    // 2. High CPU utilization - reduce thread count
-    if (overall_utilization_ > 80.0) {
-        optimal_threads = std::max(1, static_cast<int>(optimal_threads * (100.0 - overall_utilization_) / 100.0));
-    }
-    
-    // 3. P/E core considerations for Intel 12th gen+
-    if (performance_cores_ > 0 && efficiency_cores_ > 0) {
-        // Prefer P-cores for CPU-intensive NN workloads
-        optimal_threads = performance_cores_ * (supports_hyperthreading_ ? 2 : 1);
-    }
-    
-    // 4. Container limits
-    if (is_containerized_ && container_cpu_limit_ > 0) {
-        optimal_threads = std::min(optimal_threads, container_cpu_limit_);
-    }
-    
-    return std::max(1, optimal_threads);
+    throw new std::runtime_error("Not implemented yet");
 }
 
 std::vector<int> CpuInfo::get_recommended_cpu_affinity(int thread_count) const {
-    std::vector<int> affinity;
-    
-    if (!initialized_ || thread_count <= 0) {
-        return affinity;
-    }
-    
-    // For hybrid architectures, prefer P-cores
-    if (performance_cores_ > 0 && efficiency_cores_ > 0) {
-        // First, use P-cores
-        int p_core_threads = performance_cores_ * (supports_hyperthreading_ ? 2 : 1);
-        
-        for (int i = 0; i < std::min(thread_count, p_core_threads); ++i) {
-            affinity.push_back(i);
-        }
-        
-        // If we need more threads, use E-cores
-        if (thread_count > p_core_threads) {
-            int remaining = thread_count - p_core_threads;
-            for (int i = 0; i < remaining && (p_core_threads + i) < logical_cores_; ++i) {
-                affinity.push_back(p_core_threads + i);
-            }
-        }
-    } else {
-        // Uniform cores - distribute evenly
-        for (int i = 0; i < std::min(thread_count, logical_cores_); ++i) {
-            affinity.push_back(i);
-        }
-    }
-    
-    return affinity;
+    throw new std::runtime_error("Not implemented yet");
 }
 
 bool CpuInfo::is_suitable_for_heavy_workload() const {
-    if (!initialized_) {
-        return false;
-    }
-    
-    // Check various factors
-    
-    // 1. Thermal state
-    if (thermal_info_.thermal_throttling) {
-        return false;
-    }
-    
-    // 2. Current CPU utilization
-    if (overall_utilization_ > 90.0) {
-        return false;
-    }
-    
-    // 3. Load average (should be reasonable)
-    if (!load_averages_.empty() && load_averages_[0] > logical_cores_ * 2) {
-        return false;
-    }
-    
-    // 4. Feature support for NN acceleration
-    if (!supports_avx_ && !supports_sse4_2_) {
-        return false; // Minimal SIMD support required
-    }
-    
-    return true;
+    throw new std::runtime_error("Not implemented yet");
 }
 
 double CpuInfo::get_performance_score() const {
-    if (!initialized_) {
-        return 0.0;
-    }
-    
-    double score = 0.0;
-    
-    // Base score from core count and frequency
-    score += physical_cores_ * 10.0;
-    score += (base_frequency_mhz_ / 1000.0) * 5.0;
-    
-    // Bonus for SIMD support
-    if (supports_avx512_) score += 50.0;
-    else if (supports_avx2_) score += 30.0;
-    else if (supports_avx_) score += 20.0;
-    else if (supports_sse4_2_) score += 10.0;
-    
-    if (supports_fma_) score += 15.0;
-    
-    // Cache bonus
-    if (!memory_hierarchy_.l3_caches.empty()) {
-        score += memory_hierarchy_.l3_caches[0].size_kb / 1024.0; // MB of L3
-    }
-    
-    // Penalty for current load and thermal issues
-    if (thermal_info_.thermal_throttling) score *= 0.5;
-    score *= (100.0 - overall_utilization_) / 100.0;
-    
-    return score;
+    throw new std::runtime_error("Not implemented yet");
 }
 
 std::map<int, std::vector<int>> CpuInfo::get_numa_aware_cores() const {
@@ -940,11 +818,6 @@ void CpuInfo::print_info() const {
         std::cout << "Load Averages: " << load_averages_[0] << " " 
                   << load_averages_[1] << " " << load_averages_[2] << std::endl;
     }
-    
-    std::cout << "\n=== Recommendations ===" << std::endl;
-    std::cout << "Optimal Thread Count: " << get_optimal_thread_count() << std::endl;
-    std::cout << "Suitable for Heavy Workload: " << (is_suitable_for_heavy_workload() ? "Yes" : "No") << std::endl;
-    std::cout << "Performance Score: " << get_performance_score() << std::endl;
 }
 
 std::string CpuInfo::to_json() const {
@@ -968,8 +841,6 @@ std::string CpuInfo::to_json() const {
     json << "  \"thermal_throttling\": " << (thermal_info_.thermal_throttling ? "true" : "false") << ",\n";
     json << "  \"is_containerized\": " << (is_containerized_ ? "true" : "false") << ",\n";
     json << "  \"is_virtualized\": " << (is_virtualized_ ? "true" : "false") << ",\n";
-    json << "  \"optimal_thread_count\": " << get_optimal_thread_count() << ",\n";
-    json << "  \"performance_score\": " << get_performance_score() << "\n";
     json << "}";
     return json.str();
 }

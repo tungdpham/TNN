@@ -52,44 +52,20 @@ public:
   Tensor<T> compute_gradient(
       const Tensor<T> &pre_activation_values,
       const Tensor<T> *upstream_gradient = nullptr) const override {
-    Tensor<T> gradient(pre_activation_values.shape());
-    const T *input_data = pre_activation_values.data();
-    T *grad_data = gradient.data();
-    const size_t size = pre_activation_values.size();
-
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
-    });
-
-    // If upstream gradient is provided, multiply element-wise
-    if (upstream_gradient != nullptr) {
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
-                  << " Pre activation shape"
-                  << pre_activation_values.shape_str() << std::endl;
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      const T *upstream_data = upstream_gradient->data();
-
-      utils::parallel_for_range<size_t>(
-          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
-    }
-
+    Tensor<T> gradient = upstream_gradient->clone();
+    compute_gradient_inplace(pre_activation_values, gradient);
     return gradient;
   }
 
   void compute_gradient_inplace(
       const Tensor<T> &pre_activation_values,
       Tensor<T> &upstream_gradient) const override {
-    if (upstream_gradient.shape() != pre_activation_values.shape()) {
-      throw std::invalid_argument("Upstream gradient must have the same "
-                                  "shape as pre-activation values");
-    }
+    assert(pre_activation_values.shape() == upstream_gradient.shape() &&
+           "Shapes must match for in-place gradient computation");
 
     const T *input_data = pre_activation_values.data();
     T *grad_data = upstream_gradient.data();
-    size_t size = pre_activation_values.size();
+    const size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
       T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;

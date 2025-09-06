@@ -19,54 +19,29 @@ namespace utils {
 template <typename T>
 void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels,
                   size_t height, size_t width) {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {
-      std::copy(&src[n * channels * height * width + c * height * width],
-                &src[n * channels * height * width + c * height * width +
-                     height * width],
-                &dst[c * batch_size * height * width + n * height * width]);
-    }
-  }
-#elif defined(USE_TBB)
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     std::copy(&src[n * channels * height * width + c * height * width],
               &src[n * channels * height * width + c * height * width +
                    height * width],
               &dst[c * batch_size * height * width + n * height * width]);
   });
-#endif
 }
 
 template <typename T>
 void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
                   size_t height, size_t width) {
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {
-      std::copy(&src[c * batch_size * height * width + n * height * width],
-                &src[c * batch_size * height * width + n * height * width +
-                     height * width],
-                &dst[n * channels * height * width + c * height * width]);
-    }
-  }
-#elif defined(USE_TBB)
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     std::copy(&src[c * batch_size * height * width + n * height * width],
               &src[c * batch_size * height * width + n * height * width +
                    height * width],
               &dst[n * channels * height * width + c * height * width]);
   });
-#endif
 }
 
 template <typename T>
-void transpose_2d_inplace(const T *src, T *dst, size_t rows, size_t cols) {
+void transpose_2d_inplace(const T *src, T *dst, const size_t rows, const size_t cols) {
 #if defined(_OPENMP)
-  const size_t block_size = 64;
-
+  constexpr size_t block_size = 64;
 #pragma omp parallel for collapse(2) schedule(static)
   for (size_t i = 0; i < rows; i += block_size) {
     for (size_t j = 0; j < cols; j += block_size) {
@@ -154,7 +129,6 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 }
 
 template <typename T>
-
 T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
@@ -184,7 +158,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
       sum += weights[ks] * col_data[ks];
     }
 
-    _mm256_zeroupper();
+    // _mm256_zeroupper();
 
 #elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 
