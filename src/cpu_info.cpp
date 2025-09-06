@@ -845,4 +845,53 @@ std::string CpuInfo::to_json() const {
     return json.str();
 }
 
+#ifdef _WIN32
+bool CpuInfo::init_windows_wmi() {
+    // Basic Windows CPU info detection without WMI
+    // Use Win32 API functions as a fallback
+    
+    // Get processor name from registry
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
+                     "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 
+                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        char buffer[256];
+        DWORD bufferSize = sizeof(buffer);
+        if (RegQueryValueEx(hKey, "ProcessorNameString", nullptr, nullptr, 
+                           (LPBYTE)buffer, &bufferSize) == ERROR_SUCCESS) {
+            model_name_ = std::string(buffer);
+        }
+        RegCloseKey(hKey);
+    }
+    
+    // Set vendor (simple detection)
+    if (model_name_.find("Intel") != std::string::npos) {
+        vendor_ = "Intel";
+    } else if (model_name_.find("AMD") != std::string::npos) {
+        vendor_ = "AMD";
+    } else {
+        vendor_ = "Unknown";
+    }
+    
+    // Set architecture based on compilation target
+#ifdef _M_X64
+    architecture_ = "x86_64";
+#elif defined(_M_IX86)
+    architecture_ = "x86";
+#elif defined(_M_ARM64)
+    architecture_ = "arm64";
+#else
+    architecture_ = "unknown";
+#endif
+    
+    return true;
+}
+
+bool CpuInfo::update_windows_perfcounters() {
+    // Basic implementation that returns true
+    // In a full implementation, this would query Windows performance counters
+    return true;
+}
+#endif
+
 } // namespace utils

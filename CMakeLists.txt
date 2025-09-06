@@ -19,6 +19,7 @@ endif()
 
 # compiler flags
 if(MSVC)
+    message("Using MSVC")
     # MSVC flags for Release and Debug
     set(CMAKE_CXX_FLAGS_RELEASE "/O3 /Oi /Oy /GL /arch:AVX2")
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
@@ -29,11 +30,19 @@ if(MSVC)
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
     # Define SIMD macros for MSVC
     add_compile_definitions(__AVX2__ __SSE2__)
-    
 else()
     # GCC/Clang flags for Release and Debug
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
+    if(MINGW)
+        # Disable LTO for MinGW to avoid archiver issues
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native")
+        # Prevent winsock.h conflicts on Windows with MinGW
+        add_compile_definitions(NOMINMAX)
+        add_compile_definitions(WIN32_LEAN_AND_MEAN)
+    else()
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
+    endif()
     add_compile_options(-Wpedantic -Wall)
 endif()
 
@@ -62,17 +71,33 @@ if(WIN32)
         message("USING MINGW")
         set(OpenMP_C_FLAGS "-fopenmp")
         set(OpenMP_CXX_FLAGS "-fopenmp")
-        set(OpenMP_C_LIB_NAMES "gomp;pthread")
-        set(OpenMP_CXX_LIB_NAMES "gomp;pthread")
+        # Try to find the correct path for libgomp
+        find_library(LIBGOMP_LIBRARY 
+            NAMES gomp libgomp libgomp-1
+            PATHS 
+                "C:/mingw64/lib"
+                "C:/MinGW/lib" 
+                "C:/msys64/mingw64/lib"
+                "${CMAKE_CXX_COMPILER}/../lib"
+                "${CMAKE_CXX_COMPILER}/../../lib"
+        )
+        if(LIBGOMP_LIBRARY)
+            set(OpenMP_gomp_LIBRARY ${LIBGOMP_LIBRARY})
+            message("Found OpenMP library: ${LIBGOMP_LIBRARY}")
+        else()
+            message(WARNING "Could not find OpenMP library, linking may fail")
+        endif()
     endif()
 endif()
 
 # find packages
 if(ENABLE_OPENMP)
+    message("Finding OpenMP")
     find_package(OpenMP REQUIRED)
 endif()
 
 if(ENABLE_TBB)
+    message("Finding TBB")
     find_package(TBB REQUIRED)
     add_compile_definitions(USE_TBB)
 endif()
@@ -99,6 +124,14 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann_json/include
 )
 
+# Windows networking libraries for ASIO
+if(WIN32)
+    set(WINDOWS_LIBS ws2_32 wsock32 mswsock)
+    if(MINGW)
+        list(APPEND WINDOWS_LIBS iphlpapi)
+    endif()
+endif()
+
 # template libraries instantiations
 add_subdirectory(src) 
 
@@ -110,6 +143,11 @@ function(create_executable target_name source_file)
     endif()
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib)
+    
+    # Link Windows networking libraries if on Windows
+    if(WIN32)
+        target_link_libraries(${target_name} PRIVATE ${WINDOWS_LIBS})
+    endif()
 endfunction()
 
 add_subdirectory(examples)

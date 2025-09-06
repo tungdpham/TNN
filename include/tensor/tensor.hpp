@@ -23,6 +23,12 @@
 #include <vector>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 #include <malloc.h>
 #include <windows.h>
 #endif
@@ -96,7 +102,7 @@ private:
   }
 
 public:
-  Tensor() : data_(nullptr), data_size_(0) { compute_strides(); }
+  Tensor() : data_(nullptr), data_size_(0) {}
 
   // Specialized constructor for 4D tensors
   Tensor(size_t batch, size_t channels, size_t height, size_t width,

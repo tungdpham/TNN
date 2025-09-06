@@ -49,6 +49,14 @@ else()
     target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations)
 endif()
 
+# Add Windows networking libraries for ASIO support
+if(WIN32)
+    target_link_libraries(dcnn_lib INTERFACE ws2_32 wsock32 mswsock)
+    if(MINGW)
+        target_link_libraries(dcnn_lib INTERFACE iphlpapi)
+    endif()
+endif()
+
 set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils)
 
 if(ENABLE_OPENMP)
