@@ -24,19 +24,14 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS_RELEASE "/O3 /Oi /Oy /GL /arch:AVX2")
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
     add_compile_options(/W4)
-    # Disable Windows min/max macros
     add_compile_definitions(NOMINMAX)
-    # Prevent winsock.h from being included
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
-    # Define SIMD macros for MSVC
     add_compile_definitions(__AVX2__ __SSE2__)
 else()
     # GCC/Clang flags for Release and Debug
     if(MINGW)
-        # Disable LTO for MinGW to avoid archiver issues
         set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -DNDEBUG")
         set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native")
-        # Prevent winsock.h conflicts on Windows with MinGW
         add_compile_definitions(NOMINMAX)
         add_compile_definitions(WIN32_LEAN_AND_MEAN)
     else()
@@ -68,25 +63,7 @@ if(WIN32)
         set(OpenMP_C_LIBRARIES "")
         set(OpenMP_CXX_LIBRARIES "")
     elseif(MINGW)
-        message("USING MINGW")
-        set(OpenMP_C_FLAGS "-fopenmp")
-        set(OpenMP_CXX_FLAGS "-fopenmp")
-        # Try to find the correct path for libgomp
-        find_library(LIBGOMP_LIBRARY 
-            NAMES gomp libgomp libgomp-1
-            PATHS 
-                "C:/mingw64/lib"
-                "C:/MinGW/lib" 
-                "C:/msys64/mingw64/lib"
-                "${CMAKE_CXX_COMPILER}/../lib"
-                "${CMAKE_CXX_COMPILER}/../../lib"
-        )
-        if(LIBGOMP_LIBRARY)
-            set(OpenMP_gomp_LIBRARY ${LIBGOMP_LIBRARY})
-            message("Found OpenMP library: ${LIBGOMP_LIBRARY}")
-        else()
-            message(WARNING "Could not find OpenMP library, linking may fail")
-        endif()
+        message("ye no support for mingw rn")
     endif()
 endif()
 
@@ -98,7 +75,7 @@ endif()
 
 if(ENABLE_TBB)
     message("Finding TBB")
-    find_package(TBB REQUIRED)
+    find_package(TBB CONFIG REQUIRED)
     add_compile_definitions(USE_TBB)
 endif()
 
@@ -135,7 +112,6 @@ endif()
 # template libraries instantiations
 add_subdirectory(src) 
 
-# Function to create executables
 function(create_executable target_name source_file)
     add_executable(${target_name} ${source_file})
     if(ENABLE_CUDA)
@@ -144,7 +120,10 @@ function(create_executable target_name source_file)
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib)
     
-    # Link Windows networking libraries if on Windows
+    if(ENABLE_TBB)
+        target_link_libraries(${target_name} PRIVATE TBB::tbb)
+    endif()
+    
     if(WIN32)
         target_link_libraries(${target_name} PRIVATE ${WINDOWS_LIBS})
     endif()

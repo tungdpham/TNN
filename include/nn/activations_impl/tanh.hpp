@@ -6,7 +6,7 @@
  */
 #pragma once
 
-// Tanh Activation for Tensors
+
 template <typename T = float>
 class Tanh : public ActivationFunction<T> {
 public:
@@ -54,12 +54,12 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
+      
       T tanh_val = std::tanh(input_data[i]);
       grad_data[i] = T(1) - tanh_val * tanh_val;
     });
 
-    // If upstream gradient is provided, multiply element-wise
+    
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         throw std::invalid_argument("Upstream gradient must have the same "
@@ -88,7 +88,7 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      // Compute tanh and its gradient from pre-activation: 1 - tanh²(x)
+      
       T tanh_val = std::tanh(input_data[i]);
       T local_grad = T(1) - tanh_val * tanh_val;
       grad_data[i] *= local_grad;

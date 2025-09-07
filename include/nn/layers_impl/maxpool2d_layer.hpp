@@ -39,10 +39,9 @@ private:
                                 size_t output_h, size_t output_w,
                                 std::vector<size_t> &mask_indices) const;
                                 
-  void compute_max_pool_backward(const T *grad_output_data, const T *input_data,
+  void compute_max_pool_backward(const T *grad_output_data,
                                  T *grad_input_data, size_t batch_size,
-                                 size_t channels, size_t input_h,
-                                 size_t input_w, size_t output_h,
+                                 size_t channels, size_t output_h,
                                  size_t output_w,
                                  const std::vector<size_t> &mask_indices) const;
 public:

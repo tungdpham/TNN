@@ -6,7 +6,7 @@
  */
 #pragma once
 
-// ReLU Activation for Tensors
+
 template <typename T = float> class ReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;

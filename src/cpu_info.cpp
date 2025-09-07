@@ -5,8 +5,11 @@
 #include <algorithm>
 #include <thread>
 #include <cstring>
-#include <unistd.h>
 #include <set>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #ifdef __linux__
 #include <cpuid.h>
@@ -112,7 +115,7 @@ bool CpuInfo::read_cpuinfo_linux() {
     }
     
     logical_cores_ = processor_count;
-    sockets_ = physical_ids.size();
+    sockets_ = static_cast<int>(physical_ids.size());
     if (sockets_ == 0) sockets_ = 1; // Single socket system
     
     // Determine architecture
@@ -252,6 +255,39 @@ bool CpuInfo::init_feature_detection() {
     // Use CPUID to detect CPU features
     unsigned int eax, ebx, ecx, edx;
     
+#ifdef _WIN32
+    // MSVC intrinsics
+    int cpuInfo[4];
+    
+    // Get feature flags from CPUID (leaf 1)
+    __cpuid(cpuInfo, 1);
+    eax = cpuInfo[0]; ebx = cpuInfo[1]; ecx = cpuInfo[2]; edx = cpuInfo[3];
+    supports_sse4_2_ = (ecx & (1 << 20)) != 0;
+    supports_fma_ = (ecx & (1 << 12)) != 0;
+    
+    // Extended features (leaf 7, subleaf 0)
+    __cpuidex(cpuInfo, 7, 0);
+    eax = cpuInfo[0]; ebx = cpuInfo[1]; ecx = cpuInfo[2]; edx = cpuInfo[3];
+    supports_avx2_ = (ebx & (1 << 5)) != 0;
+    supports_avx512_ = (ebx & (1 << 16)) != 0;
+    
+    // AVX support (requires OS support too)
+    __cpuid(cpuInfo, 1);
+    ecx = cpuInfo[2];
+    bool osxsave = (ecx & (1 << 27)) != 0;
+    bool avx_cpu = (ecx & (1 << 28)) != 0;
+    if (osxsave && avx_cpu) {
+        // Check if OS supports AVX using _xgetbv
+        #if defined(_MSC_VER) && (_MSC_VER >= 1600)
+        unsigned long long xcr0 = _xgetbv(0);
+        supports_avx_ = (xcr0 & 0x6) == 0x6;
+        #else
+        // Fallback: assume AVX is supported if CPU supports it
+        supports_avx_ = true;
+        #endif
+    }
+#else
+    // GCC intrinsics
     // Get feature flags from CPUID
     if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
         supports_sse4_2_ = (ecx & (1 << 20)) != 0;
@@ -275,6 +311,7 @@ bool CpuInfo::init_feature_detection() {
             supports_avx_ = (xcr0 & 0x6) == 0x6;
         }
     }
+#endif
     
     return true;
 #else

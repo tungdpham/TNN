@@ -6,7 +6,6 @@
  */
 #pragma once
 
-// Leaky ReLU Activation for Tensors
 template <typename T = float> class LeakyReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;

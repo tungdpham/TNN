@@ -104,10 +104,9 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
   const T *grad_output_data = grad_output.data();
   T *grad_padded_data = grad_padded_input.data();
 
-  compute_max_pool_backward(grad_output_data, cached_padded_input.data(),
+  compute_max_pool_backward(grad_output_data,
                             grad_padded_data, batch_size, channels,
-                            cached_padded_input.height(),
-                            cached_padded_input.width(), output_h, output_w,
+                            output_h, output_w,
                             mask_indices);
 
   if (pad_h_ > 0 || pad_w_ > 0) {
@@ -155,9 +154,9 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(
 
 template <typename T>
 void MaxPool2DLayer<T>::compute_max_pool_backward(
-    const T *grad_output_data, const T *input_data, T *grad_input_data,
-    size_t batch_size, size_t channels, size_t input_h, size_t input_w,
-    size_t output_h, size_t output_w,
+    const T *grad_output_data, T *grad_input_data,
+    size_t batch_size, size_t channels, size_t output_h,
+    size_t output_w,
     const std::vector<size_t> &mask_indices) const {
   utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t out_h = 0; out_h < output_h; ++out_h) {

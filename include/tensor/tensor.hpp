@@ -104,7 +104,6 @@ private:
 public:
   Tensor() : data_(nullptr), data_size_(0) {}
 
-  // Specialized constructor for 4D tensors
   Tensor(size_t batch, size_t channels, size_t height, size_t width,
          bool fill_zero = true)
       : data_(nullptr) {
@@ -124,7 +123,6 @@ public:
       fill_avx2(T(0));
   }
 
-  // For tensor of any rank
   template <typename... Shape>
   Tensor(Shape... shape, bool fill_zero = true) : data_(nullptr) {
     static_assert(sizeof...(Shape) == dims_,

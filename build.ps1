@@ -3,9 +3,9 @@
 # Default values
 $BUILD_TYPE = "Release"
 $BUILD_DIR = "."
-$ENABLE_OPENMP = $true
+$ENABLE_OPENMP = $false
 $ENABLE_CUDA = $false
-$ENABLE_TBB = $false
+$ENABLE_TBB = $true
 $ENABLE_DEBUG = $false
 $CLEAN_BUILD = $false
 $VERBOSE = $false
@@ -25,8 +25,8 @@ function Show-Help {
     Write-Host "    -d, --debug         Enable debug build with sanitizers"
     Write-Host "    -v, --verbose       Enable verbose build output"
     Write-Host "    --cuda              Enable CUDA support"
-    Write-Host "    --tbb               Enable Intel TBB support"
-    Write-Host "    --no-openmp         Disable OpenMP support"
+    Write-Host "    --tbb               Enable Intel TBB support (on by default)"
+    Write-Host "    --openmp            Enable OpenMP support"
     Write-Host "    --build-dir DIR     Set custom build directory (default: . [current dir])"
     Write-Host ""
     Write-Host "Examples:"
@@ -35,6 +35,7 @@ function Show-Help {
     Write-Host "    .\build.ps1 --debug     # Debug build with sanitizers"
     Write-Host "    .\build.ps1 --cuda      # Enable CUDA support"
     Write-Host "    .\build.ps1 --tbb       # Enable Intel TBB support"
+    Write-Host "    .\build.ps1 --openmp    # Enable OpenMP support"
 }
 
 # Parse command line arguments
@@ -51,7 +52,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
         "--verbose" { $VERBOSE = $true }
         "--cuda" { $ENABLE_CUDA = $true }
         "--tbb" { $ENABLE_TBB = $true }
-        "--no-openmp" { $ENABLE_OPENMP = $false }
+        "--openmp" { $ENABLE_OPENMP = $true }
         "--build-dir" {
             if ($i + 1 -lt $args.Count) {
                 $i++
@@ -84,11 +85,20 @@ Write-Host ""
 if ($CLEAN_BUILD) {
     Write-Color "Cleaning build artifacts..." "Yellow"
     if ($BUILD_DIR -eq ".") {
-        # Clean only build artifacts
-        Remove-Item cmake_install.cmake, CMakeCache.txt, Makefile, CMakeFiles, mnist_cnn_trainer, cifar10_cnn_trainer, cifar100_cnn_trainer, uji_ips_trainer, mnist_cnn_test, pipeline_test, network_worker, distributed_pipeline_docker -Force -Recurse -ErrorAction SilentlyContinue
+        # Clean only build artifacts from current directory
+        Remove-Item CMakeCache.txt, CMakeFiles, Makefile, cmake_install.cmake -Force -Recurse -ErrorAction SilentlyContinue
+        Remove-Item bin, lib, compile_commands.json -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Host "Cleaned build files from current directory"
     } else {
-        Remove-Item -Path $BUILD_DIR -Recurse -Force -ErrorAction SilentlyContinue
+        # Clean or recreate build directory
+        if (Test-Path $BUILD_DIR) {
+            Remove-Item -Path $BUILD_DIR -Recurse -Force
+            Write-Host "Removed build directory: $BUILD_DIR"
+        }
+        New-Item -ItemType Directory -Path $BUILD_DIR | Out-Null
+        Write-Host "Created fresh build directory: $BUILD_DIR"
     }
+    Write-Host ""
 }
 
 # Create build directory if it's not the current directory
@@ -107,15 +117,16 @@ $CMAKE_ARGS = @(
     "-DENABLE_CUDA=$ENABLE_CUDA"
     "-DENABLE_TBB=$ENABLE_TBB"
     "-DENABLE_DEBUG=$ENABLE_DEBUG"
+    "-DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
 )
 
 if ($BUILD_DIR -eq ".") {
-    cmake . $CMAKE_ARGS
+    cmake . @CMAKE_ARGS
 } else {
-    cmake .. $CMAKE_ARGS
+    cmake .. @CMAKE_ARGS
     $INSTALL_PREFIX = (Get-Item ..).FullName
     $CMAKE_ARGS += "-DCMAKE_INSTALL_PREFIX=$INSTALL_PREFIX"
-    cmake . $CMAKE_ARGS
+    cmake . @CMAKE_ARGS
 }
 
 # Build
@@ -124,13 +135,13 @@ if ($VERBOSE) {
     cmake --build . --verbose
 } else {
     # Get number of cores for multi-threaded build
-    $cores = (Get-WmiObject -Class Win32_Processor | Measure-Object -Property NumberOfCores -Sum).Sum
+    $cores = (Get-WmiObject -Class Win32_ComputerSystem).NumberOfLogicalProcessors
     cmake --build . "-j$cores"
 }
 
 Write-Color "Build completed successfully!" "Green"
 Write-Host ""
-Write-Color "Available executables in $BUILD_DIR/:" "Yellow"
+Write-Color "Available executables in bin/:" "Yellow"
 Write-Host "  - mnist_cnn_trainer"
 Write-Host "  - cifar10_cnn_trainer"
 Write-Host "  - cifar100_cnn_trainer"
@@ -142,7 +153,7 @@ Write-Host "  - distributed_pipeline_docker"
 Write-Host "  - More because I'm lazy to type them all out"
 Write-Host ""
 Write-Color "To run a specific executable:" "Yellow"
-Write-Host "  cd $BUILD_DIR; .\mnist_cnn_trainer.exe"
+Write-Host "  cd $BUILD_DIR && .\bin\mnist_cnn_trainer.exe"
 Write-Host ""
 Write-Color "To run tests:" "Yellow"
-Write-Host "  cd $BUILD_DIR; cmake --build . --target run_tests"
+Write-Host "  cd $BUILD_DIR && make run_tests"

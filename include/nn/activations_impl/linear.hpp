@@ -6,13 +6,11 @@
  */
 #pragma once
 
-// Linear (Identity) Activation for Tensors
 template <typename T = float>
 class Linear : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
-    (void)tensor; // Suppress unused parameter warning
-    // Linear activation does nothing to the values
+    (void)tensor;
   }
 
   void apply_with_bias(Tensor<T> &tensor,
@@ -45,7 +43,6 @@ public:
       const Tensor<T> &pre_activation_values,
       const Tensor<T> *upstream_gradient = nullptr) const override {
     if (upstream_gradient != nullptr) {
-      // For linear activation, gradient is just the upstream gradient
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
                   << " Pre activation shape: "
@@ -55,8 +52,6 @@ public:
       }
       return *upstream_gradient;
     } else {
-      // If no upstream gradient, return tensor of ones (derivative of linear
-      // function is 1)
       Tensor<T> gradient(pre_activation_values.shape());
       gradient.fill(T(1));
       return gradient;
@@ -73,9 +68,9 @@ public:
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
-    (void)tensor; // Suppress unused parameter warning
-    (void)channel; // Suppress unused parameter warning
-    // Linear activation does nothing
+    (void)tensor; 
+    (void)channel; 
+    
   }
 
   void apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
@@ -103,9 +98,9 @@ public:
   }
 
   void apply_batch_wise(Tensor<T> &tensor, int batch_idx) const override {
-    (void)tensor; // Suppress unused parameter warning
-    (void)batch_idx; // Suppress unused parameter warning
-    // Linear activation does nothing
+    (void)tensor; 
+    (void)batch_idx; 
+    
   }
 
   std::string name() const override { return "linear"; }
@@ -116,12 +111,12 @@ public:
 
 protected:
   void apply_single_value(T &value) const override {
-    (void)value; // Suppress unused parameter warning
-    // Linear activation does nothing
+    (void)value; 
+    
   }
 
   T compute_single_gradient(T pre_activation_value) const override {
-    (void)pre_activation_value; // Suppress unused parameter warning
+    (void)pre_activation_value; 
     return T(1);
   }
 };

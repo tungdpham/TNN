@@ -6,7 +6,6 @@
  */
 #pragma once
 
-// ELU (Exponential Linear Unit) Activation for Tensors
 template <typename T = float> class ELU : public ActivationFunction<T> {
 private:
   T alpha_;
