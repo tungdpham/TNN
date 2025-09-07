@@ -17,6 +17,9 @@ sudo apt install libtbb-dev
 
 # Install CUDA (follow NVIDIA's installation guide)
 
+# Also remember to pull the submodules, which includes library like asio, nlohmann_json
+git submodule update --init --recursive
+
 # For python scripts, install the dependencies from requirements.txt
 pip install -r requirements.txt
 ```
@@ -106,12 +109,19 @@ There are two different ways to run the examples
 ## Directly running them
 There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI IPS datasets. You should see them in bin/ after building successfully. 
 
+For Linux with GCC
 ```bash
 # To run any of them
 ./bin/{executable_name}
 
 # Example: 
 ./bin/mnist_cnn_trainer
+```
+
+For Windows with MSVC, you should see a Release folder inside bin/ if you are building optimized build, or Debug/ if you want to debug or profile the code.
+```bash
+# Example:
+./bin/Release/mnist_cnn_trainer.exe
 ```
 
 ## Containerized run
