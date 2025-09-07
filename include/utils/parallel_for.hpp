@@ -66,6 +66,7 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
       },
       tbb::static_partitioner());
 #else
+  std::cout << "Warning: Running parallel_for_2d in serial mode.\n";
   for (Index i = 0; i < dim0; ++i) {
     for (Index j = 0; j < dim1; ++j) {
       f(i, j);

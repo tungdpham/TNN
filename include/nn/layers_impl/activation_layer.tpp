@@ -21,7 +21,7 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 }
 
 template <typename T>
-Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
+Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
   Tensor<T> output = input.clone();
   activation_->apply(output);
@@ -30,7 +30,7 @@ Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, int micro_batch_id
 
 template <typename T>
 Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &grad_output,
-                                       int micro_batch_id) {
+                                       size_t micro_batch_id) {
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;

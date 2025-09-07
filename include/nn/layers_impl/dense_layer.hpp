@@ -30,8 +30,8 @@ private:
   Tensor<T> bias_gradients_;
 
   // Per-micro-batch state
-  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
-  std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
+  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
 
   // Helper functions for dense layer computations
   void compute_dense_forward(const T *input_data, const T *weight_data,
@@ -60,9 +60,9 @@ public:
              std::unique_ptr<ActivationFunction<T>> activation = nullptr,
              bool use_bias = true, const std::string &name = "dense");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override;
+                     size_t micro_batch_id = 0) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

@@ -36,9 +36,9 @@ template <typename T = float> class Layer {
 public:
   virtual ~Layer() = default;
 
-  virtual Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) = 0;
+  virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
   virtual Tensor<T> backward(const Tensor<T> &grad_output,
-                             int micro_batch_id = 0) = 0;
+                             size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }

@@ -132,11 +132,11 @@ if ($BUILD_DIR -eq ".") {
 # Build
 Write-Color "Building project..." "Green"
 if ($VERBOSE) {
-    cmake --build . --verbose
+    cmake --build . --config $BUILD_TYPE --verbose
 } else {
     # Get number of cores for multi-threaded build
-    $cores = (Get-WmiObject -Class Win32_ComputerSystem).NumberOfLogicalProcessors
-    cmake --build . "-j$cores"
+    $cores = (Get-WmiObject -Class Win32_Processor | Measure-Object -Property NumberOfCores -Sum).Sum
+    cmake --build . --config $BUILD_TYPE "-j$cores"
 }
 
 Write-Color "Build completed successfully!" "Green"

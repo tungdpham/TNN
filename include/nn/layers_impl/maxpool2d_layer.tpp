@@ -33,7 +33,7 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 
 template <typename T>
 Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
-                                     int micro_batch_id) {
+                                     size_t micro_batch_id) {
 
   const size_t batch_size = input.batch_size();
   const size_t channels = input.channels();
@@ -75,7 +75,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 
 template <typename T>
 Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
-                                      int micro_batch_id) {
+                                      size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
 

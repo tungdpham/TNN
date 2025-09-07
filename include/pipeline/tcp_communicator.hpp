@@ -192,7 +192,7 @@ private:
     asio::async_read(
         connection->socket, asio::buffer(connection->read_buffer.data(), 4),
         [this, connection_id, connection](std::error_code ec,
-                                          std::size_t length) {
+                                          [[maybe_unused]] std::size_t length) {
           if (!ec && is_running_) {
 
             uint32_t msg_length;

@@ -17,7 +17,7 @@ FlattenLayer<T>::FlattenLayer(const std::string &name)
 
 
 template <typename T>
-Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
+Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   size_t batch_size = input.batch_size();
@@ -31,7 +31,7 @@ Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
 template <typename T>
 Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &grad_output,
-                                    int micro_batch_id) {
+                                    size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error(

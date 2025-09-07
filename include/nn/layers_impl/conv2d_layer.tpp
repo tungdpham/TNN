@@ -49,7 +49,7 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
 }
 
 template <typename T>
-Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
+Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (input.channels() != in_channels_) {
     std::cerr << "Input shape: " << input.channels()
               << " channels, expected: " << in_channels_ << " channels"
@@ -106,7 +106,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
 template <typename T>
 Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &grad_output,
-                                   int micro_batch_id) {
+                                   size_t micro_batch_id) {
   auto it_input_shape = micro_batch_input_shapes_.find(micro_batch_id);
   auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
   auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);

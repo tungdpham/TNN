@@ -40,7 +40,7 @@ BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
 
 template <typename T>
 Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
-                                     int micro_batch_id) {
+                                     size_t micro_batch_id) {
   if (input.channels() != num_features_) {
     throw std::invalid_argument(
         "Input channels must match num_features in BatchNormLayer");
@@ -164,7 +164,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
 template <typename T>
 Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
-                                      int micro_batch_id) {
+                                      size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   auto it_mean = micro_batch_mean_.find(micro_batch_id);

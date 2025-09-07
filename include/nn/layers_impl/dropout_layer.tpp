@@ -24,7 +24,7 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
 
 
 template <typename T>
-Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
+Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (!this->is_training_) {
     return input;
   }
@@ -60,7 +60,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
 template <typename T>
 Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
-                                    int micro_batch_id) {
+                                    size_t micro_batch_id) {
   if (!this->is_training_) {
     return grad_output;
   }

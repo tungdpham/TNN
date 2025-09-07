@@ -39,9 +39,9 @@ private:
   Tensor<T> bias_gradients_;
 
   // Per-micro-batch state
-  mutable std::unordered_map<int, std::vector<size_t>> micro_batch_input_shapes_;
-  mutable std::unordered_map<int, Tensor<T>> micro_batch_pre_activations_;
-  mutable std::unordered_map<int, Matrix<T>> micro_batch_im2col_matrices_;
+  mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
+  mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
+  mutable std::unordered_map<size_t, Matrix<T>> micro_batch_im2col_matrices_;
 
   void compute_conv_forward(const T *col_data, const T *weight_data,
                            T *output_data, size_t output_size, size_t kernel_size,
@@ -71,9 +71,9 @@ public:
               std::unique_ptr<ActivationFunction<T>> activation = nullptr,
               const std::string &name = "conv2d");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override;
+                     size_t micro_batch_id = 0) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

@@ -21,15 +21,15 @@ namespace tnn {
 template <typename T = float> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;
-  std::unordered_map<int, Tensor<T>> micro_batch_masks_;
+  std::unordered_map<size_t, Tensor<T>> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
 public:
   explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override;
+                     size_t micro_batch_id = 0) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

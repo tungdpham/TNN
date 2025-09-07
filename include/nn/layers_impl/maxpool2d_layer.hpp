@@ -25,8 +25,8 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<int, std::vector<size_t>> micro_batch_mask_indices_;
-  std::unordered_map<int, Tensor<T>> micro_batch_inputs_;
+  std::unordered_map<size_t, std::vector<size_t>> micro_batch_mask_indices_;
+  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
 
   mutable size_t input_stride_n_, input_stride_c_, input_stride_h_,
       input_stride_w_;
@@ -49,9 +49,9 @@ public:
                  size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                  const std::string &name = "maxpool2d");
 
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) override;
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &grad_output,
-                     int micro_batch_id = 0) override;
+                     size_t micro_batch_id = 0) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

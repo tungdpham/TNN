@@ -24,7 +24,7 @@ template <typename T = float> struct Message {
   std::string recipient_id;
 
   std::chrono::steady_clock::time_point timestamp;
-  int sequence_number = 0;
+  size_t sequence_number = 0;
 
   Message() : payload(std::monostate{}) {}
 

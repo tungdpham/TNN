@@ -308,8 +308,8 @@ public:
     std::cout << std::string(60, '=') << "\n\n";
   }
 
-  
-  Tensor<T> forward(const Tensor<T> &input, int micro_batch_id = 0) {
+
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
@@ -349,7 +349,7 @@ public:
   }
 
   
-  Tensor<T> backward(const Tensor<T> &grad_output, int micro_batch_id = 0) {
+  Tensor<T> backward(const Tensor<T> &grad_output, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(
           "Cannot backward through empty sequential model");

@@ -40,7 +40,7 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
 }
 
 template <typename T>
-Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
+Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
@@ -74,7 +74,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, int micro_batch_id) {
 
 template <typename T>
 Tensor<T> DenseLayer<T>::backward(const Tensor<T> &grad_output,
-                                  int micro_batch_id) {
+                                  size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
 

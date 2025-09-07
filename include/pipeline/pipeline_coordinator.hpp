@@ -65,7 +65,7 @@ public:
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
-  void forward(const Tensor<T> &input, int microbatch_id) {
+  void forward(const Tensor<T> &input, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
@@ -80,7 +80,7 @@ public:
     this->coordinator_comm_->send_message(forward_msg);
   }
 
-  void backward(const Tensor<T> &gradient, int microbatch_id) {
+  void backward(const Tensor<T> &gradient, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
