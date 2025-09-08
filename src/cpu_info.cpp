@@ -24,8 +24,10 @@
 #include <intrin.h>
 #include <pdh.h>
 #include <wbemidl.h>
+#ifdef _MSC_VER
 #pragma comment(lib, "pdh.lib")
 #pragma comment(lib, "wbemuuid.lib")
+#endif
 #endif
 
 #ifdef __APPLE__
@@ -185,9 +187,48 @@ bool CpuInfo::init_core_topology() {
     GetSystemInfo(&sysInfo);
     logical_cores_ = sysInfo.dwNumberOfProcessors;
     
-    // Use WMI to get physical core count
-    // TODO: Implement WMI query for physical cores
-    physical_cores_ = logical_cores_; // Fallback
+    // Get logical processor information to determine physical cores
+    DWORD bufferSize = 0;
+    GetLogicalProcessorInformation(nullptr, &bufferSize);
+    
+    if (GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
+        std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buffer(bufferSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
+        
+        if (GetLogicalProcessorInformation(buffer.data(), &bufferSize)) {
+            int physical_core_count = 0;
+            int hyperthreading_count = 0;
+            
+            for (const auto& info : buffer) {
+                if (info.Relationship == RelationProcessorCore) {
+                    physical_core_count++;
+                    // Count set bits in ProcessorMask to see threads per core
+                    ULONG_PTR mask = info.ProcessorMask;
+                    int threads_per_core = 0;
+                    while (mask) {
+                        if (mask & 1) threads_per_core++;
+                        mask >>= 1;
+                    }
+                    if (threads_per_core > 1) {
+                        hyperthreading_count++;
+                    }
+                }
+            }
+            
+            physical_cores_ = physical_core_count;
+            supports_hyperthreading_ = (hyperthreading_count > 0);
+            
+            std::cout << "DEBUG: Detected " << physical_cores_ << " physical cores from Windows API" << std::endl;
+            std::cout << "DEBUG: Hyperthreading: " << (supports_hyperthreading_ ? "Yes" : "No") << std::endl;
+        } else {
+            // Fallback: assume no hyperthreading
+            physical_cores_ = logical_cores_;
+            supports_hyperthreading_ = false;
+        }
+    } else {
+        // Fallback
+        physical_cores_ = logical_cores_;
+        supports_hyperthreading_ = false;
+    }
     
     return true;
 #elif defined(__APPLE__)
@@ -235,9 +276,33 @@ bool CpuInfo::init_frequency_info() {
     
     return true;
 #elif defined(_WIN32)
-    // Use WMI to get CPU frequency information
-    // TODO: Implement WMI frequency queries
-    return true;
+    // Query processor information using CPUID to get base frequency
+    int cpuInfo[4];
+    __cpuid(cpuInfo, 0x16); // Processor Frequency Information Leaf
+    
+    if (cpuInfo[0] != 0) { // Check if leaf is supported
+        base_frequency_mhz_ = cpuInfo[0]; // EAX = Base frequency in MHz
+        max_frequency_mhz_ = cpuInfo[1];  // EBX = Maximum frequency in MHz
+        // ECX = Bus frequency in MHz (not used here)
+    } else {
+        // Fallback: try to get frequency from registry
+        HKEY hKey;
+        if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
+                         "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0", 
+                         0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+            DWORD frequency = 0;
+            DWORD bufferSize = sizeof(DWORD);
+            if (RegQueryValueEx(hKey, "~MHz", nullptr, nullptr, 
+                               (LPBYTE)&frequency, &bufferSize) == ERROR_SUCCESS) {
+                base_frequency_mhz_ = frequency;
+                max_frequency_mhz_ = frequency; // Assume base = max without better info
+            }
+            RegCloseKey(hKey);
+        }
+    }
+    
+    // Try to get frequency info from WMI if available
+    return init_windows_frequency_wmi();
 #elif defined(__APPLE__)
     size_t size = sizeof(uint64_t);
     uint64_t freq;
@@ -253,8 +318,8 @@ bool CpuInfo::init_frequency_info() {
 bool CpuInfo::init_feature_detection() {
 #if defined(__x86_64__) || defined(_M_X64)
     // Use CPUID to detect CPU features
-    unsigned int eax, ebx, ecx, edx;
-    
+    [[maybe_unused]] unsigned int eax, ebx, ecx, edx;
+
 #ifdef _WIN32
     // MSVC intrinsics
     int cpuInfo[4];
@@ -368,6 +433,8 @@ bool CpuInfo::init_memory_hierarchy() {
 #endif
     
     return true;
+#elif defined(_WIN32)
+    return init_windows_memory_hierarchy();
 #else
     return true; // Not implemented for other platforms yet
 #endif
@@ -416,6 +483,8 @@ bool CpuInfo::init_container_detection() {
     }
     
     return true;
+#elif defined(_WIN32)
+    return init_windows_container_detection();
 #else
     return true; // Not implemented for other platforms yet
 #endif
@@ -529,6 +598,8 @@ bool CpuInfo::update_dynamic_info(int sampling_interval_ms) {
 bool CpuInfo::update_utilization(int sampling_interval_ms) {
 #ifdef __linux__
     return read_proc_stat_linux();
+#elif defined(_WIN32)
+    return update_windows_perfcounters();
 #else
     return false; // Not implemented for other platforms yet
 #endif
@@ -628,6 +699,8 @@ bool CpuInfo::read_proc_stat_linux() {
 bool CpuInfo::update_thermal_info() {
 #ifdef __linux__
     return read_thermal_linux();
+#elif defined(_WIN32)
+    return read_thermal_windows();
 #else
     return false; // Not implemented for other platforms yet
 #endif
@@ -729,6 +802,8 @@ bool CpuInfo::read_thermal_linux() {
 bool CpuInfo::update_frequency_info() {
 #ifdef __linux__
     return read_frequencies_linux();
+#elif defined(_WIN32)
+    return read_frequencies_windows();
 #else
     return false; // Not implemented for other platforms yet
 #endif
@@ -898,6 +973,35 @@ bool CpuInfo::init_windows_wmi() {
                            (LPBYTE)buffer, &bufferSize) == ERROR_SUCCESS) {
             model_name_ = std::string(buffer);
         }
+        
+        // Get additional CPU info
+        bufferSize = sizeof(buffer);
+        if (RegQueryValueEx(hKey, "VendorIdentifier", nullptr, nullptr, 
+                           (LPBYTE)buffer, &bufferSize) == ERROR_SUCCESS) {
+            vendor_ = std::string(buffer);
+        }
+        
+        // Get family, model, stepping from registry
+        bufferSize = sizeof(buffer);
+        if (RegQueryValueEx(hKey, "Identifier", nullptr, nullptr, 
+                           (LPBYTE)buffer, &bufferSize) == ERROR_SUCCESS) {
+            std::string identifier(buffer);
+            // Parse "x86 Family X Model Y Stepping Z" format
+            size_t family_pos = identifier.find("Family ");
+            size_t model_pos = identifier.find("Model ");
+            size_t stepping_pos = identifier.find("Stepping ");
+            
+            if (family_pos != std::string::npos) {
+                family_ = std::stoi(identifier.substr(family_pos + 7));
+            }
+            if (model_pos != std::string::npos) {
+                model_ = std::stoi(identifier.substr(model_pos + 6));
+            }
+            if (stepping_pos != std::string::npos) {
+                stepping_ = std::stoi(identifier.substr(stepping_pos + 9));
+            }
+        }
+        
         RegCloseKey(hKey);
     }
     
@@ -906,7 +1010,7 @@ bool CpuInfo::init_windows_wmi() {
         vendor_ = "Intel";
     } else if (model_name_.find("AMD") != std::string::npos) {
         vendor_ = "AMD";
-    } else {
+    } else if (vendor_.empty()) {
         vendor_ = "Unknown";
     }
     
@@ -924,9 +1028,237 @@ bool CpuInfo::init_windows_wmi() {
     return true;
 }
 
+bool CpuInfo::init_windows_frequency_wmi() {
+    // Try to get more detailed frequency information using performance counters
+    PDH_HQUERY hQuery;
+    PDH_HCOUNTER hCounter;
+    
+    if (PdhOpenQuery(nullptr, 0, &hQuery) == ERROR_SUCCESS) {
+        // Query processor frequency counter (using ANSI strings for MinGW compatibility)
+        if (PdhAddCounterA(hQuery, "\\Processor Information(_Total)\\Processor Frequency", 0, &hCounter) == ERROR_SUCCESS) {
+            if (PdhCollectQueryData(hQuery) == ERROR_SUCCESS) {
+                PDH_FMT_COUNTERVALUE counterValue;
+                if (PdhGetFormattedCounterValue(hCounter, PDH_FMT_DOUBLE, nullptr, &counterValue) == ERROR_SUCCESS) {
+                    base_frequency_mhz_ = counterValue.doubleValue;
+                }
+            }
+        }
+        PdhCloseQuery(hQuery);
+    }
+    
+    return true;
+}
+
+bool CpuInfo::init_windows_memory_hierarchy() {
+    // Use CPUID to get cache information
+    int cpuInfo[4];
+    
+    // Intel cache information (leaf 4)
+    for (int cache_id = 0; cache_id < 8; ++cache_id) {
+        __cpuidex(cpuInfo, 4, cache_id);
+        int cache_type = cpuInfo[0] & 0x1F;
+        
+        if (cache_type == 0) break; // No more caches
+        
+        if (cache_type == 1 || cache_type == 3) { // Data or Unified cache
+            int level = (cpuInfo[0] >> 5) & 0x7;
+            int ways = ((cpuInfo[1] >> 22) & 0x3FF) + 1;
+            int partitions = ((cpuInfo[1] >> 12) & 0x3FF) + 1;
+            int line_size = (cpuInfo[1] & 0xFFF) + 1;
+            int sets = cpuInfo[2] + 1;
+            
+            MemoryHierarchy::CacheLevel cache;
+            cache.size_kb = (ways * partitions * line_size * sets) / 1024;
+            cache.line_size_bytes = line_size;
+            cache.associativity = ways;
+            cache.type = (cache_type == 1) ? "data" : "unified";
+            
+            if (level == 1) {
+                memory_hierarchy_.l1_caches.push_back(cache);
+            } else if (level == 2) {
+                memory_hierarchy_.l2_caches.push_back(cache);
+            } else if (level == 3) {
+                memory_hierarchy_.l3_caches.push_back(cache);
+            }
+        }
+    }
+    
+    // Get NUMA information
+    ULONG highestNodeNumber = 0;
+    if (GetNumaHighestNodeNumber(&highestNodeNumber)) {
+        memory_hierarchy_.numa_nodes = highestNodeNumber + 1;
+        
+        for (ULONG node = 0; node <= highestNodeNumber; ++node) {
+            ULONGLONG nodeAffinityMask = 0;
+            if (GetNumaNodeProcessorMask(node, &nodeAffinityMask)) {
+                std::vector<int> cpu_list;
+                for (int cpu = 0; cpu < 64; ++cpu) {
+                    if (nodeAffinityMask & (1ULL << cpu)) {
+                        cpu_list.push_back(cpu);
+                    }
+                }
+                if (!cpu_list.empty()) {
+                    memory_hierarchy_.numa_cpu_map[node] = cpu_list;
+                }
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool CpuInfo::init_windows_container_detection() {
+    // Check for Hyper-V VM (common for containers)
+    int cpuInfo[4];
+    __cpuid(cpuInfo, 1);
+    
+    // Check hypervisor present bit
+    if (cpuInfo[2] & (1 << 31)) {
+        is_virtualized_ = true;
+        
+        // Get hypervisor vendor
+        __cpuid(cpuInfo, 0x40000000);
+        char hypervisor_vendor[13] = {0};
+        memcpy(hypervisor_vendor, &cpuInfo[1], 4);
+        memcpy(hypervisor_vendor + 4, &cpuInfo[2], 4);
+        memcpy(hypervisor_vendor + 8, &cpuInfo[3], 4);
+        
+        std::string vendor_str(hypervisor_vendor);
+        if (vendor_str.find("Microsoft Hv") != std::string::npos) {
+            // Likely Hyper-V, check for container indicators
+            HKEY hKey;
+            if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
+                             "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment", 
+                             0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+                char buffer[256];
+                DWORD bufferSize = sizeof(buffer);
+                if (RegQueryValueEx(hKey, "CONTAINER_NAME", nullptr, nullptr, 
+                                   (LPBYTE)buffer, &bufferSize) == ERROR_SUCCESS) {
+                    is_containerized_ = true;
+                }
+                RegCloseKey(hKey);
+            }
+        }
+    }
+    
+    // Check for Windows containers by looking for specific registry keys
+    HKEY hKey;
+    if (RegOpenKeyEx(HKEY_LOCAL_MACHINE, 
+                     "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Containers", 
+                     0, KEY_READ, &hKey) == ERROR_SUCCESS) {
+        is_containerized_ = true;
+        RegCloseKey(hKey);
+    }
+    
+    return true;
+}
+
 bool CpuInfo::update_windows_perfcounters() {
-    // Basic implementation that returns true
-    // In a full implementation, this would query Windows performance counters
+    static PDH_HQUERY hQuery = nullptr;
+    static PDH_HCOUNTER hTotalCounter = nullptr;
+    static std::vector<PDH_HCOUNTER> hCoreCounters;
+    static bool initialized = false;
+    
+    if (!initialized) {
+        if (PdhOpenQuery(nullptr, 0, &hQuery) != ERROR_SUCCESS) {
+            return false;
+        }
+        
+        // Add total processor counter (using ANSI strings for MinGW compatibility)
+        if (PdhAddCounterA(hQuery, "\\Processor(_Total)\\% Processor Time", 0, &hTotalCounter) != ERROR_SUCCESS) {
+            PdhCloseQuery(hQuery);
+            return false;
+        }
+        
+        // Add per-core counters
+        hCoreCounters.resize(logical_cores_);
+        for (int i = 0; i < logical_cores_; ++i) {
+            std::string counterPath = "\\Processor(" + std::to_string(i) + ")\\% Processor Time";
+            if (PdhAddCounterA(hQuery, counterPath.c_str(), 0, &hCoreCounters[i]) != ERROR_SUCCESS) {
+                // Continue even if some counters fail
+                hCoreCounters[i] = nullptr;
+            }
+        }
+        
+        // First collection to establish baseline
+        PdhCollectQueryData(hQuery);
+        Sleep(100); // Wait a bit before second collection
+        initialized = true;
+    }
+    
+    if (PdhCollectQueryData(hQuery) != ERROR_SUCCESS) {
+        return false;
+    }
+    
+    // Get total CPU utilization
+    PDH_FMT_COUNTERVALUE counterValue;
+    if (PdhGetFormattedCounterValue(hTotalCounter, PDH_FMT_DOUBLE, nullptr, &counterValue) == ERROR_SUCCESS) {
+        overall_utilization_ = 100.0 - counterValue.doubleValue; // PDH returns % idle time
+    }
+    
+    // Get per-core utilization
+    for (int i = 0; i < logical_cores_; ++i) {
+        if (hCoreCounters[i] && 
+            PdhGetFormattedCounterValue(hCoreCounters[i], PDH_FMT_DOUBLE, nullptr, &counterValue) == ERROR_SUCCESS) {
+            if (i < static_cast<int>(cores_.size())) {
+                cores_[i].utilization_percent = 100.0 - counterValue.doubleValue; // PDH returns % idle time
+            }
+        }
+    }
+    
+    return true;
+}
+
+bool CpuInfo::read_thermal_windows() {
+    // Windows thermal information is typically not exposed through standard APIs
+    // This would require WMI queries to MSAcpi_ThermalZoneTemperature class
+    // For now, set thermal information as unavailable
+    thermal_info_.current_temp_celsius = -1.0; // Indicates unavailable
+    thermal_info_.thermal_throttling = false;
+    
+    // Try to detect thermal throttling by monitoring frequency drops
+    static double prev_freq = 0.0;
+    static int throttle_count = 0;
+    
+    if (base_frequency_mhz_ > 0 && prev_freq > 0) {
+        double freq_drop = (prev_freq - base_frequency_mhz_) / prev_freq;
+        if (freq_drop > 0.1) { // More than 10% frequency drop
+            throttle_count++;
+            if (throttle_count > 3) {
+                thermal_info_.thermal_throttling = true;
+            }
+        } else {
+            throttle_count = 0;
+            thermal_info_.thermal_throttling = false;
+        }
+    }
+    prev_freq = base_frequency_mhz_;
+    
+    return true;
+}
+
+bool CpuInfo::read_frequencies_windows() {
+    // Query current processor frequency using performance counters
+    PDH_HQUERY hQuery;
+    PDH_HCOUNTER hCounter;
+    
+    if (PdhOpenQuery(nullptr, 0, &hQuery) == ERROR_SUCCESS) {
+        if (PdhAddCounterA(hQuery, "\\Processor Information(_Total)\\Processor Frequency", 0, &hCounter) == ERROR_SUCCESS) {
+            if (PdhCollectQueryData(hQuery) == ERROR_SUCCESS) {
+                PDH_FMT_COUNTERVALUE counterValue;
+                if (PdhGetFormattedCounterValue(hCounter, PDH_FMT_DOUBLE, nullptr, &counterValue) == ERROR_SUCCESS) {
+                    // Update all cores with the same frequency (Windows doesn't easily expose per-core frequencies)
+                    double current_freq = counterValue.doubleValue;
+                    for (auto& core : cores_) {
+                        core.current_freq_mhz = current_freq;
+                        core.governor = "windows"; // Windows manages frequency automatically
+                    }
+                }
+            }
+        }
+        PdhCloseQuery(hQuery);
+    }
+    
     return true;
 }
 #endif

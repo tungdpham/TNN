@@ -137,11 +137,11 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size - (kernel_size % 8);
-
+	__m256 w_vec, c_vec;
     for (size_t ks = 0; ks < simd_end; ks += 8) {
-      __m256 w_vec = _mm256_loadu_ps(&weights[ks]);
+      w_vec = _mm256_loadu_ps(&weights[ks]);
 
-      __m256 c_vec = _mm256_loadu_ps(&col_data[ks]);
+      c_vec = _mm256_loadu_ps(&col_data[ks]);
 
       sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
     }
@@ -158,7 +158,7 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
       sum += weights[ks] * col_data[ks];
     }
 
-    // _mm256_zeroupper();
+    _mm256_zeroupper();
 
 #elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 

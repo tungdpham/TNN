@@ -267,7 +267,12 @@ private:
     
 #ifdef _WIN32
     bool init_windows_wmi();
+    bool init_windows_frequency_wmi();
+    bool init_windows_memory_hierarchy();
+    bool init_windows_container_detection();
     bool update_windows_perfcounters();
+    bool read_thermal_windows();
+    bool read_frequencies_windows();
 #endif
     
 #ifdef __APPLE__

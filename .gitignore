@@ -30,6 +30,7 @@
 /profiles/
 
 # CMake generated files (anywhere in the project)
+CMakeSettings.json
 CMakeCache.txt
 **/CMakeCache.txt
 CMakeFiles/

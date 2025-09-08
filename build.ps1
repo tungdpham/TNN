@@ -88,6 +88,10 @@ if ($CLEAN_BUILD) {
         # Clean only build artifacts from current directory
         Remove-Item CMakeCache.txt, CMakeFiles, Makefile, cmake_install.cmake -Force -Recurse -ErrorAction SilentlyContinue
         Remove-Item bin, lib, compile_commands.json -Force -Recurse -ErrorAction SilentlyContinue
+        Get-ChildItem -Path . -Recurse -Include "*.vcxproj", "*.vcxproj.filters", "*.vcxproj.user" | Remove-Item -Force -ErrorAction SilentlyContinue
+        Get-ChildItem -Path . -Recurse -Directory -Name "*.dir" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+        Remove-Item *.sln, x64, Debug, Release, *.log -Force -Recurse -ErrorAction SilentlyContinue
+        
         Write-Host "Cleaned build files from current directory"
     } else {
         # Clean or recreate build directory

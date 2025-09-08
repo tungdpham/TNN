@@ -7,47 +7,14 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # defaults (might change)
-option(ENABLE_OPENMP "Enable OpenMP support" ON)
+option(ENABLE_OPENMP "Enable OpenMP support" OFF)
 option(ENABLE_CUDA "Enable CUDA support" OFF)
-option(ENABLE_TBB "Enable Intel TBB support" OFF)
+option(ENABLE_TBB "Enable Intel TBB support" ON)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)
 
 # default to release
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
-endif()
-
-# compiler flags
-if(MSVC)
-    message("Using MSVC")
-    # MSVC flags for Release and Debug
-    set(CMAKE_CXX_FLAGS_RELEASE "/Ox /arch:AVX2 /DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
-    set(CMAKE_EXE_LINKER_FLAGS_RELEASE "/LTCG")
-    set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "/LTCG")
-    add_compile_options(/W4)
-    add_compile_definitions(NOMINMAX)
-    add_compile_definitions(WIN32_LEAN_AND_MEAN)
-    add_compile_definitions(__AVX2__ __SSE2__)
-else()
-    # GCC/Clang flags for Release and Debug
-    if(MINGW)
-        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native")
-        add_compile_definitions(NOMINMAX)
-        add_compile_definitions(WIN32_LEAN_AND_MEAN)
-    else()
-        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
-        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
-    endif()
-    add_compile_options(-Wpedantic -Wall)
-endif()
-
-
-if(MSVC)
-    add_compile_options(/W4)
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options(-Wpedantic -Wall)
 endif()
 
 # debug build type
@@ -56,17 +23,7 @@ if(ENABLE_DEBUG)
 endif()
 
 if(WIN32)
-    if(MSVC)
-        message("USING MSVC")
-        set(OpenMP_C_FLAGS "/openmp:llvm")
-        set(OpenMP_CXX_FLAGS "/openmp:llvm")
-        set(OpenMP_C_LIB_NAMES "")
-        set(OpenMP_CXX_LIB_NAMES "")
-        set(OpenMP_C_LIBRARIES "")
-        set(OpenMP_CXX_LIBRARIES "")
-    elseif(MINGW)
-        message("ye no support for mingw rn")
-    endif()
+    
 endif()
 
 # find packages
@@ -89,6 +46,40 @@ if(ENABLE_CUDA)
     set(CMAKE_CUDA_FLAGS "-arch=sm_89 --compiler-options -fPIC")
     set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
     set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
+endif()
+
+# compiler flags
+if(MSVC)
+    message("Using MSVC")
+    # MSVC flags for Release and Debug
+    set(CMAKE_CXX_FLAGS_RELEASE "/Ox /arch:AVX2 /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
+    add_compile_options(/W4)
+    add_compile_definitions(NOMINMAX)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)
+    add_compile_definitions(__AVX2__ __SSE2__)
+    if(OpenMP_CXX_FOUND)
+        add_compile_options(/openmp:llvm)
+    endif()
+else()
+    # GCC/Clang flags for Release and Debug
+    if(MINGW)
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native")
+        add_compile_definitions(NOMINMAX)
+        add_compile_definitions(WIN32_LEAN_AND_MEAN)
+    else()
+        set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
+        set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
+    endif()
+    add_compile_options(-Wpedantic -Wall)
+endif()
+
+
+if(MSVC)
+    add_compile_options(/W4)
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wpedantic -Wall)
 endif()
 
 # output dirs

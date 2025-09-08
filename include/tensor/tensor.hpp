@@ -421,9 +421,7 @@ public:
     const size_t channels_ = channels();
     Tensor<T, L> result(batch_size_, channels_, new_height, new_width);
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
+
     for (size_t n = 0; n < batch_size_; ++n) {
       for (size_t c = 0; c < channels_; ++c) {
         for (size_t h = 0; h < new_height; ++h) {
@@ -448,9 +446,6 @@ public:
       Tensor<T, L> result(new_batch_size, channels(), height(), width());
       T *result_data = result.data();
       size_t output_size = channels() * height() * width();
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
       for (size_t n = 0; n < new_batch_size; ++n) {
         for (size_t idx = 0; idx < output_size; ++idx) {
           size_t batch_idx = start_batch + n;
@@ -475,9 +470,6 @@ public:
     if constexpr (dims_ == 4) {
       Tensor<T, L> result(batch_size(), new_channels, height(), width());
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
       for (size_t n = 0; n < batch_size(); ++n) {
         for (size_t c = 0; c < new_channels; ++c) {
           for (size_t h = 0; h < height(); ++h) {
@@ -507,9 +499,6 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t idx = 0; idx < data_size_; ++idx)
       result.data_[idx] = data_[idx] + other.data_[idx];
 
@@ -527,9 +516,6 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       result.data_[idx] = data_[idx] - other.data_[idx];
     }
@@ -540,9 +526,6 @@ public:
   Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] * scalar;
     }
@@ -556,9 +539,6 @@ public:
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       result.data_[i] = data_[i] / scalar;
     }
@@ -575,9 +555,6 @@ public:
       }
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] += other.data_[idx];
     }
@@ -593,9 +570,6 @@ public:
       }
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] -= other.data_[idx];
     }
@@ -612,9 +586,6 @@ public:
       }
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t idx = 0; idx < data_size_; ++idx) {
       data_[idx] *= other.data_[idx];
     }
@@ -623,9 +594,6 @@ public:
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] *= scalar;
     }
@@ -637,9 +605,6 @@ public:
       throw std::invalid_argument("Division by zero");
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       data_[i] /= scalar;
     }
@@ -648,9 +613,6 @@ public:
 
   T mean() const {
     T sum = T(0);
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : sum) schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       sum += data_[i];
     }
@@ -660,9 +622,6 @@ public:
   T variance() const {
     T m = mean();
     T sum_sq_diff = T(0);
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : sum_sq_diff) schedule(static)
-#endif
     for (size_t i = 0; i < data_size_; ++i) {
       T diff = data_[i] - m;
       sum_sq_diff += diff * diff;

@@ -696,11 +696,7 @@ public:
     }
   }
 
-  std::vector<T> to_vector() const {
-    return std::vector<T>(data_, data_ + rows_ * cols_);
-  }
-
-    void fill_random_uniform(T range) {
+  void fill_random_uniform(T range) {
     std::mt19937 gen(0);
     std::uniform_real_distribution<T> dis(-range, range);
     for (size_t i = 0; i < rows_ * cols_; ++i) {
