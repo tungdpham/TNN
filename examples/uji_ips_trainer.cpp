@@ -25,7 +25,7 @@
 
 namespace ips_constants {
 constexpr float EPSILON = 1e-15f;
-constexpr int PROGRESS_PRINT_INTERVAL = 50;
+constexpr int PROGRESS_PRINT_INTERVAL = 200;
 constexpr int LR_DECAY_INTERVAL = 10;
 constexpr float LR_DECAY_FACTOR = 0.85f;
 constexpr float POSITIONING_ERROR_THRESHOLD = 5.0f;
@@ -491,8 +491,8 @@ int main() {
     bool is_regression = true;
     WiFiDataLoader train_loader(is_regression), test_loader(is_regression);
 
-    std::string train_file = "./data/uji/train.csv";
-    std::string test_file = "./data/uji/validation.csv";
+    std::string train_file = "./data/uji/TrainingData.csv";
+    std::string test_file = "./data/uji/ValidationData.csv";
 
     std::cout << "\nLoading training data from: " << train_file << std::endl;
 
