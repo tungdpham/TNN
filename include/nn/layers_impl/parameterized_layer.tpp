@@ -11,6 +11,7 @@ namespace tnn {
 template <typename T>
 std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
     std::vector<Tensor<T> *> params;
+    params.reserve(2);
     collect_parameters(params);
     return params;
 }
@@ -18,6 +19,7 @@ std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
 template <typename T>
 std::vector<Tensor<T> *> ParameterizedLayer<T>::gradients() {
     std::vector<Tensor<T> *> grads;
+    grads.reserve(2);
     collect_gradients(grads);
     return grads;
 }

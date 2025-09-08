@@ -6,10 +6,10 @@
  */
 #pragma once
 
+#include "../optimizers.hpp"
+#include <any>
 #include <string>
 #include <unordered_map>
-#include <any>
-#include "../optimizers.hpp"
 
 namespace tnn {
 
@@ -36,7 +36,8 @@ template <typename T = float> class Layer {
 public:
   virtual ~Layer() = default;
 
-  virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
+  virtual Tensor<T> forward(const Tensor<T> &input,
+                            size_t micro_batch_id = 0) = 0;
   virtual Tensor<T> backward(const Tensor<T> &gradient,
                              size_t micro_batch_id = 0) = 0;
 

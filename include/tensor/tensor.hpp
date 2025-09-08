@@ -421,7 +421,6 @@ public:
     const size_t channels_ = channels();
     Tensor<T, L> result(batch_size_, channels_, new_height, new_width);
 
-
     for (size_t n = 0; n < batch_size_; ++n) {
       for (size_t c = 0; c < channels_; ++c) {
         for (size_t h = 0; h < new_height; ++h) {
@@ -740,19 +739,18 @@ public:
     Tensor<T, L> result_padded(batch_size, channels, padded_h, padded_w);
 
     utils::parallel_for_2d<size_t>(
-        batch_size, output_h, [&](size_t n, size_t h_out) {
-          for (size_t w_out = 0; w_out < output_w; ++w_out) {
+        batch_size, channels, [&](size_t n, size_t c) {
+          size_t base_col_row_idx = c * kernel_h * kernel_w;
+          size_t base_col_col_idx = n * output_h * output_w;
+          for (size_t kh = 0; kh < kernel_h; ++kh) {
+            for (size_t kw = 0; kw < kernel_w; ++kw) {
+              size_t col_row_idx = base_col_row_idx + kh * kernel_w + kw;
+              for (size_t h_out = 0; h_out < output_h; ++h_out) {
+                for (size_t w_out = 0; w_out < output_w; ++w_out) {
+                  size_t col_col_idx =
+                      base_col_col_idx + h_out * output_w + w_out;
 
-            size_t col_col_idx =
-                n * output_h * output_w + h_out * output_w + w_out;
-
-            for (size_t c = 0; c < channels; ++c) {
-              for (size_t kh = 0; kh < kernel_h; ++kh) {
-                for (size_t kw = 0; kw < kernel_w; ++kw) {
-
-                  size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-
-                  size_t h_dest = h_out * stride_h + kh;
+                  size_t h_dest = h_out * stride_h + kh;`
                   size_t w_dest = w_out * stride_w + kw;
 
                   result_padded(n, c, h_dest, w_dest) +=
@@ -764,8 +762,7 @@ public:
         });
 
     if (pad_h > 0 || pad_w > 0) {
-      return result_padded.crop(pad_h, pad_w, padded_h - pad_h - 1,
-                                padded_w - pad_w - 1);
+      return result_padded.unpad(pad_h, pad_w);
     } else {
       return result_padded;
     }

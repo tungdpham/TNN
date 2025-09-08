@@ -8,7 +8,8 @@
 
 #include <memory>
 #include <stdlib.h>
-#if defined(__AVX2__) || defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
+#if defined(__AVX2__) || defined(__SSE2__) ||                                  \
+    (defined(_MSC_VER) && defined(_M_X64))
 #include <immintrin.h>
 #endif
 
@@ -39,7 +40,8 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels,
 }
 
 template <typename T>
-void transpose_2d_inplace(const T *src, T *dst, const size_t rows, const size_t cols) {
+void transpose_2d_inplace(const T *src, T *dst, const size_t rows,
+                          const size_t cols) {
 #if defined(_OPENMP)
   constexpr size_t block_size = 64;
 #pragma omp parallel for collapse(2) schedule(static)
@@ -136,8 +138,8 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
 #if defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m256 sum_vec = _mm256_setzero_ps();
-    size_t simd_end = kernel_size - (kernel_size % 8);
-	__m256 w_vec, c_vec;
+    size_t simd_end = kernel_size ^ (kernel_size & 0x7);
+    __m256 w_vec, c_vec;
     for (size_t ks = 0; ks < simd_end; ks += 8) {
       w_vec = _mm256_loadu_ps(&weights[ks]);
 

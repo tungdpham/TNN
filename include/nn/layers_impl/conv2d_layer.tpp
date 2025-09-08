@@ -233,9 +233,9 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data,
 template <typename T>
 void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data,
                                             T *bias_grad_data,
-                                            size_t batch_size, size_t output_h,
-                                            size_t output_w,
-                                            size_t out_channels) const {
+                                            const size_t batch_size, const size_t output_h,
+                                            const size_t output_w,
+                                            const size_t out_channels) const {
   const size_t N_stride = out_channels * output_h * output_w;
   const size_t C_stride = output_h * output_w;
 
@@ -255,9 +255,9 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data,
 
 template <typename T>
 void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
-                                        size_t batch_size, size_t output_h,
-                                        size_t output_w,
-                                        size_t out_channels) const {
+                                        const size_t batch_size, const size_t output_h,
+                                        const size_t output_w,
+                                        const size_t out_channels) const {
   const size_t N_stride = out_channels * output_h * output_w;
   const size_t C_stride = output_h * output_w;
   const size_t H_stride = output_w;

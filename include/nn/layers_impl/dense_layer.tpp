@@ -10,9 +10,9 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "parameterized_layer.hpp"
 #include "utils/ops.hpp"
 #include "utils/parallel_for.hpp"
-#include "parameterized_layer.hpp"
 
 namespace tnn {
 
@@ -40,7 +40,8 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
 }
 
 template <typename T>
-Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input,
+                                 size_t micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
@@ -153,8 +154,8 @@ void DenseLayer<T>::compute_weight_gradients(
 
   utils::transpose_2d_inplace(input_data, input_transposed, batch_size,
                               input_features);
-  utils::transpose_2d_inplace(gradient_data, gradient_transposed,
-                              batch_size, output_features);
+  utils::transpose_2d_inplace(gradient_data, gradient_transposed, batch_size,
+                              output_features);
 
   utils::parallel_for_2d(
       output_features, input_features, [&](size_t out_f, size_t in_f) {
@@ -177,18 +178,21 @@ void DenseLayer<T>::compute_input_gradients(
   utils::transpose_2d_inplace(weight_data, weights_transposed, output_features,
                               input_features);
 
-  utils::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
-    grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
-        &gradient_data[n * output_features],
-        &weights_transposed[in_f * output_features], output_features);
-  });
+  utils::parallel_for_2d(
+      batch_size, input_features, [&](size_t n, size_t in_f) {
+        grad_input_data[n * input_features + in_f] = utils::simd_dot_product(
+            &gradient_data[n * output_features],
+            &weights_transposed[in_f * output_features], output_features);
+      });
 
   free(weights_transposed);
 }
 
 template <typename T>
-void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
-                            size_t batch_size, size_t output_features) const {
+void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data,
+                                           T *bias_gradient_data,
+                                           size_t batch_size,
+                                           size_t output_features) const {
   utils::parallel_for_range<size_t>(0, output_features, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
