@@ -123,3 +123,4 @@ function(create_executable target_name source_file)
 endfunction()
 
 add_subdirectory(examples)
+add_subdirectory(benchmarks)

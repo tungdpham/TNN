@@ -40,8 +40,10 @@ void run_test() {
         Tensor<float> predictions = model.predict(batch_data);
 
         for (size_t i = 0; i < predictions.batch_size(); ++i) {
-            int predicted_label = predictions.argmax_channel(i, 0, 0);
-            int true_label = batch_labels.argmax_channel(i, 0, 0);
+            size_t predicted_label = std::distance(predictions.data() + i * 10,
+                                                   std::max_element(predictions.data() + i * 10,
+                                                                    predictions.data() + (i + 1) * 10));
+            size_t true_label = static_cast<size_t>(batch_labels.data()[i * 10]);
 
             if (predicted_label == true_label) {
                 correct_predictions++;
