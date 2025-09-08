@@ -30,7 +30,7 @@ Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
 
 
 template <typename T>
-Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &grad_output,
+Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &gradient,
                                     size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
@@ -41,7 +41,7 @@ Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &grad_output,
   const std::vector<size_t> &original_shape = it->second;
 
   // Reshape back to original shape
-  Tensor<T> grad_input = grad_output.reshape(original_shape);
+  Tensor<T> grad_input = gradient.reshape(original_shape);
 
   return grad_input;
 }

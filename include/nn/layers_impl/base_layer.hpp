@@ -37,7 +37,7 @@ public:
   virtual ~Layer() = default;
 
   virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
-  virtual Tensor<T> backward(const Tensor<T> &grad_output,
+  virtual Tensor<T> backward(const Tensor<T> &gradient,
                              size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }

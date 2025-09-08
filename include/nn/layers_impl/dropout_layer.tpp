@@ -59,10 +59,10 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
 
 
 template <typename T>
-Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
+Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient,
                                     size_t micro_batch_id) {
   if (!this->is_training_) {
-    return grad_output;
+    return gradient;
   }
 
   auto it_mask = micro_batch_masks_.find(micro_batch_id);
@@ -73,12 +73,12 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &grad_output,
   }
   const Tensor<T> &mask = it_mask->second;
 
-  Tensor<T> grad_input = grad_output;
+  Tensor<T> grad_input = gradient;
 
-  utils::parallel_for_2d(grad_output.batch_size(), grad_output.channels(),
+  utils::parallel_for_2d(gradient.batch_size(), gradient.channels(),
                        [&](size_t n, size_t c) {
-                         for (size_t h = 0; h < grad_output.height(); ++h) {
-                           for (size_t w = 0; w < grad_output.width(); ++w) {
+                         for (size_t h = 0; h < gradient.height(); ++h) {
+                           for (size_t w = 0; w < gradient.width(); ++w) {
                              grad_input(n, c, h, w) *= mask(n, c, h, w);
                            }
                          }

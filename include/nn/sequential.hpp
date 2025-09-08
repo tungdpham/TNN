@@ -349,13 +349,13 @@ public:
   }
 
   
-  Tensor<T> backward(const Tensor<T> &grad_output, size_t micro_batch_id = 0) {
+  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(
           "Cannot backward through empty sequential model");
     }
 
-    Tensor<T> current_grad = grad_output;
+    Tensor<T> current_grad = gradient;
 
     
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {

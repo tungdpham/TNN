@@ -74,7 +74,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 }
 
 template <typename T>
-Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
+Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient,
                                       size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
@@ -95,16 +95,16 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &grad_output,
 
   const size_t batch_size = cached_padded_input.batch_size();
   const size_t channels = cached_padded_input.channels();
-  const size_t output_h = grad_output.height();
-  const size_t output_w = grad_output.width();
+  const size_t output_h = gradient.height();
+  const size_t output_w = gradient.width();
 
   // Create gradient tensor for padded input
   Tensor<T> grad_padded_input(cached_padded_input.shape());
 
-  const T *grad_output_data = grad_output.data();
+  const T *gradient_data = gradient.data();
   T *grad_padded_data = grad_padded_input.data();
 
-  compute_max_pool_backward(grad_output_data,
+  compute_max_pool_backward(gradient_data,
                             grad_padded_data, batch_size, channels,
                             output_h, output_w,
                             mask_indices);
@@ -154,7 +154,7 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(
 
 template <typename T>
 void MaxPool2DLayer<T>::compute_max_pool_backward(
-    const T *grad_output_data, T *grad_input_data,
+    const T *gradient_data, T *grad_input_data,
     size_t batch_size, size_t channels, size_t output_h,
     size_t output_w,
     const std::vector<size_t> &mask_indices) const {
@@ -163,7 +163,7 @@ void MaxPool2DLayer<T>::compute_max_pool_backward(
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
         const size_t output_idx =
             ((n * channels + c) * output_h + out_h) * output_w + out_w;
-        const T grad_val = grad_output_data[output_idx];
+        const T grad_val = gradient_data[output_idx];
         const size_t input_idx = mask_indices[output_idx];
         grad_input_data[input_idx] += grad_val;
       }
