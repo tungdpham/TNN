@@ -104,40 +104,41 @@ private:
 public:
   Tensor() : data_(nullptr), data_size_(0) {}
 
-  Tensor(size_t batch, size_t channels, size_t height, size_t width,
-         bool fill_zero = true)
-      : data_(nullptr) {
-    static_assert(dims_ == 4,
-                  "4-parameter constructor only valid for 4D tensors");
-    if constexpr (L == NCDHW || L == NDHWC) {
-      throw std::invalid_argument("5D L specified for 4D constructor");
+  Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
+    if constexpr (dims_ != 4) {
+      throw std::invalid_argument(
+          "This constructor is only for 4D tensors (NCHW or NHWC)");
     }
-    shape_[0] = batch;
+    shape_[0] = batch_size;
     shape_[1] = channels;
     shape_[2] = height;
     shape_[3] = width;
     compute_strides();
-    data_size_ = batch * channels * height * width;
+    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
+                                 std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    if (fill_zero)
-      fill_avx2(T(0));
+    std::fill(data_, data_ + data_size_, T(0));
   }
 
-  template <typename... Shape>
-  Tensor(Shape... shape, bool fill_zero = true) : data_(nullptr) {
-    static_assert(sizeof...(Shape) == dims_,
-                  "Number of shape parameters must match tensor dimensions");
-    size_t temp_shape[] = {static_cast<size_t>(shape)...};
-    std::copy(temp_shape, temp_shape + dims_, shape_);
+  Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T* data){
+    // Use with precautions
+    if constexpr (dims_ != 4) {
+      throw std::invalid_argument(
+          "This constructor is only for 4D tensors (NCHW or NHWC)");
+    }
+    shape_[0] = batch_size;
+    shape_[1] = channels;
+    shape_[2] = height;
+    shape_[3] = width;
     compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
                                  std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    if (fill_zero)
-      fill_avx2(T(0));
+    if(data != nullptr)
+      data_ = data;
   }
 
-  Tensor(std::vector<size_t> shape, bool fill_zero = true) : data_(nullptr) {
+  Tensor(std::vector<size_t> shape) : data_(nullptr) {
     if (shape.size() != dims_) {
       throw std::invalid_argument(
           "Shape vector size must match tensor dimensions");
@@ -147,12 +148,10 @@ public:
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
                                  std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    if (fill_zero)
-      fill_avx2(T(0));
+    std::fill(data_, data_ + data_size_, T(0));
   }
 
-  Tensor(std::vector<size_t> shape, const std::vector<T> &data)
-      : data_(nullptr) {
+  Tensor(std::vector<size_t> shape, const T *data) : data_(nullptr) {
     if (shape.size() != dims_) {
       throw std::invalid_argument(
           "Shape vector size must match tensor dimensions");
@@ -161,12 +160,9 @@ public:
     compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
                                  std::multiplies<size_t>());
-    if (data.size() != data_size_) {
-      throw std::invalid_argument(
-          "Data size does not match tensor shape product");
-    }
     data_ = allocate_aligned(data_size_);
-    copy_avx2(data.data());
+    if(data != nullptr)
+      std::copy(data, data + data_size_, data_);
   }
 
   ~Tensor() { deallocate_aligned(data_); }
@@ -176,7 +172,7 @@ public:
     compute_strides();
     if (data_size_ > 0) {
       data_ = allocate_aligned(data_size_);
-      copy_avx2(other.data_);
+      std::copy(other.data_, other.data_ + data_size_, data_);
     }
   }
 
@@ -270,11 +266,10 @@ public:
   }
 
   Tensor<T, L> clone() const {
-    return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_),
-                        std::vector<T>(data_, data_ + data_size_));
+    return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_);
   }
 
-  void fill(T value) { fill_avx2(value); }
+  void fill(T value) { std::fill(data_, data_ + data_size_, value); }
 
   void fill_random_uniform(T range) {
     std::mt19937 gen(std::random_device{}());
@@ -326,8 +321,7 @@ public:
     if (new_size != size()) {
       throw std::invalid_argument("New shape must have same total size");
     }
-    std::vector<T> temp_data(data_, data_ + data_size_);
-    return Tensor<T, L>(new_shape, temp_data);
+    return Tensor<T, L>(new_shape, data_);
   }
 
   Tensor<T, L> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
@@ -711,8 +705,7 @@ public:
                 for (size_t out_w_idx = 0; out_w_idx < out_w; ++out_w_idx) {
                   size_t in_h_idx = out_h_idx * stride_h + kh;
                   size_t in_w_idx = out_w_idx * stride_w + kw;
-                  size_t col_col_idx =
-                      n * out_h * out_w + out_h_idx * out_w + out_w_idx;
+                  size_t col_col_idx = (n * out_h + out_h_idx) * out_w + out_w_idx;
 
                   col_matrix(col_row_idx, col_col_idx) =
                       input_data[n * strides_[0] + c * strides_[1] +
@@ -750,7 +743,7 @@ public:
                   size_t col_col_idx =
                       base_col_col_idx + h_out * output_w + w_out;
 
-                  size_t h_dest = h_out * stride_h + kh;`
+                  size_t h_dest = h_out * stride_h + kh;
                   size_t w_dest = w_out * stride_w + kw;
 
                   result_padded(n, c, h_dest, w_dest) +=
@@ -766,48 +759,6 @@ public:
     } else {
       return result_padded;
     }
-  }
-
-  static Tensor<T> combine(std::vector<Tensor<T>> &tensors) {
-    if (tensors.empty()) {
-      throw std::invalid_argument("No tensors to combine");
-    }
-
-    size_t channels = tensors[0].channels();
-    size_t height = tensors[0].height();
-    size_t width = tensors[0].width();
-
-    for (const auto &tensor : tensors) {
-      if (tensor.channels() != channels || tensor.height() != height ||
-          tensor.width() != width) {
-        throw std::invalid_argument("All tensors must have the same shape");
-      }
-    }
-
-    size_t total_batch_size =
-        std::accumulate(tensors.begin(), tensors.end(), size_t(0),
-                        [](size_t sum, const Tensor<T> &tensor) {
-                          return sum + tensor.batch_size();
-                        });
-
-    Tensor<T> combined(total_batch_size, channels, height, width);
-
-    size_t offset = 0;
-    for (const auto &tensor : tensors) {
-      size_t batch_size = tensor.batch_size();
-      for (size_t n = 0; n < batch_size; ++n) {
-        for (size_t c = 0; c < channels; ++c) {
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              combined(offset + n, c, h, w) = tensor(n, c, h, w);
-            }
-          }
-        }
-      }
-      offset += batch_size;
-    }
-
-    return combined;
   }
 
   template <Layout new_layout> Tensor<T, new_layout> as_layout() const {
@@ -847,24 +798,6 @@ public:
     std::cout << std::endl;
   }
 
-  int argmax_channel(size_t n, size_t h, size_t w) const {
-    if (n >= batch_size() || h >= height() || w >= width()) {
-      throw std::out_of_range("Index out of range in argmax_channel");
-    }
-
-    T max_val = -std::numeric_limits<T>::infinity();
-    int max_idx = -1;
-
-    for (size_t c = 0; c < channels(); ++c) {
-      T val = operator()(n, c, h, w);
-      if (val > max_val) {
-        max_val = val;
-        max_idx = static_cast<int>(c);
-      }
-    }
-    return max_idx;
-  }
-
   void save(std::ofstream &out) const {
     if (!out.is_open()) {
       throw std::runtime_error("File is not open for writing");
@@ -892,115 +825,5 @@ public:
       throw std::runtime_error("Failed to read tensor data from file");
     }
     return tensor;
-  }
-
-private:
-  void fill_avx2(T value) {
-    if (data_size_ == 0)
-      return;
-#ifdef __AVX2__
-    if constexpr (std::is_same_v<T, float>) {
-
-      const size_t simd_size = 8;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256 vec_value = _mm256_set1_ps(value);
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_ps(data_ + i, vec_value);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else if constexpr (std::is_same_v<T, double>) {
-
-      const size_t simd_size = 4;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256d vec_value = _mm256_set1_pd(value);
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_pd(data_ + i, vec_value);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
-
-      const size_t simd_size = 8;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      __m256i vec_value = _mm256_set1_epi32(static_cast<int32_t>(value));
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_value);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = value;
-      }
-    } else {
-
-      std::fill(data_, data_ + data_size_, value);
-    }
-#else
-    std::fill(data_, data_ + data_size_, value);
-#endif
-  }
-
-  void copy_avx2(const T *src) {
-    if (data_size_ == 0 || src == nullptr)
-      return;
-#ifdef __AVX2__
-    if constexpr (std::is_same_v<T, float>) {
-
-      const size_t simd_size = 8;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256 vec_data = _mm256_loadu_ps(src + i);
-        _mm256_store_ps(data_ + i, vec_data);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else if constexpr (std::is_same_v<T, double>) {
-
-      const size_t simd_size = 4;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256d vec_data = _mm256_loadu_pd(src + i);
-        _mm256_store_pd(data_ + i, vec_data);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else if constexpr (std::is_integral_v<T> && sizeof(T) == 4) {
-
-      const size_t simd_size = 8;
-      const size_t simd_end = (data_size_ / simd_size) * simd_size;
-
-      for (size_t i = 0; i < simd_end; i += simd_size) {
-        __m256i vec_data =
-            _mm256_loadu_si256(reinterpret_cast<const __m256i *>(src + i));
-        _mm256_store_si256(reinterpret_cast<__m256i *>(data_ + i), vec_data);
-      }
-
-      for (size_t i = simd_end; i < data_size_; ++i) {
-        data_[i] = src[i];
-      }
-    } else {
-
-      std::copy(src, src + data_size_, data_);
-    }
-#else
-
-    std::copy(src, src + data_size_, data_);
-#endif
   }
 };

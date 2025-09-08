@@ -70,7 +70,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   Matrix<T> col_matrix =
       input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  Tensor<T> output(batch_size, out_channels_, output_h, output_w, false);
+  Tensor<T> output(batch_size, out_channels_, output_h, output_w, nullptr);
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
