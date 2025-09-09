@@ -135,7 +135,7 @@ public:
                                  std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if(data != nullptr)
-      data_ = data;
+      std::copy(data, data + data_size_, data_);
   }
 
   Tensor(std::vector<size_t> shape) : data_(nullptr) {
