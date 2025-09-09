@@ -139,10 +139,8 @@ public:
   }
 
   Tensor(std::vector<size_t> shape) : data_(nullptr) {
-    if (shape.size() != dims_) {
-      throw std::invalid_argument(
-          "Shape vector size must match tensor dimensions");
-    }
+    assert(shape.size() == dims_ &&
+           "Shape vector size must match tensor dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),

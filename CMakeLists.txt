@@ -27,6 +27,8 @@ if(WIN32)
 endif()
 
 # find packages
+find_package(Protobuf REQUIRED)
+
 if(ENABLE_OPENMP)
     message("Finding OpenMP")
     find_package(OpenMP REQUIRED)

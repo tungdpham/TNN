@@ -1,7 +1,5 @@
 # DCNN Library Components
 
-# Create instantiation libraries in dependency order
-
 add_library(dcnn_matrix STATIC matrix.cpp)
 if(NOT MSVC)
     target_link_libraries(dcnn_matrix PUBLIC m)
@@ -42,8 +40,12 @@ else()
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils)
 endif()
 
+add_library(dcnn_pipeline STATIC pipeline.cpp pipeline.pb.cc)
+target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn ${Protobuf_LIBRARIES})
+target_include_directories(dcnn_pipeline PUBLIC ${Protobuf_INCLUDE_DIRS})
+
 add_library(dcnn_instantiations INTERFACE)
-target_link_libraries(dcnn_instantiations INTERFACE dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
+target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
 
 add_library(dcnn_lib INTERFACE)
 if(NOT MSVC)

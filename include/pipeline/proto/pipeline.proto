@@ -1,0 +1,71 @@
+syntax = "proto3";
+
+package tpipeline.proto;
+
+// Basic data types
+enum TaskType {
+  FORWARD = 0;
+  BACKWARD = 1;
+}
+
+enum CommandType {
+  FORWARD_TASK = 0;
+  BACKWARD_TASK = 1;
+  UPDATE_PARAMETERS = 2;
+  TRAIN_MODE = 3;
+  EVAL_MODE = 4;
+  SHUTDOWN = 5;
+  HANDSHAKE_REQUEST = 6;
+  HANDSHAKE_RESPONSE = 7;
+  CONFIG_TRANSFER = 8;
+  CONFIG_RECEIVED = 9;
+  WEIGHTS_TRANSFER = 10;
+  WEIGHTS_RECEIVED = 11;
+  STATUS_REQUEST = 12;
+  STATUS_RESPONSE = 13;
+  PARAMETERS_UPDATED = 14;
+  HEALTH_CHECK = 15;
+  ERROR_REPORT = 16;
+  TASK_FAILURE = 17;
+  BARRIER_SYNC = 18;
+}
+
+// Tensor message
+message Tensor {
+  repeated uint32 shape = 1;
+  bytes data = 2;
+  string dtype = 3;  // "float", "double", "int32", etc.
+}
+
+// Task message
+message Task {
+  TaskType type = 1;
+  Tensor data = 2;
+  uint32 micro_batch_id = 3;
+}
+
+// Message with variant payload
+message Message {
+  CommandType command_type = 1;
+  uint32 sequence_number = 2;
+  string sender_id = 3;
+  string recipient_id = 4;
+  uint64 timestamp = 5;  // Unix timestamp in nanoseconds
+  
+  // Payload (only one of these will be set)
+  oneof payload {
+    Task task = 10;
+    string text = 11;
+    bool signal = 12;
+  }
+}
+
+// Stage configuration
+message StageConfig {
+  string stage_id = 1;
+  int32 stage_index = 2;
+  string model_config_json = 3;
+  string next_stage_endpoint = 4;
+  string prev_stage_endpoint = 5;
+  string coordinator_endpoint = 6;
+}
