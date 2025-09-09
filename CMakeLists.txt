@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-project(DCNN LANGUAGES CXX)
+project(DCNN LANGUAGES CXX ASM)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 

@@ -19,6 +19,12 @@ if(PkgConfig_FOUND)
 endif()
 
 add_library(dcnn_utils STATIC utils.cpp cpu_info.cpp)
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S)
+    set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S PROPERTY LANGUAGE ASM)
+endif()
+
 if(NOT MSVC)
     target_link_libraries(dcnn_utils PUBLIC m pthread)
     if(WIN32 AND MINGW)

@@ -14,6 +14,7 @@
 #endif
 
 #include "parallel_for.hpp"
+#include "simd_asm.hpp"
 
 namespace utils {
 
@@ -135,7 +136,10 @@ T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
-#if defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
+#if defined(__x86_64__) || defined(_M_X64)
+    // Use assembly implementation for x86_64
+    return simd_dot_product_asm(weights, col_data, kernel_size);
+#elif defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m256 sum_vec = _mm256_setzero_ps();
     size_t simd_end = kernel_size ^ (kernel_size & 0x7);
