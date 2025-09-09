@@ -27,6 +27,8 @@ if(WIN32)
 endif()
 
 # find packages
+find_package(Protobuf REQUIRED)
+
 if(ENABLE_OPENMP)
     message("Finding OpenMP")
     find_package(OpenMP REQUIRED)
@@ -123,3 +125,4 @@ function(create_executable target_name source_file)
 endfunction()
 
 add_subdirectory(examples)
+add_subdirectory(benchmarks)

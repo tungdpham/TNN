@@ -25,7 +25,7 @@ public:
   explicit FlattenLayer(const std::string &name = "flatten");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &grad_output,
+  Tensor<T> backward(const Tensor<T> &gradient,
                      size_t micro_batch_id = 0) override;
 
   std::string type() const override;

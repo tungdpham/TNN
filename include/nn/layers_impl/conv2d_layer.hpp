@@ -44,25 +44,25 @@ private:
   mutable std::unordered_map<size_t, Matrix<T>> micro_batch_im2col_matrices_;
 
   void compute_conv_forward(const T *col_data, const T *weight_data,
-                           T *output_data, size_t output_size, size_t kernel_size,
-                           size_t out_channels) const;
+                           T *output_data, const size_t output_size, const size_t kernel_size,
+                           const size_t out_channels) const;
 
-  void compute_weight_gradients(const T *col_data, const T *grad_output_data,
-                               T *weight_grad_data, size_t output_size,
-                               size_t kernel_size, size_t out_channels) const;
+  void compute_weight_gradients(const T *col_data, const T *gradient_data,
+                               T *weight_grad_data, const size_t output_size,
+                               const size_t kernel_size, const size_t out_channels) const;
 
-  void compute_input_gradients(const T *grad_output_data,
+  void compute_input_gradients(const T *gradient_data,
                               const T *weight_data, T *col_grad_data,
-                              size_t output_size, size_t kernel_size,
-                              size_t out_channels) const;
+                              const size_t output_size, const size_t kernel_size,
+                              const size_t out_channels) const;
 
-  void compute_bias_gradients(const T *grad_output_data, T *bias_grad_data,
-                             size_t batch_size, size_t output_h, 
-                             size_t output_w, size_t out_channels) const;
+  void compute_bias_gradients(const T *gradient_data, T *bias_grad_data,
+                             const size_t batch_size, const size_t output_h,
+                             const size_t output_w, const size_t out_channels) const;
 
   void add_bias_to_output(T *output_data, const T *bias_data,
-                         size_t batch_size, size_t output_h, size_t output_w,
-                         size_t out_channels) const;
+                         const size_t batch_size, const size_t output_h, const size_t output_w,
+                         const size_t out_channels) const;
 
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
@@ -72,7 +72,7 @@ public:
               const std::string &name = "conv2d");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &grad_output,
+  Tensor<T> backward(const Tensor<T> &gradient,
                      size_t micro_batch_id = 0) override;
 
   std::string type() const override;

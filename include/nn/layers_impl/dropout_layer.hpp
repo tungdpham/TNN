@@ -28,7 +28,7 @@ public:
   explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &grad_output,
+  Tensor<T> backward(const Tensor<T> &gradient,
                      size_t micro_batch_id = 0) override;
 
   std::string type() const override;

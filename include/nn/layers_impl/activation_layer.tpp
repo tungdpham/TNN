@@ -29,12 +29,12 @@ Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch
 }
 
 template <typename T>
-Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &grad_output,
+Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &gradient,
                                        size_t micro_batch_id) {
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
-  Tensor<T> grad = activation_->compute_gradient(last_input, &grad_output);
+  Tensor<T> grad = activation_->compute_gradient(last_input, &gradient);
   return grad;
 }
 

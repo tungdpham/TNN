@@ -336,11 +336,11 @@ public:
     deallocate_aligned(data_); 
   }
 
-  T &operator()(size_t row, size_t col) {
+  inline T &operator()(size_t row, size_t col) {
     return data_[row * cols_ + col];
   }
 
-  const T &operator()(size_t row, size_t col) const {
+  inline const T &operator()(size_t row, size_t col) const {
     return data_[row * cols_ + col];
   }
 

@@ -163,7 +163,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 }
 
 template <typename T>
-Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
+Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
                                       size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
@@ -203,8 +203,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
-            gamma_grad_sum += grad_output(n, c, h, w) * normalized(n, c, h, w);
-            beta_grad_sum += grad_output(n, c, h, w);
+            gamma_grad_sum += gradient(n, c, h, w) * normalized(n, c, h, w);
+            beta_grad_sum += gradient(n, c, h, w);
           }
         }
       }
@@ -221,12 +221,12 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &grad_output,
       T gamma_val = gamma_(c, 0, 0, 0);
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
-          grad_normalized(n, c, h, w) = grad_output(n, c, h, w) * gamma_val;
+          grad_normalized(n, c, h, w) = gradient(n, c, h, w) * gamma_val;
         }
       }
     });
   } else {
-    grad_normalized = grad_output.clone();
+    grad_normalized = gradient.clone();
   }
 
   // Compute gradients w.r.t. variance and mean

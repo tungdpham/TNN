@@ -39,12 +39,12 @@ private:
                              size_t input_features,
                              size_t output_features) const;
 
-  void compute_weight_gradients(const T *input_data, const T *grad_output_data,
+  void compute_weight_gradients(const T *input_data, const T *gradient_data,
                                 T *weight_grad_data, size_t batch_size,
                                 size_t input_features,
                                 size_t output_features) const;
 
-  void compute_input_gradients(const T *grad_output_data, const T *weight_data,
+  void compute_input_gradients(const T *gradient_data, const T *weight_data,
                                T *grad_input_data, size_t batch_size,
                                size_t input_features,
                                size_t output_features) const;
@@ -61,7 +61,7 @@ public:
              bool use_bias = true, const std::string &name = "dense");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &grad_output,
+  Tensor<T> backward(const Tensor<T> &gradient,
                      size_t micro_batch_id = 0) override;
 
   std::string type() const override;

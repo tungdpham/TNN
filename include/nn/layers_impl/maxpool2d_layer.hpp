@@ -39,7 +39,7 @@ private:
                                 size_t output_h, size_t output_w,
                                 std::vector<size_t> &mask_indices) const;
                                 
-  void compute_max_pool_backward(const T *grad_output_data,
+  void compute_max_pool_backward(const T *gradient_data,
                                  T *grad_input_data, size_t batch_size,
                                  size_t channels, size_t output_h,
                                  size_t output_w,
@@ -50,7 +50,7 @@ public:
                  const std::string &name = "maxpool2d");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &grad_output,
+  Tensor<T> backward(const Tensor<T> &gradient,
                      size_t micro_batch_id = 0) override;
 
   std::string type() const override;
