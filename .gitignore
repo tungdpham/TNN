@@ -28,6 +28,8 @@
 *.zip
 *.gz
 /profiles/
+**/*.pb.cc
+**/*.pb.h
 
 # CMake generated files (anywhere in the project)
 CMakeSettings.json

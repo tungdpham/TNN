@@ -82,10 +82,7 @@ if(EXISTS "${PROTO_DIR}")
         
         target_link_libraries(dcnn_pipeline PUBLIC dcnn_proto)
         
-        target_include_directories(dcnn_lib INTERFACE ${CMAKE_CURRENT_BINARY_DIR})
         target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-        
-        target_link_libraries(dcnn_lib INTERFACE dcnn_proto)
     endif()
 endif()
 
