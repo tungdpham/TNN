@@ -13,7 +13,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
                                   size_t stride_w, size_t pad_h, size_t pad_w,
@@ -98,7 +97,6 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient,
   const size_t output_h = gradient.height();
   const size_t output_w = gradient.width();
 
-  // Create gradient tensor for padded input
   Tensor<T> grad_padded_input(cached_padded_input.shape());
 
   const T *gradient_data = gradient.data();

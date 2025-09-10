@@ -20,20 +20,18 @@
 namespace tnn {
 
 #include "activations_impl/base_activation.hpp"
+#include "activations_impl/elu.hpp"
+#include "activations_impl/leaky_relu.hpp"
+#include "activations_impl/linear.hpp"
 #include "activations_impl/relu.hpp"
 #include "activations_impl/sigmoid.hpp"
-#include "activations_impl/tanh.hpp"
-#include "activations_impl/elu.hpp"
-#include "activations_impl/linear.hpp"
-#include "activations_impl/leaky_relu.hpp"
 #include "activations_impl/softmax.hpp"
+#include "activations_impl/tanh.hpp"
 
-// Factory for creating activation functions
 template <typename T = float> class ActivationFactory {
 private:
   static std::unordered_map<
-      std::string,
-      std::function<std::unique_ptr<ActivationFunction<T>>()>>
+      std::string, std::function<std::unique_ptr<ActivationFunction<T>>()>>
       creators_;
 
 public:
@@ -53,21 +51,17 @@ public:
   }
 
   static void register_defaults() {
-    register_activation("relu",
-                        []() { return std::make_unique<ReLU<T>>(); });
-    register_activation("leaky_relu", []() {
-      return std::make_unique<LeakyReLU<T>>(T(0.01));
-    });
+    register_activation("relu", []() { return std::make_unique<ReLU<T>>(); });
+    register_activation(
+        "leaky_relu", []() { return std::make_unique<LeakyReLU<T>>(T(0.01)); });
     register_activation("sigmoid",
                         []() { return std::make_unique<Sigmoid<T>>(); });
     register_activation("softmax",
                         []() { return std::make_unique<Softmax<T>>(); });
     register_activation("linear",
                         []() { return std::make_unique<Linear<T>>(); });
-    register_activation("tanh",
-                        []() { return std::make_unique<Tanh<T>>(); });
-    register_activation("elu",
-                        []() { return std::make_unique<ELU<T>>(); });
+    register_activation("tanh", []() { return std::make_unique<Tanh<T>>(); });
+    register_activation("elu", []() { return std::make_unique<ELU<T>>(); });
   }
 
   static std::vector<std::string> get_available_activations() {
@@ -80,8 +74,8 @@ public:
 };
 
 template <typename T>
-std::unordered_map<
-    std::string, std::function<std::unique_ptr<ActivationFunction<T>>()>>
+std::unordered_map<std::string,
+                   std::function<std::unique_ptr<ActivationFunction<T>>()>>
     ActivationFactory<T>::creators_;
 
 } // namespace tnn

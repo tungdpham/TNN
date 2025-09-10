@@ -6,8 +6,8 @@ namespace tpipeline {
 template <typename T>
 class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
 public:
-  InProcessPipelineCommunicator() : shutdown_flag_(false) { 
-    start_delivery_thread(); 
+  InProcessPipelineCommunicator() : shutdown_flag_(false) {
+    start_delivery_thread();
   }
 
   ~InProcessPipelineCommunicator() {
@@ -18,9 +18,8 @@ public:
     }
   }
 
-  // This is the producer side.
   void send_message(const Message<T> &message) override {
-    if(message.recipient_id.empty()) {
+    if (message.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     this->enqueue_output_message(message);
@@ -32,10 +31,10 @@ public:
     delivery_thread_ = std::thread([this]() {
       while (!shutdown_flag_) {
         std::unique_lock<std::mutex> lock(this->out_message_mutex_);
-        outgoing_cv_.wait(lock, [this]() { 
-          return !this->out_message_queue_.empty() || shutdown_flag_; 
+        outgoing_cv_.wait(lock, [this]() {
+          return !this->out_message_queue_.empty() || shutdown_flag_;
         });
-        
+
         if (shutdown_flag_) {
           break;
         }
@@ -44,7 +43,6 @@ public:
           continue;
         }
 
-        // Use move semantics to avoid copy issues
         Message<T> outgoing = std::move(this->out_message_queue_.front());
         this->out_message_queue_.pop();
         lock.unlock();
@@ -55,7 +53,7 @@ public:
           if (it != communicators_.end() && it->second) {
             it->second->enqueue_input_message(outgoing);
           }
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
           std::cerr << "Error delivering message: " << e.what() << std::endl;
         }
       }
@@ -87,4 +85,4 @@ private:
   std::atomic<bool> shutdown_flag_;
 };
 
-}
+} // namespace tpipeline

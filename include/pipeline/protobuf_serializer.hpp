@@ -1,38 +1,34 @@
 #pragma once
 
 #include "message.hpp"
-#include "task.hpp"
-#include "tensor/tensor.hpp"
 #include "pipeline.pb.h"
 #include "stage_config.hpp"
-#include <vector>
-#include <string>
+#include "task.hpp"
+#include "tensor/tensor.hpp"
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace tpipeline {
-// Google Protocol Buffers serialization
+
 class GoogleProtobufSerializer {
 public:
   template <typename T>
   static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
     tpipeline::proto::Tensor proto_tensor;
 
-    // Set shape
     auto shape = tensor.shape();
     for (size_t dim : shape) {
       proto_tensor.add_shape(static_cast<uint32_t>(dim));
     }
 
-    // Set data type
     proto_tensor.set_dtype(get_dtype_string<T>());
 
-    // Set data
     const T *data = tensor.data();
     size_t data_size = tensor.size() * sizeof(T);
     proto_tensor.set_data(data, data_size);
 
-    // Serialize to bytes
     std::string serialized;
     if (!proto_tensor.SerializeToString(&serialized)) {
       throw std::runtime_error("Failed to serialize tensor to protobuf");
@@ -50,20 +46,17 @@ public:
       throw std::runtime_error("Failed to parse tensor from protobuf");
     }
 
-    // Verify data type
     if (proto_tensor.dtype() != get_dtype_string<T>()) {
       throw std::runtime_error("Tensor data type mismatch: expected " +
                                get_dtype_string<T>() + ", got " +
                                proto_tensor.dtype());
     }
 
-    // Extract shape
     std::vector<size_t> shape;
     for (int i = 0; i < proto_tensor.shape_size(); ++i) {
       shape.push_back(proto_tensor.shape(i));
     }
 
-    // Create tensor and copy data
     Tensor<T> tensor(shape);
     const std::string &data_bytes = proto_tensor.data();
 
@@ -79,11 +72,9 @@ public:
   static std::vector<uint8_t> serialize_task(const Task<T> &task) {
     tpipeline::proto::Task proto_task;
 
-    // Set task type
     proto_task.set_type(static_cast<tpipeline::proto::TaskType>(task.type));
     proto_task.set_micro_batch_id(static_cast<uint32_t>(task.micro_batch_id));
 
-    // Serialize tensor
     auto tensor_bytes = serialize_tensor(task.data);
     tpipeline::proto::Tensor proto_tensor;
     std::string tensor_str(tensor_bytes.begin(), tensor_bytes.end());
@@ -111,7 +102,6 @@ public:
 
     TaskType type = static_cast<TaskType>(proto_task.type());
 
-    // Deserialize tensor
     std::string tensor_str = proto_task.data().SerializeAsString();
     std::vector<uint8_t> tensor_bytes(tensor_str.begin(), tensor_str.end());
     Tensor<T> tensor = deserialize_tensor<T>(tensor_bytes);
@@ -123,7 +113,6 @@ public:
   static std::vector<uint8_t> serialize_message(const Message<T> &message) {
     tpipeline::proto::Message proto_message;
 
-    // Set basic fields
     proto_message.set_command_type(
         static_cast<tpipeline::proto::CommandType>(message.command_type));
     proto_message.set_sequence_number(
@@ -131,12 +120,10 @@ public:
     proto_message.set_sender_id(message.sender_id);
     proto_message.set_recipient_id(message.recipient_id);
 
-    // Convert timestamp to nanoseconds since epoch
     auto duration = message.timestamp.time_since_epoch();
     auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
     proto_message.set_timestamp(static_cast<uint64_t>(nanos.count()));
 
-    // Set payload based on message content
     if (message.has_task()) {
       auto task_bytes = serialize_task(message.get_task());
       tpipeline::proto::Task proto_task;
@@ -177,11 +164,9 @@ public:
     message.sender_id = proto_message.sender_id();
     message.recipient_id = proto_message.recipient_id();
 
-    // Convert timestamp back from nanoseconds
     auto nanos = std::chrono::nanoseconds(proto_message.timestamp());
     message.timestamp = std::chrono::steady_clock::time_point(nanos);
 
-    // Set payload based on which field is set
     switch (proto_message.payload_case()) {
     case tpipeline::proto::Message::kTask: {
       std::string task_str = proto_message.task().SerializeAsString();
@@ -197,7 +182,7 @@ public:
       message.payload = proto_message.signal();
       break;
     default:
-      // No payload
+
       break;
     }
 

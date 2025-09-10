@@ -11,12 +11,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "tensor/tensor.hpp"
 #include "../layers.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
-// Flatten Layer for converting from 4D to 2D tensors (for compatibility with dense layers)
 template <typename T = float> class FlattenLayer : public StatelessLayer<T> {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;

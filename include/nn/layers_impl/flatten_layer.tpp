@@ -10,24 +10,23 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 FlattenLayer<T>::FlattenLayer(const std::string &name)
     : StatelessLayer<T>(name) {}
 
-
 template <typename T>
-Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input,
+                                   size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   size_t batch_size = input.batch_size();
   size_t features = input.channels() * input.height() * input.width();
 
-  Tensor<T> output = input.reshape(std::vector<size_t>{batch_size, features, 1, 1});
+  Tensor<T> output =
+      input.reshape(std::vector<size_t>{batch_size, features, 1, 1});
 
   return output;
 }
-
 
 template <typename T>
 Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &gradient,
@@ -40,27 +39,22 @@ Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &gradient,
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  // Reshape back to original shape
   Tensor<T> grad_input = gradient.reshape(original_shape);
 
   return grad_input;
 }
 
-
-template <typename T>
-std::string FlattenLayer<T>::type() const {
+template <typename T> std::string FlattenLayer<T>::type() const {
   return "flatten";
 }
 
-template <typename T>
-LayerConfig FlattenLayer<T>::get_config() const {
+template <typename T> LayerConfig FlattenLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   return config;
 }
 
-template <typename T>
-std::unique_ptr<Layer<T>> FlattenLayer<T>::clone() const {
+template <typename T> std::unique_ptr<Layer<T>> FlattenLayer<T>::clone() const {
   return std::make_unique<FlattenLayer<T>>(this->name_);
 }
 

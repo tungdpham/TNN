@@ -143,15 +143,15 @@ public:
       return false;
     }
 
-    const size_t actual_batch_size = std::min(
-        batch_size, data_.size() - this->current_index_);
+    const size_t actual_batch_size =
+        std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data = Tensor<T>(
-        actual_batch_size, mnist_constants::NUM_CHANNELS,
-        mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
+    batch_data =
+        Tensor<T>(actual_batch_size, mnist_constants::NUM_CHANNELS,
+                  mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
 
-    batch_labels = Tensor<T>(actual_batch_size,
-                             mnist_constants::NUM_CLASSES, 1UL, 1UL);
+    batch_labels =
+        Tensor<T>(actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL);
     batch_labels.fill(static_cast<T>(0.0));
 #ifdef _OPENMP
 #pragma omp parallel for if (actual_batch_size > 16)
@@ -296,8 +296,8 @@ public:
           actual_batch_size, mnist_constants::NUM_CHANNELS,
           mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
-      Tensor<T> batch_labels(
-          std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
+      Tensor<T> batch_labels(std::vector<size_t>{
+          actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
       batch_labels.fill(T(0.0));
 
 #ifdef _OPENMP

@@ -6,13 +6,11 @@
  */
 #pragma once
 
-
-template <typename T = float>
-class Softmax : public ActivationFunction<T> {
+template <typename T = float> class Softmax : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     size_t batch_size = tensor.batch_size();
-    
+
     size_t height = tensor.height();
     size_t width = tensor.width();
 
@@ -31,16 +29,13 @@ public:
       throw std::invalid_argument("Tensor and bias must have the same shape");
     }
 
-    
     T *data = tensor.data();
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      data[i] += bias_data[i];
-    });
+    utils::parallel_for_range<size_t>(
+        0, size, [&](size_t i) { data[i] += bias_data[i]; });
 
-    
     apply(tensor);
   }
 
@@ -49,9 +44,8 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        data[i] += bias;
-      });
+      utils::parallel_for_range<size_t>(0, size,
+                                        [&](size_t i) { data[i] += bias; });
     }
 
     apply(tensor);
@@ -62,9 +56,8 @@ public:
       const Tensor<T> *upstream_gradient = nullptr) const override {
     Tensor<T> gradient(pre_activation_values.shape());
 
-    
-    Tensor<T> softmax_values = pre_activation_values; 
-    apply(softmax_values); 
+    Tensor<T> softmax_values = pre_activation_values;
+    apply(softmax_values);
 
     size_t batch_size = pre_activation_values.batch_size();
     size_t channels = pre_activation_values.channels();
@@ -72,10 +65,10 @@ public:
     size_t width = pre_activation_values.width();
 
     if (upstream_gradient == nullptr) {
-      throw std::invalid_argument(
-          "Upstream gradient must be provided for softmax gradient computation");
+      throw std::invalid_argument("Upstream gradient must be provided for "
+                                  "softmax gradient computation");
     } else {
-      
+
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
@@ -84,14 +77,13 @@ public:
       utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
         for (size_t h = 0; h < height; ++h) {
           for (size_t w = 0; w < width; ++w) {
-            
+
             T dot_product = T(0);
             for (size_t j = 0; j < channels; ++j) {
               dot_product +=
                   softmax_values(n, j, h, w) * (*upstream_gradient)(n, j, h, w);
             }
 
-            
             for (size_t i = 0; i < channels; ++i) {
               T s_i = softmax_values(n, i, h, w);
               T upstream_i = (*upstream_gradient)(n, i, h, w);
@@ -105,35 +97,31 @@ public:
     return gradient;
   }
 
-  void compute_gradient_inplace(
-      const Tensor<T> &pre_activation_values,
-      Tensor<T> &upstream_gradient) const override {
+  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+                                Tensor<T> &upstream_gradient) const override {
     size_t batch_size = pre_activation_values.batch_size();
     size_t channels = pre_activation_values.channels();
     size_t height = pre_activation_values.height();
     size_t width = pre_activation_values.width();
 
-    
     if (upstream_gradient.shape() != pre_activation_values.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");
     }
 
-    
-    Tensor<T> softmax_values = pre_activation_values; 
-    apply(softmax_values); 
+    Tensor<T> softmax_values = pre_activation_values;
+    apply(softmax_values);
 
     utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
-          
+
           T dot_product = T(0);
           for (size_t j = 0; j < channels; ++j) {
             dot_product +=
                 softmax_values(n, j, h, w) * upstream_gradient(n, j, h, w);
           }
 
-          
           for (size_t i = 0; i < channels; ++i) {
             T s_i = softmax_values(n, i, h, w);
             T upstream_i = upstream_gradient(n, i, h, w);
@@ -145,19 +133,18 @@ public:
   }
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override {
-    (void)tensor; 
-    (void)channel; 
-    
-    
+    (void)tensor;
+    (void)channel;
+
     throw std::runtime_error("Channel-wise softmax is not supported. Use full "
                              "tensor softmax instead.");
   }
 
   void apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
                                     const std::vector<T> &bias) const override {
-    (void)tensor; 
-    (void)channel; 
-    (void)bias; 
+    (void)tensor;
+    (void)channel;
+    (void)bias;
     throw std::runtime_error("Channel-wise softmax is not supported. Use full "
                              "tensor softmax instead.");
   }
@@ -167,7 +154,6 @@ public:
       throw std::invalid_argument("Batch index out of bounds");
     }
 
-    
     size_t height = tensor.height();
     size_t width = tensor.width();
 
@@ -178,14 +164,10 @@ public:
     });
   }
 
-  
-  
   void apply_spatial(Tensor<T> &tensor, int batch, int channel, int height,
                      int width) const override {
-    (void)channel; 
-    
-    
-    
+    (void)channel;
+
     apply_softmax_spatial(tensor, batch, height, width);
   }
 
@@ -197,17 +179,15 @@ public:
 
 protected:
   void apply_single_value(T &value) const override {
-    (void)value; 
-    
-    
+    (void)value;
+
     throw std::runtime_error("Single value softmax is not supported. Softmax "
                              "requires normalization across channels.");
   }
 
   T compute_single_gradient(T pre_activation_value) const override {
-    (void)pre_activation_value; 
-    
-    
+    (void)pre_activation_value;
+
     throw std::runtime_error("Single value softmax gradient is not supported. "
                              "Use compute_gradient instead.");
   }
@@ -217,7 +197,6 @@ private:
                              size_t w) const {
     size_t channels = tensor.channels();
 
-    
     T max_val = tensor(n, 0, h, w);
     for (size_t c = 1; c < channels; ++c) {
       T val = tensor(n, c, h, w);
@@ -225,7 +204,6 @@ private:
         max_val = val;
     }
 
-    
     T sum = T(0);
     for (size_t c = 0; c < channels; ++c) {
       T val = tensor(n, c, h, w);
@@ -233,7 +211,6 @@ private:
       sum += tensor(n, c, h, w);
     }
 
-    
     for (size_t c = 0; c < channels; ++c) {
       tensor(n, c, h, w) /= sum;
     }

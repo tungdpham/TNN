@@ -218,19 +218,18 @@ public:
       return false;
     }
 
-    const size_t actual_batch_size = std::min(
-        batch_size, data_.size() - this->current_index_);
+    const size_t actual_batch_size =
+        std::min(batch_size, data_.size() - this->current_index_);
     const int num_classes = use_coarse_labels_
                                 ? cifar100_constants::NUM_COARSE_CLASSES
                                 : cifar100_constants::NUM_CLASSES;
 
-    batch_data = Tensor<T>(actual_batch_size,
-                           cifar100_constants::NUM_CHANNELS,
+    batch_data = Tensor<T>(actual_batch_size, cifar100_constants::NUM_CHANNELS,
                            cifar100_constants::IMAGE_HEIGHT,
                            cifar100_constants::IMAGE_WIDTH);
 
-    batch_labels = Tensor<T>(actual_batch_size,
-                             static_cast<size_t>(num_classes), 1, 1);
+    batch_labels =
+        Tensor<T>(actual_batch_size, static_cast<size_t>(num_classes), 1, 1);
     batch_labels.fill(static_cast<T>(0.0));
 #if defined(_OPENMP)
 #pragma omp parallel for if (actual_batch_size > 16)
@@ -313,8 +312,7 @@ public:
 
       for (const auto &idx : indices) {
         shuffled_data.emplace_back(std::move(batched_data_[idx]));
-        shuffled_fine_labels.emplace_back(
-            std::move(batched_fine_labels_[idx]));
+        shuffled_fine_labels.emplace_back(std::move(batched_fine_labels_[idx]));
         shuffled_coarse_labels.emplace_back(
             std::move(batched_coarse_labels_[idx]));
       }
@@ -322,7 +320,6 @@ public:
       batched_data_ = std::move(shuffled_data);
       batched_fine_labels_ = std::move(shuffled_fine_labels);
       batched_coarse_labels_ = std::move(shuffled_coarse_labels);
-
     }
   }
 

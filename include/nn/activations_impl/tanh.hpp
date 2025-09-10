@@ -6,17 +6,14 @@
  */
 #pragma once
 
-
-template <typename T = float>
-class Tanh : public ActivationFunction<T> {
+template <typename T = float> class Tanh : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      data[i] = std::tanh(data[i]);
-    });
+    utils::parallel_for_range<size_t>(
+        0, size, [&](size_t i) { data[i] = std::tanh(data[i]); });
   }
 
   void apply_with_bias(Tensor<T> &tensor,
@@ -54,12 +51,10 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      
       T tanh_val = std::tanh(input_data[i]);
       grad_data[i] = T(1) - tanh_val * tanh_val;
     });
 
-    
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         throw std::invalid_argument("Upstream gradient must have the same "
@@ -67,17 +62,15 @@ public:
       }
       const T *upstream_data = upstream_gradient->data();
 
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        grad_data[i] *= upstream_data[i];
-      });
+      utils::parallel_for_range<size_t>(
+          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
     }
 
     return gradient;
   }
 
-  void compute_gradient_inplace(
-      const Tensor<T> &pre_activation_values,
-      Tensor<T> &upstream_gradient) const override {
+  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+                                Tensor<T> &upstream_gradient) const override {
     if (upstream_gradient.shape() != pre_activation_values.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");
@@ -88,7 +81,6 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      
       T tanh_val = std::tanh(input_data[i]);
       T local_grad = T(1) - tanh_val * tanh_val;
       grad_data[i] *= local_grad;
@@ -168,9 +160,7 @@ public:
   }
 
 protected:
-  void apply_single_value(T &value) const override {
-    value = std::tanh(value);
-  }
+  void apply_single_value(T &value) const override { value = std::tanh(value); }
 
   T compute_single_gradient(T pre_activation_value) const override {
     T tanh_val = std::tanh(pre_activation_value);

@@ -4,9 +4,9 @@
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/cifar10_data_loader.hpp"
+#include "utils/misc.hpp"
 #include "utils/ops.hpp"
 #include "utils/train.hpp"
-#include "utils/misc.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -86,14 +86,14 @@ int main() {
 
     model.enable_profiling(true);
 
-    model.print_summary(std::vector<size_t>{
-        cifar10_constants::BATCH_SIZE, 3, 32, 32});
+    model.print_summary(
+        std::vector<size_t>{cifar10_constants::BATCH_SIZE, 3, 32, 32});
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader, cifar10_constants::EPOCHS,
-                    cifar10_constants::BATCH_SIZE,
-                    cifar10_constants::LR_DECAY_FACTOR,
-                    cifar10_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(
+        model, train_loader, test_loader, cifar10_constants::EPOCHS,
+        cifar10_constants::BATCH_SIZE, cifar10_constants::LR_DECAY_FACTOR,
+        cifar10_constants::PROGRESS_PRINT_INTERVAL);
 
     std::cout
         << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!"

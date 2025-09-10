@@ -1,7 +1,7 @@
 #include "pipeline/network_stage_worker.hpp"
+#include "utils/misc.hpp"
 #include <cstdlib>
 #include <iostream>
-#include "utils/misc.hpp"
 
 int main(int argc, char *argv[]) {
   std::cout.tie(nullptr);

@@ -3,10 +3,10 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/wifi_data_loader.hpp"
+#include "utils/misc.hpp"
 #include "utils/ops.hpp"
 #include "utils/train.hpp"
-#include "utils/misc.hpp"
+#include "utils/wifi_data_loader.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -134,7 +134,7 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions,
   int accurate_predictions = 0;
 #if defined(_OPENMP)
 #pragma omp parallel for reduction(+ : accurate_predictions) if (batch_size >  \
-                                                  16)
+                                                                     16)
 #endif
   for (size_t i = 0; i < batch_size; ++i) {
 
@@ -572,8 +572,8 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
-    model.set_optimizer(std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f,
-                                                            1e-8f));
+    model.set_optimizer(
+        std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f, 1e-8f));
     model.set_loss_function(
         tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;

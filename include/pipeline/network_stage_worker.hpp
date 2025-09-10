@@ -13,9 +13,9 @@
 #define ASIO_STANDALONE
 #include "../third_party/asio/asio/include/asio.hpp"
 #include <atomic>
+#include <csignal>
 #include <iostream>
 #include <memory>
-#include <csignal>
 
 namespace tpipeline {
 
@@ -45,8 +45,9 @@ public:
   ~NetworkStageWorker() { stop(); }
 
   void start() override {
-    if(!this->should_stop_) return;
-    
+    if (!this->should_stop_)
+      return;
+
     PipelineStage<T>::start();
 
     std::cout << "Starting network stage worker on port " << listen_port_
@@ -82,7 +83,6 @@ private:
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
 
-  // Own the TCP communicator; the base class holds a non-owning view.
   std::unique_ptr<TcpPipelineCommunicator<T>> tcp_communicator_;
 
   std::atomic<bool> is_running_;
@@ -120,7 +120,7 @@ private:
 
     try {
       nlohmann::json config_json = nlohmann::json::parse(message.get_text());
-      // print the configuration JSON
+
       std::cout << "Received configuration JSON: " << config_json.dump(2)
                 << '\n';
 
@@ -138,15 +138,12 @@ private:
       std::cout << "Created model with " << this->model_->size() << " layers"
                 << '\n';
 
-      // Connect to other stages and coordinator
       setup_stage_connections(config);
 
-      // Set the name in base class
       this->name_ = stage_id_;
 
       is_configured_ = true;
 
-      // Send ready signal to coordinator
       auto ready_msg = Message<T>::create_signal_message(
           CommandType::CONFIG_RECEIVED, true, stage_id_, "coordinator");
       tcp_communicator_->enqueue_output_message(ready_msg);
@@ -157,7 +154,6 @@ private:
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
 
-      // Send error message back to coordinator
       auto error_msg = Message<T>::error_message(
           std::string("Configuration failed: ") + e.what(),
           stage_id_.empty() ? "unknown" : stage_id_, "coordinator");
@@ -167,7 +163,7 @@ private:
   }
 
   void handle_handshake(const Message<T> &message) {
-    // Respond to handshake
+
     auto response = Message<T>::create_control_message(
         CommandType::HANDSHAKE_RESPONSE,
         stage_id_.empty() ? "worker" : stage_id_, message.sender_id);
@@ -179,7 +175,7 @@ private:
   }
 
   void setup_stage_connections(const StageConfig &config) {
-    // Connect to coordinator
+
     if (!config.coordinator_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.coordinator_endpoint);
       if (!tcp_communicator_->connect_to_peer("coordinator", host, port)) {
@@ -189,7 +185,6 @@ private:
                 << '\n';
     }
 
-    // Connect to next stage if specified
     if (!config.next_stage_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.next_stage_endpoint);
       if (!tcp_communicator_->connect_to_peer("next_stage", host, port)) {
@@ -201,7 +196,6 @@ private:
       }
     }
 
-    // Connect to previous stage if specified
     if (!config.prev_stage_endpoint.empty()) {
       auto [host, port] = parse_endpoint(config.prev_stage_endpoint);
       if (!tcp_communicator_->connect_to_peer("prev_stage", host, port)) {

@@ -61,7 +61,7 @@ void train_classification_model(
       model.update_parameters();
 
       if (num_batches % progress_print_interval == 0) {
-        if(model.is_profiling_enabled()){
+        if (model.is_profiling_enabled()) {
           model.print_profiling_summary();
         }
         std::cout << "Batch ID: " << num_batches
@@ -80,9 +80,8 @@ void train_classification_model(
         static_cast<float>(total_accuracy / num_batches);
 
     auto epoch_end = std::chrono::high_resolution_clock::now();
-    auto epoch_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end -
-                                                              epoch_start);
+    auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
+        epoch_end - epoch_start);
 
     model.eval();
     test_loader.reset();

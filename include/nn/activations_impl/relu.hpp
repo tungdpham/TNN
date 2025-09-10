@@ -6,7 +6,6 @@
  */
 #pragma once
 
-
 template <typename T = float> class ReLU : public ActivationFunction<T> {
 private:
   T negative_slope_;
@@ -57,9 +56,8 @@ public:
     return gradient;
   }
 
-  void compute_gradient_inplace(
-      const Tensor<T> &pre_activation_values,
-      Tensor<T> &upstream_gradient) const override {
+  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+                                Tensor<T> &upstream_gradient) const override {
     assert(pre_activation_values.shape() == upstream_gradient.shape() &&
            "Shapes must match for in-place gradient computation");
 
@@ -105,7 +103,7 @@ public:
     size_t spatial_size = height * width;
 
     if (bias.size() != spatial_size) {
-            throw std::invalid_argument("Bias size must match spatial dimensions");
+      throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
     const size_t total = batch_size * height * width;

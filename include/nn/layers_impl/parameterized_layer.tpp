@@ -10,34 +10,34 @@ namespace tnn {
 
 template <typename T>
 std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
-    std::vector<Tensor<T> *> params;
-    params.reserve(2);
-    collect_parameters(params);
-    return params;
+  std::vector<Tensor<T> *> params;
+  params.reserve(2);
+  collect_parameters(params);
+  return params;
 }
 
 template <typename T>
 std::vector<Tensor<T> *> ParameterizedLayer<T>::gradients() {
-    std::vector<Tensor<T> *> grads;
-    grads.reserve(2);
-    collect_gradients(grads);
-    return grads;
+  std::vector<Tensor<T> *> grads;
+  grads.reserve(2);
+  collect_gradients(grads);
+  return grads;
+}
+
+template <typename T> void ParameterizedLayer<T>::update_parameters() {
+  if (!layer_optimizer_) {
+    throw std::runtime_error("No optimizer set for layer: " + this->name_);
+  }
+  auto params = parameters();
+  auto grads = gradients();
+  layer_optimizer_->update(params, grads);
+  clear_gradients();
 }
 
 template <typename T>
-void ParameterizedLayer<T>::update_parameters() {
-    if (!layer_optimizer_) {
-        throw std::runtime_error("No optimizer set for layer: " + this->name_);
-    }
-    auto params = parameters();
-    auto grads = gradients();
-    layer_optimizer_->update(params, grads);
-    clear_gradients();
-}
-
-template <typename T>
-void ParameterizedLayer<T>::set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
-    layer_optimizer_ = std::move(optimizer);
+void ParameterizedLayer<T>::set_optimizer(
+    std::unique_ptr<Optimizer<T>> optimizer) {
+  layer_optimizer_ = std::move(optimizer);
 }
 
 } // namespace tnn

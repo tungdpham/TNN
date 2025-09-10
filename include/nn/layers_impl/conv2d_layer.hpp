@@ -11,15 +11,14 @@
 #include <unordered_map>
 #include <vector>
 
-#include "matrix/matrix.hpp"
-#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "../optimizers.hpp"
+#include "matrix/matrix.hpp"
 #include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
-// 2D Convolutional Layer using im2col + optimized convolution
 template <typename T = float> class Conv2DLayer : public ParameterizedLayer<T> {
 private:
   size_t in_channels_;
@@ -33,36 +32,40 @@ private:
   bool use_bias_;
   std::unique_ptr<ActivationFunction<T>> activation_;
 
-  Tensor<T> weights_; // [out_channels, in_channels, kernel_h, kernel_w]
-  Tensor<T> bias_;    // [out_channels, 1, 1, 1]
+  Tensor<T> weights_;
+  Tensor<T> bias_;
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
 
-  // Per-micro-batch state
-  mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
+  mutable std::unordered_map<size_t, std::vector<size_t>>
+      micro_batch_input_shapes_;
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<size_t, Matrix<T>> micro_batch_im2col_matrices_;
 
   void compute_conv_forward(const T *col_data, const T *weight_data,
-                           T *output_data, const size_t output_size, const size_t kernel_size,
-                           const size_t out_channels) const;
+                            T *output_data, const size_t output_size,
+                            const size_t kernel_size,
+                            const size_t out_channels) const;
 
   void compute_weight_gradients(const T *col_data, const T *gradient_data,
-                               T *weight_grad_data, const size_t output_size,
-                               const size_t kernel_size, const size_t out_channels) const;
+                                T *weight_grad_data, const size_t output_size,
+                                const size_t kernel_size,
+                                const size_t out_channels) const;
 
-  void compute_input_gradients(const T *gradient_data,
-                              const T *weight_data, T *col_grad_data,
-                              const size_t output_size, const size_t kernel_size,
-                              const size_t out_channels) const;
+  void compute_input_gradients(const T *gradient_data, const T *weight_data,
+                               T *col_grad_data, const size_t output_size,
+                               const size_t kernel_size,
+                               const size_t out_channels) const;
 
   void compute_bias_gradients(const T *gradient_data, T *bias_grad_data,
-                             const size_t batch_size, const size_t output_h,
-                             const size_t output_w, const size_t out_channels) const;
+                              const size_t batch_size, const size_t output_h,
+                              const size_t output_w,
+                              const size_t out_channels) const;
 
   void add_bias_to_output(T *output_data, const T *bias_data,
-                         const size_t batch_size, const size_t output_h, const size_t output_w,
-                         const size_t out_channels) const;
+                          const size_t batch_size, const size_t output_h,
+                          const size_t output_w,
+                          const size_t out_channels) const;
 
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,

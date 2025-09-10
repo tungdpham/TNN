@@ -1,4 +1,4 @@
-#pragma once 
+#pragma once
 
 #include "in_process_communicator.hpp"
 #include "pipeline_coordinator.hpp"
@@ -132,4 +132,4 @@ private:
   }
 };
 
-}
+} // namespace tpipeline

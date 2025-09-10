@@ -103,12 +103,13 @@ private:
 
 public:
   Tensor() : data_(nullptr), data_size_(0) {
-	  data_ = allocate_aligned(0);
-      std::fill(shape_, shape_ + dims_, 0);
-	  std::fill(strides_, strides_ + dims_, 0);
+    data_ = allocate_aligned(0);
+    std::fill(shape_, shape_ + dims_, 0);
+    std::fill(strides_, strides_ + dims_, 0);
   }
 
-  Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
+  Tensor(size_t batch_size, size_t channels, size_t height, size_t width)
+      : data_(nullptr) {
     if constexpr (dims_ != 4) {
       throw std::invalid_argument(
           "This constructor is only for 4D tensors (NCHW or NHWC)");
@@ -124,8 +125,9 @@ public:
     std::fill(data_, data_ + data_size_, T(0));
   }
 
-  Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T* data){
-    // Use with precautions
+  Tensor(size_t batch_size, size_t channels, size_t height, size_t width,
+         T *data) {
+
     if constexpr (dims_ != 4) {
       throw std::invalid_argument(
           "This constructor is only for 4D tensors (NCHW or NHWC)");
@@ -138,7 +140,7 @@ public:
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
                                  std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    if(data != nullptr)
+    if (data != nullptr)
       std::copy(data, data + data_size_, data_);
   }
 
@@ -163,7 +165,7 @@ public:
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
                                  std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    if(data != nullptr)
+    if (data != nullptr)
       std::copy(data, data + data_size_, data_);
   }
 
@@ -707,7 +709,8 @@ public:
                 for (size_t out_w_idx = 0; out_w_idx < out_w; ++out_w_idx) {
                   size_t in_h_idx = out_h_idx * stride_h + kh;
                   size_t in_w_idx = out_w_idx * stride_w + kw;
-                  size_t col_col_idx = (n * out_h + out_h_idx) * out_w + out_w_idx;
+                  size_t col_col_idx =
+                      (n * out_h + out_h_idx) * out_w + out_w_idx;
 
                   col_matrix(col_row_idx, col_col_idx) =
                       input_data[n * strides_[0] + c * strides_[1] +

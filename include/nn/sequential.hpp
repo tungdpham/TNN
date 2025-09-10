@@ -22,7 +22,6 @@
 
 namespace tnn {
 
-
 template <typename T = float> class Sequential {
 private:
   std::vector<std::unique_ptr<Layer<T>>> layers_;
@@ -31,21 +30,19 @@ private:
   std::unique_ptr<Loss<T>> loss_ = nullptr;
   bool is_training_;
 
-
   bool enable_profiling_ = false;
   std::map<std::string, double> forward_times_ms_;
   std::map<std::string, double> backward_times_ms_;
-  
-  // just a helper function to set optimizers of all layers when the model's optimizer is set or changed
+
   void distribute_optimizer_to_layers() {
     if (!optimizer_) {
       return;
     }
-    
+
     for (auto &layer : layers_) {
       if (layer->has_parameters()) {
-        
-        auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+
+        auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
         if (param_layer) {
           param_layer->set_optimizer(optimizer_->clone());
         }
@@ -57,7 +54,6 @@ public:
   explicit Sequential(const std::string &name = "sequential")
       : name_(name), is_training_(true), enable_profiling_(false) {}
 
-  
   Sequential(const Sequential &other)
       : name_(other.name_), is_training_(other.is_training_),
         enable_profiling_(other.enable_profiling_) {
@@ -73,17 +69,15 @@ public:
     }
   }
 
-  
   Sequential(Sequential &&other) noexcept
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
         is_training_(other.is_training_),
-        
+
         enable_profiling_(other.enable_profiling_),
         forward_times_ms_(std::move(other.forward_times_ms_)),
         backward_times_ms_(std::move(other.backward_times_ms_)) {}
 
-  
   Sequential &operator=(const Sequential &other) {
     if (this != &other) {
       layers_.clear();
@@ -98,7 +92,7 @@ public:
       name_ = other.name_;
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
-      
+
       forward_times_ms_.clear();
       backward_times_ms_.clear();
     }
@@ -112,7 +106,7 @@ public:
       loss_ = std::move(other.loss_);
       name_ = std::move(other.name_);
       is_training_ = other.is_training_;
-      
+
       enable_profiling_ = other.enable_profiling_;
       forward_times_ms_ = std::move(other.forward_times_ms_);
       backward_times_ms_ = std::move(other.backward_times_ms_);
@@ -120,21 +114,19 @@ public:
     return *this;
   }
 
-  
   void add(std::unique_ptr<Layer<T>> layer) {
     if (!layer) {
       throw std::invalid_argument("Cannot add null layer");
     }
     layer->set_training(is_training_);
-    
-    
+
     if (optimizer_ && layer->has_parameters()) {
-      auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+      auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
       if (param_layer) {
         param_layer->set_optimizer(optimizer_->clone());
       }
     }
-    
+
     layers_.push_back(std::move(layer));
   }
 
@@ -152,14 +144,14 @@ public:
       throw std::out_of_range("Insert index out of range");
     }
     layer->set_training(is_training_);
-    
+
     if (optimizer_ && layer->has_parameters()) {
-      auto* param_layer = dynamic_cast<ParameterizedLayer<T>*>(layer.get());
+      auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
       if (param_layer) {
         param_layer->set_optimizer(optimizer_->clone());
       }
     }
-    
+
     layers_.insert(layers_.begin() + index, std::move(layer));
   }
 
@@ -176,7 +168,6 @@ public:
     backward_times_ms_.clear();
   }
 
-  
   Layer<T> &operator[](size_t index) {
     if (index >= layers_.size()) {
       throw std::out_of_range("Layer index out of range");
@@ -199,7 +190,6 @@ public:
 
   bool empty() const { return layers_.empty(); }
 
-  
   void set_training(bool training) {
     is_training_ = training;
     for (auto &layer : layers_) {
@@ -213,7 +203,6 @@ public:
 
   void eval() { set_training(false); }
 
-  
   void enable_profiling(bool enable = true) {
     enable_profiling_ = enable;
     if (enable) {
@@ -229,16 +218,10 @@ public:
     backward_times_ms_.clear();
   }
 
-  
-  void clear_forward_times() {
-    forward_times_ms_.clear();
-  }
+  void clear_forward_times() { forward_times_ms_.clear(); }
 
-  void clear_backward_times() {
-    backward_times_ms_.clear();
-  }
+  void clear_backward_times() { backward_times_ms_.clear(); }
 
-  
   const std::map<std::string, double> &get_forward_times() const {
     return forward_times_ms_;
   }
@@ -264,16 +247,14 @@ public:
 
     double total_forward = 0.0, total_backward = 0.0;
 
-    
     for (size_t i = 0; i < layers_.size(); ++i) {
-      
+
       std::string layer_name = layers_[i]->type();
       auto config = layers_[i]->get_config();
       if (!config.name.empty()) {
         layer_name = config.name;
       }
 
-      
       double forward_time = 0.0;
       auto forward_it = forward_times_ms_.find(layer_name);
       if (forward_it != forward_times_ms_.end()) {
@@ -291,11 +272,11 @@ public:
       total_forward += forward_time;
       total_backward += backward_time;
 
-      std::cout << std::left << std::setw(20) << layer_name
+      std::cout << std::left << std::setw(20) << layer_name << std::setw(15)
+                << std::fixed << std::setprecision(3) << forward_time
                 << std::setw(15) << std::fixed << std::setprecision(3)
-                << forward_time << std::setw(15) << std::fixed
-                << std::setprecision(3) << backward_time << std::setw(15)
-                << std::fixed << std::setprecision(3) << total_time << "\n";
+                << backward_time << std::setw(15) << std::fixed
+                << std::setprecision(3) << total_time << "\n";
     }
 
     std::cout << std::string(60, '-') << "\n";
@@ -307,7 +288,6 @@ public:
               << "\n";
     std::cout << std::string(60, '=') << "\n\n";
   }
-
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
@@ -327,7 +307,6 @@ public:
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
               end_time - start_time);
 
-          
           std::string layer_name = layers_[i]->type();
           auto config = layers_[i]->get_config();
           if (!config.name.empty()) {
@@ -338,7 +317,6 @@ public:
           current_output = layers_[i]->forward(current_output, micro_batch_id);
         }
 
-        
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in layer " + std::to_string(i) + " (" +
                                  layers_[i]->type() + "): " + e.what());
@@ -348,7 +326,6 @@ public:
     return current_output;
   }
 
-  
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(
@@ -357,7 +334,6 @@ public:
 
     Tensor<T> current_grad = gradient;
 
-    
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         if (enable_profiling_) {
@@ -369,7 +345,6 @@ public:
           auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
               end_time - start_time);
 
-          
           std::string layer_name = layers_[i]->type();
           auto config = layers_[i]->get_config();
           if (!config.name.empty()) {
@@ -389,7 +364,6 @@ public:
     return current_grad;
   }
 
-  
   Tensor<T> predict(const Tensor<T> &input) {
     bool was_training = is_training_;
     set_training(false);
@@ -398,7 +372,6 @@ public:
     return result;
   }
 
-  
   std::vector<Tensor<T> *> parameters() const {
     std::vector<Tensor<T> *> all_params;
     for (auto &layer : layers_) {
@@ -431,7 +404,6 @@ public:
     return count;
   }
 
-  
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
@@ -447,7 +419,6 @@ public:
     return current_shape;
   }
 
-  
   void print_summary(const std::vector<size_t> &input_shape = {}) const {
     std::cout << std::string(60, '=') << "\n";
     std::cout << "Model: " << name_ << "\n";
@@ -462,12 +433,10 @@ public:
     for (size_t i = 0; i < layers_.size(); ++i) {
       const auto &layer = layers_[i];
 
-      
       if (!current_shape.empty()) {
         current_shape = layer->compute_output_shape(current_shape);
       }
 
-      
       size_t layer_params = 0;
       if (layer->has_parameters()) {
         auto params = const_cast<Layer<T> *>(layer.get())->parameters();
@@ -477,13 +446,11 @@ public:
       }
       total_params += layer_params;
 
-      
       std::string layer_name = layer->type();
       if (!layer->get_config().name.empty()) {
         layer_name = layer->get_config().name + " (" + layer->type() + ")";
       }
 
-      
       std::string shape_str = "(";
       if (!current_shape.empty()) {
         for (size_t j = 0; j < current_shape.size(); ++j) {
@@ -510,21 +477,18 @@ public:
     std::cout << get_config().dump(2) << std::endl;
   }
 
-  
   void save_to_file(const std::string &path) const {
-    
+
     nlohmann::json config_json = get_config();
 
     std::ofstream config_file(path + ".json");
     config_file << config_json.dump(4);
     config_file.close();
 
-    
     std::ofstream weights_file(path + ".bin", std::ios::binary);
     for (const auto &layer : layers_) {
       if (layer->has_parameters()) {
-        auto params =
-            const_cast<Layer<T> *>(layer.get())->parameters();
+        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
         for (const auto &param : params) {
           param->save(weights_file);
         }
@@ -534,24 +498,20 @@ public:
   }
 
   static Sequential<T> from_file(const std::string &path) {
-    
+
     std::ifstream config_file(path + ".json");
     if (!config_file.is_open()) {
-      throw std::runtime_error("Could not open config file: " + path +
-                               ".json");
+      throw std::runtime_error("Could not open config file: " + path + ".json");
     }
     nlohmann::json config_json;
     config_file >> config_json;
     config_file.close();
 
-    
     Sequential<T> model = load_from_config(config_json);
 
-    
     std::ifstream weights_file(path + ".bin", std::ios::binary);
     if (!weights_file.is_open()) {
-      throw std::runtime_error("Could not open weights file: " + path +
-                               ".bin");
+      throw std::runtime_error("Could not open weights file: " + path + ".bin");
     }
     for (auto &layer : model.layers_) {
       if (layer->has_parameters()) {
@@ -566,7 +526,6 @@ public:
     return model;
   }
 
-  
   std::vector<LayerConfig> get_all_configs() const {
     std::vector<LayerConfig> configs;
     configs.reserve(layers_.size());
@@ -578,10 +537,8 @@ public:
     return configs;
   }
 
-  
-  static Sequential
-  from_configs(const std::vector<LayerConfig> &configs,
-               const std::string &name = "sequential") {
+  static Sequential from_configs(const std::vector<LayerConfig> &configs,
+                                 const std::string &name = "sequential") {
     Sequential model(name);
 
     auto factory = LayerFactory<T>();
@@ -595,7 +552,6 @@ public:
     return model;
   }
 
-  
   std::unique_ptr<Sequential> clone() const {
     auto cloned = std::make_unique<Sequential>(name_);
     cloned->set_training(is_training_);
@@ -607,12 +563,10 @@ public:
     return cloned;
   }
 
-  
   const std::string &name() const { return name_; }
 
   void set_name(const std::string &name) { name_ = name; }
 
-  
   auto begin() { return layers_.begin(); }
 
   auto end() { return layers_.end(); }
@@ -633,34 +587,27 @@ public:
     this->optimizer_ = optimizer.clone();
     distribute_optimizer_to_layers();
   }
-  
+
   void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
     this->optimizer_ = std::move(optimizer);
     distribute_optimizer_to_layers();
     std::cout << "Optimizer set to: " << this->optimizer_->name() << std::endl;
   }
-  
-  void set_loss_function(Loss<T> &loss) {
-    this->loss_ = loss.clone();
-  }
-  
+
+  void set_loss_function(Loss<T> &loss) { this->loss_ = loss.clone(); }
+
   void set_loss_function(std::unique_ptr<Loss<T>> loss) {
     this->loss_ = std::move(loss);
   }
-  
-  Optimizer<T>* optimizer() const {
-    return optimizer_.get();
-  }
-  
-  Loss<T>* loss_function() const {
-    return loss_.get();
-  }
 
-  
+  Optimizer<T> *optimizer() const { return optimizer_.get(); }
+
+  Loss<T> *loss_function() const { return loss_.get(); }
+
   std::vector<Sequential<T>> split(size_t num_stages) const {
     if (num_stages == 0 || num_stages > layers_.size()) {
       throw std::invalid_argument("Invalid number of stages for split");
-    } 
+    }
     std::vector<Sequential<T>> stages(num_stages);
     size_t stage_size = layers_.size() / num_stages;
     size_t remainder = layers_.size() % num_stages;
@@ -684,98 +631,89 @@ public:
     return stages;
   }
 
-  
   const std::vector<std::unique_ptr<Layer<T>>> &get_layers() const {
     return layers_;
   }
-  
-  
+
   nlohmann::json get_config() const {
     nlohmann::json config;
     config["name"] = name_;
     config["is_training"] = is_training_;
-    
-    
+
     nlohmann::json layers_config = nlohmann::json::array();
-    for (const auto& layer : layers_) {
+    for (const auto &layer : layers_) {
       LayerConfig layer_config = layer->get_config();
       nlohmann::json layer_json;
       layer_json["type"] = layer->type();
       layer_json["name"] = layer_config.name;
       layer_json["parameters"] = nlohmann::json::object();
-      
-      
-      for (const auto& [key, value] : layer_config.parameters) {
+
+      for (const auto &[key, value] : layer_config.parameters) {
         try {
-          if (auto* int_ptr = std::any_cast<int>(&value)) {
+          if (auto *int_ptr = std::any_cast<int>(&value)) {
             layer_json["parameters"][key] = *int_ptr;
-          } else if (auto* size_ptr = std::any_cast<size_t>(&value)) {
+          } else if (auto *size_ptr = std::any_cast<size_t>(&value)) {
             layer_json["parameters"][key] = *size_ptr;
-          } else if (auto* float_ptr = std::any_cast<float>(&value)) {
+          } else if (auto *float_ptr = std::any_cast<float>(&value)) {
             layer_json["parameters"][key] = *float_ptr;
-          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
             layer_json["parameters"][key] = *double_ptr;
-          } else if (auto* bool_ptr = std::any_cast<bool>(&value)) {
+          } else if (auto *bool_ptr = std::any_cast<bool>(&value)) {
             layer_json["parameters"][key] = *bool_ptr;
-          } else if (auto* string_ptr = std::any_cast<std::string>(&value)) {
+          } else if (auto *string_ptr = std::any_cast<std::string>(&value)) {
             layer_json["parameters"][key] = *string_ptr;
           }
-        } catch (const std::bad_any_cast&) {
-          
+        } catch (const std::bad_any_cast &) {
         }
       }
       layers_config.push_back(layer_json);
     }
     config["layers"] = layers_config;
-    
-    
+
     if (optimizer_) {
       OptimizerConfig opt_config = optimizer_->get_config();
       nlohmann::json opt_json;
       opt_json["type"] = opt_config.type;
       opt_json["name"] = opt_config.name;
       opt_json["parameters"] = nlohmann::json::object();
-      
-      for (const auto& [key, value] : opt_config.parameters) {
+
+      for (const auto &[key, value] : opt_config.parameters) {
         try {
-          if (auto* float_ptr = std::any_cast<float>(&value)) {
+          if (auto *float_ptr = std::any_cast<float>(&value)) {
             opt_json["parameters"][key] = *float_ptr;
-          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
             opt_json["parameters"][key] = *double_ptr;
           }
-        } catch (const std::bad_any_cast&) {
-          
+        } catch (const std::bad_any_cast &) {
         }
       }
       config["optimizer"] = opt_json;
     }
-    
-    
+
     if (loss_) {
       LossConfig loss_config = loss_->get_config();
       nlohmann::json loss_json;
       loss_json["type"] = loss_config.type;
       loss_json["name"] = loss_config.name;
       loss_json["parameters"] = nlohmann::json::object();
-      
-      for (const auto& [key, value] : loss_config.parameters) {
+
+      for (const auto &[key, value] : loss_config.parameters) {
         try {
-          if (auto* float_ptr = std::any_cast<float>(&value)) {
+          if (auto *float_ptr = std::any_cast<float>(&value)) {
             loss_json["parameters"][key] = *float_ptr;
-          } else if (auto* double_ptr = std::any_cast<double>(&value)) {
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
             loss_json["parameters"][key] = *double_ptr;
           }
-        } catch (const std::bad_any_cast&) {
-          
+        } catch (const std::bad_any_cast &) {
         }
       }
       config["loss"] = loss_json;
     }
-    
+
     return config;
   }
-  
-  void save_config(const std::string& filepath) const {
+
+  void save_config(const std::string &filepath) const {
     std::ofstream file(filepath);
     if (!file.is_open()) {
       throw std::runtime_error("Cannot open file for writing: " + filepath);
@@ -783,18 +721,19 @@ public:
     file << get_config().dump(2);
     file.close();
   }
-  
-  static Sequential<T> load_from_config(const nlohmann::json& config) {
+
+  static Sequential<T> load_from_config(const nlohmann::json &config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-    
+
     if (config.contains("optimizer")) {
       OptimizerConfig opt_config;
       opt_config.type = config["optimizer"]["type"];
       opt_config.name = config["optimizer"]["name"];
-      
+
       if (config["optimizer"].contains("parameters")) {
-        for (const auto& [key, value] : config["optimizer"]["parameters"].items()) {
+        for (const auto &[key, value] :
+             config["optimizer"]["parameters"].items()) {
           if (value.is_number_float()) {
             opt_config.parameters[key] = value.template get<float>();
           } else if (value.is_number_integer()) {
@@ -802,18 +741,17 @@ public:
           }
         }
       }
-      
+
       model.set_optimizer(OptimizerFactory<T>::create_from_config(opt_config));
     }
-    
-    
+
     if (config.contains("loss")) {
       LossConfig loss_config;
       loss_config.type = config["loss"]["type"];
       loss_config.name = config["loss"]["name"];
-      
+
       if (config["loss"].contains("parameters")) {
-        for (const auto& [key, value] : config["loss"]["parameters"].items()) {
+        for (const auto &[key, value] : config["loss"]["parameters"].items()) {
           if (value.is_number_float()) {
             loss_config.parameters[key] = value.template get<float>();
           } else if (value.is_number_integer()) {
@@ -821,22 +759,20 @@ public:
           }
         }
       }
-      
+
       model.set_loss_function(LossFactory<T>::create_from_config(loss_config));
     }
-    
-    
+
     if (config.contains("layers")) {
       auto factory = LayerFactory<T>();
       factory.register_defaults();
-      
-      for (const auto& layer_json : config["layers"]) {
+
+      for (const auto &layer_json : config["layers"]) {
         LayerConfig layer_config;
         layer_config.name = layer_json.value("name", "");
-        
-        
+
         if (layer_json.contains("parameters")) {
-          for (const auto& [key, value] : layer_json["parameters"].items()) {
+          for (const auto &[key, value] : layer_json["parameters"].items()) {
             if (value.is_number_integer()) {
               layer_config.parameters[key] = value.template get<size_t>();
             } else if (value.is_number_float()) {
@@ -848,30 +784,29 @@ public:
             }
           }
         }
-        
+
         std::string layer_type = layer_json.value("type", "");
         auto layer = factory.create(layer_type, layer_config);
         model.add(std::move(layer));
       }
     }
-    
+
     return model;
   }
-  
-  static Sequential<T> load_from_config_file(const std::string& filepath) {
+
+  static Sequential<T> load_from_config_file(const std::string &filepath) {
     std::ifstream file(filepath);
     if (!file.is_open()) {
       throw std::runtime_error("Cannot open file for reading: " + filepath);
     }
-    
+
     nlohmann::json config;
     file >> config;
     file.close();
-    
+
     return load_from_config(config);
   }
 };
-
 
 template <typename T = float> class SequentialBuilder {
 private:
@@ -879,40 +814,35 @@ private:
   std::vector<size_t> input_shape_;
   bool input_shape_set_ = false;
 
-  
-  
   std::vector<size_t> get_current_shape() const {
     if (!input_shape_set_) {
-      throw std::runtime_error("Input shape must be set before adding layers. Use .input() method first.");
+      throw std::runtime_error("Input shape must be set before adding layers. "
+                               "Use .input() method first.");
     }
-    
-    
-    
+
     std::vector<size_t> shape_with_batch = {1};
-    shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
-    
+    shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(),
+                            input_shape_.end());
+
     if (model_.empty()) {
       return shape_with_batch;
     }
-    
+
     return model_.compute_output_shape(shape_with_batch);
   }
-  
-  
-  
+
   size_t get_feature_count() const {
     std::vector<size_t> current_shape = get_current_shape();
-    
+
     if (current_shape.empty()) {
       throw std::runtime_error("Cannot compute feature count from empty shape");
     }
-    
-    
+
     size_t feature_count = 1;
     for (size_t i = 1; i < current_shape.size(); ++i) {
       feature_count *= current_shape[i];
     }
-    
+
     return feature_count;
   }
 
@@ -920,21 +850,18 @@ public:
   explicit SequentialBuilder(const std::string &name = "sequential")
       : model_(name) {}
 
-  
-  SequentialBuilder &input(const std::vector<size_t>& shape) {
+  SequentialBuilder &input(const std::vector<size_t> &shape) {
     input_shape_ = shape;
     input_shape_set_ = true;
     return *this;
   }
 
-  
   SequentialBuilder &dense(size_t output_features,
-                          const std::string &activation = "none",
-                          bool use_bias = true,
-                          const std::string &name = "") {
-    
+                           const std::string &activation = "none",
+                           bool use_bias = true, const std::string &name = "") {
+
     size_t input_features = get_feature_count();
-    
+
     auto layer = tnn::dense<T>(
         input_features, output_features, activation, use_bias,
         name.empty() ? "dense_" + std::to_string(model_.size()) : name);
@@ -942,54 +869,52 @@ public:
     return *this;
   }
 
-  
-  SequentialBuilder &conv2d(size_t out_channels,
-                           size_t kernel_h, size_t kernel_w,
-                           size_t stride_h = 1, size_t stride_w = 1,
-                           size_t pad_h = 0, size_t pad_w = 0,
-                           const std::string &activation = "none",
-                           bool use_bias = true,
-                           const std::string &name = "") {
+  SequentialBuilder &
+  conv2d(size_t out_channels, size_t kernel_h, size_t kernel_w,
+         size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
+         size_t pad_w = 0, const std::string &activation = "none",
+         bool use_bias = true, const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
-    
+
     if (current_shape.size() < 4) {
-      throw std::runtime_error("Conv2D requires 4D input (batch, channels, height, width). Current shape has " + 
-                              std::to_string(current_shape.size()) + " dimensions.");
+      throw std::runtime_error("Conv2D requires 4D input (batch, channels, "
+                               "height, width). Current shape has " +
+                               std::to_string(current_shape.size()) +
+                               " dimensions.");
     }
-    
-    
+
     size_t in_channels = current_shape[1];
-    
+
     auto layer = tnn::conv2d<T>(
         in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w,
-        pad_h, pad_w, activation, use_bias, 
+        pad_h, pad_w, activation, use_bias,
         name.empty() ? "conv2d_" + std::to_string(model_.size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
 
-  
-  SequentialBuilder &batchnorm(T epsilon = T(1e-5), T momentum = T(0.1), 
-                              bool affine = true, const std::string &name = "") {
+  SequentialBuilder &batchnorm(T epsilon = T(1e-5), T momentum = T(0.1),
+                               bool affine = true,
+                               const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
-    
+
     if (current_shape.size() < 2) {
-      throw std::runtime_error("BatchNorm requires at least 2D input (batch, features)");
+      throw std::runtime_error(
+          "BatchNorm requires at least 2D input (batch, features)");
     }
-    
-    
+
     size_t num_features;
     if (current_shape.size() == 2) {
-      
+
       num_features = current_shape[1];
     } else if (current_shape.size() >= 4) {
-      
+
       num_features = current_shape[1];
     } else {
-      
+
       num_features = current_shape[1];
     }
-    
+
     auto layer = tnn::batchnorm<T>(
         num_features, epsilon, momentum, affine,
         name.empty() ? "batchnorm_" + std::to_string(model_.size()) : name);
@@ -997,9 +922,8 @@ public:
     return *this;
   }
 
-  
   SequentialBuilder &activation(const std::string &activation_name,
-                               const std::string &name = "") {
+                                const std::string &name = "") {
     auto layer = tnn::activation<T>(
         activation_name,
         name.empty() ? "activation_" + std::to_string(model_.size()) : name);
@@ -1008,9 +932,9 @@ public:
   }
 
   SequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w,
-                              size_t stride_h = 0, size_t stride_w = 0,
-                              size_t pad_h = 0, size_t pad_w = 0,
-                              const std::string &name = "") {
+                               size_t stride_h = 0, size_t stride_w = 0,
+                               size_t pad_h = 0, size_t pad_w = 0,
+                               const std::string &name = "") {
     auto layer = tnn::maxpool2d<T>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "maxpool2d_" + std::to_string(model_.size()) : name);
@@ -1018,8 +942,7 @@ public:
     return *this;
   }
 
-  SequentialBuilder &dropout(T dropout_rate,
-                            const std::string &name = "") {
+  SequentialBuilder &dropout(T dropout_rate, const std::string &name = "") {
     auto layer = tnn::dropout<T>(
         dropout_rate,
         name.empty() ? "dropout_" + std::to_string(model_.size()) : name);
@@ -1039,44 +962,49 @@ public:
     return *this;
   }
 
-  
-  Sequential<T> build() { 
+  Sequential<T> build() {
     if (!input_shape_set_) {
-      throw std::runtime_error("Input shape must be set before building model. Use .input() method.");
+      throw std::runtime_error("Input shape must be set before building model. "
+                               "Use .input() method.");
     }
     if (model_.empty()) {
-      throw std::runtime_error("Cannot build empty model. Add at least one layer.");
+      throw std::runtime_error(
+          "Cannot build empty model. Add at least one layer.");
     }
-    
-    
+
     try {
-      
+
       std::vector<size_t> shape_with_batch = {1};
-      shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
-      
-      std::vector<size_t> output_shape = model_.compute_output_shape(shape_with_batch);
+      shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(),
+                              input_shape_.end());
+
+      std::vector<size_t> output_shape =
+          model_.compute_output_shape(shape_with_batch);
       std::cout << "Model built successfully. Input shape (without batch): (";
       for (size_t i = 0; i < input_shape_.size(); ++i) {
-        if (i > 0) std::cout << ", ";
+        if (i > 0)
+          std::cout << ", ";
         std::cout << input_shape_[i];
       }
       std::cout << ") -> Output shape (without batch): (";
-      
+
       for (size_t i = 1; i < output_shape.size(); ++i) {
-        if (i > 1) std::cout << ", ";
+        if (i > 1)
+          std::cout << ", ";
         std::cout << output_shape[i];
       }
       std::cout << ")" << std::endl;
-    } catch (const std::exception& e) {
-      throw std::runtime_error("Shape inference failed during build: " + std::string(e.what()));
+    } catch (const std::exception &e) {
+      throw std::runtime_error("Shape inference failed during build: " +
+                               std::string(e.what()));
     }
-    
-    return std::move(model_); 
+
+    return std::move(model_);
   }
 
   Sequential<T> &get_model() { return model_; }
-  const std::vector<size_t>& get_input_shape() const { return input_shape_; }
+  const std::vector<size_t> &get_input_shape() const { return input_shape_; }
   bool is_input_shape_set() const { return input_shape_set_; }
 };
 
-}
+} // namespace tnn

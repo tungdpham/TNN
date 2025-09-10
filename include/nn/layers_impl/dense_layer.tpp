@@ -16,7 +16,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
                           std::unique_ptr<ActivationFunction<T>> activation,
@@ -32,7 +31,6 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
     bias_gradients_ = Tensor<T>(output_features, 1, 1, 1);
   }
 
-  // Xavier initialization
   T fan_in = static_cast<T>(input_features);
   T fan_out = static_cast<T>(output_features);
   T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
@@ -92,7 +90,6 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient,
         std::to_string(micro_batch_id));
   }
 
-  // check if shapes match
   if (gradient.shape() != it_pre_act->second.shape()) {
     throw std::invalid_argument(
         "Gradient output shape does not match cached pre-activation shape");
@@ -104,25 +101,19 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient,
 
   Tensor<T> current_grad = gradient.clone();
 
-  // Backprop through activation
   if (activation_) {
-    // current_grad =
-    //     activation_->compute_gradient(it_pre_act->second, &current_grad);
     activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
   }
 
-  // Compute weight gradients
   compute_weight_gradients(last_input.data(), current_grad.data(),
                            weight_gradients_.data(), batch_size,
                            input_features_, output_features_);
 
-  // Compute bias gradients
   if (use_bias_) {
     compute_bias_gradients(current_grad.data(), bias_gradients_.data(),
                            batch_size, output_features_);
   }
 
-  // Compute input gradients
   compute_input_gradients(current_grad.data(), weights_.data(),
                           grad_input.data(), batch_size, input_features_,
                           output_features_);
@@ -244,7 +235,6 @@ std::vector<size_t> DenseLayer<T>::compute_output_shape(
   return {input_shape[0], output_features_, 1, 1};
 }
 
-// Protected method implementations
 template <typename T>
 void DenseLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
   params.push_back(&weights_);
@@ -278,7 +268,7 @@ DenseLayer<T>::create_from_config(const LayerConfig &config) {
 
   std::unique_ptr<ActivationFunction<T>> activation;
   if (activation_name != "none") {
-    // Ensure factory has default activations registered
+
     ActivationFactory<T>::register_defaults();
     activation = ActivationFactory<T>::create(activation_name);
   }

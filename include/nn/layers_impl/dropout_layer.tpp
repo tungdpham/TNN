@@ -12,7 +12,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
     : StatelessLayer<T>(name), dropout_rate_(dropout_rate),
@@ -22,9 +21,9 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
   }
 }
 
-
 template <typename T>
-Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input,
+                                   size_t micro_batch_id) {
   if (!this->is_training_) {
     return input;
   }
@@ -39,7 +38,8 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
   utils::parallel_for_2d(
       input.batch_size(), input.channels(), [&](size_t n, size_t c) {
         thread_local std::mt19937 local_generator(std::random_device{}());
-        thread_local std::uniform_real_distribution<T> local_distribution(T(0), T(1));
+        thread_local std::uniform_real_distribution<T> local_distribution(T(0),
+                                                                          T(1));
         for (size_t h = 0; h < input.height(); ++h) {
           for (size_t w = 0; w < input.width(); ++w) {
             if (local_distribution(local_generator) < dropout_rate_) {
@@ -56,7 +56,6 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
   micro_batch_masks_[micro_batch_id] = mask.clone();
   return output;
 }
-
 
 template <typename T>
 Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient,
@@ -76,33 +75,29 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient,
   Tensor<T> grad_input = gradient;
 
   utils::parallel_for_2d(gradient.batch_size(), gradient.channels(),
-                       [&](size_t n, size_t c) {
-                         for (size_t h = 0; h < gradient.height(); ++h) {
-                           for (size_t w = 0; w < gradient.width(); ++w) {
-                             grad_input(n, c, h, w) *= mask(n, c, h, w);
+                         [&](size_t n, size_t c) {
+                           for (size_t h = 0; h < gradient.height(); ++h) {
+                             for (size_t w = 0; w < gradient.width(); ++w) {
+                               grad_input(n, c, h, w) *= mask(n, c, h, w);
+                             }
                            }
-                         }
-                       });
+                         });
 
   return grad_input;
 }
 
-
-template <typename T>
-std::string DropoutLayer<T>::type() const {
+template <typename T> std::string DropoutLayer<T>::type() const {
   return "dropout";
 }
 
-template <typename T>
-LayerConfig DropoutLayer<T>::get_config() const {
+template <typename T> LayerConfig DropoutLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.parameters["dropout_rate"] = dropout_rate_;
   return config;
 }
 
-template <typename T>
-std::unique_ptr<Layer<T>> DropoutLayer<T>::clone() const {
+template <typename T> std::unique_ptr<Layer<T>> DropoutLayer<T>::clone() const {
   return std::make_unique<DropoutLayer<T>>(dropout_rate_, this->name_);
 }
 

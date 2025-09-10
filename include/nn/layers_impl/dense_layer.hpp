@@ -6,10 +6,10 @@
  */
 #pragma once
 
-#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "../optimizers.hpp"
 #include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -17,7 +17,6 @@
 
 namespace tnn {
 
-// Dense/Fully Connected Layer using SIMD-optimized operations
 template <typename T = float> class DenseLayer : public ParameterizedLayer<T> {
 private:
   size_t input_features_;
@@ -29,11 +28,9 @@ private:
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
 
-  // Per-micro-batch state
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
 
-  // Helper functions for dense layer computations
   void compute_dense_forward(const T *input_data, const T *weight_data,
                              T *output_data, size_t batch_size,
                              size_t input_features,

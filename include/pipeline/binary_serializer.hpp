@@ -1,14 +1,14 @@
 #pragma once
- 
+
 #include "message.hpp"
+#include "stage_config.hpp"
 #include "task.hpp"
 #include "tensor/tensor.hpp"
-#include "stage_config.hpp"
 #include <cstdint>
-#include <vector>
-#include <string>
 #include <cstring>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace tpipeline {
 class BinarySerializer {

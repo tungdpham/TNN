@@ -45,7 +45,7 @@ public:
 
   void start() {
     for (const auto &stage_name : this->stage_names_) {
-      // currently defaults to train mode
+
       auto start_msg = Message<T>::create_control_message(
           CommandType::TRAIN_MODE, "coordinator", stage_name);
       this->coordinator_comm_->send_message(start_msg);
@@ -143,7 +143,6 @@ public:
       this->forward(microbatch_inputs[i], i);
     }
 
-    // Backward on completion of any microbatch
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
@@ -157,7 +156,7 @@ public:
       for (const auto &forward_msg : forward_messages) {
         if (forward_msg.has_task()) {
           ++processed_microbatches_;
-          // Process the forward task
+
           const auto &task = forward_msg.get_task();
 
           Tensor<T> predictions = task.data;
@@ -165,7 +164,6 @@ public:
           Tensor<T> gradient =
               loss_function_->compute_gradient(predictions, targets);
 
-          // Send backward task
           this->backward(gradient, task.micro_batch_id);
         }
       }
@@ -173,7 +171,6 @@ public:
 
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    // Wait for all backward tasks to complete
     message_notification_cv_.wait(lock, [this]() {
       return this->coordinator_comm_->backward_message_count() >=
              static_cast<size_t>(this->num_microbatches_);
@@ -284,7 +281,7 @@ protected:
 private:
   void wait_for_parameter_updates() {
     int confirmations = 0;
-    (void)confirmations; // Suppress unused variable warning
+    (void)confirmations;
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
 

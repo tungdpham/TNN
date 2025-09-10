@@ -102,7 +102,7 @@ if [ "$CLEAN_BUILD" = true ]; then
     if [ "$BUILD_DIR" = "." ]; then
         # Clean current directory
         rm -rf CMakeCache.txt CMakeFiles/ Makefile cmake_install.cmake
-        rm -rf bin/ lib/ compile_commands.json
+        rm -rf bin/ lib/ build/ compile_commands.json
         echo "Cleaned build files from current directory"
     else
         # Clean or recreate build directory

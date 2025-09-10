@@ -28,24 +28,24 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 Sequential<float> create_demo_model() {
   auto model =
       // tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-          // .input({1, 28, 28})
-          // .input({3, 32, 32})
-          // .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-          // .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-          // .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-          // .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
-          // .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-          // .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
-          // .build();
+      // .input({1, 28, 28})
+      // .input({3, 32, 32})
+      // .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+      // .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+      // .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+      // .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+      // .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+      // .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
+      // .build();
       tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
-                     .input({3, 32, 32})
-                     .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
-                     .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                     .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
-                     .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
-                     .flatten("flatten")
-                     .dense(10, "linear", true, "fc1")
-                     .build();
+          .input({3, 32, 32})
+          .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
+          .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
+          .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
+          .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
+          .flatten("flatten")
+          .dense(10, "linear", true, "fc1")
+          .build();
 
   auto optimizer = std::make_unique<tnn::Adam<float>>(
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
@@ -60,21 +60,22 @@ Sequential<float> create_demo_model() {
 std::string get_host(const std::string &env_var,
                      const std::string &default_host) {
 #ifdef _WIN32
-  #ifdef _MSC_VER
+#ifdef _MSC_VER
   // MSVC implementation
-  char* env_value = nullptr;
+  char *env_value = nullptr;
   size_t len = 0;
-  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
+  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 &&
+      env_value != nullptr) {
     std::string result(env_value);
     free(env_value);
     return result;
   }
   return default_host;
-  #else
+#else
   // MinGW implementation - use standard getenv
   const char *env_value = std::getenv(env_var.c_str());
   return env_value ? std::string(env_value) : default_host;
-  #endif
+#endif
 #else
   const char *env_value = std::getenv(env_var.c_str());
   return env_value ? std::string(env_value) : default_host;
@@ -126,9 +127,8 @@ int main() {
   std::cout << "\nStarting distributed pipeline..." << std::endl;
   coordinator.start();
 
-
-  //uncomment according to dataset
-  // data_loading::MNISTDataLoader<float> train_loader, test_loader;
+  // uncomment according to dataset
+  //  data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
   // if (!train_loader.load_data("./data/mnist/train.csv")) {
   //   std::cerr << "Failed to load training data!" << std::endl;
@@ -194,7 +194,7 @@ int main() {
 
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
-    
+
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration = std::chrono::duration_cast<std::chrono::microseconds>(
         split_end - split_start);

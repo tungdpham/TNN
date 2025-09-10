@@ -14,7 +14,6 @@
 
 namespace tnn {
 
-// Base class for layers without parameters (activation, pooling, etc.)
 template <typename T = float> class StatelessLayer : public Layer<T> {
 public:
   explicit StatelessLayer(const std::string &name = "") { this->name_ = name; }

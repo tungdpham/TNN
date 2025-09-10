@@ -11,14 +11,13 @@
 #include <unordered_map>
 #include <vector>
 
-#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "../optimizers.hpp"
 #include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
-// Batch Normalization Layer
 template <typename T = float>
 class BatchNormLayer : public ParameterizedLayer<T> {
 private:
@@ -27,17 +26,14 @@ private:
   T momentum_;
   bool affine_;
 
-  // Learnable parameters
-  Tensor<T> gamma_; // Scale parameter
-  Tensor<T> beta_;  // Shift parameter
+  Tensor<T> gamma_;
+  Tensor<T> beta_;
   Tensor<T> gamma_gradients_;
   Tensor<T> beta_gradients_;
 
-  // Running statistics (for inference)
   Tensor<T> running_mean_;
   Tensor<T> running_var_;
 
-  // Per-micro-batch state for training
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_normalized_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_mean_;

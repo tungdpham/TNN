@@ -21,12 +21,11 @@ template <typename T = float> struct Task {
   Task(TaskType t, const Tensor<T> &d, size_t mb_id)
       : type(t), data(d), micro_batch_id(mb_id) {}
 
-  // Copy constructor
-  Task(const Task &other) 
-      : type(other.type), data(other.data.clone()), micro_batch_id(other.micro_batch_id) {}
+  Task(const Task &other)
+      : type(other.type), data(other.data.clone()),
+        micro_batch_id(other.micro_batch_id) {}
 
-  // Assignment operator  
-  Task& operator=(const Task &other) {
+  Task &operator=(const Task &other) {
     if (this != &other) {
       type = other.type;
       data = other.data.clone();
@@ -35,12 +34,11 @@ template <typename T = float> struct Task {
     return *this;
   }
 
-  // Move constructor
-  Task(Task&& other) noexcept
-      : type(other.type), data(std::move(other.data)), micro_batch_id(other.micro_batch_id) {}
+  Task(Task &&other) noexcept
+      : type(other.type), data(std::move(other.data)),
+        micro_batch_id(other.micro_batch_id) {}
 
-  // Move assignment
-  Task& operator=(Task&& other) noexcept {
+  Task &operator=(Task &&other) noexcept {
     if (this != &other) {
       type = other.type;
       data = std::move(other.data);

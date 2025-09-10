@@ -9,8 +9,8 @@
 #include "command_type.hpp"
 #include "task.hpp"
 #include <chrono>
-#include <variant>
 #include <string>
+#include <variant>
 
 namespace tpipeline {
 
@@ -29,7 +29,7 @@ template <typename T = float> struct Message {
   Message() : payload(std::monostate{}) {}
 
   Message(CommandType cmd_type)
-      : command_type(cmd_type), payload(std::monostate{}), 
+      : command_type(cmd_type), payload(std::monostate{}),
         timestamp(std::chrono::steady_clock::now()) {}
 
   Message(CommandType cmd_type, const Task<T> &task_data)
@@ -49,9 +49,9 @@ template <typename T = float> struct Message {
   bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
   bool has_text() const { return std::holds_alternative<std::string>(payload); }
   bool has_signal() const { return std::holds_alternative<bool>(payload); }
-  
-  const Task<T>& get_task() const { return std::get<Task<T>>(payload); }
-  const std::string& get_text() const { return std::get<std::string>(payload); }
+
+  const Task<T> &get_task() const { return std::get<Task<T>>(payload); }
+  const std::string &get_text() const { return std::get<std::string>(payload); }
   bool get_signal() const { return std::get<bool>(payload); }
 
   static Message<T> forward_task(const Task<T> &task,

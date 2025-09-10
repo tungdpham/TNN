@@ -31,7 +31,6 @@ struct LayerConfig {
   }
 };
 
-// Abstract base layer interface
 template <typename T = float> class Layer {
 public:
   virtual ~Layer() = default;

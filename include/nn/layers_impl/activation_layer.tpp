@@ -6,14 +6,14 @@
  */
 #include "activation_layer.hpp"
 
-#include <stdexcept>
 #include <cassert>
+#include <stdexcept>
 
 namespace tnn {
 
 template <typename T>
-ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
-                                    const std::string &name)
+ActivationLayer<T>::ActivationLayer(
+    std::unique_ptr<ActivationFunction<T>> activation, const std::string &name)
     : StatelessLayer<T>(name), activation_(std::move(activation)) {
   if (!activation_) {
     throw std::invalid_argument("Activation function cannot be null");
@@ -21,7 +21,8 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 }
 
 template <typename T>
-Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input,
+                                      size_t micro_batch_id) {
   micro_batch_inputs_[micro_batch_id] = input.clone();
   Tensor<T> output = input.clone();
   activation_->apply(output);
@@ -32,21 +33,18 @@ template <typename T>
 Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &gradient,
                                        size_t micro_batch_id) {
   auto it = micro_batch_inputs_.find(micro_batch_id);
-  assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
+  assert(it != micro_batch_inputs_.end() &&
+         "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
   Tensor<T> grad = activation_->compute_gradient(last_input, &gradient);
   return grad;
 }
 
-
-template <typename T>
-std::string ActivationLayer<T>::type() const {
+template <typename T> std::string ActivationLayer<T>::type() const {
   return "activation";
 }
 
-
-template <typename T>
-LayerConfig ActivationLayer<T>::get_config() const {
+template <typename T> LayerConfig ActivationLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.parameters["activation"] = activation_->name();
@@ -60,9 +58,9 @@ std::unique_ptr<Layer<T>> ActivationLayer<T>::clone() const {
 }
 
 template <typename T>
-std::vector<size_t>
-ActivationLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
-  return input_shape; // Activation doesn't change shape
+std::vector<size_t> ActivationLayer<T>::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
+  return input_shape;
 }
 
 } // namespace tnn

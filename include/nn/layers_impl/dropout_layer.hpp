@@ -12,12 +12,11 @@
 #include <unordered_map>
 #include <vector>
 
-#include "tensor/tensor.hpp"
 #include "../layers.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
-// Dropout Layer
 template <typename T = float> class DropoutLayer : public StatelessLayer<T> {
 private:
   T dropout_rate_;

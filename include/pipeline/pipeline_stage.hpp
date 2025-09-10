@@ -110,7 +110,8 @@ public:
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       model_->update_parameters();
-      auto response = Message<T>::parameters_updated(this->name_, "coordinator");
+      auto response =
+          Message<T>::parameters_updated(this->name_, "coordinator");
       communicator_->send_message(response);
     } break;
     case CommandType::TRAIN_MODE:

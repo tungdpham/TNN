@@ -20,7 +20,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
                             size_t kernel_h, size_t kernel_w, size_t stride_h,
@@ -41,7 +40,6 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
     bias_gradients_ = Tensor<T>(out_channels, 1, 1, 1);
   }
 
-  // Xavier/Glorot initialization
   T fan_in = static_cast<T>(in_channels * kernel_h * kernel_w);
   T fan_out = static_cast<T>(out_channels * kernel_h * kernel_w);
   T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
@@ -49,7 +47,8 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels,
 }
 
 template <typename T>
-Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input,
+                                  size_t micro_batch_id) {
   if (input.channels() != in_channels_) {
     std::cerr << "Input shape: " << input.channels()
               << " channels, expected: " << in_channels_ << " channels"
@@ -57,7 +56,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(), input.width()};
+  micro_batch_input_shapes_[micro_batch_id] = {
+      input.batch_size(), input.channels(), input.height(), input.width()};
 
   const size_t batch_size = input.batch_size();
   const size_t input_h = input.height();
@@ -66,7 +66,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  // im2col transformation
   Matrix<T> col_matrix =
       input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
@@ -79,7 +78,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat,
                        output_size, kernel_size, out_channels_);
 
-  // cache the value since we are no longer using it
   micro_batch_im2col_matrices_[micro_batch_id] = std::move(col_matrix);
 
   utils::cnhw_to_nchw(output_flat, output.data(), batch_size, out_channels_,
@@ -109,10 +107,11 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient,
   auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
 
   if (it_input_shape == micro_batch_input_shapes_.end()) {
-    throw std::runtime_error("No cached input shape found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+    throw std::runtime_error(
+        "No cached input shape found for micro-batch ID: " +
+        std::to_string(micro_batch_id));
   }
-  
+
   if (it_im2col == micro_batch_im2col_matrices_.end()) {
     throw std::runtime_error(
         "No cached im2col matrix found for micro-batch ID: " +
@@ -124,7 +123,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient,
         std::to_string(micro_batch_id));
   }
 
-  const auto& input_shape = it_input_shape->second;
+  const auto &input_shape = it_input_shape->second;
   const Matrix<T> &cached_im2col_matrix = it_im2col->second;
 
   const size_t batch_size = input_shape[0];
@@ -178,14 +177,13 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data,
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
   utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size,
                               output_size);
-  
-  utils::parallel_for_2d(out_channels, output_size, 
-    [&](size_t oc, size_t os) {
-      output_data[oc * output_size + os] = utils::simd_dot_product(
-          &weight_data[oc * kernel_size],
-          &col_data_transposed[os * kernel_size], kernel_size);
-    });
-  
+
+  utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
+    output_data[oc * output_size + os] = utils::simd_dot_product(
+        &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size],
+        kernel_size);
+  });
+
   free(col_data_transposed);
 }
 
@@ -196,12 +194,11 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data,
                                               const size_t output_size,
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
-  utils::parallel_for_2d(out_channels, kernel_size, 
-    [&](size_t oc, size_t ks) {
-      weight_grad_data[oc * kernel_size + ks] +=
-          utils::simd_dot_product(&gradient_data[oc * output_size],
-                                  &col_data[ks * output_size], output_size);
-    });
+  utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
+    weight_grad_data[oc * kernel_size + ks] +=
+        utils::simd_dot_product(&gradient_data[oc * output_size],
+                                &col_data[ks * output_size], output_size);
+  });
 }
 
 template <typename T>
@@ -212,19 +209,18 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
   T *gradient_transposed = (T *)malloc(sizeof(T) * output_size * out_channels);
-  utils::transpose_2d_inplace(gradient_data, gradient_transposed,
-                              out_channels, output_size);
+  utils::transpose_2d_inplace(gradient_data, gradient_transposed, out_channels,
+                              output_size);
 
   T *weights_transposed = (T *)malloc(sizeof(T) * kernel_size * out_channels);
   utils::transpose_2d_inplace(weight_data, weights_transposed, out_channels,
                               kernel_size);
 
-  utils::parallel_for_2d(kernel_size, output_size, 
-    [&](size_t ks, size_t os) {
-      col_grad_data[ks * output_size + os] = utils::simd_dot_product(
-          &weights_transposed[ks * out_channels],
-          &gradient_transposed[os * out_channels], out_channels);
-    });
+  utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
+    col_grad_data[ks * output_size + os] = utils::simd_dot_product(
+        &weights_transposed[ks * out_channels],
+        &gradient_transposed[os * out_channels], out_channels);
+  });
 
   free(gradient_transposed);
   free(weights_transposed);
@@ -233,7 +229,8 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data,
 template <typename T>
 void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data,
                                             T *bias_grad_data,
-                                            const size_t batch_size, const size_t output_h,
+                                            const size_t batch_size,
+                                            const size_t output_h,
                                             const size_t output_w,
                                             const size_t out_channels) const {
   const size_t N_stride = out_channels * output_h * output_w;
@@ -244,8 +241,8 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data,
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oh = 0; oh < output_h; ++oh) {
         for (size_t ow = 0; ow < output_w; ++ow) {
-          grad_sum += gradient_data[n * N_stride + oc * C_stride +
-                                       oh * output_w + ow];
+          grad_sum +=
+              gradient_data[n * N_stride + oc * C_stride + oh * output_w + ow];
         }
       }
     }
@@ -255,7 +252,8 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data,
 
 template <typename T>
 void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data,
-                                        const size_t batch_size, const size_t output_h,
+                                        const size_t batch_size,
+                                        const size_t output_h,
                                         const size_t output_w,
                                         const size_t out_channels) const {
   const size_t N_stride = out_channels * output_h * output_w;

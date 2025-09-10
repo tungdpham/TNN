@@ -61,7 +61,6 @@ public:
           input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
     });
 
-    // If upstream gradient is provided, multiply element-wise
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         throw std::invalid_argument("Upstream gradient must have the same "

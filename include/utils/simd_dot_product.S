@@ -1,8 +1,8 @@
-// Function: float simd_dot_product_asm(const float *weights, const float *col_data, size_t kernel_size)
-// Arguments (System V ABI):
-//   %rdi: weights (const float*)
-//   %rsi: col_data (const float*)
-//   %rdx: kernel_size (size_t)
+
+
+
+
+
 
 .section .text
 .globl simd_dot_product_asm

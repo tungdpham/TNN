@@ -10,8 +10,8 @@
 extern "C" {
 #endif
 
-// Assembly implementation of SIMD dot product for x86_64
-float simd_dot_product_asm(const float *weights, const float *col_data, size_t kernel_size);
+float simd_dot_product_asm(const float *weights, const float *col_data,
+                           size_t kernel_size);
 
 #ifdef __cplusplus
 }

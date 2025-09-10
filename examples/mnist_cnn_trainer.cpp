@@ -17,10 +17,10 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/misc.hpp"
 #include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
 #include "utils/train.hpp"
-#include "utils/misc.hpp"
 
 namespace mnist_constants {
 
@@ -96,10 +96,10 @@ int main() {
                                             ::mnist_constants::IMAGE_HEIGHT,
                                             ::mnist_constants::IMAGE_WIDTH});
 
-    train_classification_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
-                    mnist_constants::BATCH_SIZE,
-                    mnist_constants::LR_DECAY_FACTOR,
-                    mnist_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(
+        model, train_loader, test_loader, mnist_constants::EPOCHS,
+        mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
+        mnist_constants::PROGRESS_PRINT_INTERVAL);
 
     std::cout << "\nOptimized MNIST CNN model training completed successfully!"
               << std::endl;

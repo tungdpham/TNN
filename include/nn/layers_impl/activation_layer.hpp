@@ -11,13 +11,12 @@
 #include <unordered_map>
 #include <vector>
 
-#include "tensor/tensor.hpp"
 #include "../activations.hpp"
 #include "stateless_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
-// Activation Layer (stateless)
 template <typename T = float> class ActivationLayer : public StatelessLayer<T> {
 private:
   std::unique_ptr<ActivationFunction<T>> activation_;

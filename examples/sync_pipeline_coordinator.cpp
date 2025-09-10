@@ -48,21 +48,22 @@ Sequential<float> create_demo_model() {
 std::string get_host(const std::string &env_var,
                      const std::string &default_host) {
 #ifdef _WIN32
-  #ifdef _MSC_VER
+#ifdef _MSC_VER
   // MSVC implementation
-  char* env_value = nullptr;
+  char *env_value = nullptr;
   size_t len = 0;
-  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
+  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 &&
+      env_value != nullptr) {
     std::string result(env_value);
     free(env_value);
     return result;
   }
   return default_host;
-  #else
+#else
   // MinGW implementation - use standard getenv
   const char *env_value = std::getenv(env_var.c_str());
   return env_value ? std::string(env_value) : default_host;
-  #endif
+#endif
 #else
   const char *env_value = std::getenv(env_var.c_str());
   return env_value ? std::string(env_value) : default_host;
@@ -139,7 +140,7 @@ int main() {
 
   train_loader.reset();
   test_loader.reset();
-  
+
   auto epoch_start = std::chrono::high_resolution_clock::now();
 
   while (true) {

@@ -15,7 +15,6 @@
 
 namespace tnn {
 
-// Constructor
 template <typename T>
 BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
                                   bool affine, const std::string &name)
@@ -88,18 +87,15 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
     });
 
-    // Compute standard deviation
     Tensor<T> batch_std(channels, 1, 1, 1);
     for (size_t c = 0; c < channels; ++c) {
       batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
     }
 
-    // Store for backward pass
     micro_batch_mean_[micro_batch_id] = batch_mean.clone();
     micro_batch_var_[micro_batch_id] = batch_var.clone();
     micro_batch_std_[micro_batch_id] = batch_std.clone();
 
-    // Normalize
     Tensor<T> normalized(input.shape());
 
     utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -114,7 +110,6 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     micro_batch_normalized_[micro_batch_id] = normalized.clone();
 
-    // Apply affine transformation if enabled
     if (affine_) {
       utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
         T gamma_val = gamma_(c, 0, 0, 0);
@@ -214,7 +209,6 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
     });
   }
 
-  // Compute gradient w.r.t. normalized input
   Tensor<T> grad_normalized(input.shape());
   if (affine_) {
     utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -229,7 +223,6 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
     grad_normalized = gradient.clone();
   }
 
-  // Compute gradients w.r.t. variance and mean
   Tensor<T> grad_var(channels, 1, 1, 1);
   Tensor<T> grad_mean(channels, 1, 1, 1);
 

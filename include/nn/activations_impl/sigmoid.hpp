@@ -7,7 +7,6 @@
 #pragma once
 #include "utils/parallel_for.hpp"
 
-
 template <typename T = float> class Sigmoid : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override {
@@ -54,22 +53,19 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      
       T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
       grad_data[i] = sigmoid_val * (T(1) - sigmoid_val);
     });
 
-    
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
       const T *upstream_data = upstream_gradient->data();
-      
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-        grad_data[i] *= upstream_data[i];
-      });
+
+      utils::parallel_for_range<size_t>(
+          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
     }
 
     return gradient;
@@ -87,7 +83,6 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      
       T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
       T local_grad = sigmoid_val * (T(1) - sigmoid_val);
       grad_data[i] *= local_grad;

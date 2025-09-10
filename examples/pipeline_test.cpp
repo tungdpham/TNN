@@ -1,12 +1,12 @@
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-#include "pipeline/message.hpp"
 #include "pipeline/in_process_coordinator.hpp"
+#include "pipeline/message.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/misc.hpp"
 #include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
-#include "utils/misc.hpp"
 
 namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
@@ -33,7 +33,7 @@ signed main() {
     std::cerr << "Failed to load test data!" << std::endl;
     return -1;
   }
-  
+
   utils::set_num_threads(4);
 
   train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
@@ -42,8 +42,8 @@ signed main() {
   // Create a sequential model using the builder pattern
   auto model =
       tnn::SequentialBuilder<float>("mnist_cnn_classifier")
-          .input({1, mnist_constants::IMAGE_HEIGHT,
-                  mnist_constants::IMAGE_WIDTH})
+          .input(
+              {1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH})
           .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
           .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
           .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
@@ -57,8 +57,8 @@ signed main() {
       mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_functions = tnn::LossFactory<float>::create_crossentropy(
-      mnist_constants::EPSILON);
+  auto loss_functions =
+      tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
 
   auto coordinator = tpipeline::InProcessPipelineCoordinator<float>(
       model, 1, mnist_constants::NUM_MICROBATCHES);
@@ -82,7 +82,6 @@ signed main() {
   std::cout << "Starting training..." << std::endl;
 
   auto loss_function = tnn::LossFactory<float>::create("crossentropy");
-
 
 #pragma omp parallel sections
   {
@@ -200,7 +199,8 @@ signed main() {
           coordinator.join(1);
 
           std::vector<tpipeline::Message<float>> all_messages =
-              coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
+              coordinator.dequeue_all_messages(
+                  tpipeline::CommandType::FORWARD_TASK);
 
           if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
             throw std::runtime_error(
