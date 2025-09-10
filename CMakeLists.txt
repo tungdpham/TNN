@@ -1,5 +1,21 @@
 cmake_minimum_required(VERSION 3.18)
-project(DCNN LANGUAGES CXX ASM)
+
+project(DCNN LANGUAGES CXX)
+
+if(WIN32 AND MSVC)
+    find_program(NASM_EXECUTABLE nasm PATHS "C:\\Users\\ADMIN\\AppData\\Local\\bin\\NASM" ENV PATH)
+    if(NASM_EXECUTABLE)
+        message(STATUS "Found NASM: ${NASM_EXECUTABLE}")
+        enable_language(ASM_NASM)
+        set(CMAKE_ASM_NASM_COMPILER ${NASM_EXECUTABLE})
+        set(CMAKE_ASM_NASM_OBJECT_FORMAT win64)
+    else()
+        message(WARNING "NASM not found. Assembly optimizations will be disabled on Windows.")
+        set(DISABLE_ASM TRUE)
+    endif()
+else()
+    enable_language(ASM)
+endif()
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -28,6 +44,7 @@ endif()
 
 # find packages
 find_package(Protobuf REQUIRED)
+find_package(protobuf CONFIG REQUIRED)
 
 if(ENABLE_OPENMP)
     message("Finding OpenMP")
@@ -56,7 +73,7 @@ if(MSVC)
     # MSVC flags for Release and Debug
     set(CMAKE_CXX_FLAGS_RELEASE "/Ox /arch:AVX2 /DNDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "/Od /Zi")
-    add_compile_options(/W4)
+    # add_compile_options(/W4)
     add_compile_definitions(NOMINMAX)
     add_compile_definitions(WIN32_LEAN_AND_MEAN)
     add_compile_definitions(__AVX2__ __SSE2__)
@@ -74,13 +91,6 @@ else()
         set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
         set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -march=native -flto=auto")
     endif()
-    add_compile_options(-Wpedantic -Wall)
-endif()
-
-
-if(MSVC)
-    add_compile_options(/W4)
-elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(-Wpedantic -Wall)
 endif()
 
@@ -113,7 +123,8 @@ function(create_executable target_name source_file)
         set_property(TARGET ${target_name} PROPERTY CUDA_ARCHITECTURES 89)
     endif()
     
-    target_link_libraries(${target_name} PRIVATE dcnn_lib)
+    target_link_libraries(${target_name} PRIVATE dcnn_lib dcnn_pipeline dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
+    target_link_libraries(${target_name} PRIVATE protobuf::libprotobuf)
     
     if(ENABLE_TBB)
         target_link_libraries(${target_name} PRIVATE TBB::tbb)

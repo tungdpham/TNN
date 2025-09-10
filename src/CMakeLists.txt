@@ -20,9 +20,19 @@ endif()
 
 add_library(dcnn_utils STATIC utils.cpp cpu_info.cpp)
 
+# Add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
-    target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S)
-    set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S PROPERTY LANGUAGE ASM)
+    if(WIN32 AND MSVC AND NOT DISABLE_ASM)
+        target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm)
+        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm PROPERTY LANGUAGE ASM_NASM)
+        message(STATUS "Using NASM assembly optimizations")
+    elseif(NOT WIN32 OR NOT MSVC)
+        target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S)
+        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S PROPERTY LANGUAGE ASM)
+        message(STATUS "Using GNU assembly optimizations")
+    else()
+        message(STATUS "Assembly optimizations disabled")
+    endif()
 endif()
 
 if(NOT MSVC)
@@ -46,9 +56,38 @@ else()
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils)
 endif()
 
-add_library(dcnn_pipeline STATIC pipeline.cpp pipeline.pb.cc)
-target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn ${Protobuf_LIBRARIES})
-target_include_directories(dcnn_pipeline PUBLIC ${Protobuf_INCLUDE_DIRS})
+add_library(dcnn_pipeline STATIC pipeline.cpp)
+target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn protobuf::libprotobuf)
+target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+set(PROTO_DIR "${CMAKE_SOURCE_DIR}/include/pipeline/proto")
+# auto generate proto files
+if(EXISTS "${PROTO_DIR}")
+    file(GLOB PROTO_FILES "${PROTO_DIR}/*.proto")
+    if(PROTO_FILES)
+        set(PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated")
+        file(MAKE_DIRECTORY ${PROTO_OUT_DIR})
+        
+        protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+        
+        set_source_files_properties(${PROTO_SRCS} ${PROTO_HDRS} PROPERTIES
+            GENERATED TRUE
+        )
+        
+        add_library(dcnn_proto STATIC ${PROTO_SRCS})
+        target_link_libraries(dcnn_proto PUBLIC protobuf::libprotobuf)
+        target_include_directories(dcnn_proto PUBLIC 
+            ${CMAKE_CURRENT_BINARY_DIR}
+            ${CMAKE_SOURCE_DIR}/include
+        )
+        
+        target_link_libraries(dcnn_pipeline PUBLIC dcnn_proto)
+        
+        target_include_directories(dcnn_lib INTERFACE ${CMAKE_CURRENT_BINARY_DIR})
+        target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+        
+        target_link_libraries(dcnn_lib INTERFACE dcnn_proto)
+    endif()
+endif()
 
 add_library(dcnn_instantiations INTERFACE)
 target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
@@ -91,7 +130,7 @@ if(ENABLE_CUDA)
     target_link_libraries(dcnn_lib INTERFACE CUDA::cudart CUDA::cublas CUDA::curand)
 endif()
 
-# Build cpu_logger utility
+# cpu logger
 if(NOT WIN32) 
     add_executable(cpu_logger cpu_logger.cpp)
     target_compile_features(cpu_logger PRIVATE cxx_std_17)

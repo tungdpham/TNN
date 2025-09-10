@@ -3,7 +3,7 @@
 #include "message.hpp"
 #include "task.hpp"
 #include "tensor/tensor.hpp"
-#include "proto/pipeline.pb.h"
+#include "pipeline.pb.h"
 #include "stage_config.hpp"
 #include <vector>
 #include <string>

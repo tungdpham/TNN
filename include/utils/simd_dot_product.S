@@ -1,12 +1,14 @@
-# Function: float simd_dot_product_asm(const float *weights, const float *col_data, size_t kernel_size)
-# Arguments (System V ABI):
-#   %rdi: weights (const float*)
-#   %rsi: col_data (const float*)
-#   %rdx: kernel_size (size_t)
+// Function: float simd_dot_product_asm(const float *weights, const float *col_data, size_t kernel_size)
+// Arguments (System V ABI):
+//   %rdi: weights (const float*)
+//   %rsi: col_data (const float*)
+//   %rdx: kernel_size (size_t)
 
 .section .text
 .globl simd_dot_product_asm
+#ifdef __ELF__
 .type simd_dot_product_asm, @function
+#endif
 
 simd_dot_product_asm:
     # save registers if needed
@@ -66,6 +68,8 @@ simd_dot_product_asm:
     vzeroupper
     ret
 
+#ifdef __ELF__
 .size simd_dot_product_asm, .-simd_dot_product_asm
 
 .section .note.GNU-stack,"",@progbits # mark stack as non-executable
+#endif

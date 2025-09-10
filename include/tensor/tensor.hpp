@@ -102,7 +102,11 @@ private:
   }
 
 public:
-  Tensor() : data_(nullptr), data_size_(0) {}
+  Tensor() : data_(nullptr), data_size_(0) {
+	  data_ = allocate_aligned(0);
+      std::fill(shape_, shape_ + dims_, 0);
+	  std::fill(strides_, strides_ + dims_, 0);
+  }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
     if constexpr (dims_ != 4) {
