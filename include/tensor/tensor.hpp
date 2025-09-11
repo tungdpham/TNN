@@ -6,8 +6,6 @@
  */
 #pragma once
 
-#include "layout_trait.hpp"
-#include "matrix/matrix.hpp"
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -21,6 +19,9 @@
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
+
+#include "layout_trait.hpp"
+#include "matrix/matrix.hpp"
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -42,7 +43,7 @@
 enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
 
 /**
- * @brief A tensor class
+ * @brief A tensor class dedicated for ML and DL applications.
  * @tparam T Data type (e.g., float, double, int)
  * @tparam L Memory layout (NCHW, NHWC, NCDHW, NDHWC)
  * For now only NCHW is supported. A lot of changes are needed to support other
@@ -58,7 +59,7 @@ private:
 
   T *data_;
 
-  static constexpr size_t dims_ = LayoutTrait<L>::dims; 
+  static constexpr size_t dims_ = LayoutTrait<L>::dims;
   size_t (&shape_)[LayoutTrait<L>::dims] = layout_trait_.shape;
   size_t (&strides_)[LayoutTrait<L>::dims] = layout_trait_.strides;
 
@@ -108,35 +109,24 @@ private:
   }
 
 public:
-  Tensor() : data_(nullptr), data_size_(0) {
-    data_ = allocate_aligned(0);
-    std::fill(shape_, shape_ + dims_, 0);
-    std::fill(strides_, strides_ + dims_, 0);
-  }
+  Tensor() : data_(nullptr), data_size_(0) { data_ = allocate_aligned(0); }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width)
       : data_(nullptr) {
-    if constexpr (dims_ != 4) {
-      throw std::invalid_argument(
-          "This constructor is only for 4D tensors (NCHW or NHWC)");
-    }
+    static_assert(dims_ == 4, "This constructor is only for 4D tensors");
     layout_trait_.assign_shape(batch_size, channels, height, width);
-    data_size_ =
-        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
+                                 std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     std::fill(data_, data_ + data_size_, T(0));
   }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width,
          T *data) {
-
-    if constexpr (dims_ != 4) {
-      throw std::invalid_argument(
-          "This constructor is only for 4D tensors (NCHW or NHWC)");
-    }
+    static_assert(dims_ == 4, "This constructor is only for 4D tensors");
     layout_trait_.assign_shape(batch_size, channels, height, width);
-    data_size_ =
-        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
+                                 std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
       std::copy(data, data + data_size_, data_);
@@ -147,21 +137,18 @@ public:
            "Shape vector size must match tensor dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     layout_trait_.compute_strides();
-    data_size_ =
-        std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+    data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1),
+                                 std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     std::fill(data_, data_ + data_size_, T(0));
   }
 
   Tensor(std::vector<size_t> shape, const T *data) : data_(nullptr) {
-    if (shape.size() != dims_) {
-      throw std::invalid_argument(
-          "Shape vector size must match tensor dimensions");
-    }
+    assert(shape.size() == dims_ && "Shape vector size must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     layout_trait_.compute_strides();
-    data_size_ =
-        std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+    data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1),
+                                 std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
       std::copy(data, data + data_size_, data_);
@@ -229,8 +216,6 @@ public:
     return oss.str();
   }
 
-  const size_t *strides_ptr() const { return strides_; }
-
   const size_t batch_size() const { return layout_trait_.batch_size(); }
 
   const size_t channels() const { return layout_trait_.channels(); }
@@ -275,7 +260,6 @@ public:
         data_[i] = dis(gen);
       }
     } else {
-
       auto int_range = static_cast<typename std::conditional<
           std::is_signed<T>::value, std::int64_t, std::uint64_t>::type>(range);
       std::uniform_int_distribution<decltype(int_range)> dis(-int_range,
@@ -468,7 +452,6 @@ public:
   }
 
   Tensor<T, L> operator+(const Tensor<T, L> &other) const {
-
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         std::cerr << "Shape mismatch: " << shape_[i] << " vs "
@@ -487,7 +470,6 @@ public:
   }
 
   Tensor<T, L> operator-(const Tensor<T, L> &other) const {
-
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument("Tensor shapes must match for subtraction");
@@ -527,7 +509,6 @@ public:
   }
 
   Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
-
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         std::cerr << "Shape mismatch: " << shape_[i] << " vs "
@@ -544,7 +525,6 @@ public:
   }
 
   Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
-
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument("Tensor shapes must match for subtraction");
@@ -559,7 +539,6 @@ public:
   }
 
   Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
-
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
         throw std::invalid_argument(
@@ -712,7 +691,6 @@ public:
                              size_t channels, size_t height, size_t width,
                              size_t kernel_h, size_t kernel_w, size_t stride_h,
                              size_t stride_w, size_t pad_h, size_t pad_w) {
-
     size_t padded_h = height + 2 * pad_h;
     size_t padded_w = width + 2 * pad_w;
     size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;

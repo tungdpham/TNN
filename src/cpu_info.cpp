@@ -914,22 +914,6 @@ CoreInfo CpuInfo::get_core_info(int logical_core_id) const {
   return CoreInfo{}; // Return default-constructed CoreInfo for invalid ID
 }
 
-int CpuInfo::get_optimal_thread_count() const {
-  throw new std::runtime_error("Not implemented yet");
-}
-
-std::vector<int> CpuInfo::get_recommended_cpu_affinity(int thread_count) const {
-  throw new std::runtime_error("Not implemented yet");
-}
-
-bool CpuInfo::is_suitable_for_heavy_workload() const {
-  throw new std::runtime_error("Not implemented yet");
-}
-
-double CpuInfo::get_performance_score() const {
-  throw new std::runtime_error("Not implemented yet");
-}
-
 std::map<int, std::vector<int>> CpuInfo::get_numa_aware_cores() const {
   std::map<int, std::vector<int>> numa_cores;
 

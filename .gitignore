@@ -66,5 +66,12 @@ install_manifest.txt
 # logs
 /logs/
 
+# temp files
+/temp/
+
 # snapshots
 /model_snapshots/*
+
+# packages
+/.venv/
+/third_party/
