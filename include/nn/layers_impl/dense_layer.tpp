@@ -53,7 +53,7 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input,
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  Tensor<T> output(batch_size, output_features_, size_t(1), size_t(1));
+  Tensor<T> output(batch_size, output_features_, size_t(1), size_t(1), nullptr);
 
   compute_dense_forward(input.data(), weights_.data(), output.data(),
                         batch_size, input_features_, output_features_);
@@ -97,7 +97,7 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient,
 
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
-  Tensor<T> grad_input(last_input.shape());
+  Tensor<T> grad_input(last_input.shape(), nullptr);
 
   Tensor<T> current_grad = gradient.clone();
 
@@ -124,9 +124,9 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient,
 template <typename T>
 void DenseLayer<T>::compute_dense_forward(const T *input_data,
                                           const T *weight_data, T *output_data,
-                                          size_t batch_size,
-                                          size_t input_features,
-                                          size_t output_features) const {
+                                          const size_t batch_size,
+                                          const size_t input_features,
+                                          const size_t output_features) const {
   utils::parallel_for_2d(
       batch_size, output_features, [&](size_t n, size_t out_f) {
         output_data[n * output_features + out_f] = utils::simd_dot_product(
@@ -138,7 +138,7 @@ void DenseLayer<T>::compute_dense_forward(const T *input_data,
 template <typename T>
 void DenseLayer<T>::compute_weight_gradients(
     const T *input_data, const T *gradient_data, T *weight_grad_data,
-    size_t batch_size, size_t input_features, size_t output_features) const {
+    const size_t batch_size, const size_t input_features, const size_t output_features) const {
   T *input_transposed = (T *)malloc(sizeof(T) * input_features * batch_size);
   T *gradient_transposed =
       (T *)malloc(sizeof(T) * output_features * batch_size);

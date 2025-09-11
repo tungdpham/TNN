@@ -4,15 +4,14 @@
 
 set -e 
 
-# Colors for output
+# convenient colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
-# Default values
+# default vars
 BUILD_TYPE="Release"
-BUILD_DIR="."
 ENABLE_OPENMP=OFF
 ENABLE_CUDA=OFF
 ENABLE_TBB=ON
@@ -20,7 +19,6 @@ ENABLE_DEBUG=OFF
 CLEAN_BUILD=false
 VERBOSE=false
 
-# Help function
 show_help() {
     echo "Usage: $0 [OPTIONS]"
     echo ""
@@ -32,17 +30,17 @@ show_help() {
     echo "  --cuda              Enable CUDA support"
     echo "  --tbb               Enable Intel TBB support (on by default)"
     echo "  --openmp            Enable OpenMP support"
-    echo "  --build-dir DIR     Set custom build directory (default: . [current dir])"
     echo ""
     echo "Examples:"
     echo "  $0                  # Build with default settings"
     echo "  $0 --clean          # Clean build"
     echo "  $0 --debug          # Debug build with sanitizers"
     echo "  $0 --cuda           # Enable CUDA support"
-    echo "  $0 --tbb            # Enable Intel TBB support"
+    echo "  $0 --tbb            # Enable Intel TBB support (already on by default)"
+    echo "  $0 --openmp         # Enable OpenMP support"
 }
 
-# Parse command line arguments
+# parse args
 while [[ $# -gt 0 ]]; do
     case $1 in
         -h|--help)
@@ -74,10 +72,6 @@ while [[ $# -gt 0 ]]; do
             ENABLE_OPENMP=ON #if we want both openmp and tbb
             shift
             ;;
-        --build-dir)
-            BUILD_DIR="$2"
-            shift 2
-            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             show_help
@@ -86,43 +80,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Print build configuration
+# print build configuration
 echo -e "${GREEN}DCNN CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
-echo "  Build Directory: $BUILD_DIR"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  CUDA: $ENABLE_CUDA"
 echo "  Intel TBB: $ENABLE_TBB"
 echo "  Debug Mode: $ENABLE_DEBUG"
 echo ""
 
-# Clean build if requested
+# clean build if requested
 if [ "$CLEAN_BUILD" = true ]; then
     echo -e "${YELLOW}Cleaning build directory...${NC}"
-    if [ "$BUILD_DIR" = "." ]; then
-        # Clean current directory
-        rm -rf CMakeCache.txt CMakeFiles/ Makefile cmake_install.cmake
-        rm -rf bin/ lib/ build/ compile_commands.json
-        echo "Cleaned build files from current directory"
-    else
-        # Clean or recreate build directory
-        if [ -d "$BUILD_DIR" ]; then
-            rm -rf "$BUILD_DIR"
-            echo "Removed build directory: $BUILD_DIR"
-        fi
-        mkdir -p "$BUILD_DIR"
-        echo "Created fresh build directory: $BUILD_DIR"
-    fi
+    rm -rf CMakeCache.txt CMakeFiles/ Makefile cmake_install.cmake
+    rm -rf bin/ lib/ build/ compile_commands.json
+    echo "Cleaned build files from current directory"
     echo ""
 fi
 
-# Create build directory only if it's not current directory
-if [ "$BUILD_DIR" != "." ]; then
-    mkdir -p "$BUILD_DIR"
-    cd "$BUILD_DIR"
-fi
-
-# Configure with CMake
+# configure with CMake
 echo -e "${GREEN}Configuring with CMake...${NC}"
 CMAKE_ARGS=(
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
@@ -132,22 +108,9 @@ CMAKE_ARGS=(
     -DENABLE_DEBUG="$ENABLE_DEBUG"
 )
 
-if [ "$BUILD_DIR" = "." ]; then
-    cmake . "${CMAKE_ARGS[@]}"
-else
-    cmake .. "${CMAKE_ARGS[@]}"
-    
-    if command -v realpath >/dev/null 2>&1; then
-        INSTALL_PREFIX="$(realpath ..)"
-    else
-        INSTALL_PREFIX="$(cd .. && pwd)"
-    fi
-    CMAKE_ARGS+=( -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" )
-    
-    cmake . "${CMAKE_ARGS[@]}"
-fi
+cmake . "${CMAKE_ARGS[@]}"
 
-# Build
+# doing full build
 echo -e "${GREEN}Building project...${NC}"
 if [ "$VERBOSE" = true ]; then
     cmake --build . --verbose
@@ -169,8 +132,5 @@ echo "  - distributed_pipeline_docker"
 echo "  - More because I'm lazy to type them all out"
 echo ""
 echo -e "${YELLOW}To run a specific executable:${NC}"
-echo "  cd $BUILD_DIR && ./bin/mnist_cnn_trainer"
-echo ""
-echo -e "${YELLOW}To run tests:${NC}"
-echo "  cd $BUILD_DIR && make run_tests"
+echo "  ./bin/mnist_cnn_trainer or ./bin/Release/mnist_cnn_trainer (Windows with MSVC)"
 

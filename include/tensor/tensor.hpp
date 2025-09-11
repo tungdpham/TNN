@@ -6,8 +6,8 @@
  */
 #pragma once
 
+#include "layout_trait.hpp"
 #include "matrix/matrix.hpp"
-#include "tensor_view.hpp"
 #include <cassert>
 #include <cstdint>
 #include <cstdlib>
@@ -41,22 +41,28 @@
 
 enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
 
+/**
+ * @brief A tensor class
+ * @tparam T Data type (e.g., float, double, int)
+ * @tparam L Memory layout (NCHW, NHWC, NCDHW, NDHWC)
+ * For now only NCHW is supported. A lot of changes are needed to support other
+ * layouts.
+ */
 template <typename T = float, Layout L = NCHW> struct Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
                 "Tensor type must be floating point or integral");
 
 private:
-  using View = TensorView<T, L>;
+  LayoutTrait<L> layout_trait_;
 
-  static constexpr size_t dims_ = View::dims;
-  size_t shape_[dims_];
-  size_t strides_[dims_];
   T *data_;
 
-  size_t data_size_;
+  static constexpr size_t dims_ = LayoutTrait<L>::dims; 
+  size_t (&shape_)[LayoutTrait<L>::dims] = layout_trait_.shape;
+  size_t (&strides_)[LayoutTrait<L>::dims] = layout_trait_.strides;
 
-  inline void compute_strides() { View::compute_strides(strides_, shape_); }
+  size_t data_size_;
 
   template <typename... Indices>
   inline size_t compute_index(Indices... indices) const {
@@ -114,13 +120,9 @@ public:
       throw std::invalid_argument(
           "This constructor is only for 4D tensors (NCHW or NHWC)");
     }
-    shape_[0] = batch_size;
-    shape_[1] = channels;
-    shape_[2] = height;
-    shape_[3] = width;
-    compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
-                                 std::multiplies<size_t>());
+    layout_trait_.assign_shape(batch_size, channels, height, width);
+    data_size_ =
+        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     std::fill(data_, data_ + data_size_, T(0));
   }
@@ -132,13 +134,9 @@ public:
       throw std::invalid_argument(
           "This constructor is only for 4D tensors (NCHW or NHWC)");
     }
-    shape_[0] = batch_size;
-    shape_[1] = channels;
-    shape_[2] = height;
-    shape_[3] = width;
-    compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
-                                 std::multiplies<size_t>());
+    layout_trait_.assign_shape(batch_size, channels, height, width);
+    data_size_ =
+        std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
       std::copy(data, data + data_size_, data_);
@@ -148,9 +146,9 @@ public:
     assert(shape.size() == dims_ &&
            "Shape vector size must match tensor dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
-    compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
-                                 std::multiplies<size_t>());
+    layout_trait_.compute_strides();
+    data_size_ =
+        std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     std::fill(data_, data_ + data_size_, T(0));
   }
@@ -161,9 +159,9 @@ public:
           "Shape vector size must match tensor dimensions");
     }
     std::copy(shape.begin(), shape.end(), shape_);
-    compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1),
-                                 std::multiplies<size_t>());
+    layout_trait_.compute_strides();
+    data_size_ =
+        std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
       std::copy(data, data + data_size_, data_);
@@ -172,8 +170,7 @@ public:
   ~Tensor() { deallocate_aligned(data_); }
 
   Tensor(const Tensor &other) : data_size_(other.data_size_) {
-    std::copy(other.shape_, other.shape_ + dims_, shape_);
-    compute_strides();
+    layout_trait_ = other.layout_trait_;
     if (data_size_ > 0) {
       data_ = allocate_aligned(data_size_);
       std::copy(other.data_, other.data_ + data_size_, data_);
@@ -182,21 +179,18 @@ public:
 
   Tensor(Tensor &&other) noexcept
       : data_(other.data_), data_size_(other.data_size_) {
-    std::copy(other.shape_, other.shape_ + dims_, shape_);
-    compute_strides();
+    layout_trait_ = other.layout_trait_;
     other.data_ = nullptr;
     other.data_size_ = 0;
   }
 
   Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
 
-  Tensor &operator=(Tensor &&other) noexcept {
+  Tensor<T, L> &operator=(Tensor<T, L> &&other) noexcept {
     if (this != &other) {
-
       deallocate_aligned(data_);
 
-      std::copy(other.shape_, other.shape_ + dims_, shape_);
-      compute_strides();
+      layout_trait_ = other.layout_trait_;
       data_ = other.data_;
       data_size_ = other.data_size_;
 
@@ -237,17 +231,17 @@ public:
 
   const size_t *strides_ptr() const { return strides_; }
 
-  size_t batch_size() const { return shape_[0]; }
+  const size_t batch_size() const { return layout_trait_.batch_size(); }
 
-  size_t channels() const { return shape_[1]; }
+  const size_t channels() const { return layout_trait_.channels(); }
 
-  size_t height() const { return shape_[dims_ - 2]; }
+  const size_t height() const { return layout_trait_.height(); }
 
-  size_t width() const { return shape_[dims_ - 1]; }
+  const size_t width() const { return layout_trait_.width(); }
 
-  size_t depth() const {
+  const size_t depth() const {
     if constexpr (dims_ == 5) {
-      return shape_[2];
+      return layout_trait_.depth();
     } else {
       return 1;
     }
@@ -264,8 +258,6 @@ public:
   const T *data() const { return data_; }
 
   bool is_aligned(size_t alignment = 32) const {
-    std::cout << "Data pointer address: " << reinterpret_cast<uintptr_t>(data_)
-              << std::endl;
     return (reinterpret_cast<uintptr_t>(data_) % alignment) == 0;
   }
 
@@ -305,21 +297,6 @@ public:
   }
 
   Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
-
-    bool same_shape = (new_shape.size() == dims_);
-    if (same_shape) {
-      for (size_t i = 0; i < dims_; ++i) {
-        if (new_shape[i] != shape_[i]) {
-          same_shape = false;
-          break;
-        }
-      }
-    }
-
-    if (same_shape) {
-      return *this;
-    }
-
     size_t new_size = std::accumulate(new_shape.begin(), new_shape.end(),
                                       size_t(1), std::multiplies<size_t>());
     if (new_size != size()) {
@@ -417,14 +394,21 @@ public:
 
     const size_t batch_size_ = batch_size();
     const size_t channels_ = channels();
+    const size_t height_ = height();
+    const size_t width_ = width();
     Tensor<T, L> result(batch_size_, channels_, new_height, new_width);
 
+    T *result_data = result.data();
     for (size_t n = 0; n < batch_size_; ++n) {
       for (size_t c = 0; c < channels_; ++c) {
         for (size_t h = 0; h < new_height; ++h) {
-          for (size_t w = 0; w < new_width; ++w) {
-            result(n, c, h, w) = (*this)(n, c, start_h + h, start_w + w);
-          }
+          std::copy(
+              &data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ +
+                     start_w],
+              &data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ +
+                     start_w] +
+                  new_width,
+              &result_data[((n * channels_ + c) * new_height + h) * new_width]);
         }
       }
     }
@@ -766,8 +750,8 @@ public:
     }
   }
 
-  template <Layout new_layout> Tensor<T, new_layout> as_layout() const {
-    Tensor<T, new_layout> result(this->shape());
+  template <Layout New_Layout> Tensor<T, New_Layout> as_layout() const {
+    Tensor<T, New_Layout> result(this->shape());
 
     if constexpr (dims_ == 4) {
       for (size_t n = 0; n < shape_[0]; ++n) {
