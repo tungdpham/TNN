@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 
-
 #include "data_loading/cifar100_data_loader.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/data_loader.hpp"
