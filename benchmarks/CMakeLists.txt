@@ -1,1 +1,2 @@
 create_executable(serialization_test serialization_test.cpp)
+create_executable(compression_test compression_test.cpp)

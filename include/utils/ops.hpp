@@ -69,9 +69,6 @@ template <typename T> void apply_softmax(Tensor<float> &tensor) {
   const size_t batch_size = tensor.shape()[0];
   const size_t num_classes = tensor.shape()[1];
 
-#ifdef _OPENMP
-#pragma omp parallel for if (batch_size > 16)
-#endif
   for (size_t batch = 0; batch < batch_size; ++batch) {
     float max_val = tensor(batch, 0, 0, 0);
     for (size_t j = 1; j < num_classes; ++j) {
@@ -100,9 +97,6 @@ float compute_class_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
-#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     int pred_class = 0;

@@ -46,9 +46,7 @@ public:
       return 0.0f;
 
     double total_loss = 0.0;
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
-#endif
+
     for (size_t i = 0; i < batch_size; ++i) {
 
       std::vector<float> pred_coords(output_size), target_coords(output_size);
@@ -93,9 +91,6 @@ public:
 
     const float scale = 2.0f / static_cast<float>(batch_size);
 
-#ifdef _OPENMP
-#pragma omp parallel for if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
 
       std::vector<float> pred_coords(output_size), target_coords(output_size);
@@ -249,9 +244,6 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
 
   int total_correct = 0;
 
-#ifdef _OPENMP
-#pragma omp parallel for reduction(+ : total_correct) if (batch_size > 16)
-#endif
   for (size_t i = 0; i < batch_size; ++i) {
 
     int pred_class = 0;
