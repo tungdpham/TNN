@@ -13,9 +13,9 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/cifar100_data_loader.hpp"
+#include "data_loading/cifar100_data_loader.hpp"
 #include "utils/ops.hpp"
-#include "utils/train.hpp"
+#include "nn/train.hpp"
 
 namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;

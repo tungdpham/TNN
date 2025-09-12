@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "data_loader.hpp"
+#include "data_loading/data_loader.hpp"
 #include "nn/sequential.hpp"
 
 void train_classification_model(

@@ -5,7 +5,8 @@
  * project root for the full license text.
  */
 #pragma once
-#include "../tensor/tensor.hpp"
+
+#include "tensor/tensor.hpp"
 #include <algorithm>
 #include <iostream>
 #include <memory>

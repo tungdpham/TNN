@@ -12,15 +12,15 @@
 #include <string_view>
 #include <vector>
 
+#include "data_loading/mnist_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
-#include "utils/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
-#include "utils/train.hpp"
 
 namespace mnist_constants {
 

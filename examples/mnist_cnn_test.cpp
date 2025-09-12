@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "utils/mnist_data_loader.hpp"
+#include "data_loading/mnist_data_loader.hpp"
 
 void run_test() {
   // Load the trained model

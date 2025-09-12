@@ -1,12 +1,12 @@
+#include "data_loading/cifar10_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/cifar10_data_loader.hpp"
 #include "utils/misc.hpp"
 #include "utils/ops.hpp"
-#include "utils/train.hpp"
 
 #include <algorithm>
 #include <chrono>

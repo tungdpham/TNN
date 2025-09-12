@@ -5,7 +5,7 @@
 #include "pipeline/message.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
-#include "utils/mnist_data_loader.hpp"
+#include "data_loading/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
 
 namespace mnist_constants {

@@ -2,8 +2,8 @@
 #include "nn/sequential.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/cifar10_data_loader.hpp"
-#include "utils/mnist_data_loader.hpp"
+#include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
 #include <chrono>
 #include <cstdlib>

@@ -5,7 +5,8 @@
  * project root for the full license text.
  */
 #pragma once
-#include "../tensor/tensor.hpp"
+
+#include "tensor/tensor.hpp"
 #include "data_loader.hpp"
 #include <algorithm>
 #include <fstream>
@@ -18,23 +19,24 @@
 #include <string_view>
 #include <vector>
 
-namespace mnist_constants {
-constexpr size_t IMAGE_HEIGHT = 28;
-constexpr size_t IMAGE_WIDTH = 28;
-constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH;
+namespace cifar10_constants {
+constexpr size_t IMAGE_HEIGHT = 32;
+constexpr size_t IMAGE_WIDTH = 32;
+constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3;
 constexpr size_t NUM_CLASSES = 10;
-constexpr size_t NUM_CHANNELS = 1;
+constexpr size_t NUM_CHANNELS = 3;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
-} // namespace mnist_constants
+constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE;
+} // namespace cifar10_constants
 
 namespace data_loading {
 
 /**
- * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
- * Extends ImageClassificationDataLoader for proper inheritance
+ * Enhanced CIFAR-10 data loader for binary format adapted for CNN (2D RGB
+ * images) Extends ImageClassificationDataLoader for proper inheritance
  */
 template <typename T = float>
-class MNISTDataLoader : public ImageClassificationDataLoader<T> {
+class CIFAR10DataLoader : public ImageClassificationDataLoader<T> {
 private:
   std::vector<std::vector<T>> data_;
   std::vector<int> labels_;
@@ -43,67 +45,84 @@ private:
   std::vector<Tensor<T>> batched_labels_;
   bool batches_prepared_;
 
+  std::vector<std::string> class_names_ = {
+      "airplane", "automobile", "bird",  "cat",  "deer",
+      "dog",      "frog",       "horse", "ship", "truck"};
+
 public:
-  MNISTDataLoader()
+  CIFAR10DataLoader()
       : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
 
-    data_.reserve(60000);
-    labels_.reserve(60000);
+    data_.reserve(50000);
+    labels_.reserve(50000);
   }
 
-  virtual ~MNISTDataLoader() = default;
+  virtual ~CIFAR10DataLoader() = default;
 
   /**
-   * Load MNIST data from CSV file
-   * @param source Path to CSV file (train.csv or test.csv)
+   * Load CIFAR-10 data from binary file(s)
+   * @param source Path to binary file or directory containing multiple files
    * @return true if successful, false otherwise
    */
   bool load_data(const std::string &source) override {
-    std::ifstream file{source};
-    if (!file.is_open()) {
-      std::cerr << "Error: Could not open file " << source << std::endl;
+
+    std::vector<std::string> filenames;
+
+    if (source.find(".bin") != std::string::npos) {
+      filenames.push_back(source);
+    } else {
+
+      std::cerr << "Error: For multiple files, use load_multiple_files() method"
+                << std::endl;
       return false;
     }
 
-    std::string line;
-    line.reserve(3136);
+    return load_multiple_files(filenames);
+  }
 
-    if (!std::getline(file, line)) {
-      std::cerr << "Error: Empty file " << source << std::endl;
-      return false;
-    }
-
+  /**
+   * Load CIFAR-10 data from multiple binary files
+   * @param filenames Vector of file paths to load
+   * @return true if successful, false otherwise
+   */
+  bool load_multiple_files(const std::vector<std::string> &filenames) {
     data_.clear();
     labels_.clear();
 
-    while (std::getline(file, line)) {
-      std::stringstream ss(line);
-      std::string cell;
-
-      if (!std::getline(ss, cell, ','))
-        continue;
-      labels_.push_back(std::stoi(cell));
-
-      std::vector<T> row;
-      row.reserve(mnist_constants::IMAGE_SIZE);
-
-      while (std::getline(ss, cell, ',')) {
-        row.push_back(static_cast<T>(std::stod(cell) /
-                                     mnist_constants::NORMALIZATION_FACTOR));
+    for (const auto &filename : filenames) {
+      std::ifstream file(filename, std::ios::binary);
+      if (!file.is_open()) {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return false;
       }
 
-      if (row.size() != mnist_constants::IMAGE_SIZE) {
-        std::cerr << "Warning: Invalid image size " << row.size()
-                  << " expected " << mnist_constants::IMAGE_SIZE << std::endl;
-        continue;
+      char buffer[cifar10_constants::RECORD_SIZE];
+      size_t records_loaded = 0;
+
+      while (file.read(buffer, cifar10_constants::RECORD_SIZE)) {
+
+        labels_.push_back(
+            static_cast<int>(static_cast<unsigned char>(buffer[0])));
+
+        std::vector<T> image_data;
+        image_data.reserve(cifar10_constants::IMAGE_SIZE);
+
+        for (size_t i = 1; i < cifar10_constants::RECORD_SIZE; ++i) {
+          image_data.push_back(
+              static_cast<T>(static_cast<unsigned char>(buffer[i]) /
+                             cifar10_constants::NORMALIZATION_FACTOR));
+        }
+
+        data_.push_back(std::move(image_data));
+        records_loaded++;
       }
 
-      data_.push_back(std::move(row));
+      std::cout << "Loaded " << records_loaded << " samples from " << filename
+                << std::endl;
     }
 
     this->current_index_ = 0;
-    std::cout << "Loaded " << data_.size() << " samples from " << source
-              << std::endl;
+    std::cout << "Total loaded: " << data_.size() << " samples" << std::endl;
     return !data_.empty();
   }
 
@@ -146,29 +165,36 @@ public:
     const size_t actual_batch_size =
         std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data =
-        Tensor<T>(actual_batch_size, mnist_constants::NUM_CHANNELS,
-                  mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
+    batch_data = Tensor<T>(actual_batch_size, cifar10_constants::NUM_CHANNELS,
+                           cifar10_constants::IMAGE_HEIGHT,
+                           cifar10_constants::IMAGE_WIDTH);
 
     batch_labels =
-        Tensor<T>(actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL);
+        Tensor<T>(actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1);
     batch_labels.fill(static_cast<T>(0.0));
-#ifdef _OPENMP
+#if defined(_OPENMP)
 #pragma omp parallel for if (actual_batch_size > 16)
 #endif
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
-      for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
-        for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
-          batch_data(i, 0, h, w) =
-              image_data[h * mnist_constants::IMAGE_WIDTH + w];
+      for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS);
+           ++c) {
+        for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT);
+             ++h) {
+          for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH);
+               ++w) {
+            size_t pixel_idx = c * cifar10_constants::IMAGE_HEIGHT *
+                                   cifar10_constants::IMAGE_WIDTH +
+                               h * cifar10_constants::IMAGE_WIDTH + w;
+            batch_data(i, c, h, w) = image_data[pixel_idx];
+          }
         }
       }
 
       const int label = labels_[this->current_index_ + i];
       if (label >= 0 &&
-          label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+          label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
         batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
       }
     }
@@ -209,15 +235,14 @@ public:
       data_ = std::move(shuffled_data);
       labels_ = std::move(shuffled_labels);
       this->current_index_ = 0;
-
     } else {
+      this->current_batch_index_ = 0;
+
       std::vector<size_t> indices =
           this->generate_shuffled_indices(batched_data_.size());
 
       std::vector<Tensor<T>> shuffled_data;
       std::vector<Tensor<T>> shuffled_labels;
-      shuffled_data.reserve(batched_data_.size());
-      shuffled_labels.reserve(batched_labels_.size());
 
       for (const auto &idx : indices) {
         shuffled_data.emplace_back(std::move(batched_data_[idx]));
@@ -239,27 +264,22 @@ public:
    * Get image dimensions (channels, height, width)
    */
   std::vector<size_t> get_image_shape() const override {
-    return {mnist_constants::NUM_CHANNELS, mnist_constants::IMAGE_HEIGHT,
-            mnist_constants::IMAGE_WIDTH};
+    return {cifar10_constants::NUM_CHANNELS, cifar10_constants::IMAGE_HEIGHT,
+            cifar10_constants::IMAGE_WIDTH};
   }
 
   /**
    * Get number of classes
    */
   int get_num_classes() const override {
-    return static_cast<int>(mnist_constants::NUM_CLASSES);
+    return static_cast<int>(cifar10_constants::NUM_CLASSES);
   }
 
   /**
-   * Get class names for MNIST (digits 0-9)
+   * Get class names for CIFAR-10
    */
   std::vector<std::string> get_class_names() const override {
-    std::vector<std::string> names;
-    names.reserve(mnist_constants::NUM_CLASSES);
-    for (int i = 0; i < static_cast<int>(mnist_constants::NUM_CLASSES); ++i) {
-      names.push_back("digit_" + std::to_string(i));
-    }
-    return names;
+    return class_names_;
   }
 
   /**
@@ -290,16 +310,14 @@ public:
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
       const size_t actual_batch_size = end_idx - start_idx;
-      assert(actual_batch_size > 0);
 
-      Tensor<T> batch_data(std::vector<size_t>{
-          actual_batch_size, mnist_constants::NUM_CHANNELS,
-          mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+      Tensor<T> batch_data(actual_batch_size, cifar10_constants::NUM_CHANNELS,
+                           cifar10_constants::IMAGE_HEIGHT,
+                           cifar10_constants::IMAGE_WIDTH);
 
-      Tensor<T> batch_labels(std::vector<size_t>{
-          actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
-      batch_labels.fill(T(0.0));
-
+      Tensor<T> batch_labels(actual_batch_size, cifar10_constants::NUM_CLASSES,
+                             1, 1);
+      batch_labels.fill(static_cast<T>(0.0));
 #ifdef _OPENMP
 #pragma omp parallel for if (actual_batch_size > 16)
 #endif
@@ -307,16 +325,20 @@ public:
         const size_t sample_idx = start_idx + i;
         const auto &image_data = data_[sample_idx];
 
-        for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
-          for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
-            batch_data(i, 0, h, w) =
-                image_data[h * mnist_constants::IMAGE_WIDTH + w];
+        for (size_t c = 0; c < cifar10_constants::NUM_CHANNELS; ++c) {
+          for (size_t h = 0; h < cifar10_constants::IMAGE_HEIGHT; ++h) {
+            for (size_t w = 0; w < cifar10_constants::IMAGE_WIDTH; ++w) {
+              size_t pixel_idx = c * cifar10_constants::IMAGE_HEIGHT *
+                                     cifar10_constants::IMAGE_WIDTH +
+                                 h * cifar10_constants::IMAGE_WIDTH + w;
+              batch_data(i, c, h, w) = image_data[pixel_idx];
+            }
           }
         }
 
         const int label = labels_[sample_idx];
         if (label >= 0 &&
-            label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+            label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
           batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
         }
       }
@@ -328,8 +350,6 @@ public:
     this->current_batch_index_ = 0;
     batches_prepared_ = true;
     std::cout << "Batch preparation completed!" << std::endl;
-    std::cout << "Prepared " << batched_data_.size() << " batches "
-              << "of size " << batch_size << " each." << std::endl;
   }
 
   /**
@@ -344,9 +364,50 @@ public:
    * Check if batches are prepared
    */
   bool are_batches_prepared() const override { return batches_prepared_; }
+
+  /**
+   * Get data statistics for debugging
+   */
+  void print_data_stats() const {
+    if (data_.empty()) {
+      std::cout << "No data loaded" << std::endl;
+      return;
+    }
+
+    std::vector<int> label_counts(cifar10_constants::NUM_CLASSES, 0);
+    for (const auto &label : labels_) {
+      if (label >= 0 &&
+          label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
+        label_counts[label]++;
+      }
+    }
+
+    std::cout << "CIFAR-10 Dataset Statistics:" << std::endl;
+    std::cout << "Total samples: " << data_.size() << std::endl;
+    std::cout << "Image shape: " << cifar10_constants::NUM_CHANNELS << "x"
+              << cifar10_constants::IMAGE_HEIGHT << "x"
+              << cifar10_constants::IMAGE_WIDTH << std::endl;
+    std::cout << "Class distribution:" << std::endl;
+    for (int i = 0; i < static_cast<int>(cifar10_constants::NUM_CLASSES); ++i) {
+      std::cout << "  " << class_names_[i] << " (" << i
+                << "): " << label_counts[i] << " samples" << std::endl;
+    }
+
+    if (!data_.empty()) {
+      T min_val = *std::min_element(data_[0].begin(), data_[0].end());
+      T max_val = *std::max_element(data_[0].begin(), data_[0].end());
+      T sum = std::accumulate(data_[0].begin(), data_[0].end(),
+                              static_cast<T>(0.0));
+      T mean = sum / data_[0].size();
+
+      std::cout << "Pixel value range: [" << min_val << ", " << max_val << "]"
+                << std::endl;
+      std::cout << "First image mean pixel value: " << mean << std::endl;
+    }
+  }
 };
 
-using MNISTDataLoaderFloat = MNISTDataLoader<float>;
-using MNISTDataLoaderDouble = MNISTDataLoader<double>;
+using CIFAR10DataLoaderFloat = CIFAR10DataLoader<float>;
+using CIFAR10DataLoaderDouble = CIFAR10DataLoader<double>;
 
 } // namespace data_loading

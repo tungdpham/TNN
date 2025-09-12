@@ -41,10 +41,6 @@ if(ENABLE_DEBUG)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-if(WIN32)
-    
-endif()
-
 # find packages
 find_package(Protobuf REQUIRED)
 
@@ -121,7 +117,7 @@ function(create_executable target_name source_file)
         set_property(TARGET ${target_name} PROPERTY CUDA_ARCHITECTURES 89)
     endif()
     
-    target_link_libraries(${target_name} PRIVATE dcnn_lib dcnn_pipeline dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
+    target_link_libraries(${target_name} PRIVATE dcnn_lib dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_tensor dcnn_matrix dcnn_utils)
     target_link_libraries(${target_name} PRIVATE protobuf::libprotobuf)
     
     if(ENABLE_TBB)

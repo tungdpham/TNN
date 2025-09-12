@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include "data_loader.hpp"
 #include <algorithm>
 #include <fstream>

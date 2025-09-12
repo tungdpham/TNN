@@ -49,11 +49,14 @@ else()
     target_link_libraries(dcnn_utils PUBLIC pdh)
 endif()
 
+add_library(dcnn_data_loading STATIC data_loading.cpp)
+target_link_libraries(dcnn_data_loading PUBLIC dcnn_utils dcnn_tensor dcnn_matrix)
+
 add_library(dcnn_nn STATIC nn.cpp)
 if(NOT MSVC)
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils m)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading m)
 else()
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading)
 endif()
 
 add_library(dcnn_pipeline STATIC pipeline.cpp)
@@ -87,7 +90,7 @@ if(EXISTS "${PROTO_DIR}")
 endif()
 
 add_library(dcnn_instantiations INTERFACE)
-target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_tensor dcnn_matrix dcnn_utils)
+target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_tensor dcnn_matrix dcnn_utils)
 
 add_library(dcnn_lib INTERFACE)
 if(NOT MSVC)
@@ -125,11 +128,4 @@ if(ENABLE_CUDA)
         target_link_libraries(${lib} PUBLIC CUDA::cudart CUDA::cublas CUDA::curand)
     endforeach()
     target_link_libraries(dcnn_lib INTERFACE CUDA::cudart CUDA::cublas CUDA::curand)
-endif()
-
-# cpu logger
-if(NOT WIN32) 
-    add_executable(cpu_logger cpu_logger.cpp)
-    target_compile_features(cpu_logger PRIVATE cxx_std_17)
-    target_link_libraries(cpu_logger PRIVATE pthread)
 endif()

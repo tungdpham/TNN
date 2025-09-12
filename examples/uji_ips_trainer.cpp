@@ -5,8 +5,8 @@
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 #include "utils/ops.hpp"
-#include "utils/train.hpp"
-#include "utils/wifi_data_loader.hpp"
+#include "nn/train.hpp"
+#include "data_loading/wifi_data_loader.hpp"
 
 #include <algorithm>
 #include <atomic>

@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include "tensor/tensor.hpp"
+
 #include <algorithm>
 #include <atomic>
 #include <fstream>
@@ -18,8 +20,6 @@
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include "../tensor/tensor.hpp"
 
 class WiFiDataLoader {
 private:
