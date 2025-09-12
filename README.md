@@ -17,9 +17,6 @@ sudo apt install libtbb-dev
 
 # Install CUDA (follow NVIDIA's installation guide)
 
-# Also remember to pull the submodules, which includes library like asio, nlohmann_json
-git submodule update --init --recursive
-
 # For python scripts, install the dependencies from requirements.txt
 pip install -r requirements.txt
 ```

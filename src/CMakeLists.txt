@@ -58,10 +58,16 @@ if(NOT MSVC)
 else()
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading)
 endif()
+target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
 
 add_library(dcnn_pipeline STATIC pipeline.cpp)
 target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn protobuf::libprotobuf)
 target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+target_link_libraries(dcnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_pipeline PUBLIC libzstd_static)
+target_include_directories(dcnn_pipeline PUBLIC ${asio_SOURCE_DIR}/asio/include)
+target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
+
 set(PROTO_DIR "${CMAKE_SOURCE_DIR}/include/pipeline/proto")
 # auto generate proto files
 if(EXISTS "${PROTO_DIR}")
@@ -98,6 +104,11 @@ if(NOT MSVC)
 else()
     target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations)
 endif()
+
+target_link_libraries(dcnn_lib INTERFACE nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_lib INTERFACE libzstd_static)
+target_include_directories(dcnn_lib INTERFACE ${asio_SOURCE_DIR}/asio/include)
+target_compile_definitions(dcnn_lib INTERFACE ASIO_STANDALONE)
 
 # Add Windows networking libraries for ASIO support
 if(WIN32)

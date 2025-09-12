@@ -23,6 +23,7 @@
 **/build/
 /lib/
 /bin/
+/_deps/
 
 # artifacts
 *.zip

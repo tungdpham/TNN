@@ -8,8 +8,7 @@
 
 #include "network_serialization.hpp"
 #include "pipeline_communicator.hpp"
-#define ASIO_STANDALONE
-#include "asio.hpp"
+#include <asio.hpp>
 #include <atomic>
 #include <functional>
 #include <iostream>

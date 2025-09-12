@@ -10,8 +10,7 @@
 #include "nn/sequential.hpp"
 #include "pipeline_stage.hpp"
 #include "tcp_communicator.hpp"
-#define ASIO_STANDALONE
-#include "../third_party/asio/asio/include/asio.hpp"
+#include <asio.hpp>
 #include <atomic>
 #include <csignal>
 #include <iostream>

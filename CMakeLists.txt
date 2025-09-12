@@ -41,6 +41,34 @@ if(ENABLE_DEBUG)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
+# FetchContent to manage third-party dependencies
+include(FetchContent)
+
+# ASIO (header-only library)
+FetchContent_Declare(
+    asio
+    GIT_REPOSITORY https://github.com/chriskohlhoff/asio.git
+    GIT_TAG asio-1-30-2
+)
+
+# nlohmann_json
+FetchContent_Declare(
+    nlohmann_json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+)
+
+# zstandard compression library
+FetchContent_Declare(
+    zstd
+    GIT_REPOSITORY https://github.com/facebook/zstd.git
+    GIT_TAG v1.5.7
+    SOURCE_SUBDIR build/cmake
+)
+
+# make the dependencies available
+FetchContent_MakeAvailable(asio nlohmann_json zstd)
+
 # find packages
 find_package(Protobuf REQUIRED)
 
@@ -96,9 +124,11 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # libraries
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/asio/asio/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/nlohmann_json/include
+    ${asio_SOURCE_DIR}/asio/include
 )
+
+# Add global compile definitions for third-party libraries
+add_compile_definitions(ASIO_STANDALONE)
 
 # Windows networking libraries for ASIO
 if(WIN32)
@@ -119,6 +149,12 @@ function(create_executable target_name source_file)
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_tensor dcnn_matrix dcnn_utils)
     target_link_libraries(${target_name} PRIVATE protobuf::libprotobuf)
+    
+    target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(${target_name} PRIVATE libzstd_static)
+    
+    target_include_directories(${target_name} PRIVATE ${asio_SOURCE_DIR}/asio/include)
+    target_compile_definitions(${target_name} PRIVATE ASIO_STANDALONE)
     
     if(ENABLE_TBB)
         target_link_libraries(${target_name} PRIVATE TBB::tbb)
