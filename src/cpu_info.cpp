@@ -77,6 +77,9 @@ bool CpuInfo::initialize() {
     // Detect P/E core topology for modern Intel CPUs
     detect_pcore_ecore_topology();
 
+    // Populate cache information for each core
+    populate_core_cache_info();
+
     initialized_ = true;
   }
 
@@ -132,8 +135,39 @@ bool CpuInfo::read_cpuinfo_linux() {
   // Determine architecture
   if (vendor_.find("Intel") != std::string::npos) {
     architecture_ = "x86_64";
+    // Detect Intel microarchitecture based on family/model
+    if (family_ == 6) {
+      if (model_ >= 0x8C && model_ <= 0x8F) {
+        microarchitecture_ = "Alder Lake"; // 12th gen
+        process_node_nm_ = 10;
+      } else if (model_ >= 0xB7 && model_ <= 0xBA) {
+        microarchitecture_ = "Raptor Lake"; // 13th/14th gen
+        process_node_nm_ = 10;
+      } else if (model_ >= 0xA7 && model_ <= 0xA8) {
+        microarchitecture_ = "Rocket Lake"; // 11th gen
+        process_node_nm_ = 14;
+      } else if (model_ >= 0x7D && model_ <= 0x7E) {
+        microarchitecture_ = "Ice Lake"; // 10th gen mobile
+        process_node_nm_ = 10;
+      } else {
+        microarchitecture_ = "Unknown Intel";
+      }
+    }
   } else if (vendor_.find("AMD") != std::string::npos) {
     architecture_ = "x86_64";
+    // Detect AMD microarchitecture based on family/model
+    if (family_ == 23) {
+      microarchitecture_ = "Zen/Zen+";
+      process_node_nm_ = 14;
+    } else if (family_ == 25) {
+      microarchitecture_ = "Zen 3";
+      process_node_nm_ = 7;
+    } else if (family_ == 26) {
+      microarchitecture_ = "Zen 4";
+      process_node_nm_ = 5;
+    } else {
+      microarchitecture_ = "Unknown AMD";
+    }
   } else if (vendor_.find("ARM") != std::string::npos) {
     architecture_ = "ARM";
   }
@@ -352,6 +386,7 @@ bool CpuInfo::init_feature_detection() {
   edx = cpuInfo[3];
   supports_sse4_2_ = (ecx & (1 << 20)) != 0;
   supports_fma_ = (ecx & (1 << 12)) != 0;
+  supports_aes_ = (ecx & (1 << 25)) != 0;
 
   // Extended features (leaf 7, subleaf 0)
   __cpuidex(cpuInfo, 7, 0);
@@ -361,6 +396,9 @@ bool CpuInfo::init_feature_detection() {
   edx = cpuInfo[3];
   supports_avx2_ = (ebx & (1 << 5)) != 0;
   supports_avx512_ = (ebx & (1 << 16)) != 0;
+  supports_bmi1_ = (ebx & (1 << 3)) != 0;
+  supports_bmi2_ = (ebx & (1 << 8)) != 0;
+  supports_sha_ = (ebx & (1 << 29)) != 0;
 
   // AVX support (requires OS support too)
   __cpuid(cpuInfo, 1);
@@ -383,12 +421,16 @@ bool CpuInfo::init_feature_detection() {
   if (__get_cpuid(1, &eax, &ebx, &ecx, &edx)) {
     supports_sse4_2_ = (ecx & (1 << 20)) != 0;
     supports_fma_ = (ecx & (1 << 12)) != 0;
+    supports_aes_ = (ecx & (1 << 25)) != 0;
   }
 
   // Extended features
   if (__get_cpuid_count(7, 0, &eax, &ebx, &ecx, &edx)) {
     supports_avx2_ = (ebx & (1 << 5)) != 0;
     supports_avx512_ = (ebx & (1 << 16)) != 0;
+    supports_bmi1_ = (ebx & (1 << 3)) != 0;
+    supports_bmi2_ = (ebx & (1 << 8)) != 0;
+    supports_sha_ = (ebx & (1 << 29)) != 0;
   }
 
   // AVX support (requires OS support too)
@@ -413,26 +455,72 @@ bool CpuInfo::init_feature_detection() {
 
 bool CpuInfo::init_memory_hierarchy() {
 #ifdef __linux__
-  // Read cache information from sysfs
-  for (int level = 1; level <= 3; ++level) {
-    std::string cache_path = "/sys/devices/system/cpu/cpu0/cache/index" +
-                             std::to_string(level - 1) + "/size";
-    std::ifstream cache_file(cache_path);
-    if (cache_file.is_open()) {
-      std::string size_str;
-      cache_file >> size_str;
+  // Read cache information from sysfs - need to check all indices, not just
+  // levels Linux sysfs uses indices that don't directly map to cache levels
+  for (int index = 0; index < 10; ++index) {
+    std::string base_path =
+        "/sys/devices/system/cpu/cpu0/cache/index" + std::to_string(index);
 
-      MemoryHierarchy::CacheLevel cache;
+    // Check if this cache index exists
+    std::ifstream level_file(base_path + "/level");
+    if (!level_file.is_open()) {
+      break; // No more cache levels
+    }
+
+    MemoryHierarchy::CacheLevel cache;
+
+    // Read cache level
+    int level;
+    level_file >> level;
+
+    // Read cache size
+    std::ifstream size_file(base_path + "/size");
+    if (size_file.is_open()) {
+      std::string size_str;
+      size_file >> size_str;
       cache.size_kb =
           std::stoi(size_str.substr(0, size_str.length() - 1)); // Remove 'K'
+    }
 
-      if (level == 1) {
-        memory_hierarchy_.l1_caches.push_back(cache);
-      } else if (level == 2) {
-        memory_hierarchy_.l2_caches.push_back(cache);
-      } else if (level == 3) {
-        memory_hierarchy_.l3_caches.push_back(cache);
+    // Read cache type
+    std::ifstream type_file(base_path + "/type");
+    if (type_file.is_open()) {
+      type_file >> cache.type;
+    }
+
+    // Read line size
+    std::ifstream line_size_file(base_path + "/coherency_line_size");
+    if (line_size_file.is_open()) {
+      line_size_file >> cache.line_size_bytes;
+    }
+
+    // Read associativity
+    std::ifstream assoc_file(base_path + "/ways_of_associativity");
+    if (assoc_file.is_open()) {
+      assoc_file >> cache.associativity;
+    }
+
+    // Read shared CPU list to determine if cache is shared
+    std::ifstream shared_file(base_path + "/shared_cpu_list");
+    if (shared_file.is_open()) {
+      std::string shared_cpus;
+      std::getline(shared_file, shared_cpus);
+      // If shared_cpus contains more than one CPU, it's shared
+      cache.shared = (shared_cpus.find('-') != std::string::npos ||
+                      shared_cpus.find(',') != std::string::npos);
+    }
+
+    // Add to appropriate cache level vector
+    if (level == 1) {
+      memory_hierarchy_.l1_caches.push_back(cache);
+      // Set cache line size from first L1 cache found
+      if (cache_line_size_ == 64 && cache.line_size_bytes > 0) {
+        cache_line_size_ = cache.line_size_bytes;
       }
+    } else if (level == 2) {
+      memory_hierarchy_.l2_caches.push_back(cache);
+    } else if (level == 3) {
+      memory_hierarchy_.l3_caches.push_back(cache);
     }
   }
 
@@ -617,6 +705,87 @@ bool CpuInfo::detect_pcore_ecore_topology() {
 #endif
 
   return true;
+}
+
+bool CpuInfo::populate_core_cache_info() {
+#ifdef __linux__
+  // Populate cache information for each logical core
+  for (int cpu = 0; cpu < logical_cores_; ++cpu) {
+    if (cpu >= static_cast<int>(cores_.size())) {
+      continue;
+    }
+
+    // For each cache level, find the total cache size accessible to this CPU
+    int l1_total_kb = 0, l2_total_kb = 0, l3_total_kb = 0;
+
+    // Check cache indices for this specific CPU
+    for (int index = 0; index < 10; ++index) {
+      std::string base_path = "/sys/devices/system/cpu/cpu" +
+                              std::to_string(cpu) + "/cache/index" +
+                              std::to_string(index);
+
+      // Check if this cache index exists
+      std::ifstream level_file(base_path + "/level");
+      if (!level_file.is_open()) {
+        break; // No more cache levels
+      }
+
+      int level;
+      level_file >> level;
+
+      // Read cache size
+      std::ifstream size_file(base_path + "/size");
+      if (size_file.is_open()) {
+        std::string size_str;
+        size_file >> size_str;
+        int size_kb =
+            std::stoi(size_str.substr(0, size_str.length() - 1)); // Remove 'K'
+
+        // Accumulate cache sizes by level (handles separate I/D caches)
+        if (level == 1) {
+          l1_total_kb += size_kb;
+        } else if (level == 2) {
+          l2_total_kb += size_kb;
+        } else if (level == 3) {
+          l3_total_kb += size_kb;
+        }
+      }
+    }
+
+    // Update core cache information
+    cores_[cpu].cache_level1_kb = l1_total_kb;
+    cores_[cpu].cache_level2_kb = l2_total_kb;
+    cores_[cpu].cache_level3_kb = l3_total_kb;
+  }
+
+  return true;
+#else
+  // For non-Linux platforms, set cache info from memory hierarchy if available
+  for (int cpu = 0; cpu < logical_cores_; ++cpu) {
+    if (cpu >= static_cast<int>(cores_.size())) {
+      continue;
+    }
+
+    // Set cache sizes based on memory hierarchy information
+    int l1_total = 0, l2_total = 0, l3_total = 0;
+
+    for (const auto &cache : memory_hierarchy_.l1_caches) {
+      l1_total += cache.size_kb;
+    }
+    for (const auto &cache : memory_hierarchy_.l2_caches) {
+      l2_total += cache.size_kb;
+    }
+    for (const auto &cache : memory_hierarchy_.l3_caches) {
+      l3_total += cache.size_kb;
+    }
+
+    cores_[cpu].cache_level1_kb = l1_total;
+    cores_[cpu].cache_level2_kb = l2_total;
+    cores_[cpu].cache_level3_kb = l3_total;
+  }
+
+  return true;
+#endif
 }
 
 bool CpuInfo::update_dynamic_info(int sampling_interval_ms) {
@@ -944,20 +1113,86 @@ void CpuInfo::print_info() const {
   std::cout << "Vendor: " << vendor_ << std::endl;
   std::cout << "Model: " << model_name_ << std::endl;
   std::cout << "Architecture: " << architecture_ << std::endl;
+  std::cout << "Microarchitecture: " << microarchitecture_ << std::endl;
+  if (process_node_nm_ > 0) {
+    std::cout << "Process Node: " << process_node_nm_ << "nm" << std::endl;
+  }
+  std::cout << "Family/Model/Stepping: " << family_ << "/" << model_ << "/"
+            << stepping_ << std::endl;
   std::cout << "Physical Cores: " << physical_cores_ << std::endl;
   std::cout << "Logical Cores: " << logical_cores_ << std::endl;
   std::cout << "Performance Cores: " << performance_cores_ << std::endl;
   std::cout << "Efficiency Cores: " << efficiency_cores_ << std::endl;
+  std::cout << "Sockets: " << sockets_ << std::endl;
   std::cout << "Base Frequency: " << base_frequency_mhz_ << " MHz" << std::endl;
   std::cout << "Max Frequency: " << max_frequency_mhz_ << " MHz" << std::endl;
+
+  std::cout << "\n=== Cache Hierarchy ===" << std::endl;
+  std::cout << "Cache Line Size: " << cache_line_size_ << " bytes" << std::endl;
+
+  // L1 Caches
+  if (!memory_hierarchy_.l1_caches.empty()) {
+    std::cout << "L1 Caches:" << std::endl;
+    for (size_t i = 0; i < memory_hierarchy_.l1_caches.size(); ++i) {
+      const auto &cache = memory_hierarchy_.l1_caches[i];
+      std::cout << "  " << cache.type << ": " << cache.size_kb << "KB, "
+                << cache.associativity << "-way, " << cache.line_size_bytes
+                << "B line, " << (cache.shared ? "shared" : "private")
+                << std::endl;
+    }
+  }
+
+  // L2 Caches
+  if (!memory_hierarchy_.l2_caches.empty()) {
+    std::cout << "L2 Caches:" << std::endl;
+    for (size_t i = 0; i < memory_hierarchy_.l2_caches.size(); ++i) {
+      const auto &cache = memory_hierarchy_.l2_caches[i];
+      std::cout << "  " << cache.type << ": " << cache.size_kb << "KB, "
+                << cache.associativity << "-way, " << cache.line_size_bytes
+                << "B line, " << (cache.shared ? "shared" : "private")
+                << std::endl;
+    }
+  }
+
+  // L3 Caches
+  if (!memory_hierarchy_.l3_caches.empty()) {
+    std::cout << "L3 Caches:" << std::endl;
+    for (size_t i = 0; i < memory_hierarchy_.l3_caches.size(); ++i) {
+      const auto &cache = memory_hierarchy_.l3_caches[i];
+      std::cout << "  " << cache.type << ": " << cache.size_kb << "KB, "
+                << cache.associativity << "-way, " << cache.line_size_bytes
+                << "B line, " << (cache.shared ? "shared" : "private")
+                << std::endl;
+    }
+  }
 
   std::cout << "\n=== Features ===" << std::endl;
   std::cout << "AVX: " << (supports_avx_ ? "Yes" : "No") << std::endl;
   std::cout << "AVX2: " << (supports_avx2_ ? "Yes" : "No") << std::endl;
   std::cout << "AVX-512: " << (supports_avx512_ ? "Yes" : "No") << std::endl;
   std::cout << "FMA: " << (supports_fma_ ? "Yes" : "No") << std::endl;
+  std::cout << "SSE 4.2: " << (supports_sse4_2_ ? "Yes" : "No") << std::endl;
+  std::cout << "AES: " << (supports_aes_ ? "Yes" : "No") << std::endl;
+  std::cout << "SHA: " << (supports_sha_ ? "Yes" : "No") << std::endl;
+  std::cout << "BMI1: " << (supports_bmi1_ ? "Yes" : "No") << std::endl;
+  std::cout << "BMI2: " << (supports_bmi2_ ? "Yes" : "No") << std::endl;
   std::cout << "Hyperthreading: " << (supports_hyperthreading_ ? "Yes" : "No")
             << std::endl;
+
+  std::cout << "\n=== Memory ===" << std::endl;
+  std::cout << "NUMA Nodes: " << memory_hierarchy_.numa_nodes << std::endl;
+  if (memory_channels_ > 0) {
+    std::cout << "Memory Channels: " << memory_channels_ << std::endl;
+  }
+  if (memory_bandwidth_gbps_ > 0) {
+    std::cout << "Memory Bandwidth: " << memory_bandwidth_gbps_ << " GB/s"
+              << std::endl;
+  }
+
+  std::cout << "\n=== Performance ===" << std::endl;
+  if (tdp_watts_ > 0) {
+    std::cout << "TDP: " << tdp_watts_ << " Watts" << std::endl;
+  }
 
   std::cout << "\n=== Dynamic Info ===" << std::endl;
   std::cout << "Overall Utilization: " << overall_utilization_ << "%"
@@ -991,27 +1226,123 @@ std::string CpuInfo::to_json() const {
   json << "  \"vendor\": \"" << vendor_ << "\",\n";
   json << "  \"model_name\": \"" << model_name_ << "\",\n";
   json << "  \"architecture\": \"" << architecture_ << "\",\n";
+  json << "  \"microarchitecture\": \"" << microarchitecture_ << "\",\n";
+  json << "  \"process_node_nm\": " << process_node_nm_ << ",\n";
+  json << "  \"family\": " << family_ << ",\n";
+  json << "  \"model\": " << model_ << ",\n";
+  json << "  \"stepping\": " << stepping_ << ",\n";
   json << "  \"physical_cores\": " << physical_cores_ << ",\n";
   json << "  \"logical_cores\": " << logical_cores_ << ",\n";
   json << "  \"performance_cores\": " << performance_cores_ << ",\n";
   json << "  \"efficiency_cores\": " << efficiency_cores_ << ",\n";
+  json << "  \"sockets\": " << sockets_ << ",\n";
   json << "  \"base_frequency_mhz\": " << base_frequency_mhz_ << ",\n";
   json << "  \"max_frequency_mhz\": " << max_frequency_mhz_ << ",\n";
-  json << "  \"supports_avx\": " << (supports_avx_ ? "true" : "false") << ",\n";
-  json << "  \"supports_avx2\": " << (supports_avx2_ ? "true" : "false")
+  json << "  \"min_frequency_mhz\": " << min_frequency_mhz_ << ",\n";
+
+  // Cache information
+  json << "  \"cache_line_size\": " << cache_line_size_ << ",\n";
+  json << "  \"cache_hierarchy\": {\n";
+
+  // L1 caches
+  json << "    \"l1_caches\": [\n";
+  for (size_t i = 0; i < memory_hierarchy_.l1_caches.size(); ++i) {
+    const auto &cache = memory_hierarchy_.l1_caches[i];
+    json << "      {\n";
+    json << "        \"size_kb\": " << cache.size_kb << ",\n";
+    json << "        \"type\": \"" << cache.type << "\",\n";
+    json << "        \"line_size_bytes\": " << cache.line_size_bytes << ",\n";
+    json << "        \"associativity\": " << cache.associativity << ",\n";
+    json << "        \"shared\": " << (cache.shared ? "true" : "false") << "\n";
+    json << "      }" << (i < memory_hierarchy_.l1_caches.size() - 1 ? "," : "")
+         << "\n";
+  }
+  json << "    ],\n";
+
+  // L2 caches
+  json << "    \"l2_caches\": [\n";
+  for (size_t i = 0; i < memory_hierarchy_.l2_caches.size(); ++i) {
+    const auto &cache = memory_hierarchy_.l2_caches[i];
+    json << "      {\n";
+    json << "        \"size_kb\": " << cache.size_kb << ",\n";
+    json << "        \"type\": \"" << cache.type << "\",\n";
+    json << "        \"line_size_bytes\": " << cache.line_size_bytes << ",\n";
+    json << "        \"associativity\": " << cache.associativity << ",\n";
+    json << "        \"shared\": " << (cache.shared ? "true" : "false") << "\n";
+    json << "      }" << (i < memory_hierarchy_.l2_caches.size() - 1 ? "," : "")
+         << "\n";
+  }
+  json << "    ],\n";
+
+  // L3 caches
+  json << "    \"l3_caches\": [\n";
+  for (size_t i = 0; i < memory_hierarchy_.l3_caches.size(); ++i) {
+    const auto &cache = memory_hierarchy_.l3_caches[i];
+    json << "      {\n";
+    json << "        \"size_kb\": " << cache.size_kb << ",\n";
+    json << "        \"type\": \"" << cache.type << "\",\n";
+    json << "        \"line_size_bytes\": " << cache.line_size_bytes << ",\n";
+    json << "        \"associativity\": " << cache.associativity << ",\n";
+    json << "        \"shared\": " << (cache.shared ? "true" : "false") << "\n";
+    json << "      }" << (i < memory_hierarchy_.l3_caches.size() - 1 ? "," : "")
+         << "\n";
+  }
+  json << "    ]\n";
+  json << "  },\n";
+
+  // Feature flags
+  json << "  \"features\": {\n";
+  json << "    \"supports_avx\": " << (supports_avx_ ? "true" : "false")
        << ",\n";
-  json << "  \"supports_avx512\": " << (supports_avx512_ ? "true" : "false")
+  json << "    \"supports_avx2\": " << (supports_avx2_ ? "true" : "false")
        << ",\n";
-  json << "  \"supports_fma\": " << (supports_fma_ ? "true" : "false") << ",\n";
-  json << "  \"overall_utilization\": " << overall_utilization_ << ",\n";
-  json << "  \"temperature_celsius\": " << thermal_info_.current_temp_celsius
+  json << "    \"supports_avx512\": " << (supports_avx512_ ? "true" : "false")
        << ",\n";
-  json << "  \"thermal_throttling\": "
-       << (thermal_info_.thermal_throttling ? "true" : "false") << ",\n";
-  json << "  \"is_containerized\": " << (is_containerized_ ? "true" : "false")
+  json << "    \"supports_fma\": " << (supports_fma_ ? "true" : "false")
        << ",\n";
-  json << "  \"is_virtualized\": " << (is_virtualized_ ? "true" : "false")
+  json << "    \"supports_sse4_2\": " << (supports_sse4_2_ ? "true" : "false")
        << ",\n";
+  json << "    \"supports_aes\": " << (supports_aes_ ? "true" : "false")
+       << ",\n";
+  json << "    \"supports_sha\": " << (supports_sha_ ? "true" : "false")
+       << ",\n";
+  json << "    \"supports_bmi1\": " << (supports_bmi1_ ? "true" : "false")
+       << ",\n";
+  json << "    \"supports_bmi2\": " << (supports_bmi2_ ? "true" : "false")
+       << ",\n";
+  json << "    \"supports_hyperthreading\": "
+       << (supports_hyperthreading_ ? "true" : "false") << "\n";
+  json << "  },\n";
+
+  // Memory information
+  json << "  \"memory\": {\n";
+  json << "    \"numa_nodes\": " << memory_hierarchy_.numa_nodes << ",\n";
+  json << "    \"memory_channels\": " << memory_channels_ << ",\n";
+  json << "    \"memory_bandwidth_gbps\": " << memory_bandwidth_gbps_ << "\n";
+  json << "  },\n";
+
+  // Dynamic information
+  json << "  \"dynamic\": {\n";
+  json << "    \"overall_utilization\": " << overall_utilization_ << ",\n";
+  json << "    \"temperature_celsius\": " << thermal_info_.current_temp_celsius
+       << ",\n";
+  json << "    \"thermal_throttling\": "
+       << (thermal_info_.thermal_throttling ? "true" : "false") << "\n";
+  json << "  },\n";
+
+  // Environment
+  json << "  \"environment\": {\n";
+  json << "    \"is_containerized\": " << (is_containerized_ ? "true" : "false")
+       << ",\n";
+  json << "    \"is_virtualized\": " << (is_virtualized_ ? "true" : "false")
+       << ",\n";
+  json << "    \"container_cpu_limit\": " << container_cpu_limit_ << "\n";
+  json << "  },\n";
+
+  // Performance specs
+  json << "  \"performance\": {\n";
+  json << "    \"tdp_watts\": " << tdp_watts_ << "\n";
+  json << "  }\n";
   json << "}";
   return json.str();
 }

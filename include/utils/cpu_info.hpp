@@ -101,6 +101,18 @@ public:
   bool supports_sse4_2() const { return supports_sse4_2_; }
   bool supports_hyperthreading() const { return supports_hyperthreading_; }
 
+  // Additional CPU specifications for performance analysis
+  int get_cache_line_size() const { return cache_line_size_; }
+  double get_tdp_watts() const { return tdp_watts_; }
+  double get_memory_bandwidth_gbps() const { return memory_bandwidth_gbps_; }
+  int get_memory_channels() const { return memory_channels_; }
+  bool supports_aes() const { return supports_aes_; }
+  bool supports_sha() const { return supports_sha_; }
+  bool supports_bmi1() const { return supports_bmi1_; }
+  bool supports_bmi2() const { return supports_bmi2_; }
+  std::string get_microarchitecture() const { return microarchitecture_; }
+  int get_process_node_nm() const { return process_node_nm_; }
+
   const MemoryHierarchy &get_memory_hierarchy() const {
     return memory_hierarchy_;
   }
@@ -205,6 +217,18 @@ private:
   bool supports_sse4_2_ = false;
   bool supports_hyperthreading_ = false;
 
+  // Additional CPU specifications
+  int cache_line_size_ = 64;
+  double tdp_watts_ = 0.0;
+  double memory_bandwidth_gbps_ = 0.0;
+  int memory_channels_ = 0;
+  bool supports_aes_ = false;
+  bool supports_sha_ = false;
+  bool supports_bmi1_ = false;
+  bool supports_bmi2_ = false;
+  std::string microarchitecture_ = "unknown";
+  int process_node_nm_ = 0;
+
   MemoryHierarchy memory_hierarchy_;
 
   bool is_containerized_ = false;
@@ -233,6 +257,7 @@ private:
   bool update_load_averages();
 
   bool detect_pcore_ecore_topology();
+  bool populate_core_cache_info();
   bool read_cpuinfo_linux();
   bool read_proc_stat_linux();
   bool read_thermal_linux();
