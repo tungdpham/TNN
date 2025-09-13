@@ -67,9 +67,6 @@ public:
 
     double total_loss = 0.0;
 
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : total_loss)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < num_classes; ++j) {
         if (targets(i, j, 0, 0) > static_cast<T>(0.5)) {
@@ -91,9 +88,6 @@ public:
     const size_t num_classes = predictions.shape()[1];
     const T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
-#if defined(_OPENMP)
-#pragma omp parallel for if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < num_classes; ++j) {
         gradient(i, j, 0, 0) =
@@ -133,9 +127,6 @@ public:
 
     double total_loss = 0.0;
 
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         const T diff = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
@@ -154,9 +145,6 @@ public:
     const T scale =
         static_cast<T>(2.0) / static_cast<T>(batch_size * output_size);
 
-#if defined(_OPENMP)
-#pragma omp parallel for if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         gradient(i, j, 0, 0) =
@@ -192,9 +180,6 @@ public:
 
     double total_loss = 0.0;
 
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         total_loss += std::abs(predictions(i, j, 0, 0) - targets(i, j, 0, 0));
@@ -250,9 +235,6 @@ public:
 
     double total_loss = 0.0;
 
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : total_loss) if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         const T diff = std::abs(predictions(i, j, 0, 0) - targets(i, j, 0, 0));
@@ -276,9 +258,6 @@ public:
     const T scale =
         static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
 
-#if defined(_OPENMP)
-#pragma omp parallel for if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         const T diff = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
