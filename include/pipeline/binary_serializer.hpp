@@ -113,6 +113,51 @@ public:
   }
 
   template <typename T>
+  static std::vector<uint8_t>
+  serialize_parameters(const std::vector<Tensor<T>> &parameters) {
+    std::vector<uint8_t> buffer;
+
+    // Write number of parameters
+    uint32_t param_count = static_cast<uint32_t>(parameters.size());
+    write_value(buffer, param_count);
+
+    // Serialize each parameter tensor
+    for (const auto &param : parameters) {
+      auto tensor_data = serialize_tensor(param);
+      write_value(buffer, static_cast<uint32_t>(tensor_data.size()));
+      buffer.insert(buffer.end(), tensor_data.begin(), tensor_data.end());
+    }
+
+    return buffer;
+  }
+
+  template <typename T>
+  static std::vector<Tensor<T>>
+  deserialize_parameters(const std::vector<uint8_t> &buffer) {
+    size_t offset = 0;
+    uint32_t param_count = read_value<uint32_t>(buffer, offset);
+    std::vector<Tensor<T>> parameters;
+    parameters.reserve(param_count);
+    for (uint32_t i = 0; i < param_count; ++i) {
+      uint32_t tensor_size = read_value<uint32_t>(buffer, offset);
+
+      if (offset + tensor_size > buffer.size()) {
+        throw std::runtime_error("Invalid parameter data in buffer");
+      }
+
+      std::vector<uint8_t> tensor_buffer(buffer.begin() + offset,
+                                         buffer.begin() + offset + tensor_size);
+      offset += tensor_size;
+
+      size_t tensor_offset = 0;
+      Tensor<T> tensor = deserialize_tensor<T>(tensor_buffer, tensor_offset);
+      parameters.push_back(std::move(tensor));
+    }
+
+    return parameters;
+  }
+
+  template <typename T>
   static std::vector<uint8_t> serialize_message(const Message<T> &message) {
     std::vector<uint8_t> buffer;
 
@@ -131,6 +176,8 @@ public:
       flags |= 0x02;
     if (message.has_signal())
       flags |= 0x04;
+    if (message.has_binary())
+      flags |= 0x08;
     write_value(buffer, flags);
 
     if (message.has_task()) {
@@ -145,6 +192,12 @@ public:
 
     if (message.has_signal()) {
       write_value(buffer, static_cast<uint8_t>(message.get_signal() ? 1 : 0));
+    }
+
+    if (message.has_binary()) {
+      const auto &binary_data = message.get_binary();
+      write_value(buffer, static_cast<uint32_t>(binary_data.size()));
+      buffer.insert(buffer.end(), binary_data.begin(), binary_data.end());
     }
 
     return buffer;
@@ -191,6 +244,19 @@ public:
     if (flags & 0x04) {
       uint8_t signal_val = read_value<uint8_t>(buffer, offset);
       message.payload = (signal_val != 0);
+    }
+
+    if (flags & 0x08) {
+      uint32_t binary_size = read_value<uint32_t>(buffer, offset);
+      if (offset + binary_size > buffer.size()) {
+        throw std::runtime_error("Invalid binary data in message buffer");
+      }
+
+      std::vector<uint8_t> binary_data(buffer.begin() + offset,
+                                       buffer.begin() + offset + binary_size);
+      offset += binary_size;
+
+      message.payload = binary_data;
     }
 
     return message;

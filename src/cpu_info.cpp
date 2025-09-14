@@ -57,6 +57,8 @@ bool CpuInfo::initialize() {
     return true;
   }
 
+  std::cout << "Initializing CPU information..." << std::endl;
+
   bool success = true;
   success &= init_cpu_identification();
   success &= init_core_topology();
@@ -689,14 +691,11 @@ bool CpuInfo::detect_pcore_ecore_topology() {
         }
       }
     }
-
-    std::cout << "DEBUG: Detected " << performance_cores_ << " P-cores and "
-              << efficiency_cores_ << " E-cores based on topology and frequency"
-              << std::endl;
   } else {
-    std::cout << "DEBUG: Unable to determine P/E core topology, defaulting all "
-                 "to P-cores"
-              << std::endl;
+    std::cerr
+        << "WARNING: Unable to determine P/E core topology, defaulting all "
+           "to P-cores"
+        << std::endl;
   }
 #else
   // For non-Linux platforms, assume all cores are P-cores for now
@@ -963,9 +962,6 @@ bool CpuInfo::read_thermal_linux() {
         if (temp_celsius > 85.0) {
           thermal_info_.thermal_throttling = true;
         }
-
-        std::cout << "DEBUG: Found thermal zone " << zone << " (" << zone_type
-                  << "): " << temp_celsius << "°C" << std::endl;
         break; // Use first CPU thermal zone found
       }
     }

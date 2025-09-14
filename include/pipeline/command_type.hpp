@@ -19,39 +19,46 @@ enum class CommandType {
 
   _START,
 
+  // core commands
   FORWARD_TASK,
   BACKWARD_TASK,
   UPDATE_PARAMETERS,
 
+  // mode switching
   TRAIN_MODE,
   EVAL_MODE,
   SHUTDOWN,
 
+  // handshake and configuration
   HANDSHAKE_REQUEST,
   HANDSHAKE_RESPONSE,
   CONFIG_TRANSFER,
   CONFIG_RECEIVED,
-  WEIGHTS_TRANSFER,
-  WEIGHTS_RECEIVED,
+  PARAMS_TRANSFER,
+  PARAMS_RECEIVED,
 
+  // status and monitoring
   STATUS_REQUEST,
   STATUS_RESPONSE,
   PARAMETERS_UPDATED,
   HEALTH_CHECK,
 
+  // error handling
   ERROR_REPORT,
   TASK_FAILURE,
 
+  // advanced features
   BARRIER_SYNC,
   CHECKPOINT_REQUEST,
   CHECKPOINT_COMPLETE,
 
-  MEMORY_REPORT,
-  RESOURCE_REQUEST,
+  // load balancing and resource management
+  LOAD_REPORT,
+  ADJUST_WORKLOAD,
+  CPU_INFO_REPORT,
+  GPU_INFO_REPORT,
 
-  QUERY_STAGE_INFO,
-  STAGE_INFO_RESPONSE,
-
+  // profiling and debugging
   PRINT_PROFILING,
   CLEAR_PROFILING,
 

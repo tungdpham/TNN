@@ -8,6 +8,7 @@
 #pragma once
 
 #include "in_process_communicator.hpp"
+#include "nn/partitioner.hpp"
 #include "pipeline_coordinator.hpp"
 
 namespace tpipeline {
@@ -16,14 +17,16 @@ class InProcessPipelineCoordinator : public PipelineCoordinator<T> {
 public:
   InProcessPipelineCoordinator(tnn::Sequential<T> model, int num_stages = 4,
                                int num_microbatches = 4)
-      : PipelineCoordinator<T>(num_stages, num_microbatches) {
+      : PipelineCoordinator<T>(num_stages, num_microbatches, std::move(model)) {
 
     if (model.get_layers().size() < static_cast<size_t>(num_stages)) {
       throw std::invalid_argument(
           "Model must have at least as many layers as stages");
     }
 
-    auto splitted_models = model.split(num_stages);
+    auto partitions =
+        tnn::NaivePartitioner::get_partitions(model.get_layers(), num_stages);
+    auto splitted_models = model.split(partitions);
 
     this->coordinator_comm_ =
         std::make_shared<InProcessPipelineCommunicator<T>>();

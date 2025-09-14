@@ -11,13 +11,15 @@
 #include <chrono>
 #include <string>
 #include <variant>
+#include <vector>
 
 namespace tpipeline {
 
 template <typename T = float> struct Message {
   CommandType command_type;
 
-  using PayloadType = std::variant<std::monostate, Task<T>, std::string, bool>;
+  using PayloadType = std::variant<std::monostate, Task<T>, std::string, bool,
+                                   std::vector<uint8_t>>;
   PayloadType payload;
 
   std::string sender_id;
@@ -44,14 +46,24 @@ template <typename T = float> struct Message {
       : command_type(cmd_type), payload(signal_value),
         timestamp(std::chrono::steady_clock::now()) {}
 
+  Message(CommandType cmd_type, const std::vector<uint8_t> &binary_data)
+      : command_type(cmd_type), payload(binary_data),
+        timestamp(std::chrono::steady_clock::now()) {}
+
   ~Message() = default;
 
   bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
   bool has_text() const { return std::holds_alternative<std::string>(payload); }
   bool has_signal() const { return std::holds_alternative<bool>(payload); }
+  bool has_binary() const {
+    return std::holds_alternative<std::vector<uint8_t>>(payload);
+  }
 
   const Task<T> &get_task() const { return std::get<Task<T>>(payload); }
   const std::string &get_text() const { return std::get<std::string>(payload); }
+  const std::vector<uint8_t> &get_binary() const {
+    return std::get<std::vector<uint8_t>>(payload);
+  }
   bool get_signal() const { return std::get<bool>(payload); }
 
   static Message<T> forward_task(const Task<T> &task,
@@ -76,6 +88,16 @@ template <typename T = float> struct Message {
                                            const std::string &sender = "",
                                            const std::string &recipient = "") {
     Message<T> msg(cmd_type);
+    msg.sender_id = sender;
+    msg.recipient_id = recipient;
+    return msg;
+  }
+
+  static Message<T>
+  params_transfer_message(const std::vector<uint8_t> &serialized_params,
+                          const std::string &sender = "",
+                          const std::string &recipient = "") {
+    Message<T> msg(CommandType::PARAMS_TRANSFER, serialized_params);
     msg.sender_id = sender;
     msg.recipient_id = recipient;
     return msg;

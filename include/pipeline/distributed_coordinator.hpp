@@ -7,6 +7,7 @@
 #pragma once
 
 #include "network_serialization.hpp"
+#include "nn/partitioner.hpp"
 #include "nn/sequential.hpp"
 #include "pipeline_coordinator.hpp"
 #include "tcp_communicator.hpp"
@@ -42,21 +43,24 @@ public:
       int num_microbatches = 4,
       const std::string &coordinator_host = "localhost",
       int coordinator_port = 8000)
-      : PipelineCoordinator<T>(static_cast<int>(endpoints.size()),
-                               num_microbatches),
+      : PipelineCoordinator<T>(endpoints.size(), num_microbatches,
+                               std::move(model)),
         remote_endpoints_(endpoints), coordinator_port_(coordinator_port),
         io_context_(), work_guard_(asio::make_work_guard(io_context_)),
         is_deployed_(false) {
 
-    if (model.get_layers().size() < endpoints.size()) {
+    if (this->model_.get_layers().size() < endpoints.size()) {
       std::cout << "Error: Model has fewer layers ("
-                << model.get_layers().size() << ") than remote endpoints ("
-                << endpoints.size() << ")\n";
+                << this->model_.get_layers().size()
+                << ") than remote endpoints (" << endpoints.size() << ")\n";
       throw std::invalid_argument(
           "Model must have at least as many layers as remote endpoints");
     }
 
-    auto splitted_models = model.split(static_cast<int>(endpoints.size()));
+    this->partitions_ = tnn::NaivePartitioner::get_partitions(
+        this->model_.get_layers(), static_cast<size_t>(endpoints.size()));
+
+    auto splitted_models = this->model_.split(this->partitions_);
 
     for (size_t i = 0; i < endpoints.size(); ++i) {
       StageConfig config;
@@ -147,7 +151,8 @@ public:
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       auto future = std::async(std::launch::async, [this, i]() {
-        return deploy_stage_config(remote_endpoints_[i], stage_configs_[i]);
+        return deploy_stage_config(remote_endpoints_[i].stage_id,
+                                   stage_configs_[i]);
       });
       deployment_futures.push_back(std::move(future));
     }
@@ -165,7 +170,35 @@ public:
     }
 
     if (!this->wait_for_config_received()) {
-      std::cout << "Not all stages reported ready\n";
+      std::cerr << "Not all stages reported ready\n";
+      return false;
+    }
+
+    std::vector<std::future<bool>> params_futures;
+
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+      auto future = std::async(std::launch::async, [this, i]() {
+        return this->send_params(remote_endpoints_[i].stage_id,
+                                 this->partitions_[i]);
+      });
+      params_futures.push_back(std::move(future));
+    }
+
+    bool all_params_sent = true;
+
+    for (auto &future : params_futures) {
+      if (!future.get()) {
+        all_params_sent = false;
+      }
+    }
+    if (!all_params_sent) {
+      std::cout << "Failed to send parameters to all stages\n";
+      return false;
+    }
+
+    if (!this->wait_for_params_received()) {
+      std::cerr
+          << "Failed to receive parameters confirmation from all stages\n";
       return false;
     }
 
@@ -210,37 +243,22 @@ private:
     }
   }
 
-  bool deploy_stage_config(const RemoteEndpoint &endpoint,
+  bool deploy_stage_config(const std::string &stage_id,
                            const StageConfig &config) {
     try {
 
       std::string config_json = config.to_json().dump();
       auto config_msg = Message<T>::create_text_message(
-          CommandType::CONFIG_TRANSFER, config_json, "coordinator",
-          endpoint.stage_id);
+          CommandType::CONFIG_TRANSFER, config_json, "coordinator", stage_id);
 
       this->coordinator_comm_->send_message(config_msg);
 
-      std::cout << "Sent configuration to stage " << endpoint.stage_id << '\n';
+      std::cout << "Sent configuration to stage " << stage_id << '\n';
 
       return true;
     } catch (const std::exception &e) {
-      std::cout << "Failed to deploy config to stage " << endpoint.stage_id
-                << ": " << e.what() << '\n';
-      return false;
-    }
-  }
-
-  bool deploy_stage_weights(const RemoteEndpoint &endpoint,
-                            const tnn::Sequential<T> &model) {
-    try {
-
-      std::cout << "Sent weights to stage " << endpoint.stage_id << '\n';
-
-      return true;
-    } catch (const std::exception &e) {
-      std::cout << "Failed to send weights to stage " << endpoint.stage_id
-                << ": " << e.what() << '\n';
+      std::cout << "Failed to deploy config to stage " << stage_id << ": "
+                << e.what() << '\n';
       return false;
     }
   }

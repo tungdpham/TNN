@@ -21,6 +21,12 @@
 #include "optimizers.hpp"
 
 namespace tnn {
+struct Partition {
+  size_t start_layer;
+  size_t end_layer; // exclusive
+
+  Partition(size_t start, size_t end) : start_layer(start), end_layer(end) {}
+};
 
 template <typename T = float> class Sequential {
 private:
@@ -382,6 +388,21 @@ public:
     return all_params;
   }
 
+  std::vector<Tensor<T> *> parameters(const Partition &part) const {
+    if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
+        part.start_layer >= part.end_layer) {
+      throw std::out_of_range("Partition indices out of range");
+    }
+
+    std::vector<Tensor<T> *> part_params;
+    for (size_t i = part.start_layer; i < part.end_layer; ++i) {
+      auto layer_params = layers_[i]->parameters();
+      part_params.insert(part_params.end(), layer_params.begin(),
+                         layer_params.end());
+    }
+    return part_params;
+  }
+
   std::vector<Tensor<T> *> gradients() const {
     std::vector<Tensor<T> *> all_grads;
     for (auto &layer : layers_) {
@@ -583,6 +604,37 @@ public:
     }
   }
 
+  void load_parameters(std::vector<Tensor<T>> &&parameters) {
+    size_t param_index = 0;
+    for (auto &layer : layers_) {
+      if (layer->has_parameters()) {
+        auto params = layer->parameters();
+        for (auto &param : params) {
+          if (param_index >= parameters.size()) {
+            throw std::runtime_error(
+                "Not enough parameters provided to load into model");
+          }
+
+          if (param->shape() != parameters[param_index].shape()) {
+            throw std::runtime_error(
+                "Parameter shape mismatch at index " +
+                std::to_string(param_index) + ": expected " +
+                std::to_string(param->shape().size()) + " dimensions");
+          }
+
+          *param = std::move(parameters[param_index]);
+          param_index++;
+        }
+      }
+    }
+
+    if (param_index != parameters.size()) {
+      throw std::runtime_error("Parameter count mismatch: expected " +
+                               std::to_string(param_index) + " but got " +
+                               std::to_string(parameters.size()));
+    }
+  }
+
   void set_optimizer(Optimizer<T> &optimizer) {
     this->optimizer_ = optimizer.clone();
     distribute_optimizer_to_layers();
@@ -604,29 +656,30 @@ public:
 
   Loss<T> *loss_function() const { return loss_.get(); }
 
-  std::vector<Sequential<T>> split(size_t num_stages) const {
-    if (num_stages == 0 || num_stages > layers_.size()) {
-      throw std::invalid_argument("Invalid number of stages for split");
+  std::vector<Sequential<T>> split(std::vector<Partition> &partitions) const {
+    if (partitions.empty()) {
+      throw std::invalid_argument("Partitions vector is empty");
     }
-    std::vector<Sequential<T>> stages(num_stages);
-    size_t stage_size = layers_.size() / num_stages;
-    size_t remainder = layers_.size() % num_stages;
-    size_t layer_index = 0;
-    for (size_t i = 0; i < num_stages; ++i) {
-      size_t current_stage_size = stage_size + (i < remainder ? 1 : 0);
-      for (size_t j = 0; j < current_stage_size; ++j) {
-        if (layer_index >= layers_.size()) {
-          throw std::out_of_range("Layer index out of range during split");
-        }
-        stages[i].add(layers_[layer_index]->clone());
-        layer_index++;
+    std::vector<Sequential<T>> stages;
+    stages.reserve(partitions.size());
+    for (const auto &part : partitions) {
+      if (part.start_layer >= layers_.size() ||
+          part.end_layer > layers_.size() ||
+          part.start_layer >= part.end_layer) {
+        throw std::out_of_range("Invalid partition range");
+      }
+
+      Sequential<T> stage(name_ + "_part_" + std::to_string(stages.size()));
+      for (size_t i = part.start_layer; i < part.end_layer; ++i) {
+        stage.add(layers_[i]->clone());
       }
       if (this->optimizer_) {
-        stages[i].set_optimizer(this->optimizer_->clone());
+        stage.set_optimizer(this->optimizer_->clone());
       }
       if (this->loss_) {
-        stages[i].set_loss_function(this->loss_->clone());
+        stage.set_loss_function(this->loss_->clone());
       }
+      stages.push_back(std::move(stage));
     }
     return stages;
   }

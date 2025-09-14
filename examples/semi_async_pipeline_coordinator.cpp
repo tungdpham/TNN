@@ -1,11 +1,11 @@
 
 
+#include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/mnist_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
 #include <chrono>
 #include <cstdlib>
@@ -159,10 +159,6 @@ int main() {
 
   Tensor<float> batch_data, batch_labels;
 
-  auto loss_function = tnn::LossFactory<float>::create("crossentropy");
-
-  coordinator.set_loss_function(std::move(loss_function));
-
   size_t batch_index = 0;
 
   train_loader.shuffle();
@@ -239,8 +235,6 @@ int main() {
             << " completed in " << epoch_duration.count() << " milliseconds"
             << std::endl;
 
-  loss_function = coordinator.get_loss_function()->clone();
-
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
@@ -278,7 +272,7 @@ int main() {
 
     for (auto &task : forward_tasks) {
       utils::apply_softmax<float>(task.data);
-      val_loss += loss_function->compute_loss(
+      val_loss += coordinator.compute_loss(
           task.data, micro_batch_labels[task.micro_batch_id]);
       val_accuracy += utils::compute_class_accuracy<float>(
           task.data, micro_batch_labels[task.micro_batch_id]);

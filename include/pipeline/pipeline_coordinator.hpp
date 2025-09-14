@@ -10,6 +10,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
+#include "binary_serializer.hpp"
 #include "pipeline_communicator.hpp"
 #include "pipeline_stage.hpp"
 #include <chrono>
@@ -22,16 +23,18 @@ namespace tpipeline {
 
 template <typename T = float> class PipelineCoordinator {
 public:
-  PipelineCoordinator(int num_stages = 4, int num_microbatches = 4)
-      : num_stages_(num_stages), num_microbatches_(num_microbatches) {
+  PipelineCoordinator(int num_stages, int num_microbatches,
+                      tnn::Sequential<T> model)
+      : num_stages_(num_stages), num_microbatches_(num_microbatches),
+        model_(std::move(model)) {
     if (num_stages < 1 || num_microbatches < 1) {
       throw std::invalid_argument(
           "Number of stages and microbatches must be at least 1");
     }
-
-    std::cout << "PipelineCoordinator initialized with " << num_stages_
-              << " stages and " << num_microbatches_ << " microbatches."
-              << std::endl;
+    if (this->model_.get_layers().size() < static_cast<size_t>(num_stages)) {
+      throw std::invalid_argument(
+          "Model must have at least as many layers as stages");
+    }
   }
 
   virtual ~PipelineCoordinator() = default;
@@ -95,6 +98,13 @@ public:
     this->coordinator_comm_->send_message(backward_msg);
   }
 
+  float compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) {
+    if (!this->model_.loss_function()) {
+      throw std::runtime_error("No loss function defined in the model");
+    }
+    return this->model_.loss_function()->compute_loss(predictions, targets);
+  }
+
   void join(const bool direction) {
     const size_t expected_task_count_ = this->num_microbatches_;
 
@@ -133,12 +143,6 @@ public:
       throw std::invalid_argument(
           "Microbatch size mismatch with coordinator configuration");
     }
-
-    if (loss_function_ == nullptr) {
-      throw std::runtime_error(
-          "Loss function not set for distributed coordinator");
-    }
-
     for (int i = 0; i < this->num_microbatches_; ++i) {
       this->forward(microbatch_inputs[i], i);
     }
@@ -161,8 +165,8 @@ public:
 
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-          Tensor<T> gradient =
-              loss_function_->compute_gradient(predictions, targets);
+          Tensor<T> gradient = this->model_.loss_function()->compute_gradient(
+              predictions, targets);
 
           this->backward(gradient, task.micro_batch_id);
         }
@@ -221,7 +225,7 @@ public:
   bool wait_for_config_received() {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
@@ -239,46 +243,38 @@ public:
     return true;
   }
 
-  bool wait_for_weights_received() {
+  bool wait_for_params_received() {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
-                 CommandType::WEIGHTS_RECEIVED) >=
+                 CommandType::PARAMS_RECEIVED) >=
              static_cast<size_t>(this->num_stages_);
     });
 
     if (!success) {
-      std::cout << "Timeout waiting for weights received confirmations\n";
+      std::cout << "Timeout waiting for parameters received confirmations\n";
       return false;
     }
 
-    std::cout << "All stages confirmed weights received!\n";
+    std::cout << "All stages confirmed parameters received!\n";
 
     return true;
   }
 
-  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
-    loss_function_ = std::move(loss);
-  }
-
-  const std::unique_ptr<tnn::Loss<T>> &get_loss_function() const {
-    return loss_function_;
-  }
-
 protected:
-  std::unique_ptr<tnn::Loss<T>> loss_function_;
   int num_stages_;
   int num_microbatches_;
+  tnn::Sequential<T> model_;
   std::shared_ptr<PipelineCommunicator<T>> coordinator_comm_;
   std::vector<std::string> stage_names_;
+  std::vector<tnn::Partition> partitions_;
 
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;
 
-private:
   void wait_for_parameter_updates() {
     int confirmations = 0;
     (void)confirmations;
@@ -300,6 +296,31 @@ private:
       return;
     }
     return;
+  }
+
+  bool send_params(const std::string &stage_id,
+                   const tnn::Partition &partition) {
+    try {
+      std::vector<Tensor<T> *> params = model_.parameters(partition);
+      std::vector<Tensor<T>> params_copy;
+      for (const auto &param_ptr : params) {
+        if (param_ptr) {
+          params_copy.push_back(*param_ptr);
+        }
+      }
+      auto serialized_params =
+          BinarySerializer::serialize_parameters(params_copy);
+
+      auto params_msg = Message<T>::params_transfer_message(
+          serialized_params, "coordinator", stage_id);
+
+      this->coordinator_comm_->send_message(params_msg);
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Failed to send parameters to stage " << stage_id << ": "
+                << e.what() << '\n';
+      return false;
+    }
   }
 };
 

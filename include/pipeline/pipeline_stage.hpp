@@ -8,8 +8,10 @@
 
 #include "nn/sequential.hpp"
 
+#include "binary_serializer.hpp"
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
+#include "utils/cpu_info.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -39,7 +41,11 @@ public:
 protected:
   PipelineStage()
       : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
-        is_processing_(false) {}
+        is_processing_(false) {
+    if (!this->cpu_info_.initialize()) {
+      std::cerr << "WARNING: Failed to initialize CPU info" << std::endl;
+    }
+  }
 
 public:
   virtual void start() {
@@ -151,6 +157,32 @@ public:
                   << std::endl;
       }
       break;
+    case CommandType::PARAMS_TRANSFER: {
+      try {
+        // decode and deserialize
+        std::vector<uint8_t> params = message.get_binary();
+        std::vector<Tensor<T>> parameters =
+            BinarySerializer::deserialize_parameters<T>(params);
+
+        if (model_) {
+          model_->load_parameters(std::move(parameters));
+          std::cout << "Stage " << name_ << " successfully loaded "
+                    << parameters.size() << " parameters" << std::endl;
+
+          // send confirmation
+          auto response = Message<T>::create_control_message(
+              CommandType::PARAMS_RECEIVED, name_, message.sender_id);
+          communicator_->send_message(response);
+        } else {
+          std::cout << "Stage " << name_
+                    << " has no model to load parameters into" << std::endl;
+        }
+      } catch (const std::exception &e) {
+        std::cout << "Stage " << name_
+                  << " failed to load parameters: " << e.what() << std::endl;
+      }
+      break;
+    }
     case CommandType::SHUTDOWN:
       this->stop();
       break;
@@ -170,6 +202,7 @@ protected:
   std::unique_ptr<PipelineCommunicator<T>,
                   std::function<void(PipelineCommunicator<T> *)>>
       communicator_;
+  utils::CpuInfo cpu_info_;
   std::string name_;
 
   std::atomic<bool> should_stop_;

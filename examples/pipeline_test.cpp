@@ -1,3 +1,4 @@
+#include "data_loading/mnist_data_loader.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -5,8 +6,8 @@
 #include "pipeline/message.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
-#include "data_loading/mnist_data_loader.hpp"
 #include "utils/ops.hpp"
+#include <omp.h>
 
 namespace mnist_constants {
 constexpr float EPSILON = 1e-15f;
@@ -62,8 +63,6 @@ signed main() {
 
   auto coordinator = tpipeline::InProcessPipelineCoordinator<float>(
       model, 1, mnist_constants::NUM_MICROBATCHES);
-
-  coordinator.set_loss_function(std::move(loss_functions));
 
   // Get the stages from the coordinator
   auto stages = coordinator.get_stages();
@@ -177,8 +176,6 @@ signed main() {
         std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1
                   << " completed in " << epoch_duration.count()
                   << " milliseconds" << std::endl;
-
-        loss_function = coordinator.get_loss_function()->clone();
 
         double val_loss = 0.0;
         double val_accuracy = 0.0;

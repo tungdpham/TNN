@@ -6,11 +6,11 @@
  */
 #pragma once
 
+#include "asio.hpp"
 #include "network_serialization.hpp"
 #include "nn/sequential.hpp"
 #include "pipeline_stage.hpp"
 #include "tcp_communicator.hpp"
-#include <asio.hpp>
 #include <atomic>
 #include <csignal>
 #include <iostream>
@@ -29,9 +29,7 @@ class NetworkStageWorker : public PipelineStage<T> {
 public:
   explicit NetworkStageWorker(int listen_port)
       : PipelineStage<T>(), listen_port_(listen_port), io_context_(),
-        work_guard_(asio::make_work_guard(io_context_)), is_running_(false),
-        is_configured_(false) {
-
+        work_guard_(asio::make_work_guard(io_context_)), is_configured_(false) {
     tcp_communicator_ = std::make_unique<TcpPipelineCommunicator<T>>(
         io_context_, "localhost", listen_port_);
 
@@ -52,7 +50,13 @@ public:
     std::cout << "Starting network stage worker on port " << listen_port_
               << '\n';
 
-    io_thread_ = std::thread([this]() { io_context_.run(); });
+    io_thread_ = std::thread([this]() {
+// Ignore SIGPIPE to prevent crashes on broken connections
+#ifdef __linux__
+      std::signal(SIGPIPE, SIG_IGN);
+#endif
+      io_context_.run();
+    });
 
     std::cout << "Network stage worker listening on port " << listen_port_
               << '\n';
@@ -81,10 +85,8 @@ private:
   asio::io_context io_context_;
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
-
   std::unique_ptr<TcpPipelineCommunicator<T>> tcp_communicator_;
 
-  std::atomic<bool> is_running_;
   std::atomic<bool> is_configured_;
   std::string stage_id_;
 
