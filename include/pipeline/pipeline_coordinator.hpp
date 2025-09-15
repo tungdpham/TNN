@@ -68,6 +68,11 @@ public:
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
+  /**
+   * @brief Forwards input batch but does not wait for the result.
+   * @param input The input tensor to be processed.
+   * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
+   */
   void forward(const Tensor<T> &input, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
@@ -83,6 +88,11 @@ public:
     this->coordinator_comm_->send_message(forward_msg);
   }
 
+  /**
+   * @brief Sends the backward gradient to the last stage.
+   * @param gradient The gradient tensor to be backpropagated.
+   * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
+   */
   void backward(const Tensor<T> &gradient, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
@@ -98,6 +108,12 @@ public:
     this->coordinator_comm_->send_message(backward_msg);
   }
 
+  /**
+   * @brief Computes the loss given predictions and targets using the model's loss function.
+   * @param predictions The predicted output tensor.
+   * @param targets The target output tensor.
+   * @return The computed loss value.
+   */
   float compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) {
     if (!this->model_.loss_function()) {
       throw std::runtime_error("No loss function defined in the model");
@@ -105,6 +121,10 @@ public:
     return this->model_.loss_function()->compute_loss(predictions, targets);
   }
 
+  /**
+   * @brief Waits for all microbatches to be processed in the specified direction.
+   * @param direction True for forward pass, False for backward pass.
+   */
   void join(const bool direction) {
     const size_t expected_task_count_ = this->num_microbatches_;
 
@@ -134,6 +154,11 @@ public:
     return;
   }
 
+  /**
+   * @brief Forwards all microbatches and immediately compute loss and backward pass as results arrive.
+   * @param microbatch_inputs A vector of input tensors for each microbatch.
+   * @param microbatch_labels A vector of target tensors for each microbatch. 
+   */
   void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
                            std::vector<Tensor<T>> &microbatch_labels) {
     if (microbatch_inputs.size() !=
@@ -147,6 +172,7 @@ public:
       this->forward(microbatch_inputs[i], i);
     }
 
+    // Assuming no microbatch are lost during transmission/processing. May need additional handling for production use.
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
@@ -161,7 +187,7 @@ public:
         if (forward_msg.has_task()) {
           ++processed_microbatches_;
 
-          const auto &task = forward_msg.get_task();
+          const Task<T> &task = forward_msg.get_task();
 
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
@@ -184,6 +210,9 @@ public:
         CommandType::BACKWARD_TASK);
   }
 
+  /**
+   * @brief Requests all stages to print their profiling data.
+   */
   void print_profiling_on_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       auto profiling_msg = Message<T>::create_control_message(
@@ -192,6 +221,9 @@ public:
     }
   }
 
+  /**
+   * @brief Requests all stages to clear their profiling data.
+   */
   void clear_profiling_data() {
     for (const auto &stage_name : this->stage_names_) {
       auto clear_msg = Message<T>::create_control_message(
@@ -243,14 +275,14 @@ public:
     return true;
   }
 
-  bool wait_for_params_received() {
+  bool wait_for_PARAMS_LOADED() {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
       return this->coordinator_comm_->message_count_by_type(
-                 CommandType::PARAMS_RECEIVED) >=
+                 CommandType::PARAMS_LOADED) >=
              static_cast<size_t>(this->num_stages_);
     });
 
@@ -311,7 +343,7 @@ protected:
       auto serialized_params =
           BinarySerializer::serialize_parameters(params_copy);
 
-      auto params_msg = Message<T>::params_transfer_message(
+      auto params_msg = Message<T>::load_params_message(
           serialized_params, "coordinator", stage_id);
 
       this->coordinator_comm_->send_message(params_msg);

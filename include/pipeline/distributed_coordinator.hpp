@@ -196,7 +196,7 @@ public:
       return false;
     }
 
-    if (!this->wait_for_params_received()) {
+    if (!this->wait_for_PARAMS_LOADED()) {
       std::cerr
           << "Failed to receive parameters confirmation from all stages\n";
       return false;

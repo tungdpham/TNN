@@ -334,7 +334,7 @@ public:
 
   T *data() { return data_; }
 
-  T *data() const { return data_; }
+  const T *data() const { return data_; }
 
   void fill(T value) {
     size_t size = rows_ * cols_;
@@ -616,9 +616,6 @@ public:
 #endif
 
     T sum = T(0);
-#if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : sum)
-#endif
     for (size_t i = 0; i < size; ++i) {
       sum += data_[i];
     }
@@ -659,10 +656,6 @@ public:
     const T *a_data = a.data_;
     const T *b_data = b.data_;
     T *result_data = result.data_;
-
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
     for (size_t r = 0; r < a.rows_; ++r) {
       for (size_t c = 0; c < b.cols_; ++c) {
         T sum = T(0);

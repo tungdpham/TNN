@@ -219,23 +219,41 @@ public:
 
   bool is_profiling_enabled() const { return enable_profiling_; }
 
+  /**
+   * @brief Clears all recorded profiling data.
+   */
   void clear_profiling_data() {
     forward_times_ms_.clear();
     backward_times_ms_.clear();
   }
 
+  /**
+   * @brief Clears only the recorded forward times.
+   */
   void clear_forward_times() { forward_times_ms_.clear(); }
 
+  /**
+   * @brief Clears only the recorded backward times.
+   */
   void clear_backward_times() { backward_times_ms_.clear(); }
 
+  /**
+   * @brief Returns the recorded forward times for each layer in milliseconds.
+   */
   const std::map<std::string, double> &get_forward_times() const {
     return forward_times_ms_;
   }
 
+  /**
+   * @brief Returns the recorded backward times for each layer in milliseconds.
+   */
   const std::map<std::string, double> &get_backward_times() const {
     return backward_times_ms_;
   }
 
+  /**
+   * @brief Prints a summary of the profiling data to the console if profiling is enabled, otherwise prints a warning.
+   */
   void print_profiling_summary() const {
     if (!enable_profiling_ || forward_times_ms_.empty()) {
       std::cout << "No profiling data available. Enable profiling with "
@@ -295,6 +313,11 @@ public:
     std::cout << std::string(60, '=') << "\n\n";
   }
 
+  /**
+   * @brief Performs a forward pass through the model.
+   * @param input The input tensor.
+   * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
+   */
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
@@ -332,6 +355,11 @@ public:
     return current_output;
   }
 
+  /**
+   * @brief Performs a backward pass through the model.
+   * @param gradient The gradient tensor from the subsequent layer or loss function.
+   * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
+   */
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error(
@@ -370,14 +398,9 @@ public:
     return current_grad;
   }
 
-  Tensor<T> predict(const Tensor<T> &input) {
-    bool was_training = is_training_;
-    set_training(false);
-    Tensor<T> result = forward(input);
-    set_training(was_training);
-    return result;
-  }
-
+  /**
+   * @brief Returns a vector of pointers to all params in the model
+   */
   std::vector<Tensor<T> *> parameters() const {
     std::vector<Tensor<T> *> all_params;
     for (auto &layer : layers_) {
@@ -388,6 +411,10 @@ public:
     return all_params;
   }
 
+  /**
+   * @brief Returns a vector of pointers to params in the specified partition
+   * @param part The partition specifying the range of layers.
+   */
   std::vector<Tensor<T> *> parameters(const Partition &part) const {
     if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
         part.start_layer >= part.end_layer) {
@@ -403,6 +430,9 @@ public:
     return part_params;
   }
 
+  /**
+   * @brief Returns a vector of pointers to all gradients in the model
+   */
   std::vector<Tensor<T> *> gradients() const {
     std::vector<Tensor<T> *> all_grads;
     for (auto &layer : layers_) {
@@ -412,19 +442,10 @@ public:
     return all_grads;
   }
 
-  size_t parameter_count() const {
-    size_t count = 0;
-    for (const auto &layer : layers_) {
-      if (layer->has_parameters()) {
-        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
-        for (const auto &param : params) {
-          count += param->size();
-        }
-      }
-    }
-    return count;
-  }
-
+  /**
+   * @brief Returns the output shape for given input shape
+   * @param input_shape The shape of the input tensor as a vector of sizes.
+   */
   std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
@@ -440,64 +461,15 @@ public:
     return current_shape;
   }
 
-  void print_summary(const std::vector<size_t> &input_shape = {}) const {
-    std::cout << std::string(60, '=') << "\n";
-    std::cout << "Model: " << name_ << "\n";
-    std::cout << std::string(60, '=') << "\n";
-    std::cout << std::left << std::setw(20) << "Layer (type)" << std::setw(25)
-              << "Output Shape" << std::setw(15) << "Param #" << "\n";
-    std::cout << std::string(60, '-') << "\n";
-
-    std::vector<size_t> current_shape = input_shape;
-    size_t total_params = 0;
-
-    for (size_t i = 0; i < layers_.size(); ++i) {
-      const auto &layer = layers_[i];
-
-      if (!current_shape.empty()) {
-        current_shape = layer->compute_output_shape(current_shape);
-      }
-
-      size_t layer_params = 0;
-      if (layer->has_parameters()) {
-        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
-        for (const auto &param : params) {
-          layer_params += param->size();
-        }
-      }
-      total_params += layer_params;
-
-      std::string layer_name = layer->type();
-      if (!layer->get_config().name.empty()) {
-        layer_name = layer->get_config().name + " (" + layer->type() + ")";
-      }
-
-      std::string shape_str = "(";
-      if (!current_shape.empty()) {
-        for (size_t j = 0; j < current_shape.size(); ++j) {
-          if (j > 0)
-            shape_str += ", ";
-          shape_str += std::to_string(current_shape[j]);
-        }
-      } else {
-        shape_str += "Unknown";
-      }
-      shape_str += ")";
-
-      std::cout << std::left << std::setw(20) << layer_name << std::setw(25)
-                << shape_str << std::setw(15) << layer_params << "\n";
-    }
-
-    std::cout << std::string(60, '-') << "\n";
-    std::cout << "Total params: " << total_params << "\n";
-    std::cout << std::string(60, '=') << "\n";
-  }
-
   void print_config() const {
-    std::cout << "Sequential Configuration:\n";
     std::cout << get_config().dump(2) << std::endl;
   }
 
+  /**
+   * @brief Save the model to specified path. 
+   * The model's config will be save to json for readability, and the weights will be saved in a binary format.
+   * @param path The base path to save the model (without file extension).
+   */
   void save_to_file(const std::string &path) const {
 
     nlohmann::json config_json = get_config();
@@ -518,6 +490,12 @@ public:
     weights_file.close();
   }
 
+  /**
+   * @brief Load a model from specified path.
+   * The model's config will be loaded from a json file, and the weights will be loaded from a binary file.
+   * @param path The base path to load the model (without file extension).
+   * @return The loaded Sequential model.
+   */
   static Sequential<T> from_file(const std::string &path) {
 
     std::ifstream config_file(path + ".json");
@@ -545,17 +523,6 @@ public:
     weights_file.close();
 
     return model;
-  }
-
-  std::vector<LayerConfig> get_all_configs() const {
-    std::vector<LayerConfig> configs;
-    configs.reserve(layers_.size());
-
-    for (const auto &layer : layers_) {
-      configs.push_back(layer->get_config());
-    }
-
-    return configs;
   }
 
   static Sequential from_configs(const std::vector<LayerConfig> &configs,
@@ -587,14 +554,6 @@ public:
   const std::string &name() const { return name_; }
 
   void set_name(const std::string &name) { name_ = name; }
-
-  auto begin() { return layers_.begin(); }
-
-  auto end() { return layers_.end(); }
-
-  auto begin() const { return layers_.begin(); }
-
-  auto end() const { return layers_.end(); }
 
   void update_parameters() const {
     for (const auto &layer : layers_) {
@@ -643,7 +602,6 @@ public:
   void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
     this->optimizer_ = std::move(optimizer);
     distribute_optimizer_to_layers();
-    std::cout << "Optimizer set to: " << this->optimizer_->name() << std::endl;
   }
 
   void set_loss_function(Loss<T> &loss) { this->loss_ = loss.clone(); }
@@ -688,6 +646,10 @@ public:
     return layers_;
   }
 
+  /**
+   * @brief Returns the model configuration as a JSON object.
+   * This includes the model name, training mode, layers, optimizer, and loss function.
+   */
   nlohmann::json get_config() const {
     nlohmann::json config;
     config["name"] = name_;
@@ -766,6 +728,10 @@ public:
     return config;
   }
 
+  /**
+   * @brief Saves the model configuration to a JSON file.
+   * @param filepath The path to the file where the configuration will be saved.
+   */
   void save_config(const std::string &filepath) const {
     std::ofstream file(filepath);
     if (!file.is_open()) {
@@ -775,6 +741,11 @@ public:
     file.close();
   }
 
+  /**
+   * @brief Loads a Sequential model from a JSON configuration object.
+   * @param config The JSON object containing the model configuration.
+   * @return The constructed Sequential model.
+   */
   static Sequential<T> load_from_config(const nlohmann::json &config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);

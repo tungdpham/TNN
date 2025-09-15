@@ -39,7 +39,7 @@ void run_test() {
 
   Tensor<float> batch_data, batch_labels;
   while (loader.get_batch(batch_size, batch_data, batch_labels)) {
-    Tensor<float> predictions = model.predict(batch_data);
+    Tensor<float> predictions = model.forward(batch_data);
 
     for (size_t i = 0; i < predictions.batch_size(); ++i) {
       size_t predicted_label =

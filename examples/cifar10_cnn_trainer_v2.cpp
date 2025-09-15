@@ -86,9 +86,6 @@ int main() {
 
     model.enable_profiling(true);
 
-    model.print_summary(
-        std::vector<size_t>{cifar10_constants::BATCH_SIZE, 3, 32, 32});
-
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
     train_classification_model(
         model, train_loader, test_loader, cifar10_constants::EPOCHS,

@@ -92,9 +92,6 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nModel Architecture Summary:" << std::endl;
-    model.print_summary(std::vector<size_t>{mnist_constants::BATCH_SIZE, 1,
-                                            ::mnist_constants::IMAGE_HEIGHT,
-                                            ::mnist_constants::IMAGE_WIDTH});
 
     train_classification_model(
         model, train_loader, test_loader, mnist_constants::EPOCHS,

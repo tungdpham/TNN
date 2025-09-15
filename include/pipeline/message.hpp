@@ -94,10 +94,10 @@ template <typename T = float> struct Message {
   }
 
   static Message<T>
-  params_transfer_message(const std::vector<uint8_t> &serialized_params,
+  load_params_message(const std::vector<uint8_t> &serialized_params,
                           const std::string &sender = "",
                           const std::string &recipient = "") {
-    Message<T> msg(CommandType::PARAMS_TRANSFER, serialized_params);
+    Message<T> msg(CommandType::LOAD_PARAMS, serialized_params);
     msg.sender_id = sender;
     msg.recipient_id = recipient;
     return msg;

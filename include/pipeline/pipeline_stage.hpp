@@ -157,7 +157,7 @@ public:
                   << std::endl;
       }
       break;
-    case CommandType::PARAMS_TRANSFER: {
+    case CommandType::LOAD_PARAMS: {
       try {
         // decode and deserialize
         std::vector<uint8_t> params = message.get_binary();
@@ -171,7 +171,7 @@ public:
 
           // send confirmation
           auto response = Message<T>::create_control_message(
-              CommandType::PARAMS_RECEIVED, name_, message.sender_id);
+              CommandType::PARAMS_LOADED, name_, message.sender_id);
           communicator_->send_message(response);
         } else {
           std::cout << "Stage " << name_

@@ -569,8 +569,6 @@ int main() {
     model.set_loss_function(
         tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;
-    model.print_summary(std::vector<size_t>{ips_constants::MAX_BATCH_SIZE,
-                                            input_features, 1, 1});
 
     constexpr int epochs = ips_constants::MAX_EPOCHS;
     constexpr int batch_size = ips_constants::MAX_BATCH_SIZE;
