@@ -9,9 +9,10 @@
 #include "nn/sequential.hpp"
 
 #include "binary_serializer.hpp"
+#include "load_tracker.hpp"
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
-#include "utils/cpu_info.hpp"
+#include "utils/hardware_info.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -29,21 +30,18 @@ template <typename T = float> class PipelineStage {
 public:
   explicit PipelineStage(
       std::unique_ptr<tnn::Sequential<T>> model,
-      std::unique_ptr<PipelineCommunicator<T>,
-                      std::function<void(PipelineCommunicator<T> *)>>
+      std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
           communicator,
       const std::string &name = "")
-      : model_(std::move(model)), communicator_(std::move(communicator)),
-        name_(name), should_stop_(true), is_processing_(false) {}
+      : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
+        should_stop_(true) {}
 
   virtual ~PipelineStage() {}
 
 protected:
-  PipelineStage()
-      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
-        is_processing_(false) {
-    if (!this->cpu_info_.initialize()) {
-      std::cerr << "WARNING: Failed to initialize CPU info" << std::endl;
+  PipelineStage() : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true) {
+    if (!cpu_info_.initialize()) {
+      std::cerr << "Failed to initialize CPU information" << std::endl;
     }
   }
 
@@ -70,9 +68,8 @@ public:
   void message_loop() {
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
-      message_available_cv_.wait(lock, [this]() {
-        return communicator_->has_input_message() || should_stop_;
-      });
+      message_available_cv_.wait(
+          lock, [this]() { return communicator_->has_input_message() || should_stop_; });
 
       if (should_stop_) {
         std::cout << "Stage " << name_ << " stopping message loop" << std::endl;
@@ -86,38 +83,45 @@ public:
     }
   }
 
+  void monitoring_loop() {
+    while (!should_stop_) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(update_interval));
+      if (should_stop_) {
+        break;
+      }
+      update_load_tracker();
+    }
+  }
+
+  std::string name() const { return name_; }
+
+protected:
   virtual void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
     case CommandType::FORWARD_TASK: {
       const Task<T> &forward_task = message.get_task();
-      Tensor<T> output_data =
-          this->model_->forward(forward_task.data, forward_task.micro_batch_id);
-      Task<T> output_task(TaskType::FORWARD, std::move(output_data),
-                          forward_task.micro_batch_id);
+      Tensor<T> output_data = this->model_->forward(forward_task.data, forward_task.micro_batch_id);
+      Task<T> output_task(TaskType::FORWARD, std::move(output_data), forward_task.micro_batch_id);
 
-      auto output_message =
-          Message<T>::forward_task(output_task, name_, "next_stage");
+      auto output_message = Message<T>::forward_task(output_task, name_, "next_stage");
       output_message.sequence_number = message.sequence_number;
 
       communicator_->send_message(output_message);
     } break;
     case CommandType::BACKWARD_TASK: {
       const Task<T> &backward_task = message.get_task();
-      Tensor<T> output_data = this->model_->backward(
-          backward_task.data, backward_task.micro_batch_id);
-      Task<T> output_task(TaskType::BACKWARD, std::move(output_data),
-                          backward_task.micro_batch_id);
+      Tensor<T> output_data =
+          this->model_->backward(backward_task.data, backward_task.micro_batch_id);
+      Task<T> output_task(TaskType::BACKWARD, std::move(output_data), backward_task.micro_batch_id);
 
-      auto output_message =
-          Message<T>::backward_task(output_task, name_, "prev_stage");
+      auto output_message = Message<T>::backward_task(output_task, name_, "prev_stage");
       output_message.sequence_number = message.sequence_number;
 
       communicator_->send_message(output_message);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       model_->update_parameters();
-      auto response =
-          Message<T>::parameters_updated(this->name_, "coordinator");
+      auto response = Message<T>::parameters_updated(this->name_, "coordinator");
       communicator_->send_message(response);
     } break;
     case CommandType::TRAIN_MODE:
@@ -135,8 +139,7 @@ public:
 
     case CommandType::ERROR_REPORT:
       if (message.has_text()) {
-        std::cout << "Stage " << name_
-                  << " received error: " << message.get_text() << " from "
+        std::cout << "Stage " << name_ << " received error: " << message.get_text() << " from "
                   << message.sender_id << std::endl;
       }
       break;
@@ -145,71 +148,76 @@ public:
       if (model_) {
         model_->print_profiling_summary();
       } else {
-        std::cout << "Warning: No model available to print profiling data"
-                  << std::endl;
+        std::cout << "Warning: No model available to print profiling data" << std::endl;
       }
       break;
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->clear_profiling_data();
       } else {
-        std::cout << "Warning: No model available to clear profiling data"
-                  << std::endl;
+        std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
       break;
     case CommandType::LOAD_PARAMS: {
-      try {
-        // decode and deserialize
-        std::vector<uint8_t> params = message.get_binary();
-        std::vector<Tensor<T>> parameters =
-            BinarySerializer::deserialize_parameters<T>(params);
+      // decode and deserialize
+      std::vector<uint8_t> params = message.get_binary();
+      std::vector<Tensor<T>> parameters = BinarySerializer::deserialize_parameters<T>(params);
 
-        if (model_) {
-          model_->load_parameters(std::move(parameters));
-          std::cout << "Stage " << name_ << " successfully loaded "
-                    << parameters.size() << " parameters" << std::endl;
+      model_->load_parameters(std::move(parameters));
 
-          // send confirmation
-          auto response = Message<T>::create_control_message(
-              CommandType::PARAMS_LOADED, name_, message.sender_id);
-          communicator_->send_message(response);
-        } else {
-          std::cout << "Stage " << name_
-                    << " has no model to load parameters into" << std::endl;
-        }
-      } catch (const std::exception &e) {
-        std::cout << "Stage " << name_
-                  << " failed to load parameters: " << e.what() << std::endl;
-      }
+      // send confirmation
+      auto response =
+          Message<T>::create_control_message(CommandType::PARAMS_LOADED, name_, message.sender_id);
+      communicator_->send_message(response);
       break;
     }
     case CommandType::SHUTDOWN:
       this->stop();
       break;
     default:
-      std::cout << "Stage " << name_ << " received unknown command type: "
-                << static_cast<int>(message.command_type) << std::endl;
+      throw std::runtime_error("Unknown command type received");
       break;
     }
   }
 
-  tnn::Sequential<T> *get_model() { return model_.get(); }
-  std::string name() const { return name_; }
-  PipelineCommunicator<T> *get_communicator() { return communicator_.get(); }
+  void update_load_tracker() {
+    const std::map<std::string, double> forward_times = model_->get_forward_times();
+    const std::map<std::string, double> backward_times = model_->get_backward_times();
 
-protected:
+    uint32_t cummulative_forward_time = static_cast<uint32_t>(std::accumulate(
+        forward_times.begin(), forward_times.end(), 0.0,
+        [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));
+    uint32_t cummulative_backward_time = static_cast<uint32_t>(std::accumulate(
+        backward_times.begin(), backward_times.end(), 0.0,
+        [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));
+
+    load_tracker_.avg_forward_time_ = cummulative_forward_time;
+    load_tracker_.avg_backward_time_ = cummulative_backward_time;
+
+    if (cpu_info_.update_dynamic_info()) {
+      load_tracker_.avg_cpu_utilization_ = static_cast<float>(cpu_info_.get_overall_utilization());
+      load_tracker_.max_memory_usage_ =
+          static_cast<float>(cpu_info_.get_ram_info().used_memory_bytes / (1024 * 1024));
+    } else {
+      load_tracker_.avg_cpu_utilization_ = -1.0f;
+      load_tracker_.max_memory_usage_ = -1.0f;
+    }
+  }
+
   std::unique_ptr<tnn::Sequential<T>> model_;
-  std::unique_ptr<PipelineCommunicator<T>,
-                  std::function<void(PipelineCommunicator<T> *)>>
+  std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
       communicator_;
-  utils::CpuInfo cpu_info_;
   std::string name_;
 
   std::atomic<bool> should_stop_;
-  std::atomic<bool> is_processing_;
 
   std::mutex message_available_mutex_;
   std::condition_variable message_available_cv_;
+
+  utils::HardwareInfo cpu_info_;
+  LoadTracker load_tracker_;
+
+  uint32_t update_interval = 1000;
 };
 
 } // namespace tpipeline

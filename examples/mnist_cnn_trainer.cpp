@@ -40,12 +40,6 @@ int main() {
   std::ios::sync_with_stdio(false);
   try {
     utils::set_num_threads(8);
-#ifdef USE_TBB
-    std::cout << "tbb::global_control::active_value(max_allowed_parallelism): "
-              << tbb::global_control::active_value(
-                     tbb::global_control::max_allowed_parallelism)
-              << "\n";
-#endif
 
     data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
@@ -59,55 +53,45 @@ int main() {
       return -1;
     }
 
-    std::cout << "Successfully loaded training data: " << train_loader.size()
-              << " samples" << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size()
-              << " samples" << std::endl;
+    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
+              << std::endl;
+    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
-    std::cout
-        << "\nBuilding CNN model architecture with automatic shape inference..."
-        << std::endl;
+    std::cout << "\nBuilding CNN model architecture with automatic shape inference..." << std::endl;
 
-    auto model =
-        tnn::SequentialBuilder<float>("mnist_cnn_model")
-            .input({1, ::mnist_constants::IMAGE_HEIGHT,
-                    ::mnist_constants::IMAGE_WIDTH})
-            .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
-            .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-            .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
-            .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
-            .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-            .flatten("flatten")
-            .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
-            .build();
+    auto model = tnn::SequentialBuilder<float>("mnist_cnn_model")
+                     .input({1, ::mnist_constants::IMAGE_HEIGHT, ::mnist_constants::IMAGE_WIDTH})
+                     .conv2d(8, 5, 5, 1, 1, 0, 0, "relu", true, "conv1")
+                     .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+                     .conv2d(16, 1, 1, 1, 1, 0, 0, "relu", true, "conv2_1x1")
+                     .conv2d(48, 5, 5, 1, 1, 0, 0, "relu", true, "conv3")
+                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+                     .flatten("flatten")
+                     .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
+                     .build();
 
-    auto optimizer = std::make_unique<tnn::Adam<float>>(
-        mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    auto optimizer =
+        std::make_unique<tnn::Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function =
-        tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+    auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
 
     std::cout << "\nModel Architecture Summary:" << std::endl;
 
-    train_classification_model(
-        model, train_loader, test_loader, mnist_constants::EPOCHS,
-        mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
-        mnist_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
+                               mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
+                               mnist_constants::PROGRESS_PRINT_INTERVAL);
 
-    std::cout << "\nOptimized MNIST CNN model training completed successfully!"
-              << std::endl;
+    std::cout << "\nOptimized MNIST CNN model training completed successfully!" << std::endl;
 
     try {
       model.save_to_file("model_snapshots/mnist_cnn_model");
-      std::cout << "Model saved to: model_snapshots/mnist_cnn_model"
-                << std::endl;
+      std::cout << "Model saved to: model_snapshots/mnist_cnn_model" << std::endl;
     } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what()
-                << std::endl;
+      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
     }
 
   } catch (const std::exception &e) {

@@ -16,6 +16,8 @@ RUN apt-get update && apt-get install -y \
     curl \
     iproute2 \
     nlohmann-json3-dev \
+    libnuma-dev \
+    libspdlog-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

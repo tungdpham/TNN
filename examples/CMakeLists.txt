@@ -5,10 +5,12 @@ create_executable(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
 create_executable(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_executable(uji_ips_trainer uji_ips_trainer.cpp)
 
+# Examples
+create_executable(hardware_info_example hardware_info_example.cpp)
+
 # Test executables
 create_executable(mnist_cnn_test mnist_cnn_test.cpp)
 create_executable(pipeline_test pipeline_test.cpp)
-create_executable(cpu_info_test cpu_info_test.cpp)
 
 # Network executables
 create_executable(network_worker network_worker_main.cpp)

@@ -29,9 +29,7 @@ enum class CommandType {
   EVAL_MODE,
   SHUTDOWN,
 
-  // handshake and configuration
-  HANDSHAKE_REQUEST,
-  HANDSHAKE_RESPONSE,
+  // configuration
   CONFIG_TRANSFER,
   CONFIG_RECEIVED,
   LOAD_PARAMS,
@@ -54,9 +52,6 @@ enum class CommandType {
 
   // load balancing and resource management
   LOAD_REPORT,
-  ADJUST_WORKLOAD,
-  CPU_INFO_REPORT,
-  GPU_INFO_REPORT,
 
   // profiling and debugging
   PRINT_PROFILING,

@@ -18,7 +18,7 @@ if(PkgConfig_FOUND)
     pkg_check_modules(NUMA numa)
 endif()
 
-add_library(dcnn_utils STATIC utils.cpp cpu_info.cpp)
+add_library(dcnn_utils STATIC utils.cpp hardware_info.cpp)
 
 # Add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")

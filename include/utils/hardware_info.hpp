@@ -58,22 +58,85 @@ struct MemoryHierarchy {
 };
 
 /**
- * Comprehensive CPU information class for distributed computing
+ * Information about a single RAM module
+ */
+struct RamModule {
+  std::string manufacturer = "unknown";
+  std::string part_number = "unknown";
+  std::string serial_number = "unknown";
+  long long size_bytes = 0;
+  int speed_mhz = 0;
+  std::string type = "unknown"; // DDR4, DDR5, etc.
+  int rank = 0;
+  int data_width_bits = 64;
+  std::string form_factor = "unknown"; // DIMM, SO-DIMM, etc.
+  std::string voltage = "unknown";
+  int cas_latency = 0;
+  std::string bank_locator = "unknown";
+  std::string device_locator = "unknown";
+  bool ecc_capable = false;
+};
+
+/**
+ * Comprehensive RAM information for system analysis
+ */
+struct RamInfo {
+  long long total_physical_memory_bytes = 0;
+  long long available_memory_bytes = 0;
+  long long used_memory_bytes = 0;
+  long long free_memory_bytes = 0;
+  long long cached_memory_bytes = 0;
+  long long buffer_memory_bytes = 0;
+  long long swap_total_bytes = 0;
+  long long swap_used_bytes = 0;
+  long long swap_free_bytes = 0;
+
+  int memory_channels = 0;
+  int populated_slots = 0;
+  int total_slots = 0;
+  double memory_bandwidth_gbps = 0.0;
+  std::string memory_type = "unknown"; // DDR4, DDR5, LPDDR4, etc.
+  int jedec_speed_mhz = 0;
+  int effective_speed_mhz = 0;
+
+  std::vector<RamModule> modules;
+
+  // Memory timings
+  struct MemoryTimings {
+    int cas_latency = 0;
+    int tras = 0;
+    int trp = 0;
+    int trcd = 0;
+    int trc = 0;
+    int command_rate = 0;
+  } timings;
+
+  // NUMA memory information
+  std::map<int, long long> numa_memory_per_node;
+
+  // ECC information
+  bool ecc_enabled = false;
+  long long correctable_errors = 0;
+  long long uncorrectable_errors = 0;
+};
+
+/**
+ * Comprehensive hardware information class for distributed computing
  * Optimized for neural network and CNN workload scheduling
  */
-class CpuInfo {
+class HardwareInfo {
 public:
-  CpuInfo();
-  ~CpuInfo();
+  HardwareInfo();
+  ~HardwareInfo();
 
   /**
-   * Initialize CPU information gathering
+   * Initialize hardware information gathering
    * @return true if successful, false otherwise
    */
   bool initialize();
 
   /**
-   * Check if CPU info was successfully initialized
+   * Check if hardware info was successfully initialized
    */
   bool is_initialized() const { return initialized_; }
 
@@ -105,7 +168,6 @@ public:
   int get_cache_line_size() const { return cache_line_size_; }
   double get_tdp_watts() const { return tdp_watts_; }
   double get_memory_bandwidth_gbps() const { return memory_bandwidth_gbps_; }
-  int get_memory_channels() const { return memory_channels_; }
   bool supports_aes() const { return supports_aes_; }
   bool supports_sha() const { return supports_sha_; }
   bool supports_bmi1() const { return supports_bmi1_; }
@@ -113,21 +175,13 @@ public:
   std::string get_microarchitecture() const { return microarchitecture_; }
   int get_process_node_nm() const { return process_node_nm_; }
 
-  const MemoryHierarchy &get_memory_hierarchy() const {
-    return memory_hierarchy_;
-  }
+  const MemoryHierarchy &get_memory_hierarchy() const { return memory_hierarchy_; }
 
   bool is_containerized() const { return is_containerized_; }
   bool is_virtualized() const { return is_virtualized_; }
   int get_container_cpu_limit() const { return container_cpu_limit_; }
 
-  /**
-   * Update dynamic CPU metrics (utilization, temperature, frequency)
-   * @param sampling_interval_ms Sampling interval in milliseconds (default:
-   * 100ms)
-   * @return true if successful
-   */
-  bool update_dynamic_info(int sampling_interval_ms = 100);
+  bool update_dynamic_info();
 
   double get_overall_utilization() const { return overall_utilization_; }
   double get_user_utilization() const { return user_utilization_; }
@@ -138,6 +192,18 @@ public:
   CoreInfo get_core_info(int logical_core_id) const;
 
   const ThermalInfo &get_thermal_info() const { return thermal_info_; }
+
+  // RAM information getters
+  const RamInfo &get_ram_info() const { return ram_info_; }
+  long long get_total_memory_bytes() const { return ram_info_.total_physical_memory_bytes; }
+  long long get_available_memory_bytes() const { return ram_info_.available_memory_bytes; }
+  long long get_used_memory_bytes() const { return ram_info_.used_memory_bytes; }
+  double get_memory_utilization_percent() const;
+  int get_memory_channels() const { return ram_info_.memory_channels; }
+  std::string get_memory_type() const { return ram_info_.memory_type; }
+  int get_effective_memory_speed_mhz() const { return ram_info_.effective_speed_mhz; }
+  const std::vector<RamModule> &get_ram_modules() const { return ram_info_.modules; }
+  bool is_ecc_enabled() const { return ram_info_.ecc_enabled; }
 
   std::vector<double> get_load_averages() const { return load_averages_; }
 
@@ -173,21 +239,19 @@ public:
   std::map<int, std::vector<int>> get_numa_aware_cores() const;
 
   /**
-   * Print comprehensive CPU information
+   * Print comprehensive hardware information
    */
   void print_info() const;
 
   /**
-   * Get JSON representation of CPU info
+   * Get JSON representation of hardware info
    */
   std::string to_json() const;
 
   /**
    * Get last update timestamp
    */
-  std::chrono::system_clock::time_point get_last_update() const {
-    return last_update_;
-  }
+  std::chrono::system_clock::time_point get_last_update() const { return last_update_; }
 
 private:
   bool initialized_ = false;
@@ -242,6 +306,7 @@ private:
 
   std::vector<CoreInfo> cores_;
   ThermalInfo thermal_info_;
+  RamInfo ram_info_;
   std::vector<double> load_averages_;
 
   bool init_cpu_identification();
@@ -249,12 +314,14 @@ private:
   bool init_frequency_info();
   bool init_feature_detection();
   bool init_memory_hierarchy();
+  bool init_ram_info();
   bool init_container_detection();
 
-  bool update_utilization(int sampling_interval_ms);
+  bool update_utilization();
   bool update_thermal_info();
   bool update_frequency_info();
   bool update_load_averages();
+  bool update_ram_usage();
 
   bool detect_pcore_ecore_topology();
   bool populate_core_cache_info();
@@ -262,20 +329,27 @@ private:
   bool read_proc_stat_linux();
   bool read_thermal_linux();
   bool read_frequencies_linux();
+  bool read_meminfo_linux();
+  bool read_ram_modules_linux();
 
 #ifdef _WIN32
   bool init_windows_wmi();
   bool init_windows_frequency_wmi();
   bool init_windows_memory_hierarchy();
+  bool init_windows_ram_info();
   bool init_windows_container_detection();
   bool update_windows_perfcounters();
   bool read_thermal_windows();
   bool read_frequencies_windows();
+  bool read_ram_modules_windows();
+  bool update_ram_usage_windows();
 #endif
 
 #ifdef __APPLE__
   bool init_macos_sysctl();
+  bool init_macos_ram_info();
   bool update_macos_host_statistics();
+  bool update_macos_ram_usage();
 #endif
 
   struct CpuTimes {
