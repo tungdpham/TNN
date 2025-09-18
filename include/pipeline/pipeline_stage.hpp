@@ -8,8 +8,8 @@
 
 #include "nn/sequential.hpp"
 
-#include "binary_serializer.hpp"
 #include "load_tracker.hpp"
+#include "old_binary_serializer.hpp"
 #include "pipeline_communicator.hpp"
 #include "task.hpp"
 #include "utils/hardware_info.hpp"
@@ -143,7 +143,6 @@ protected:
                   << message.sender_id << std::endl;
       }
       break;
-
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
@@ -171,6 +170,14 @@ protected:
       communicator_->send_message(response);
       break;
     }
+    case CommandType::REPORT_LOAD: {
+      std::vector<uint8_t> serialized_tracker = LoadTracker::serialize(load_tracker_);
+      Message<T> load_msg(CommandType::LOAD_REPORT, serialized_tracker);
+      load_msg.sender_id = name_;
+      load_msg.recipient_id = "coordinator";
+      communicator_->send_message(load_msg);
+      break;
+    }
     case CommandType::SHUTDOWN:
       this->stop();
       break;
@@ -187,6 +194,7 @@ protected:
     uint32_t cummulative_forward_time = static_cast<uint32_t>(std::accumulate(
         forward_times.begin(), forward_times.end(), 0.0,
         [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));
+
     uint32_t cummulative_backward_time = static_cast<uint32_t>(std::accumulate(
         backward_times.begin(), backward_times.end(), 0.0,
         [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));

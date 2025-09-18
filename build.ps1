@@ -27,7 +27,6 @@ function Show-Help {
     Write-Host "    --cuda              Enable CUDA support"
     Write-Host "    --tbb               Enable Intel TBB support (on by default)"
     Write-Host "    --openmp            Enable OpenMP support"
-    Write-Host "    --build-dir DIR     Set custom build directory (default: . [current dir])"
     Write-Host ""
     Write-Host "Examples:"
     Write-Host "    .\build.ps1             # Build with default settings"

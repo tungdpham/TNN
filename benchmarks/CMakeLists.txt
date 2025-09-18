@@ -1,2 +1,4 @@
 create_executable(serialization_test serialization_test.cpp)
 create_executable(compression_test compression_test.cpp)
+create_executable(resize_test resize_test.cpp)
+create_executable(reserve_test reserve_test.cpp)

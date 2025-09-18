@@ -51,6 +51,7 @@ enum class CommandType {
   CHECKPOINT_COMPLETE,
 
   // load balancing and resource management
+  REPORT_LOAD,
   LOAD_REPORT,
 
   // profiling and debugging

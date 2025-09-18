@@ -10,7 +10,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
-#include "binary_serializer.hpp"
+#include "old_binary_serializer.hpp"
 #include "pipeline_communicator.hpp"
 #include "pipeline_stage.hpp"
 #include <chrono>
@@ -23,17 +23,13 @@ namespace tpipeline {
 
 template <typename T = float> class PipelineCoordinator {
 public:
-  PipelineCoordinator(int num_stages, int num_microbatches,
-                      tnn::Sequential<T> model)
-      : num_stages_(num_stages), num_microbatches_(num_microbatches),
-        model_(std::move(model)) {
+  PipelineCoordinator(int num_stages, int num_microbatches, tnn::Sequential<T> model)
+      : num_stages_(num_stages), num_microbatches_(num_microbatches), model_(std::move(model)) {
     if (num_stages < 1 || num_microbatches < 1) {
-      throw std::invalid_argument(
-          "Number of stages and microbatches must be at least 1");
+      throw std::invalid_argument("Number of stages and microbatches must be at least 1");
     }
     if (this->model_.get_layers().size() < static_cast<size_t>(num_stages)) {
-      throw std::invalid_argument(
-          "Model must have at least as many layers as stages");
+      throw std::invalid_argument("Model must have at least as many layers as stages");
     }
   }
 
@@ -48,25 +44,50 @@ public:
 
   void start() {
     for (const auto &stage_name : this->stage_names_) {
-
-      auto start_msg = Message<T>::create_control_message(
-          CommandType::TRAIN_MODE, "coordinator", stage_name);
+      auto start_msg =
+          Message<T>::create_control_message(CommandType::TRAIN_MODE, "coordinator", stage_name);
       this->coordinator_comm_->send_message(start_msg);
     }
 
-    std::cout << "Started all " << this->num_stages_ << " pipeline stages"
-              << std::endl;
+    message_thread_ = std::thread(&PipelineCoordinator::message_loop, this);
+
+    std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
 
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
-      auto stop_msg = Message<T>::create_control_message(
-          CommandType::SHUTDOWN, "coordinator", stage_name);
+      auto stop_msg =
+          Message<T>::create_control_message(CommandType::SHUTDOWN, "coordinator", stage_name);
       this->coordinator_comm_->send_message(stop_msg);
     }
 
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
+
+  void message_loop() {
+    while (true) {
+      std::unique_lock<std::mutex> lock(this->message_notification_mutex_);
+      this->message_notification_cv_.wait(
+          lock, [this]() { return this->coordinator_comm_->has_input_message(); });
+
+      if (this->coordinator_comm_->message_count_by_type(CommandType::LOAD_REPORT) > 0) {
+        std::vector<Message<T>> load_messages =
+            this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
+
+        for (const auto &load_msg : load_messages) {
+          if (load_msg.has_binary()) {
+            std::vector<uint8_t> serialized_data = load_msg.get_binary();
+            LoadTracker tracker = LoadTracker::deserialize(serialized_data);
+            std::cout << "Received load report from " << load_msg.sender_id
+                      << ": avg_forward_time=" << tracker.avg_forward_time_
+                      << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
+          }
+        }
+      }
+    }
+  }
+
+  void process_message(const Message<T> &message) {}
 
   /**
    * @brief Forwards input batch but does not wait for the result.
@@ -81,8 +102,7 @@ public:
     const std::string &first_stage = this->stage_names_[0];
 
     Task<T> task{TaskType::FORWARD, input, microbatch_id};
-    auto forward_msg =
-        Message<T>::forward_task(task, "coordinator", first_stage);
+    auto forward_msg = Message<T>::forward_task(task, "coordinator", first_stage);
     forward_msg.sequence_number = microbatch_id;
 
     this->coordinator_comm_->send_message(forward_msg);
@@ -101,8 +121,7 @@ public:
     const std::string &last_stage = this->stage_names_.back();
 
     Task<T> task{TaskType::BACKWARD, gradient, microbatch_id};
-    auto backward_msg =
-        Message<T>::backward_task(task, "coordinator", last_stage);
+    auto backward_msg = Message<T>::backward_task(task, "coordinator", last_stage);
     backward_msg.sequence_number = microbatch_id;
 
     this->coordinator_comm_->send_message(backward_msg);
@@ -135,53 +154,47 @@ public:
     bool success = message_notification_cv_.wait_until(
         lock, timeout, [this, direction, expected_task_count_]() {
           if (direction) {
-            return this->coordinator_comm_->forward_message_count() >=
-                   expected_task_count_;
+            return this->coordinator_comm_->forward_message_count() >= expected_task_count_;
           } else {
-            return this->coordinator_comm_->backward_message_count() >=
-                   expected_task_count_;
+            return this->coordinator_comm_->backward_message_count() >= expected_task_count_;
           }
         });
 
     if (!success) {
       std::cout << "Warning: join() timed out waiting for task messages. "
                 << "Expected: " << expected_task_count_ << ", Got: "
-                << (direction
-                        ? this->coordinator_comm_->forward_message_count()
-                        : this->coordinator_comm_->backward_message_count())
+                << (direction ? this->coordinator_comm_->forward_message_count()
+                              : this->coordinator_comm_->backward_message_count())
                 << '\n';
     }
     return;
   }
 
   /**
-   * @brief Forwards all microbatches and immediately compute loss and backward pass as results arrive.
+   * @brief Forwards all microbatches and immediately compute loss and backward pass as results
+   * arrive.
    * @param microbatch_inputs A vector of input tensors for each microbatch.
-   * @param microbatch_labels A vector of target tensors for each microbatch. 
+   * @param microbatch_labels A vector of target tensors for each microbatch.
    */
   void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
                            std::vector<Tensor<T>> &microbatch_labels) {
-    if (microbatch_inputs.size() !=
-            static_cast<size_t>(this->num_microbatches_) ||
-        microbatch_labels.size() !=
-            static_cast<size_t>(this->num_microbatches_)) {
-      throw std::invalid_argument(
-          "Microbatch size mismatch with coordinator configuration");
+    if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
+        microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
+      throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
     }
     for (int i = 0; i < this->num_microbatches_; ++i) {
       this->forward(microbatch_inputs[i], i);
     }
 
-    // Assuming no microbatch are lost during transmission/processing. May need additional handling for production use.
+    // Assuming no microbatch are lost during transmission/processing. May need additional handling
+    // for production use.
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(lock, [this]() {
-        return this->coordinator_comm_->forward_message_count() > 0;
-      });
+      message_notification_cv_.wait(
+          lock, [this]() { return this->coordinator_comm_->forward_message_count() > 0; });
       std::vector<Message<T>> forward_messages =
-          this->coordinator_comm_->dequeue_all_messages_by_type(
-              CommandType::FORWARD_TASK);
+          this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_TASK);
 
       for (const auto &forward_msg : forward_messages) {
         if (forward_msg.has_task()) {
@@ -191,8 +204,7 @@ public:
 
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-          Tensor<T> gradient = this->model_.loss_function()->compute_gradient(
-              predictions, targets);
+          Tensor<T> gradient = this->model_.loss_function()->compute_gradient(predictions, targets);
 
           this->backward(gradient, task.micro_batch_id);
         }
@@ -206,8 +218,7 @@ public:
              static_cast<size_t>(this->num_microbatches_);
     });
 
-    this->coordinator_comm_->dequeue_all_messages_by_type(
-        CommandType::BACKWARD_TASK);
+    this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_TASK);
   }
 
   /**
@@ -215,8 +226,8 @@ public:
    */
   void print_profiling_on_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
-      auto profiling_msg = Message<T>::create_control_message(
-          CommandType::PRINT_PROFILING, "coordinator", stage_name);
+      auto profiling_msg = Message<T>::create_control_message(CommandType::PRINT_PROFILING,
+                                                              "coordinator", stage_name);
       this->coordinator_comm_->send_message(profiling_msg);
     }
   }
@@ -226,24 +237,23 @@ public:
    */
   void clear_profiling_data() {
     for (const auto &stage_name : this->stage_names_) {
-      auto clear_msg = Message<T>::create_control_message(
-          CommandType::CLEAR_PROFILING, "coordinator", stage_name);
+      auto clear_msg = Message<T>::create_control_message(CommandType::CLEAR_PROFILING,
+                                                          "coordinator", stage_name);
       this->coordinator_comm_->send_message(clear_msg);
     }
   }
 
   void request_status_from_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
-      auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true,
-                                   "coordinator", stage_name);
+      auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true, "coordinator", stage_name);
       this->coordinator_comm_->send_message(status_msg);
     }
   }
 
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
-      auto update_msg = Message<T>::create_signal_message(
-          CommandType::UPDATE_PARAMETERS, true, "coordinator", stage_name);
+      auto update_msg = Message<T>::create_signal_message(CommandType::UPDATE_PARAMETERS, true,
+                                                          "coordinator", stage_name);
       this->coordinator_comm_->send_message(update_msg);
     }
 
@@ -260,8 +270,7 @@ public:
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->message_count_by_type(
-                 CommandType::CONFIG_RECEIVED) >=
+      return this->coordinator_comm_->message_count_by_type(CommandType::CONFIG_RECEIVED) >=
              static_cast<size_t>(this->num_stages_);
     });
 
@@ -275,14 +284,13 @@ public:
     return true;
   }
 
-  bool wait_for_PARAMS_LOADED() {
+  bool wait_for_params_loaded() {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(30);
 
     bool success = message_notification_cv_.wait_until(lock, timeout, [this]() {
-      return this->coordinator_comm_->message_count_by_type(
-                 CommandType::PARAMS_LOADED) >=
+      return this->coordinator_comm_->message_count_by_type(CommandType::PARAMS_LOADED) >=
              static_cast<size_t>(this->num_stages_);
     });
 
@@ -303,6 +311,7 @@ protected:
   std::shared_ptr<PipelineCommunicator<T>> coordinator_comm_;
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
+  std::thread message_thread_;
 
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;
@@ -323,15 +332,13 @@ protected:
     if (!success) {
       std::cout << "Warning: wait_for_parameter_updates() timed out. "
                 << "Expected: " << this->num_stages_
-                << ", Got: " << this->coordinator_comm_->params_updated_count()
-                << '\n';
+                << ", Got: " << this->coordinator_comm_->params_updated_count() << '\n';
       return;
     }
     return;
   }
 
-  bool send_params(const std::string &stage_id,
-                   const tnn::Partition &partition) {
+  bool send_params(const std::string &stage_id, const tnn::Partition &partition) {
     try {
       std::vector<Tensor<T> *> params = model_.parameters(partition);
       std::vector<Tensor<T>> params_copy;
@@ -340,17 +347,14 @@ protected:
           params_copy.push_back(*param_ptr);
         }
       }
-      auto serialized_params =
-          BinarySerializer::serialize_parameters(params_copy);
+      auto serialized_params = BinarySerializer::serialize_parameters(params_copy);
 
-      auto params_msg = Message<T>::load_params_message(
-          serialized_params, "coordinator", stage_id);
+      auto params_msg = Message<T>::load_params_message(serialized_params, "coordinator", stage_id);
 
       this->coordinator_comm_->send_message(params_msg);
       return true;
     } catch (const std::exception &e) {
-      std::cerr << "Failed to send parameters to stage " << stage_id << ": "
-                << e.what() << '\n';
+      std::cerr << "Failed to send parameters to stage " << stage_id << ": " << e.what() << '\n';
       return false;
     }
   }

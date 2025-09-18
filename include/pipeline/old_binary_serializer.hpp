@@ -20,8 +20,7 @@
 namespace tpipeline {
 class BinarySerializer {
 public:
-  template <typename T>
-  static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
+  template <typename T> static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
     std::vector<uint8_t> buffer;
 
     auto shape = tensor.shape();
@@ -47,8 +46,7 @@ public:
   }
 
   template <typename T>
-  static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer,
-                                      size_t &offset) {
+  static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer, size_t &offset) {
 
     uint32_t shape_size = read_value<uint32_t>(buffer, offset);
     std::vector<size_t> shape(shape_size);
@@ -73,8 +71,7 @@ public:
     return tensor;
   }
 
-  template <typename T>
-  static std::vector<uint8_t> serialize_task(const Task<T> &task) {
+  template <typename T> static std::vector<uint8_t> serialize_task(const Task<T> &task) {
     std::vector<uint8_t> buffer;
 
     write_value(buffer, static_cast<uint32_t>(task.type));
@@ -89,8 +86,7 @@ public:
   }
 
   template <typename T>
-  static Task<T> deserialize_task(const std::vector<uint8_t> &buffer,
-                                  size_t &offset) {
+  static Task<T> deserialize_task(const std::vector<uint8_t> &buffer, size_t &offset) {
 
     uint32_t type_val = read_value<uint32_t>(buffer, offset);
     TaskType type = static_cast<TaskType>(type_val);
@@ -113,8 +109,7 @@ public:
   }
 
   template <typename T>
-  static std::vector<uint8_t>
-  serialize_parameters(const std::vector<Tensor<T>> &parameters) {
+  static std::vector<uint8_t> serialize_parameters(const std::vector<Tensor<T>> &parameters) {
     std::vector<uint8_t> buffer;
 
     // Write number of parameters
@@ -132,8 +127,7 @@ public:
   }
 
   template <typename T>
-  static std::vector<Tensor<T>>
-  deserialize_parameters(const std::vector<uint8_t> &buffer) {
+  static std::vector<Tensor<T>> deserialize_parameters(const std::vector<uint8_t> &buffer) {
     size_t offset = 0;
     uint32_t param_count = read_value<uint32_t>(buffer, offset);
     std::vector<Tensor<T>> parameters;
@@ -157,8 +151,7 @@ public:
     return parameters;
   }
 
-  template <typename T>
-  static std::vector<uint8_t> serialize_message(const Message<T> &message) {
+  template <typename T> static std::vector<uint8_t> serialize_message(const Message<T> &message) {
     std::vector<uint8_t> buffer;
 
     write_value(buffer, static_cast<uint32_t>(message.command_type));
@@ -203,8 +196,7 @@ public:
     return buffer;
   }
 
-  template <typename T>
-  static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
+  template <typename T> static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
     size_t offset = 0;
 
     uint32_t cmd_type = read_value<uint32_t>(buffer, offset);
@@ -212,8 +204,7 @@ public:
 
     Message<T> message(command_type);
 
-    message.sequence_number =
-        static_cast<int>(read_value<uint32_t>(buffer, offset));
+    message.sequence_number = static_cast<int>(read_value<uint32_t>(buffer, offset));
 
     message.sender_id = read_string(buffer, offset);
 
@@ -263,15 +254,13 @@ public:
   }
 
 private:
-  template <typename T>
-  static void write_value(std::vector<uint8_t> &buffer, const T &value) {
+  template <typename T> static void write_value(std::vector<uint8_t> &buffer, const T &value) {
     size_t old_size = buffer.size();
     buffer.resize(old_size + sizeof(T));
     std::memcpy(buffer.data() + old_size, &value, sizeof(T));
   }
 
-  template <typename T>
-  static T read_value(const std::vector<uint8_t> &buffer, size_t &offset) {
+  template <typename T> static T read_value(const std::vector<uint8_t> &buffer, size_t &offset) {
     if (offset + sizeof(T) > buffer.size()) {
       throw std::runtime_error("Buffer underrun while reading value");
     }
@@ -282,8 +271,7 @@ private:
     return value;
   }
 
-  static void write_string(std::vector<uint8_t> &buffer,
-                           const std::string &str) {
+  static void write_string(std::vector<uint8_t> &buffer, const std::string &str) {
     uint32_t length = static_cast<uint32_t>(str.length());
     write_value(buffer, length);
 
@@ -292,16 +280,14 @@ private:
     std::memcpy(buffer.data() + old_size, str.data(), str.length());
   }
 
-  static std::string read_string(const std::vector<uint8_t> &buffer,
-                                 size_t &offset) {
+  static std::string read_string(const std::vector<uint8_t> &buffer, size_t &offset) {
     uint32_t length = read_value<uint32_t>(buffer, offset);
 
     if (offset + length > buffer.size()) {
       throw std::runtime_error("Buffer underrun while reading string");
     }
 
-    std::string str(reinterpret_cast<const char *>(buffer.data() + offset),
-                    length);
+    std::string str(reinterpret_cast<const char *>(buffer.data() + offset), length);
     offset += length;
     return str;
   }

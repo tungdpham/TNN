@@ -10,6 +10,7 @@
 #include <iostream>
 #include <memory>
 #include <thread>
+#include <vector>
 
 struct LoadTracker {
   /**
@@ -24,23 +25,46 @@ struct LoadTracker {
   float avg_cpu_utilization_ = -1.0f; // CPU utilization ratio (0.0 to 1.0)
   float max_memory_usage_ = -1.0f;    // Maximum memory usage in MB, -1.0 if unavailable
 
-  /**
-   * Temporary attributes to help calculate averages
-   * DO NOT SERIALIZE THESE
-   */
+  static std::vector<uint8_t> serialize(const LoadTracker &tracker) {
+    std::vector<uint8_t> buffer;
+    uint8_t *buffer_data = buffer.data();
 
-  /**
-   * Helper functions
-   */
-  void reset() {
-    avg_forward_time_ = 0;
-    avg_backward_time_ = 0;
+    buffer.resize(sizeof(LoadTracker));
+    size_t offset = 0;
+    std::memcpy(buffer_data + offset, &tracker.avg_forward_time_, sizeof(uint32_t));
 
-    avg_cpu_utilization_ = -1.0f;
-    max_memory_usage_ = -1.0f;
+    offset += sizeof(uint32_t);
+    std::memcpy(buffer_data + offset, &tracker.avg_backward_time_, sizeof(uint32_t));
+
+    offset += sizeof(uint32_t);
+    std::memcpy(buffer_data + offset, &tracker.avg_cpu_utilization_, sizeof(float));
+
+    offset += sizeof(float);
+    std::memcpy(buffer_data + offset, &tracker.max_memory_usage_, sizeof(float));
+
+    return buffer;
   }
 
-  LoadTracker() = default;
+  static LoadTracker deserialize(const std::vector<uint8_t> &buffer) {
+    LoadTracker tracker;
+    const uint8_t *buffer_data = buffer.data();
 
-  ~LoadTracker() = default;
+    if (buffer.size() < sizeof(LoadTracker)) {
+      throw std::runtime_error("Invalid buffer size for LoadTracker deserialization");
+    }
+
+    size_t offset = 0;
+    std::memcpy(&tracker.avg_forward_time_, buffer_data + offset, sizeof(uint32_t));
+
+    offset += sizeof(uint32_t);
+    std::memcpy(&tracker.avg_backward_time_, buffer_data + offset, sizeof(uint32_t));
+
+    offset += sizeof(uint32_t);
+    std::memcpy(&tracker.avg_cpu_utilization_, buffer_data + offset, sizeof(float));
+
+    offset += sizeof(float);
+    std::memcpy(&tracker.max_memory_usage_, buffer_data + offset, sizeof(float));
+
+    return tracker;
+  }
 };
