@@ -58,6 +58,8 @@ public:
       std::lock_guard<std::mutex> lock(message_available_mutex_);
       message_available_cv_.notify_all();
     });
+
+    monitoring_thread_ = std::thread(&PipelineStage::monitoring_loop, this);
   }
 
   virtual void stop() {
@@ -188,19 +190,24 @@ protected:
   }
 
   void update_load_tracker() {
-    const std::map<std::string, double> forward_times = model_->get_forward_times();
-    const std::map<std::string, double> backward_times = model_->get_backward_times();
+    if (!model_) {
+      load_tracker_.avg_forward_time_ = 0;
+      load_tracker_.avg_backward_time_ = 0;
+    } else {
+      const std::map<std::string, double> &forward_times = model_->get_forward_times();
+      const std::map<std::string, double> &backward_times = model_->get_backward_times();
 
-    uint32_t cummulative_forward_time = static_cast<uint32_t>(std::accumulate(
-        forward_times.begin(), forward_times.end(), 0.0,
-        [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));
+      float cummulative_forward_time = std::accumulate(
+          forward_times.begin(), forward_times.end(), 0.0f,
+          [](float sum, const std::pair<std::string, double> &p) { return sum + p.second; });
 
-    uint32_t cummulative_backward_time = static_cast<uint32_t>(std::accumulate(
-        backward_times.begin(), backward_times.end(), 0.0,
-        [](double sum, const std::pair<std::string, double> &p) { return sum + p.second; }));
+      float cummulative_backward_time = std::accumulate(
+          backward_times.begin(), backward_times.end(), 0.0f,
+          [](float sum, const std::pair<std::string, double> &p) { return sum + p.second; });
 
-    load_tracker_.avg_forward_time_ = cummulative_forward_time;
-    load_tracker_.avg_backward_time_ = cummulative_backward_time;
+      load_tracker_.avg_forward_time_ = cummulative_forward_time;
+      load_tracker_.avg_backward_time_ = cummulative_backward_time;
+    }
 
     if (cpu_info_.update_dynamic_info()) {
       load_tracker_.avg_cpu_utilization_ = static_cast<float>(cpu_info_.get_overall_utilization());
@@ -224,8 +231,8 @@ protected:
 
   utils::HardwareInfo cpu_info_;
   LoadTracker load_tracker_;
-
   uint32_t update_interval = 1000;
+  std::thread monitoring_thread_;
 };
 
 } // namespace tpipeline

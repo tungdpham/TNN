@@ -18,8 +18,8 @@ struct LoadTracker {
    * These are serialized and sent periodically.
    */
   // throughputs
-  uint32_t avg_forward_time_ = 0;  // avg forward time per batch in milliseconds
-  uint32_t avg_backward_time_ = 0; // avg backward time per batch in milliseconds
+  float avg_forward_time_ = 0;  // avg forward time per batch in milliseconds
+  float avg_backward_time_ = 0; // avg backward time per batch in milliseconds
 
   // system metrics
   float avg_cpu_utilization_ = -1.0f; // CPU utilization ratio (0.0 to 1.0)
@@ -27,20 +27,18 @@ struct LoadTracker {
 
   static std::vector<uint8_t> serialize(const LoadTracker &tracker) {
     std::vector<uint8_t> buffer;
-    uint8_t *buffer_data = buffer.data();
-
     buffer.resize(sizeof(LoadTracker));
     size_t offset = 0;
-    std::memcpy(buffer_data + offset, &tracker.avg_forward_time_, sizeof(uint32_t));
-
-    offset += sizeof(uint32_t);
-    std::memcpy(buffer_data + offset, &tracker.avg_backward_time_, sizeof(uint32_t));
-
-    offset += sizeof(uint32_t);
-    std::memcpy(buffer_data + offset, &tracker.avg_cpu_utilization_, sizeof(float));
+    std::memcpy(buffer.data() + offset, &tracker.avg_forward_time_, sizeof(float));
 
     offset += sizeof(float);
-    std::memcpy(buffer_data + offset, &tracker.max_memory_usage_, sizeof(float));
+    std::memcpy(buffer.data() + offset, &tracker.avg_backward_time_, sizeof(float));
+
+    offset += sizeof(float);
+    std::memcpy(buffer.data() + offset, &tracker.avg_cpu_utilization_, sizeof(float));
+
+    offset += sizeof(float);
+    std::memcpy(buffer.data() + offset, &tracker.max_memory_usage_, sizeof(float));
 
     return buffer;
   }
@@ -54,12 +52,12 @@ struct LoadTracker {
     }
 
     size_t offset = 0;
-    std::memcpy(&tracker.avg_forward_time_, buffer_data + offset, sizeof(uint32_t));
+    std::memcpy(&tracker.avg_forward_time_, buffer_data + offset, sizeof(float));
 
-    offset += sizeof(uint32_t);
-    std::memcpy(&tracker.avg_backward_time_, buffer_data + offset, sizeof(uint32_t));
+    offset += sizeof(float);
+    std::memcpy(&tracker.avg_backward_time_, buffer_data + offset, sizeof(float));
 
-    offset += sizeof(uint32_t);
+    offset += sizeof(float);
     std::memcpy(&tracker.avg_cpu_utilization_, buffer_data + offset, sizeof(float));
 
     offset += sizeof(float);

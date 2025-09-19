@@ -222,6 +222,17 @@ public:
   }
 
   /**
+   * @brief Sends a request to all stages for load report
+   */
+  void request_load_report_from_all_stages() {
+    for (const auto &stage_name : this->stage_names_) {
+      auto load_msg =
+          Message<T>::create_control_message(CommandType::REPORT_LOAD, "coordinator", stage_name);
+      this->coordinator_comm_->send_message(load_msg);
+    }
+  }
+
+  /**
    * @brief Requests all stages to print their profiling data.
    */
   void print_profiling_on_all_stages() {

@@ -47,25 +47,22 @@ Sequential<float> create_demo_model() {
           .dense(10, "linear", true, "fc1")
           .build();
 
-  auto optimizer = std::make_unique<tnn::Adam<float>>(
-      mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+  auto optimizer =
+      std::make_unique<tnn::Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function =
-      tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+  auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
   model.set_loss_function(std::move(loss_function));
   return model;
 }
 
-std::string get_host(const std::string &env_var,
-                     const std::string &default_host) {
+std::string get_host(const std::string &env_var, const std::string &default_host) {
 #ifdef _WIN32
 #ifdef _MSC_VER
   // MSVC implementation
   char *env_value = nullptr;
   size_t len = 0;
-  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 &&
-      env_value != nullptr) {
+  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
     std::string result(env_value);
     free(env_value);
     return result;
@@ -91,36 +88,30 @@ int main() {
 
   std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
 
-  std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints =
-      {
-          {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-          {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+  std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints = {
+      {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
+      {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
-      };
+  };
 
   std::cout << "Using coordinator host: " << coordinator_host << std::endl;
 
-  std::cout << "\nConfigured " << endpoints.size()
-            << " remote endpoints:" << std::endl;
+  std::cout << "\nConfigured " << endpoints.size() << " remote endpoints:" << std::endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port
-              << std::endl;
+    std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port << std::endl;
   }
 
   std::cout << "\nCreating distributed coordinator..." << std::endl;
   DistributedPipelineCoordinator<float> coordinator(
-      std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES,
-      coordinator_host, 8000);
+      std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  Worker expected at " << ep.host << ":" << ep.port
-              << std::endl;
+    std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
   }
 
   if (!coordinator.deploy_stages()) {
-    std::cerr << "Failed to deploy stages. Make sure workers are running."
-              << std::endl;
+    std::cerr << "Failed to deploy stages. Make sure workers are running." << std::endl;
     return 1;
   }
 
@@ -142,12 +133,11 @@ int main() {
 
   data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
 
-  if (!train_loader.load_multiple_files(
-          {"./data/cifar-10-batches-bin/data_batch_1.bin",
-           "./data/cifar-10-batches-bin/data_batch_2.bin",
-           "./data/cifar-10-batches-bin/data_batch_3.bin",
-           "./data/cifar-10-batches-bin/data_batch_4.bin",
-           "./data/cifar-10-batches-bin/data_batch_5.bin"})) {
+  if (!train_loader.load_multiple_files({"./data/cifar-10-batches-bin/data_batch_1.bin",
+                                         "./data/cifar-10-batches-bin/data_batch_2.bin",
+                                         "./data/cifar-10-batches-bin/data_batch_3.bin",
+                                         "./data/cifar-10-batches-bin/data_batch_4.bin",
+                                         "./data/cifar-10-batches-bin/data_batch_5.bin"})) {
     std::cerr << "Failed to load training data!" << std::endl;
     return -1;
   }
@@ -179,49 +169,44 @@ int main() {
       break;
     }
     auto get_next_batch_end = std::chrono::high_resolution_clock::now();
-    auto get_next_batch_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(
-            get_next_batch_end - get_next_batch_start);
+    auto get_next_batch_duration = std::chrono::duration_cast<std::chrono::microseconds>(
+        get_next_batch_end - get_next_batch_start);
 
     auto split_start = std::chrono::high_resolution_clock::now();
 
-    std::vector<Tensor<float>> micro_batches =
-        batch_data.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batches = batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
 
     auto split_end = std::chrono::high_resolution_clock::now();
-    auto split_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        split_end - split_start);
+    auto split_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     coordinator.async_process_batch(micro_batches, micro_batch_labels);
     auto process_end = std::chrono::high_resolution_clock::now();
     auto process_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(process_end -
-                                                              process_start);
+        std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
 
     auto update_start = std::chrono::high_resolution_clock::now();
     coordinator.update_parameters();
 
     auto update_end = std::chrono::high_resolution_clock::now();
     auto update_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(update_end -
-                                                              update_start);
+        std::chrono::duration_cast<std::chrono::microseconds>(update_end - update_start);
 
     if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
-      std::cout << "Get batch completed in " << get_next_batch_duration.count()
-                << " microseconds" << std::endl;
-      std::cout << "Split completed in " << split_duration.count()
-                << " microseconds" << std::endl;
-      std::cout << "Async process completed in " << process_duration.count()
-                << " microseconds" << std::endl;
-      std::cout << "Parameter update completed in " << update_duration.count()
-                << " microseconds" << std::endl;
-      std::cout << "Batch " << batch_index << "/"
-                << train_loader.size() / train_loader.get_batch_size()
+      std::cout << "Get batch completed in " << get_next_batch_duration.count() << " microseconds"
                 << std::endl;
+      std::cout << "Split completed in " << split_duration.count() << " microseconds" << std::endl;
+      std::cout << "Async process completed in " << process_duration.count() << " microseconds"
+                << std::endl;
+      std::cout << "Parameter update completed in " << update_duration.count() << " microseconds"
+                << std::endl;
+      std::cout << "Batch " << batch_index << "/"
+                << train_loader.size() / train_loader.get_batch_size() << std::endl;
+      coordinator.request_load_report_from_all_stages();
       coordinator.print_profiling_on_all_stages();
     }
     coordinator.clear_profiling_data();
@@ -229,20 +214,17 @@ int main() {
   }
 
   auto epoch_end = std::chrono::high_resolution_clock::now();
-  auto epoch_duration = std::chrono::duration_cast<std::chrono::milliseconds>(
-      epoch_end - epoch_start);
-  std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1
-            << " completed in " << epoch_duration.count() << " milliseconds"
-            << std::endl;
+  auto epoch_duration =
+      std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
+  std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1 << " completed in "
+            << epoch_duration.count() << " milliseconds" << std::endl;
 
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
-  while (test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data,
-                               batch_labels)) {
+  while (test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data, batch_labels)) {
 
-    std::vector<Tensor<float>> micro_batches =
-        batch_data.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batches = batch_data.split(mnist_constants::NUM_MICROBATCHES);
 
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(mnist_constants::NUM_MICROBATCHES);
@@ -258,8 +240,7 @@ int main() {
 
     if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
       throw std::runtime_error(
-          "Unexpected number of messages: " +
-          std::to_string(all_messages.size()) +
+          "Unexpected number of messages: " + std::to_string(all_messages.size()) +
           ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
     }
 
@@ -272,10 +253,9 @@ int main() {
 
     for (auto &task : forward_tasks) {
       utils::apply_softmax<float>(task.data);
-      val_loss += coordinator.compute_loss(
-          task.data, micro_batch_labels[task.micro_batch_id]);
-      val_accuracy += utils::compute_class_accuracy<float>(
-          task.data, micro_batch_labels[task.micro_batch_id]);
+      val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
+      val_accuracy +=
+          utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);
     }
     ++val_batches;
   }
@@ -283,9 +263,7 @@ int main() {
   std::cout << "\nValidation completed!" << std::endl;
   std::cout << "Average Validation Loss: " << (val_loss / val_batches)
             << ", Average Validation Accuracy: "
-            << (val_accuracy / val_batches /
-                mnist_constants::NUM_MICROBATCHES) *
-                   100.0f
-            << "%" << std::endl;
+            << (val_accuracy / val_batches / mnist_constants::NUM_MICROBATCHES) * 100.0f << "%"
+            << std::endl;
   return 0;
 }
