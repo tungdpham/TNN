@@ -17,8 +17,7 @@ struct LayerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -35,13 +34,16 @@ template <typename T = float> class Layer {
 public:
   virtual ~Layer() = default;
 
-  virtual Tensor<T> forward(const Tensor<T> &input,
-                            size_t micro_batch_id = 0) = 0;
-  virtual Tensor<T> backward(const Tensor<T> &gradient,
-                             size_t micro_batch_id = 0) = 0;
+  virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
+  virtual Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
+
+  virtual uint32_t forward_complexity(std::vector<size_t> input_shape) = 0; // relative complexity
+  virtual uint32_t
+  backward_complexity(std::vector<size_t> gradient_shape) = 0; // relative complexity
+
   virtual bool has_parameters() const { return false; }
 
   virtual std::string type() const = 0;

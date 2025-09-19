@@ -16,10 +16,10 @@
 namespace tnn {
 
 template <typename T>
-BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
-                                  bool affine, const std::string &name)
-    : ParameterizedLayer<T>(name), num_features_(num_features),
-      epsilon_(epsilon), momentum_(momentum), affine_(affine) {
+BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum, bool affine,
+                                  const std::string &name)
+    : ParameterizedLayer<T>(name), num_features_(num_features), epsilon_(epsilon),
+      momentum_(momentum), affine_(affine) {
 
   if (affine_) {
     gamma_ = Tensor<T>(num_features, 1, 1, 1);
@@ -38,11 +38,9 @@ BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum,
 }
 
 template <typename T>
-Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
-                                     size_t micro_batch_id) {
+Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (input.channels() != num_features_) {
-    throw std::invalid_argument(
-        "Input channels must match num_features in BatchNormLayer");
+    throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
   micro_batch_inputs_[micro_batch_id] = input.clone();
@@ -55,8 +53,8 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
   Tensor<T> output(input.shape());
 
   if (this->is_training_) {
-    Tensor<T> batch_mean(channels, 1, 1, 1);
-    Tensor<T> batch_var(channels, 1, 1, 1);
+    Tensor<T> batch_mean(channels, 1, 1, 1, nullptr);
+    Tensor<T> batch_var(channels, 1, 1, 1, nullptr);
 
     const size_t spatial_size = height * width;
     const size_t total_elements = batch_size * spatial_size;
@@ -87,7 +85,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
       batch_var(c, 0, 0, 0) = sum_sq_diff / static_cast<T>(total_elements);
     });
 
-    Tensor<T> batch_std(channels, 1, 1, 1);
+    Tensor<T> batch_std(channels, 1, 1, 1, nullptr);
     for (size_t c = 0; c < channels; ++c) {
       batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
     }
@@ -126,53 +124,47 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input,
 
     utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) +
-          momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) = (T(1) - momentum_) * running_var_(c, 0, 0, 0) +
-                                 momentum_ * batch_var(c, 0, 0, 0);
+          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
+      running_var_(c, 0, 0, 0) =
+          (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
     });
 
   } else {
 
-    utils::parallel_for_2d<size_t>(
-        batch_size, channels, [&](size_t n, size_t c) {
-          T mean_val = running_mean_(c, 0, 0, 0);
-          T var_val = running_var_(c, 0, 0, 0);
-          T std_val = std::sqrt(var_val + epsilon_);
+    utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+      T mean_val = running_mean_(c, 0, 0, 0);
+      T var_val = running_var_(c, 0, 0, 0);
+      T std_val = std::sqrt(var_val + epsilon_);
 
-          for (size_t h = 0; h < height; ++h) {
-            for (size_t w = 0; w < width; ++w) {
-              T normalized_val = (input(n, c, h, w) - mean_val) / std_val;
-              if (affine_) {
-                output(n, c, h, w) =
-                    gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
-              } else {
-                output(n, c, h, w) = normalized_val;
-              }
-            }
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          T normalized_val = (input(n, c, h, w) - mean_val) / std_val;
+          if (affine_) {
+            output(n, c, h, w) = gamma_(c, 0, 0, 0) * normalized_val + beta_(c, 0, 0, 0);
+          } else {
+            output(n, c, h, w) = normalized_val;
           }
-        });
+        }
+      }
+    });
   }
 
   return output;
 }
 
 template <typename T>
-Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
-                                      size_t micro_batch_id) {
+Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   auto it_mean = micro_batch_mean_.find(micro_batch_id);
   auto it_var = micro_batch_var_.find(micro_batch_id);
   auto it_std = micro_batch_std_.find(micro_batch_id);
 
-  if (it_input == micro_batch_inputs_.end() ||
-      it_normalized == micro_batch_normalized_.end() ||
+  if (it_input == micro_batch_inputs_.end() || it_normalized == micro_batch_normalized_.end() ||
       it_mean == micro_batch_mean_.end() || it_var == micro_batch_var_.end() ||
       it_std == micro_batch_std_.end()) {
-    throw std::runtime_error(
-        "No cached data found for micro-batch ID in BatchNormLayer: " +
-        std::to_string(micro_batch_id));
+    throw std::runtime_error("No cached data found for micro-batch ID in BatchNormLayer: " +
+                             std::to_string(micro_batch_id));
   }
 
   const Tensor<T> &input = it_input->second;
@@ -226,9 +218,6 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
   Tensor<T> grad_var(channels, 1, 1, 1);
   Tensor<T> grad_mean(channels, 1, 1, 1);
 
-  grad_var.fill(T(0));
-  grad_mean.fill(T(0));
-
   utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);
@@ -262,10 +251,9 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
       for (size_t w = 0; w < width; ++w) {
         T x_centered = input(n, c, h, w) - mean_val;
 
-        grad_input(n, c, h, w) =
-            grad_normalized(n, c, h, w) / std_val_c +
-            grad_var_val * T(2) * x_centered / static_cast<T>(total_elements) +
-            grad_mean_val / static_cast<T>(total_elements);
+        grad_input(n, c, h, w) = grad_normalized(n, c, h, w) / std_val_c +
+                                 grad_var_val * T(2) * x_centered / static_cast<T>(total_elements) +
+                                 grad_mean_val / static_cast<T>(total_elements);
       }
     }
   });
@@ -273,9 +261,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient,
   return grad_input;
 }
 
-template <typename T> std::string BatchNormLayer<T>::type() const {
-  return "batchnorm";
-}
+template <typename T> std::string BatchNormLayer<T>::type() const { return "batchnorm"; }
 
 template <typename T> LayerConfig BatchNormLayer<T>::get_config() const {
   LayerConfig config;
@@ -287,28 +273,25 @@ template <typename T> LayerConfig BatchNormLayer<T>::get_config() const {
   return config;
 }
 
-template <typename T>
-std::unique_ptr<Layer<T>> BatchNormLayer<T>::clone() const {
-  return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_, momentum_,
-                                             affine_, this->name_);
+template <typename T> std::unique_ptr<Layer<T>> BatchNormLayer<T>::clone() const {
+  return std::make_unique<BatchNormLayer<T>>(num_features_, epsilon_, momentum_, affine_,
+                                             this->name_);
 }
 
 template <typename T>
-std::vector<size_t> BatchNormLayer<T>::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+std::vector<size_t>
+BatchNormLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
-template <typename T>
-void BatchNormLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
+template <typename T> void BatchNormLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
   if (affine_) {
     params.push_back(&gamma_);
     params.push_back(&beta_);
   }
 }
 
-template <typename T>
-void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
+template <typename T> void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
   if (affine_) {
     grads.push_back(&gamma_gradients_);
     grads.push_back(&beta_gradients_);
@@ -316,20 +299,30 @@ void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
 }
 
 template <typename T>
-std::unique_ptr<Layer<T>>
-BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
+std::unique_ptr<Layer<T>> BatchNormLayer<T>::create_from_config(const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   T epsilon = config.get<T>("epsilon");
   T momentum = config.get<T>("momentum");
   bool affine = config.get<bool>("affine");
 
-  return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum,
-                                             affine, config.name);
+  return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine, config.name);
 }
 
 template <typename T> void BatchNormLayer<T>::clear_gradients() {
   gamma_gradients_.fill(T(0));
   beta_gradients_.fill(T(0));
+}
+
+template <typename T>
+uint32_t BatchNormLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+  return size_t(5) *
+         std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+}
+
+template <typename T>
+uint32_t BatchNormLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+  return size_t(8) * std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
+                                     std::multiplies<size_t>());
 }
 
 } // namespace tnn

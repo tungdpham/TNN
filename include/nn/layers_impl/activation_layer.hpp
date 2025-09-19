@@ -27,14 +27,15 @@ public:
                            const std::string &name = "activation");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &gradient,
-                     size_t micro_batch_id = 0) override;
+  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+
+  uint32_t forward_complexity(std::vector<size_t> input_shape) override;
+  uint32_t backward_complexity(std::vector<size_t> gradient_shape) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;
   std::unique_ptr<Layer<T>> clone() const override;
-  std::vector<size_t>
-  compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 
 } // namespace tnn

@@ -37,53 +37,47 @@ private:
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
 
-  mutable std::unordered_map<size_t, std::vector<size_t>>
-      micro_batch_input_shapes_;
+  mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<size_t, Matrix<T>> micro_batch_im2col_matrices_;
 
-  void compute_conv_forward(const T *col_data, const T *weight_data,
-                            T *output_data, const size_t output_size,
-                            const size_t kernel_size,
+  void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
+                            const size_t output_size, const size_t kernel_size,
                             const size_t out_channels) const;
 
-  void compute_weight_gradients(const T *col_data, const T *gradient_data,
-                                T *weight_grad_data, const size_t output_size,
-                                const size_t kernel_size,
+  void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weight_grad_data,
+                                const size_t output_size, const size_t kernel_size,
                                 const size_t out_channels) const;
 
-  void compute_input_gradients(const T *gradient_data, const T *weight_data,
-                               T *col_grad_data, const size_t output_size,
-                               const size_t kernel_size,
+  void compute_input_gradients(const T *gradient_data, const T *weight_data, T *col_grad_data,
+                               const size_t output_size, const size_t kernel_size,
                                const size_t out_channels) const;
 
-  void compute_bias_gradients(const T *gradient_data, T *bias_grad_data,
-                              const size_t batch_size, const size_t output_h,
-                              const size_t output_w,
+  void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const size_t batch_size,
+                              const size_t output_h, const size_t output_w,
                               const size_t out_channels) const;
 
-  void add_bias_to_output(T *output_data, const T *bias_data,
-                          const size_t batch_size, const size_t output_h,
-                          const size_t output_w,
+  void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
+                          const size_t output_h, const size_t output_w,
                           const size_t out_channels) const;
 
 public:
-  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
-              size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-              size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
-              std::unique_ptr<ActivationFunction<T>> activation = nullptr,
+  Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
+              size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
+              bool use_bias = true, std::unique_ptr<ActivationFunction<T>> activation = nullptr,
               const std::string &name = "conv2d");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &gradient,
-                     size_t micro_batch_id = 0) override;
+  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+
+  uint32_t forward_complexity(std::vector<size_t> input_shape) override;
+  uint32_t backward_complexity(std::vector<size_t> gradient_shape) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;
   std::unique_ptr<Layer<T>> clone() const override;
 
-  std::vector<size_t>
-  compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
 protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override;

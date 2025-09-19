@@ -14,13 +14,11 @@
 namespace tnn {
 
 template <typename T>
-MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
-                                  size_t stride_w, size_t pad_h, size_t pad_w,
-                                  const std::string &name)
+MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
+                                  size_t pad_h, size_t pad_w, const std::string &name)
     : StatelessLayer<T>(name), pool_h_(pool_h), pool_w_(pool_w),
-      stride_h_(stride_h == 0 ? pool_h : stride_h),
-      stride_w_(stride_w == 0 ? pool_w : stride_w), pad_h_(pad_h),
-      pad_w_(pad_w) {
+      stride_h_(stride_h == 0 ? pool_h : stride_h), stride_w_(stride_w == 0 ? pool_w : stride_w),
+      pad_h_(pad_h), pad_w_(pad_w) {
 
   if (pool_h_ == 0 || pool_w_ == 0) {
     throw std::invalid_argument("Pool dimensions must be positive");
@@ -31,8 +29,7 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 }
 
 template <typename T>
-Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
-                                     size_t micro_batch_id) {
+Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
 
   const size_t batch_size = input.batch_size();
   const size_t channels = input.channels();
@@ -41,8 +38,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
   std::unique_ptr<Tensor<T>> padded_input_storage;
 
   if (pad_h_ > 0 || pad_w_ > 0) {
-    padded_input_storage =
-        std::make_unique<Tensor<T>>(input.pad(pad_h_, pad_w_, T(0)));
+    padded_input_storage = std::make_unique<Tensor<T>>(input.pad(pad_h_, pad_w_, T(0)));
     padded_input_ptr = padded_input_storage.get();
   } else {
     padded_input_ptr = &input;
@@ -62,9 +58,8 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
   const T *padded_data = padded_input_ptr->data();
   T *output_data = output.data();
 
-  compute_max_pool_forward(padded_data, output_data, batch_size, channels,
-                           padded_h, padded_w, output_h, output_w,
-                           mask_indices);
+  compute_max_pool_forward(padded_data, output_data, batch_size, channels, padded_h, padded_w,
+                           output_h, output_w, mask_indices);
 
   micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
   micro_batch_inputs_[micro_batch_id] = padded_input_ptr->clone();
@@ -73,20 +68,17 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input,
 }
 
 template <typename T>
-Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient,
-                                      size_t micro_batch_id) {
+Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
 
   if (it_input == micro_batch_inputs_.end()) {
-    throw std::runtime_error(
-        "No cached input found for micro-batch ID in MaxPool2DLayer: " +
-        std::to_string(micro_batch_id));
+    throw std::runtime_error("No cached input found for micro-batch ID in MaxPool2DLayer: " +
+                             std::to_string(micro_batch_id));
   }
   if (it_mask == micro_batch_mask_indices_.end()) {
-    throw std::runtime_error(
-        "No cached mask found for micro-batch ID in MaxPool2DLayer: " +
-        std::to_string(micro_batch_id));
+    throw std::runtime_error("No cached mask found for micro-batch ID in MaxPool2DLayer: " +
+                             std::to_string(micro_batch_id));
   }
 
   const Tensor<T> &cached_padded_input = it_input->second;
@@ -102,8 +94,8 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient,
   const T *gradient_data = gradient.data();
   T *grad_padded_data = grad_padded_input.data();
 
-  compute_max_pool_backward(gradient_data, grad_padded_data, batch_size,
-                            channels, output_h, output_w, mask_indices);
+  compute_max_pool_backward(gradient_data, grad_padded_data, batch_size, channels, output_h,
+                            output_w, mask_indices);
 
   if (pad_h_ > 0 || pad_w_ > 0) {
     return grad_padded_input.unpad(pad_h_, pad_w_);
@@ -113,10 +105,10 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient,
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::compute_max_pool_forward(
-    const T *input_data, T *output_data, size_t batch_size, size_t channels,
-    size_t input_h, size_t input_w, size_t output_h, size_t output_w,
-    std::vector<size_t> &mask_indices) const {
+void MaxPool2DLayer<T>::compute_max_pool_forward(const T *input_data, T *output_data,
+                                                 size_t batch_size, size_t channels, size_t input_h,
+                                                 size_t input_w, size_t output_h, size_t output_w,
+                                                 std::vector<size_t> &mask_indices) const {
   const T MIN_VALUE = std::numeric_limits<T>::lowest();
 
   utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -139,8 +131,7 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(
           }
         }
 
-        const size_t output_idx =
-            ((n * channels + c) * output_h + out_h) * output_w + out_w;
+        const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
         output_data[output_idx] = max_val;
         mask_indices[output_idx] = max_idx;
       }
@@ -149,15 +140,14 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::compute_max_pool_backward(
-    const T *gradient_data, T *grad_input_data, size_t batch_size,
-    size_t channels, size_t output_h, size_t output_w,
-    const std::vector<size_t> &mask_indices) const {
+void MaxPool2DLayer<T>::compute_max_pool_backward(const T *gradient_data, T *grad_input_data,
+                                                  size_t batch_size, size_t channels,
+                                                  size_t output_h, size_t output_w,
+                                                  const std::vector<size_t> &mask_indices) const {
   utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
-        const size_t output_idx =
-            ((n * channels + c) * output_h + out_h) * output_w + out_w;
+        const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
         const T grad_val = gradient_data[output_idx];
         const size_t input_idx = mask_indices[output_idx];
         grad_input_data[input_idx] += grad_val;
@@ -166,9 +156,7 @@ void MaxPool2DLayer<T>::compute_max_pool_backward(
   });
 }
 
-template <typename T> std::string MaxPool2DLayer<T>::type() const {
-  return "maxpool2d";
-}
+template <typename T> std::string MaxPool2DLayer<T>::type() const { return "maxpool2d"; }
 
 template <typename T> LayerConfig MaxPool2DLayer<T>::get_config() const {
   LayerConfig config;
@@ -182,15 +170,14 @@ template <typename T> LayerConfig MaxPool2DLayer<T>::get_config() const {
   return config;
 }
 
-template <typename T>
-std::unique_ptr<Layer<T>> MaxPool2DLayer<T>::clone() const {
-  return std::make_unique<MaxPool2DLayer<T>>(
-      pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, this->name_);
+template <typename T> std::unique_ptr<Layer<T>> MaxPool2DLayer<T>::clone() const {
+  return std::make_unique<MaxPool2DLayer<T>>(pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_,
+                                             this->name_);
 }
 
 template <typename T>
-std::vector<size_t> MaxPool2DLayer<T>::compute_output_shape(
-    const std::vector<size_t> &input_shape) const {
+std::vector<size_t>
+MaxPool2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("MaxPool2DLayer expects 4D input");
   }
@@ -202,8 +189,7 @@ std::vector<size_t> MaxPool2DLayer<T>::compute_output_shape(
 }
 
 template <typename T>
-std::unique_ptr<Layer<T>>
-MaxPool2DLayer<T>::create_from_config(const LayerConfig &config) {
+std::unique_ptr<Layer<T>> MaxPool2DLayer<T>::create_from_config(const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -211,8 +197,42 @@ MaxPool2DLayer<T>::create_from_config(const LayerConfig &config) {
   size_t pad_h = config.get<size_t>("pad_h");
   size_t pad_w = config.get<size_t>("pad_w");
 
-  return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w,
-                                             pad_h, pad_w, config.name);
+  return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                             config.name);
+}
+
+template <typename T>
+uint32_t MaxPool2DLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+  // Forward pass: for each output element, we do pool_h * pool_w comparisons
+  // Total operations = batch_size * channels * output_h * output_w * (pool_h * pool_w)
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+
+  size_t padded_h = input_h + 2 * pad_h_;
+  size_t padded_w = input_w + 2 * pad_w_;
+
+  size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
+  size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
+
+  size_t total_operations = batch_size * channels * output_h * output_w * (pool_h_ * pool_w_);
+
+  return static_cast<uint32_t>(total_operations);
+}
+
+template <typename T>
+uint32_t MaxPool2DLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+  // Backward pass: for each output gradient element, we do one addition to the input gradient
+  // Total operations = batch_size * channels * output_h * output_w
+  size_t batch_size = gradient_shape[0];
+  size_t channels = gradient_shape[1];
+  size_t output_h = gradient_shape[2];
+  size_t output_w = gradient_shape[3];
+
+  size_t total_operations = batch_size * channels * output_h * output_w;
+
+  return static_cast<uint32_t>(total_operations);
 }
 
 } // namespace tnn
