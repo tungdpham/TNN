@@ -1,12 +1,12 @@
+#include "data_loading/wifi_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 #include "utils/ops.hpp"
-#include "nn/train.hpp"
-#include "data_loading/wifi_data_loader.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -36,8 +36,7 @@ constexpr float learning_rate = 0.01f;
 
 class DistanceLoss {
 public:
-  static float compute_loss(const Tensor<float> &predictions,
-                            const Tensor<float> &targets,
+  static float compute_loss(const Tensor<float> &predictions, const Tensor<float> &targets,
                             const WiFiDataLoader &data_loader) {
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
@@ -116,8 +115,7 @@ public:
   }
 };
 
-float calculate_positioning_accuracy(const Tensor<float> &predictions,
-                                     const Tensor<float> &targets,
+float calculate_positioning_accuracy(const Tensor<float> &predictions, const Tensor<float> &targets,
                                      const WiFiDataLoader &data_loader,
                                      float threshold_meters = 5.0f) {
   const size_t batch_size = predictions.shape()[0];
@@ -128,8 +126,7 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions,
 
   int accurate_predictions = 0;
 #if defined(_OPENMP)
-#pragma omp parallel for reduction(+ : accurate_predictions) if (batch_size >  \
-                                                                     16)
+#pragma omp parallel for reduction(+ : accurate_predictions) if (batch_size > 16)
 #endif
   for (size_t i = 0; i < batch_size; ++i) {
 
@@ -157,14 +154,12 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions,
     }
   }
 
-  return static_cast<float>(accurate_predictions) /
-         static_cast<float>(batch_size);
+  return static_cast<float>(accurate_predictions) / static_cast<float>(batch_size);
 }
 
 float calculate_average_positioning_error(const Tensor<float> &predictions,
                                           const Tensor<float> &targets,
-                                          const WiFiDataLoader &data_loader,
-                                          bool debug = false) {
+                                          const WiFiDataLoader &data_loader, bool debug = false) {
   const size_t batch_size = predictions.shape()[0];
   const size_t output_size = predictions.shape()[1];
 
@@ -184,18 +179,17 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
       }
 
       std::cout << "Sample " << i << ":" << std::endl;
-      std::cout << "  Raw pred: (" << pred_coords[0] << ", " << pred_coords[1]
-                << ")" << std::endl;
-      std::cout << "  Raw target: (" << target_coords[0] << ", "
-                << target_coords[1] << ")" << std::endl;
+      std::cout << "  Raw pred: (" << pred_coords[0] << ", " << pred_coords[1] << ")" << std::endl;
+      std::cout << "  Raw target: (" << target_coords[0] << ", " << target_coords[1] << ")"
+                << std::endl;
 
       if (data_loader.is_normalized()) {
         auto denorm_pred = data_loader.denormalize_targets(pred_coords);
         auto denorm_target = data_loader.denormalize_targets(target_coords);
-        std::cout << "  Denorm pred: (" << denorm_pred[0] << ", "
-                  << denorm_pred[1] << ")" << std::endl;
-        std::cout << "  Denorm target: (" << denorm_target[0] << ", "
-                  << denorm_target[1] << ")" << std::endl;
+        std::cout << "  Denorm pred: (" << denorm_pred[0] << ", " << denorm_pred[1] << ")"
+                  << std::endl;
+        std::cout << "  Denorm target: (" << denorm_target[0] << ", " << denorm_target[1] << ")"
+                  << std::endl;
 
         float distance = 0.0f;
         for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
@@ -272,19 +266,16 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-void train_ips_model(tnn::Sequential<float> &model,
-                     WiFiDataLoader &train_loader, WiFiDataLoader &test_loader,
-                     int epochs = 50, int batch_size = 64,
+void train_ips_model(tnn::Sequential<float> &model, WiFiDataLoader &train_loader,
+                     WiFiDataLoader &test_loader, int epochs = 50, int batch_size = 64,
                      float learning_rate = 0.001f) {
 
   tnn::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
 
-  auto classification_loss =
-      tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
+  auto classification_loss = tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
 
   const bool is_regression = train_loader.is_regression();
-  const std::string task_type =
-      is_regression ? "Coordinate Prediction" : "Classification";
+  const std::string task_type = is_regression ? "Coordinate Prediction" : "Classification";
 
   std::cout << "Starting IPS model training..." << std::endl;
   std::cout << "Task: " << task_type << std::endl;
@@ -309,7 +300,7 @@ void train_ips_model(tnn::Sequential<float> &model,
   for (int epoch = 0; epoch < epochs; ++epoch) {
     const auto epoch_start = std::chrono::high_resolution_clock::now();
 
-    model.train();
+    model.set_training(true);
     train_loader.shuffle();
     train_loader.prepare_batches(batch_size);
     train_loader.reset();
@@ -331,22 +322,17 @@ void train_ips_model(tnn::Sequential<float> &model,
 
       if (is_regression) {
 
-        loss = DistanceLoss::compute_loss(predictions, batch_targets,
-                                          train_loader);
-        accuracy = calculate_positioning_accuracy(predictions, batch_targets,
-                                                  train_loader);
-        positioning_error = calculate_average_positioning_error(
-            predictions, batch_targets, train_loader);
-        loss_gradient = DistanceLoss::compute_gradient(
-            predictions, batch_targets, train_loader);
+        loss = DistanceLoss::compute_loss(predictions, batch_targets, train_loader);
+        accuracy = calculate_positioning_accuracy(predictions, batch_targets, train_loader);
+        positioning_error =
+            calculate_average_positioning_error(predictions, batch_targets, train_loader);
+        loss_gradient = DistanceLoss::compute_gradient(predictions, batch_targets, train_loader);
       } else {
 
         utils::apply_softmax<float>(predictions);
         loss = classification_loss->compute_loss(predictions, batch_targets);
-        accuracy =
-            calculate_classification_accuracy(predictions, batch_targets);
-        loss_gradient =
-            classification_loss->compute_gradient(predictions, batch_targets);
+        accuracy = calculate_classification_accuracy(predictions, batch_targets);
+        loss_gradient = classification_loss->compute_gradient(predictions, batch_targets);
       }
 
       total_loss += loss;
@@ -360,30 +346,24 @@ void train_ips_model(tnn::Sequential<float> &model,
       model.update_parameters();
 
       if (num_batches % ips_constants::PROGRESS_PRINT_INTERVAL == 0) {
-        std::cout << "Batch " << num_batches << " - Loss: " << std::fixed
-                  << std::setprecision(4) << loss;
+        std::cout << "Batch " << num_batches << " - Loss: " << std::fixed << std::setprecision(4)
+                  << loss;
         if (is_regression) {
-          std::cout << "m², Accuracy (<5m): " << std::setprecision(4)
-                    << accuracy * 100.0f << "%"
-                    << ", Avg Error: " << std::setprecision(4)
-                    << positioning_error << "m";
+          std::cout << "m², Accuracy (<5m): " << std::setprecision(4) << accuracy * 100.0f << "%"
+                    << ", Avg Error: " << std::setprecision(4) << positioning_error << "m";
         } else {
-          std::cout << ", Accuracy: " << std::setprecision(4)
-                    << accuracy * 100.0f << "%";
+          std::cout << ", Accuracy: " << std::setprecision(4) << accuracy * 100.0f << "%";
         }
         std::cout << std::endl;
       }
     }
 
     const float avg_train_loss = static_cast<float>(total_loss / num_batches);
-    const float avg_train_accuracy =
-        static_cast<float>(total_accuracy / num_batches);
+    const float avg_train_accuracy = static_cast<float>(total_accuracy / num_batches);
     const float avg_train_positioning_error =
-        is_regression
-            ? static_cast<float>(total_positioning_error / num_batches)
-            : 0.0f;
+        is_regression ? static_cast<float>(total_positioning_error / num_batches) : 0.0f;
 
-    model.eval();
+    model.set_training(false);
     test_loader.reset();
 
     double val_loss = 0.0;
@@ -395,67 +375,54 @@ void train_ips_model(tnn::Sequential<float> &model,
       predictions = model.forward(batch_features);
 
       if (is_regression) {
-        val_loss +=
-            DistanceLoss::compute_loss(predictions, batch_targets, test_loader);
-        val_accuracy += calculate_positioning_accuracy(
-            predictions, batch_targets, test_loader);
+        val_loss += DistanceLoss::compute_loss(predictions, batch_targets, test_loader);
+        val_accuracy += calculate_positioning_accuracy(predictions, batch_targets, test_loader);
 
         if (val_batches == 0) {
           std::cout << "\nDEBUG: First validation batch analysis:" << std::endl;
-          val_positioning_error += calculate_average_positioning_error(
-              predictions, batch_targets, test_loader, true);
+          val_positioning_error +=
+              calculate_average_positioning_error(predictions, batch_targets, test_loader, true);
         } else {
-          val_positioning_error += calculate_average_positioning_error(
-              predictions, batch_targets, test_loader);
+          val_positioning_error +=
+              calculate_average_positioning_error(predictions, batch_targets, test_loader);
         }
       } else {
         utils::apply_softmax<float>(predictions);
-        val_loss +=
-            classification_loss->compute_loss(predictions, batch_targets);
-        val_accuracy +=
-            calculate_classification_accuracy(predictions, batch_targets);
+        val_loss += classification_loss->compute_loss(predictions, batch_targets);
+        val_accuracy += calculate_classification_accuracy(predictions, batch_targets);
       }
       ++val_batches;
     }
 
     const float avg_val_loss = static_cast<float>(val_loss / val_batches);
-    const float avg_val_accuracy =
-        static_cast<float>(val_accuracy / val_batches);
+    const float avg_val_accuracy = static_cast<float>(val_accuracy / val_batches);
     const float avg_val_positioning_error =
-        is_regression ? static_cast<float>(val_positioning_error / val_batches)
-                      : 0.0f;
+        is_regression ? static_cast<float>(val_positioning_error / val_batches) : 0.0f;
 
     const auto epoch_end = std::chrono::high_resolution_clock::now();
     const auto epoch_duration =
-        std::chrono::duration_cast<std::chrono::seconds>(epoch_end -
-                                                         epoch_start);
+        std::chrono::duration_cast<std::chrono::seconds>(epoch_end - epoch_start);
 
     std::cout << std::string(80, '-') << std::endl;
     std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
               << epoch_duration.count() << "s" << std::endl;
 
     if (is_regression) {
-      std::cout << "Training   - Distance Loss: " << std::fixed
-                << std::setprecision(2) << avg_train_loss
-                << "m², Accuracy (<5m): " << std::setprecision(2)
-                << avg_train_accuracy * 100.0f
-                << "%, Avg Error: " << std::setprecision(2)
+      std::cout << "Training   - Distance Loss: " << std::fixed << std::setprecision(2)
+                << avg_train_loss << "m², Accuracy (<5m): " << std::setprecision(2)
+                << avg_train_accuracy * 100.0f << "%, Avg Error: " << std::setprecision(2)
                 << avg_train_positioning_error << "m" << std::endl;
-      std::cout << "Validation - Distance Loss: " << std::fixed
-                << std::setprecision(2) << avg_val_loss
-                << "m², Accuracy (<5m): " << std::setprecision(2)
-                << avg_val_accuracy * 100.0f
-                << "%, Avg Error: " << std::setprecision(2)
+      std::cout << "Validation - Distance Loss: " << std::fixed << std::setprecision(2)
+                << avg_val_loss << "m², Accuracy (<5m): " << std::setprecision(2)
+                << avg_val_accuracy * 100.0f << "%, Avg Error: " << std::setprecision(2)
                 << avg_val_positioning_error << "m" << std::endl;
     } else {
-      std::cout << "Training   - CE Loss: " << std::fixed
-                << std::setprecision(6) << avg_train_loss
-                << ", Accuracy: " << std::setprecision(2)
-                << avg_train_accuracy * 100.0f << "%" << std::endl;
-      std::cout << "Validation - CE Loss: " << std::fixed
-                << std::setprecision(6) << avg_val_loss
-                << ", Accuracy: " << std::setprecision(2)
-                << avg_val_accuracy * 100.0f << "%" << std::endl;
+      std::cout << "Training   - CE Loss: " << std::fixed << std::setprecision(6) << avg_train_loss
+                << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
+                << std::endl;
+      std::cout << "Validation - CE Loss: " << std::fixed << std::setprecision(6) << avg_val_loss
+                << ", Accuracy: " << std::setprecision(2) << avg_val_accuracy * 100.0f << "%"
+                << std::endl;
     }
     std::cout << std::string(80, '=') << std::endl;
 
@@ -463,19 +430,16 @@ void train_ips_model(tnn::Sequential<float> &model,
       const float current_lr = optimizer.get_learning_rate();
       const float new_lr = current_lr * ips_constants::LR_DECAY_FACTOR;
       optimizer.set_learning_rate(new_lr);
-      std::cout << "Learning rate decayed: " << std::fixed
-                << std::setprecision(8) << current_lr << " → " << new_lr
-                << std::endl;
+      std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(8) << current_lr
+                << " → " << new_lr << std::endl;
     }
   }
 }
 
 int main() {
   try {
-    std::cout << "Indoor Positioning System (IPS) Neural Network Training"
-              << std::endl;
-    std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets"
-              << std::endl;
+    std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
+    std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;
     std::cout << std::string(70, '=') << std::endl;
 
     utils::set_num_threads(8);
@@ -517,10 +481,8 @@ int main() {
     auto target_means = train_loader.get_target_means();
     auto target_stds = train_loader.get_target_stds();
 
-    std::cout << "Normalizing test data using training statistics..."
-              << std::endl;
-    test_loader.apply_normalization(feature_means, feature_stds, target_means,
-                                    target_stds);
+    std::cout << "Normalizing test data using training statistics..." << std::endl;
+    test_loader.apply_normalization(feature_means, feature_stds, target_means, target_stds);
 
     std::cout << "\nNormalization Statistics:" << std::endl;
     std::cout << "Target means: ";
@@ -564,10 +526,8 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
-    model.set_optimizer(
-        std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f, 1e-8f));
-    model.set_loss_function(
-        tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
+    model.set_optimizer(std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f, 1e-8f));
+    model.set_loss_function(tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;
 
     constexpr int epochs = ips_constants::MAX_EPOCHS;
@@ -575,8 +535,7 @@ int main() {
     constexpr float learning_rate = ips_constants::learning_rate;
 
     std::cout << "\nStarting IPS model training..." << std::endl;
-    train_ips_model(model, train_loader, test_loader, epochs, batch_size,
-                    learning_rate);
+    train_ips_model(model, train_loader, test_loader, epochs, batch_size, learning_rate);
 
     std::cout << "\nIPS model training completed successfully!" << std::endl;
 
@@ -584,11 +543,9 @@ int main() {
       const std::string model_name =
           is_regression ? "ips_regression_model" : "ips_classification_model";
       model.save_to_file("model_snapshots/" + model_name);
-      std::cout << "Model saved to: model_snapshots/" << model_name
-                << std::endl;
+      std::cout << "Model saved to: model_snapshots/" << model_name << std::endl;
     } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what()
-                << std::endl;
+      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
     }
 
   } catch (const std::exception &e) {

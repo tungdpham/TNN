@@ -127,11 +127,11 @@ protected:
       communicator_->send_message(response);
     } break;
     case CommandType::TRAIN_MODE:
-      this->model_->train();
+      this->model_->set_training(true);
       break;
 
     case CommandType::EVAL_MODE:
-      this->model_->eval();
+      this->model_->set_training(false);
       break;
 
     case CommandType::STATUS_REQUEST: {

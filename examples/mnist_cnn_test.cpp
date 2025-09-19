@@ -14,10 +14,8 @@ void run_test() {
   // Load the trained model
   tnn::Sequential<float> model;
   try {
-    model =
-        tnn::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
-    std::cout
-        << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
+    model = tnn::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
+    std::cout << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
   } catch (const std::exception &e) {
     std::cerr << "Error loading model: " << e.what() << std::endl;
     return;
@@ -25,7 +23,7 @@ void run_test() {
 
   model.print_config();
   // Set the model to evaluation mode
-  model.eval();
+  model.set_training(false);
 
   // Load the test data
   data_loading::MNISTDataLoader<float> loader;
@@ -42,10 +40,9 @@ void run_test() {
     Tensor<float> predictions = model.forward(batch_data);
 
     for (size_t i = 0; i < predictions.batch_size(); ++i) {
-      size_t predicted_label =
-          std::distance(predictions.data() + i * 10,
-                        std::max_element(predictions.data() + i * 10,
-                                         predictions.data() + (i + 1) * 10));
+      size_t predicted_label = std::distance(
+          predictions.data() + i * 10,
+          std::max_element(predictions.data() + i * 10, predictions.data() + (i + 1) * 10));
       size_t true_label = static_cast<size_t>(batch_labels.data()[i * 10]);
 
       if (predicted_label == true_label) {
@@ -56,8 +53,8 @@ void run_test() {
   }
 
   double accuracy = (double)correct_predictions / total_samples;
-  std::cout << "Test Accuracy: " << std::fixed << std::setprecision(4)
-            << accuracy * 100 << "%" << std::endl;
+  std::cout << "Test Accuracy: " << std::fixed << std::setprecision(4) << accuracy * 100 << "%"
+            << std::endl;
 }
 
 int main() {

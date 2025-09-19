@@ -120,7 +120,7 @@ private:
 
       this->model_->enable_profiling(true);
 
-      std::cout << "Created model with " << this->model_->size() << " layers" << '\n';
+      std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
 
       setup_stage_connections(config);
 
