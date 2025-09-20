@@ -40,9 +40,10 @@ public:
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
 
-  virtual uint32_t forward_complexity(std::vector<size_t> input_shape) = 0; // relative complexity
   virtual uint32_t
-  backward_complexity(std::vector<size_t> gradient_shape) = 0; // relative complexity
+  forward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
+  virtual uint32_t
+  backward_complexity(const std::vector<size_t> &gradient_shape) = 0; // relative complexity
 
   virtual bool has_parameters() const { return false; }
 

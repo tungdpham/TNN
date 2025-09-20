@@ -68,12 +68,12 @@ std::unique_ptr<Layer<T>> FlattenLayer<T>::create_from_config(const LayerConfig 
 }
 
 template <typename T>
-uint32_t FlattenLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+uint32_t FlattenLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
   return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 template <typename T>
-uint32_t FlattenLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+uint32_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
   return std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
                          std::multiplies<size_t>());
 }

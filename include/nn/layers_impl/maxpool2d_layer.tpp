@@ -202,7 +202,8 @@ std::unique_ptr<Layer<T>> MaxPool2DLayer<T>::create_from_config(const LayerConfi
 }
 
 template <typename T>
-uint32_t MaxPool2DLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+uint32_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
   // Forward pass: for each output element, we do pool_h * pool_w comparisons
   // Total operations = batch_size * channels * output_h * output_w * (pool_h * pool_w)
   size_t batch_size = input_shape[0];
@@ -222,7 +223,8 @@ uint32_t MaxPool2DLayer<T>::forward_complexity(std::vector<size_t> input_shape) 
 }
 
 template <typename T>
-uint32_t MaxPool2DLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
+  assert(gradient_shape.size() == 4 && "Gradient shape must be 4D");
   // Backward pass: for each output gradient element, we do one addition to the input gradient
   // Total operations = batch_size * channels * output_h * output_w
   size_t batch_size = gradient_shape[0];

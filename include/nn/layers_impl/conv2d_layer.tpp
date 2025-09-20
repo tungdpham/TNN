@@ -304,7 +304,9 @@ template <typename T> void Conv2DLayer<T>::clear_gradients() {
   }
 }
 
-template <typename T> uint32_t Conv2DLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+template <typename T>
+uint32_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
   // im2col transformation: O(batch_size * in_channels * kernel_h * kernel_w * output_h *
   // output_w)
   // Matrix multiplication: O(out_channels * in_channels * kernel_h * kernel_w * output_h *
@@ -324,7 +326,8 @@ template <typename T> uint32_t Conv2DLayer<T>::forward_complexity(std::vector<si
 }
 
 template <typename T>
-uint32_t Conv2DLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
+  assert(gradient_shape.size() == 4 && "Gradient shape must be 4D");
   // Weight gradients: O(out_channels * in_channels * kernel_h * kernel_w * output_h * output_w)
   // Bias gradients: O(batch_size * out_channels * output_h * output_w)
   // Input gradients: O(batch_size * in_channels * input_h * input_w * kernel_h * kernel_w)

@@ -314,13 +314,13 @@ template <typename T> void BatchNormLayer<T>::clear_gradients() {
 }
 
 template <typename T>
-uint32_t BatchNormLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+uint32_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
   return size_t(5) *
          std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 template <typename T>
-uint32_t BatchNormLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+uint32_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
   return size_t(8) * std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
                                      std::multiplies<size_t>());
 }

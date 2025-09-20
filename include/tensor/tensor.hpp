@@ -616,7 +616,6 @@ public:
       input_ptr = padded_input_storage.get();
     }
     const Tensor<T, L> &input_tensor = *input_ptr;
-    const T *input_data = input_tensor.data();
 
     const size_t in_h = input_tensor.height();
     const size_t in_w = input_tensor.width();
@@ -639,9 +638,7 @@ public:
               size_t in_w_idx = out_w_idx * stride_w + kw;
               size_t col_col_idx = (n * out_h + out_h_idx) * out_w + out_w_idx;
 
-              col_matrix(col_row_idx, col_col_idx) =
-                  input_data[n * strides_[0] + c * strides_[1] + in_h_idx * strides_[2] +
-                             in_w_idx * strides_[3]];
+              col_matrix(col_row_idx, col_col_idx) = input_tensor(n, c, in_h_idx, in_w_idx);
             }
           }
         }

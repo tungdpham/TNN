@@ -69,6 +69,7 @@ install_manifest.txt
 
 # temp files
 /temp/
+/profile.json
 
 # snapshots
 /model_snapshots/*

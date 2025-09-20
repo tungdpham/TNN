@@ -40,6 +40,7 @@ private:
   std::map<std::string, double> forward_times_ms_;
   std::map<std::string, double> backward_times_ms_;
 
+  // Helper function to distribute optimizer whenever it changes
   void distribute_optimizer_to_layers() {
     if (!optimizer_) {
       return;
@@ -472,6 +473,105 @@ public:
     return current_shape;
   }
 
+  /**
+   * @brief Returns the relative forward complexity (in FLOPs) for each layer given an input shape.
+   * @param input_shape The shape of the input tensor as a vector of sizes.
+   */
+  std::vector<uint32_t> forward_complexity(const std::vector<size_t> &input_shape) {
+    if (layers_.empty()) {
+      return {};
+    }
+
+    std::vector<uint32_t> layer_complexities;
+    std::vector<size_t> current_shape = input_shape;
+
+    for (const auto &layer : layers_) {
+      uint32_t layer_complexity = layer->forward_complexity(current_shape);
+      layer_complexities.push_back(layer_complexity);
+      current_shape = layer->compute_output_shape(current_shape);
+    }
+
+    return layer_complexities;
+  }
+
+  /**
+   * @brief Returns the relative forward complexity (in FLOPs) for each layer in the specified
+   * partition
+   * @param input_shape The shape of the input tensor as a vector of sizes.
+   */
+  std::vector<uint32_t> forward_complexity(const std::vector<size_t> &input_shape,
+                                           const Partition &part) {
+    if (layers_.empty()) {
+      return {};
+    }
+    if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
+        part.start_layer >= part.end_layer) {
+      throw std::out_of_range("Partition indices out of range");
+    }
+
+    std::vector<uint32_t> layer_complexities;
+    std::vector<size_t> current_shape = input_shape;
+
+    for (size_t i = part.start_layer; i < part.end_layer; ++i) {
+      uint32_t layer_complexity = layers_[i]->forward_complexity(current_shape);
+      layer_complexities.push_back(layer_complexity);
+      current_shape = layers_[i]->compute_output_shape(current_shape);
+    }
+
+    return layer_complexities;
+  }
+
+  /**
+   * @brief Returns the relative backward complexity (in FLOPs) for each layer given a gradient
+   * shape.
+   * @param gradient_shape The shape of the gradient tensor as a vector of sizes.
+   */
+  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &gradient_shape) {
+    if (layers_.empty()) {
+      return {};
+    }
+
+    std::vector<uint32_t> layer_complexities;
+    std::vector<size_t> current_shape = gradient_shape;
+
+    for (auto &layer : layers_) {
+      uint32_t layer_complexity = layer->backward_complexity(current_shape);
+      layer_complexities.push_back(layer_complexity);
+    }
+
+    return layer_complexities;
+  }
+
+  /**
+   * @brief Returns the relative backward complexity (in FLOPs) for each layer in the specified
+   * partition
+   * @param gradient_shape The shape of the gradient tensor as a vector of sizes.
+   * @param part The partition specifying the range of layers.
+   */
+  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &gradient_shape,
+                                            const Partition &part) {
+    if (layers_.empty()) {
+      return {};
+    }
+    if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
+        part.start_layer >= part.end_layer) {
+      throw std::out_of_range("Partition indices out of range");
+    }
+
+    std::vector<uint32_t> layer_complexities;
+    std::vector<size_t> current_shape = gradient_shape;
+
+    for (size_t i = part.start_layer; i < part.end_layer; ++i) {
+      uint32_t layer_complexity = layers_[i]->backward_complexity(current_shape);
+      layer_complexities.push_back(layer_complexity);
+    }
+
+    return layer_complexities;
+  }
+
+  /**
+   * @brief Prints the model's configuration in JSON format to the console.
+   */
   void print_config() const { std::cout << get_config().dump(2) << std::endl; }
 
   /**
@@ -809,6 +909,39 @@ public:
     file.close();
 
     return load_from_config(config);
+  }
+
+  void print_summary(std::vector<size_t> input_shape) const {
+    std::cout << "Summary for model: " << name_ << "\n";
+    std::cout << "----------------------------------------\n";
+    std::cout << std::left << std::setw(5) << "Idx" << std::setw(20) << "Layer (Type)"
+              << std::setw(15) << "Output Shape" << std::setw(15) << "Param #" << "\n";
+    std::cout << "----------------------------------------\n";
+    std::vector<size_t> current_shape = input_shape;
+    for (size_t i = 0; i < layers_.size(); ++i) {
+      const auto &layer = layers_[i];
+      std::string layer_name = layer->type();
+      auto config = layer->get_config();
+      if (!config.name.empty()) {
+        layer_name = config.name;
+      }
+
+      current_shape = layer->compute_output_shape(current_shape);
+
+      std::cout << std::left << std::setw(5) << i << std::setw(20) << layer_name;
+
+      std::string shape_str = "(";
+      for (size_t j = 0; j < current_shape.size(); ++j) {
+        shape_str += std::to_string(current_shape[j]);
+        if (j < current_shape.size() - 1) {
+          shape_str += ", ";
+        }
+      }
+      shape_str += ")";
+
+      std::cout << std::setw(15) << shape_str << "\n";
+    }
+    std::cout << "----------------------------------------\n";
   }
 };
 

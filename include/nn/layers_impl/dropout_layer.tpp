@@ -105,14 +105,14 @@ std::unique_ptr<Layer<T>> DropoutLayer<T>::create_from_config(const LayerConfig 
 }
 
 template <typename T>
-uint32_t DropoutLayer<T>::forward_complexity(std::vector<size_t> input_shape) {
+uint32_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
   // random number generation: O(N) where N is number of elements
   // mask application: O(N) where N is number of elements
   return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>()) * 2;
 }
 
 template <typename T>
-uint32_t DropoutLayer<T>::backward_complexity(std::vector<size_t> gradient_shape) {
+uint32_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
   return std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
                          std::multiplies<size_t>());
 }

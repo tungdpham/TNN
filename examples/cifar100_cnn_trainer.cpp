@@ -8,14 +8,14 @@
 #include <sstream>
 #include <vector>
 
+#include "data_loading/cifar100_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-#include "tensor/tensor.hpp"
-#include "data_loading/cifar100_data_loader.hpp"
-#include "utils/ops.hpp"
 #include "nn/train.hpp"
+#include "tensor/tensor.hpp"
+#include "utils/ops.hpp"
 
 namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;
@@ -29,8 +29,7 @@ constexpr float LR_INITIAL = 0.001f;
 
 int main() {
   try {
-    std::cout << "CIFAR-100 CNN Tensor<float> Neural Network Training"
-              << std::endl;
+    std::cout << "CIFAR-100 CNN Tensor<float> Neural Network Training" << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
     data_loading::CIFAR100DataLoader<float> train_loader, test_loader;
@@ -46,16 +45,13 @@ int main() {
     std::cout << "\nDataset Information:" << std::endl;
     train_loader.print_data_stats();
 
-    std::cout << "Successfully loaded training data: " << train_loader.size()
-              << " samples" << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size()
-              << " samples" << std::endl;
-
-    std::cout << "\nBuilding CNN model architecture for CIFAR-100..."
+    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
               << std::endl;
+    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
+
+    std::cout << "\nBuilding CNN model architecture for CIFAR-100..." << std::endl;
 
     auto model = tnn::SequentialBuilder<float>("cifar100_cnn_classifier")
-
                      .input({3, 32, 32})
                      .conv2d(32, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
                      .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
@@ -70,21 +66,19 @@ int main() {
                      .dense(100, "linear", true, "output")
                      .build();
 
-    auto optimizer = std::make_unique<tnn::Adam<float>>(
-        cifar100_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    auto optimizer =
+        std::make_unique<tnn::Adam<float>>(cifar100_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_crossentropy(
-        cifar100_constants::EPSILON);
+    auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
-    train_classification_model(
-        model, train_loader, test_loader, cifar100_constants::EPOCHS,
-        cifar100_constants::BATCH_SIZE, cifar100_constants::LR_DECAY_FACTOR,
-        cifar100_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(model, train_loader, test_loader, cifar100_constants::EPOCHS,
+                               cifar100_constants::BATCH_SIZE, cifar100_constants::LR_DECAY_FACTOR,
+                               cifar100_constants::PROGRESS_PRINT_INTERVAL);
 
     std::cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
                  "successfully!"
@@ -92,11 +86,9 @@ int main() {
 
     try {
       model.save_to_file("model_snapshots/cifar100_cnn_model");
-      std::cout << "Model saved to: model_snapshots/cifar100_cnn_model"
-                << std::endl;
+      std::cout << "Model saved to: model_snapshots/cifar100_cnn_model" << std::endl;
     } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what()
-                << std::endl;
+      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
     }
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
