@@ -161,6 +161,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
                                           const size_t out_channels) const {
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
   utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size, output_size);
+  // output_size = n * out_h * out_w
 
   utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
     output_data[oc * output_size + os] = utils::simd_dot_product(
@@ -317,29 +318,28 @@ uint32_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_sha
   size_t input_w = input_shape[3];
   size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
-
-  size_t im2col_ops = batch_size * in_channels_ * kernel_h_ * kernel_w_ * output_h * output_w;
-  size_t matmul_ops = out_channels_ * in_channels_ * kernel_h_ * kernel_w_ * output_h * output_w;
+  size_t im2col_ops = (batch_size * output_h * output_w) * (in_channels_ * kernel_h_ * kernel_w_);
+  size_t matmul_ops = 2 * (out_channels_ * (in_channels_ * kernel_h_ * kernel_w_) *
+                           (batch_size * output_h * output_w));
   size_t bias_ops = batch_size * out_channels_ * output_h * output_w;
   size_t total_ops = im2col_ops + matmul_ops + bias_ops;
   return total_ops;
 }
 
 template <typename T>
-uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
-  assert(gradient_shape.size() == 4 && "Gradient shape must be 4D");
+uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  assert(input_shape.size() == 4 && "Gradient shape must be 4D");
   // Weight gradients: O(out_channels * in_channels * kernel_h * kernel_w * output_h * output_w)
   // Bias gradients: O(batch_size * out_channels * output_h * output_w)
   // Input gradients: O(batch_size * in_channels * input_h * input_w * kernel_h * kernel_w)
   // col2im transformation: O(batch_size * in_channels * input_h * input_w * kernel_h * kernel_w)
-  size_t batch_size = gradient_shape[0];
-  size_t output_h = gradient_shape[2];
-  size_t output_w = gradient_shape[3];
-  size_t input_h = (output_h - 1) * stride_h_ - 2 * pad_h_ + kernel_h_;
-  size_t input_w = (output_w - 1) * stride_w_ - 2 * pad_w_ + kernel_w_;
-
+  size_t batch_size = input_shape[0];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
   size_t weight_grad_ops =
-      out_channels_ * in_channels_ * kernel_h_ * kernel_w_ * output_h * output_w;
+      out_channels_ * (in_channels_ * kernel_h_ * kernel_w_) * (batch_size * output_h * output_w);
   size_t bias_grad_ops = batch_size * out_channels_ * output_h * output_w;
   size_t input_grad_ops = batch_size * in_channels_ * input_h * input_w * kernel_h_ * kernel_w_;
   size_t col2im_ops = input_grad_ops;

@@ -43,7 +43,7 @@ public:
   virtual uint32_t
   forward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
   virtual uint32_t
-  backward_complexity(const std::vector<size_t> &gradient_shape) = 0; // relative complexity
+  backward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
 
   virtual bool has_parameters() const { return false; }
 

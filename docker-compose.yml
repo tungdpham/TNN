@@ -15,7 +15,7 @@ services:
       - "8001:8001"
     networks:
       - dcnn-network
-    cpuset: "0-5"
+    cpuset: "0-3"
     depends_on:
       - dcnn-base
 
@@ -31,7 +31,7 @@ services:
       - "8002:8002"
     networks:
       - dcnn-network
-    cpuset: "6-7"
+    cpuset: "4-7"
     depends_on:
       - dcnn-base
 
@@ -84,7 +84,7 @@ services:
     image: dcnn:latest
     container_name: dcnn-single-model
     command: ["./bin/cifar10_cnn_trainer"]
-    cpuset: "0-16"
+    cpuset: "0-3"
     depends_on:
       - dcnn-base
 

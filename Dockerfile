@@ -24,8 +24,6 @@ WORKDIR /app
 
 COPY . .
 
-RUN chmod +x ./tcpem_cpu_logger.sh
-
 RUN mkdir -p /logs
 
 # Expose ports that workers will use

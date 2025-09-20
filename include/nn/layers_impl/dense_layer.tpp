@@ -256,11 +256,11 @@ uint32_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shap
 }
 
 template <typename T>
-uint32_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
+uint32_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
   // Weight gradients: O(out_features * in_features * batch_size)
   // Bias gradients: O(batch_size * out_features)
   // Input gradients: O(batch_size * in_features * out_features)
-  size_t batch_size = gradient_shape[0];
+  size_t batch_size = input_shape[0];
   size_t weight_grad_ops = output_features_ * input_features_ * batch_size;
   size_t bias_grad_ops = batch_size * output_features_;
   size_t input_grad_ops = batch_size * input_features_ * output_features_;

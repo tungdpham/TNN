@@ -63,10 +63,9 @@ uint32_t ActivationLayer<T>::forward_complexity(const std::vector<size_t> &input
 }
 
 template <typename T>
-uint32_t ActivationLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
+uint32_t ActivationLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
   // Assuming element wise operation for activation functions
-  return std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
-                         std::multiplies<size_t>());
+  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 } // namespace tnn

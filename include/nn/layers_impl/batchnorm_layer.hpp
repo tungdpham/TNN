@@ -47,7 +47,7 @@ public:
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
   uint32_t forward_complexity(const std::vector<size_t> &input_shape) override;
-  uint32_t backward_complexity(const std::vector<size_t> &gradient_shape) override;
+  uint32_t backward_complexity(const std::vector<size_t> &input_shape) override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

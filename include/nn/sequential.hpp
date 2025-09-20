@@ -79,9 +79,7 @@ public:
   Sequential(Sequential &&other) noexcept
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
-        is_training_(other.is_training_),
-
-        enable_profiling_(other.enable_profiling_),
+        is_training_(other.is_training_), enable_profiling_(other.enable_profiling_),
         forward_times_ms_(std::move(other.forward_times_ms_)),
         backward_times_ms_(std::move(other.backward_times_ms_)) {}
 
@@ -524,19 +522,20 @@ public:
   /**
    * @brief Returns the relative backward complexity (in FLOPs) for each layer given a gradient
    * shape.
-   * @param gradient_shape The shape of the gradient tensor as a vector of sizes.
+   * @param input_shape The shape of the gradient tensor as a vector of sizes.
    */
-  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &gradient_shape) {
+  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &input_shape) {
     if (layers_.empty()) {
       return {};
     }
 
     std::vector<uint32_t> layer_complexities;
-    std::vector<size_t> current_shape = gradient_shape;
+    std::vector<size_t> current_shape = input_shape;
 
     for (auto &layer : layers_) {
       uint32_t layer_complexity = layer->backward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
+      current_shape = layer->compute_output_shape(current_shape);
     }
 
     return layer_complexities;
@@ -545,10 +544,10 @@ public:
   /**
    * @brief Returns the relative backward complexity (in FLOPs) for each layer in the specified
    * partition
-   * @param gradient_shape The shape of the gradient tensor as a vector of sizes.
+   * @param input_shape The shape of the gradient tensor as a vector of sizes.
    * @param part The partition specifying the range of layers.
    */
-  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &gradient_shape,
+  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &input_shape,
                                             const Partition &part) {
     if (layers_.empty()) {
       return {};
@@ -559,11 +558,12 @@ public:
     }
 
     std::vector<uint32_t> layer_complexities;
-    std::vector<size_t> current_shape = gradient_shape;
+    std::vector<size_t> current_shape = input_shape;
 
     for (size_t i = part.start_layer; i < part.end_layer; ++i) {
       uint32_t layer_complexity = layers_[i]->backward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
+      current_shape = layers_[i]->compute_output_shape(current_shape);
     }
 
     return layer_complexities;

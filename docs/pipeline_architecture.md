@@ -1,5 +1,5 @@
 # Architecture
-For now, the pipelining model consists of a Coordinator, multiple Stages. For modularity, the Coordinator and the Stages should only communicate via the Communicator, which have the ability to retrieve, store, and send messages (these messages comes with a metadata about the request type). The Stages and the Coordinator does not know the method which the Communicator uses to communicate, they know these methods exists and call them. Allows nice scalability for different communication methods/frameworks. 
+The pipelining model consists of a Coordinator, multiple Stages, each of which is equipped with its own communicator. The Coordinator and the Stages should only communicate via the Communicator, which have the ability to retrieve, store, and send messages (these messages comes with a metadata about the request type). The Stages and the Coordinator does not know the method which the Communicator uses to communicate, they know these methods exists and call them. Allows nice scalability for different communication methods/frameworks. 
 
 Each stage will have a input message queue. This is because when first Stage have finished forwarding batch 2, second Stage might not have finished forwarding batch 1. Note that each Stage should only be processing only 1 task, more would be meaningless and will cause unneccesary overhead.
 
@@ -12,7 +12,7 @@ Each stage will have a input message queue. This is because when first Stage hav
 - When the message queue is empty, the main event loop will go back to idle/sleep state.
 
 ## Network auto-distribution
-- For network distribution, user will only need to specify the config of the whole model, the number of stages, and number of microbatches, from which the coordinator is created. 
+- For network distribution, user only need to specify the config of the whole model, the endpoints of workers, and number of microbatches, from which the coordinator is created. 
 - To do this, the coordinator needs to do an initial handshake with all the specified endpoints that the user specifies, which are the machines we will distribute the model. 
 - Once it verifies the connection, it serialize each stage into config and send it over the network. Meanwhile, the recipient, being a machine, will listen for messages and create the model from that config. 
 - For each machine, once it has successfully created the Pipeline Stage from given config, it will then ping back to the coordinator that it's ready. 
@@ -30,9 +30,9 @@ The Pipeline Coordinator is told to train on batch i-th, say any arbitrary batch
 ### Forward Phrase
 The coordinator uses Communicator to enqueue the 4 microbatch into Stage 1's pending forward task queue. 
 
-The states of each stage should looks like the following:
-    + Stage 1: Current task: empty, Current Queue: Forward microbatch 1,2,3,4
-    + Stage 2: Current task: empty, Current Queue: empty 
+- The initial states of each stage should looks like the following:
+    + Stage 1: Current task: empty, Current Queue: Forward microbatch 1,2,3,4  
+    + Stage 2: Current task: empty, Current Queue: empty   
     + Stage 3: Current task: empty, Current Queue: empty
     + Stage 4: Current task: empty, Current Queue: empty
 
@@ -72,6 +72,8 @@ And you see the pattern, the task continue so on. An important note: After finis
 # Backward Phrase
 - The backward phrase will do the same but backwards.
 
-
 ## Semi-Asynchronous Training
 For semi-asynchronous training, it will happen the same as synchronous except each microbatch that get to the coordinator will have immediate loss computation and be backwarded.
+
+## Load balancing
+The most important of our proposed architecture.

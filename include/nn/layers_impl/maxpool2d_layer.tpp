@@ -223,14 +223,14 @@ uint32_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_
 }
 
 template <typename T>
-uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
-  assert(gradient_shape.size() == 4 && "Gradient shape must be 4D");
+uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  assert(input_shape.size() == 4 && "Gradient shape must be 4D");
   // Backward pass: for each output gradient element, we do one addition to the input gradient
   // Total operations = batch_size * channels * output_h * output_w
-  size_t batch_size = gradient_shape[0];
-  size_t channels = gradient_shape[1];
-  size_t output_h = gradient_shape[2];
-  size_t output_w = gradient_shape[3];
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
+  size_t output_h = input_shape[2];
+  size_t output_w = input_shape[3];
 
   size_t total_operations = batch_size * channels * output_h * output_w;
 

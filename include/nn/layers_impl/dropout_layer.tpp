@@ -112,9 +112,8 @@ uint32_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_sh
 }
 
 template <typename T>
-uint32_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &gradient_shape) {
-  return std::accumulate(gradient_shape.begin(), gradient_shape.end(), 1,
-                         std::multiplies<size_t>());
+uint32_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 } // namespace tnn

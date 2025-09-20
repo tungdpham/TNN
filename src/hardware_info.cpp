@@ -982,9 +982,6 @@ bool HardwareInfo::read_thermal_linux() {
 
             thermal_info_.current_temp_celsius = temp_millidegrees / 1000.0;
             found_temp = true;
-
-            std::cout << "DEBUG: Found hwmon temperature (" << hwmon_name
-                      << "): " << thermal_info_.current_temp_celsius << "°C" << std::endl;
             break;
           }
         }
@@ -999,7 +996,6 @@ bool HardwareInfo::read_thermal_linux() {
       // Set a reasonable default that indicates "thermal monitoring
       // unavailable"
       thermal_info_.current_temp_celsius = -1.0; // Special value indicating unavailable
-      std::cout << "DEBUG: Thermal monitoring unavailable in virtualized environment" << std::endl;
     }
   }
 
