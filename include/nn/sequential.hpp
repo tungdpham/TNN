@@ -574,6 +574,51 @@ public:
    */
   void print_config() const { std::cout << get_config().dump(2) << std::endl; }
 
+  void print_summary(const std::vector<size_t> &input_shape) const {
+    if (layers_.empty()) {
+      std::cout << "Empty model.\n";
+      return;
+    }
+
+    std::cout << std::string(75, '=') << "\n";
+    std::cout << "Model Summary: " << name_ << "\n";
+    std::cout << std::string(75, '=') << "\n";
+    std::cout << std::left << std::setw(15) << "Layer (Type)" << std::setw(15) << "Input Shape"
+              << std::setw(15) << "Output Shape" << std::setw(15) << "Forward FLOPs"
+              << std::setw(15) << "Backward FLOPs" << "\n";
+
+    std::vector<size_t> current_shape = input_shape;
+    for (size_t i = 0; i < layers_.size(); ++i) {
+      const auto &layer = layers_[i];
+      std::cout << std::left << std::setw(15)
+                << (layer->get_config().name.empty() ? layer->type() : layer->get_config().name);
+
+      std::string input_shape_str = "(";
+      for (size_t j = 0; j < current_shape.size(); ++j) {
+        if (j > 0)
+          input_shape_str += ",";
+        input_shape_str += std::to_string(current_shape[j]);
+      }
+      input_shape_str += ")";
+      std::cout << std::setw(15) << input_shape_str;
+
+      auto output_shape = layer->compute_output_shape(current_shape);
+      std::string output_shape_str = "(";
+      for (size_t j = 0; j < output_shape.size(); ++j) {
+        if (j > 0)
+          output_shape_str += ",";
+        output_shape_str += std::to_string(output_shape[j]);
+      }
+      output_shape_str += ")";
+      std::cout << std::setw(15) << output_shape_str;
+
+      std::cout << std::setw(15) << layer->forward_complexity(current_shape) << std::setw(15)
+                << layer->backward_complexity(current_shape) << "\n";
+      current_shape = layer->compute_output_shape(current_shape);
+    }
+    std::cout << std::string(75, '-') << "\n";
+  }
+
   /**
    * @brief Save the model to specified path.
    * The model's config will be save to json for readability, and the weights will be saved in a
@@ -909,39 +954,6 @@ public:
     file.close();
 
     return load_from_config(config);
-  }
-
-  void print_summary(std::vector<size_t> input_shape) const {
-    std::cout << "Summary for model: " << name_ << "\n";
-    std::cout << "----------------------------------------\n";
-    std::cout << std::left << std::setw(5) << "Idx" << std::setw(20) << "Layer (Type)"
-              << std::setw(15) << "Output Shape" << std::setw(15) << "Param #" << "\n";
-    std::cout << "----------------------------------------\n";
-    std::vector<size_t> current_shape = input_shape;
-    for (size_t i = 0; i < layers_.size(); ++i) {
-      const auto &layer = layers_[i];
-      std::string layer_name = layer->type();
-      auto config = layer->get_config();
-      if (!config.name.empty()) {
-        layer_name = config.name;
-      }
-
-      current_shape = layer->compute_output_shape(current_shape);
-
-      std::cout << std::left << std::setw(5) << i << std::setw(20) << layer_name;
-
-      std::string shape_str = "(";
-      for (size_t j = 0; j < current_shape.size(); ++j) {
-        shape_str += std::to_string(current_shape[j]);
-        if (j < current_shape.size() - 1) {
-          shape_str += ", ";
-        }
-      }
-      shape_str += ")";
-
-      std::cout << std::setw(15) << shape_str << "\n";
-    }
-    std::cout << "----------------------------------------\n";
   }
 };
 

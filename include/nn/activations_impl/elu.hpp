@@ -22,8 +22,7 @@ public:
     });
   }
 
-  void apply_with_bias(Tensor<T> &tensor,
-                       const Tensor<T> &bias) const override {
+  void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const override {
     if (tensor.shape() != bias.shape()) {
       throw std::invalid_argument("Tensor and bias must have the same shape");
     }
@@ -48,30 +47,16 @@ public:
     });
   }
 
-  Tensor<T> compute_gradient(
-      const Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
-    Tensor<T> gradient(pre_activation_values.shape());
-    const T *input_data = pre_activation_values.data();
-    T *grad_data = gradient.data();
-    const size_t size = pre_activation_values.size();
-
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      grad_data[i] =
-          input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
-    });
-
+  Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+                             const Tensor<T> *upstream_gradient = nullptr) const override {
+    Tensor<T> gradient;
     if (upstream_gradient != nullptr) {
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      const T *upstream_data = upstream_gradient->data();
-
-      utils::parallel_for_range<size_t>(
-          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
+      gradient = upstream_gradient->clone();
+    } else {
+      gradient = Tensor<T>(pre_activation_values.shape());
+      gradient.fill(T(1));
     }
-
+    compute_gradient_inplace(pre_activation_values, gradient);
     return gradient;
   }
 
@@ -87,8 +72,7 @@ public:
     size_t size = pre_activation_values.size();
 
     utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      T local_grad =
-          input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
+      T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
       grad_data[i] *= local_grad;
     });
   }
@@ -135,8 +119,7 @@ public:
       size_t h = rem / width;
       size_t w = rem % width;
       T val = tensor(n, channel, h, w) + bias[h * width + w];
-      tensor(n, channel, h, w) =
-          val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
+      tensor(n, channel, h, w) = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
     });
   }
 
@@ -172,8 +155,6 @@ protected:
   }
 
   T compute_single_gradient(T pre_activation_value) const override {
-    return pre_activation_value > T(0)
-               ? T(1)
-               : alpha_ * std::exp(pre_activation_value);
+    return pre_activation_value > T(0) ? T(1) : alpha_ * std::exp(pre_activation_value);
   }
 };

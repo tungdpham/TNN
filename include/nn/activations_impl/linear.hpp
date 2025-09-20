@@ -10,8 +10,7 @@ template <typename T = float> class Linear : public ActivationFunction<T> {
 public:
   void apply(Tensor<T> &tensor) const override { (void)tensor; }
 
-  void apply_with_bias(Tensor<T> &tensor,
-                       const Tensor<T> &bias) const override {
+  void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const override {
     if (tensor.shape() != bias.shape()) {
       throw std::invalid_argument("Tensor and bias must have the same shape");
     }
@@ -20,8 +19,7 @@ public:
     const T *bias_data = bias.data();
     const size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(
-        0, size, [&](size_t i) { data[i] += bias_data[i]; });
+    utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
   }
 
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override {
@@ -29,28 +27,27 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-      utils::parallel_for_range<size_t>(0, size,
-                                        [&](size_t i) { data[i] += bias; });
+      utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias; });
     }
   }
 
-  Tensor<T> compute_gradient(
-      const Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
+  Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+                             const Tensor<T> *upstream_gradient = nullptr) const override {
+    Tensor<T> gradient;
     if (upstream_gradient != nullptr) {
       if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        std::cerr << "Upstream gradient shape: "
-                  << upstream_gradient->shape_str() << " Pre activation shape: "
-                  << pre_activation_values.shape_str() << std::endl;
+        std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
+                  << " Pre activation shape: " << pre_activation_values.shape_str() << std::endl;
         throw std::invalid_argument("Upstream gradient must have the same "
                                     "shape as pre-activation values");
       }
-      return *upstream_gradient;
+      gradient = upstream_gradient->clone();
     } else {
-      Tensor<T> gradient(pre_activation_values.shape());
+      gradient = Tensor<T>(pre_activation_values.shape());
       gradient.fill(T(1));
-      return gradient;
     }
+    compute_gradient_inplace(pre_activation_values, gradient);
+    return gradient;
   }
 
   void compute_gradient_inplace(const Tensor<T> &pre_activation_values,

@@ -338,8 +338,8 @@ uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_sh
   size_t input_w = input_shape[3];
   size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
-  size_t weight_grad_ops =
-      out_channels_ * (in_channels_ * kernel_h_ * kernel_w_) * (batch_size * output_h * output_w);
+  size_t weight_grad_ops = 4 * (out_channels_ * (in_channels_ * kernel_h_ * kernel_w_) *
+                                (batch_size * output_h * output_w));
   size_t bias_grad_ops = batch_size * out_channels_ * output_h * output_w;
   size_t input_grad_ops = batch_size * in_channels_ * input_h * input_w * kernel_h_ * kernel_w_;
   size_t col2im_ops = input_grad_ops;

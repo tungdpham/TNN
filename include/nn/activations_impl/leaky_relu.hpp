@@ -11,20 +11,17 @@ private:
   T negative_slope_;
 
 public:
-  explicit LeakyReLU(T negative_slope = T(0.01))
-      : negative_slope_(negative_slope) {}
+  explicit LeakyReLU(T negative_slope = T(0.01)) : negative_slope_(negative_slope) {}
 
   void apply(Tensor<T> &tensor) const override {
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
-    });
+    utils::parallel_for_range<size_t>(
+        0, size, [&](size_t i) { data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i]; });
   }
 
-  void apply_with_bias(Tensor<T> &tensor,
-                       const Tensor<T> &bias) const override {
+  void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const override {
     if (tensor.shape() != bias.shape()) {
       throw std::invalid_argument("Tensor and bias must have the same shape");
     }
@@ -49,29 +46,16 @@ public:
     });
   }
 
-  Tensor<T> compute_gradient(
-      const Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
-    Tensor<T> gradient(pre_activation_values.shape());
-    const T *input_data = pre_activation_values.data();
-    T *grad_data = gradient.data();
-    const size_t size = pre_activation_values.size();
-
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      grad_data[i] = input_data[i] > T(0) ? T(1) : negative_slope_;
-    });
-
+  Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+                             const Tensor<T> *upstream_gradient = nullptr) const override {
+    Tensor<T> gradient;
     if (upstream_gradient != nullptr) {
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      const T *upstream_data = upstream_gradient->data();
-
-      utils::parallel_for_range<size_t>(
-          0, size, [&](size_t i) { grad_data[i] *= upstream_data[i]; });
+      gradient = upstream_gradient->clone();
+    } else {
+      gradient = Tensor<T>(pre_activation_values.shape());
+      gradient.fill(T(1));
     }
-
+    compute_gradient_inplace(pre_activation_values, gradient);
     return gradient;
   }
 

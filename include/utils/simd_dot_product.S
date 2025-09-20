@@ -54,12 +54,12 @@ simd_dot_product_asm:
     jz .finish
 
 .scalar_loop:
-    # the result of the multiplication is in XMM1
+    # the result of the multiplication is in xmm1
     decq %rax
     vmovss (%rdi,%rax,4), %xmm1
     vmulss (%rsi,%rax,4), %xmm1, %xmm1
 
-    vaddss %xmm1, %xmm0, %xmm0     # add to the sum in XMM0
+    vaddss %xmm1, %xmm0, %xmm0     # add to the sum in xmm0
 
     testq %rax, %rax
     jnz .scalar_loop

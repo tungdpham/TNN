@@ -17,13 +17,11 @@ public:
     T *data = tensor.data();
     const size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
-      data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i];
-    });
+    utils::parallel_for_range<size_t>(
+        0, size, [&](size_t i) { data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i]; });
   }
 
-  void apply_with_bias(Tensor<T> &tensor,
-                       const Tensor<T> &bias) const override {
+  void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const override {
     if (tensor.shape() != bias.shape()) {
       throw std::invalid_argument("Tensor and bias must have the same shape");
     }
@@ -48,10 +46,15 @@ public:
     });
   }
 
-  Tensor<T> compute_gradient(
-      const Tensor<T> &pre_activation_values,
-      const Tensor<T> *upstream_gradient = nullptr) const override {
-    Tensor<T> gradient = upstream_gradient->clone();
+  Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+                             const Tensor<T> *upstream_gradient = nullptr) const override {
+    Tensor<T> gradient;
+    if (upstream_gradient != nullptr) {
+      gradient = upstream_gradient->clone();
+    } else {
+      gradient = Tensor<T>(pre_activation_values.shape());
+      gradient.fill(T(1));
+    }
     compute_gradient_inplace(pre_activation_values, gradient);
     return gradient;
   }
@@ -137,9 +140,7 @@ public:
     });
   }
 
-  std::string name() const override {
-    return negative_slope_ == T(0) ? "relu" : "leaky_relu";
-  }
+  std::string name() const override { return negative_slope_ == T(0) ? "relu" : "leaky_relu"; }
 
   std::unique_ptr<ActivationFunction<T>> clone() const override {
     return std::make_unique<ReLU<T>>(negative_slope_);

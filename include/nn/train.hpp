@@ -25,25 +25,10 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
-  std::cout << std::string(60, '=') << std::endl;
 
   std::vector<size_t> image_shape = train_loader.get_image_shape();
 
-  std::vector<uint32_t> fw_complexities =
-      model.forward_complexity({batch_size, 3, image_shape[1], image_shape[2]});
-
-  std::vector<uint32_t> bw_complexities =
-      model.backward_complexity({batch_size, 3, image_shape[1], image_shape[2]});
-
-  std::cout << "\nModel Forward Pass Complexities (in FLOPs):" << std::endl;
-  for (size_t i = 0; i < fw_complexities.size(); ++i) {
-    std::cout << "  Layer " << i + 1 << ": " << fw_complexities[i] << " FLOPs" << std::endl;
-  }
-
-  std::cout << "\nModel Backward Pass Complexities (in FLOPs):" << std::endl;
-  for (size_t i = 0; i < bw_complexities.size(); ++i) {
-    std::cout << "  Layer " << i + 1 << ": " << bw_complexities[i] << " FLOPs" << std::endl;
-  }
+  model.print_summary({batch_size, image_shape[0], image_shape[1], image_shape[2]});
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
     auto epoch_start = std::chrono::high_resolution_clock::now();
