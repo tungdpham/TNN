@@ -58,29 +58,33 @@ int main() {
 
     auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
                      .input({3, 32, 32})
-                     .conv2d(32, 3, 3, 1, 1, 1, 1, "linear", true, "conv1")
+                     .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv0")
+                     .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv1")
+                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .activation("relu", "relu1")
+                     .conv2d(128, 3, 3, 1, 1, 1, 1, "relu", true, "conv2")
+                     .conv2d(128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
-                     .dropout(0.25f, "dropout1")
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, "linear", true, "conv2")
                      .batchnorm(1e-5f, 0.1f, true, "bn2")
-                     .activation("relu", "relu2")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv4")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv5")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv6")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                     .dropout(0.25f, "dropout2")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, "linear", true, "conv3")
                      .batchnorm(1e-5f, 0.1f, true, "bn3")
-                     .activation("relu", "relu3")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv7")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv8")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv9")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
+                     .batchnorm(1e-5f, 0.1f, true, "bn4")
                      .flatten("flatten")
                      .dense(512, "linear", true, "fc0")
                      .batchnorm(1e-5f, 0.1f, true, "bn3")
                      .activation("relu", "relu3")
-                     .dropout(0.5f, "dropout3")
                      .dense(10, "linear", true, "fc1")
                      .build();
 
-    auto optimizer = std::make_unique<tnn::SGD<float>>(cifar10_constants::LR_INITIAL, 0.9f);
+    auto optimizer =
+        std::make_unique<tnn::Adam<float>>(cifar10_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
