@@ -59,33 +59,6 @@ private:
     }
   }
 
-  inline void avx2_fill(T value, size_t size) {
-#ifdef __AVX2__
-    if constexpr (std::is_same_v<T, float>) {
-      const size_t avx_size = 8;
-      const __m256 avx_value = _mm256_set1_ps(value);
-
-      size_t i = 0;
-
-      for (; i + avx_size <= size; i += avx_size) {
-        _mm256_store_ps(data_ + i, avx_value);
-      }
-
-      for (; i < size; ++i) {
-        data_[i] = value;
-      }
-    } else {
-
-      for (size_t i = 0; i < size; ++i) {
-        data_[i] = value;
-      }
-    }
-#else
-
-    std::fill(data_, data_ + size, value);
-#endif
-  }
-
   inline void avx2_add(const T *a, const T *b, T *result, size_t size) const {
 #ifdef __AVX2__
     if constexpr (std::is_same_v<T, float>) {
@@ -337,14 +310,7 @@ public:
   const T *data() const { return data_; }
 
   void fill(T value) {
-    size_t size = rows_ * cols_;
-    if (size > 32) {
-      avx2_fill(value, size);
-    } else {
-      for (size_t i = 0; i < size; ++i) {
-        data_[i] = value;
-      }
-    }
+    std::fill(data_, data_ + rows_ * cols_, value);
   }
 
   void print() const {
