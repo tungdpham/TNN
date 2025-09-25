@@ -160,14 +160,12 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
                                           const size_t output_size, const size_t kernel_size,
                                           const size_t out_channels) const {
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
-  utils::transpose_2d_inplace(col_data, col_data_transposed, kernel_size, output_size);
-  // output_size = n * out_h * out_w
-
+  utils::transpose_2d(col_data, col_data_transposed, kernel_size, output_size);
+  // transpose and do inner product because yes
   utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
     output_data[oc * output_size + os] = utils::simd_dot_product(
         &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
   });
-
   free(col_data_transposed);
 }
 
@@ -176,6 +174,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
                                               T *weight_grad_data, const size_t output_size,
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
+  // no need for transpose since we are summing over output size
   utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
     weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product(
         &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
@@ -188,10 +187,10 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
   T *gradient_transposed = (T *)malloc(sizeof(T) * output_size * out_channels);
-  utils::transpose_2d_inplace(gradient_data, gradient_transposed, out_channels, output_size);
+  utils::transpose_2d(gradient_data, gradient_transposed, out_channels, output_size);
 
   T *weights_transposed = (T *)malloc(sizeof(T) * kernel_size * out_channels);
-  utils::transpose_2d_inplace(weight_data, weights_transposed, out_channels, kernel_size);
+  utils::transpose_2d(weight_data, weights_transposed, out_channels, kernel_size);
 
   utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
     col_grad_data[ks * output_size + os] =

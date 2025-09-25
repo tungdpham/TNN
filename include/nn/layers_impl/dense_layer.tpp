@@ -130,8 +130,8 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data, const T *gradi
   T *input_transposed = (T *)malloc(sizeof(T) * input_features * batch_size);
   T *gradient_transposed = (T *)malloc(sizeof(T) * output_features * batch_size);
 
-  utils::transpose_2d_inplace(input_data, input_transposed, batch_size, input_features);
-  utils::transpose_2d_inplace(gradient_data, gradient_transposed, batch_size, output_features);
+  utils::transpose_2d(input_data, input_transposed, batch_size, input_features);
+  utils::transpose_2d(gradient_data, gradient_transposed, batch_size, output_features);
 
   utils::parallel_for_2d(output_features, input_features, [&](size_t out_f, size_t in_f) {
     weight_grad_data[out_f * input_features + in_f] += utils::simd_dot_product(
@@ -147,7 +147,7 @@ void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *wei
                                             T *grad_input_data, size_t batch_size,
                                             size_t input_features, size_t output_features) const {
   T *weights_transposed = (T *)malloc(sizeof(T) * output_features * input_features);
-  utils::transpose_2d_inplace(weight_data, weights_transposed, output_features, input_features);
+  utils::transpose_2d(weight_data, weights_transposed, output_features, input_features);
 
   utils::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
     grad_input_data[n * input_features + in_f] =

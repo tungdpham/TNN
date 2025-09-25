@@ -27,7 +27,6 @@ show_help() {
     echo "  -c, --clean         Clean build directory before building"
     echo "  -d, --debug         Enable debug build with sanitizers"
     echo "  -v, --verbose       Enable verbose build output"
-    echo "  --cuda              Enable CUDA support"
     echo "  --tbb               Enable Intel TBB support (on by default)"
     echo "  --openmp            Enable OpenMP support"
     echo ""
@@ -35,7 +34,6 @@ show_help() {
     echo "  $0                  # Build with default settings"
     echo "  $0 --clean          # Clean build"
     echo "  $0 --debug          # Debug build with sanitizers"
-    echo "  $0 --cuda           # Enable CUDA support"
     echo "  $0 --tbb            # Enable Intel TBB support (already on by default)"
     echo "  $0 --openmp         # Enable OpenMP support"
 }
@@ -60,10 +58,6 @@ while [[ $# -gt 0 ]]; do
             VERBOSE=true
             shift
             ;;
-        --cuda)
-            ENABLE_CUDA=ON
-            shift
-            ;;
         --tbb)
             ENABLE_TBB=ON
             shift
@@ -84,7 +78,6 @@ done
 echo -e "${GREEN}DCNN CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
-echo "  CUDA: $ENABLE_CUDA"
 echo "  Intel TBB: $ENABLE_TBB"
 echo "  Debug Mode: $ENABLE_DEBUG"
 echo ""
@@ -103,7 +96,6 @@ echo -e "${GREEN}Configuring with CMake...${NC}"
 CMAKE_ARGS=(
     -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
     -DENABLE_OPENMP="$ENABLE_OPENMP"
-    -DENABLE_CUDA="$ENABLE_CUDA"
     -DENABLE_TBB="$ENABLE_TBB"
     -DENABLE_DEBUG="$ENABLE_DEBUG"
 )
