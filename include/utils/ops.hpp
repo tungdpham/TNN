@@ -191,6 +191,78 @@ template <typename T> inline T simd_dot_product(const T *weights, const T *col_d
   return sum;
 }
 
+template <typename T> inline T simd_dot_product_aligned(const T *weights, const T *col_data, size_t kernel_size) {
+  T sum = T(0);
+
+  if constexpr (std::is_same_v<T, float>) {
+#if defined(__x86_64__) || defined(_M_X64)
+
+    return simd_dot_product_asm(weights, col_data, kernel_size);
+#elif defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
+
+    __m256 sum_vec = _mm256_setzero_ps();
+    size_t simd_end = kernel_size ^ (kernel_size & 0x7);
+    __m256 w_vec, c_vec;
+    for (size_t ks = 0; ks < simd_end; ks += 8) {
+      w_vec = _mm256_load_ps(&weights[ks]);
+
+      c_vec = _mm256_load_ps(&col_data[ks]);
+
+      sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
+    }
+
+    __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
+    __m128 sum_low = _mm256_castps256_ps128(sum_vec);
+    __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
+
+    sum_128 = _mm_hadd_ps(sum_128, sum_128);
+    sum_128 = _mm_hadd_ps(sum_128, sum_128);
+    sum = _mm_cvtss_f32(sum_128);
+
+    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+
+    _mm256_zeroupper();
+
+#elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
+
+    __m128 sum_vec = _mm_setzero_ps();
+    size_t simd_end = kernel_size - (kernel_size % 4);
+
+    for (size_t ks = 0; ks < simd_end; ks += 4) {
+
+      __m128 w_vec = _mm_load_ps(&weights[ks]);
+
+      __m128 c_vec = _mm_load_ps(&col_data[ks]);
+
+      __m128 prod = _mm_mul_ps(w_vec, c_vec);
+      sum_vec = _mm_add_ps(sum_vec, prod);
+    }
+
+    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+    sum = _mm_cvtss_f32(sum_vec);
+
+    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+
+#else
+    for (size_t ks = 0; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+#endif
+  } else {
+
+    for (size_t ks = 0; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+  }
+
+  return sum;
+}
+
 template <typename T>
 void gemm(const T *A, const T *B, T *C, size_t M, size_t N, size_t K) {
   parallel_for_2d(M, N, [&](size_t i, size_t j) {
