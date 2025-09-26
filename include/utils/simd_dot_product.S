@@ -1,9 +1,3 @@
-
-
-
-
-
-
 .section .text
 .globl simd_dot_product_asm
 #ifdef __ELF__
@@ -28,7 +22,7 @@ simd_dot_product_asm:
     jz .remainder_loop
 
 .avx2_loop:
-    # load 4 floats each from weights, col_data. mult them and accumulate with ymm0
+    # load 8 floats each from weights, col_data. mult them and accumulate with ymm0
     vmovups (%rdi), %ymm1
     vmovups (%rsi), %ymm2
     vfmadd231ps %ymm2, %ymm1, %ymm0

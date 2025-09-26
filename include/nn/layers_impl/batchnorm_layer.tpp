@@ -59,7 +59,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
     const size_t spatial_size = height * width;
     const size_t total_elements = batch_size * spatial_size;
 
-    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       T sum = T(0);
       for (size_t n = 0; n < batch_size; ++n) {
         for (size_t h = 0; h < height; ++h) {
@@ -71,7 +71,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
       batch_mean(c, 0, 0, 0) = sum / static_cast<T>(total_elements);
     });
 
-    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       T sum_sq_diff = T(0);
       T mean_val = batch_mean(c, 0, 0, 0);
       for (size_t n = 0; n < batch_size; ++n) {
@@ -122,7 +122,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
       output = normalized.clone();
     }
 
-    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
           (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
       running_var_(c, 0, 0, 0) =
@@ -183,7 +183,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   Tensor<T> grad_input(input.shape());
 
   if (affine_) {
-    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       T gamma_grad_sum = T(0);
       T beta_grad_sum = T(0);
 
@@ -218,7 +218,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   Tensor<T> grad_var(channels, 1, 1, 1);
   Tensor<T> grad_mean(channels, 1, 1, 1);
 
-  utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+  utils::parallel_for<size_t>(0, channels, [&](size_t c) {
     T mean_val = mean(c, 0, 0, 0);
     T std_val_c = std_val(c, 0, 0, 0);
     T var_val = var(c, 0, 0, 0);

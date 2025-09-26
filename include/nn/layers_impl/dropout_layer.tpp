@@ -108,12 +108,12 @@ template <typename T>
 uint32_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
   // random number generation: O(N) where N is number of elements
   // mask application: O(N) where N is number of elements
-  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>()) * 2;
+  return 2 * std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 template <typename T>
 uint32_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
-  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  return 2 * std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
 
 } // namespace tnn

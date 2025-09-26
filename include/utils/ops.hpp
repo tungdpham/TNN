@@ -11,8 +11,13 @@
 #include <cstring>
 #include <memory>
 #include <stdlib.h>
+#include <iostream>
 #if defined(__AVX2__) || defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 #include <immintrin.h>
+#endif
+#if defined(USE_TBB)
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range2d.h>
 #endif
 
 #include "parallel_for.hpp"
@@ -43,24 +48,16 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size
 
 template <typename T>
 void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols) {
-#if defined(_OPENMP)
-  constexpr size_t block_size = 64;
-#pragma omp parallel for collapse(2) schedule(static)
-  for (size_t i = 0; i < rows; i += block_size) {
-    for (size_t j = 0; j < cols; j += block_size) {
-      size_t max_i = std::min(i + block_size, rows);
-      size_t max_j = std::min(j + block_size, cols);
-
-      for (size_t ii = i; ii < max_i; ++ii) {
-        for (size_t jj = j; jj < max_j; ++jj) {
-          dst[jj * rows + ii] = src[ii * cols + jj];
-        }
-      }
-    }
+  if constexpr (std::is_same_v<T, float>) {
+    // for now, just use the simple version
+    parallel_for_2d(rows, cols, [&](size_t i, size_t j) {
+      dst[j * rows + i] = src[i * cols + j];
+    });
+  } else {
+    parallel_for_2d(rows, cols, [&](size_t i, size_t j) {
+      dst[j * rows + i] = src[i * cols + j];
+    });
   }
-#elif defined(USE_TBB)
-  parallel_for_2d(rows, cols, [&](size_t i, size_t j) { dst[j * rows + i] = src[i * cols + j]; });
-#endif
 }
 
 template <typename T> void apply_softmax(Tensor<float> &tensor) {
@@ -122,7 +119,7 @@ float compute_class_accuracy(const Tensor<float> &predictions, const Tensor<floa
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-template <typename T> T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
+template <typename T> inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
@@ -194,121 +191,11 @@ template <typename T> T simd_dot_product(const T *weights, const T *col_data, si
   return sum;
 }
 
-// GEMM blocking parameters (tunable for different CPUs)
-constexpr size_t GEMM_MC = 256; // M dimension blocking
-constexpr size_t GEMM_KC = 128; // K dimension blocking
-constexpr size_t GEMM_NC = 256; // N dimension blocking
-
-// Helper for aligned memory allocation
-template <typename T> static T *aligned_malloc_gemm(size_t count, size_t align = 64) {
-#if defined(_ISOC11_SOURCE) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L)
-  size_t size = count * sizeof(T);
-  return static_cast<T *>(aligned_alloc(align, ((size + align - 1) / align) * align));
-#else
-  void *p = nullptr;
-  size_t size = count * sizeof(T);
-  int result = posix_memalign(&p, align, ((size + align - 1) / align) * align);
-  return (result == 0) ? static_cast<T *>(p) : nullptr;
-#endif
-}
-
-// Pack B matrix block for better cache locality
-// Pack B[0..kc-1, 0..nc-1] into packed_B as column-major
 template <typename T>
-static void pack_b_block_gemm(const T *B_panel, T *packed_B, size_t ldb, size_t kc, size_t nc,
-                              size_t jc) {
-  for (size_t j = 0; j < nc; ++j) {
-    T *dst_col = packed_B + j * kc;
-    const T *src = B_panel + j; // Column j of B_panel (jc offset already in B_panel)
-    for (size_t p = 0; p < kc; ++p) {
-      dst_col[p] = src[p * ldb];
-    }
-  }
-}
-
-// GEMM micro-kernel with SIMD optimization for float
-template <typename T>
-static void gemm_panel_kernel(size_t mc, size_t nc, size_t kc, const T *A, size_t lda,
-                              const T *packed_B, T *C, size_t ldc) {
-  if constexpr (std::is_same_v<T, float>) {
-    // Optimized version for float with SIMD
-    for (size_t i = 0; i < mc; ++i) {
-      const T *a_row = A + i * lda;
-      T *c_row = C + i * ldc;
-      for (size_t j = 0; j < nc; ++j) {
-        const T *b_col = packed_B + j * kc;
-        c_row[j] += simd_dot_product(a_row, b_col, kc);
-      }
-    }
-  } else {
-    // Generic version for other types
-    for (size_t i = 0; i < mc; ++i) {
-      const T *a_row = A + i * lda;
-      T *c_row = C + i * ldc;
-      for (size_t j = 0; j < nc; ++j) {
-        const T *b_col = packed_B + j * kc;
-        T acc = c_row[j];
-        for (size_t p = 0; p < kc; ++p) {
-          acc += a_row[p] * b_col[p];
-        }
-        c_row[j] = acc;
-      }
-    }
-  }
-}
-
-template <typename T> void gemm(const T *a, const T *b, T *c, size_t M, size_t N, size_t K) {
-  // C = A * B where A is M x K, B is K x N, C is M x N
-  // All matrices are stored in row-major format
-  const size_t lda = K; // Leading dimension of A
-  const size_t ldb = N; // Leading dimension of B
-  const size_t ldc = N; // Leading dimension of C
-
-  // Allocate scratch buffer for packing B panels
-  T *packed_B = aligned_malloc_gemm<T>(GEMM_KC * GEMM_NC);
-  if (!packed_B) {
-    // Fallback to simple implementation if allocation fails
-    for (size_t i = 0; i < M; ++i) {
-      for (size_t j = 0; j < N; ++j) {
-        T sum = T(0);
-        for (size_t k = 0; k < K; ++k) {
-          sum += a[i * lda + k] * b[k * ldb + j];
-        }
-        c[i * ldc + j] = sum;
-      }
-    }
-    return;
-  }
-
-  // Blocked GEMM algorithm
-  for (size_t jc = 0; jc < N; jc += GEMM_NC) {
-    const size_t nc = std::min(GEMM_NC, N - jc);
-
-    for (size_t pc = 0; pc < K; pc += GEMM_KC) {
-      const size_t kc = std::min(GEMM_KC, K - pc);
-
-      // Pack B panel B[pc:pc+kc-1, jc:jc+nc-1]
-      const T *B_panel = b + pc * ldb + jc;
-      pack_b_block_gemm(B_panel, packed_B, ldb, kc, nc, 0);
-
-      // Parallelize over M dimension blocks
-      parallel_for_range(size_t(0), (M + GEMM_MC - 1) / GEMM_MC, [&](size_t ic_idx) {
-        const size_t ic = ic_idx * GEMM_MC;
-        const size_t mc = std::min(GEMM_MC, M - ic);
-
-        // A panel: A[ic:ic+mc-1, pc:pc+kc-1]
-        const T *A_panel = a + ic * lda + pc;
-
-        // C block: C[ic:ic+mc-1, jc:jc+nc-1]
-        T *C_block = c + ic * ldc + jc;
-
-        // Compute C_block += A_panel * packed_B
-        gemm_panel_kernel(mc, nc, kc, A_panel, lda, packed_B, C_block, ldc);
-      });
-    }
-  }
-
-  std::free(packed_B);
+void gemm(const T *A, const T *B, T *C, size_t M, size_t N, size_t K) {
+  parallel_for_2d(M, N, [&](size_t i, size_t j) {
+    C[i * N + j] = simd_dot_product(&A[i * K], &B[j * K], K);
+  });
 }
 
 } // namespace utils

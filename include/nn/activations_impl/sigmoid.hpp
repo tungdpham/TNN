@@ -13,7 +13,7 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(
+    utils::parallel_for<size_t>(
         0, size, [&](size_t i) { data[i] = T(1) / (T(1) + std::exp(-data[i])); });
   }
 
@@ -26,7 +26,7 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+    utils::parallel_for<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias_data[i];
       data[i] = T(1) / (T(1) + std::exp(-val));
     });
@@ -36,7 +36,7 @@ public:
     T *data = tensor.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+    utils::parallel_for<size_t>(0, size, [&](size_t i) {
       T val = data[i] + bias;
       data[i] = T(1) / (T(1) + std::exp(-val));
     });
@@ -70,7 +70,7 @@ public:
     T *grad_data = upstream_gradient.data();
     size_t size = pre_activation_values.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) {
+    utils::parallel_for<size_t>(0, size, [&](size_t i) {
       T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
       T local_grad = sigmoid_val * (T(1) - sigmoid_val);
       grad_data[i] *= local_grad;
@@ -86,7 +86,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
+    utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T &val = tensor(n, channel, h, w);
@@ -111,7 +111,7 @@ public:
       throw std::invalid_argument("Bias size must match spatial dimensions");
     }
 
-    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
+    utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T val = tensor(n, channel, h, w) + bias[h * width + w];
@@ -130,7 +130,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-    utils::parallel_for_range<size_t>(0, channels, [&](size_t c) {
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           T &val = tensor(batch_idx, c, h, w);

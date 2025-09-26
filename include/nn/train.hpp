@@ -17,10 +17,7 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   Tensor<float> batch_data, batch_labels, predictions;
 
-  std::cout << "\nPreparing training batches..." << std::endl;
   train_loader.prepare_batches(batch_size);
-
-  std::cout << "Preparing validation batches..." << std::endl;
   test_loader.prepare_batches(batch_size);
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
@@ -69,7 +66,7 @@ void train_classification_model(tnn::Sequential<float> &model,
                   << accuracy * 100.0f << "%" << std::endl;
       }
       if (model.is_profiling_enabled()) {
-        model.clear_profiling_data();
+        // model.clear_profiling_data();
       }
     }
     std::cout << std::endl;

@@ -70,6 +70,8 @@ install_manifest.txt
 # temp files
 /temp/
 /profile.json
+*.data
+*.data.old
 
 # snapshots
 /model_snapshots/*

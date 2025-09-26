@@ -641,10 +641,10 @@ public:
     }
   }
 
-  void fill_random_normal(T stddev) {
+  void fill_random_normal(T mean, T stddev) {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::normal_distribution<T> dis(0, stddev);
+    std::normal_distribution<T> dis(mean, stddev);
     for (size_t i = 0; i < rows_ * cols_; ++i) {
       data_[i] = dis(gen);
     }

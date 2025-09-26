@@ -19,7 +19,7 @@ public:
     const T *bias_data = bias.data();
     const size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
+    utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
   }
 
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override {
@@ -27,7 +27,7 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias; });
+      utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
     }
   }
 

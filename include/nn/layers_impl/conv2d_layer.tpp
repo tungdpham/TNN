@@ -210,7 +210,7 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data, T *bias_grad
   const size_t N_stride = out_channels * output_h * output_w;
   const size_t C_stride = output_h * output_w;
 
-  utils::parallel_for_range<size_t>(0, out_channels, [&](size_t oc) {
+  utils::parallel_for<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t oh = 0; oh < output_h; ++oh) {

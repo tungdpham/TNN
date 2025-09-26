@@ -161,7 +161,7 @@ void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *wei
 template <typename T>
 void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
                                            size_t batch_size, size_t output_features) const {
-  utils::parallel_for_range<size_t>(0, output_features, [&](size_t out_f) {
+  utils::parallel_for<size_t>(0, output_features, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       grad_sum += current_grad_data[n * output_features + out_f];

@@ -14,7 +14,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
+    utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
           apply_softmax_spatial(tensor, n, h, w);
@@ -32,7 +32,7 @@ public:
     const T *bias_data = bias.data();
     size_t size = tensor.size();
 
-    utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
+    utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
 
     apply(tensor);
   }
@@ -42,7 +42,7 @@ public:
       T *data = tensor.data();
       size_t size = tensor.size();
 
-      utils::parallel_for_range<size_t>(0, size, [&](size_t i) { data[i] += bias; });
+      utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
     }
 
     apply(tensor);
@@ -80,7 +80,7 @@ public:
     Tensor<T> softmax_values = pre_activation_values;
     apply(softmax_values);
 
-    utils::parallel_for_range<size_t>(0, batch_size, [&](size_t n) {
+    utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
       for (size_t h = 0; h < height; ++h) {
         for (size_t w = 0; w < width; ++w) {
 
@@ -124,7 +124,7 @@ public:
     size_t height = tensor.height();
     size_t width = tensor.width();
 
-    utils::parallel_for_range<size_t>(0, height, [&](size_t h) {
+    utils::parallel_for<size_t>(0, height, [&](size_t h) {
       for (size_t w = 0; w < width; ++w) {
         apply_softmax_spatial(tensor, batch_idx, h, w);
       }
