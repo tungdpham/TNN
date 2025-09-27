@@ -9,15 +9,15 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <stdlib.h>
-#include <iostream>
 #if defined(__AVX2__) || defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
 #include <immintrin.h>
 #endif
 #if defined(USE_TBB)
-#include <tbb/parallel_for.h>
 #include <tbb/blocked_range2d.h>
+#include <tbb/parallel_for.h>
 #endif
 
 #include "parallel_for.hpp"
@@ -46,18 +46,24 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size
   });
 }
 
+/**
+ * @brief Transpose a 2D matrix
+ */
 template <typename T>
-void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols) {
-  if constexpr (std::is_same_v<T, float>) {
-    // for now, just use the simple version
-    parallel_for_2d(rows, cols, [&](size_t i, size_t j) {
-      dst[j * rows + i] = src[i * cols + j];
-    });
-  } else {
-    parallel_for_2d(rows, cols, [&](size_t i, size_t j) {
-      dst[j * rows + i] = src[i * cols + j];
-    });
-  }
+void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols,
+                  const size_t block_size = 64) {
+  parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
+                  [&](size_t i_block, size_t j_block) {
+                    const size_t start_row = i_block * block_size;
+                    const size_t start_col = j_block * block_size;
+                    const size_t end_row = std::min(start_row + block_size, rows);
+                    const size_t end_col = std::min(start_col + block_size, cols);
+                    for (size_t i = start_row; i < end_row; ++i) {
+                      for (size_t j = start_col; j < end_col; ++j) {
+                        dst[j * rows + i] = src[i * cols + j];
+                      }
+                    }
+                  });
 }
 
 template <typename T> void apply_softmax(Tensor<float> &tensor) {
@@ -119,7 +125,8 @@ float compute_class_accuracy(const Tensor<float> &predictions, const Tensor<floa
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-template <typename T> inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
+template <typename T>
+inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
@@ -191,7 +198,8 @@ template <typename T> inline T simd_dot_product(const T *weights, const T *col_d
   return sum;
 }
 
-template <typename T> inline T simd_dot_product_aligned(const T *weights, const T *col_data, size_t kernel_size) {
+template <typename T>
+inline T simd_dot_product_aligned(const T *weights, const T *col_data, size_t kernel_size) {
   T sum = T(0);
 
   if constexpr (std::is_same_v<T, float>) {
@@ -264,10 +272,13 @@ template <typename T> inline T simd_dot_product_aligned(const T *weights, const 
 }
 
 template <typename T>
-void gemm(const T *A, const T *B, T *C, size_t M, size_t N, size_t K) {
+inline void matmul(const T *A, const T *B, T *C, size_t M, size_t N, size_t K) {
+  T *B_T = (T *)malloc(sizeof(T) * K * N);
+  transpose_2d(B, B_T, K, N);
   parallel_for_2d(M, N, [&](size_t i, size_t j) {
-    C[i * N + j] = simd_dot_product(&A[i * K], &B[j * K], K);
+    C[i * N + j] = simd_dot_product(&A[i * K], &B_T[j * K], K);
   });
+  free(B_T);
 }
 
 } // namespace utils

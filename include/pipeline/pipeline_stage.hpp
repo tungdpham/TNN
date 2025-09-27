@@ -194,19 +194,19 @@ protected:
       load_tracker_.avg_forward_time_ = 0;
       load_tracker_.avg_backward_time_ = 0;
     } else {
-      const std::map<std::string, double> &forward_times = model_->get_forward_times();
-      const std::map<std::string, double> &backward_times = model_->get_backward_times();
+      const std::map<std::string, int64_t> forward_times = model_->get_forward_times();
+      const std::map<std::string, int64_t> backward_times = model_->get_backward_times();
 
-      float cummulative_forward_time = std::accumulate(
-          forward_times.begin(), forward_times.end(), 0.0f,
-          [](float sum, const std::pair<std::string, double> &p) { return sum + p.second; });
+      int64_t cummulative_forward_time = std::accumulate(
+          forward_times.begin(), forward_times.end(), 0LL,
+          [](int64_t sum, const std::pair<std::string, int64_t> &p) { return sum + p.second; });
 
-      float cummulative_backward_time = std::accumulate(
-          backward_times.begin(), backward_times.end(), 0.0f,
-          [](float sum, const std::pair<std::string, double> &p) { return sum + p.second; });
+      int64_t cummulative_backward_time = std::accumulate(
+          backward_times.begin(), backward_times.end(), 0LL,
+          [](int64_t sum, const std::pair<std::string, int64_t> &p) { return sum + p.second; });
 
-      load_tracker_.avg_forward_time_ = cummulative_forward_time;
-      load_tracker_.avg_backward_time_ = cummulative_backward_time;
+      load_tracker_.avg_forward_time_ = static_cast<float>(cummulative_forward_time / 1000.0f);
+      load_tracker_.avg_backward_time_ = static_cast<float>(cummulative_backward_time / 1000.0f);
     }
 
     if (cpu_info_.update_dynamic_info()) {

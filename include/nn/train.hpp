@@ -66,7 +66,7 @@ void train_classification_model(tnn::Sequential<float> &model,
                   << accuracy * 100.0f << "%" << std::endl;
       }
       if (model.is_profiling_enabled()) {
-        // model.clear_profiling_data();
+        model.clear_profiling_data();
       }
     }
     std::cout << std::endl;
@@ -109,6 +109,9 @@ void train_classification_model(tnn::Sequential<float> &model,
               << std::endl;
     std::cout << std::string(60, '=') << std::endl;
 
+    if (model.is_profiling_enabled()) {
+      model.clear_profiling_data();
+    }
     if ((epoch + 1) % progress_print_interval == 0) {
       const float current_lr = model.optimizer()->get_learning_rate();
       const float new_lr = current_lr * lr_decay_factor;

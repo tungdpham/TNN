@@ -84,10 +84,14 @@ echo ""
 
 # clean build if requested
 if [ "$CLEAN_BUILD" = true ]; then
-    echo -e "${YELLOW}Cleaning build directory...${NC}"
-    rm -rf CMakeCache.txt CMakeFiles/ Makefile cmake_install.cmake
+    echo -e "${YELLOW}Cleaning all build artifacts.${NC}"
+    find . -name "CMakeFiles" -type d -exec rm -rf {} +
+    find . -name "cmake_install.cmake" -type f -delete
+    find . -name "CMakeCache.txt" -type f -delete
+    find . -name "Makefile" -type f -delete
     rm -rf bin/ lib/ build/ compile_commands.json
-    echo "Cleaned build files from current directory"
+    
+    echo "Cleaned build files from current directory and all subdirectories"
     echo ""
 fi
 

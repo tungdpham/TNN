@@ -37,8 +37,8 @@ private:
   bool is_training_;
 
   bool enable_profiling_ = false;
-  std::map<std::string, double> forward_times_ms_;
-  std::map<std::string, double> backward_times_ms_;
+  std::map<std::string, int64_t> forward_times_microseconds_;
+  std::map<std::string, int64_t> backward_times_microseconds_;
 
   // Helper function to distribute optimizer whenever it changes
   void distribute_optimizer_to_layers() {
@@ -80,8 +80,8 @@ public:
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
         is_training_(other.is_training_), enable_profiling_(other.enable_profiling_),
-        forward_times_ms_(std::move(other.forward_times_ms_)),
-        backward_times_ms_(std::move(other.backward_times_ms_)) {}
+        forward_times_microseconds_(std::move(other.forward_times_microseconds_)),
+        backward_times_microseconds_(std::move(other.backward_times_microseconds_)) {}
 
   Sequential &operator=(const Sequential &other) {
     if (this != &other) {
@@ -98,8 +98,8 @@ public:
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
 
-      forward_times_ms_.clear();
-      backward_times_ms_.clear();
+      forward_times_microseconds_.clear();
+      backward_times_microseconds_.clear();
     }
     return *this;
   }
@@ -113,8 +113,8 @@ public:
       is_training_ = other.is_training_;
 
       enable_profiling_ = other.enable_profiling_;
-      forward_times_ms_ = std::move(other.forward_times_ms_);
-      backward_times_ms_ = std::move(other.backward_times_ms_);
+      forward_times_microseconds_ = std::move(other.forward_times_microseconds_);
+      backward_times_microseconds_ = std::move(other.backward_times_microseconds_);
     }
     return *this;
   }
@@ -163,8 +163,8 @@ public:
 
   void clear() {
     layers_.clear();
-    forward_times_ms_.clear();
-    backward_times_ms_.clear();
+    forward_times_microseconds_.clear();
+    backward_times_microseconds_.clear();
   }
 
   size_t layer_size() const { return layers_.size(); }
@@ -192,8 +192,8 @@ public:
   void enable_profiling(bool enable = true) {
     enable_profiling_ = enable;
     if (enable) {
-      forward_times_ms_.clear();
-      backward_times_ms_.clear();
+      forward_times_microseconds_.clear();
+      backward_times_microseconds_.clear();
     }
   }
 
@@ -206,36 +206,40 @@ public:
    * @brief Clears all recorded profiling data.
    */
   void clear_profiling_data() {
-    forward_times_ms_.clear();
-    backward_times_ms_.clear();
+    forward_times_microseconds_.clear();
+    backward_times_microseconds_.clear();
   }
 
   /**
    * @brief Clears only the recorded forward times.
    */
-  void clear_forward_times() { forward_times_ms_.clear(); }
+  void clear_forward_times() { forward_times_microseconds_.clear(); }
 
   /**
    * @brief Clears only the recorded backward times.
    */
-  void clear_backward_times() { backward_times_ms_.clear(); }
+  void clear_backward_times() { backward_times_microseconds_.clear(); }
 
   /**
    * @brief Returns the recorded forward times for each layer in milliseconds.
    */
-  const std::map<std::string, double> &get_forward_times() const { return forward_times_ms_; }
+  const std::map<std::string, int64_t> &get_forward_times() const {
+    return forward_times_microseconds_;
+  }
 
   /**
    * @brief Returns the recorded backward times for each layer in milliseconds.
    */
-  const std::map<std::string, double> &get_backward_times() const { return backward_times_ms_; }
+  const std::map<std::string, int64_t> &get_backward_times() const {
+    return backward_times_microseconds_;
+  }
 
   /**
    * @brief Prints a summary of the profiling data to the console if profiling is enabled, otherwise
    * prints a warning.
    */
   void print_profiling_summary() const {
-    if (!enable_profiling_ || forward_times_ms_.empty()) {
+    if (!enable_profiling_ || forward_times_microseconds_.empty()) {
       std::cout << "No profiling data available. Enable profiling with "
                    "enable_profiling(true)\n";
       return;
@@ -248,7 +252,7 @@ public:
               << std::setw(15) << "Backward (ms)" << std::setw(15) << "Total (ms)" << "\n";
     std::cout << std::string(60, '-') << "\n";
 
-    double total_forward = 0.0, total_backward = 0.0;
+    int64_t total_forward = 0, total_backward = 0;
 
     for (size_t i = 0; i < layers_.size(); ++i) {
 
@@ -258,35 +262,38 @@ public:
         layer_name = config.name;
       }
 
-      double forward_time = 0.0;
-      auto forward_it = forward_times_ms_.find(layer_name);
-      if (forward_it != forward_times_ms_.end()) {
+      int64_t forward_time = 0;
+      auto forward_it = forward_times_microseconds_.find(layer_name);
+      if (forward_it != forward_times_microseconds_.end()) {
         forward_time = forward_it->second;
       }
 
-      double backward_time = 0.0;
-      auto backward_it = backward_times_ms_.find(layer_name);
-      if (backward_it != backward_times_ms_.end()) {
+      int64_t backward_time = 0;
+      auto backward_it = backward_times_microseconds_.find(layer_name);
+      if (backward_it != backward_times_microseconds_.end()) {
         backward_time = backward_it->second;
       }
 
-      double total_time = forward_time + backward_time;
+      int64_t total_time = forward_time + backward_time;
 
       total_forward += forward_time;
       total_backward += backward_time;
 
       std::cout << std::left << std::setw(20) << layer_name << std::setw(15) << std::fixed
-                << std::setprecision(3) << forward_time << std::setw(15) << std::fixed
-                << std::setprecision(3) << backward_time << std::setw(15) << std::fixed
-                << std::setprecision(3) << total_time << "\n";
+                << std::setprecision(3) << static_cast<double>(forward_time) / 1000.0
+                << std::setw(15) << std::fixed << std::setprecision(3)
+                << static_cast<double>(backward_time) / 1000.0 << std::setw(15) << std::fixed
+                << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
     }
 
     std::cout << std::string(60, '-') << "\n";
     std::cout << std::left << std::setw(20) << "TOTAL" << std::setw(15) << std::fixed
-              << std::setprecision(3) << total_forward << std::setw(15) << std::fixed
-              << std::setprecision(3) << total_backward << std::setw(15) << std::fixed
-              << std::setprecision(3) << (total_forward + total_backward) << "\n";
-    std::cout << std::string(60, '=') << "\n\n";
+              << std::setprecision(3) << static_cast<double>(total_forward / 1000.0)
+              << std::setw(15) << std::fixed << std::setprecision(3)
+              << static_cast<double>(total_backward / 1000.0) << std::setw(15) << std::fixed
+              << std::setprecision(3)
+              << static_cast<double>(total_forward + total_backward) / 1000.0 << "\n"
+              << std::string(60, '=') << "\n\n";
   }
 
   /**
@@ -317,7 +324,7 @@ public:
           if (!config.name.empty()) {
             layer_name = config.name;
           }
-          forward_times_ms_[layer_name] += duration.count() / 1000.0;
+          forward_times_microseconds_[layer_name] += duration.count();
         } else {
           current_output = layers_[i]->forward(current_output, micro_batch_id);
         }
@@ -359,7 +366,7 @@ public:
           if (!config.name.empty()) {
             layer_name = config.name;
           }
-          backward_times_ms_[layer_name] += duration.count() / 1000.0;
+          backward_times_microseconds_[layer_name] += duration.count();
         } else {
           current_grad = layers_[i]->backward(current_grad, micro_batch_id);
         }
