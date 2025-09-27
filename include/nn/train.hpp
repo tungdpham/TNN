@@ -66,7 +66,7 @@ void train_classification_model(tnn::Sequential<float> &model,
                   << accuracy * 100.0f << "%" << std::endl;
       }
       if (model.is_profiling_enabled()) {
-        model.clear_profiling_data();
+        // model.clear_profiling_data();
       }
     }
     std::cout << std::endl;

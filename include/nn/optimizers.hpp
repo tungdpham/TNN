@@ -22,8 +22,7 @@ struct OptimizerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -41,8 +40,7 @@ public:
   explicit Optimizer(float learning_rate) : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
-  virtual void update(std::vector<Tensor<T> *> &params,
-                      const std::vector<Tensor<T> *> &grads) = 0;
+  virtual void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) = 0;
 
   void set_learning_rate(float lr) { learning_rate_ = lr; }
   float get_learning_rate() const { return learning_rate_; }
@@ -60,8 +58,7 @@ public:
   SGD(float learning_rate = 0.01f, float momentum = 0.0f)
       : Optimizer<T>(learning_rate), momentum_(momentum), initialized_(false) {}
 
-  void update(std::vector<Tensor<T> *> &params,
-              const std::vector<Tensor<T> *> &grads) override {
+  void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) override {
     if (momentum_ > 0.0f && !initialized_) {
       velocities_.resize(params.size());
       for (size_t i = 0; i < params.size(); ++i) {
@@ -71,10 +68,7 @@ public:
       initialized_ = true;
     }
 
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
-    for (size_t i = 0; i < params.size(); ++i) {
+    utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       if (momentum_ > 0.0f) {
 
         velocities_[i] *= momentum_;
@@ -87,7 +81,7 @@ public:
         Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
         (*params[i]) -= scaled_grad;
       }
-    }
+    });
   }
 
   std::string name() const override { return "SGD"; }
@@ -115,11 +109,10 @@ template <typename T = float> class Adam : public Optimizer<T> {
 public:
   Adam(float learning_rate = 0.001f, float beta1 = 0.9f, float beta2 = 0.999f,
        float epsilon = 1e-8f)
-      : Optimizer<T>(learning_rate), beta1_(beta1), beta2_(beta2),
-        epsilon_(epsilon), t_(0), initialized_(false) {}
+      : Optimizer<T>(learning_rate), beta1_(beta1), beta2_(beta2), epsilon_(epsilon), t_(0),
+        initialized_(false) {}
 
-  void update(std::vector<Tensor<T> *> &params,
-              const std::vector<Tensor<T> *> &grads) override {
+  void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) override {
     if (!initialized_) {
       m_.resize(params.size());
       v_.resize(params.size());
@@ -134,8 +127,7 @@ public:
 
     t_++;
 
-    for (size_t i = 0; i < params.size(); ++i) {
-
+    utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       m_[i] *= beta1_;
       Tensor<T> grad_term = (*grads[i]) * (1.0f - beta1_);
       m_[i] += grad_term;
@@ -146,20 +138,18 @@ public:
       grad_sq *= (static_cast<T>(1.0) - beta2_);
       v_[i] += grad_sq;
 
-      Tensor<T> m_hat =
-          m_[i] / (static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_)));
-      Tensor<T> v_hat =
-          v_[i] / (static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_)));
+      Tensor<T> m_hat = m_[i] / (static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_)));
+      Tensor<T> v_hat = v_[i] / (static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_)));
 
       T *param_data = params[i]->data();
       const T *m_hat_data = m_hat.data();
       const T *v_hat_data = v_hat.data();
 
       for (size_t j = 0; j < params[i]->size(); ++j) {
-        param_data[j] -= this->learning_rate_ * m_hat_data[j] /
-                         (std::sqrt(v_hat_data[j]) + epsilon_);
+        param_data[j] -=
+            this->learning_rate_ * m_hat_data[j] / (std::sqrt(v_hat_data[j]) + epsilon_);
       }
-    }
+    });
   }
 
   std::string name() const override { return "Adam"; }
@@ -176,8 +166,7 @@ public:
   }
 
   std::unique_ptr<Optimizer<T>> clone() const override {
-    return std::make_unique<Adam<T>>(this->learning_rate_, beta1_, beta2_,
-                                     epsilon_);
+    return std::make_unique<Adam<T>>(this->learning_rate_, beta1_, beta2_, epsilon_);
   }
 
 private:
@@ -192,8 +181,8 @@ private:
 
 template <typename T = float> class OptimizerFactory {
 public:
-  static std::unique_ptr<Optimizer<T>>
-  create(const std::string &name, float learning_rate, float momentum = 0.9f) {
+  static std::unique_ptr<Optimizer<T>> create(const std::string &name, float learning_rate,
+                                              float momentum = 0.9f) {
     if (name == "sgd") {
       return std::make_unique<SGD<T>>(learning_rate, momentum);
     }
@@ -203,8 +192,7 @@ public:
     throw std::invalid_argument("Unknown optimizer type: " + name);
   }
 
-  static std::unique_ptr<Optimizer<T>>
-  create_from_config(const OptimizerConfig &config) {
+  static std::unique_ptr<Optimizer<T>> create_from_config(const OptimizerConfig &config) {
     if (config.type == "sgd") {
       float learning_rate = config.get<float>("learning_rate", 0.01f);
       float momentum = config.get<float>("momentum", 0.0f);

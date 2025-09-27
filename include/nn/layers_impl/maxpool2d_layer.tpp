@@ -214,10 +214,7 @@ uint32_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_
   size_t padded_h = input_h + 2 * pad_h_;
   size_t padded_w = input_w + 2 * pad_w_;
 
-  size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
-  size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
-
-  size_t total_operations = batch_size * channels * output_h * output_w * (pool_h_ * pool_w_);
+  size_t total_operations = batch_size * channels * (padded_h * padded_w) * (pool_h_ * pool_w_);
 
   return static_cast<uint32_t>(total_operations);
 }
@@ -231,7 +228,6 @@ uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input
   size_t channels = input_shape[1];
   size_t output_h = input_shape[2];
   size_t output_w = input_shape[3];
-
   size_t total_operations = batch_size * channels * output_h * output_w;
 
   return static_cast<uint32_t>(total_operations);
