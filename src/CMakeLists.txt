@@ -1,11 +1,19 @@
 # DCNN Library Components
 
 add_library(dcnn_matrix STATIC matrix.cpp)
+target_include_directories(dcnn_matrix PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 if(NOT MSVC)
     target_link_libraries(dcnn_matrix PUBLIC m)
 endif()
 
 add_library(dcnn_tensor STATIC tensor.cpp)
+target_include_directories(dcnn_tensor PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 if(NOT MSVC)
     target_link_libraries(dcnn_tensor PUBLIC dcnn_matrix m)
 else()
@@ -19,6 +27,10 @@ if(PkgConfig_FOUND)
 endif()
 
 add_library(dcnn_utils STATIC utils.cpp hardware_info.cpp)
+target_include_directories(dcnn_utils PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 
 # Add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
@@ -55,22 +67,37 @@ else()
 endif()
 
 add_library(dcnn_data_loading STATIC data_loading.cpp)
+target_include_directories(dcnn_data_loading PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 target_link_libraries(dcnn_data_loading PUBLIC dcnn_utils dcnn_tensor dcnn_matrix)
 
 add_library(dcnn_nn STATIC nn.cpp)
+target_include_directories(dcnn_nn PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 if(NOT MSVC)
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading m)
 else()
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading)
 endif()
-target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_nn PRIVATE nlohmann_json::nlohmann_json)
 
 add_library(dcnn_pipeline STATIC pipeline.cpp)
+target_include_directories(dcnn_pipeline PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+# Private include for build-time dependencies
+target_include_directories(dcnn_pipeline PRIVATE 
+    ${asio_SOURCE_DIR}/asio/include
+)
 target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn protobuf::libprotobuf)
-target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_link_libraries(dcnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
-target_link_libraries(dcnn_pipeline PUBLIC libzstd_static)
-target_include_directories(dcnn_pipeline PUBLIC ${asio_SOURCE_DIR}/asio/include)
+target_link_libraries(dcnn_pipeline PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_pipeline PRIVATE libzstd_static)
 target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
 
 set(PROTO_DIR "${CMAKE_SOURCE_DIR}/include/pipeline/proto")
@@ -90,13 +117,12 @@ if(EXISTS "${PROTO_DIR}")
         add_library(dcnn_proto STATIC ${PROTO_SRCS})
         target_link_libraries(dcnn_proto PUBLIC protobuf::libprotobuf)
         target_include_directories(dcnn_proto PUBLIC 
-            ${CMAKE_CURRENT_BINARY_DIR}
-            ${CMAKE_SOURCE_DIR}/include
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+            $<INSTALL_INTERFACE:include>
         )
         
         target_link_libraries(dcnn_pipeline PUBLIC dcnn_proto)
-        
-        target_include_directories(dcnn_pipeline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
     endif()
 endif()
 
@@ -104,18 +130,18 @@ add_library(dcnn_instantiations INTERFACE)
 target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_tensor dcnn_matrix dcnn_utils)
 
 add_library(dcnn_lib INTERFACE)
+target_include_directories(dcnn_lib INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
 if(NOT MSVC)
     target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations m pthread)
 else()
     target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations)
 endif()
 
-target_link_libraries(dcnn_lib INTERFACE nlohmann_json::nlohmann_json)
-target_link_libraries(dcnn_lib INTERFACE libzstd_static)
-target_include_directories(dcnn_lib INTERFACE ${asio_SOURCE_DIR}/asio/include)
 target_compile_definitions(dcnn_lib INTERFACE ASIO_STANDALONE)
 
-# Add Windows networking libraries for ASIO support
 if(WIN32)
     target_link_libraries(dcnn_lib INTERFACE ws2_32 wsock32 mswsock)
     if(MINGW)

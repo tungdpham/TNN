@@ -95,11 +95,6 @@ public:
   }
 
   ~DistributedPipelineCoordinator() {
-
-    this->stop();
-
-    this->coordinator_comm_.reset();
-
     work_guard_.reset();
     io_context_.stop();
     if (io_thread_.joinable()) {

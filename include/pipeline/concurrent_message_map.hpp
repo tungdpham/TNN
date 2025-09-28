@@ -14,6 +14,7 @@ namespace tpipeline {
 
 template <typename T = float> class ConcurrentMessageMap {
 private:
+  std::atomic<size_t> total_message_count_{0};
   tbb::concurrent_unordered_map<CommandType, tbb::concurrent_queue<Message<T>>> queues_;
 
 public:
@@ -34,12 +35,18 @@ public:
 
   ~ConcurrentMessageMap() { clear(); }
 
-  void push(CommandType type, const Message<T> &message) { queues_[type].push(message); }
+  void push(CommandType type, const Message<T> &message) {
+    queues_[type].push(message);
+    total_message_count_.fetch_add(1, std::memory_order_relaxed);
+  }
 
   bool pop(CommandType type, Message<T> &message) {
     auto it = queues_.find(type);
     if (it != queues_.end()) {
-      return it->second.try_pop(message);
+      if (it->second.try_pop(message)) {
+        total_message_count_.fetch_sub(1, std::memory_order_relaxed);
+        return true;
+      }
     }
     return false;
   }
@@ -54,14 +61,7 @@ public:
 
   bool empty(CommandType type) const { return size(type) == 0; }
 
-  bool has_any_message() const {
-    for (const auto &pair : queues_) {
-      if (pair.second.unsafe_size() > 0) {
-        return true;
-      }
-    }
-    return false;
-  }
+  bool empty() const { return total_message_count_.load(std::memory_order_relaxed) == 0; }
 
   std::vector<Message<T>> pop_all(CommandType type) {
     std::vector<Message<T>> messages;

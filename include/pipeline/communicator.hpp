@@ -104,54 +104,31 @@ public:
         return message;
       }
     }
-    throw std::runtime_error("No input messages available");
+
+    return Message<T>();
   }
 
-  inline Message<T> dequeue_message_by_type(CommandType target_type) {
+  inline Message<T> dequeue_input_message(CommandType target_type) {
     Message<T> message;
     if (!message_queues_.pop(target_type, message)) {
-      throw std::runtime_error("No message of specified type available");
+      std::cerr << "No messages of type " << static_cast<int>(target_type) << " available"
+                << std::endl;
     }
     return message;
   }
 
   inline std::vector<Message<T>> dequeue_all_messages_by_type(CommandType target_type) {
     std::vector<Message<T>> messages = message_queues_.pop_all(target_type);
-    if (messages.empty()) {
-      throw std::runtime_error("No messages of specified type available");
-    }
     return messages;
   }
 
-  inline size_t forward_message_count() const {
-    return message_count_by_type(CommandType::FORWARD_TASK);
-  }
+  inline size_t empty() const { return message_queues_.empty(); }
 
-  inline size_t backward_message_count() const {
-    return message_count_by_type(CommandType::BACKWARD_TASK);
-  }
-
-  inline size_t params_updated_count() const {
-    return message_count_by_type(CommandType::PARAMETERS_UPDATED);
-  }
-
-  inline size_t message_count_by_type(CommandType target_type) const {
+  inline size_t message_count(CommandType target_type) const {
     return message_queues_.size(target_type);
   }
 
-  inline size_t status_message_count() const {
-    return message_count_by_type(CommandType::STATUS_RESPONSE);
-  }
-
-  inline size_t parameter_update_count() const {
-    return message_count_by_type(CommandType::PARAMETERS_UPDATED);
-  }
-
-  inline bool has_input_message() const { return message_queues_.has_any_message(); }
-
-  inline bool has_message_of_type(CommandType target_type) const {
-    return !message_queues_.empty(target_type);
-  }
+  inline bool has_input_message() const { return !message_queues_.empty(); }
 
   inline bool has_output_message() const {
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);

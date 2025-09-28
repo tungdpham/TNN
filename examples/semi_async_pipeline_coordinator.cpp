@@ -209,7 +209,7 @@ int main() {
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(1);
+    coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
 
     std::vector<tpipeline::Message<float>> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
@@ -241,5 +241,7 @@ int main() {
             << ", Average Validation Accuracy: "
             << (val_accuracy / val_batches / mnist_constants::NUM_MICROBATCHES) * 100.0f << "%"
             << std::endl;
+
+  coordinator.stop();
   return 0;
 }

@@ -160,7 +160,8 @@ int main() {
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(1);
+    // Wait for all forward tasks to complete with a timeout
+    coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
 
     auto forward_end = std::chrono::high_resolution_clock::now();
     auto forward_duration =
@@ -206,7 +207,7 @@ int main() {
       coordinator.backward(task.data, task.micro_batch_id);
     }
 
-    coordinator.join(0);
+    coordinator.join(CommandType::BACKWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
 
     coordinator.dequeue_all_messages(tpipeline::CommandType::BACKWARD_TASK);
 
@@ -262,7 +263,7 @@ int main() {
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(1);
+    coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
 
     std::vector<tpipeline::Message<float>> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);

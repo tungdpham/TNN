@@ -197,29 +197,34 @@ public:
   }
 
   template <typename T> static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
+    return deserialize_message<T>(buffer.data(), buffer.size());
+  }
+
+  // Optimized version that deserializes directly from raw pointer without copying
+  template <typename T> static Message<T> deserialize_message(const uint8_t *data, size_t length) {
     size_t offset = 0;
 
-    uint32_t cmd_type = read_value<uint32_t>(buffer, offset);
+    uint32_t cmd_type = read_value<uint32_t>(data, length, offset);
     CommandType command_type = static_cast<CommandType>(cmd_type);
 
     Message<T> message(command_type);
 
-    message.sequence_number = static_cast<int>(read_value<uint32_t>(buffer, offset));
+    message.sequence_number = static_cast<int>(read_value<uint32_t>(data, length, offset));
 
-    message.sender_id = read_string(buffer, offset);
+    message.sender_id = read_string(data, length, offset);
 
-    message.recipient_id = read_string(buffer, offset);
+    message.recipient_id = read_string(data, length, offset);
 
-    uint8_t flags = read_value<uint8_t>(buffer, offset);
+    uint8_t flags = read_value<uint8_t>(data, length, offset);
 
     if (flags & 0x01) {
-      uint32_t task_size = read_value<uint32_t>(buffer, offset);
-      if (offset + task_size > buffer.size()) {
+      uint32_t task_size = read_value<uint32_t>(data, length, offset);
+      if (offset + task_size > length) {
         throw std::runtime_error("Invalid task data in message buffer");
       }
 
-      std::vector<uint8_t> task_buffer(buffer.begin() + offset,
-                                       buffer.begin() + offset + task_size);
+      // Create a temporary vector for the task buffer since deserialize_task expects it
+      std::vector<uint8_t> task_buffer(data + offset, data + offset + task_size);
       offset += task_size;
 
       size_t task_offset = 0;
@@ -228,23 +233,22 @@ public:
     }
 
     if (flags & 0x02) {
-      std::string text = read_string(buffer, offset);
+      std::string text = read_string(data, length, offset);
       message.payload = text;
     }
 
     if (flags & 0x04) {
-      uint8_t signal_val = read_value<uint8_t>(buffer, offset);
+      uint8_t signal_val = read_value<uint8_t>(data, length, offset);
       message.payload = (signal_val != 0);
     }
 
     if (flags & 0x08) {
-      uint32_t binary_size = read_value<uint32_t>(buffer, offset);
-      if (offset + binary_size > buffer.size()) {
+      uint32_t binary_size = read_value<uint32_t>(data, length, offset);
+      if (offset + binary_size > length) {
         throw std::runtime_error("Invalid binary data in message buffer");
       }
 
-      std::vector<uint8_t> binary_data(buffer.begin() + offset,
-                                       buffer.begin() + offset + binary_size);
+      std::vector<uint8_t> binary_data(data + offset, data + offset + binary_size);
       offset += binary_size;
 
       message.payload = binary_data;
@@ -271,6 +275,18 @@ private:
     return value;
   }
 
+  // Optimized version that reads directly from raw pointer
+  template <typename T> static T read_value(const uint8_t *data, size_t length, size_t &offset) {
+    if (offset + sizeof(T) > length) {
+      throw std::runtime_error("Buffer underrun while reading value");
+    }
+
+    T value;
+    std::memcpy(&value, data + offset, sizeof(T));
+    offset += sizeof(T);
+    return value;
+  }
+
   static void write_string(std::vector<uint8_t> &buffer, const std::string &str) {
     uint32_t length = static_cast<uint32_t>(str.length());
     write_value(buffer, length);
@@ -289,6 +305,19 @@ private:
 
     std::string str(reinterpret_cast<const char *>(buffer.data() + offset), length);
     offset += length;
+    return str;
+  }
+
+  // Optimized version that reads directly from raw pointer
+  static std::string read_string(const uint8_t *data, size_t length, size_t &offset) {
+    uint32_t str_length = read_value<uint32_t>(data, length, offset);
+
+    if (offset + str_length > length) {
+      throw std::runtime_error("Buffer underrun while reading string");
+    }
+
+    std::string str(reinterpret_cast<const char *>(data + offset), str_length);
+    offset += str_length;
     return str;
   }
 };

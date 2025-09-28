@@ -36,7 +36,7 @@ public:
       : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
         should_stop_(true) {}
 
-  virtual ~PipelineStage() {}
+  virtual ~PipelineStage() { stop(); }
 
 protected:
   PipelineStage() : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true) {
@@ -63,8 +63,14 @@ public:
   }
 
   virtual void stop() {
+    std::cout << "Stopping stage " << name_ << std::endl;
+
     should_stop_ = true;
     message_available_cv_.notify_all();
+
+    if (monitoring_thread_.joinable()) {
+      monitoring_thread_.join();
+    }
   }
 
   void message_loop() {

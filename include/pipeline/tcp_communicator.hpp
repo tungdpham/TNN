@@ -6,9 +6,9 @@
  */
 #pragma once
 
+#include "asio.hpp"
 #include "communicator.hpp"
 #include "network_serialization.hpp"
-#include <asio.hpp>
 #include <atomic>
 #include <deque>
 #include <functional>
@@ -292,9 +292,8 @@ private:
   void handle_message(const std::string &connection_id, const std::vector<uint8_t> &buffer,
                       size_t length) {
     try {
-      std::vector<uint8_t> msg_view(buffer.begin(), buffer.begin() + length);
-
-      Message<T> message = BinarySerializer::deserialize_message<T>(msg_view);
+      // No copy! Just pass a pointer to the data in the existing buffer.
+      Message<T> message = BinarySerializer::deserialize_message<T>(buffer.data(), length);
 
       this->enqueue_input_message(message);
 
