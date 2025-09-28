@@ -10,8 +10,8 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
+#include "communicator.hpp"
 #include "old_binary_serializer.hpp"
-#include "pipeline_communicator.hpp"
 #include "pipeline_stage.hpp"
 #include <chrono>
 #include <condition_variable>

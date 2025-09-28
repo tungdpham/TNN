@@ -10,7 +10,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  utils::set_num_threads(8);
+  utils::set_num_threads(4);
 
   int listen_port = std::atoi(argv[1]);
 

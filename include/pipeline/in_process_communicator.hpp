@@ -7,15 +7,12 @@
 
 #pragma once
 
-#include "pipeline_communicator.hpp"
+#include "communicator.hpp"
 
 namespace tpipeline {
-template <typename T>
-class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
+template <typename T> class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
 public:
-  InProcessPipelineCommunicator() : shutdown_flag_(false) {
-    start_delivery_thread();
-  }
+  InProcessPipelineCommunicator() : shutdown_flag_(false) { start_delivery_thread(); }
 
   ~InProcessPipelineCommunicator() {
     shutdown_flag_ = true;
@@ -38,9 +35,8 @@ public:
     delivery_thread_ = std::thread([this]() {
       while (!shutdown_flag_) {
         std::unique_lock<std::mutex> lock(this->out_message_mutex_);
-        outgoing_cv_.wait(lock, [this]() {
-          return !this->out_message_queue_.empty() || shutdown_flag_;
-        });
+        outgoing_cv_.wait(lock,
+                          [this]() { return !this->out_message_queue_.empty() || shutdown_flag_; });
 
         if (shutdown_flag_) {
           break;
@@ -76,9 +72,8 @@ public:
     }
   }
 
-  void
-  register_communicator(const std::string &recipient_id,
-                        std::shared_ptr<PipelineCommunicator<T>> communicator) {
+  void register_communicator(const std::string &recipient_id,
+                             std::shared_ptr<PipelineCommunicator<T>> communicator) {
     std::lock_guard<std::mutex> lock(communicators_mutex_);
     communicators_[recipient_id] = communicator;
   }
@@ -86,8 +81,7 @@ public:
 private:
   std::condition_variable outgoing_cv_;
   std::thread delivery_thread_;
-  std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator<T>>>
-      communicators_;
+  std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator<T>>> communicators_;
   mutable std::mutex communicators_mutex_;
   std::atomic<bool> shutdown_flag_;
 };

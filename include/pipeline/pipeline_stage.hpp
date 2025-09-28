@@ -8,9 +8,9 @@
 
 #include "nn/sequential.hpp"
 
+#include "communicator.hpp"
 #include "load_tracker.hpp"
 #include "old_binary_serializer.hpp"
-#include "pipeline_communicator.hpp"
 #include "task.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>

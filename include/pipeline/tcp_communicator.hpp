@@ -6,17 +6,64 @@
  */
 #pragma once
 
+#include "communicator.hpp"
 #include "network_serialization.hpp"
-#include "pipeline_communicator.hpp"
 #include <asio.hpp>
 #include <atomic>
+#include <deque>
 #include <functional>
 #include <iostream>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <unordered_map>
 
 namespace tpipeline {
+
+class BufferPool {
+public:
+  static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
+  static constexpr size_t MAX_POOL_SIZE = 32;
+
+  std::shared_ptr<std::vector<uint8_t>> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    for (auto it = pool_.begin(); it != pool_.end(); ++it) {
+      if ((*it)->capacity() >= min_size) {
+        auto buffer = *it;
+        pool_.erase(it);
+        buffer->clear();
+        buffer->resize(min_size);
+        return buffer;
+      }
+    }
+
+    auto buffer = std::make_shared<std::vector<uint8_t>>();
+    buffer->resize(min_size);
+    return buffer;
+  }
+
+  void return_buffer(std::shared_ptr<std::vector<uint8_t>> buffer) {
+    if (!buffer)
+      return;
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (pool_.size() < MAX_POOL_SIZE) {
+      buffer->clear();
+      pool_.push_back(buffer);
+    }
+  }
+
+  static BufferPool &instance() {
+    static BufferPool pool;
+    return pool;
+  }
+
+private:
+  std::mutex mutex_;
+  std::deque<std::shared_ptr<std::vector<uint8_t>>> pool_;
+};
 
 template <typename T = float> class TcpPipelineCommunicator : public PipelineCommunicator<T> {
 public:
@@ -26,7 +73,6 @@ public:
         listen_port_(listen_port), local_endpoint_(local_endpoint), is_running_(false) {
 
     if (listen_port > 0) {
-      std::cout << "Initializing TCP communicator on port " << listen_port << std::endl;
       start_server();
     }
   }
@@ -47,8 +93,6 @@ public:
 
     is_running_ = true;
     accept_connections();
-
-    std::cout << "TCP communicator listening on port " << listen_port_ << std::endl;
   }
 
   void stop() {
@@ -72,20 +116,25 @@ public:
   }
 
   void send_message(const Message<T> &message) override {
-    // Perform serialization asynchronously to avoid blocking
-    auto serialized = std::make_shared<std::vector<uint8_t>>();
     try {
-      auto temp_serialized = BinarySerializer::serialize_message(message);
 
-      uint32_t msg_length = static_cast<uint32_t>(temp_serialized.size());
-      serialized->resize(4 + temp_serialized.size());
-      std::memcpy(serialized->data(), &msg_length, 4);
-      std::memcpy(serialized->data() + 4, temp_serialized.data(), temp_serialized.size());
+      auto serialized_payload =
+          std::make_shared<std::vector<uint8_t>>(BinarySerializer::serialize_message(message));
 
-      // Queue the message for asynchronous sending
-      async_send_packet(message.recipient_id, serialized);
+      auto header =
+          std::make_shared<uint32_t>(htonl(static_cast<uint32_t>(serialized_payload->size())));
+
+      std::vector<std::shared_ptr<void>> data_owners;
+      data_owners.push_back(std::static_pointer_cast<void>(header));
+      data_owners.push_back(std::static_pointer_cast<void>(serialized_payload));
+
+      std::vector<asio::const_buffer> buffers;
+      buffers.push_back(asio::buffer(header.get(), sizeof(uint32_t)));
+      buffers.push_back(asio::buffer(serialized_payload->data(), serialized_payload->size()));
+
+      async_send_buffers(message.recipient_id, std::move(buffers), std::move(data_owners));
+
     } catch (const std::exception &e) {
-      std::cout << "Error serializing message: " << e.what() << std::endl;
     }
   }
 
@@ -93,7 +142,6 @@ public:
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
 
     if (this->out_message_queue_.empty()) {
-      std::cout << "Warning: No output messages to flush\n" << std::endl;
       return;
     }
 
@@ -113,6 +161,9 @@ public:
 
       asio::connect(connection->socket, endpoints);
 
+      std::error_code ec;
+      connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
+
       {
         std::lock_guard<std::mutex> lock(connections_mutex_);
         connections_[peer_id] = connection;
@@ -120,11 +171,9 @@ public:
 
       start_read(peer_id, connection);
 
-      std::cout << "Connected to peer " << peer_id << " at " << host << ":" << port << std::endl;
       return true;
 
     } catch (const std::exception &e) {
-      std::cout << "Failed to connect to peer " << peer_id << ": " << e.what() << std::endl;
       return false;
     }
   }
@@ -133,17 +182,32 @@ public:
   std::string get_local_endpoint() const { return local_endpoint_; }
 
 private:
+  struct WriteOperation {
+    std::vector<asio::const_buffer> buffers;
+    std::vector<std::shared_ptr<void>> data_owners;
+
+    WriteOperation(std::vector<asio::const_buffer> bufs, std::vector<std::shared_ptr<void>> owners)
+        : buffers(std::move(bufs)), data_owners(std::move(owners)) {}
+  };
+
   struct Connection {
     asio::ip::tcp::socket socket;
-    std::vector<uint8_t> read_buffer;
+    std::shared_ptr<std::vector<uint8_t>> read_buffer;
     std::mutex write_mutex;
-    std::queue<std::shared_ptr<std::vector<uint8_t>>> write_queue;
+    std::queue<WriteOperation> write_queue;
     std::atomic<bool> writing;
 
     explicit Connection(asio::io_context &io_ctx)
-        : socket(io_ctx), read_buffer(8192), writing(false) {}
+        : socket(io_ctx), read_buffer(BufferPool::instance().get_buffer()), writing(false) {}
     explicit Connection(asio::ip::tcp::socket sock)
-        : socket(std::move(sock)), read_buffer(8192), writing(false) {}
+        : socket(std::move(sock)), read_buffer(BufferPool::instance().get_buffer()),
+          writing(false) {}
+
+    ~Connection() {
+      if (read_buffer) {
+        BufferPool::instance().return_buffer(read_buffer);
+      }
+    }
   };
 
   asio::io_context &io_context_;
@@ -166,6 +230,9 @@ private:
     acceptor_.async_accept(new_connection->socket, [this, new_connection](std::error_code ec) {
       if (!ec && is_running_) {
 
+        std::error_code nodelay_ec;
+        new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+
         auto remote_endpoint = new_connection->socket.remote_endpoint();
         std::string temp_id =
             remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
@@ -176,7 +243,6 @@ private:
         }
 
         start_read(temp_id, new_connection);
-        std::cout << "Accepted connection from " << temp_id << std::endl;
       }
 
       accept_connections();
@@ -188,24 +254,26 @@ private:
       return;
 
     asio::async_read(
-        connection->socket, asio::buffer(connection->read_buffer.data(), 4),
+        connection->socket, asio::buffer(connection->read_buffer->data(), 4),
         [this, connection_id, connection](std::error_code ec, [[maybe_unused]] std::size_t length) {
           if (!ec && is_running_) {
 
             uint32_t msg_length;
-            std::memcpy(&msg_length, connection->read_buffer.data(), 4);
+            std::memcpy(&msg_length, connection->read_buffer->data(), 4);
+            msg_length = ntohl(msg_length);
 
             if (msg_length > 0 && msg_length < 2048 * 2048) {
 
-              if (connection->read_buffer.size() < msg_length) {
-                connection->read_buffer.resize(msg_length);
+              if (connection->read_buffer->size() < msg_length) {
+                BufferPool::instance().return_buffer(connection->read_buffer);
+                connection->read_buffer = BufferPool::instance().get_buffer(msg_length);
               }
 
               asio::async_read(
-                  connection->socket, asio::buffer(connection->read_buffer.data(), msg_length),
+                  connection->socket, asio::buffer(connection->read_buffer->data(), msg_length),
                   [this, connection_id, connection, msg_length](std::error_code ec2, std::size_t) {
                     if (!ec2 && is_running_) {
-                      handle_message(connection_id, connection->read_buffer, msg_length);
+                      handle_message(connection_id, *connection->read_buffer, msg_length);
 
                       start_read(connection_id, connection);
                     } else {
@@ -213,8 +281,6 @@ private:
                     }
                   });
             } else {
-              std::cout << "Invalid message length " << msg_length << " from " << connection_id
-                        << std::endl;
               start_read(connection_id, connection);
             }
           } else {
@@ -226,42 +292,27 @@ private:
   void handle_message(const std::string &connection_id, const std::vector<uint8_t> &buffer,
                       size_t length) {
     try {
-      std::vector<uint8_t> msg_data(buffer.begin(), buffer.begin() + length);
-      Message<T> message = BinarySerializer::deserialize_message<T>(msg_data);
+      std::vector<uint8_t> msg_view(buffer.begin(), buffer.begin() + length);
+
+      Message<T> message = BinarySerializer::deserialize_message<T>(msg_view);
 
       this->enqueue_input_message(message);
 
     } catch (const std::exception &e) {
-      std::cout << "Error deserializing message from " << connection_id << ": " << e.what()
-                << std::endl;
     }
   }
 
   void handle_connection_error(const std::string &connection_id, std::error_code ec) {
-    if (ec) {
-      if (ec == asio::error::eof) {
-        std::cout << "Connection closed by peer: " << connection_id << std::endl;
-      } else if (ec == asio::error::connection_reset) {
-        std::cout << "Connection reset by peer: " << connection_id << std::endl;
-      } else if (ec == asio::error::operation_aborted) {
-        std::cout << "Connection operation aborted: " << connection_id << std::endl;
-      } else if (ec == asio::error::connection_refused) {
-        std::cout << "Connection refused by peer: " << connection_id << std::endl;
-      } else {
-        std::cout << "Connection error with " << connection_id << ": " << ec.message() << std::endl;
-      }
-    }
-
     std::lock_guard<std::mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
         it->second->socket.close();
       }
-      // Clear any pending writes
+
       {
         std::lock_guard<std::mutex> write_lock(it->second->write_mutex);
-        std::queue<std::shared_ptr<std::vector<uint8_t>>> empty;
+        std::queue<WriteOperation> empty;
         it->second->write_queue.swap(empty);
         it->second->writing = false;
       }
@@ -269,34 +320,32 @@ private:
     }
   }
 
-  void async_send_packet(const std::string &recipient_id,
-                         std::shared_ptr<std::vector<uint8_t>> packet) {
+  void async_send_buffers(const std::string &recipient_id, std::vector<asio::const_buffer> buffers,
+                          std::vector<std::shared_ptr<void>> data_owners) {
     std::shared_ptr<Connection> connection;
 
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
       auto it = connections_.find(recipient_id);
       if (it == connections_.end()) {
-        std::cout << "No connection found for recipient " << recipient_id << std::endl;
         return;
       }
       connection = it->second;
     }
 
-    // Queue the message for writing
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
-      connection->write_queue.push(packet);
+      connection->write_queue.emplace(std::move(buffers), std::move(data_owners));
     }
 
-    // Start async writing if not already writing
     if (!connection->writing.exchange(true)) {
       start_async_write(recipient_id, connection);
     }
   }
 
   void start_async_write(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    std::shared_ptr<std::vector<uint8_t>> packet;
+    WriteOperation write_op(std::vector<asio::const_buffer>{},
+                            std::vector<std::shared_ptr<void>>{});
 
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
@@ -304,28 +353,23 @@ private:
         connection->writing = false;
         return;
       }
-      packet = connection->write_queue.front();
+      write_op = std::move(connection->write_queue.front());
       connection->write_queue.pop();
     }
 
-    asio::async_write(connection->socket, asio::buffer(*packet),
-                      [this, connection_id, connection, packet](std::error_code ec, std::size_t) {
+    auto write_op_ptr = std::make_shared<WriteOperation>(std::move(write_op));
+
+    asio::async_write(connection->socket, write_op_ptr->buffers,
+                      [this, connection_id, connection, write_op_ptr](std::error_code ec,
+                                                                      std::size_t bytes_written) {
                         if (ec) {
-                          std::cout << "Error sending message to " << connection_id << ": "
-                                    << ec.message() << std::endl;
                           handle_connection_error(connection_id, ec);
                           connection->writing = false;
                           return;
                         }
 
-                        // Continue with next message if available
                         start_async_write(connection_id, connection);
                       });
-  }
-
-  void send_packet(const std::string &recipient_id, const std::vector<uint8_t> &packet) {
-    auto packet_ptr = std::make_shared<std::vector<uint8_t>>(packet);
-    async_send_packet(recipient_id, packet_ptr);
   }
 };
 

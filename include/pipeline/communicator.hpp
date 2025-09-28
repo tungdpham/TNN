@@ -25,10 +25,14 @@
 #include <vector>
 
 namespace tpipeline {
+/**
+ * @brief Abstract base class for pipeline communication
+ * Defines the interface for sending and receiving messages
+ * between different stages in a distributed pipeline.
+ */
 template <typename T = float> class PipelineCommunicator {
 private:
-  std::vector<CommandType> all_command_types_ =
-      utils::get_enum_vector<CommandType>();
+  std::vector<CommandType> all_command_types_ = utils::get_enum_vector<CommandType>();
 
 public:
   PipelineCommunicator() = default;
@@ -51,8 +55,7 @@ public:
 
   virtual void flush_output_messages() = 0;
 
-  virtual void register_recipient(const std::string &recipient_id,
-                                  const StageEndpoint &endpoint) {
+  virtual void register_recipient(const std::string &recipient_id, const StageEndpoint &endpoint) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     recipients_[recipient_id] = endpoint;
   }
@@ -112,8 +115,7 @@ public:
     return message;
   }
 
-  inline std::vector<Message<T>>
-  dequeue_all_messages_by_type(CommandType target_type) {
+  inline std::vector<Message<T>> dequeue_all_messages_by_type(CommandType target_type) {
     std::vector<Message<T>> messages = message_queues_.pop_all(target_type);
     if (messages.empty()) {
       throw std::runtime_error("No messages of specified type available");
@@ -145,9 +147,7 @@ public:
     return message_count_by_type(CommandType::PARAMETERS_UPDATED);
   }
 
-  inline bool has_input_message() const {
-    return message_queues_.has_any_message();
-  }
+  inline bool has_input_message() const { return message_queues_.has_any_message(); }
 
   inline bool has_message_of_type(CommandType target_type) const {
     return !message_queues_.empty(target_type);
@@ -158,8 +158,7 @@ public:
     return !this->out_message_queue_.empty();
   }
 
-  inline void
-  set_message_notification_callback(std::function<void()> callback) {
+  inline void set_message_notification_callback(std::function<void()> callback) {
     message_notification_callback_ = callback;
   }
 
