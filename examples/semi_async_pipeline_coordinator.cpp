@@ -85,16 +85,16 @@ int main() {
 
   std::cout << "Using coordinator host: " << coordinator_host << std::endl;
 
-  std::cout << "\nConfigured " << endpoints.size() << " remote endpoints:" << std::endl;
+  std::cout << "Configured " << endpoints.size() << " remote endpoints:" << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port << std::endl;
   }
 
-  std::cout << "\nCreating distributed coordinator..." << std::endl;
+  std::cout << "Creating distributed coordinator..." << std::endl;
   DistributedPipelineCoordinator<float> coordinator(
       std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
-  std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
+  std::cout << "Deploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
   }

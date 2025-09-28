@@ -88,7 +88,14 @@ private:
     if (ptr == nullptr) {
       throw std::bad_alloc();
     }
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__APPLE__)
+    // Use C11 aligned_alloc when available (excluding macOS for compatibility)
+    ptr = aligned_alloc(alignment, aligned_size);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
 #else
+    // Fall back to POSIX memalign
     if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
       throw std::bad_alloc();
     }
@@ -606,49 +613,6 @@ public:
 
   Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
                    size_t pad_h = 0, size_t pad_w = 0) const {
-    static_assert(dims_ == 4, "im2col is only supported for 4D tensors (NCHW/NHWC)");
-
-    const Tensor<T, L> *input_ptr = this;
-    std::unique_ptr<Tensor<T, L>> padded_input_storage;
-
-    if (pad_h > 0 || pad_w > 0) {
-      padded_input_storage = std::make_unique<Tensor<T, L>>(pad(pad_h, pad_w));
-      input_ptr = padded_input_storage.get();
-    }
-    const Tensor<T, L> &input_tensor = *input_ptr;
-
-    const size_t in_h = input_tensor.height();
-    const size_t in_w = input_tensor.width();
-    const size_t out_h = (in_h - kernel_h) / stride_h + 1;
-    const size_t out_w = (in_w - kernel_w) / stride_w + 1;
-    const size_t channels = input_tensor.channels();
-    const size_t batch_size = input_tensor.batch_size();
-
-    size_t col_height = channels * kernel_h * kernel_w;
-    size_t col_width = batch_size * out_h * out_w;
-    Matrix<T> col_matrix(col_height, col_width);
-
-    utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-      for (size_t kh = 0; kh < kernel_h; ++kh) {
-        for (size_t kw = 0; kw < kernel_w; ++kw) {
-          size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-          for (size_t out_h_idx = 0; out_h_idx < out_h; ++out_h_idx) {
-            for (size_t out_w_idx = 0; out_w_idx < out_w; ++out_w_idx) {
-              size_t in_h_idx = out_h_idx * stride_h + kh;
-              size_t in_w_idx = out_w_idx * stride_w + kw;
-              size_t col_col_idx = (n * out_h + out_h_idx) * out_w + out_w_idx;
-
-              col_matrix(col_row_idx, col_col_idx) = input_tensor(n, c, in_h_idx, in_w_idx);
-            }
-          }
-        }
-      }
-    });
-    return col_matrix;
-  }
-
-  Matrix<T> im2col_optimized(size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
-                             size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) const {
     static_assert(dims_ == 4, "im2col is only supported for 4D tensors (NCHW)");
 
     const Tensor<T, L> *input_ptr = this;
@@ -698,44 +662,6 @@ public:
   static Tensor<T, L> col2im(const Matrix<T> &col_matrix, size_t batch_size, size_t channels,
                              size_t height, size_t width, size_t kernel_h, size_t kernel_w,
                              size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
-    size_t padded_h = height + 2 * pad_h;
-    size_t padded_w = width + 2 * pad_w;
-    size_t output_h = (height + 2 * pad_h - kernel_h) / stride_h + 1;
-    size_t output_w = (width + 2 * pad_w - kernel_w) / stride_w + 1;
-
-    Tensor<T, L> result_padded(batch_size, channels, padded_h, padded_w);
-
-    utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-      size_t base_col_row_idx = c * kernel_h * kernel_w;
-      size_t base_col_col_idx = n * output_h * output_w;
-      for (size_t kh = 0; kh < kernel_h; ++kh) {
-        for (size_t kw = 0; kw < kernel_w; ++kw) {
-          size_t col_row_idx = base_col_row_idx + kh * kernel_w + kw;
-          for (size_t h_out = 0; h_out < output_h; ++h_out) {
-            for (size_t w_out = 0; w_out < output_w; ++w_out) {
-              size_t col_col_idx = base_col_col_idx + h_out * output_w + w_out;
-
-              size_t h_dest = h_out * stride_h + kh;
-              size_t w_dest = w_out * stride_w + kw;
-
-              result_padded(n, c, h_dest, w_dest) += col_matrix(col_row_idx, col_col_idx);
-            }
-          }
-        }
-      }
-    });
-
-    if (pad_h > 0 || pad_w > 0) {
-      return result_padded.unpad(pad_h, pad_w);
-    } else {
-      return result_padded;
-    }
-  }
-
-  static Tensor<T, L> col2im_optimized(const Matrix<T> &col_matrix, size_t batch_size,
-                                       size_t channels, size_t height, size_t width,
-                                       size_t kernel_h, size_t kernel_w, size_t stride_h,
-                                       size_t stride_w, size_t pad_h, size_t pad_w) {
     size_t padded_h = height + 2 * pad_h;
     size_t padded_w = width + 2 * pad_w;
     size_t output_h = (padded_h - kernel_h) / stride_h + 1;

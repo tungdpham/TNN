@@ -79,13 +79,9 @@ int main() {
 
     model.enable_profiling(true);
 
-    std::cout << "\nModel Architecture Summary:" << std::endl;
-
     train_classification_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
                                mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
                                mnist_constants::PROGRESS_PRINT_INTERVAL);
-
-    std::cout << "\nOptimized MNIST CNN model training completed successfully!" << std::endl;
 
     try {
       model.save_to_file("model_snapshots/mnist_cnn_model");

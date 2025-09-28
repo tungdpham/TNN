@@ -62,8 +62,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  Matrix<T> col_matrix =
-      input.im2col_optimized(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
   Tensor<T> output(batch_size, out_channels_, output_h, output_w, nullptr);
 
@@ -149,8 +148,8 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
                           kernel_size, out_channels_);
 
   Tensor<T> grad_input =
-      Tensor<T>::col2im_optimized(col_grad_matrix, batch_size, in_channels_, input_h, input_w,
-                                  kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+      Tensor<T>::col2im(col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
+                        kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
   free(gradient_flat);
   return grad_input;
