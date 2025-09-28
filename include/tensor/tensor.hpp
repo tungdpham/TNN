@@ -114,6 +114,7 @@ private:
   }
 
 public:
+  // Constructors and Destructor
   Tensor() : data_(nullptr), data_size_(0) { data_ = allocate_aligned(0); }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
@@ -124,7 +125,8 @@ public:
     std::fill(data_, data_ + data_size_, T(0));
   }
 
-  Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T *data) {
+  Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T *data)
+      : data_(nullptr) {
     static_assert(dims_ == 4, "This constructor is only for 4D tensors");
     layout_trait_.assign_shape(batch_size, channels, height, width);
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
@@ -168,6 +170,7 @@ public:
     other.data_size_ = 0;
   }
 
+  // Operators
   Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
 
   Tensor<T, L> &operator=(Tensor<T, L> &&other) noexcept {
@@ -192,6 +195,123 @@ public:
   template <typename... Indices> const T &operator()(Indices... indices) const {
     static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
     return data_[compute_index(indices...)];
+  }
+
+  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
+    for (size_t i = 0; i < dims_; ++i) {
+      if (shape_[i] != other.shape_[i]) {
+        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
+        throw std::invalid_argument("Tensor shapes must match for addition");
+      }
+    }
+
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+
+    for (size_t idx = 0; idx < data_size_; ++idx)
+      result.data_[idx] = data_[idx] + other.data_[idx];
+
+    return result;
+  }
+
+  Tensor<T, L> operator-(const Tensor<T, L> &other) const {
+    for (size_t i = 0; i < dims_; ++i) {
+      if (shape_[i] != other.shape_[i]) {
+        throw std::invalid_argument("Tensor shapes must match for subtraction");
+      }
+    }
+
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+
+    for (size_t idx = 0; idx < data_size_; ++idx) {
+      result.data_[idx] = data_[idx] - other.data_[idx];
+    }
+
+    return result;
+  }
+
+  Tensor<T, L> operator*(T scalar) const {
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+    for (size_t i = 0; i < data_size_; ++i) {
+      result.data_[i] = data_[i] * scalar;
+    }
+    return result;
+  }
+
+  Tensor<T, L> operator/(T scalar) const {
+    if (scalar == T(0)) {
+      throw std::invalid_argument("Division by zero");
+    }
+
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+    for (size_t i = 0; i < data_size_; ++i) {
+      result.data_[i] = data_[i] / scalar;
+    }
+    return result;
+  }
+
+  Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
+    for (size_t i = 0; i < dims_; ++i) {
+      if (shape_[i] != other.shape_[i]) {
+        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
+        throw std::invalid_argument("Tensor shapes must match for addition");
+      }
+    }
+
+    for (size_t idx = 0; idx < data_size_; ++idx) {
+      data_[idx] += other.data_[idx];
+    }
+
+    return *this;
+  }
+
+  Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
+    for (size_t i = 0; i < dims_; ++i) {
+      if (shape_[i] != other.shape_[i]) {
+        throw std::invalid_argument("Tensor shapes must match for subtraction");
+      }
+    }
+
+    for (size_t idx = 0; idx < data_size_; ++idx) {
+      data_[idx] -= other.data_[idx];
+    }
+
+    return *this;
+  }
+
+  Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
+    for (size_t i = 0; i < dims_; ++i) {
+      if (shape_[i] != other.shape_[i]) {
+        throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
+      }
+    }
+
+    for (size_t idx = 0; idx < data_size_; ++idx) {
+      data_[idx] *= other.data_[idx];
+    }
+
+    return *this;
+  }
+
+  Tensor<T, L> &operator*=(T scalar) {
+    for (size_t i = 0; i < data_size_; ++i) {
+      data_[i] *= scalar;
+    }
+    return *this;
+  }
+
+  Tensor<T, L> &operator/=(T scalar) {
+    if (scalar == T(0)) {
+      throw std::invalid_argument("Division by zero");
+    }
+
+    for (size_t i = 0; i < data_size_; ++i) {
+      data_[i] /= scalar;
+    }
+    return *this;
   }
 
   std::vector<size_t> shape() const { return std::vector<size_t>(shape_, shape_ + dims_); }
@@ -431,123 +551,6 @@ public:
     }
   }
 
-  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
-        throw std::invalid_argument("Tensor shapes must match for addition");
-      }
-    }
-
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
-
-    for (size_t idx = 0; idx < data_size_; ++idx)
-      result.data_[idx] = data_[idx] + other.data_[idx];
-
-    return result;
-  }
-
-  Tensor<T, L> operator-(const Tensor<T, L> &other) const {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for subtraction");
-      }
-    }
-
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
-
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      result.data_[idx] = data_[idx] - other.data_[idx];
-    }
-
-    return result;
-  }
-
-  Tensor<T, L> operator*(T scalar) const {
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
-    for (size_t i = 0; i < data_size_; ++i) {
-      result.data_[i] = data_[i] * scalar;
-    }
-    return result;
-  }
-
-  Tensor<T, L> operator/(T scalar) const {
-    if (scalar == T(0)) {
-      throw std::invalid_argument("Division by zero");
-    }
-
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
-    for (size_t i = 0; i < data_size_; ++i) {
-      result.data_[i] = data_[i] / scalar;
-    }
-    return result;
-  }
-
-  Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
-        throw std::invalid_argument("Tensor shapes must match for addition");
-      }
-    }
-
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] += other.data_[idx];
-    }
-
-    return *this;
-  }
-
-  Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for subtraction");
-      }
-    }
-
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] -= other.data_[idx];
-    }
-
-    return *this;
-  }
-
-  Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
-      }
-    }
-
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] *= other.data_[idx];
-    }
-
-    return *this;
-  }
-
-  Tensor<T, L> &operator*=(T scalar) {
-    for (size_t i = 0; i < data_size_; ++i) {
-      data_[i] *= scalar;
-    }
-    return *this;
-  }
-
-  Tensor<T, L> &operator/=(T scalar) {
-    if (scalar == T(0)) {
-      throw std::invalid_argument("Division by zero");
-    }
-
-    for (size_t i = 0; i < data_size_; ++i) {
-      data_[i] /= scalar;
-    }
-    return *this;
-  }
-
   T mean() const {
     T sum = T(0);
     for (size_t i = 0; i < data_size_; ++i) {
@@ -611,6 +614,16 @@ public:
     return splits;
   }
 
+  /**
+   * @brief Convert a 4D image tensor to a column matrix for convolution.
+   * @param kernel_h Height of the convolution kernel.
+   * @param kernel_w Width of the convolution kernel.
+   * @param stride_h Vertical stride of the convolution.
+   * @param stride_w Horizontal stride of the convolution.
+   * @param pad_h Vertical padding to be applied to the input tensor.
+   * @param pad_w Horizontal padding to be applied to the input tensor.
+   * @return A 2D matrix where each column corresponds to a flattened receptive field.
+   */
   Matrix<T> im2col(size_t kernel_h, size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
                    size_t pad_h = 0, size_t pad_w = 0) const {
     static_assert(dims_ == 4, "im2col is only supported for 4D tensors (NCHW)");
@@ -659,6 +672,21 @@ public:
     return col_matrix;
   }
 
+  /**
+   * @brief Convert a column matrix back to the original image tensor.
+   * @param col_matrix The input column matrix.
+   * @param batch_size Number of images in the batch.
+   * @param channels Number of channels in the images.
+   * @param height Height of the original images.
+   * @param width Width of the original images.
+   * @param kernel_h Height of the convolution kernel.
+   * @param kernel_w Width of the convolution kernel.
+   * @param stride_h Vertical stride of the convolution.
+   * @param stride_w Horizontal stride of the convolution.
+   * @param pad_h Vertical padding applied to the original images.
+   * @param pad_w Horizontal padding applied to the original images.
+   * @return The reconstructed image tensor.
+   */
   static Tensor<T, L> col2im(const Matrix<T> &col_matrix, size_t batch_size, size_t channels,
                              size_t height, size_t width, size_t kernel_h, size_t kernel_w,
                              size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
