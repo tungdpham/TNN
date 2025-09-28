@@ -11,7 +11,7 @@
 #include "data_loading/mnist_data_loader.hpp"
 
 void run_test() {
-  // Load the trained model
+
   tnn::Sequential<float> model;
   try {
     model = tnn::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
@@ -22,10 +22,9 @@ void run_test() {
   }
 
   model.print_config();
-  // Set the model to evaluation mode
+
   model.set_training(false);
 
-  // Load the test data
   data_loading::MNISTDataLoader<float> loader;
   if (!loader.load_data("data/mnist/test.csv")) {
     return;

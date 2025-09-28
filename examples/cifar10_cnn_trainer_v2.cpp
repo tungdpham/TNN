@@ -23,7 +23,7 @@ constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
 constexpr int EPOCHS = 40;
 constexpr size_t BATCH_SIZE = 32;
-constexpr int LR_DECAY_INTERVAL = 5;
+constexpr int LR_DECAY_INTERVAL = 3;
 constexpr float LR_DECAY_FACTOR = 0.85f;
 constexpr float LR_INITIAL = 0.001f;
 } // namespace cifar10_constants
@@ -54,26 +54,54 @@ int main() {
               << std::endl;
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
+    std::cout << "\nConfiguring data augmentation for training..." << std::endl;
+    train_loader.set_augmentation_enabled(true);
+
+    train_loader.enable_horizontal_flip(0.5f);
+    train_loader.enable_rotation(0.4f, 10.0f);
+    train_loader.enable_brightness_contrast(0.3f, 0.15f, 0.15f);
+    train_loader.enable_random_crop(0.6f, 4);
+    train_loader.enable_noise(0.2f, 0.03f);
+
+    train_loader.print_augmentation_config();
+
+    test_loader.set_augmentation_enabled(false);
+
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
     auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
                      .input({3, 32, 32})
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv0")
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv1")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
+                     .conv2d(64, 3, 3, 1, 1, 1, 1, "linear", true, "conv0")
+                     .batchnorm(1e-5f, 0.1f, true, "bn0")
+                     .activation("relu", "relu0")
+                     .conv2d(64, 3, 3, 1, 1, 1, 1, "linear", true, "conv1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, "relu", true, "conv2")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, "relu", true, "conv3")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
+                     .activation("relu", "relu1")
+                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
+                     .conv2d(128, 3, 3, 1, 1, 1, 1, "linear", true, "conv2")
                      .batchnorm(1e-5f, 0.1f, true, "bn2")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv4")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv5")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, "relu", true, "conv6")
+                     .activation("relu", "relu2")
+                     .conv2d(128, 3, 3, 1, 1, 1, 1, "linear", true, "conv3")
+                     .batchnorm(1e-5f, 0.1f, true, "bn3")
+                     .activation("relu", "relu3")
+                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
+                     .batchnorm(1e-5f, 0.1f, true, "bn4")
+                     .activation("relu", "relu4")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "linear", true, "conv4")
+                     .batchnorm(1e-5f, 0.1f, true, "bn5")
+                     .activation("relu", "relu5")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "linear", true, "conv5")
+                     .batchnorm(1e-5f, 0.1f, true, "bn6")
+                     .activation("relu", "relu6")
+                     .conv2d(256, 3, 3, 1, 1, 1, 1, "linear", true, "conv6")
+                     .batchnorm(1e-5f, 0.1f, true, "bn6")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .batchnorm(1e-5f, 0.1f, true, "bn3")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv7")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv8")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, "relu", true, "conv9")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "linear", true, "conv7")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "linear", true, "conv8")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, "linear", true, "conv9")
+                     .batchnorm(1e-5f, 0.1f, true, "bn4")
+                     .activation("relu", "relu4")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
                      .batchnorm(1e-5f, 0.1f, true, "bn4")
                      .flatten("flatten")

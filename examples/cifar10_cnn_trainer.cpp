@@ -55,6 +55,19 @@ int main() {
               << std::endl;
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
+    std::cout << "\nConfiguring data augmentation for training..." << std::endl;
+    train_loader.set_augmentation_enabled(true);
+
+    train_loader.enable_horizontal_flip(0.5f);
+    train_loader.enable_rotation(0.4f, 10.0f);
+    train_loader.enable_brightness_contrast(0.3f, 0.15f, 0.15f);
+    train_loader.enable_random_crop(0.6f, 4);
+    train_loader.enable_noise(0.2f, 0.03f);
+
+    train_loader.print_augmentation_config();
+
+    test_loader.set_augmentation_enabled(false);
+
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
     auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")

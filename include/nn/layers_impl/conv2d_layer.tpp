@@ -162,10 +162,17 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
   T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
   utils::transpose_2d(col_data, col_data_transposed, kernel_size, output_size);
   // transpose and do inner product because yes
-  utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
-    output_data[oc * output_size + os] = utils::simd_dot_product(
-        &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
-  });
+  if (kernel_size % 4 == 0) {
+    utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
+      output_data[oc * output_size + os] = utils::simd_dot_product_aligned(
+          &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
+    });
+  } else {
+    utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
+      output_data[oc * output_size + os] = utils::simd_dot_product(
+          &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
+    });
+  }
   free(col_data_transposed);
 }
 
@@ -175,10 +182,17 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
   // no need for transpose since we are summing over output size
-  utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
-    weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product(
-        &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
-  });
+  if (output_size % 4 == 0) {
+    utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
+      weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product_aligned(
+          &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
+    });
+  } else {
+    utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
+      weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product(
+          &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
+    });
+  }
 }
 
 template <typename T>
@@ -192,11 +206,19 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
   T *weights_transposed = (T *)malloc(sizeof(T) * kernel_size * out_channels);
   utils::transpose_2d(weight_data, weights_transposed, out_channels, kernel_size);
 
-  utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
-    col_grad_data[ks * output_size + os] =
-        utils::simd_dot_product(&weights_transposed[ks * out_channels],
-                                &gradient_transposed[os * out_channels], out_channels);
-  });
+  if (kernel_size % 4 == 0) {
+    utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
+      col_grad_data[ks * output_size + os] =
+          utils::simd_dot_product(&weights_transposed[ks * out_channels],
+                                  &gradient_transposed[os * out_channels], out_channels);
+    });
+  } else {
+    utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
+      col_grad_data[ks * output_size + os] =
+          utils::simd_dot_product(&weights_transposed[ks * out_channels],
+                                  &gradient_transposed[os * out_channels], out_channels);
+    });
+  }
 
   free(gradient_transposed);
   free(weights_transposed);
@@ -227,16 +249,11 @@ template <typename T>
 void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
                                         const size_t output_h, const size_t output_w,
                                         const size_t out_channels) const {
-  const size_t N_stride = out_channels * output_h * output_w;
-  const size_t C_stride = output_h * output_w;
-  const size_t H_stride = output_w;
-  const size_t W_stride = 1;
-
   utils::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
-    T bias_val = bias_data[oc];
     for (size_t oh = 0; oh < output_h; ++oh) {
       for (size_t ow = 0; ow < output_w; ++ow) {
-        output_data[n * N_stride + oc * C_stride + oh * H_stride + ow * W_stride] += bias_val;
+        output_data[(n * out_channels + oc) * output_h * output_w + oh * output_w + ow] +=
+            bias_data[oc];
       }
     }
   });

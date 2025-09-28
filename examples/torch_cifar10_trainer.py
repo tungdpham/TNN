@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-import torchvision.transforms as transforms
 import numpy as np
 import time
 import os
@@ -14,76 +13,81 @@ from typing import Tuple, List
 class CIFAR10Constants:
     IMAGE_HEIGHT = 32
     IMAGE_WIDTH = 32
+    IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH * 3
     NUM_CLASSES = 10
     NUM_CHANNELS = 3
+    NORMALIZATION_FACTOR = 255.0
+    RECORD_SIZE = 1 + IMAGE_SIZE
     EPSILON = 1e-15
-    PROGRESS_PRINT_INTERVAL = 50
-    EPOCHS = 20
+    PROGRESS_PRINT_INTERVAL = 100
+    EPOCHS = 40
     BATCH_SIZE = 32
-    LR_DECAY_INTERVAL = 10
+    LR_DECAY_INTERVAL = 5
     LR_DECAY_FACTOR = 0.85
-    LR_INITIAL = 0.005
+    LR_INITIAL = 0.001
 
 class CIFAR10Dataset(Dataset):
     """Custom CIFAR-10 Dataset to load from binary files (matching C++ data loader)"""
     
     def __init__(self, file_paths: List[str], transform=None):
-        self.images = []
+        self.data = []
         self.labels = []
         self.transform = transform
+        self.class_names = [
+            "airplane", "automobile", "bird", "cat", "deer",
+            "dog", "frog", "horse", "ship", "truck"
+        ]
         
+        # Load data from binary files
         for file_path in file_paths:
-            self._load_batch_file(file_path)
+            self._load_binary_file(file_path)
         
         # Convert to numpy arrays
-        self.images = np.array(self.images, dtype=np.float32)
+        self.data = np.array(self.data, dtype=np.float32)
         self.labels = np.array(self.labels, dtype=np.int64)
         
         # Normalize to [0, 1] range (matching C++ normalization)
-        self.images = self.images / 255.0
+        self.data = self.data / CIFAR10Constants.NORMALIZATION_FACTOR
         
-        print(f"Loaded {len(self.images)} samples from {len(file_paths)} file(s)")
+        print(f"Loaded {len(self.data)} CIFAR-10 samples from {len(file_paths)} files")
         
-    def _load_batch_file(self, file_path: str):
-        """Load a single CIFAR-10 batch file"""
+    def _load_binary_file(self, file_path: str):
+        """Load CIFAR-10 binary file format"""
         try:
             with open(file_path, 'rb') as f:
                 while True:
-                    # Read label (1 byte)
-                    label_data = f.read(1)
-                    if not label_data:
-                        break
-                    label = struct.unpack('B', label_data)[0]
-                    
-                    # Read image data (3072 bytes = 32*32*3)
-                    image_data = f.read(3072)
-                    if len(image_data) != 3072:
+                    # Read one record (1 byte label + 3072 bytes image data)
+                    record = f.read(CIFAR10Constants.RECORD_SIZE)
+                    if len(record) != CIFAR10Constants.RECORD_SIZE:
                         break
                     
-                    # Convert to numpy array and reshape
-                    image = np.frombuffer(image_data, dtype=np.uint8)
-                    # CIFAR-10 format: R channel, G channel, B channel (each 32x32)
-                    image = image.reshape(3, 32, 32)
-                    # Convert to HWC format (Height, Width, Channels)
-                    image = np.transpose(image, (1, 2, 0))
+                    # First byte is the label
+                    label = record[0]
                     
-                    self.images.append(image)
+                    # Remaining 3072 bytes are the image data (32x32x3)
+                    # Data format: R channel (1024 bytes), G channel (1024 bytes), B channel (1024 bytes)
+                    image_data = np.frombuffer(record[1:], dtype=np.uint8)
+                    
+                    # Reshape to (3, 32, 32) - channels first format
+                    image = image_data.reshape(3, 32, 32)
+                    
+                    self.data.append(image)
                     self.labels.append(label)
                     
         except FileNotFoundError:
-            print(f"Warning: Could not find file {file_path}")
+            raise FileNotFoundError(f"CIFAR-10 binary file not found: {file_path}")
         except Exception as e:
-            print(f"Error loading {file_path}: {e}")
+            raise RuntimeError(f"Error loading CIFAR-10 binary file {file_path}: {e}")
     
     def __len__(self):
-        return len(self.images)
+        return len(self.data)
     
     def __getitem__(self, idx):
-        image = self.images[idx]
+        image = self.data[idx]
         label = self.labels[idx]
         
-        # Convert to tensor and change from HWC to CHW format
-        image = torch.tensor(image).permute(2, 0, 1)  # Shape: (3, 32, 32)
+        # Convert to tensor (already in channels-first format)
+        image = torch.tensor(image, dtype=torch.float32)
         label = torch.tensor(label, dtype=torch.long)
         
         if self.transform:
@@ -99,28 +103,44 @@ class OptimizedCIFAR10CNN(nn.Module):
         
         # Architecture matching C++ model:
         # .input({3, 32, 32})
-        # .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
-        # .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-        # .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
-        # .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
-        # .flatten("flatten")
-        # .dense(10, "linear", true, "fc1")
+        # .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv0")
+        # .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv1")
+        # .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
+        # .batchnorm(1e-5f, 0.1f, true, "bn1")
+        # ... and so on
         
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=1, padding=0, bias=True)
-        self.maxpool1 = nn.MaxPool2d(kernel_size=3, stride=3, padding=0)
+        # Block 1: 64 channels
+        self.conv0 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv1 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
+        self.pool0 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.bn1 = nn.BatchNorm2d(64, eps=1e-5, momentum=0.1)
         
-        self.conv2 = nn.Conv2d(16, 64, kernel_size=3, stride=1, padding=0, bias=True)
-        self.maxpool2 = nn.MaxPool2d(kernel_size=4, stride=4, padding=0)
+        # Block 2: 128 channels
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=True)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.bn2 = nn.BatchNorm2d(128, eps=1e-5, momentum=0.1)
         
-        # Calculate the flattened size after convolutions and pooling
-        # Input: 32x32
-        # After conv1 (3x3, no padding): 30x30
-        # After maxpool1 (3x3, stride 3): 10x10
-        # After conv2 (3x3, no padding): 8x8
-        # After maxpool2 (4x4, stride 4): 2x2
-        # So flattened size = 64 * 2 * 2 = 256
+        # Block 3: 256 channels
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv6 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.bn3 = nn.BatchNorm2d(256, eps=1e-5, momentum=0.1)
         
-        self.fc1 = nn.Linear(64 * 2 * 2, CIFAR10Constants.NUM_CLASSES, bias=True)
+        # Block 4: 512 channels
+        self.conv7 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv8 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
+        self.conv9 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
+        self.bn4 = nn.BatchNorm2d(512, eps=1e-5, momentum=0.1)
+        
+        # Fully connected layers
+        # After 4 pooling operations: 32 -> 16 -> 8 -> 4 -> 2
+        # So flattened size = 512 * 2 * 2 = 2048
+        self.fc0 = nn.Linear(512 * 2 * 2, 512, bias=True)
+        self.bn5 = nn.BatchNorm1d(512, eps=1e-5, momentum=0.1)
+        self.fc1 = nn.Linear(512, CIFAR10Constants.NUM_CLASSES, bias=True)
         
         # Profiling setup
         self.enable_profiling = enable_profiling
@@ -134,54 +154,144 @@ class OptimizedCIFAR10CNN(nn.Module):
             return self._forward_normal(x)
     
     def _forward_normal(self, x):
-        # Conv1 + ReLU
+        # Block 1
+        x = F.relu(self.conv0(x))
         x = F.relu(self.conv1(x))
-        x = self.maxpool1(x)
+        x = self.pool0(x)
+        x = self.bn1(x)
         
-        # Conv2 + ReLU
+        # Block 2
         x = F.relu(self.conv2(x))
-        x = self.maxpool2(x)
+        x = F.relu(self.conv3(x))
+        x = self.pool1(x)
+        x = self.bn2(x)
+        
+        # Block 3
+        x = F.relu(self.conv4(x))
+        x = F.relu(self.conv5(x))
+        x = F.relu(self.conv6(x))
+        x = self.pool2(x)
+        x = self.bn3(x)
+        
+        # Block 4
+        x = F.relu(self.conv7(x))
+        x = F.relu(self.conv8(x))
+        x = F.relu(self.conv9(x))
+        x = self.pool3(x)
+        x = self.bn4(x)
         
         # Flatten
         x = x.view(x.size(0), -1)
         
-        # Output layer (linear activation)
+        # Fully connected layers
+        x = self.fc0(x)
+        x = self.bn5(x)
+        x = F.relu(x)
         x = self.fc1(x)
         
         return x
     
     def _forward_with_profiling(self, x):
+        """Forward pass with layer-wise timing using high-precision perf_counter()"""
         layer_times = {}
         
-        # Conv1 + ReLU
-        start_time = time.time()
+        # Block 1
+        start_time = time.perf_counter()
+        x = F.relu(self.conv0(x))
+        layer_times['conv0'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
         x = F.relu(self.conv1(x))
-        layer_times['conv1'] = (time.time() - start_time) * 1000  # Convert to ms
+        layer_times['conv1'] = (time.perf_counter() - start_time) * 1000
         
-        # MaxPool1
-        start_time = time.time()
-        x = self.maxpool1(x)
-        layer_times['maxpool1'] = (time.time() - start_time) * 1000
+        start_time = time.perf_counter()
+        x = self.pool0(x)
+        layer_times['pool0'] = (time.perf_counter() - start_time) * 1000
         
-        # Conv2 + ReLU
-        start_time = time.time()
+        start_time = time.perf_counter()
+        x = self.bn1(x)
+        layer_times['bn1'] = (time.perf_counter() - start_time) * 1000
+        
+        # Block 2
+        start_time = time.perf_counter()
         x = F.relu(self.conv2(x))
-        layer_times['conv2'] = (time.time() - start_time) * 1000
+        layer_times['conv2'] = (time.perf_counter() - start_time) * 1000
         
-        # MaxPool2
-        start_time = time.time()
-        x = self.maxpool2(x)
-        layer_times['maxpool2'] = (time.time() - start_time) * 1000
+        start_time = time.perf_counter()
+        x = F.relu(self.conv3(x))
+        layer_times['conv3'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.pool1(x)
+        layer_times['pool1'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.bn2(x)
+        layer_times['bn2'] = (time.perf_counter() - start_time) * 1000
+        
+        # Block 3
+        start_time = time.perf_counter()
+        x = F.relu(self.conv4(x))
+        layer_times['conv4'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = F.relu(self.conv5(x))
+        layer_times['conv5'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = F.relu(self.conv6(x))
+        layer_times['conv6'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.pool2(x)
+        layer_times['pool2'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.bn3(x)
+        layer_times['bn3'] = (time.perf_counter() - start_time) * 1000
+        
+        # Block 4
+        start_time = time.perf_counter()
+        x = F.relu(self.conv7(x))
+        layer_times['conv7'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = F.relu(self.conv8(x))
+        layer_times['conv8'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = F.relu(self.conv9(x))
+        layer_times['conv9'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.pool3(x)
+        layer_times['pool3'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.bn4(x)
+        layer_times['bn4'] = (time.perf_counter() - start_time) * 1000
         
         # Flatten
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = x.view(x.size(0), -1)
-        layer_times['flatten'] = (time.time() - start_time) * 1000
+        layer_times['flatten'] = (time.perf_counter() - start_time) * 1000
         
-        # Output layer (linear activation)
-        start_time = time.time()
+        # Fully connected layers
+        start_time = time.perf_counter()
+        x = self.fc0(x)
+        layer_times['fc0'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.bn5(x)
+        layer_times['bn5'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = F.relu(x)
+        layer_times['relu3'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
         x = self.fc1(x)
-        layer_times['fc1'] = (time.time() - start_time) * 1000
+        layer_times['fc1'] = (time.perf_counter() - start_time) * 1000
         
         # Accumulate timing statistics
         for layer_name, layer_time in layer_times.items():
@@ -204,7 +314,13 @@ class OptimizedCIFAR10CNN(nn.Module):
         print("-" * 60)
         
         total_time = 0.0
-        for layer_name in ['conv1', 'maxpool1', 'conv2', 'maxpool2', 'flatten', 'fc1']:
+        layer_order = ['conv0', 'conv1', 'pool0', 'bn1', 
+                      'conv2', 'conv3', 'pool1', 'bn2',
+                      'conv4', 'conv5', 'conv6', 'pool2', 'bn3',
+                      'conv7', 'conv8', 'conv9', 'pool3', 'bn4',
+                      'flatten', 'fc0', 'bn5', 'relu3', 'fc1']
+        
+        for layer_name in layer_order:
             if layer_name in self.layer_times:
                 times = self.layer_times[layer_name]
                 avg_time = sum(times) / len(times)
@@ -215,11 +331,6 @@ class OptimizedCIFAR10CNN(nn.Module):
         print(f"{'TOTAL':<15} {total_time:<15.3f} {total_time:<15.3f}")
         print("=" * 60)
     
-    def reset_profiling_stats(self):
-        """Reset profiling statistics"""
-        self.layer_times = {}
-        self.profile_count = 0
-
 def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Optimizer, 
                 criterion: nn.Module, device: torch.device, epoch: int) -> Tuple[float, float]:
     """Train model for one epoch"""
@@ -228,7 +339,7 @@ def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Opt
     correct = 0
     total = 0
     
-    start_time = time.time()
+    start_time = time.perf_counter()
     
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -252,9 +363,8 @@ def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Opt
             # Print performance profile if profiling is enabled
             if hasattr(model, 'enable_profiling') and model.enable_profiling:
                 model.print_performance_profile()
-                model.reset_profiling_stats()  # Reset for next interval
     
-    epoch_time = time.time() - start_time
+    epoch_time = time.perf_counter() - start_time
     avg_loss = running_loss / len(train_loader)
     accuracy = 100. * correct / total
     
@@ -331,6 +441,119 @@ def save_model(model: nn.Module, filepath: str):
 
 def main():
     print("PyTorch CIFAR-10 CNN Trainer (CPU Only)")
+    print("=" * 50)
+    
+    # Force CPU usage for fair comparison with C++ implementation
+    device = torch.device('gpu')
+    print(f"Using device: {device}")
+    
+    # Set number of threads for CPU computation (matching C++ OpenMP threads)
+    torch.set_num_threads(8)
+    print(f"PyTorch CPU threads: {torch.get_num_threads()}")
+    
+    if torch.cuda.is_available():
+        print(f"Note: GPU available but using CPU for fair comparison with C++ implementation")
+    
+    # Load datasets
+    print("\nLoading CIFAR-10 data...")
+    
+    # Training data (data_batch_1.bin to data_batch_5.bin)
+    train_files = []
+    for i in range(1, 6):
+        train_files.append(f'./data/cifar-10-batches-bin/data_batch_{i}.bin')
+    
+    # Test data
+    test_files = ['./data/cifar-10-batches-bin/test_batch.bin']
+    
+    train_dataset = CIFAR10Dataset(train_files)
+    test_dataset = CIFAR10Dataset(test_files)
+    
+    print(f"Successfully loaded training data: {len(train_dataset)} samples")
+    print(f"Successfully loaded test data: {len(test_dataset)} samples")
+    
+    # Create data loaders
+    train_loader = DataLoader(
+        train_dataset, 
+        batch_size=CIFAR10Constants.BATCH_SIZE, 
+        shuffle=True, 
+        num_workers=0,  # Keep at 0 for CPU-only consistent performance
+        pin_memory=False  # No GPU, so no need for pinned memory
+    )
+    
+    test_loader = DataLoader(
+        test_dataset, 
+        batch_size=CIFAR10Constants.BATCH_SIZE, 
+        shuffle=False,
+        num_workers=0,  # Keep at 0 for CPU-only consistent performance
+        pin_memory=False  # No GPU, so no need for pinned memory
+    )
+    
+    # Create model
+    print("\nBuilding CNN model architecture for CIFAR-10...")
+    model = OptimizedCIFAR10CNN(enable_profiling=True).to(device)  # Enable profiling
+    
+    # Print model summary
+    print_model_summary(model, (CIFAR10Constants.BATCH_SIZE, 3, 
+                               CIFAR10Constants.IMAGE_HEIGHT, CIFAR10Constants.IMAGE_WIDTH))
+    
+    # Create optimizer (Adam to match C++ implementation)
+    optimizer = optim.Adam(model.parameters(), lr=CIFAR10Constants.LR_INITIAL, 
+                          betas=(0.9, 0.999), eps=1e-8)
+    
+    # Create loss function (CrossEntropy with epsilon matching C++ implementation)
+    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)  # No smoothing initially
+    
+    # Learning rate scheduler
+    scheduler = optim.lr_scheduler.StepLR(optimizer, 
+                                         step_size=CIFAR10Constants.LR_DECAY_INTERVAL, 
+                                         gamma=CIFAR10Constants.LR_DECAY_FACTOR)
+    
+    print(f"\nStarting CIFAR-10 CNN training for {CIFAR10Constants.EPOCHS} epochs...")
+    print(f"Batch size: {CIFAR10Constants.BATCH_SIZE}")
+    print(f"Initial learning rate: {CIFAR10Constants.LR_INITIAL}")
+    print(f"LR decay factor: {CIFAR10Constants.LR_DECAY_FACTOR} every {CIFAR10Constants.LR_DECAY_INTERVAL} epochs")
+    
+    # Training loop
+    training_start_time = time.perf_counter()
+    best_test_accuracy = 0.0
+    
+    for epoch in range(1, CIFAR10Constants.EPOCHS + 1):
+        print(f"\nEpoch {epoch}/{CIFAR10Constants.EPOCHS}")
+        print("-" * 30)
+        
+        # Train for one epoch
+        train_loss, train_accuracy = train_epoch(model, train_loader, optimizer, criterion, device, epoch)
+        
+        # Evaluate on test set
+        test_loss, test_accuracy = evaluate_model(model, test_loader, criterion, device)
+        
+        # Update learning rate
+        scheduler.step()
+        current_lr = optimizer.param_groups[0]['lr']
+        print(f"Learning rate updated to: {current_lr:.6f}")
+        
+        # Track best test accuracy
+        if test_accuracy > best_test_accuracy:
+            best_test_accuracy = test_accuracy
+            print(f"New best test accuracy: {best_test_accuracy:.2f}%")
+    
+    total_training_time = time.perf_counter() - training_start_time
+    
+    print("\n" + "="*60)
+    print("CIFAR-10 CNN Tensor<float> model training completed successfully!")
+    print(f"Total training time: {total_training_time:.2f} seconds")
+    print(f"Best test accuracy: {best_test_accuracy:.2f}%")
+    print("="*60)
+    
+    # Save the model
+    try:
+        os.makedirs('./model_snapshots', exist_ok=True)
+        save_model(model, './model_snapshots/pytorch_cifar10_cnn_model.pth')
+    except Exception as e:
+        print(f"Warning: Failed to save model: {e}")
+
+if __name__ == "__main__":
+    main()
     print("=" * 50)
     
     # Force CPU usage for fair comparison with C++ implementation

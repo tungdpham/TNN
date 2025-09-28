@@ -131,42 +131,43 @@ class OptimizedMNISTCNN(nn.Module):
         return x
     
     def _forward_with_profiling(self, x):
+        """Forward pass with layer-wise timing using high-precision perf_counter()"""
         layer_times = {}
         
         # Conv1 + ELU
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = F.relu(self.conv1(x))
-        layer_times['conv1'] = (time.time() - start_time) * 1000  # Convert to ms
+        layer_times['conv1'] = (time.perf_counter() - start_time) * 1000  # Convert to ms
         
         # Pool1
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = self.pool1(x)
-        layer_times['pool1'] = (time.time() - start_time) * 1000
+        layer_times['pool1'] = (time.perf_counter() - start_time) * 1000
         
         # Conv2 1x1 + ELU
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = F.relu(self.conv2_1x1(x))
-        layer_times['conv2_1x1'] = (time.time() - start_time) * 1000
+        layer_times['conv2_1x1'] = (time.perf_counter() - start_time) * 1000
         
         # Conv3 + ELU
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = F.relu(self.conv3(x))
-        layer_times['conv3'] = (time.time() - start_time) * 1000
+        layer_times['conv3'] = (time.perf_counter() - start_time) * 1000
         
         # Pool2
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = self.pool2(x)
-        layer_times['pool2'] = (time.time() - start_time) * 1000
+        layer_times['pool2'] = (time.perf_counter() - start_time) * 1000
         
         # Flatten
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = x.view(x.size(0), -1)
-        layer_times['flatten'] = (time.time() - start_time) * 1000
+        layer_times['flatten'] = (time.perf_counter() - start_time) * 1000
         
         # Output layer (linear activation)
-        start_time = time.time()
+        start_time = time.perf_counter()
         x = self.fc(x)
-        layer_times['output'] = (time.time() - start_time) * 1000
+        layer_times['output'] = (time.perf_counter() - start_time) * 1000
         
         # Accumulate timing statistics
         for layer_name, layer_time in layer_times.items():
@@ -213,7 +214,7 @@ def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Opt
     correct = 0
     total = 0
     
-    start_time = time.time()
+    start_time = time.perf_counter()
     
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
@@ -239,7 +240,7 @@ def train_epoch(model: nn.Module, train_loader: DataLoader, optimizer: optim.Opt
                 model.print_performance_profile()
                 model.reset_profiling_stats()  # Reset for next interval
     
-    epoch_time = time.time() - start_time
+    epoch_time = time.perf_counter() - start_time
     avg_loss = running_loss / len(train_loader)
     accuracy = 100. * correct / total
     
@@ -380,7 +381,7 @@ def main():
     print(f"LR decay factor: {MNISTConstants.LR_DECAY_FACTOR} every {MNISTConstants.LR_DECAY_INTERVAL} epochs")
     
     # Training loop
-    training_start_time = time.time()
+    training_start_time = time.perf_counter()
     best_test_accuracy = 0.0
     
     for epoch in range(1, MNISTConstants.EPOCHS + 1):
@@ -403,7 +404,7 @@ def main():
             best_test_accuracy = test_accuracy
             print(f"New best test accuracy: {best_test_accuracy:.2f}%")
     
-    total_training_time = time.time() - training_start_time
+    total_training_time = time.perf_counter() - training_start_time
     
     print("\n" + "="*60)
     print("Training completed!")
