@@ -25,10 +25,15 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
         target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm)
         set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm PROPERTY LANGUAGE ASM_NASM)
+        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S PROPERTY LANGUAGE ASM_NASM)
         message(STATUS "Using NASM assembly optimizations")
     elseif(NOT WIN32 OR NOT MSVC)
-        target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S)
+        target_sources(dcnn_utils PRIVATE 
+            ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S
+            ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S
+        )
         set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S PROPERTY LANGUAGE ASM)
+        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S PROPERTY LANGUAGE ASM)
         message(STATUS "Using GNU assembly optimizations")
     else()
         message(STATUS "Assembly optimizations disabled")

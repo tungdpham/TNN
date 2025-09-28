@@ -62,14 +62,15 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  Matrix<T> col_matrix = input.im2col(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  Matrix<T> col_matrix =
+      input.im2col_optimized(kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
   Tensor<T> output(batch_size, out_channels_, output_h, output_w, nullptr);
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  T *output_flat = (T *)malloc(sizeof(T) * out_channels_ * output_size);
+  T *output_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
                        out_channels_);
 
@@ -130,7 +131,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  T *gradient_flat = (T *)malloc(sizeof(T) * out_channels_ * output_size);
+  T *gradient_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
 
   utils::nchw_to_cnhw(current_grad.data(), gradient_flat, batch_size, out_channels_, output_h,
                       output_w);
@@ -148,8 +149,8 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
                           kernel_size, out_channels_);
 
   Tensor<T> grad_input =
-      Tensor<T>::col2im(col_grad_matrix, batch_size, in_channels_, input_h, input_w, kernel_h_,
-                        kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+      Tensor<T>::col2im_optimized(col_grad_matrix, batch_size, in_channels_, input_h, input_w,
+                                  kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
   free(gradient_flat);
   return grad_input;
@@ -159,7 +160,7 @@ template <typename T>
 void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                                           const size_t output_size, const size_t kernel_size,
                                           const size_t out_channels) const {
-  T *col_data_transposed = (T *)malloc(sizeof(T) * kernel_size * output_size);
+  T *col_data_transposed = (T *)aligned_alloc(32, sizeof(T) * kernel_size * output_size);
   utils::transpose_2d(col_data, col_data_transposed, kernel_size, output_size);
   // transpose and do inner product because yes
   if (kernel_size % 4 == 0) {
@@ -200,17 +201,17 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
                                              T *col_grad_data, const size_t output_size,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
-  T *gradient_transposed = (T *)malloc(sizeof(T) * output_size * out_channels);
+  T *gradient_transposed = (T *)aligned_alloc(32, sizeof(T) * output_size * out_channels);
   utils::transpose_2d(gradient_data, gradient_transposed, out_channels, output_size);
 
-  T *weights_transposed = (T *)malloc(sizeof(T) * kernel_size * out_channels);
+  T *weights_transposed = (T *)aligned_alloc(32, sizeof(T) * kernel_size * out_channels);
   utils::transpose_2d(weight_data, weights_transposed, out_channels, kernel_size);
 
   if (kernel_size % 4 == 0) {
     utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
       col_grad_data[ks * output_size + os] =
-          utils::simd_dot_product(&weights_transposed[ks * out_channels],
-                                  &gradient_transposed[os * out_channels], out_channels);
+          utils::simd_dot_product_aligned(&weights_transposed[ks * out_channels],
+                                          &gradient_transposed[os * out_channels], out_channels);
     });
   } else {
     utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {

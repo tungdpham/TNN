@@ -10,8 +10,9 @@
 extern "C" {
 #endif
 
-float simd_dot_product_asm(const float *weights, const float *col_data,
-                           size_t kernel_size);
+float simd_dot_product_asm(const float *weights, const float *col_data, size_t kernel_size);
+
+float simd_dot_product_asm_aligned(const float *weights, const float *col_data, size_t kernel_size);
 
 #ifdef __cplusplus
 }

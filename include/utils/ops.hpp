@@ -205,7 +205,7 @@ inline T simd_dot_product_aligned(const T *weights, const T *col_data, size_t ke
   if constexpr (std::is_same_v<T, float>) {
 #if defined(__x86_64__) || defined(_M_X64)
 
-    return simd_dot_product_asm(weights, col_data, kernel_size);
+    return simd_dot_product_asm_aligned(weights, col_data, kernel_size);
 #elif defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
 
     __m256 sum_vec = _mm256_setzero_ps();
