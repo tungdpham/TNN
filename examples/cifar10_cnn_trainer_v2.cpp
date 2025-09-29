@@ -5,7 +5,6 @@
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/misc.hpp"
 #include "utils/ops.hpp"
 
 #include <algorithm>
@@ -30,8 +29,6 @@ constexpr float LR_INITIAL = 0.001f;
 
 int main() {
   try {
-    utils::set_num_threads(8);
-
     std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 

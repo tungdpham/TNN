@@ -160,9 +160,9 @@ endif()
 
 if(ENABLE_TBB)
     foreach(lib ${INSTANTIATION_LIBS})
-        target_link_libraries(${lib} PUBLIC TBB::tbb)
+        target_link_libraries(${lib} PUBLIC TBB::tbb TBB::tbbmalloc)
     endforeach()
-    target_link_libraries(dcnn_lib INTERFACE TBB::tbb)
+    target_link_libraries(dcnn_lib INTERFACE TBB::tbb TBB::tbbmalloc)
 endif()
 
 if(ENABLE_CUDA)

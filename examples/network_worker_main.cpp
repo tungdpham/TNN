@@ -1,5 +1,4 @@
 #include "pipeline/network_stage_worker.hpp"
-#include "utils/misc.hpp"
 #include <cstdlib>
 #include <iostream>
 
@@ -9,8 +8,6 @@ int main(int argc, char *argv[]) {
     std::cerr << "Example: " << argv[0] << " 8001" << std::endl;
     return 1;
   }
-
-  utils::set_num_threads(4);
 
   int listen_port = std::atoi(argv[1]);
 

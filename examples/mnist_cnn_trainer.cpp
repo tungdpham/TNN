@@ -26,7 +26,7 @@ namespace mnist_constants {
 
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 3;
+constexpr int EPOCHS = 10;
 constexpr size_t BATCH_SIZE = 64;
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
@@ -39,7 +39,6 @@ int main() {
   std::cin.tie(nullptr);
   std::ios::sync_with_stdio(false);
   try {
-    utils::set_num_threads(8);
 
     data_loading::MNISTDataLoader<float> train_loader, test_loader;
 

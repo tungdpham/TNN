@@ -441,9 +441,6 @@ int main() {
     std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
     std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;
     std::cout << std::string(70, '=') << std::endl;
-
-    utils::set_num_threads(8);
-
     bool is_regression = true;
     WiFiDataLoader train_loader(is_regression), test_loader(is_regression);
 

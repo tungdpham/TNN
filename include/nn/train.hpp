@@ -8,6 +8,18 @@
 
 #include "data_loading/data_loader.hpp"
 #include "nn/sequential.hpp"
+#include "utils/memory.hpp"
+#ifdef USE_TBB
+#include <tbb/scalable_allocator.h>
+#include <tbb/task_arena.h>
+#endif
+
+#ifdef USE_TBB
+void tbb_cleanup() {
+  // Clean all buffers
+  scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
+}
+#endif
 
 void train_classification_model(tnn::Sequential<float> &model,
                                 data_loading::ImageClassificationDataLoader<float> &train_loader,
@@ -27,97 +39,115 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   model.print_summary({batch_size, image_shape[0], image_shape[1], image_shape[2]});
 
-  for (int epoch = 0; epoch < epochs; ++epoch) {
-    auto epoch_start = std::chrono::high_resolution_clock::now();
+#ifdef USE_TBB
+  tbb::task_arena arena(8);
+  arena.execute([&] {
+#endif
+    for (int epoch = 0; epoch < epochs; ++epoch) {
+      auto epoch_start = std::chrono::high_resolution_clock::now();
 
-    model.set_training(true);
-    train_loader.shuffle();
-    train_loader.reset();
+      model.set_training(true);
+      train_loader.shuffle();
+      train_loader.reset();
 
-    double total_loss = 0.0;
-    double total_accuracy = 0.0;
-    int num_batches = 0;
-    std::cout << "Epoch " << epoch + 1 << "/" << epochs << std::endl;
+      double total_loss = 0.0;
+      double total_accuracy = 0.0;
+      int num_batches = 0;
+      std::cout << "Epoch " << epoch + 1 << "/" << epochs << std::endl;
 
-    while (train_loader.get_next_batch(batch_data, batch_labels)) {
-      ++num_batches;
+      while (train_loader.get_next_batch(batch_data, batch_labels)) {
+        ++num_batches;
 
-      predictions = model.forward(batch_data);
-      utils::apply_softmax<float>(predictions);
+        predictions = model.forward(batch_data);
+        utils::apply_softmax<float>(predictions);
 
-      const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
-      const float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
+        const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
+        const float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
 
-      total_loss += loss;
-      total_accuracy += accuracy;
+        total_loss += loss;
+        total_accuracy += accuracy;
 
-      const Tensor<float> loss_gradient =
-          model.loss_function()->compute_gradient(predictions, batch_labels);
-      model.backward(loss_gradient);
+        const Tensor<float> loss_gradient =
+            model.loss_function()->compute_gradient(predictions, batch_labels);
+        model.backward(loss_gradient);
 
-      model.update_parameters();
+        model.update_parameters();
 
-      if (num_batches % progress_print_interval == 0) {
-        if (model.is_profiling_enabled()) {
-          model.print_profiling_summary();
+        if (num_batches % progress_print_interval == 0) {
+          if (model.is_profiling_enabled()) {
+            model.print_profiling_summary();
+          }
+          std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
+                    << std::setprecision(4) << loss
+                    << ", Batch's Accuracy: " << std::setprecision(2) << accuracy * 100.0f << "%"
+                    << std::endl;
         }
-        std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
-                  << std::setprecision(4) << loss << ", Batch's Accuracy: " << std::setprecision(2)
-                  << accuracy * 100.0f << "%" << std::endl;
+        if (model.is_profiling_enabled()) {
+          model.clear_profiling_data();
+        }
       }
+      std::cout << std::endl;
+
+      const float avg_train_loss = static_cast<float>(total_loss / num_batches);
+      const float avg_train_accuracy = static_cast<float>(total_accuracy / num_batches);
+
+      auto epoch_end = std::chrono::high_resolution_clock::now();
+      auto epoch_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
+
+      model.set_training(false);
+      test_loader.reset();
+
+      std::cout << "Starting validation..." << std::endl;
+      double val_loss = 0.0;
+      double val_accuracy = 0.0;
+      int val_batches = 0;
+
+      while (test_loader.get_next_batch(batch_data, batch_labels)) {
+        predictions = model.forward(batch_data);
+        utils::apply_softmax<float>(predictions);
+
+        val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
+        val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
+        ++val_batches;
+      }
+
+      const float avg_val_loss = static_cast<float>(val_loss / val_batches);
+      const float avg_val_accuracy = static_cast<float>(val_accuracy / val_batches);
+
+      std::cout << std::string(60, '-') << std::endl;
+      std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
+                << epoch_duration.count() << "ms" << std::endl;
+      std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4) << avg_train_loss
+                << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
+                << std::endl;
+      std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4) << avg_val_loss
+                << ", Accuracy: " << std::setprecision(2) << avg_val_accuracy * 100.0f << "%"
+                << std::endl;
+      std::cout << std::string(60, '=') << std::endl;
+
       if (model.is_profiling_enabled()) {
         model.clear_profiling_data();
       }
-    }
-    std::cout << std::endl;
+      if ((epoch + 1) % progress_print_interval == 0) {
+        const float current_lr = model.optimizer()->get_learning_rate();
+        const float new_lr = current_lr * lr_decay_factor;
+        model.optimizer()->set_learning_rate(new_lr);
+        std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
+                  << " → " << new_lr << std::endl;
+      }
 
-    const float avg_train_loss = static_cast<float>(total_loss / num_batches);
-    const float avg_train_accuracy = static_cast<float>(total_accuracy / num_batches);
+      if ((epoch + 1) % 5 == 0) {
+        tbb_cleanup();
+      }
 
-    auto epoch_end = std::chrono::high_resolution_clock::now();
-    auto epoch_duration =
-        std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
-
-    model.set_training(false);
-    test_loader.reset();
-
-    std::cout << "Starting validation..." << std::endl;
-    double val_loss = 0.0;
-    double val_accuracy = 0.0;
-    int val_batches = 0;
-
-    while (test_loader.get_next_batch(batch_data, batch_labels)) {
-      predictions = model.forward(batch_data);
-      utils::apply_softmax<float>(predictions);
-
-      val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
-      val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
-      ++val_batches;
+      std::cout << utils::get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
+      if (utils::get_memory_usage_kb() > 1024 * 1024 * 2) { // 2 GB
+        std::cout << "Warning: High memory usage detected." << std::endl;
+      }
     }
 
-    const float avg_val_loss = static_cast<float>(val_loss / val_batches);
-    const float avg_val_accuracy = static_cast<float>(val_accuracy / val_batches);
-
-    std::cout << std::string(60, '-') << std::endl;
-    std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
-              << epoch_duration.count() << "ms" << std::endl;
-    std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4) << avg_train_loss
-              << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
-              << std::endl;
-    std::cout << "Validation - Loss: " << std::fixed << std::setprecision(4) << avg_val_loss
-              << ", Accuracy: " << std::setprecision(2) << avg_val_accuracy * 100.0f << "%"
-              << std::endl;
-    std::cout << std::string(60, '=') << std::endl;
-
-    if (model.is_profiling_enabled()) {
-      model.clear_profiling_data();
-    }
-    if ((epoch + 1) % progress_print_interval == 0) {
-      const float current_lr = model.optimizer()->get_learning_rate();
-      const float new_lr = current_lr * lr_decay_factor;
-      model.optimizer()->set_learning_rate(new_lr);
-      std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
-                << " → " << new_lr << std::endl;
-    }
-  }
+#ifdef USE_TBB
+  });
+#endif
 }

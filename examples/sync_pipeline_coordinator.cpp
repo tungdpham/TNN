@@ -67,7 +67,6 @@ std::string get_host(const std::string &env_var, const std::string &default_host
 }
 
 int main() {
-  utils::set_num_threads(1);
 
   auto model = create_demo_model();
 
