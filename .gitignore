@@ -73,9 +73,6 @@ install_manifest.txt
 *.data
 *.data.old
 
-# snapshots
-/model_snapshots/*
-
 # packages
 /.venv/
 /third_party/
