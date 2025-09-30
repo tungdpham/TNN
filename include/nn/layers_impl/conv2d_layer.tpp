@@ -83,9 +83,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     add_bias_to_output(output.data(), bias_.data(), batch_size, output_h, output_w, out_channels_);
   }
 
-  micro_batch_pre_activations_[micro_batch_id] = output.clone();
-
   if (activation_) {
+    micro_batch_pre_activations_[micro_batch_id] = output.clone();
     activation_->apply(output);
   }
 
@@ -95,7 +94,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
 template <typename T>
 Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   auto it_input_shape = micro_batch_input_shapes_.find(micro_batch_id);
-  auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
   auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
 
   if (it_input_shape == micro_batch_input_shapes_.end()) {
@@ -105,10 +103,6 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
 
   if (it_im2col == micro_batch_im2col_matrices_.end()) {
     throw std::runtime_error("No cached im2col matrix found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
-  }
-  if (activation_ && it_pre_act == micro_batch_pre_activations_.end()) {
-    throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
 
@@ -124,6 +118,11 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   Tensor<T> current_grad = gradient.clone();
 
   if (activation_) {
+    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
+    if (it_pre_act == micro_batch_pre_activations_.end()) {
+      throw std::runtime_error("No cached pre-activation values found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
     activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
   }
 

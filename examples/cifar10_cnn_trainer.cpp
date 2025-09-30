@@ -67,7 +67,7 @@ int main() {
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
-    auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
+    auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                      .input({3, 32, 32})
                      .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
@@ -86,18 +86,12 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader, cifar10_constants::EPOCHS,
-                               cifar10_constants::BATCH_SIZE, cifar10_constants::LR_DECAY_FACTOR,
-                               cifar10_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(model, train_loader, test_loader,
+                               {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
+                                cifar10_constants::LR_DECAY_FACTOR,
+                                cifar10_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
-
-    try {
-      model.save_to_file("model_snapshots/cifar10_cnn_model");
-      std::cout << "Model saved to: model_snapshots/cifar10_cnn_model" << std::endl;
-    } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
-    }
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
     return -1;

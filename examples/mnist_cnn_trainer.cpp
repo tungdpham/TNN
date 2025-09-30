@@ -78,17 +78,10 @@ int main() {
 
     model.enable_profiling(true);
 
-    train_classification_model(model, train_loader, test_loader, mnist_constants::EPOCHS,
-                               mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
-                               mnist_constants::PROGRESS_PRINT_INTERVAL);
-
-    try {
-      model.save_to_file("model_snapshots/mnist_cnn_model");
-      std::cout << "Model saved to: model_snapshots/mnist_cnn_model" << std::endl;
-    } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
-    }
-
+    train_classification_model(model, train_loader, test_loader,
+                               {mnist_constants::EPOCHS, mnist_constants::BATCH_SIZE,
+                                mnist_constants::LR_DECAY_FACTOR,
+                                mnist_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
   } catch (const std::exception &e) {
     std::cerr << "Error during training: " << e.what() << std::endl;
     return -1;

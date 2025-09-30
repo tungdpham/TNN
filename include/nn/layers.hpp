@@ -19,8 +19,7 @@
 namespace tnn {
 
 template <typename T>
-std::unique_ptr<ActivationFunction<T>>
-create_activation(const std::string &name) {
+std::unique_ptr<ActivationFunction<T>> create_activation(const std::string &name) {
   ActivationFactory<T>::register_defaults();
   return ActivationFactory<T>::create(name);
 }
@@ -52,36 +51,33 @@ namespace tnn {
 
 template <typename T = float>
 std::unique_ptr<Layer<T>> dense(size_t input_features, size_t output_features,
-                                const std::string &activation = "none",
-                                bool use_bias = true,
+                                const std::string &activation = "none", bool use_bias = true,
                                 const std::string &name = "dense") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
-  if (activation != "none") {
+  if (activation != "none" && activation != "linear") {
     auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
 
-  return std::make_unique<DenseLayer<T>>(input_features, output_features,
-                                         std::move(act), use_bias, name);
+  return std::make_unique<DenseLayer<T>>(input_features, output_features, std::move(act), use_bias,
+                                         name);
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>>
-conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
-       size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-       size_t pad_h = 0, size_t pad_w = 0,
-       const std::string &activation = "none", bool use_bias = true,
-       const std::string &name = "conv2d") {
+std::unique_ptr<Layer<T>> conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
+                                 size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
+                                 size_t pad_h = 0, size_t pad_w = 0,
+                                 const std::string &activation = "none", bool use_bias = true,
+                                 const std::string &name = "conv2d") {
   std::unique_ptr<ActivationFunction<T>> act = nullptr;
-  if (activation != "none") {
+  if (activation != "none" && activation != "linear") {
     auto factory = ActivationFactory<T>();
     factory.register_defaults();
     act = factory.create(activation);
   }
-  return std::make_unique<Conv2DLayer<T>>(
-      in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h,
-      pad_w, use_bias, std::move(act), name);
+  return std::make_unique<Conv2DLayer<T>>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+                                          stride_w, pad_h, pad_w, use_bias, std::move(act), name);
 }
 
 template <typename T = float>
@@ -94,26 +90,22 @@ std::unique_ptr<Layer<T>> activation(const std::string &activation_name,
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> maxpool2d(size_t pool_h, size_t pool_w,
-                                    size_t stride_h = 0, size_t stride_w = 0,
-                                    size_t pad_h = 0, size_t pad_w = 0,
+std::unique_ptr<Layer<T>> maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
+                                    size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                                     const std::string &name = "maxpool2d") {
-  return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w,
-                                             pad_h, pad_w, name);
+  return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                             name);
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> dropout(T dropout_rate,
-                                  const std::string &name = "dropout") {
+std::unique_ptr<Layer<T>> dropout(T dropout_rate, const std::string &name = "dropout") {
   return std::make_unique<DropoutLayer<T>>(dropout_rate, name);
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> batchnorm(size_t num_features, T epsilon = T(1e-5),
-                                    T momentum = T(0.1), bool affine = true,
-                                    const std::string &name = "batchnorm") {
-  return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum,
-                                             affine, name);
+std::unique_ptr<Layer<T>> batchnorm(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
+                                    bool affine = true, const std::string &name = "batchnorm") {
+  return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine, name);
 }
 
 template <typename T = float>

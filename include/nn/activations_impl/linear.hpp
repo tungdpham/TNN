@@ -33,21 +33,10 @@ public:
 
   Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
                              const Tensor<T> *upstream_gradient = nullptr) const override {
-    Tensor<T> gradient;
-    if (upstream_gradient != nullptr) {
-      if (upstream_gradient->shape() != pre_activation_values.shape()) {
-        std::cerr << "Upstream gradient shape: " << upstream_gradient->shape_str()
-                  << " Pre activation shape: " << pre_activation_values.shape_str() << std::endl;
-        throw std::invalid_argument("Upstream gradient must have the same "
-                                    "shape as pre-activation values");
-      }
-      gradient = upstream_gradient->clone();
-    } else {
-      gradient = Tensor<T>(pre_activation_values.shape());
-      gradient.fill(T(1));
+    if (upstream_gradient == nullptr) {
+      throw std::runtime_error("Upstream gradient must be provided for Linear activation");
     }
-    compute_gradient_inplace(pre_activation_values, gradient);
-    return gradient;
+    return upstream_gradient->clone();
   }
 
   void compute_gradient_inplace(const Tensor<T> &pre_activation_values,

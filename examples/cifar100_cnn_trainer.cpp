@@ -76,9 +76,10 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader, cifar100_constants::EPOCHS,
-                               cifar100_constants::BATCH_SIZE, cifar100_constants::LR_DECAY_FACTOR,
-                               cifar100_constants::PROGRESS_PRINT_INTERVAL);
+    train_classification_model(model, train_loader, test_loader,
+                               {cifar100_constants::EPOCHS, cifar100_constants::BATCH_SIZE,
+                                cifar100_constants::LR_DECAY_FACTOR,
+                                cifar100_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
 
     std::cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
                  "successfully!"

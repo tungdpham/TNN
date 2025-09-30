@@ -10,6 +10,7 @@
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #ifdef USE_TBB
+#include <tbb/info.h>
 #include <tbb/scalable_allocator.h>
 #include <tbb/task_arena.h>
 #endif
@@ -21,29 +22,55 @@ void tbb_cleanup() {
 }
 #endif
 
+constexpr uint32_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
+
+struct TrainingConfig {
+  int epochs = 10;
+  size_t batch_size = 32;
+  float lr_decay_factor = 0.9f;
+  int progress_print_interval = 100;
+  uint32_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+};
+
 void train_classification_model(tnn::Sequential<float> &model,
                                 data_loading::ImageClassificationDataLoader<float> &train_loader,
                                 data_loading::ImageClassificationDataLoader<float> &test_loader,
-                                int epochs = 10, size_t batch_size = 32,
-                                float lr_decay_factor = 0.9f, int progress_print_interval = 100) {
+                                const TrainingConfig &config = TrainingConfig()) {
 
   Tensor<float> batch_data, batch_labels, predictions;
 
-  train_loader.prepare_batches(batch_size);
-  test_loader.prepare_batches(batch_size);
+  train_loader.prepare_batches(config.batch_size);
+  test_loader.prepare_batches(config.batch_size);
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
 
   std::vector<size_t> image_shape = train_loader.get_image_shape();
 
-  model.print_summary({batch_size, image_shape[0], image_shape[1], image_shape[2]});
+  model.print_summary({config.batch_size, image_shape[0], image_shape[1], image_shape[2]});
+
+  float best_val_accuracy = 0.0f;
 
 #ifdef USE_TBB
-  tbb::task_arena arena(8);
+  std::vector<tbb::core_type_id> core_types = tbb::info::core_types();
+
+  for (auto ct : core_types) {
+    std::cout << "Detected core type: " << ct << std::endl;
+  }
+
+  // can refine to set to p-cores but because of virtualization, information may not be available
+
+  if (core_types.empty()) {
+    std::cerr
+        << "Warning: TBB core types information is empty. Proceeding without TBB optimizations."
+        << std::endl;
+  }
+  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
+
+  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
   arena.execute([&] {
 #endif
-    for (int epoch = 0; epoch < epochs; ++epoch) {
+    for (int epoch = 0; epoch < config.epochs; ++epoch) {
       auto epoch_start = std::chrono::high_resolution_clock::now();
 
       model.set_training(true);
@@ -53,7 +80,7 @@ void train_classification_model(tnn::Sequential<float> &model,
       double total_loss = 0.0;
       double total_accuracy = 0.0;
       int num_batches = 0;
-      std::cout << "Epoch " << epoch + 1 << "/" << epochs << std::endl;
+      std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;
 
       while (train_loader.get_next_batch(batch_data, batch_labels)) {
         ++num_batches;
@@ -73,7 +100,7 @@ void train_classification_model(tnn::Sequential<float> &model,
 
         model.update_parameters();
 
-        if (num_batches % progress_print_interval == 0) {
+        if (num_batches % config.progress_print_interval == 0) {
           if (model.is_profiling_enabled()) {
             model.print_profiling_summary();
           }
@@ -116,7 +143,7 @@ void train_classification_model(tnn::Sequential<float> &model,
       const float avg_val_accuracy = static_cast<float>(val_accuracy / val_batches);
 
       std::cout << std::string(60, '-') << std::endl;
-      std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
+      std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << " completed in "
                 << epoch_duration.count() << "ms" << std::endl;
       std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4) << avg_train_loss
                 << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
@@ -126,12 +153,24 @@ void train_classification_model(tnn::Sequential<float> &model,
                 << std::endl;
       std::cout << std::string(60, '=') << std::endl;
 
+      if (avg_val_accuracy > best_val_accuracy) {
+        best_val_accuracy = avg_val_accuracy;
+        std::cout << "New best validation accuracy: " << std::fixed << std::setprecision(2)
+                  << best_val_accuracy * 100.0f << "%" << std::endl;
+        try {
+          model.save_to_file("model_snapshots/" + model.name());
+          std::cout << "Model saved to " << "model_snapshots/" + model.name() << std::endl;
+        } catch (const std::exception &e) {
+          std::cerr << "Error saving model: " << e.what() << std::endl;
+        }
+      }
+
       if (model.is_profiling_enabled()) {
         model.clear_profiling_data();
       }
-      if ((epoch + 1) % progress_print_interval == 0) {
+      if ((epoch + 1) % config.progress_print_interval == 0) {
         const float current_lr = model.optimizer()->get_learning_rate();
-        const float new_lr = current_lr * lr_decay_factor;
+        const float new_lr = current_lr * config.lr_decay_factor;
         model.optimizer()->set_learning_rate(new_lr);
         std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
                   << " → " << new_lr << std::endl;
