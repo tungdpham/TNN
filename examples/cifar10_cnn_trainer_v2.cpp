@@ -16,7 +16,6 @@
 #include <random>
 #include <sstream>
 #include <vector>
-
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
@@ -107,13 +106,23 @@ int main() {
                      .activation("relu", "relu3")
                      .dense(10, "linear", true, "fc1")
                      .build();
-
     auto optimizer =
         std::make_unique<tnn::Adam<float>>(cifar10_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
+
+    // Load pre-trained weights if available
+    const std::string pretrained_weights_file = "./model_snapshots/" + model.name() + ".bin";
+    if (std::ifstream(pretrained_weights_file)) {
+      std::cout << "\nLoading pre-trained model weights from " << pretrained_weights_file << " ..."
+                << std::endl;
+      model.load_weights_file(pretrained_weights_file);
+      std::cout << "Successfully loaded pre-trained model weights." << std::endl;
+    } else {
+      std::cout << "\nNo pre-trained weights file found. Training model from scratch." << std::endl;
+    }
 
     model.enable_profiling(true);
 

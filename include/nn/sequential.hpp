@@ -652,6 +652,22 @@ public:
     weights_file.close();
   }
 
+  void load_weights_file(const std::string &path) {
+    std::ifstream weights_file(path, std::ios::binary);
+    if (!weights_file.is_open()) {
+      throw std::runtime_error("Could not open weights file: " + path);
+    }
+    for (auto &layer : layers_) {
+      if (layer->has_parameters()) {
+        auto params = layer->parameters();
+        for (auto &param : params) {
+          *param = Tensor<T>::load(weights_file);
+        }
+      }
+    }
+    weights_file.close();
+  }
+
   /**
    * @brief Load a model from specified path.
    * The model's config will be loaded from a json file, and the weights will be loaded from a

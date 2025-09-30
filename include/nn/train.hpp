@@ -58,7 +58,7 @@ void train_classification_model(tnn::Sequential<float> &model,
     std::cout << "Detected core type: " << ct << std::endl;
   }
 
-  // can refine to set to p-cores but because of virtualization, information may not be available
+  // can refine to set to p-cores but because of virtualization, information may not be available.
 
   if (core_types.empty()) {
     std::cerr
