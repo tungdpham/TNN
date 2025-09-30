@@ -2,16 +2,24 @@ cmake_minimum_required(VERSION 3.18)
 
 project(DCNN LANGUAGES CXX)
 
+set(NASM_DIR "" CACHE PATH "Path to NASM executable") # User can set this to their NASM path
+
+# boilerplate to enable assembly because NASM is not found by default
 if(WIN32 AND MSVC)
-    find_program(NASM_EXECUTABLE nasm PATHS "C:\\Users\\ADMIN\\AppData\\Local\\bin\\NASM" ENV PATH)
+    find_program(NASM_EXECUTABLE nasm
+        HINTS
+            ${NASM_DIR}
+        PATHS
+            "$ENV{PROGRAMFILES}/NASM"
+            "$ENV{PROGRAMFILES(X86)}/NASM"
+            "C:/NASM"
+        ENV PATH
+    )
     if(NASM_EXECUTABLE)
         message(STATUS "Found NASM: ${NASM_EXECUTABLE}")
         enable_language(ASM_NASM)
         set(CMAKE_ASM_NASM_COMPILER ${NASM_EXECUTABLE})
         set(CMAKE_ASM_NASM_OBJECT_FORMAT win64)
-    else()
-        message(WARNING "NASM not found. Assembly optimizations will be disabled on Windows.")
-        set(DISABLE_ASM TRUE)
     endif()
 elseif(LINUX)
     enable_language(ASM)

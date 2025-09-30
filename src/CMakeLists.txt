@@ -20,12 +20,6 @@ else()
     target_link_libraries(dcnn_tensor PUBLIC dcnn_matrix)
 endif()
 
-# Check for optional libraries
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(NUMA numa)
-endif()
-
 add_library(dcnn_utils STATIC utils.cpp hardware_info.cpp)
 target_include_directories(dcnn_utils PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -37,7 +31,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
         target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm)
         set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm PROPERTY LANGUAGE ASM_NASM)
-        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S PROPERTY LANGUAGE ASM_NASM)
+        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.asm PROPERTY LANGUAGE ASM_NASM)
         message(STATUS "Using NASM assembly optimizations")
     elseif(NOT WIN32 OR NOT MSVC)
         target_sources(dcnn_utils PRIVATE 
@@ -52,6 +46,7 @@ if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     endif()
 endif()
 
+# add platform-specific lib for hardware info
 if(NOT MSVC)
     target_link_libraries(dcnn_utils PUBLIC m pthread)
     if(WIN32 AND MINGW)
@@ -83,7 +78,7 @@ if(NOT MSVC)
 else()
     target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading)
 endif()
-target_link_libraries(dcnn_nn PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
 
 add_library(dcnn_pipeline STATIC pipeline.cpp)
 target_include_directories(dcnn_pipeline PUBLIC 
@@ -96,8 +91,8 @@ target_include_directories(dcnn_pipeline PRIVATE
     ${asio_SOURCE_DIR}/asio/include
 )
 target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn protobuf::libprotobuf)
-target_link_libraries(dcnn_pipeline PRIVATE nlohmann_json::nlohmann_json)
-target_link_libraries(dcnn_pipeline PRIVATE libzstd_static)
+target_link_libraries(dcnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(dcnn_pipeline PUBLIC libzstd_static)
 target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
 
 set(PROTO_DIR "${CMAKE_SOURCE_DIR}/include/pipeline/proto")
