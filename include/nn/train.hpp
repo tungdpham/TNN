@@ -52,19 +52,6 @@ void train_classification_model(tnn::Sequential<float> &model,
   float best_val_accuracy = 0.0f;
 
 #ifdef USE_TBB
-  std::vector<tbb::core_type_id> core_types = tbb::info::core_types();
-
-  for (auto ct : core_types) {
-    std::cout << "Detected core type: " << ct << std::endl;
-  }
-
-  // can refine to set to p-cores but because of virtualization, information may not be available.
-
-  if (core_types.empty()) {
-    std::cerr
-        << "Warning: TBB core types information is empty. Proceeding without TBB optimizations."
-        << std::endl;
-  }
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
 
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
