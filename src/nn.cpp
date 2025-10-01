@@ -23,7 +23,6 @@ template class Sequential<float>;
 // template class Sequential<double>;
 
 // Sequential builder instantiations
-template class SequentialBuilder<float>;
 // template class SequentialBuilder<double>;
 
 } // namespace tnn

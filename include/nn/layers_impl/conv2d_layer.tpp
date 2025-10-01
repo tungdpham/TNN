@@ -10,8 +10,13 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "math/gemm.hpp"
 #include "utils/ops.hpp"
 #include "utils/parallel_for.hpp"
+
+#ifdef USE_MKL
+#include "utils/mkl_utils.hpp"
+#endif
 
 #ifdef USE_TBB
 #include <tbb/blocked_range2d.h>
@@ -70,6 +75,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   size_t output_size = batch_size * output_h * output_w;
 
   T *output_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
+  // Initialize output_flat to zero since sgemm accumulates
+  std::fill_n(output_flat, out_channels_ * output_size, T(0));
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
                        out_channels_);
 
@@ -158,21 +165,13 @@ template <typename T>
 void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                                           const size_t output_size, const size_t kernel_size,
                                           const size_t out_channels) const {
-  T *col_data_transposed = (T *)aligned_alloc(32, sizeof(T) * kernel_size * output_size);
-  utils::transpose_2d(col_data, col_data_transposed, kernel_size, output_size);
-  // transpose and do inner product because yes
-  if (kernel_size % 4 == 0) {
-    utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
-      output_data[oc * output_size + os] = utils::simd_dot_product_aligned(
-          &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
-    });
-  } else {
-    utils::parallel_for_2d(out_channels, output_size, [&](size_t oc, size_t os) {
-      output_data[oc * output_size + os] = utils::simd_dot_product(
-          &weight_data[oc * kernel_size], &col_data_transposed[os * kernel_size], kernel_size);
-    });
-  }
-  free(col_data_transposed);
+#ifdef USE_MKL
+  utils::mkl::conv_forward_gemm(
+      weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
+      static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
+#else
+  tmath::sgemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
+#endif
 }
 
 template <typename T>
@@ -180,18 +179,14 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
                                               T *weight_grad_data, const size_t output_size,
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
-  // no need for transpose since we are summing over output size
-  if (output_size % 4 == 0) {
-    utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
-      weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product_aligned(
-          &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
-    });
-  } else {
-    utils::parallel_for_2d(out_channels, kernel_size, [&](size_t oc, size_t ks) {
-      weight_grad_data[oc * kernel_size + ks] += utils::simd_dot_product(
-          &gradient_data[oc * output_size], &col_data[ks * output_size], output_size);
-    });
-  }
+#ifdef USE_MKL
+  utils::mkl::conv_weight_grad_gemm(
+      gradient_data, col_data, weight_grad_data, static_cast<MKL_INT>(out_channels),
+      static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
+#else
+  tmath::sgemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
+               false, true);
+#endif
 }
 
 template <typename T>
@@ -199,28 +194,15 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
                                              T *col_grad_data, const size_t output_size,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
-  T *gradient_transposed = (T *)aligned_alloc(32, sizeof(T) * output_size * out_channels);
-  utils::transpose_2d(gradient_data, gradient_transposed, out_channels, output_size);
-
-  T *weights_transposed = (T *)aligned_alloc(32, sizeof(T) * kernel_size * out_channels);
-  utils::transpose_2d(weight_data, weights_transposed, out_channels, kernel_size);
-
-  if (kernel_size % 4 == 0) {
-    utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
-      col_grad_data[ks * output_size + os] =
-          utils::simd_dot_product_aligned(&weights_transposed[ks * out_channels],
-                                          &gradient_transposed[os * out_channels], out_channels);
-    });
-  } else {
-    utils::parallel_for_2d(kernel_size, output_size, [&](size_t ks, size_t os) {
-      col_grad_data[ks * output_size + os] =
-          utils::simd_dot_product(&weights_transposed[ks * out_channels],
-                                  &gradient_transposed[os * out_channels], out_channels);
-    });
-  }
-
-  free(gradient_transposed);
-  free(weights_transposed);
+#ifdef USE_MKL
+  utils::mkl::conv_input_grad_gemm(
+      weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
+      static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
+#else
+  std::fill_n(col_grad_data, kernel_size * output_size, T(0));
+  tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
+               true, false);
+#endif
 }
 
 template <typename T>
@@ -339,7 +321,7 @@ uint32_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_sha
 
   size_t im2col_ops = output_size * kernel_size;
   size_t tranposition_ops = im2col_ops; // for transposing the im2col matrix
-  size_t matmul_ops = out_channels_ * kernel_size * output_size;
+  size_t matmul_ops = 2 * out_channels_ * kernel_size * output_size;
   size_t bias_ops = batch_size * out_channels_ * output_h * output_w;
   size_t total_ops = im2col_ops + tranposition_ops + matmul_ops + bias_ops;
   return total_ops;
@@ -361,10 +343,10 @@ uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_sh
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  size_t weight_grad_ops = out_channels_ * kernel_size * output_size;
-  size_t bias_grad_ops = batch_size * out_channels_ * output_h * output_w;
+  size_t weight_grad_ops = 2 * out_channels_ * kernel_size * output_size;
+  size_t bias_grad_ops = out_channels_ * output_size;
   size_t tranposition_ops = kernel_size * output_size;
-  size_t input_grad_ops = batch_size * in_channels_ * input_h * input_w * kernel_h_ * kernel_w_;
+  size_t input_grad_ops = 2 * out_channels_ * kernel_size * output_size;
   size_t col2im_ops = input_grad_ops;
   size_t total_ops =
       weight_grad_ops + bias_grad_ops + tranposition_ops + input_grad_ops + col2im_ops;

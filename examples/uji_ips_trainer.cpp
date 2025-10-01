@@ -328,8 +328,7 @@ void train_ips_model(tnn::Sequential<float> &model, WiFiDataLoader &train_loader
             calculate_average_positioning_error(predictions, batch_targets, train_loader);
         loss_gradient = DistanceLoss::compute_gradient(predictions, batch_targets, train_loader);
       } else {
-
-        utils::apply_softmax<float>(predictions);
+        predictions.apply_softmax();
         loss = classification_loss->compute_loss(predictions, batch_targets);
         accuracy = calculate_classification_accuracy(predictions, batch_targets);
         loss_gradient = classification_loss->compute_gradient(predictions, batch_targets);
@@ -387,7 +386,7 @@ void train_ips_model(tnn::Sequential<float> &model, WiFiDataLoader &train_loader
               calculate_average_positioning_error(predictions, batch_targets, test_loader);
         }
       } else {
-        utils::apply_softmax<float>(predictions);
+        predictions.apply_softmax();
         val_loss += classification_loss->compute_loss(predictions, batch_targets);
         val_accuracy += calculate_classification_accuracy(predictions, batch_targets);
       }

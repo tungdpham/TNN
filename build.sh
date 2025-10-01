@@ -15,6 +15,7 @@ BUILD_TYPE="Release"
 ENABLE_OPENMP=OFF
 ENABLE_CUDA=OFF
 ENABLE_TBB=ON
+ENABLE_MKL=OFF
 ENABLE_DEBUG=OFF
 CLEAN_BUILD=false
 VERBOSE=false
@@ -29,6 +30,7 @@ show_help() {
     echo "  -v, --verbose       Enable verbose build output"
     echo "  --tbb               Enable Intel TBB support (on by default)"
     echo "  --openmp            Enable OpenMP support"
+    echo "  --mkl               Enable Intel MKL support (off by default)"
     echo ""
     echo "Examples:"
     echo "  $0                  # Build with default settings"
@@ -64,6 +66,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --openmp)
             ENABLE_OPENMP=ON #if we want both openmp and tbb
+            shift
+            ;;
+        --mkl)
+            ENABLE_MKL=ON
             shift
             ;;
         *)
@@ -102,6 +108,7 @@ CMAKE_ARGS=(
     -DENABLE_OPENMP="$ENABLE_OPENMP"
     -DENABLE_TBB="$ENABLE_TBB"
     -DENABLE_DEBUG="$ENABLE_DEBUG"
+    -DENABLE_MKL="$ENABLE_MKL"
 )
 
 cmake . "${CMAKE_ARGS[@]}"

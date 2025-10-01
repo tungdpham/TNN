@@ -22,6 +22,7 @@
 
 #include "layout_trait.hpp"
 #include "matrix/matrix.hpp"
+#include "utils/ops.hpp"
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -40,7 +41,7 @@
 #include <immintrin.h>
 #endif
 
-enum ALIGNMENT_TYPE { AVX2 = 32, DEFAULT = 16 };
+enum ALIGNMENT_TYPE { MKL = 64, AVX2 = 32, DEFAULT = 16 };
 
 /**
  * @brief A tensor class dedicated for ML and DL applications.
@@ -77,7 +78,7 @@ private:
     if (count == 0)
       return nullptr;
 
-    constexpr size_t alignment = ALIGNMENT_TYPE::AVX2;
+    constexpr size_t alignment = ALIGNMENT_TYPE::MKL;
     size_t byte_size = count * sizeof(T);
     size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
 
@@ -197,36 +198,63 @@ public:
     return data_[compute_index(indices...)];
   }
 
-  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
+  bool same_shape(const Tensor<T, L> &other) const {
     for (size_t i = 0; i < dims_; ++i) {
       if (shape_[i] != other.shape_[i]) {
-        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
-        throw std::invalid_argument("Tensor shapes must match for addition");
+        return false;
       }
+    }
+    return true;
+  }
+
+  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for addition");
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-    for (size_t idx = 0; idx < data_size_; ++idx)
-      result.data_[idx] = data_[idx] + other.data_[idx];
+    utils::avx2_add(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
 
   Tensor<T, L> operator-(const Tensor<T, L> &other) const {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for subtraction");
-      }
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
 
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      result.data_[idx] = data_[idx] - other.data_[idx];
+    utils::avx2_sub(data_, other.data_, result.data_, data_size_);
+
+    return result;
+  }
+
+  Tensor<T, L> operator*(const Tensor<T, L> &other) const {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
+
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+
+    utils::avx2_mul(data_, other.data_, result.data_, data_size_);
+
+    return result;
+  }
+
+  Tensor<T, L> operator/(const Tensor<T, L> &other) const {
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for element-wise division");
+    }
+
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec);
+
+    utils::avx2_div(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
@@ -234,9 +262,9 @@ public:
   Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-    for (size_t i = 0; i < data_size_; ++i) {
-      result.data_[i] = data_[i] * scalar;
-    }
+
+    utils::avx2_mul_scalar(data_, scalar, result.data_, data_size_);
+
     return result;
   }
 
@@ -247,59 +275,46 @@ public:
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec);
-    for (size_t i = 0; i < data_size_; ++i) {
-      result.data_[i] = data_[i] / scalar;
-    }
+
+    utils::avx2_div_scalar(data_, scalar, result.data_, data_size_);
+
     return result;
   }
 
   Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        std::cerr << "Shape mismatch: " << shape_[i] << " vs " << other.shape_[i] << std::endl;
-        throw std::invalid_argument("Tensor shapes must match for addition");
-      }
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for addition");
     }
 
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] += other.data_[idx];
-    }
+    utils::avx2_add(data_, other.data_, data_, data_size_);
 
     return *this;
   }
 
   Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for subtraction");
-      }
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
 
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] -= other.data_[idx];
-    }
+    utils::avx2_sub(data_, other.data_, data_, data_size_);
 
     return *this;
   }
 
   Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
-      }
+    if (!same_shape(other)) {
+      throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
 
-    for (size_t idx = 0; idx < data_size_; ++idx) {
-      data_[idx] *= other.data_[idx];
-    }
+    utils::avx2_mul(data_, other.data_, data_, data_size_);
 
     return *this;
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-    for (size_t i = 0; i < data_size_; ++i) {
-      data_[i] *= scalar;
-    }
+
+    utils::avx2_mul_scalar(data_, scalar, data_, data_size_);
+
     return *this;
   }
 
@@ -308,9 +323,8 @@ public:
       throw std::invalid_argument("Division by zero");
     }
 
-    for (size_t i = 0; i < data_size_; ++i) {
-      data_[i] /= scalar;
-    }
+    utils::avx2_div_scalar(data_, scalar, data_, data_size_);
+
     return *this;
   }
 
@@ -413,22 +427,49 @@ public:
     const size_t height_ = height();
     const size_t width_ = width();
 
-    Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w);
-
-    if (value != T(0))
-      result.fill(value);
+    Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w, nullptr);
 
     const T *input_data = this->data();
     T *result_data = result.data();
 
     utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+      const size_t padded_height = height_ + 2 * pad_h;
+      const size_t padded_width = width_ + 2 * pad_w;
+      // fill top padding rows
+      for (size_t h = 0; h < pad_h; ++h) {
+        std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+                  &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
+                      padded_width,
+                  value);
+      }
+
+      // Copy middle rows with left and right padding
       for (size_t h = 0; h < height_; ++h) {
         const size_t new_h = h + pad_h;
-        std::copy(&input_data[((n * channels_ + c) * height_ + h) * width_],
-                  &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
-                  &result_data[((n * channels_ + c) * (height_ + 2 * pad_h) + new_h) *
-                                   (width_ + 2 * pad_w) +
-                               pad_w]);
+        // copy the row over
+        std::copy(
+            &input_data[((n * channels_ + c) * height_ + h) * width_],
+            &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
+            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
+
+        // set values on left and right
+        std::fill(
+            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
+            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
+            value);
+        std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
+                               pad_w + width_],
+                  &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
+                               padded_width],
+                  value);
+      }
+
+      // fill bottom padding rows
+      for (size_t h = height_ + pad_h; h < padded_height; ++h) {
+        std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+                  &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
+                      padded_width,
+                  value);
       }
     });
 
@@ -504,28 +545,41 @@ public:
   }
 
   Tensor<T, L> slice_batch(size_t start_batch, size_t end_batch) const {
-    if (end_batch >= batch_size() || start_batch > end_batch) {
+    if (end_batch > batch_size() || start_batch > end_batch) {
       throw std::invalid_argument("Invalid batch slice range");
     }
 
     size_t new_batch_size = end_batch - start_batch + 1;
+    std::vector<size_t> new_shape(shape_, shape_ + dims_);
+    new_shape[0] = new_batch_size;
+    Tensor<T, L> result(new_shape);
 
-    if constexpr (dims_ == 4) {
-      Tensor<T, L> result(new_batch_size, channels(), height(), width());
-      T *result_data = result.data();
-      size_t output_size = channels() * height() * width();
-      for (size_t n = 0; n < new_batch_size; ++n) {
-        for (size_t idx = 0; idx < output_size; ++idx) {
-          size_t batch_idx = start_batch + n;
-          result_data[n * output_size + idx] = this->data_[batch_idx * strides_[0] + idx];
-        }
-      }
-      return result;
-    } else {
-      throw std::runtime_error("Unsupported tensor dimensionality for batch slicing");
-    }
+    T *result_data = result.data();
+    std::copy(&data_[start_batch * strides_[0]], &data_[end_batch * strides_[0]], result_data);
+
+    return result;
   }
 
+  /**
+   * @brief Copy a specific batch from another tensor to this tensor.
+   */
+  void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) const {
+    if (dest_batch_idx >= batch_size() || src_batch_idx >= other.batch_size()) {
+      throw std::invalid_argument("Invalid batch index for copy");
+    }
+
+    std::copy(&other.data_[src_batch_idx * other.strides_[0]],
+              &other.data_[(src_batch_idx + 1) * other.strides_[0]],
+              &data_[dest_batch_idx * strides_[0]]);
+  }
+
+  /**
+   * @brief Slice the tensor along the channel dimension.
+   * @param start_ch Starting channel index (inclusive)
+   * @param end_ch Ending channel index (inclusive)
+   * @return A new tensor containing the sliced channels
+   * Note: Only supports 4D tensors (NCHW layout)
+   */
   Tensor<T, L> slice_channels(size_t start_ch, size_t end_ch) const {
     if (end_ch >= channels() || start_ch > end_ch) {
       throw std::invalid_argument("Invalid channel slice range");
@@ -591,6 +645,30 @@ public:
     }
 
     return means;
+  }
+
+  void apply_softmax() {
+    const size_t batch_size = shape_[0];
+    const size_t num_classes = shape_[1];
+
+    for (size_t batch = 0; batch < batch_size; ++batch) {
+      float max_val = (*this)(batch, 0, 0, 0);
+      for (size_t j = 1; j < num_classes; ++j) {
+        max_val = std::max(max_val, (*this)(batch, j, 0, 0));
+      }
+
+      float sum = 0.0f;
+      for (size_t j = 0; j < num_classes; ++j) {
+        const float exp_val = std::exp((*this)(batch, j, 0, 0) - max_val);
+        (*this)(batch, j, 0, 0) = exp_val;
+        sum += exp_val;
+      }
+
+      const float inv_sum = 1.0f / std::max(sum, 1e-8f);
+      for (size_t j = 0; j < num_classes; ++j) {
+        (*this)(batch, j, 0, 0) *= inv_sum;
+      }
+    }
   }
 
   std::vector<Tensor<T>> split(size_t num_splits) const {

@@ -22,7 +22,7 @@
 
 #include "parallel_for.hpp"
 #include "simd_asm.hpp"
-#include "tensor/tensor.hpp"
+#include "utils/avx2.hpp"
 
 namespace utils {
 
@@ -64,138 +64,6 @@ void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols,
                       }
                     }
                   });
-}
-
-template <typename T> void apply_softmax(Tensor<float> &tensor) {
-  const size_t batch_size = tensor.shape()[0];
-  const size_t num_classes = tensor.shape()[1];
-
-  for (size_t batch = 0; batch < batch_size; ++batch) {
-    float max_val = tensor(batch, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      max_val = std::max(max_val, tensor(batch, j, 0, 0));
-    }
-
-    float sum = 0.0f;
-    for (size_t j = 0; j < num_classes; ++j) {
-      const float exp_val = std::exp(tensor(batch, j, 0, 0) - max_val);
-      tensor(batch, j, 0, 0) = exp_val;
-      sum += exp_val;
-    }
-
-    const float inv_sum = 1.0f / std::max(sum, 1e-8f);
-    for (size_t j = 0; j < num_classes; ++j) {
-      tensor(batch, j, 0, 0) *= inv_sum;
-    }
-  }
-}
-
-template <typename T>
-float compute_class_accuracy(const Tensor<float> &predictions, const Tensor<float> &targets) {
-  const size_t batch_size = predictions.shape()[0];
-  const size_t num_classes = predictions.shape()[1];
-
-  int total_correct = 0;
-
-  for (size_t i = 0; i < batch_size; ++i) {
-
-    int pred_class = 0;
-    float max_pred = predictions(i, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      const float pred_val = predictions(i, j, 0, 0);
-      if (pred_val > max_pred) {
-        max_pred = pred_val;
-        pred_class = static_cast<int>(j);
-      }
-    }
-
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (targets(i, j, 0, 0) > 0.5f) {
-        true_class = static_cast<int>(j);
-        break;
-      }
-    }
-
-    if (pred_class == true_class && true_class != -1) {
-      total_correct++;
-    }
-  }
-
-  return static_cast<float>(total_correct) / static_cast<float>(batch_size);
-}
-
-template <typename T>
-inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
-  T sum = T(0);
-
-  if constexpr (std::is_same_v<T, float>) {
-#if defined(__x86_64__) || defined(_M_X64)
-
-    return simd_dot_product_asm(weights, col_data, kernel_size);
-#elif defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
-
-    __m256 sum_vec = _mm256_setzero_ps();
-    size_t simd_end = kernel_size ^ (kernel_size & 0x7);
-    __m256 w_vec, c_vec;
-    for (size_t ks = 0; ks < simd_end; ks += 8) {
-      w_vec = _mm256_loadu_ps(&weights[ks]);
-
-      c_vec = _mm256_loadu_ps(&col_data[ks]);
-
-      sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
-    }
-
-    __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
-    __m128 sum_low = _mm256_castps256_ps128(sum_vec);
-    __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
-
-    sum_128 = _mm_hadd_ps(sum_128, sum_128);
-    sum_128 = _mm_hadd_ps(sum_128, sum_128);
-    sum = _mm_cvtss_f32(sum_128);
-
-    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
-      sum += weights[ks] * col_data[ks];
-    }
-
-    _mm256_zeroupper();
-
-#elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
-
-    __m128 sum_vec = _mm_setzero_ps();
-    size_t simd_end = kernel_size - (kernel_size % 4);
-
-    for (size_t ks = 0; ks < simd_end; ks += 4) {
-
-      __m128 w_vec = _mm_loadu_ps(&weights[ks]);
-
-      __m128 c_vec = _mm_loadu_ps(&col_data[ks]);
-
-      __m128 prod = _mm_mul_ps(w_vec, c_vec);
-      sum_vec = _mm_add_ps(sum_vec, prod);
-    }
-
-    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
-    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
-    sum = _mm_cvtss_f32(sum_vec);
-
-    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
-      sum += weights[ks] * col_data[ks];
-    }
-
-#else
-    for (size_t ks = 0; ks < kernel_size; ++ks) {
-      sum += weights[ks] * col_data[ks];
-    }
-#endif
-  } else {
-
-    for (size_t ks = 0; ks < kernel_size; ++ks) {
-      sum += weights[ks] * col_data[ks];
-    }
-  }
-
-  return sum;
 }
 
 template <typename T>
@@ -243,6 +111,83 @@ inline T simd_dot_product_aligned(const T *weights, const T *col_data, size_t ke
       __m128 w_vec = _mm_load_ps(&weights[ks]);
 
       __m128 c_vec = _mm_load_ps(&col_data[ks]);
+
+      __m128 prod = _mm_mul_ps(w_vec, c_vec);
+      sum_vec = _mm_add_ps(sum_vec, prod);
+    }
+
+    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+    sum_vec = _mm_hadd_ps(sum_vec, sum_vec);
+    sum = _mm_cvtss_f32(sum_vec);
+
+    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+
+#else
+    for (size_t ks = 0; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+#endif
+  } else {
+
+    for (size_t ks = 0; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+  }
+
+  return sum;
+}
+
+template <typename T>
+inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_size) {
+  // delegate to aligned version if both pointers are aligned
+  if ((((uintptr_t)weights) % 32 == 0) && (((uintptr_t)col_data) % 32 == 0)) {
+    return simd_dot_product_aligned(weights, col_data, kernel_size);
+  }
+  T sum = T(0);
+
+  if constexpr (std::is_same_v<T, float>) {
+#if defined(__x86_64__) || defined(_M_X64)
+
+    return simd_dot_product_asm(weights, col_data, kernel_size);
+#elif defined(__AVX2__) || (defined(_MSC_VER) && defined(_M_X64))
+
+    __m256 sum_vec = _mm256_setzero_ps();
+    size_t simd_end = kernel_size ^ (kernel_size & 0x7);
+    __m256 w_vec, c_vec;
+    for (size_t ks = 0; ks < simd_end; ks += 8) {
+      w_vec = _mm256_loadu_ps(&weights[ks]);
+
+      c_vec = _mm256_loadu_ps(&col_data[ks]);
+
+      sum_vec = _mm256_fmadd_ps(w_vec, c_vec, sum_vec);
+    }
+
+    __m128 sum_high = _mm256_extractf128_ps(sum_vec, 1);
+    __m128 sum_low = _mm256_castps256_ps128(sum_vec);
+    __m128 sum_128 = _mm_add_ps(sum_low, sum_high);
+
+    sum_128 = _mm_hadd_ps(sum_128, sum_128);
+    sum_128 = _mm_hadd_ps(sum_128, sum_128);
+    sum = _mm_cvtss_f32(sum_128);
+
+    for (size_t ks = simd_end; ks < kernel_size; ++ks) {
+      sum += weights[ks] * col_data[ks];
+    }
+
+    _mm256_zeroupper();
+
+#elif defined(__SSE2__) || (defined(_MSC_VER) && defined(_M_X64))
+
+    __m128 sum_vec = _mm_setzero_ps();
+    size_t simd_end = kernel_size - (kernel_size % 4);
+
+    for (size_t ks = 0; ks < simd_end; ks += 4) {
+
+      __m128 w_vec = _mm_loadu_ps(&weights[ks]);
+
+      __m128 c_vec = _mm_loadu_ps(&col_data[ks]);
 
       __m128 prod = _mm_mul_ps(w_vec, c_vec);
       sum_vec = _mm_add_ps(sum_vec, prod);

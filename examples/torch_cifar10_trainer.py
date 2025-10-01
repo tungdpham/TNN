@@ -8,6 +8,8 @@ import time
 import os
 import struct
 from typing import Tuple, List
+from fvcore.nn import FlopCountAnalysis
+os.environ['PYTORCH_JIT'] = '0'
 
 # CIFAR-10 Constants (matching C++ implementation)
 class CIFAR10Constants:
@@ -440,11 +442,12 @@ def save_model(model: nn.Module, filepath: str):
     print(f"Model saved to: {filepath}")
 
 def main():
+    torch.jit.enable_onednn_fusion(False)
     print("PyTorch CIFAR-10 CNN Trainer (CPU Only)")
     print("=" * 50)
     
     # Force CPU usage for fair comparison with C++ implementation
-    device = torch.device('gpu')
+    device = torch.device('cpu')
     print(f"Using device: {device}")
     
     # Set number of threads for CPU computation (matching C++ OpenMP threads)
@@ -491,7 +494,8 @@ def main():
     # Create model
     print("\nBuilding CNN model architecture for CIFAR-10...")
     model = OptimizedCIFAR10CNN(enable_profiling=True).to(device)  # Enable profiling
-    
+
+    print(f"Total FLOPs: {FlopCountAnalysis(model, torch.randn(64, 3, 32, 32)).total():,}")
     # Print model summary
     print_model_summary(model, (CIFAR10Constants.BATCH_SIZE, 3, 
                                CIFAR10Constants.IMAGE_HEIGHT, CIFAR10Constants.IMAGE_WIDTH))
@@ -541,119 +545,6 @@ def main():
     
     print("\n" + "="*60)
     print("CIFAR-10 CNN Tensor<float> model training completed successfully!")
-    print(f"Total training time: {total_training_time:.2f} seconds")
-    print(f"Best test accuracy: {best_test_accuracy:.2f}%")
-    print("="*60)
-    
-    # Save the model
-    try:
-        os.makedirs('./model_snapshots', exist_ok=True)
-        save_model(model, './model_snapshots/pytorch_cifar10_cnn_model.pth')
-    except Exception as e:
-        print(f"Warning: Failed to save model: {e}")
-
-if __name__ == "__main__":
-    main()
-    print("=" * 50)
-    
-    # Force CPU usage for fair comparison with C++ implementation
-    device = torch.device('cpu')
-    print(f"Using device: {device}")
-    
-    # Set number of threads for CPU computation (matching C++ OpenMP threads)
-    torch.set_num_threads(8)
-    print(f"PyTorch CPU threads: {torch.get_num_threads()}")
-    
-    if torch.cuda.is_available():
-        print(f"Note: GPU available but using CPU for fair comparison with C++ implementation")
-    
-    # Load datasets
-    print("\nLoading CIFAR-10 data...")
-    
-    # Training files (matching C++ data loader)
-    train_files = []
-    for i in range(1, 6):
-        train_files.append(f"./data/cifar-10-batches-bin/data_batch_{i}.bin")
-    
-    test_files = ["./data/cifar-10-batches-bin/test_batch.bin"]
-    
-    train_dataset = CIFAR10Dataset(train_files)
-    test_dataset = CIFAR10Dataset(test_files)
-    
-    print(f"Successfully loaded training data: {len(train_dataset)} samples")
-    print(f"Successfully loaded test data: {len(test_dataset)} samples")
-    
-    # Create data loaders
-    train_loader = DataLoader(
-        train_dataset, 
-        batch_size=CIFAR10Constants.BATCH_SIZE, 
-        shuffle=True, 
-        num_workers=0,  # Keep at 0 for CPU-only consistent performance
-        pin_memory=False  # No GPU, so no need for pinned memory
-    )
-    
-    test_loader = DataLoader(
-        test_dataset, 
-        batch_size=CIFAR10Constants.BATCH_SIZE, 
-        shuffle=False,
-        num_workers=0,  # Keep at 0 for CPU-only consistent performance
-        pin_memory=False  # No GPU, so no need for pinned memory
-    )
-    
-    # Create model
-    print("\nBuilding CNN model architecture for CIFAR-10...")
-    model = OptimizedCIFAR10CNN(enable_profiling=True).to(device)  # Enable profiling
-    
-    # Print model summary
-    print_model_summary(model, (CIFAR10Constants.BATCH_SIZE, 3, 
-                               CIFAR10Constants.IMAGE_HEIGHT, CIFAR10Constants.IMAGE_WIDTH))
-    
-    # Create optimizer (SGD with momentum to match C++ implementation)
-    optimizer = optim.SGD(model.parameters(), lr=CIFAR10Constants.LR_INITIAL, 
-                         momentum=0.9, weight_decay=0.0)
-    
-    # Create loss function (CrossEntropy to match C++ epsilon)
-    criterion = nn.CrossEntropyLoss(label_smoothing=0.0)  # No smoothing initially
-    
-    # Learning rate scheduler
-    scheduler = optim.lr_scheduler.StepLR(optimizer, 
-                                         step_size=CIFAR10Constants.LR_DECAY_INTERVAL, 
-                                         gamma=CIFAR10Constants.LR_DECAY_FACTOR)
-    
-    print(f"\nStarting CIFAR-10 CNN training...")
-    print(f"Epochs: {CIFAR10Constants.EPOCHS}")
-    print(f"Batch size: {CIFAR10Constants.BATCH_SIZE}")
-    print(f"Initial learning rate: {CIFAR10Constants.LR_INITIAL}")
-    print(f"LR decay factor: {CIFAR10Constants.LR_DECAY_FACTOR} every {CIFAR10Constants.LR_DECAY_INTERVAL} epochs")
-    
-    # Training loop
-    training_start_time = time.time()
-    best_test_accuracy = 0.0
-    
-    for epoch in range(1, CIFAR10Constants.EPOCHS + 1):
-        print(f"\nEpoch {epoch}/{CIFAR10Constants.EPOCHS}")
-        print("-" * 30)
-        
-        # Train for one epoch
-        train_loss, train_accuracy = train_epoch(model, train_loader, optimizer, criterion, device, epoch)
-        
-        # Evaluate on test set
-        test_loss, test_accuracy = evaluate_model(model, test_loader, criterion, device)
-        
-        # Update learning rate
-        scheduler.step()
-        current_lr = optimizer.param_groups[0]['lr']
-        print(f"Learning rate updated to: {current_lr:.6f}")
-        
-        # Track best test accuracy
-        if test_accuracy > best_test_accuracy:
-            best_test_accuracy = test_accuracy
-            print(f"New best test accuracy: {best_test_accuracy:.2f}%")
-    
-    total_training_time = time.time() - training_start_time
-    
-    print("\n" + "="*60)
-    print("CIFAR-10 CNN PyTorch model training completed successfully!")
     print(f"Total training time: {total_training_time:.2f} seconds")
     print(f"Best test accuracy: {best_test_accuracy:.2f}%")
     print("="*60)

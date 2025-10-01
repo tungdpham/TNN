@@ -35,8 +35,7 @@ namespace data_loading {
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
  * Extends ImageClassificationDataLoader for proper inheritance
  */
-template <typename T = float>
-class MNISTDataLoader : public ImageClassificationDataLoader<T> {
+template <typename T = float> class MNISTDataLoader : public ImageClassificationDataLoader<T> {
 private:
   std::vector<std::vector<T>> data_;
   std::vector<int> labels_;
@@ -46,9 +45,7 @@ private:
   bool batches_prepared_;
 
 public:
-  MNISTDataLoader()
-      : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
-
+  MNISTDataLoader() : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
     data_.reserve(60000);
     labels_.reserve(60000);
   }
@@ -90,13 +87,12 @@ public:
       row.reserve(mnist_constants::IMAGE_SIZE);
 
       while (std::getline(ss, cell, ',')) {
-        row.push_back(static_cast<T>(std::stod(cell) /
-                                     mnist_constants::NORMALIZATION_FACTOR));
+        row.push_back(static_cast<T>(std::stod(cell) / mnist_constants::NORMALIZATION_FACTOR));
       }
 
       if (row.size() != mnist_constants::IMAGE_SIZE) {
-        std::cerr << "Warning: Invalid image size " << row.size()
-                  << " expected " << mnist_constants::IMAGE_SIZE << std::endl;
+        std::cerr << "Warning: Invalid image size " << row.size() << " expected "
+                  << mnist_constants::IMAGE_SIZE << std::endl;
         continue;
       }
 
@@ -104,8 +100,7 @@ public:
     }
 
     this->current_index_ = 0;
-    std::cout << "Loaded " << data_.size() << " samples from " << source
-              << std::endl;
+    std::cout << "Loaded " << data_.size() << " samples from " << source << std::endl;
     return !data_.empty();
   }
 
@@ -114,8 +109,7 @@ public:
    */
   bool get_next_batch(Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
     if (!batches_prepared_) {
-      std::cerr << "Error: Batches not prepared! Call prepare_batches() first."
-                << std::endl;
+      std::cerr << "Error: Batches not prepared! Call prepare_batches() first." << std::endl;
       return false;
     }
 
@@ -134,8 +128,7 @@ public:
    * Get a specific batch size (supports both pre-computed and on-demand
    * batches)
    */
-  bool get_batch(size_t batch_size, Tensor<T> &batch_data,
-                 Tensor<T> &batch_labels) override {
+  bool get_batch(size_t batch_size, Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
 
     if (batches_prepared_ && batch_size == this->batch_size_) {
       return get_next_batch(batch_data, batch_labels);
@@ -145,30 +138,22 @@ public:
       return false;
     }
 
-    const size_t actual_batch_size =
-        std::min(batch_size, data_.size() - this->current_index_);
+    const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data =
-        Tensor<T>(actual_batch_size, mnist_constants::NUM_CHANNELS,
-                  mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
+    batch_data = Tensor<T>(actual_batch_size, mnist_constants::NUM_CHANNELS,
+                           mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
 
-    batch_labels =
-        Tensor<T>(actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL);
+    batch_labels = Tensor<T>(actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL);
     batch_labels.fill(static_cast<T>(0.0));
-    
+
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
-      for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
-        for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
-          batch_data(i, 0, h, w) =
-              image_data[h * mnist_constants::IMAGE_WIDTH + w];
-        }
-      }
+      std::copy(image_data.begin(), image_data.end(),
+                &batch_data(i, 0, 0, 0)); // Direct copy for efficiency
 
       const int label = labels_[this->current_index_ + i];
-      if (label >= 0 &&
-          label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
         batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
       }
     }
@@ -193,8 +178,7 @@ public:
       if (data_.empty())
         return;
 
-      std::vector<size_t> indices =
-          this->generate_shuffled_indices(data_.size());
+      std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
       std::vector<std::vector<T>> shuffled_data;
       std::vector<int> shuffled_labels;
@@ -211,8 +195,7 @@ public:
       this->current_index_ = 0;
 
     } else {
-      std::vector<size_t> indices =
-          this->generate_shuffled_indices(batched_data_.size());
+      std::vector<size_t> indices = this->generate_shuffled_indices(batched_data_.size());
 
       std::vector<Tensor<T>> shuffled_data;
       std::vector<Tensor<T>> shuffled_labels;
@@ -246,9 +229,7 @@ public:
   /**
    * Get number of classes
    */
-  int get_num_classes() const override {
-    return static_cast<int>(mnist_constants::NUM_CLASSES);
-  }
+  int get_num_classes() const override { return static_cast<int>(mnist_constants::NUM_CLASSES); }
 
   /**
    * Get class names for MNIST (digits 0-9)
@@ -267,8 +248,7 @@ public:
    */
   void prepare_batches(size_t batch_size) override {
     if (data_.empty()) {
-      std::cerr << "Warning: No data loaded, cannot prepare batches!"
-                << std::endl;
+      std::cerr << "Warning: No data loaded, cannot prepare batches!" << std::endl;
       return;
     }
 
@@ -283,8 +263,8 @@ public:
     batched_data_.reserve(num_batches);
     batched_labels_.reserve(num_batches);
 
-    std::cout << "Preparing " << num_batches << " batches of size "
-              << batch_size << "..." << std::endl;
+    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
+              << std::endl;
 
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
@@ -292,28 +272,22 @@ public:
       const size_t actual_batch_size = end_idx - start_idx;
       assert(actual_batch_size > 0);
 
-      Tensor<T> batch_data(std::vector<size_t>{
-          actual_batch_size, mnist_constants::NUM_CHANNELS,
-          mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+      Tensor<T> batch_data(std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CHANNELS,
+                                               mnist_constants::IMAGE_HEIGHT,
+                                               mnist_constants::IMAGE_WIDTH});
 
-      Tensor<T> batch_labels(std::vector<size_t>{
-          actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
+      Tensor<T> batch_labels(
+          std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
       batch_labels.fill(T(0.0));
 
       for (size_t i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
         const auto &image_data = data_[sample_idx];
 
-        for (size_t h = 0; h < mnist_constants::IMAGE_HEIGHT; ++h) {
-          for (size_t w = 0; w < mnist_constants::IMAGE_WIDTH; ++w) {
-            batch_data(i, 0, h, w) =
-                image_data[h * mnist_constants::IMAGE_WIDTH + w];
-          }
-        }
+        std::copy(image_data.begin(), image_data.end(), &batch_data(i, 0, 0, 0));
 
         const int label = labels_[sample_idx];
-        if (label >= 0 &&
-            label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+        if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
           batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
         }
       }
@@ -325,16 +299,15 @@ public:
     this->current_batch_index_ = 0;
     batches_prepared_ = true;
     std::cout << "Batch preparation completed!" << std::endl;
-    std::cout << "Prepared " << batched_data_.size() << " batches "
-              << "of size " << batch_size << " each." << std::endl;
+    std::cout << "Prepared " << batched_data_.size() << " batches " << "of size " << batch_size
+              << " each." << std::endl;
   }
 
   /**
    * Get number of batches when using prepared batches
    */
   size_t num_batches() const override {
-    return batches_prepared_ ? batched_data_.size()
-                             : BaseDataLoader<T>::num_batches();
+    return batches_prepared_ ? batched_data_.size() : BaseDataLoader<T>::num_batches();
   }
 
   /**
@@ -342,8 +315,5 @@ public:
    */
   bool are_batches_prepared() const override { return batches_prepared_; }
 };
-
-using MNISTDataLoaderFloat = MNISTDataLoader<float>;
-using MNISTDataLoaderDouble = MNISTDataLoader<double>;
 
 } // namespace data_loading

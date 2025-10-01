@@ -1,4 +1,3 @@
-# DCNN Library Components
 
 add_library(dcnn_matrix STATIC matrix.cpp)
 target_include_directories(dcnn_matrix PUBLIC 
@@ -68,6 +67,13 @@ target_include_directories(dcnn_data_loading PUBLIC
 )
 target_link_libraries(dcnn_data_loading PUBLIC dcnn_utils dcnn_tensor dcnn_matrix)
 
+add_library(dcnn_math STATIC math.cpp)
+target_include_directories(dcnn_utils PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(dcnn_math PUBLIC dcnn_utils)
+
 add_library(dcnn_nn STATIC nn.cpp)
 target_include_directories(dcnn_nn PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -122,7 +128,7 @@ if(EXISTS "${PROTO_DIR}")
 endif()
 
 add_library(dcnn_instantiations INTERFACE)
-target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_tensor dcnn_matrix dcnn_utils)
+target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils)
 
 add_library(dcnn_lib INTERFACE)
 target_include_directories(dcnn_lib INTERFACE
@@ -144,7 +150,7 @@ if(WIN32)
     endif()
 endif()
 
-set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils)
+set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils dcnn_math)
 
 if(ENABLE_OPENMP)
     foreach(lib ${INSTANTIATION_LIBS})
@@ -165,4 +171,21 @@ if(ENABLE_CUDA)
         target_link_libraries(${lib} PUBLIC CUDA::cudart CUDA::cublas CUDA::curand)
     endforeach()
     target_link_libraries(dcnn_lib INTERFACE CUDA::cudart CUDA::cublas CUDA::curand)
+endif()
+
+if(ENABLE_MKL)
+    foreach(lib ${INSTANTIATION_LIBS})
+        if(TARGET MKL::MKL)
+            target_link_libraries(${lib} PUBLIC MKL::MKL)
+        else()
+            target_include_directories(${lib} PUBLIC ${MKL_INCLUDE_DIRS})
+            target_link_libraries(${lib} PUBLIC ${MKL_LIBRARIES})
+        endif()
+    endforeach()
+    
+    if(TARGET MKL::MKL)
+        target_link_libraries(dcnn_lib INTERFACE MKL::MKL)
+    else()
+        target_link_libraries(dcnn_lib INTERFACE ${MKL_LIBRARIES})
+    endif()
 endif()

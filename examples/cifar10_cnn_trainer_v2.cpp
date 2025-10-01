@@ -130,6 +130,7 @@ int main() {
     train_classification_model(model, train_loader, test_loader,
                                {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
                                 cifar10_constants::LR_DECAY_FACTOR,
+                                cifar10_constants::LR_DECAY_INTERVAL,
                                 cifar10_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;

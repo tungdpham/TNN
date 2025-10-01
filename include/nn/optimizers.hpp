@@ -129,11 +129,9 @@ public:
 
     utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       m_[i] *= beta1_;
-      Tensor<T> grad_term = (*grads[i]) * (1.0f - beta1_);
-      m_[i] += grad_term;
+      m_[i] += (*grads[i]) * (1.0f - beta1_);
 
-      Tensor<T> grad_sq = (*grads[i]);
-      grad_sq *= (*grads[i]);
+      Tensor<T> grad_sq = (*grads[i]) * (*grads[i]);
       v_[i] *= beta2_;
       grad_sq *= (static_cast<T>(1.0) - beta2_);
       v_[i] += grad_sq;

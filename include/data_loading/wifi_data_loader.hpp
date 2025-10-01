@@ -46,17 +46,16 @@ private:
 
 public:
   WiFiDataLoader(bool is_regression = true)
-      : current_index_(0), current_batch_index_(0), batch_size_(32),
-        batches_prepared_(false), num_features_(0), num_outputs_(0),
-        is_regression_(is_regression), is_normalized_(false) {
+      : current_index_(0), current_batch_index_(0), batch_size_(32), batches_prepared_(false),
+        num_features_(0), num_outputs_(0), is_regression_(is_regression), is_normalized_(false) {
 
     features_.reserve(20000);
     targets_.reserve(20000);
   }
 
   bool load_data(std::string_view filename, size_t feature_start_col = 0,
-                 size_t feature_end_col = 0, size_t target_start_col = 0,
-                 size_t target_end_col = 0, bool has_header = true) {
+                 size_t feature_end_col = 0, size_t target_start_col = 0, size_t target_end_col = 0,
+                 bool has_header = true) {
     std::ifstream file{filename.data()};
     if (!file.is_open()) {
       std::cerr << "Error: Could not open file " << filename << std::endl;
@@ -101,8 +100,7 @@ public:
       }
 
       std::vector<float> feature_row;
-      for (size_t i = feature_start_col;
-           i < std::min(feature_end_col, row.size()); ++i) {
+      for (size_t i = feature_start_col; i < std::min(feature_end_col, row.size()); ++i) {
         try {
           float value = std::stof(row[i]);
 
@@ -116,8 +114,7 @@ public:
       }
 
       std::vector<float> target_row;
-      for (size_t i = target_start_col;
-           i < std::min(target_end_col, row.size()); ++i) {
+      for (size_t i = target_start_col; i < std::min(target_end_col, row.size()); ++i) {
         try {
           target_row.push_back(std::stof(row[i]));
         } catch (const std::exception &) {
@@ -140,12 +137,9 @@ public:
     num_outputs_ = targets_[0].size();
     current_index_ = 0;
 
-    std::cout << "Loaded " << features_.size() << " samples from " << filename
-              << std::endl;
-    std::cout << "Features: " << num_features_ << ", Outputs: " << num_outputs_
-              << std::endl;
-    std::cout << "Mode: " << (is_regression_ ? "Regression" : "Classification")
-              << std::endl;
+    std::cout << "Loaded " << features_.size() << " samples from " << filename << std::endl;
+    std::cout << "Features: " << num_features_ << ", Outputs: " << num_outputs_ << std::endl;
+    std::cout << "Mode: " << (is_regression_ ? "Regression" : "Classification") << std::endl;
 
     if (is_regression_ && targets_.size() > 0) {
       std::cout << "First 5 target coordinate samples:" << std::endl;
@@ -171,10 +165,10 @@ public:
         }
 
         std::cout << "Coordinate ranges:" << std::endl;
-        std::cout << "  X: [" << min_x << ", " << max_x
-                  << "] (range: " << (max_x - min_x) << ")" << std::endl;
-        std::cout << "  Y: [" << min_y << ", " << max_y
-                  << "] (range: " << (max_y - min_y) << ")" << std::endl;
+        std::cout << "  X: [" << min_x << ", " << max_x << "] (range: " << (max_x - min_x) << ")"
+                  << std::endl;
+        std::cout << "  Y: [" << min_y << ", " << max_y << "] (range: " << (max_y - min_y) << ")"
+                  << std::endl;
       }
     }
 
@@ -214,13 +208,10 @@ public:
         feature_stds_[i] = 1.0f;
       }
     }
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
+
     for (size_t s = 0; s < features_.size(); ++s) {
       for (size_t i = 0; i < num_features_; ++i) {
-        features_[s][i] =
-            (features_[s][i] - feature_means_[i]) / feature_stds_[i];
+        features_[s][i] = (features_[s][i] - feature_means_[i]) / feature_stds_[i];
       }
     }
 
@@ -263,13 +254,9 @@ public:
         std::cout << target_stds_[i] << " ";
       }
       std::cout << std::endl;
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
       for (size_t s = 0; s < targets_.size(); ++s) {
         for (size_t i = 0; i < num_outputs_; ++i) {
-          targets_[s][i] =
-              (targets_[s][i] - target_means_[i]) / target_stds_[i];
+          targets_[s][i] = (targets_[s][i] - target_means_[i]) / target_stds_[i];
         }
       }
     }
@@ -289,47 +276,38 @@ public:
       return;
     }
 
-    if (feature_means.size() != num_features_ ||
-        feature_stds.size() != num_features_) {
+    if (feature_means.size() != num_features_ || feature_stds.size() != num_features_) {
       std::cerr << "Error: Feature statistics size mismatch!" << std::endl;
       return;
     }
 
     feature_means_ = feature_means;
     feature_stds_ = feature_stds;
-#ifdef _OPENMP
-#pragma omp parallel for
-#endif
+
     for (size_t s = 0; s < features_.size(); ++s) {
       for (size_t i = 0; i < num_features_; ++i) {
-        features_[s][i] =
-            (features_[s][i] - feature_means_[i]) / feature_stds_[i];
+        features_[s][i] = (features_[s][i] - feature_means_[i]) / feature_stds_[i];
       }
     }
 
     if (is_regression_ && !target_means.empty() && !target_stds.empty()) {
-      if (target_means.size() != num_outputs_ ||
-          target_stds.size() != num_outputs_) {
+      if (target_means.size() != num_outputs_ || target_stds.size() != num_outputs_) {
         std::cerr << "Error: Target statistics size mismatch!" << std::endl;
         return;
       }
 
       target_means_ = target_means;
       target_stds_ = target_stds;
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
+
       for (size_t s = 0; s < targets_.size(); ++s) {
         for (size_t i = 0; i < num_outputs_; ++i) {
-          targets_[s][i] =
-              (targets_[s][i] - target_means_[i]) / target_stds_[i];
+          targets_[s][i] = (targets_[s][i] - target_means_[i]) / target_stds_[i];
         }
       }
     }
 
     is_normalized_ = true;
-    std::cout << "Data normalization using external statistics completed!"
-              << std::endl;
+    std::cout << "Data normalization using external statistics completed!" << std::endl;
 
     batches_prepared_ = false;
   }
@@ -364,8 +342,7 @@ public:
 
   void prepare_batches(size_t batch_size) {
     if (features_.empty()) {
-      std::cerr << "Warning: No data loaded, cannot prepare batches!"
-                << std::endl;
+      std::cerr << "Warning: No data loaded, cannot prepare batches!" << std::endl;
       return;
     }
 
@@ -379,22 +356,18 @@ public:
     batched_features_.reserve(num_batches);
     batched_targets_.reserve(num_batches);
 
-    std::cout << "Preparing " << num_batches << " batches of size "
-              << batch_size << "..." << std::endl;
+    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
+              << std::endl;
 
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
       const int actual_batch_size = static_cast<int>(end_idx - start_idx);
 
-      Tensor<float> batch_features(static_cast<size_t>(actual_batch_size),
-                                   num_features_, 1, 1);
+      Tensor<float> batch_features(static_cast<size_t>(actual_batch_size), num_features_, 1, 1);
 
-      Tensor<float> batch_targets(static_cast<size_t>(actual_batch_size),
-                                  num_outputs_, 1, 1);
-#if defined(_OPENMP)
-#pragma omp parallel for if (actual_batch_size > 16)
-#endif
+      Tensor<float> batch_targets(static_cast<size_t>(actual_batch_size), num_outputs_, 1, 1);
+
       for (int i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
 
@@ -416,11 +389,9 @@ public:
     std::cout << "Batch preparation completed!" << std::endl;
   }
 
-  bool get_next_batch(Tensor<float> &batch_features,
-                      Tensor<float> &batch_targets) {
+  bool get_next_batch(Tensor<float> &batch_features, Tensor<float> &batch_targets) {
     if (!batches_prepared_) {
-      std::cerr << "Error: Batches not prepared! Call prepare_batches() first."
-                << std::endl;
+      std::cerr << "Error: Batches not prepared! Call prepare_batches() first." << std::endl;
       return false;
     }
 
@@ -443,24 +414,19 @@ public:
   size_t size() const { return features_.size(); }
   size_t num_features() const { return num_features_; }
   size_t num_outputs() const { return num_outputs_; }
-  size_t num_batches() const {
-    return batches_prepared_ ? batched_features_.size() : 0;
-  }
+  size_t num_batches() const { return batches_prepared_ ? batched_features_.size() : 0; }
   bool are_batches_prepared() const { return batches_prepared_; }
   bool is_regression() const { return is_regression_; }
   bool is_normalized() const { return is_normalized_; }
 
-  std::vector<float>
-  denormalize_targets(const std::vector<float> &normalized_targets) const {
+  std::vector<float> denormalize_targets(const std::vector<float> &normalized_targets) const {
     if (!is_normalized_ || !is_regression_) {
       return normalized_targets;
     }
 
     std::vector<float> denormalized(normalized_targets.size());
-    for (size_t i = 0;
-         i < normalized_targets.size() && i < target_means_.size(); ++i) {
-      denormalized[i] =
-          normalized_targets[i] * target_stds_[i] + target_means_[i];
+    for (size_t i = 0; i < normalized_targets.size() && i < target_means_.size(); ++i) {
+      denormalized[i] = normalized_targets[i] * target_stds_[i] + target_means_[i];
     }
     return denormalized;
   }

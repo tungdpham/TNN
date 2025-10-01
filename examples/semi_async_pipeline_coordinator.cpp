@@ -7,6 +7,7 @@
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/ops.hpp"
+#include "utils/utils_extended.hpp"
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -227,7 +228,7 @@ int main() {
     }
 
     for (auto &task : forward_tasks) {
-      utils::apply_softmax<float>(task.data);
+      task.data.apply_softmax();
       val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
       val_accuracy +=
           utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);
