@@ -15,6 +15,16 @@ sudo apt install libomp-dev
 # Install Intel TBB
 sudo apt install libtbb-dev
 
+# Install Intel MKL
+# add oneAPI repository
+wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
+echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+sudo apt update
+# instal mkl
+sudo apt install intel-oneapi-mkl-devel
+# source env vars
+source /opt/intel/oneapi/setvars.sh
+
 # Install CUDA (follow NVIDIA's installation guide)
 
 # For python scripts, install the dependencies from requirements.txt
