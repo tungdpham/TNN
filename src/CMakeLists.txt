@@ -1,5 +1,8 @@
 
-add_library(dcnn_matrix STATIC matrix.cpp)
+file(GLOB_RECURSE DCNN_MATRIX_SOURCES 
+    "matrix/*.cpp"
+)
+add_library(dcnn_matrix STATIC ${DCNN_MATRIX_SOURCES})
 target_include_directories(dcnn_matrix PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -8,7 +11,10 @@ if(NOT MSVC)
     target_link_libraries(dcnn_matrix PUBLIC m)
 endif()
 
-add_library(dcnn_tensor STATIC tensor.cpp)
+file(GLOB_RECURSE DCNN_TENSOR_SOURCES 
+    "tensor/*.cpp"
+)
+add_library(dcnn_tensor STATIC ${DCNN_TENSOR_SOURCES})
 target_include_directories(dcnn_tensor PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -19,7 +25,10 @@ else()
     target_link_libraries(dcnn_tensor PUBLIC dcnn_matrix)
 endif()
 
-add_library(dcnn_utils STATIC utils.cpp hardware_info.cpp)
+file(GLOB_RECURSE DCNN_UTILS_SOURCES 
+    "utils/*.cpp"
+)
+add_library(dcnn_utils STATIC ${DCNN_UTILS_SOURCES})
 target_include_directories(dcnn_utils PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -61,7 +70,10 @@ else()
     target_link_libraries(dcnn_utils PUBLIC pdh)
 endif()
 
-add_library(dcnn_data_loading STATIC data_loading.cpp)
+file(GLOB_RECURSE DCNN_DATA_LOADING_SOURCES 
+    "data_loading/*.cpp"
+)
+add_library(dcnn_data_loading STATIC ${DCNN_DATA_LOADING_SOURCES})
 target_include_directories(dcnn_data_loading PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
@@ -79,7 +91,6 @@ target_include_directories(dcnn_math PUBLIC
 target_link_libraries(dcnn_math PUBLIC dcnn_utils)
 
 file(GLOB_RECURSE DCNN_NN_SOURCES 
-    "nn.cpp"
     "nn/*.cpp"
 )
 
@@ -95,7 +106,10 @@ else()
 endif()
 target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
 
-add_library(dcnn_pipeline STATIC pipeline.cpp)
+file(GLOB_RECURSE DCNN_PIPELINE_SOURCES 
+    "pipeline/*.cpp"
+)
+add_library(dcnn_pipeline STATIC ${DCNN_PIPELINE_SOURCES})
 target_include_directories(dcnn_pipeline PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
