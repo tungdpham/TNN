@@ -236,7 +236,7 @@ elseif(MINGW)
     endif()
 else()
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -flto=auto -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g -march=native")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fverbose-asm -march=native")
     add_compile_options(-Wpedantic -Wall)
     # Generate assembly files in debug mode
     if(ENABLE_DEBUG OR CMAKE_BUILD_TYPE STREQUAL "Debug")

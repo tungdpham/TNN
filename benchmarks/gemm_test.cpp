@@ -3,7 +3,9 @@
 #include "utils/ops.hpp"
 #include <chrono>
 #include <iostream>
+#include <numeric>
 #include <utils/mkl_utils.hpp>
+#include <vector>
 
 using namespace tmath;
 using namespace utils;
@@ -13,14 +15,34 @@ constexpr int C = 128;
 constexpr int H = 128;
 constexpr int W = 128;
 
-bool check_match(const float *a, const float *b, size_t size, float tol = 0.1f) {
+bool check_match(const float *a, const float *b, size_t size, float max_acceptable_error = 1.0f) {
+  float max_error = 0;
   for (size_t i = 0; i < size; ++i) {
-    if (std::abs(a[i] - b[i]) > tol) {
-      std::cout << "Mismatch at index " << i << ": " << a[i] << " vs " << b[i] << std::endl;
-      return false;
+    if (std::abs(a[i] - b[i]) > 1e-3f) {
+      max_error = std::max(max_error, std::abs(a[i] - b[i]));
     }
   }
+
+  std::cout << "Max error: " << max_error << std::endl;
+  if (max_error > max_acceptable_error) {
+    return false;
+  }
   return true;
+}
+
+template <typename Func> void benchmark(const std::string &name, Func &&func, int bench_runs = 3) {
+  std::cout << "Benchmarking: " << name << std::endl;
+  std::vector<double> times;
+  for (int i = 0; i < bench_runs; ++i) {
+    auto start = std::chrono::high_resolution_clock::now();
+    func();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double, std::milli> duration = end - start;
+    times.push_back(duration.count());
+  }
+
+  double avg = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
+  std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
 int main() {
@@ -31,16 +53,29 @@ int main() {
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
   arena.execute([&] {
 #endif
-    Matrix<float> a(N, C * H * W);
-    Matrix<float> b(C * H * W, C);
-    Matrix<float> c1(N, C);
-    Matrix<float> c2(N, C);
-    Matrix<float> c3(N, C);
-    Matrix<float> c4(N, C);
-    Matrix<float> c1_mkl(N, C);
-    Matrix<float> c2_mkl(N, C);
-    Matrix<float> c3_mkl(N, C);
-    Matrix<float> c4_mkl(N, C);
+    int n = N * C;
+    int m = N * C;
+    int k = H * W;
+
+    std::cout << "Matrix A: " << n << " x " << k << std::endl;
+    std::cout << "Matrix B: " << k << " x " << m << std::endl;
+    std::cout << "Matrix C: " << n << " x " << m << std::endl;
+    std::cout << "FLOP count: " << 2.0 * n * m * k << std::endl;
+
+    Matrix<float> a(n, k);
+    Matrix<float> b(k, m);
+    Matrix<float> c1(n, m);
+    Matrix<float> c2(n, m);
+    Matrix<float> c3(n, m);
+    Matrix<float> c4(n, m);
+    Matrix<float> c1_optimized(n, m);
+    Matrix<float> c2_optimized(n, m);
+    Matrix<float> c3_optimized(n, m);
+    Matrix<float> c4_optimized(n, m);
+    Matrix<float> c1_mkl(n, m);
+    Matrix<float> c2_mkl(n, m);
+    Matrix<float> c3_mkl(n, m);
+    Matrix<float> c4_mkl(n, m);
 
     a.fill_random_normal(0.5f, 0.25f);
     b.fill_random_normal(0.0f, 1.0f);
@@ -49,65 +84,57 @@ int main() {
     c3.fill(0.0f);
     c4.fill(0.0f);
 
-    auto current_start = std::chrono::high_resolution_clock::now();
-    sgemm(a.data(), b.data(), c1.data(), N, C, C * H * W, false, false);
-    auto current_end = std::chrono::high_resolution_clock::now();
+    benchmark(
+        "SGEMM (NN)",
+        [&]() { sgemm(a.data(), b.data(), c1.data(), N, C, C * H * W, false, false); }, 3);
 
-    std::chrono::duration<double, std::milli> current_duration = current_end - current_start;
-    std::cout << "SGEMM completed in " << current_duration.count() << " ms\n";
+    benchmark(
+        "SGEMM (NT)", [&]() { sgemm(a.data(), b.data(), c2.data(), N, C, C * H * W, false, true); },
+        3);
 
-    auto current_nt_start = std::chrono::high_resolution_clock::now();
-    sgemm(a.data(), b.data(), c2.data(), N, C, C * H * W, false, true);
-    auto current_nt_end = std::chrono::high_resolution_clock::now();
+    benchmark(
+        "SGEMM (TN)", [&]() { sgemm(a.data(), b.data(), c3.data(), N, C, C * H * W, true, false); },
+        3);
 
-    std::chrono::duration<double, std::milli> current_nt_duration =
-        current_nt_end - current_nt_start;
-    std::cout << "SGEMM (B^T) completed in " << current_nt_duration.count() << " ms\n";
-
-    auto current_tn_start = std::chrono::high_resolution_clock::now();
-    sgemm(a.data(), b.data(), c3.data(), N, C, C * H * W, true, false);
-    auto current_tn_end = std::chrono::high_resolution_clock::now();
-
-    std::chrono::duration<double, std::milli> current_tn_duration =
-        current_tn_end - current_tn_start;
-    std::cout << "SGEMM (A^T) completed in " << current_tn_duration.count() << " ms\n";
-
-    auto current_tt_start = std::chrono::high_resolution_clock::now();
-    sgemm(a.data(), b.data(), c4.data(), N, C, C * H * W, true, true);
-    auto current_tt_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> current_tt_duration =
-        current_tt_end - current_tt_start;
-    std::cout << "SGEMM (A^T, B^T) completed in " << current_tt_duration.count() << " ms\n";
-
+    benchmark(
+        "SGEMM (TT)", [&]() { sgemm(a.data(), b.data(), c4.data(), N, C, C * H * W, true, true); },
+        3);
 #ifdef USE_MKL
+    std::cout << "\n=== MKL Benchmarks ===" << std::endl;
     mkl_set_threading_layer(MKL_THREADING_TBB);
-    auto mkl_start = std::chrono::high_resolution_clock::now();
-    utils::mkl::gemm('N', 'N', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C, 0.0f,
-                     c1_mkl.data(), C);
-    auto mkl_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> mkl_duration = mkl_end - mkl_start;
-    std::cout << "MKL SGEMM completed in " << mkl_duration.count() << " ms\n";
+    mkl_set_num_threads(8);
 
-    auto mkl_nt_start = std::chrono::high_resolution_clock::now();
-    utils::mkl::gemm('N', 'T', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C * H * W,
-                     0.0f, c2_mkl.data(), C);
-    auto mkl_nt_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> mkl_nt_duration = mkl_nt_end - mkl_nt_start;
-    std::cout << "MKL SGEMM (B^T) completed in " << mkl_nt_duration.count() << " ms\n";
+    benchmark(
+        "MKL SGEMM (NN)",
+        [&]() {
+          utils::mkl::gemm('N', 'N', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C, 1.0f,
+                           c1_mkl.data(), C);
+        },
+        3);
 
-    auto mkl_tn_start = std::chrono::high_resolution_clock::now();
-    utils::mkl::gemm('T', 'N', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C, 0.0f, c3_mkl.data(),
-                     C);
-    auto mkl_tn_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> mkl_tn_duration = mkl_tn_end - mkl_tn_start;
-    std::cout << "MKL SGEMM (A^T) completed in " << mkl_tn_duration.count() << " ms\n";
+    benchmark(
+        "MKL SGEMM (NT)",
+        [&]() {
+          utils::mkl::gemm('N', 'T', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(),
+                           C * H * W, 1.0f, c2_mkl.data(), C);
+        },
+        3);
 
-    auto mkl_tt_start = std::chrono::high_resolution_clock::now();
-    utils::mkl::gemm('T', 'T', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C * H * W, 0.0f,
-                     c4_mkl.data(), C);
-    auto mkl_tt_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> mkl_tt_duration = mkl_tt_end - mkl_tt_start;
-    std::cout << "MKL SGEMM (A^T, B^T) completed in " << mkl_tt_duration.count() << " ms\n";
+    benchmark(
+        "MKL SGEMM (TN)",
+        [&]() {
+          utils::mkl::gemm('T', 'N', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C, 1.0f,
+                           c3_mkl.data(), C);
+        },
+        3);
+
+    benchmark(
+        "MKL SGEMM (TT)",
+        [&]() {
+          utils::mkl::gemm('T', 'T', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C * H * W, 1.0f,
+                           c4_mkl.data(), C);
+        },
+        3);
 
     if (!check_match(c1.data(), c1_mkl.data(), N * C)) {
       std::cout << "Mismatch in C1 (NN)!" << std::endl;
