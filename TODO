@@ -1,7 +1,1 @@
-- Complete static load balancing
-    + Send CPU info to coordinator
-    + Create a partitioner based on cpu info.
-- Do dynamic load balancing:
-    + Send CPU workload, thermal infor, RAM usage, and batch processing speed to coordinator.
-    + Readjust configs based on this infor
-    + Interval for each readjustment? too many cause unneccessary overhead. Self-readjusting intervals? 
+- Fix and finish the partitioner.
