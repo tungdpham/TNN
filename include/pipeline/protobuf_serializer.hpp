@@ -1,7 +1,7 @@
 #pragma once
 
 #include "message.hpp"
-#include "pipeline.pb.h"
+#include "pipeline/pipeline.pb.h"
 #include "stage_config.hpp"
 #include "task.hpp"
 #include "tensor/tensor.hpp"
@@ -14,8 +14,7 @@ namespace tpipeline {
 
 class GoogleProtobufSerializer {
 public:
-  template <typename T>
-  static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
+  template <typename T> static std::vector<uint8_t> serialize_tensor(const Tensor<T> &tensor) {
     tpipeline::proto::Tensor proto_tensor;
 
     auto shape = tensor.shape();
@@ -37,8 +36,7 @@ public:
     return std::vector<uint8_t>(serialized.begin(), serialized.end());
   }
 
-  template <typename T>
-  static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer) {
+  template <typename T> static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer) {
     tpipeline::proto::Tensor proto_tensor;
     std::string serialized(buffer.begin(), buffer.end());
 
@@ -47,9 +45,8 @@ public:
     }
 
     if (proto_tensor.dtype() != get_dtype_string<T>()) {
-      throw std::runtime_error("Tensor data type mismatch: expected " +
-                               get_dtype_string<T>() + ", got " +
-                               proto_tensor.dtype());
+      throw std::runtime_error("Tensor data type mismatch: expected " + get_dtype_string<T>() +
+                               ", got " + proto_tensor.dtype());
     }
 
     std::vector<size_t> shape;
@@ -68,8 +65,7 @@ public:
     return tensor;
   }
 
-  template <typename T>
-  static std::vector<uint8_t> serialize_task(const Task<T> &task) {
+  template <typename T> static std::vector<uint8_t> serialize_task(const Task<T> &task) {
     tpipeline::proto::Task proto_task;
 
     proto_task.set_type(static_cast<tpipeline::proto::TaskType>(task.type));
@@ -91,8 +87,7 @@ public:
     return std::vector<uint8_t>(serialized.begin(), serialized.end());
   }
 
-  template <typename T>
-  static Task<T> deserialize_task(const std::vector<uint8_t> &buffer) {
+  template <typename T> static Task<T> deserialize_task(const std::vector<uint8_t> &buffer) {
     tpipeline::proto::Task proto_task;
     std::string serialized(buffer.begin(), buffer.end());
 
@@ -109,14 +104,12 @@ public:
     return Task<T>(type, tensor, proto_task.micro_batch_id());
   }
 
-  template <typename T>
-  static std::vector<uint8_t> serialize_message(const Message<T> &message) {
+  template <typename T> static std::vector<uint8_t> serialize_message(const Message<T> &message) {
     tpipeline::proto::Message proto_message;
 
     proto_message.set_command_type(
         static_cast<tpipeline::proto::CommandType>(message.command_type));
-    proto_message.set_sequence_number(
-        static_cast<uint32_t>(message.sequence_number));
+    proto_message.set_sequence_number(static_cast<uint32_t>(message.sequence_number));
     proto_message.set_sender_id(message.sender_id);
     proto_message.set_recipient_id(message.recipient_id);
 
@@ -129,8 +122,7 @@ public:
       tpipeline::proto::Task proto_task;
       std::string task_str(task_bytes.begin(), task_bytes.end());
       if (!proto_task.ParseFromString(task_str)) {
-        throw std::runtime_error(
-            "Failed to parse task for message serialization");
+        throw std::runtime_error("Failed to parse task for message serialization");
       }
       *proto_message.mutable_task() = proto_task;
     } else if (message.has_text()) {
@@ -147,8 +139,7 @@ public:
     return std::vector<uint8_t>(serialized.begin(), serialized.end());
   }
 
-  template <typename T>
-  static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
+  template <typename T> static Message<T> deserialize_message(const std::vector<uint8_t> &buffer) {
     tpipeline::proto::Message proto_message;
     std::string serialized(buffer.begin(), buffer.end());
 
@@ -156,8 +147,7 @@ public:
       throw std::runtime_error("Failed to parse message from protobuf");
     }
 
-    CommandType command_type =
-        static_cast<CommandType>(proto_message.command_type());
+    CommandType command_type = static_cast<CommandType>(proto_message.command_type());
     Message<T> message(command_type);
 
     message.sequence_number = proto_message.sequence_number();
@@ -189,8 +179,7 @@ public:
     return message;
   }
 
-  static std::vector<uint8_t>
-  serialize_stage_config(const StageConfig &config) {
+  static std::vector<uint8_t> serialize_stage_config(const StageConfig &config) {
     tpipeline::proto::StageConfig proto_config;
 
     proto_config.set_stage_id(config.stage_id);
@@ -208,8 +197,7 @@ public:
     return std::vector<uint8_t>(serialized.begin(), serialized.end());
   }
 
-  static StageConfig
-  deserialize_stage_config(const std::vector<uint8_t> &buffer) {
+  static StageConfig deserialize_stage_config(const std::vector<uint8_t> &buffer) {
     tpipeline::proto::StageConfig proto_config;
     std::string serialized(buffer.begin(), buffer.end());
 
@@ -220,8 +208,7 @@ public:
     StageConfig config;
     config.stage_id = proto_config.stage_id();
     config.stage_index = proto_config.stage_index();
-    config.model_config =
-        nlohmann::json::parse(proto_config.model_config_json());
+    config.model_config = nlohmann::json::parse(proto_config.model_config_json());
     config.next_stage_endpoint = proto_config.next_stage_endpoint();
     config.prev_stage_endpoint = proto_config.prev_stage_endpoint();
     config.coordinator_endpoint = proto_config.coordinator_endpoint();
