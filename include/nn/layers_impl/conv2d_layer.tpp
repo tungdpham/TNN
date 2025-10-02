@@ -28,13 +28,10 @@ namespace tnn {
 template <typename T>
 Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
                             size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
-                            size_t pad_w, bool use_bias,
-                            std::unique_ptr<ActivationFunction<T>> activation,
-                            const std::string &name)
+                            size_t pad_w, bool use_bias, const std::string &name)
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias), activation_(std::move(activation)),
-      micro_batch_im2col_matrices_() {
+      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias), micro_batch_im2col_matrices_() {
   weights_ = Tensor<T>(out_channels, in_channels, kernel_h, kernel_w);
   weight_gradients_ = Tensor<T>(out_channels, in_channels, kernel_h, kernel_w);
 
@@ -75,7 +72,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   size_t output_size = batch_size * output_h * output_w;
 
   T *output_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
-  // Initialize output_flat to zero since sgemm accumulates
   std::fill_n(output_flat, out_channels_ * output_size, T(0));
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
                        out_channels_);
@@ -88,11 +84,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
 
   if (use_bias_) {
     add_bias_to_output(output.data(), bias_.data(), batch_size, output_h, output_w, out_channels_);
-  }
-
-  if (activation_) {
-    micro_batch_pre_activations_[micro_batch_id] = output.clone();
-    activation_->apply(output);
   }
 
   return output;
@@ -122,31 +113,20 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   const size_t output_h = gradient.height();
   const size_t output_w = gradient.width();
 
-  Tensor<T> current_grad = gradient.clone();
-
-  if (activation_) {
-    auto it_pre_act = micro_batch_pre_activations_.find(micro_batch_id);
-    if (it_pre_act == micro_batch_pre_activations_.end()) {
-      throw std::runtime_error("No cached pre-activation values found for micro-batch ID: " +
-                               std::to_string(micro_batch_id));
-    }
-    activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
-  }
-
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
   T *gradient_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
 
-  utils::nchw_to_cnhw(current_grad.data(), gradient_flat, batch_size, out_channels_, output_h,
+  utils::nchw_to_cnhw(gradient.data(), gradient_flat, batch_size, out_channels_, output_h,
                       output_w);
 
   compute_weight_gradients(cached_im2col_matrix.data(), gradient_flat, weight_gradients_.data(),
                            output_size, kernel_size, out_channels_);
 
   if (use_bias_) {
-    compute_bias_gradients(current_grad.data(), bias_gradients_.data(), batch_size, output_h,
-                           output_w, out_channels_);
+    compute_bias_gradients(gradient.data(), bias_gradients_.data(), batch_size, output_h, output_w,
+                           out_channels_);
   }
 
   Matrix<T> col_grad_matrix(kernel_size, output_size);
@@ -185,12 +165,8 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
       gradient_data, col_data, weight_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  auto start = std::chrono::high_resolution_clock::now();
   tmath::sgemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
                false, true);
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float, std::milli> duration = end - start;
-  this->perf_timers_["weight_grad_gemm"] += duration.count();
 #endif
 }
 
@@ -204,12 +180,8 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
       weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  auto start = std::chrono::high_resolution_clock::now();
   tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
                true, false);
-  auto end = std::chrono::high_resolution_clock::now();
-  std::chrono::duration<float, std::milli> duration = end - start;
-  this->perf_timers_["input_grad_gemm"] += duration.count();
 #endif
 }
 
@@ -262,16 +234,14 @@ template <typename T> LayerConfig Conv2DLayer<T>::get_config() const {
   config.parameters["pad_h"] = pad_h_;
   config.parameters["pad_w"] = pad_w_;
   config.parameters["use_bias"] = use_bias_;
-  config.parameters["activation"] = activation_ ? activation_->name() : std::string("none");
   config.parameters["optimized"] = std::string("native");
   return config;
 }
 
 template <typename T> std::unique_ptr<Layer<T>> Conv2DLayer<T>::clone() const {
-  auto activation_clone = activation_ ? activation_->clone() : nullptr;
   return std::make_unique<Conv2DLayer<T>>(in_channels_, out_channels_, kernel_h_, kernel_w_,
                                           stride_h_, stride_w_, pad_h_, pad_w_, use_bias_,
-                                          std::move(activation_clone), this->name_);
+                                          this->name_);
 }
 
 template <typename T>

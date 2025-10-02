@@ -30,7 +30,6 @@ private:
   size_t pad_h_;
   size_t pad_w_;
   bool use_bias_;
-  std::unique_ptr<ActivationFunction<T>> activation_;
 
   Tensor<T> weights_;
   Tensor<T> bias_;
@@ -64,8 +63,7 @@ private:
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
               size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-              bool use_bias = true, std::unique_ptr<ActivationFunction<T>> activation = nullptr,
-              const std::string &name = "conv2d");
+              bool use_bias = true, const std::string &name = "conv2d");
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;

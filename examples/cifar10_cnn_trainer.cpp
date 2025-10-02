@@ -69,9 +69,11 @@ int main() {
 
     auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                      .input({3, 32, 32})
-                     .conv2d(16, 3, 3, 1, 1, 0, 0, "relu", true, "conv1")
+                     .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
+                     .activation("relu", "relu1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                     .conv2d(64, 3, 3, 1, 1, 0, 0, "relu", true, "conv2")
+                     .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
+                     .activation("relu", "relu2")
                      .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                      .flatten("flatten")
                      .dense(10, "linear", true, "fc1")

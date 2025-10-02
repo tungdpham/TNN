@@ -38,6 +38,14 @@ public:
   virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
   virtual Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
 
+  virtual void forward_inplace(Tensor<T> &input, size_t micro_batch_id = 0) {
+    input = forward(input, micro_batch_id);
+  }
+
+  virtual void backward_inplace(Tensor<T> &gradient, size_t micro_batch_id = 0) {
+    gradient = backward(gradient, micro_batch_id);
+  }
+
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
 
@@ -45,7 +53,6 @@ public:
   forward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
   virtual uint32_t
   backward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
-
   virtual bool has_parameters() const { return false; }
 
   virtual std::string type() const = 0;
@@ -60,6 +67,8 @@ public:
 
   virtual void update_parameters() {}
 
+  void enable_profiling(bool enable) { enable_profiling_ = enable; }
+
   void print_profiling_info() const {
     std::cout << "Profiling info for layer: " << name_ << std::endl;
     for (const auto &[key, value] : perf_timers_) {
@@ -67,10 +76,13 @@ public:
     }
   }
 
+  void reset_profiling_info() { perf_timers_.clear(); }
+
   std::string name() const { return name_; }
 
 protected:
   bool is_training_ = true;
+  bool enable_profiling_ = false;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
   std::string name_;
 };

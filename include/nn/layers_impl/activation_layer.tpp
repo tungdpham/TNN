@@ -37,6 +37,20 @@ Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t micro_b
   return grad;
 }
 
+template <typename T>
+void ActivationLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id) {
+  micro_batch_inputs_[micro_batch_id] = input.clone();
+  activation_->apply(input);
+}
+
+template <typename T>
+void ActivationLayer<T>::backward_inplace(Tensor<T> &gradient, size_t micro_batch_id) {
+  auto it = micro_batch_inputs_.find(micro_batch_id);
+  assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
+  const Tensor<T> &last_input = it->second;
+  activation_->compute_gradient_inplace(last_input, gradient);
+}
+
 template <typename T> std::string ActivationLayer<T>::type() const { return "activation"; }
 
 template <typename T> LayerConfig ActivationLayer<T>::get_config() const {

@@ -67,17 +67,10 @@ std::unique_ptr<Layer<T>> dense(size_t input_features, size_t output_features,
 template <typename T = float>
 std::unique_ptr<Layer<T>> conv2d(size_t in_channels, size_t out_channels, size_t kernel_h,
                                  size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-                                 size_t pad_h = 0, size_t pad_w = 0,
-                                 const std::string &activation = "none", bool use_bias = true,
+                                 size_t pad_h = 0, size_t pad_w = 0, bool use_bias = true,
                                  const std::string &name = "conv2d") {
-  std::unique_ptr<ActivationFunction<T>> act = nullptr;
-  if (activation != "none" && activation != "linear") {
-    auto factory = ActivationFactory<T>();
-    factory.register_defaults();
-    act = factory.create(activation);
-  }
   return std::make_unique<Conv2DLayer<T>>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
-                                          stride_w, pad_h, pad_w, use_bias, std::move(act), name);
+                                          stride_w, pad_h, pad_w, use_bias, name);
 }
 
 template <typename T = float>

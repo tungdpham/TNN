@@ -195,6 +195,9 @@ public:
       forward_times_microseconds_.clear();
       backward_times_microseconds_.clear();
     }
+    for (auto &layer : layers_) {
+      layer->enable_profiling(enable);
+    }
   }
 
   /**
@@ -208,6 +211,9 @@ public:
   void clear_profiling_data() {
     forward_times_microseconds_.clear();
     backward_times_microseconds_.clear();
+    for (auto &layer : layers_) {
+      layer->reset_profiling_info();
+    }
   }
 
   /**
@@ -243,10 +249,6 @@ public:
       std::cout << "No profiling data available. Enable profiling with "
                    "enable_profiling(true)\n";
       return;
-    }
-
-    for (size_t i = 0; i < layers_.size(); ++i) {
-      layers_[i]->print_profiling_info();
     }
 
     std::cout << std::string(60, '=') << "\n";
@@ -316,7 +318,8 @@ public:
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
 
-          current_output = layers_[i]->forward(current_output, micro_batch_id);
+          // current_output = layers_[i]->forward(current_output, micro_batch_id);
+          layers_[i]->forward_inplace(current_output, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration =
@@ -329,7 +332,7 @@ public:
           }
           forward_times_microseconds_[layer_name] += duration.count();
         } else {
-          current_output = layers_[i]->forward(current_output, micro_batch_id);
+          layers_[i]->forward_inplace(current_output, micro_batch_id);
         }
 
       } catch (const std::exception &e) {
@@ -358,7 +361,8 @@ public:
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
 
-          current_grad = layers_[i]->backward(current_grad, micro_batch_id);
+          // current_grad = layers_[i]->backward(current_grad, micro_batch_id);
+          layers_[i]->backward_inplace(current_grad, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration =
@@ -371,7 +375,7 @@ public:
           }
           backward_times_microseconds_[layer_name] += duration.count();
         } else {
-          current_grad = layers_[i]->backward(current_grad, micro_batch_id);
+          layers_[i]->backward_inplace(current_grad, micro_batch_id);
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in backward pass of layer " + std::to_string(i) + " (" +
@@ -1039,8 +1043,7 @@ public:
 
   SequentialBuilder &conv2d(size_t out_channels, size_t kernel_h, size_t kernel_w,
                             size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
-                            size_t pad_w = 0, const std::string &activation = "none",
-                            bool use_bias = true, const std::string &name = "") {
+                            size_t pad_w = 0, bool use_bias = true, const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 4) {
@@ -1052,8 +1055,8 @@ public:
     size_t in_channels = current_shape[1];
 
     auto layer = tnn::conv2d<T>(
-        in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, activation,
-        use_bias, name.empty() ? "conv2d_" + std::to_string(model_.layer_size()) : name);
+        in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, use_bias,
+        name.empty() ? "conv2d_" + std::to_string(model_.layer_size()) : name);
     model_.add(std::move(layer));
     return *this;
   }
