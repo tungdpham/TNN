@@ -245,6 +245,10 @@ public:
       return;
     }
 
+    for (size_t i = 0; i < layers_.size(); ++i) {
+      layers_[i]->print_profiling_info();
+    }
+
     std::cout << std::string(60, '=') << "\n";
     std::cout << "Performance Profile: " << name_ << "\n";
     std::cout << std::string(60, '=') << "\n";
@@ -253,7 +257,6 @@ public:
     std::cout << std::string(60, '-') << "\n";
 
     int64_t total_forward = 0, total_backward = 0;
-
     for (size_t i = 0; i < layers_.size(); ++i) {
 
       std::string layer_name = layers_[i]->type();

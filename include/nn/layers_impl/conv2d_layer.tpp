@@ -150,6 +150,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   }
 
   Matrix<T> col_grad_matrix(kernel_size, output_size);
+  col_grad_matrix.fill(T(0));
   compute_input_gradients(gradient_flat, weights_.data(), col_grad_matrix.data(), output_size,
                           kernel_size, out_channels_);
 
@@ -184,8 +185,12 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
       gradient_data, col_data, weight_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
+  auto start = std::chrono::high_resolution_clock::now();
   tmath::sgemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
                false, true);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float, std::milli> duration = end - start;
+  this->perf_timers_["weight_grad_gemm"] += duration.count();
 #endif
 }
 
@@ -199,9 +204,12 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
       weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  std::fill_n(col_grad_data, kernel_size * output_size, T(0));
+  auto start = std::chrono::high_resolution_clock::now();
   tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
                true, false);
+  auto end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<float, std::milli> duration = end - start;
+  this->perf_timers_["input_grad_gemm"] += duration.count();
 #endif
 }
 

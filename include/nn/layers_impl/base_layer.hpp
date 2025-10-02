@@ -8,6 +8,7 @@
 
 #include "../optimizers.hpp"
 #include <any>
+#include <map>
 #include <string>
 #include <unordered_map>
 
@@ -59,10 +60,18 @@ public:
 
   virtual void update_parameters() {}
 
+  void print_profiling_info() const {
+    std::cout << "Profiling info for layer: " << name_ << std::endl;
+    for (const auto &[key, value] : perf_timers_) {
+      std::cout << "  " << key << ": " << value << " ms" << std::endl;
+    }
+  }
+
   std::string name() const { return name_; }
 
 protected:
   bool is_training_ = true;
+  mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
   std::string name_;
 };
 

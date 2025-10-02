@@ -235,7 +235,7 @@ elseif(MINGW)
         message(STATUS "Assembly output enabled (MinGW)")
     endif()
 else()
-    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -funroll-loops -march=native -flto=auto -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -flto=auto -DNDEBUG")
     set(CMAKE_CXX_FLAGS_DEBUG "-O2 -g -march=native")
     add_compile_options(-Wpedantic -Wall)
     # Generate assembly files in debug mode
