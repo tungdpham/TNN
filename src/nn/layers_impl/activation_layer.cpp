@@ -4,10 +4,7 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "activation_layer.hpp"
-
-#include <cassert>
-#include <stdexcept>
+#include "nn/layers_impl/activation_layer.hpp"
 
 namespace tnn {
 
@@ -81,5 +78,9 @@ uint32_t ActivationLayer<T>::backward_complexity(const std::vector<size_t> &inpu
   // Assuming element wise operation for activation functions
   return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
+
+// Explicit template instantiations
+template class ActivationLayer<float>;
+template class ActivationLayer<double>;
 
 } // namespace tnn

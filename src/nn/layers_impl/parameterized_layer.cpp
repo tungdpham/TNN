@@ -4,20 +4,18 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "parameterized_layer.hpp"
+#include "nn/layers_impl/parameterized_layer.hpp"
 
 namespace tnn {
 
-template <typename T>
-std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
+template <typename T> std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
   std::vector<Tensor<T> *> params;
   params.reserve(2);
   collect_parameters(params);
   return params;
 }
 
-template <typename T>
-std::vector<Tensor<T> *> ParameterizedLayer<T>::gradients() {
+template <typename T> std::vector<Tensor<T> *> ParameterizedLayer<T>::gradients() {
   std::vector<Tensor<T> *> grads;
   grads.reserve(2);
   collect_gradients(grads);
@@ -35,9 +33,12 @@ template <typename T> void ParameterizedLayer<T>::update_parameters() {
 }
 
 template <typename T>
-void ParameterizedLayer<T>::set_optimizer(
-    std::unique_ptr<Optimizer<T>> optimizer) {
+void ParameterizedLayer<T>::set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
   layer_optimizer_ = std::move(optimizer);
 }
+
+// Explicit template instantiations
+template class ParameterizedLayer<float>;
+template class ParameterizedLayer<double>;
 
 } // namespace tnn

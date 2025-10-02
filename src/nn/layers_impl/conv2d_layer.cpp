@@ -4,7 +4,7 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "conv2d_layer.hpp"
+#include "nn/layers_impl/conv2d_layer.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -72,7 +72,6 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   size_t output_size = batch_size * output_h * output_w;
 
   T *output_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
-  std::fill_n(output_flat, out_channels_ * output_size, T(0));
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
                        out_channels_);
 
@@ -130,7 +129,6 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   }
 
   Matrix<T> col_grad_matrix(kernel_size, output_size);
-  col_grad_matrix.fill(T(0));
   compute_input_gradients(gradient_flat, weights_.data(), col_grad_matrix.data(), output_size,
                           kernel_size, out_channels_);
 
@@ -151,6 +149,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
       weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
+  std::fill_n(output_data, out_channels_ * output_size, T(0));
   tmath::sgemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
 #endif
 }
@@ -180,6 +179,7 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
       weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
+  std::fill_n(col_grad_data, kernel_size * output_size, T(0));
   tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
                true, false);
 #endif
@@ -330,5 +330,8 @@ uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_sh
       weight_grad_ops + bias_grad_ops + tranposition_ops + input_grad_ops + col2im_ops;
   return total_ops;
 }
+
+// Explicit template instantiations
+template class Conv2DLayer<float>;
 
 } // namespace tnn

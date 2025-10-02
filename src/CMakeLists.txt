@@ -25,20 +25,21 @@ target_include_directories(dcnn_utils PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-# Add assembly optimizations for x86_64
+# add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
-        target_sources(dcnn_utils PRIVATE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm)
-        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_win.asm PROPERTY LANGUAGE ASM_NASM)
-        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.asm PROPERTY LANGUAGE ASM_NASM)
+        file(GLOB ASM_SOURCES "utils/simd_dot_product*.asm")
+        target_sources(dcnn_utils PRIVATE ${ASM_SOURCES})
+        foreach(asm_file ${ASM_SOURCES})
+            set_property(SOURCE ${asm_file} PROPERTY LANGUAGE ASM_NASM)
+        endforeach()
         message(STATUS "Using NASM assembly optimizations")
     elseif(NOT WIN32 OR NOT MSVC)
-        target_sources(dcnn_utils PRIVATE 
-            ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S
-            ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S
-        )
-        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product.S PROPERTY LANGUAGE ASM)
-        set_property(SOURCE ${CMAKE_SOURCE_DIR}/include/utils/simd_dot_product_aligned.S PROPERTY LANGUAGE ASM)
+        file(GLOB ASM_SOURCES "utils/simd_dot_product*.S")
+        target_sources(dcnn_utils PRIVATE ${ASM_SOURCES})
+        foreach(asm_file ${ASM_SOURCES})
+            set_property(SOURCE ${asm_file} PROPERTY LANGUAGE ASM)
+        endforeach()
         message(STATUS "Using GNU assembly optimizations")
     else()
         message(STATUS "Assembly optimizations disabled")
@@ -67,14 +68,21 @@ target_include_directories(dcnn_data_loading PUBLIC
 )
 target_link_libraries(dcnn_data_loading PUBLIC dcnn_utils dcnn_tensor dcnn_matrix)
 
-add_library(dcnn_math STATIC math.cpp)
-target_include_directories(dcnn_utils PUBLIC 
+file(GLOB_RECURSE DCNN_MATH_SOURCES 
+    "math/*.cpp"
+)
+add_library(dcnn_math STATIC ${DCNN_MATH_SOURCES})
+target_include_directories(dcnn_math PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(dcnn_math PUBLIC dcnn_utils)
 
-add_library(dcnn_nn STATIC nn.cpp)
+file(GLOB_RECURSE DCNN_NN_SOURCES 
+    "nn.cpp"
+    "nn/layers_impl/*.cpp"
+)
+add_library(dcnn_nn STATIC ${DCNN_NN_SOURCES})
 target_include_directories(dcnn_nn PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>

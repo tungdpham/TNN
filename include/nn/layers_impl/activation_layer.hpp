@@ -42,5 +42,3 @@ public:
 };
 
 } // namespace tnn
-
-#include "activation_layer.tpp"

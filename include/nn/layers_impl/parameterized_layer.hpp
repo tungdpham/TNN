@@ -19,9 +19,7 @@ namespace tnn {
 
 template <typename T = float> class ParameterizedLayer : public Layer<T> {
 public:
-  explicit ParameterizedLayer(const std::string &name = "") {
-    this->name_ = name;
-  }
+  explicit ParameterizedLayer(const std::string &name = "") { this->name_ = name; }
 
   std::vector<Tensor<T> *> parameters() override;
   std::vector<Tensor<T> *> gradients() override;
@@ -36,5 +34,3 @@ protected:
   virtual void clear_gradients() = 0;
 };
 } // namespace tnn
-
-#include "parameterized_layer.tpp"

@@ -4,7 +4,7 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "flatten_layer.hpp"
+#include "nn/layers_impl/flatten_layer.hpp"
 
 #include <stdexcept>
 
@@ -76,5 +76,9 @@ template <typename T>
 uint32_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
   return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
+
+// Explicit template instantiations
+template class FlattenLayer<float>;
+template class FlattenLayer<double>;
 
 } // namespace tnn

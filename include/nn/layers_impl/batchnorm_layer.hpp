@@ -65,5 +65,3 @@ public:
 };
 
 } // namespace tnn
-
-#include "batchnorm_layer.tpp"

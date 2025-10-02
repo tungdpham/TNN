@@ -60,5 +60,3 @@ public:
 };
 
 } // namespace tnn
-
-#include "maxpool2d_layer.tpp"

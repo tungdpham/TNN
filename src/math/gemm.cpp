@@ -1,6 +1,4 @@
-#pragma once
-
-#include "gemm.hpp"
+#include "math/gemm.hpp"
 #include <cstring>
 
 namespace tmath {
@@ -574,6 +572,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     free(D);
   }
 #else
+  const int BLOCK_SIZE = 32;
 
   for (int i = 0; i < M; i += BLOCK_SIZE) {
     for (int j = 0; j < N; j += BLOCK_SIZE) {

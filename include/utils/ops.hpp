@@ -215,15 +215,4 @@ inline T simd_dot_product(const T *weights, const T *col_data, size_t kernel_siz
 
   return sum;
 }
-
-template <typename T>
-inline void matmul(const T *A, const T *B, T *C, size_t M, size_t N, size_t K) {
-  T *B_T = (T *)malloc(sizeof(T) * K * N);
-  transpose_2d(B, B_T, K, N);
-  parallel_for_2d(M, N, [&](size_t i, size_t j) {
-    C[i * N + j] = simd_dot_product(&A[i * K], &B_T[j * K], K);
-  });
-  free(B_T);
-}
-
 } // namespace utils

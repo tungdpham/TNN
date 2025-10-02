@@ -4,13 +4,13 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "dense_layer.hpp"
+#include "nn/layers_impl/dense_layer.hpp"
 
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 
-#include "parameterized_layer.hpp"
+#include "nn/layers_impl/parameterized_layer.hpp"
 #include "utils/ops.hpp"
 #include "utils/parallel_for.hpp"
 
@@ -267,5 +267,9 @@ uint32_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_sha
   size_t total_ops = weight_grad_ops + bias_grad_ops + input_grad_ops;
   return total_ops;
 }
+
+// Explicit template instantiations
+template class DenseLayer<float>;
+template class DenseLayer<double>;
 
 } // namespace tnn

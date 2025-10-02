@@ -4,14 +4,11 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "batchnorm_layer.hpp"
+#include "nn/layers_impl/batchnorm_layer.hpp"
 
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
-
-#include "parameterized_layer.hpp"
-#include "utils/parallel_for.hpp"
 
 namespace tnn {
 
@@ -324,5 +321,9 @@ uint32_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input
   return size_t(8) *
          std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 }
+
+// Explicit template instantiations
+template class BatchNormLayer<float>;
+template class BatchNormLayer<double>;
 
 } // namespace tnn

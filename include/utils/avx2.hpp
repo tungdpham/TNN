@@ -42,7 +42,7 @@ inline void avx2_aligned_add(const float *a, const float *b, float *c, size_t si
   }
 }
 
-void avx2_unaligned_sub(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_sub(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -56,7 +56,7 @@ void avx2_unaligned_sub(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_sub(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_sub(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -70,7 +70,7 @@ void avx2_aligned_sub(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_mul(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_mul(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -84,7 +84,7 @@ void avx2_unaligned_mul(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_mul(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_mul(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -98,7 +98,7 @@ void avx2_aligned_mul(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_div(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_div(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -112,7 +112,7 @@ void avx2_unaligned_div(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_div(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_div(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -154,7 +154,7 @@ inline void avx2_aligned_add(const double *a, const double *b, double *c, size_t
   }
 }
 
-void avx2_unaligned_sub(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_sub(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -168,7 +168,7 @@ void avx2_unaligned_sub(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_aligned_sub(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_sub(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -182,7 +182,7 @@ void avx2_aligned_sub(const double *a, const double *b, double *c, size_t size) 
   }
 }
 
-void avx2_unaligned_mul(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_mul(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -196,7 +196,7 @@ void avx2_unaligned_mul(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_aligned_mul(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_mul(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -210,7 +210,7 @@ void avx2_aligned_mul(const double *a, const double *b, double *c, size_t size) 
   }
 }
 
-void avx2_unaligned_div(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_div(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -224,7 +224,7 @@ void avx2_unaligned_div(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_aligned_div(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_div(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -238,7 +238,7 @@ void avx2_aligned_div(const double *a, const double *b, double *c, size_t size) 
   }
 }
 
-void avx2_unaligned_fmadd(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_fmadd(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -253,7 +253,7 @@ void avx2_unaligned_fmadd(const double *a, const double *b, double *c, size_t si
   }
 }
 
-void avx2_aligned_fmadd(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_fmadd(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -268,7 +268,7 @@ void avx2_aligned_fmadd(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_unaligned_fmsub(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_fmsub(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -283,7 +283,7 @@ void avx2_unaligned_fmsub(const double *a, const double *b, double *c, size_t si
   }
 }
 
-void avx2_aligned_fmsub(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_fmsub(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -298,7 +298,7 @@ void avx2_aligned_fmsub(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_unaligned_fnmadd(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_fnmadd(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -313,7 +313,7 @@ void avx2_unaligned_fnmadd(const double *a, const double *b, double *c, size_t s
   }
 }
 
-void avx2_aligned_fnmadd(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_fnmadd(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -328,7 +328,7 @@ void avx2_aligned_fnmadd(const double *a, const double *b, double *c, size_t siz
   }
 }
 
-void avx2_unaligned_add_scalar(const double *a, double scalar, double *c, size_t size) {
+inline void avx2_unaligned_add_scalar(const double *a, double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -342,7 +342,7 @@ void avx2_unaligned_add_scalar(const double *a, double scalar, double *c, size_t
   }
 }
 
-void avx2_aligned_add_scalar(const double *a, double scalar, double *c, size_t size) {
+inline void avx2_aligned_add_scalar(const double *a, double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -356,7 +356,7 @@ void avx2_aligned_add_scalar(const double *a, double scalar, double *c, size_t s
   }
 }
 
-void avx2_unaligned_mul_scalar(const double *a, double scalar, double *c, size_t size) {
+inline void avx2_unaligned_mul_scalar(const double *a, double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -370,7 +370,7 @@ void avx2_unaligned_mul_scalar(const double *a, double scalar, double *c, size_t
   }
 }
 
-void avx2_aligned_mul_scalar(const double *a, double scalar, double *c, size_t size) {
+inline void avx2_aligned_mul_scalar(const double *a, double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -384,7 +384,7 @@ void avx2_aligned_mul_scalar(const double *a, double scalar, double *c, size_t s
   }
 }
 
-void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c, size_t size) {
+inline void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -398,7 +398,7 @@ void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c, 
   }
 }
 
-void avx2_aligned_div_scalar(const double *a, const double scalar, double *c, size_t size) {
+inline void avx2_aligned_div_scalar(const double *a, const double scalar, double *c, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -412,7 +412,7 @@ void avx2_aligned_div_scalar(const double *a, const double scalar, double *c, si
   }
 }
 
-void avx2_unaligned_set_scalar(double *c, double scalar, size_t size) {
+inline void avx2_unaligned_set_scalar(double *c, double scalar, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -424,7 +424,7 @@ void avx2_unaligned_set_scalar(double *c, double scalar, size_t size) {
   }
 }
 
-void avx2_aligned_set_scalar(double *c, double scalar, size_t size) {
+inline void avx2_aligned_set_scalar(double *c, double scalar, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -436,7 +436,7 @@ void avx2_aligned_set_scalar(double *c, double scalar, size_t size) {
   }
 }
 
-void avx2_unaligned_sqrt(const double *a, double *c, size_t size) {
+inline void avx2_unaligned_sqrt(const double *a, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -449,7 +449,7 @@ void avx2_unaligned_sqrt(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_aligned_sqrt(const double *a, double *c, size_t size) {
+inline void avx2_aligned_sqrt(const double *a, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -462,7 +462,7 @@ void avx2_aligned_sqrt(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_unaligned_abs(const double *a, double *c, size_t size) {
+inline void avx2_unaligned_abs(const double *a, double *c, size_t size) {
   __m256d sign_mask = _mm256_set1_pd(-0.0);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -476,7 +476,7 @@ void avx2_unaligned_abs(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_aligned_abs(const double *a, double *c, size_t size) {
+inline void avx2_aligned_abs(const double *a, double *c, size_t size) {
   __m256d sign_mask = _mm256_set1_pd(-0.0);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -490,7 +490,7 @@ void avx2_aligned_abs(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_unaligned_min(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_min(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -504,7 +504,7 @@ void avx2_unaligned_min(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_aligned_min(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_min(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -518,7 +518,7 @@ void avx2_aligned_min(const double *a, const double *b, double *c, size_t size) 
   }
 }
 
-void avx2_unaligned_max(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_max(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -532,7 +532,7 @@ void avx2_unaligned_max(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_aligned_max(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_max(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -546,7 +546,7 @@ void avx2_aligned_max(const double *a, const double *b, double *c, size_t size) 
   }
 }
 
-void avx2_unaligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
+inline void avx2_unaligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
   __m256d vec_min = _mm256_set1_pd(min_val);
   __m256d vec_max = _mm256_set1_pd(max_val);
   size_t vec_size = (size / 4) * 4;
@@ -561,7 +561,7 @@ void avx2_unaligned_clamp(const double *a, double min_val, double max_val, doubl
   }
 }
 
-void avx2_aligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
+inline void avx2_aligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
   __m256d vec_min = _mm256_set1_pd(min_val);
   __m256d vec_max = _mm256_set1_pd(max_val);
   size_t vec_size = (size / 4) * 4;
@@ -576,7 +576,7 @@ void avx2_aligned_clamp(const double *a, double min_val, double max_val, double 
   }
 }
 
-void avx2_unaligned_copy(const double *a, double *c, size_t size) {
+inline void avx2_unaligned_copy(const double *a, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -588,7 +588,7 @@ void avx2_unaligned_copy(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_aligned_copy(const double *a, double *c, size_t size) {
+inline void avx2_aligned_copy(const double *a, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -600,7 +600,7 @@ void avx2_aligned_copy(const double *a, double *c, size_t size) {
   }
 }
 
-void avx2_unaligned_zero(double *c, size_t size) {
+inline void avx2_unaligned_zero(double *c, size_t size) {
   __m256d zero = _mm256_setzero_pd();
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -612,7 +612,7 @@ void avx2_unaligned_zero(double *c, size_t size) {
   }
 }
 
-void avx2_aligned_zero(double *c, size_t size) {
+inline void avx2_aligned_zero(double *c, size_t size) {
   __m256d zero = _mm256_setzero_pd();
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -624,7 +624,7 @@ void avx2_aligned_zero(double *c, size_t size) {
   }
 }
 
-void avx2_unaligned_equal(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_equal(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -639,7 +639,7 @@ void avx2_unaligned_equal(const double *a, const double *b, double *c, size_t si
   }
 }
 
-void avx2_aligned_equal(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_equal(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -654,7 +654,7 @@ void avx2_aligned_equal(const double *a, const double *b, double *c, size_t size
   }
 }
 
-void avx2_unaligned_greater(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_unaligned_greater(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_loadu_pd(&a[i]);
@@ -669,7 +669,7 @@ void avx2_unaligned_greater(const double *a, const double *b, double *c, size_t 
   }
 }
 
-void avx2_aligned_greater(const double *a, const double *b, double *c, size_t size) {
+inline void avx2_aligned_greater(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
     __m256d vec_a = _mm256_load_pd(&a[i]);
@@ -684,7 +684,7 @@ void avx2_aligned_greater(const double *a, const double *b, double *c, size_t si
   }
 }
 
-double avx2_sum(const double *a, size_t size) {
+inline double avx2_sum(const double *a, size_t size) {
   __m256d sum = _mm256_setzero_pd();
   size_t vec_size = (size / 4) * 4;
 
@@ -713,7 +713,7 @@ double avx2_sum(const double *a, size_t size) {
   return result;
 }
 
-double avx2_dot_product(const double *a, const double *b, size_t size) {
+inline double avx2_dot_product(const double *a, const double *b, size_t size) {
   __m256d sum = _mm256_setzero_pd();
   size_t vec_size = (size / 4) * 4;
 
@@ -747,9 +747,9 @@ double avx2_dot_product(const double *a, const double *b, size_t size) {
   return result;
 }
 
-double avx2_norm_squared(const double *a, size_t size) { return avx2_dot_product(a, a, size); }
+inline double avx2_norm_squared(const double *a, size_t size) { return avx2_dot_product(a, a, size); }
 
-void avx2_unaligned_fmadd(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_fmadd(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -764,7 +764,7 @@ void avx2_unaligned_fmadd(const float *a, const float *b, float *c, size_t size)
   }
 }
 
-void avx2_aligned_fmadd(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_fmadd(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -779,7 +779,7 @@ void avx2_aligned_fmadd(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_fmsub(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_fmsub(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -794,7 +794,7 @@ void avx2_unaligned_fmsub(const float *a, const float *b, float *c, size_t size)
   }
 }
 
-void avx2_aligned_fmsub(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_fmsub(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -809,7 +809,7 @@ void avx2_aligned_fmsub(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_fnmadd(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_fnmadd(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -824,7 +824,7 @@ void avx2_unaligned_fnmadd(const float *a, const float *b, float *c, size_t size
   }
 }
 
-void avx2_aligned_fnmadd(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_fnmadd(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -839,7 +839,7 @@ void avx2_aligned_fnmadd(const float *a, const float *b, float *c, size_t size) 
   }
 }
 
-void avx2_unaligned_add_scalar(const float *a, float scalar, float *c, size_t size) {
+inline void avx2_unaligned_add_scalar(const float *a, float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -853,7 +853,7 @@ void avx2_unaligned_add_scalar(const float *a, float scalar, float *c, size_t si
   }
 }
 
-void avx2_aligned_add_scalar(const float *a, float scalar, float *c, size_t size) {
+inline void avx2_aligned_add_scalar(const float *a, float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -867,7 +867,7 @@ void avx2_aligned_add_scalar(const float *a, float scalar, float *c, size_t size
   }
 }
 
-void avx2_unaligned_mul_scalar(const float *a, float scalar, float *c, size_t size) {
+inline void avx2_unaligned_mul_scalar(const float *a, float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -881,7 +881,7 @@ void avx2_unaligned_mul_scalar(const float *a, float scalar, float *c, size_t si
   }
 }
 
-void avx2_aligned_mul_scalar(const float *a, float scalar, float *c, size_t size) {
+inline void avx2_aligned_mul_scalar(const float *a, float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -895,7 +895,7 @@ void avx2_aligned_mul_scalar(const float *a, float scalar, float *c, size_t size
   }
 }
 
-void avx2_unaligned_div_scalar(const float *a, const float scalar, float *c, size_t size) {
+inline void avx2_unaligned_div_scalar(const float *a, const float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -909,7 +909,7 @@ void avx2_unaligned_div_scalar(const float *a, const float scalar, float *c, siz
   }
 }
 
-void avx2_aligned_div_scalar(const float *a, const float scalar, float *c, size_t size) {
+inline void avx2_aligned_div_scalar(const float *a, const float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -923,7 +923,7 @@ void avx2_aligned_div_scalar(const float *a, const float scalar, float *c, size_
   }
 }
 
-void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
+inline void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
 
@@ -937,7 +937,7 @@ void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
   }
 }
 
-void avx2_aligned_set_scalar(float *c, float scalar, size_t size) {
+inline void avx2_aligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
   utils::parallel_for<size_t>(0, (size / 8), [&](size_t block) {
@@ -950,7 +950,7 @@ void avx2_aligned_set_scalar(float *c, float scalar, size_t size) {
   }
 }
 
-void avx2_unaligned_sqrt(const float *a, float *c, size_t size) {
+inline void avx2_unaligned_sqrt(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -963,7 +963,7 @@ void avx2_unaligned_sqrt(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_sqrt(const float *a, float *c, size_t size) {
+inline void avx2_aligned_sqrt(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -976,7 +976,7 @@ void avx2_aligned_sqrt(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_rsqrt(const float *a, float *c, size_t size) {
+inline void avx2_unaligned_rsqrt(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -989,7 +989,7 @@ void avx2_unaligned_rsqrt(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_rsqrt(const float *a, float *c, size_t size) {
+inline void avx2_aligned_rsqrt(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -1002,7 +1002,7 @@ void avx2_aligned_rsqrt(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_rcp(const float *a, float *c, size_t size) {
+inline void avx2_unaligned_rcp(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -1015,7 +1015,7 @@ void avx2_unaligned_rcp(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_rcp(const float *a, float *c, size_t size) {
+inline void avx2_aligned_rcp(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -1028,7 +1028,7 @@ void avx2_aligned_rcp(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_abs(const float *a, float *c, size_t size) {
+inline void avx2_unaligned_abs(const float *a, float *c, size_t size) {
   __m256 sign_mask = _mm256_set1_ps(-0.0f);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -1042,7 +1042,7 @@ void avx2_unaligned_abs(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_abs(const float *a, float *c, size_t size) {
+inline void avx2_aligned_abs(const float *a, float *c, size_t size) {
   __m256 sign_mask = _mm256_set1_ps(-0.0f);
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -1056,7 +1056,7 @@ void avx2_aligned_abs(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_min(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_min(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -1070,7 +1070,7 @@ void avx2_unaligned_min(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_min(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_min(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -1084,7 +1084,7 @@ void avx2_aligned_min(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_max(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_max(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -1098,7 +1098,7 @@ void avx2_unaligned_max(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_max(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_max(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -1112,7 +1112,7 @@ void avx2_aligned_max(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
+inline void avx2_unaligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
   __m256 vec_min = _mm256_set1_ps(min_val);
   __m256 vec_max = _mm256_set1_ps(max_val);
   size_t vec_size = (size / 8) * 8;
@@ -1127,7 +1127,7 @@ void avx2_unaligned_clamp(const float *a, float min_val, float max_val, float *c
   }
 }
 
-void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
+inline void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
   __m256 vec_min = _mm256_set1_ps(min_val);
   __m256 vec_max = _mm256_set1_ps(max_val);
   size_t vec_size = (size / 8) * 8;
@@ -1142,7 +1142,7 @@ void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c, 
   }
 }
 
-void avx2_unaligned_copy(const float *a, float *c, size_t size) {
+inline void avx2_unaligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
 
   parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
@@ -1156,7 +1156,7 @@ void avx2_unaligned_copy(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_aligned_copy(const float *a, float *c, size_t size) {
+inline void avx2_aligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
 
   parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
@@ -1170,7 +1170,7 @@ void avx2_aligned_copy(const float *a, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_zero(float *c, size_t size) {
+inline void avx2_unaligned_zero(float *c, size_t size) {
   __m256 zero = _mm256_setzero_ps();
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -1182,7 +1182,7 @@ void avx2_unaligned_zero(float *c, size_t size) {
   }
 }
 
-void avx2_aligned_zero(float *c, size_t size) {
+inline void avx2_aligned_zero(float *c, size_t size) {
   __m256 zero = _mm256_setzero_ps();
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
@@ -1194,7 +1194,7 @@ void avx2_aligned_zero(float *c, size_t size) {
   }
 }
 
-float avx2_sum(const float *a, size_t size) {
+inline float avx2_sum(const float *a, size_t size) {
   __m256 sum = _mm256_setzero_ps();
   size_t vec_size = (size / 8) * 8;
 
@@ -1224,7 +1224,7 @@ float avx2_sum(const float *a, size_t size) {
   return result;
 }
 
-float avx2_dot_product(const float *a, const float *b, size_t size) {
+inline float avx2_dot_product(const float *a, const float *b, size_t size) {
   __m256 sum = _mm256_setzero_ps();
   size_t vec_size = (size / 8) * 8;
 
@@ -1259,9 +1259,9 @@ float avx2_dot_product(const float *a, const float *b, size_t size) {
   return result;
 }
 
-float avx2_norm_squared(const float *a, size_t size) { return avx2_dot_product(a, a, size); }
+inline float avx2_norm_squared(const float *a, size_t size) { return avx2_dot_product(a, a, size); }
 
-void avx2_unaligned_equal(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_equal(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -1276,7 +1276,7 @@ void avx2_unaligned_equal(const float *a, const float *b, float *c, size_t size)
   }
 }
 
-void avx2_aligned_equal(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_equal(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
@@ -1291,7 +1291,7 @@ void avx2_aligned_equal(const float *a, const float *b, float *c, size_t size) {
   }
 }
 
-void avx2_unaligned_greater(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_unaligned_greater(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
@@ -1306,7 +1306,7 @@ void avx2_unaligned_greater(const float *a, const float *b, float *c, size_t siz
   }
 }
 
-void avx2_aligned_greater(const float *a, const float *b, float *c, size_t size) {
+inline void avx2_aligned_greater(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);

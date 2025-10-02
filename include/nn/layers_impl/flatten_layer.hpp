@@ -40,5 +40,3 @@ public:
 };
 
 } // namespace tnn
-
-#include "flatten_layer.tpp"

@@ -76,5 +76,3 @@ public:
 };
 
 } // namespace tnn
-
-#include "dense_layer.tpp"

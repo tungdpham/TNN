@@ -4,7 +4,7 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "maxpool2d_layer.hpp"
+#include "nn/layers_impl/maxpool2d_layer.hpp"
 
 #include <limits>
 #include <stdexcept>
@@ -232,5 +232,9 @@ uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input
 
   return static_cast<uint32_t>(total_operations);
 }
+
+// Explicit template instantiations
+template class MaxPool2DLayer<float>;
+template class MaxPool2DLayer<double>;
 
 } // namespace tnn

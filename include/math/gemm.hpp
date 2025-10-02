@@ -17,5 +17,3 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
 void dgemm(const double *A, const double *B, double *C, const int M, const int N, const int K);
 
 } // namespace tmath
-
-#include "gemm.tpp"
