@@ -17,8 +17,6 @@
 #include "tensor/tensor.hpp"
 #include "utils/parallel_for.hpp"
 
-namespace tnn {
-
 #include "activations_impl/base_activation.hpp"
 #include "activations_impl/elu.hpp"
 #include "activations_impl/leaky_relu.hpp"
@@ -28,6 +26,7 @@ namespace tnn {
 #include "activations_impl/softmax.hpp"
 #include "activations_impl/tanh.hpp"
 
+namespace tnn {
 template <typename T = float> class ActivationFactory {
 private:
   static std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction<T>>()>>

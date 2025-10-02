@@ -28,14 +28,14 @@ target_include_directories(dcnn_utils PUBLIC
 # add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
-        file(GLOB ASM_SOURCES "utils/simd_dot_product*.asm")
+        file(GLOB ASM_SOURCES "utils/*.asm")
         target_sources(dcnn_utils PRIVATE ${ASM_SOURCES})
         foreach(asm_file ${ASM_SOURCES})
             set_property(SOURCE ${asm_file} PROPERTY LANGUAGE ASM_NASM)
         endforeach()
         message(STATUS "Using NASM assembly optimizations")
     elseif(NOT WIN32 OR NOT MSVC)
-        file(GLOB ASM_SOURCES "utils/simd_dot_product*.S")
+        file(GLOB ASM_SOURCES "utils/*.S")
         target_sources(dcnn_utils PRIVATE ${ASM_SOURCES})
         foreach(asm_file ${ASM_SOURCES})
             set_property(SOURCE ${asm_file} PROPERTY LANGUAGE ASM)
@@ -80,8 +80,9 @@ target_link_libraries(dcnn_math PUBLIC dcnn_utils)
 
 file(GLOB_RECURSE DCNN_NN_SOURCES 
     "nn.cpp"
-    "nn/layers_impl/*.cpp"
+    "nn/*.cpp"
 )
+
 add_library(dcnn_nn STATIC ${DCNN_NN_SOURCES})
 target_include_directories(dcnn_nn PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
