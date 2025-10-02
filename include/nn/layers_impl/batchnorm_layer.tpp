@@ -50,7 +50,7 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   const size_t height = input.height();
   const size_t width = input.width();
 
-  Tensor<T> output(input.shape());
+  Tensor<T> output(input.shape(), nullptr);
 
   if (this->is_training_) {
     Tensor<T> batch_mean(channels, 1, 1, 1, nullptr);
@@ -180,7 +180,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t spatial_size = height * width;
   const size_t total_elements = batch_size * spatial_size;
 
-  Tensor<T> grad_input(input.shape());
+  Tensor<T> grad_input(input.shape(), nullptr);
 
   if (affine_) {
     utils::parallel_for<size_t>(0, channels, [&](size_t c) {
@@ -201,7 +201,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
     });
   }
 
-  Tensor<T> grad_normalized(input.shape());
+  Tensor<T> grad_normalized(input.shape(), nullptr);
   if (affine_) {
     utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
       T gamma_val = gamma_(c, 0, 0, 0);
@@ -215,8 +215,8 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
     grad_normalized = gradient.clone();
   }
 
-  Tensor<T> grad_var(channels, 1, 1, 1);
-  Tensor<T> grad_mean(channels, 1, 1, 1);
+  Tensor<T> grad_var(channels, 1, 1, 1, nullptr);
+  Tensor<T> grad_mean(channels, 1, 1, 1, nullptr);
 
   utils::parallel_for<size_t>(0, channels, [&](size_t c) {
     T mean_val = mean(c, 0, 0, 0);

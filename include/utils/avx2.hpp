@@ -4,6 +4,7 @@
 #include <immintrin.h>
 #endif
 
+#include "parallel_for.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -411,7 +412,7 @@ void avx2_aligned_div_scalar(const double *a, const double scalar, double *c, si
   }
 }
 
-void avx2_unaligned_set_scalar(double scalar, double *c, size_t size) {
+void avx2_unaligned_set_scalar(double *c, double scalar, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -423,7 +424,7 @@ void avx2_unaligned_set_scalar(double scalar, double *c, size_t size) {
   }
 }
 
-void avx2_aligned_set_scalar(double scalar, double *c, size_t size) {
+void avx2_aligned_set_scalar(double *c, double scalar, size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -922,24 +923,27 @@ void avx2_aligned_div_scalar(const float *a, const float scalar, float *c, size_
   }
 }
 
-void avx2_unaligned_set_scalar(float scalar, float *c, size_t size) {
+void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
-  for (size_t i = 0; i < vec_size; i += 8) {
+
+  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+    size_t i = block * 8;
     _mm256_storeu_ps(&c[i], vec_scalar);
-  }
+  });
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = scalar;
   }
 }
 
-void avx2_aligned_set_scalar(float scalar, float *c, size_t size) {
+void avx2_aligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
-  for (size_t i = 0; i < vec_size; i += 8) {
+  utils::parallel_for<size_t>(0, (size / 8), [&](size_t block) {
+    size_t i = block * 8;
     _mm256_store_ps(&c[i], vec_scalar);
-  }
+  });
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = scalar;
@@ -1140,10 +1144,12 @@ void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c, 
 
 void avx2_unaligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
-  for (size_t i = 0; i < vec_size; i += 8) {
+
+  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+    size_t i = block * 8;
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
     _mm256_storeu_ps(&c[i], vec_a);
-  }
+  });
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = a[i];
@@ -1152,10 +1158,12 @@ void avx2_unaligned_copy(const float *a, float *c, size_t size) {
 
 void avx2_aligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
-  for (size_t i = 0; i < vec_size; i += 8) {
+
+  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+    size_t i = block * 8;
     __m256 vec_a = _mm256_load_ps(&a[i]);
     _mm256_store_ps(&c[i], vec_a);
-  }
+  });
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = a[i];
@@ -1565,12 +1573,12 @@ inline void avx2_div_scalar(const double *a, double scalar, double *c, size_t si
 #endif
 }
 
-inline void avx2_set_scalar(double scalar, double *c, size_t size) {
+inline void avx2_set_scalar(double *c, double scalar, size_t size) {
 #ifdef __AVX2__
   if (reinterpret_cast<uintptr_t>(c) % 32 == 0) {
-    avx2_aligned_set_scalar(scalar, c, size);
+    avx2_aligned_set_scalar(c, scalar, size);
   } else {
-    avx2_unaligned_set_scalar(scalar, c, size);
+    avx2_unaligned_set_scalar(c, scalar, size);
   }
 #else
   for (size_t i = 0; i < size; ++i) {
@@ -1751,12 +1759,12 @@ inline void avx2_div_scalar(const float *a, float scalar, float *c, size_t size)
 #endif
 }
 
-inline void avx2_set_scalar(float scalar, float *c, size_t size) {
+inline void avx2_set_scalar(float *c, float scalar, size_t size) {
 #ifdef __AVX2__
   if (reinterpret_cast<uintptr_t>(c) % 32 == 0) {
-    avx2_aligned_set_scalar(scalar, c, size);
+    avx2_aligned_set_scalar(c, scalar, size);
   } else {
-    avx2_unaligned_set_scalar(scalar, c, size);
+    avx2_unaligned_set_scalar(c, scalar, size);
   }
 #else
   for (size_t i = 0; i < size; ++i) {

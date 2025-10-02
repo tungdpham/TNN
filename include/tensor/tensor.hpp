@@ -123,7 +123,8 @@ public:
     layout_trait_.assign_shape(batch_size, channels, height, width);
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0));
+    // std::fill(data_, data_ + data_size_, T(0));
+    utils::avx2_set_scalar(data_, T(0), data_size_);
   }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T *data)
@@ -133,7 +134,7 @@ public:
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
-      std::memcpy(data_, data, data_size_ * sizeof(T));
+      utils::avx2_copy(data, data_, data_size_);
   }
 
   Tensor(std::vector<size_t> shape) : data_(nullptr) {
@@ -142,7 +143,7 @@ public:
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    std::fill(data_, data_ + data_size_, T(0));
+    utils::avx2_set_scalar(data_, T(0), data_size_);
   }
 
   Tensor(std::vector<size_t> shape, const T *data) : data_(nullptr) {
@@ -152,7 +153,7 @@ public:
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
     if (data != nullptr)
-      std::memcpy(data_, data, data_size_ * sizeof(T));
+      utils::avx2_copy(data, data_, data_size_);
   }
 
   ~Tensor() { deallocate_aligned(data_); }
@@ -161,7 +162,7 @@ public:
     layout_trait_ = other.layout_trait_;
     if (data_size_ > 0) {
       data_ = allocate_aligned(data_size_);
-      std::memcpy(data_, other.data_, data_size_ * sizeof(T));
+      utils::avx2_copy(other.data_, data_, data_size_);
     }
   }
 
@@ -720,11 +721,6 @@ public:
           size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
           T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
 
-          // Compute valid range for h and w in output space
-          // For a given kernel position (kh, kw), we need:
-          // h * stride_h + kh - pad_h >= 0  =>  h >= (pad_h - kh) / stride_h
-          // h * stride_h + kh - pad_h < in_h  =>  h < (in_h + pad_h - kh) / stride_h
-
           const int h_start = (static_cast<int>(pad_h) > static_cast<int>(kh))
                                   ? ((pad_h - kh + stride_h - 1) / stride_h)
                                   : 0;
@@ -841,7 +837,6 @@ public:
 
     // Create result tensor with original (unpadded) dimensions
     Tensor<T, L> result(batch_size, channels, height, width);
-    result.fill(T(0));
 
     const T *col_data = col_matrix.data();
     T *result_data = result.data();
@@ -925,7 +920,6 @@ public:
     size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
     Tensor<T, L> result(batch_size, channels, padded_h, padded_w);
-    result.fill(T(0));
 
     const T *col_data = col_matrix.data();
     T *result_data = result.data();
