@@ -147,6 +147,10 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   auto [best_val_loss, best_val_accuracy] = validate_class_model(model, test_loader);
 
+  std::cout << "Initial validation - Loss: " << std::fixed << std::setprecision(4) << best_val_loss
+            << ", Accuracy: " << std::setprecision(2) << best_val_accuracy * 100.0f << "%"
+            << std::endl;
+
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
 

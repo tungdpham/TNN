@@ -71,7 +71,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  T *output_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
+  T *output_flat = (T *)aligned_alloc(64, sizeof(T) * out_channels_ * output_size);
   compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
                        out_channels_);
 
@@ -115,7 +115,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
 
-  T *gradient_flat = (T *)aligned_alloc(32, sizeof(T) * out_channels_ * output_size);
+  T *gradient_flat = (T *)aligned_alloc(64, sizeof(T) * out_channels_ * output_size);
 
   utils::nchw_to_cnhw(gradient.data(), gradient_flat, batch_size, out_channels_, output_h,
                       output_w);

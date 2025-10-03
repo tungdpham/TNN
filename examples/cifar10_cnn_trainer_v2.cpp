@@ -55,19 +55,19 @@ int main() {
               << std::endl;
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
-    std::unique_ptr<AugmentationStrategy<float>> aug_strategy = AugmentationBuilder<float>()
-                                                                    .horizontal_flip(0.5f)
-                                                                    .rotation(0.4f, 10.0f)
-                                                                    .brightness(0.3f, 0.15f)
-                                                                    .contrast(0.3f, 0.15f)
-                                                                    .gaussian_noise(0.3f, 0.05f)
-                                                                    .build();
+    auto aug_strategy = AugmentationBuilder<float>()
+                            .horizontal_flip(0.25f)
+                            .rotation(0.3f, 10.0f)
+                            .brightness(0.3f, 0.15f)
+                            .contrast(0.3f, 0.15f)
+                            .gaussian_noise(0.3f, 0.05f)
+                            .build();
     std::cout << "Configuring data augmentation for training." << std::endl;
     train_loader.set_augmentation(std::move(aug_strategy));
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
-    auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier_v2")
+    auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v2")
                      .input({3, 32, 32})
                      .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv0")
                      .batchnorm(1e-5f, 0.1f, true, "bn0")
@@ -83,18 +83,15 @@ int main() {
                      .batchnorm(1e-5f, 0.1f, true, "bn3")
                      .activation("relu", "relu3")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn4")
-                     .activation("relu", "relu4")
                      .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv4")
                      .batchnorm(1e-5f, 0.1f, true, "bn5")
                      .activation("relu", "relu5")
                      .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv5")
-                     .batchnorm(1e-5f, 0.1f, true, "bn6")
                      .activation("relu", "relu6")
                      .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv6")
                      .batchnorm(1e-5f, 0.1f, true, "bn6")
+                     .activation("relu", "relu6")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                     .batchnorm(1e-5f, 0.1f, true, "bn7")
                      .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv7")
                      .batchnorm(1e-5f, 0.1f, true, "bn8")
                      .activation("relu", "relu7")
@@ -105,10 +102,8 @@ int main() {
                      .batchnorm(1e-5f, 0.1f, true, "bn10")
                      .activation("relu", "relu9")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                     .batchnorm(1e-5f, 0.1f, true, "bn11")
                      .flatten("flatten")
                      .dense(512, "linear", true, "fc0")
-                     .batchnorm(1e-5f, 0.1f, true, "bn12")
                      .activation("relu", "relu10")
                      .dense(10, "linear", true, "fc1")
                      .build();

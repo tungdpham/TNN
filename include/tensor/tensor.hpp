@@ -736,9 +736,16 @@ public:
             std::fill(col_row_ptr, col_row_ptr + w_start, T(0));
             col_row_ptr += w_start;
 
-            for (size_t w = w_start; w < w_end; ++w) {
-              const size_t w_in = w * stride_w + kw - pad_w;
-              *col_row_ptr++ = input_row[w_in];
+            if (stride_w == 1) {
+              const size_t w_in_start = w_start * stride_w + kw - pad_w;
+              std::copy(input_row + w_in_start, input_row + w_in_start + (w_end - w_start),
+                        col_row_ptr);
+              col_row_ptr += (w_end - w_start);
+            } else {
+              for (size_t w = w_start; w < w_end; ++w) {
+                const size_t w_in = w * stride_w + kw - pad_w;
+                *col_row_ptr++ = input_row[w_in];
+              }
             }
 
             std::fill(col_row_ptr, col_row_ptr + (out_w - w_end), T(0));
@@ -797,8 +804,15 @@ public:
 
           for (size_t h = 0; h < out_h; ++h) {
             const T *input_row_ptr = input_channel_ptr + (h * stride_h + kh) * in_w + kw;
-            for (size_t w = 0; w < out_w; ++w) {
-              *col_row_ptr++ = input_row_ptr[w * stride_w];
+
+            //  vectorize where possible
+            if (stride_w == 1) {
+              std::copy(input_row_ptr, input_row_ptr + out_w, col_row_ptr);
+              col_row_ptr += out_w;
+            } else {
+              for (size_t w = 0; w < out_w; ++w) {
+                *col_row_ptr++ = input_row_ptr[w * stride_w];
+              }
             }
           }
         }
@@ -844,9 +858,17 @@ public:
 
             col_row_ptr += w_start;
 
-            for (size_t w = w_start; w < w_end; ++w) {
-              const size_t w_out = w * stride_w + kw - pad_w;
-              result_row[w_out] += *col_row_ptr++;
+            size_t valid_width = w_end - w_start;
+            if (stride_w == 1) {
+              size_t w_out_start = w_start * stride_w + kw - pad_w;
+              utils::avx2_add(result_row + w_out_start, col_row_ptr, result_row + w_out_start,
+                              valid_width);
+              col_row_ptr += valid_width;
+            } else {
+              for (size_t w = w_start; w < w_end; ++w) {
+                const size_t w_out = w * stride_w + kw - pad_w;
+                result_row[w_out] += *col_row_ptr++;
+              }
             }
 
             col_row_ptr += (output_w - w_end);
@@ -902,8 +924,14 @@ public:
 
           for (size_t h = 0; h < output_h; ++h) {
             T *result_row_ptr = result_channel_ptr + (h * stride_h + kh) * padded_w + kw;
-            for (size_t w = 0; w < output_w; ++w) {
-              result_row_ptr[w * stride_w] += *col_row_ptr++;
+
+            if (stride_w == 1) {
+              utils::avx2_add(result_row_ptr, col_row_ptr, result_row_ptr, output_w);
+              col_row_ptr += output_w;
+            } else {
+              for (size_t w = 0; w < output_w; ++w) {
+                result_row_ptr[w * stride_w] += *col_row_ptr++;
+              }
             }
           }
         }

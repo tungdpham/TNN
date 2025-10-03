@@ -59,13 +59,13 @@ int main() {
 
     std::cout << "\nConfiguring data augmentation for training..." << std::endl;
 
-    std::unique_ptr<AugmentationStrategy<float>> aug_strategy = AugmentationBuilder<float>()
-                                                                    .horizontal_flip(0.5f)
-                                                                    .rotation(0.4f, 10.0f)
-                                                                    .brightness(0.3f, 0.15f)
-                                                                    .contrast(0.3f, 0.15f)
-                                                                    .gaussian_noise(0.3f, 0.05f)
-                                                                    .build();
+    auto aug_strategy = AugmentationBuilder<float>()
+                            .horizontal_flip(0.25f)
+                            .rotation(0.4f, 10.0f)
+                            .brightness(0.3f, 0.15f)
+                            .contrast(0.3f, 0.15f)
+                            .gaussian_noise(0.3f, 0.05f)
+                            .build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
