@@ -9,11 +9,11 @@ Download the MNIST dataset from kaggle (preferred) and put it in data/mnist. Nam
 You should have these dependencies for the main programs installed before building:
 
 ```bash
-# Install OpenMP (usually comes with GCC)
-sudo apt install libomp-dev
-
 # Install Intel TBB
 sudo apt install libtbb-dev
+
+# Install OpenMP (usually comes with GCC)
+sudo apt install libomp-dev
 
 # Install Intel MKL
 # add oneAPI repository

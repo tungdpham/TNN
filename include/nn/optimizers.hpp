@@ -127,25 +127,28 @@ public:
 
     t_++;
 
+    // Precompute scalar coefficients outside the loop
+    const T one_minus_beta1 = static_cast<T>(1.0) - beta1_;
+    const T one_minus_beta2 = static_cast<T>(1.0) - beta2_;
+    const T bias_correction1 = static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_));
+    const T bias_correction2 = static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_));
+    const T step_size = this->learning_rate_ / bias_correction1;
+
     utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       m_[i] *= beta1_;
-      m_[i] += (*grads[i]) * (1.0f - beta1_);
+      m_[i] += (*grads[i]) * one_minus_beta1;
 
       Tensor<T> grad_sq = (*grads[i]) * (*grads[i]);
       v_[i] *= beta2_;
-      grad_sq *= (static_cast<T>(1.0) - beta2_);
-      v_[i] += grad_sq;
-
-      Tensor<T> m_hat = m_[i] / (static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_)));
-      Tensor<T> v_hat = v_[i] / (static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_)));
+      v_[i] += grad_sq * one_minus_beta2;
 
       T *param_data = params[i]->data();
-      const T *m_hat_data = m_hat.data();
-      const T *v_hat_data = v_hat.data();
+      const T *m_data = m_[i].data();
+      const T *v_data = v_[i].data();
 
       for (size_t j = 0; j < params[i]->size(); ++j) {
         param_data[j] -=
-            this->learning_rate_ * m_hat_data[j] / (std::sqrt(v_hat_data[j]) + epsilon_);
+            step_size * m_data[j] / (std::sqrt(v_data[j] / bias_correction2) + epsilon_);
       }
     });
   }

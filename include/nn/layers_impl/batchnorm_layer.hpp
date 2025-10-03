@@ -35,8 +35,6 @@ private:
 
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_normalized_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_mean_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_var_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_std_;
 
 public:

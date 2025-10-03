@@ -123,7 +123,6 @@ public:
     layout_trait_.assign_shape(batch_size, channels, height, width);
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     data_ = allocate_aligned(data_size_);
-    // std::fill(data_, data_ + data_size_, T(0));
     utils::avx2_set_scalar(data_, T(0), data_size_);
   }
 
@@ -721,51 +720,33 @@ public:
           size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
           T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
 
-          const int h_start = (static_cast<int>(pad_h) > static_cast<int>(kh))
-                                  ? ((pad_h - kh + stride_h - 1) / stride_h)
-                                  : 0;
-          const int h_end = std::min(out_h, (in_h + pad_h - kh) / stride_h);
+          const size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
+          const size_t h_end = std::min(out_h, (in_h + pad_h - kh) / stride_h);
 
-          const int w_start = (static_cast<int>(pad_h) > static_cast<int>(kw))
-                                  ? ((pad_w - kw + stride_w - 1) / stride_w)
-                                  : 0;
-          const int w_end = std::min(out_w, (in_w + pad_w - kw) / stride_w);
+          const size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
+          const size_t w_end = std::min(out_w, (in_w + pad_w - kw) / stride_w);
 
-          // Top padding rows
-          for (size_t h = 0; h < static_cast<size_t>(h_start); ++h) {
-            for (size_t w = 0; w < out_w; ++w) {
-              *col_row_ptr++ = T(0);
-            }
-          }
+          std::fill(col_row_ptr, col_row_ptr + h_start * out_w, T(0));
+          col_row_ptr += h_start * out_w;
 
-          // Middle rows: split into left padding, center, right padding
-          for (size_t h = h_start; h < static_cast<size_t>(h_end); ++h) {
+          for (size_t h = h_start; h < h_end; ++h) {
             const size_t h_in = h * stride_h + kh - pad_h;
             const T *input_row = input_channel_ptr + h_in * in_w;
 
-            // Left padding
-            for (size_t w = 0; w < static_cast<size_t>(w_start); ++w) {
-              *col_row_ptr++ = T(0);
-            }
+            std::fill(col_row_ptr, col_row_ptr + w_start, T(0));
+            col_row_ptr += w_start;
 
-            // Center (no branches in hot loop!)
-            for (size_t w = w_start; w < static_cast<size_t>(w_end); ++w) {
+            for (size_t w = w_start; w < w_end; ++w) {
               const size_t w_in = w * stride_w + kw - pad_w;
               *col_row_ptr++ = input_row[w_in];
             }
 
-            // Right padding
-            for (size_t w = w_end; w < out_w; ++w) {
-              *col_row_ptr++ = T(0);
-            }
+            std::fill(col_row_ptr, col_row_ptr + (out_w - w_end), T(0));
+            col_row_ptr += (out_w - w_end);
           }
 
-          // Bottom padding rows
-          for (size_t h = h_end; h < out_h; ++h) {
-            for (size_t w = 0; w < out_w; ++w) {
-              *col_row_ptr++ = T(0);
-            }
-          }
+          std::fill(col_row_ptr, col_row_ptr + (out_h - h_end) * out_w, T(0));
+          col_row_ptr += (out_h - h_end) * out_w;
         }
       }
     });
@@ -835,7 +816,6 @@ public:
     const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
     const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
 
-    // Create result tensor with original (unpadded) dimensions
     Tensor<T, L> result(batch_size, channels, height, width);
 
     const T *col_data = col_matrix.data();
@@ -850,40 +830,27 @@ public:
           size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
           const T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
 
-          // Compute valid range for h and w in output space where the kernel position
-          // maps to valid locations in the unpadded input
-          const int h_start = (static_cast<int>(pad_h) > static_cast<int>(kh))
-                                  ? ((pad_h - kh + stride_h - 1) / stride_h)
-                                  : 0;
-          const int h_end = std::min(output_h, (height + pad_h - kh) / stride_h);
+          const size_t h_start = pad_h > kh ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
+          const size_t h_end = std::min(output_h, (height + pad_h - kh) / stride_h);
 
-          const int w_start = (static_cast<int>(pad_w) > static_cast<int>(kw))
-                                  ? ((pad_w - kw + stride_w - 1) / stride_w)
-                                  : 0;
-          const int w_end = std::min(output_w, (width + pad_w - kw) / stride_w);
+          const size_t w_start = pad_w > kw ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
+          const size_t w_end = std::min(output_w, (width + pad_w - kw) / stride_w);
 
-          // Skip padding regions (top rows)
           col_row_ptr += h_start * output_w;
 
-          // Process valid rows
-          for (size_t h = h_start; h < static_cast<size_t>(h_end); ++h) {
+          for (size_t h = h_start; h < h_end; ++h) {
             const size_t h_out = h * stride_h + kh - pad_h;
             T *result_row = result_channel_ptr + h_out * width;
 
-            // Skip left padding
             col_row_ptr += w_start;
 
-            // Center region: no branches in hot loop!
-            for (size_t w = w_start; w < static_cast<size_t>(w_end); ++w) {
+            for (size_t w = w_start; w < w_end; ++w) {
               const size_t w_out = w * stride_w + kw - pad_w;
               result_row[w_out] += *col_row_ptr++;
             }
 
-            // Skip right padding
             col_row_ptr += (output_w - w_end);
           }
-
-          // Skip padding regions (bottom rows)
           col_row_ptr += (output_h - h_end) * output_w;
         }
       }

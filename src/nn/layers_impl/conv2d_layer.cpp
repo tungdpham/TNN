@@ -149,7 +149,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
       weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  std::fill_n(output_data, out_channels_ * output_size, T(0));
+  utils::avx2_set_scalar(output_data, T(0), out_channels * output_size);
   tmath::sgemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
 #endif
 }
@@ -179,7 +179,7 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
       weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  std::fill_n(col_grad_data, kernel_size * output_size, T(0));
+  utils::avx2_set_scalar(col_grad_data, T(0), kernel_size * output_size);
   tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
                true, false);
 #endif
@@ -196,11 +196,8 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data, T *bias_grad
   utils::parallel_for<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
-      for (size_t oh = 0; oh < output_h; ++oh) {
-        for (size_t ow = 0; ow < output_w; ++ow) {
-          grad_sum += gradient_data[n * N_stride + oc * C_stride + oh * output_w + ow];
-        }
-      }
+      std::accumulate(gradient_data + n * N_stride + oc * C_stride,
+                      gradient_data + n * N_stride + (oc + 1) * C_stride, grad_sum);
     }
     bias_grad_data[oc] += grad_sum;
   });
@@ -211,12 +208,9 @@ void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data, cons
                                         const size_t output_h, const size_t output_w,
                                         const size_t out_channels) const {
   utils::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
-    for (size_t oh = 0; oh < output_h; ++oh) {
-      for (size_t ow = 0; ow < output_w; ++ow) {
-        output_data[(n * out_channels + oc) * output_h * output_w + oh * output_w + ow] +=
-            bias_data[oc];
-      }
-    }
+    utils::avx2_add_scalar(
+        output_data + (n * out_channels + oc) * output_h * output_w, bias_data[oc],
+        output_data + (n * out_channels + oc) * output_h * output_w, output_h * output_w);
   });
 }
 

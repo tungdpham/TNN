@@ -384,7 +384,8 @@ inline void avx2_aligned_mul_scalar(const double *a, double scalar, double *c, s
   }
 }
 
-inline void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c, size_t size) {
+inline void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c,
+                                      size_t size) {
   __m256d vec_scalar = _mm256_set1_pd(scalar);
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -546,7 +547,8 @@ inline void avx2_aligned_max(const double *a, const double *b, double *c, size_t
   }
 }
 
-inline void avx2_unaligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
+inline void avx2_unaligned_clamp(const double *a, double min_val, double max_val, double *c,
+                                 size_t size) {
   __m256d vec_min = _mm256_set1_pd(min_val);
   __m256d vec_max = _mm256_set1_pd(max_val);
   size_t vec_size = (size / 4) * 4;
@@ -561,7 +563,8 @@ inline void avx2_unaligned_clamp(const double *a, double min_val, double max_val
   }
 }
 
-inline void avx2_aligned_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
+inline void avx2_aligned_clamp(const double *a, double min_val, double max_val, double *c,
+                               size_t size) {
   __m256d vec_min = _mm256_set1_pd(min_val);
   __m256d vec_max = _mm256_set1_pd(max_val);
   size_t vec_size = (size / 4) * 4;
@@ -747,7 +750,9 @@ inline double avx2_dot_product(const double *a, const double *b, size_t size) {
   return result;
 }
 
-inline double avx2_norm_squared(const double *a, size_t size) { return avx2_dot_product(a, a, size); }
+inline double avx2_norm_squared(const double *a, size_t size) {
+  return avx2_dot_product(a, a, size);
+}
 
 inline void avx2_unaligned_fmadd(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
@@ -1112,7 +1117,8 @@ inline void avx2_aligned_max(const float *a, const float *b, float *c, size_t si
   }
 }
 
-inline void avx2_unaligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
+inline void avx2_unaligned_clamp(const float *a, float min_val, float max_val, float *c,
+                                 size_t size) {
   __m256 vec_min = _mm256_set1_ps(min_val);
   __m256 vec_max = _mm256_set1_ps(max_val);
   size_t vec_size = (size / 8) * 8;
@@ -1127,7 +1133,8 @@ inline void avx2_unaligned_clamp(const float *a, float min_val, float max_val, f
   }
 }
 
-inline void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c, size_t size) {
+inline void avx2_aligned_clamp(const float *a, float min_val, float max_val, float *c,
+                               size_t size) {
   __m256 vec_min = _mm256_set1_ps(min_val);
   __m256 vec_max = _mm256_set1_ps(max_val);
   size_t vec_size = (size / 8) * 8;
@@ -1318,6 +1325,148 @@ inline void avx2_aligned_greater(const float *a, const float *b, float *c, size_
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = (a[i] > b[i]) ? 1.0f : 0.0f;
+  }
+}
+
+// Specialized operations for BatchNorm: (a - scalar1) * scalar2
+inline void avx2_unaligned_sub_mul_scalar(const float *a, float sub_scalar, float mul_scalar,
+                                          float *c, size_t size) {
+  __m256 vec_sub = _mm256_set1_ps(sub_scalar);
+  __m256 vec_mul = _mm256_set1_ps(mul_scalar);
+  size_t vec_size = (size / 8) * 8;
+
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_loadu_ps(&a[i]);
+    __m256 vec_temp = _mm256_sub_ps(vec_a, vec_sub);
+    __m256 vec_result = _mm256_mul_ps(vec_temp, vec_mul);
+    _mm256_storeu_ps(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+}
+
+inline void avx2_aligned_sub_mul_scalar(const float *a, float sub_scalar, float mul_scalar,
+                                        float *c, size_t size) {
+  __m256 vec_sub = _mm256_set1_ps(sub_scalar);
+  __m256 vec_mul = _mm256_set1_ps(mul_scalar);
+  size_t vec_size = (size / 8) * 8;
+
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_load_ps(&a[i]);
+    __m256 vec_temp = _mm256_sub_ps(vec_a, vec_sub);
+    __m256 vec_result = _mm256_mul_ps(vec_temp, vec_mul);
+    _mm256_store_ps(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+}
+
+inline void avx2_unaligned_sub_mul_scalar(const double *a, double sub_scalar, double mul_scalar,
+                                          double *c, size_t size) {
+  __m256d vec_sub = _mm256_set1_pd(sub_scalar);
+  __m256d vec_mul = _mm256_set1_pd(mul_scalar);
+  size_t vec_size = (size / 4) * 4;
+
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_loadu_pd(&a[i]);
+    __m256d vec_temp = _mm256_sub_pd(vec_a, vec_sub);
+    __m256d vec_result = _mm256_mul_pd(vec_temp, vec_mul);
+    _mm256_storeu_pd(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+}
+
+inline void avx2_aligned_sub_mul_scalar(const double *a, double sub_scalar, double mul_scalar,
+                                        double *c, size_t size) {
+  __m256d vec_sub = _mm256_set1_pd(sub_scalar);
+  __m256d vec_mul = _mm256_set1_pd(mul_scalar);
+  size_t vec_size = (size / 4) * 4;
+
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_load_pd(&a[i]);
+    __m256d vec_temp = _mm256_sub_pd(vec_a, vec_sub);
+    __m256d vec_result = _mm256_mul_pd(vec_temp, vec_mul);
+    _mm256_store_pd(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+}
+
+// Specialized operations for BatchNorm: scalar1 * a + scalar2
+inline void avx2_unaligned_mul_add_scalar(const float *a, float mul_scalar, float add_scalar,
+                                          float *c, size_t size) {
+  __m256 vec_mul = _mm256_set1_ps(mul_scalar);
+  __m256 vec_add = _mm256_set1_ps(add_scalar);
+  size_t vec_size = (size / 8) * 8;
+
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_loadu_ps(&a[i]);
+    __m256 vec_result = _mm256_fmadd_ps(vec_a, vec_mul, vec_add);
+    _mm256_storeu_ps(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
+  }
+}
+
+inline void avx2_aligned_mul_add_scalar(const float *a, float mul_scalar, float add_scalar,
+                                        float *c, size_t size) {
+  __m256 vec_mul = _mm256_set1_ps(mul_scalar);
+  __m256 vec_add = _mm256_set1_ps(add_scalar);
+  size_t vec_size = (size / 8) * 8;
+
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_load_ps(&a[i]);
+    __m256 vec_result = _mm256_fmadd_ps(vec_a, vec_mul, vec_add);
+    _mm256_store_ps(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
+  }
+}
+
+inline void avx2_unaligned_mul_add_scalar(const double *a, double mul_scalar, double add_scalar,
+                                          double *c, size_t size) {
+  __m256d vec_mul = _mm256_set1_pd(mul_scalar);
+  __m256d vec_add = _mm256_set1_pd(add_scalar);
+  size_t vec_size = (size / 4) * 4;
+
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_loadu_pd(&a[i]);
+    __m256d vec_result = _mm256_fmadd_pd(vec_a, vec_mul, vec_add);
+    _mm256_storeu_pd(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
+  }
+}
+
+inline void avx2_aligned_mul_add_scalar(const double *a, double mul_scalar, double add_scalar,
+                                        double *c, size_t size) {
+  __m256d vec_mul = _mm256_set1_pd(mul_scalar);
+  __m256d vec_add = _mm256_set1_pd(add_scalar);
+  size_t vec_size = (size / 4) * 4;
+
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_load_pd(&a[i]);
+    __m256d vec_result = _mm256_fmadd_pd(vec_a, vec_mul, vec_add);
+    _mm256_store_pd(&c[i], vec_result);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
   }
 }
 #endif
@@ -1927,6 +2076,67 @@ inline void avx2_zero(float *c, size_t size) {
 #else
   for (size_t i = 0; i < size; ++i) {
     c[i] = 0;
+  }
+#endif
+}
+
+// Public wrapper functions for BatchNorm optimizations
+inline void avx2_sub_mul_scalar(const float *a, float sub_scalar, float mul_scalar, float *c,
+                                size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_sub_mul_scalar(a, sub_scalar, mul_scalar, c, size);
+  } else {
+    avx2_unaligned_sub_mul_scalar(a, sub_scalar, mul_scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+#endif
+}
+
+inline void avx2_sub_mul_scalar(const double *a, double sub_scalar, double mul_scalar, double *c,
+                                size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_sub_mul_scalar(a, sub_scalar, mul_scalar, c, size);
+  } else {
+    avx2_unaligned_sub_mul_scalar(a, sub_scalar, mul_scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = (a[i] - sub_scalar) * mul_scalar;
+  }
+#endif
+}
+
+inline void avx2_mul_add_scalar(const float *a, float mul_scalar, float add_scalar, float *c,
+                                size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_mul_add_scalar(a, mul_scalar, add_scalar, c, size);
+  } else {
+    avx2_unaligned_mul_add_scalar(a, mul_scalar, add_scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
+  }
+#endif
+}
+
+inline void avx2_mul_add_scalar(const double *a, double mul_scalar, double add_scalar, double *c,
+                                size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_mul_add_scalar(a, mul_scalar, add_scalar, c, size);
+  } else {
+    avx2_unaligned_mul_add_scalar(a, mul_scalar, add_scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = mul_scalar * a[i] + add_scalar;
   }
 #endif
 }
