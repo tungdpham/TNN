@@ -12,6 +12,7 @@
 #include <string_view>
 #include <vector>
 
+#include "data_augmentation/augmentation.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
@@ -57,6 +58,12 @@ int main() {
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
     std::cout << "\nBuilding CNN model architecture with automatic shape inference..." << std::endl;
+
+    auto aug_strategy = data_augmentation::AugmentationBuilder<float>()
+                            .contrast(0.3f, 0.15f)
+                            .gaussian_noise(0.3f, 0.05f)
+                            .build();
+    train_loader.set_augmentation(std::move(aug_strategy));
 
     auto model = tnn::SequentialBuilder<float>("mnist_cnn_model")
                      .input({1, ::mnist_constants::IMAGE_HEIGHT, ::mnist_constants::IMAGE_WIDTH})

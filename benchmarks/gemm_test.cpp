@@ -1,5 +1,6 @@
 #include "math/gemm.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/misc.hpp"
 #include "utils/ops.hpp"
 #include <chrono>
 #include <iostream>
@@ -28,21 +29,6 @@ bool check_match(const float *a, const float *b, size_t size, float max_acceptab
     return false;
   }
   return true;
-}
-
-template <typename Func> void benchmark(const std::string &name, Func &&func, int bench_runs = 3) {
-  std::cout << "Benchmarking: " << name << std::endl;
-  std::vector<double> times;
-  for (int i = 0; i < bench_runs; ++i) {
-    auto start = std::chrono::high_resolution_clock::now();
-    func();
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> duration = end - start;
-    times.push_back(duration.count());
-  }
-
-  double avg = std::accumulate(times.begin(), times.end(), 0.0) / times.size();
-  std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
 int main() {
