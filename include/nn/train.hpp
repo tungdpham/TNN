@@ -6,7 +6,8 @@
  */
 #pragma once
 
-#include "data_loading/data_loader.hpp"
+#include "data_loading/image_data_loader.hpp"
+#include "data_loading/regression_data_loader.hpp"
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
@@ -44,7 +45,7 @@ struct ClassResult {
 };
 
 ClassResult train_class_epoch(tnn::Sequential<float> &model,
-                              data_loading::ImageClassificationDataLoader<float> &train_loader,
+                              data_loading::ImageDataLoader<float> &train_loader,
                               const TrainingConfig &config = TrainingConfig()) {
   Tensor<float> batch_data, batch_labels, predictions;
   std::cout << "Starting training epoch..." << std::endl;
@@ -96,7 +97,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
 }
 
 ClassResult validate_class_model(tnn::Sequential<float> &model,
-                                 data_loading::ImageClassificationDataLoader<float> &test_loader) {
+                                 data_loading::ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels, predictions;
 
   model.set_training(false);
@@ -123,8 +124,8 @@ ClassResult validate_class_model(tnn::Sequential<float> &model,
 }
 
 void train_classification_model(tnn::Sequential<float> &model,
-                                data_loading::ImageClassificationDataLoader<float> &train_loader,
-                                data_loading::ImageClassificationDataLoader<float> &test_loader,
+                                data_loading::ImageDataLoader<float> &train_loader,
+                                data_loading::ImageDataLoader<float> &test_loader,
                                 const TrainingConfig &config = TrainingConfig()) {
 
   Tensor<float> batch_data, batch_labels, predictions;

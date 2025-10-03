@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "data_loader.hpp"
+#include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
 #include <cmath>
@@ -59,9 +59,9 @@ struct CIFAR10AugmentationConfig {
 
 /**
  * Enhanced CIFAR-10 data loader for binary format adapted for CNN (2D RGB
- * images) Extends ImageClassificationDataLoader for proper inheritance
+ * images) Extends ImageDataLoader for proper inheritance
  */
-template <typename T = float> class CIFAR10DataLoader : public ImageClassificationDataLoader<T> {
+template <typename T = float> class CIFAR10DataLoader : public ImageDataLoader<T> {
 private:
   std::vector<std::vector<T>> data_;
   std::vector<int> labels_;
@@ -260,7 +260,7 @@ private:
   }
 
 public:
-  CIFAR10DataLoader() : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
+  CIFAR10DataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
 
     data_.reserve(50000);
     labels_.reserve(50000);

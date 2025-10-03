@@ -1,4 +1,4 @@
-#include "math/gemm.hpp"
+#include "math/sgemm.hpp"
 #include <cstring>
 
 namespace tmath {

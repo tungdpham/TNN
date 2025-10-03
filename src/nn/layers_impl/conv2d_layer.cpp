@@ -292,10 +292,9 @@ uint32_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_sha
   size_t output_size = batch_size * output_h * output_w;
 
   size_t im2col_ops = output_size * kernel_size;
-  size_t tranposition_ops = im2col_ops; // for transposing the im2col matrix
   size_t matmul_ops = 2 * out_channels_ * kernel_size * output_size;
   size_t bias_ops = batch_size * out_channels_ * output_h * output_w;
-  size_t total_ops = im2col_ops + tranposition_ops + matmul_ops + bias_ops;
+  size_t total_ops = im2col_ops + matmul_ops + bias_ops;
   return total_ops;
 }
 
@@ -317,11 +316,9 @@ uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_sh
 
   size_t weight_grad_ops = 2 * out_channels_ * kernel_size * output_size;
   size_t bias_grad_ops = out_channels_ * output_size;
-  size_t tranposition_ops = kernel_size * output_size;
   size_t input_grad_ops = 2 * out_channels_ * kernel_size * output_size;
   size_t col2im_ops = input_grad_ops;
-  size_t total_ops =
-      weight_grad_ops + bias_grad_ops + tranposition_ops + input_grad_ops + col2im_ops;
+  size_t total_ops = weight_grad_ops + bias_grad_ops + input_grad_ops + col2im_ops;
   return total_ops;
 }
 

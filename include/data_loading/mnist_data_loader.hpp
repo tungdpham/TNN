@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "data_loader.hpp"
+#include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 
 #include <algorithm>
@@ -33,9 +33,9 @@ namespace data_loading {
 
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
- * Extends ImageClassificationDataLoader for proper inheritance
+ * Extends ImageDataLoader for proper inheritance
  */
-template <typename T = float> class MNISTDataLoader : public ImageClassificationDataLoader<T> {
+template <typename T = float> class MNISTDataLoader : public ImageDataLoader<T> {
 private:
   std::vector<std::vector<T>> data_;
   std::vector<int> labels_;
@@ -45,7 +45,7 @@ private:
   bool batches_prepared_;
 
 public:
-  MNISTDataLoader() : ImageClassificationDataLoader<T>(), batches_prepared_(false) {
+  MNISTDataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
     data_.reserve(60000);
     labels_.reserve(60000);
   }

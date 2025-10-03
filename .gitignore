@@ -79,3 +79,9 @@ install_manifest.txt
 # packages
 /.venv/
 /third_party/
+
+# Python generated files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

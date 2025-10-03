@@ -39,8 +39,7 @@ public:
    * @param batch_labels Output tensor for labels/targets
    * @return true if batch was retrieved, false if no more data
    */
-  virtual bool get_next_batch(Tensor<T> &batch_data,
-                              Tensor<T> &batch_labels) = 0;
+  virtual bool get_next_batch(Tensor<T> &batch_data, Tensor<T> &batch_labels) = 0;
 
   /**
    * Get a specific batch size
@@ -49,8 +48,7 @@ public:
    * @param batch_labels Output tensor for labels/targets
    * @return true if batch was retrieved, false if no more data
    */
-  virtual bool get_batch(size_t batch_size, Tensor<T> &batch_data,
-                         Tensor<T> &batch_labels) = 0;
+  virtual bool get_batch(size_t batch_size, Tensor<T> &batch_data, Tensor<T> &batch_labels) = 0;
 
   /**
    * Reset iterator to beginning of dataset
@@ -73,8 +71,7 @@ public:
    */
   virtual void prepare_batches(size_t batch_size) {
     if (size() == 0) {
-      std::cerr << "Warning: Cannot prepare batches - no data loaded"
-                << std::endl;
+      std::cerr << "Warning: Cannot prepare batches - no data loaded" << std::endl;
       return;
     }
 
@@ -82,8 +79,8 @@ public:
     batches_prepared_ = true;
     current_batch_index_ = 0;
 
-    std::cout << "Preparing batches with size " << batch_size << " for "
-              << size() << " samples..." << std::endl;
+    std::cout << "Preparing batches with size " << batch_size << " for " << size() << " samples..."
+              << std::endl;
   }
 
   /**
@@ -136,8 +133,8 @@ protected:
   /**
    * Utility function to create one-hot encoded labels
    */
-  void create_one_hot_label(Tensor<T> &label_tensor, int batch_idx,
-                            int class_idx, int num_classes) {
+  void create_one_hot_label(Tensor<T> &label_tensor, int batch_idx, int class_idx,
+                            int num_classes) {
 
     label_tensor(batch_idx, class_idx, 0, 0) = static_cast<T>(1.0);
   }
@@ -145,8 +142,7 @@ protected:
   /**
    * Utility function to normalize data to [0, 1] range
    */
-  void normalize_to_unit_range(std::vector<T> &data,
-                               T max_value = static_cast<T>(255.0)) {
+  void normalize_to_unit_range(std::vector<T> &data, T max_value = static_cast<T>(255.0)) {
     for (auto &value : data) {
       value /= max_value;
     }
@@ -154,112 +150,10 @@ protected:
 };
 
 /**
- * Specialized base class for image classification datasets
- * Provides common functionality for image-based datasets like MNIST, CIFAR,
- * etc.
- */
-template <typename T = float>
-class ImageClassificationDataLoader : public BaseDataLoader<T> {
-public:
-  virtual ~ImageClassificationDataLoader() = default;
-
-  /**
-   * Get image dimensions
-   */
-  virtual std::vector<size_t> get_image_shape() const = 0;
-
-  /**
-   * Get number of classes
-   */
-  virtual int get_num_classes() const = 0;
-
-  /**
-   * Get class names (optional)
-   */
-  virtual std::vector<std::string> get_class_names() const {
-    std::vector<std::string> names;
-    int num_classes = get_num_classes();
-    names.reserve(num_classes);
-    for (int i = 0; i < num_classes; ++i) {
-      names.push_back("class_" + std::to_string(i));
-    }
-    return names;
-  }
-
-protected:
-  using BaseDataLoader<T>::current_index_;
-  using BaseDataLoader<T>::batch_size_;
-  using BaseDataLoader<T>::rng_;
-
-  /**
-   * Utility to copy image data to tensor with proper channel ordering
-   */
-  void copy_image_to_tensor(Tensor<T> &tensor, int batch_idx,
-                            const std::vector<T> &image_data,
-                            const std::vector<size_t> &shape) {
-    size_t channels = shape[0];
-    size_t height = shape[1];
-    size_t width = shape[2];
-
-    for (size_t c = 0; c < channels; ++c) {
-      for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; ++w) {
-          size_t idx = c * height * width + h * width + w;
-          tensor(batch_idx, c, h, w) = image_data[idx];
-        }
-      }
-    }
-  }
-};
-
-/**
- * Specialized base class for regression datasets
- * Provides common functionality for continuous target prediction
- */
-template <typename T = float>
-class RegressionDataLoader : public BaseDataLoader<T> {
-public:
-  virtual ~RegressionDataLoader() = default;
-
-  /**
-   * Get number of input features
-   */
-  virtual size_t get_num_features() const = 0;
-
-  /**
-   * Get number of output targets
-   */
-  virtual size_t get_num_outputs() const = 0;
-
-  /**
-   * Check if data is normalized
-   */
-  virtual bool is_normalized() const = 0;
-
-  /**
-   * Get feature normalization statistics (optional)
-   */
-  virtual std::vector<T> get_feature_means() const { return {}; }
-  virtual std::vector<T> get_feature_stds() const { return {}; }
-
-  /**
-   * Get target normalization statistics (optional)
-   */
-  virtual std::vector<T> get_target_means() const { return {}; }
-  virtual std::vector<T> get_target_stds() const { return {}; }
-
-protected:
-  using BaseDataLoader<T>::current_index_;
-  using BaseDataLoader<T>::batch_size_;
-  using BaseDataLoader<T>::rng_;
-};
-
-/**
  * Factory function to create appropriate data loader based on dataset type
  */
 template <typename T = float>
-std::unique_ptr<BaseDataLoader<T>>
-create_data_loader(const std::string &dataset_type) {
+std::unique_ptr<BaseDataLoader<T>> create_data_loader(const std::string &dataset_type) {
 
   return nullptr;
 }
@@ -273,8 +167,7 @@ namespace utils {
  */
 template <typename T>
 std::pair<std::vector<size_t>, std::vector<size_t>>
-train_val_split(size_t dataset_size, float val_ratio = 0.2f,
-                unsigned int seed = 42) {
+train_val_split(size_t dataset_size, float val_ratio = 0.2f, unsigned int seed = 42) {
   std::vector<size_t> indices(dataset_size);
   std::iota(indices.begin(), indices.end(), 0);
 
@@ -284,8 +177,7 @@ train_val_split(size_t dataset_size, float val_ratio = 0.2f,
   size_t val_size = static_cast<size_t>(dataset_size * val_ratio);
   size_t train_size = dataset_size - val_size;
 
-  std::vector<size_t> train_indices(indices.begin(),
-                                    indices.begin() + train_size);
+  std::vector<size_t> train_indices(indices.begin(), indices.begin() + train_size);
   std::vector<size_t> val_indices(indices.begin() + train_size, indices.end());
 
   return {train_indices, val_indices};
@@ -301,8 +193,7 @@ template <typename T> struct DatasetStats {
   T max_val;
 };
 
-template <typename T>
-DatasetStats<T> calculate_stats(const std::vector<std::vector<T>> &data) {
+template <typename T> DatasetStats<T> calculate_stats(const std::vector<std::vector<T>> &data) {
   if (data.empty())
     return {};
 
