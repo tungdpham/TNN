@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "data_augmentation/augmentation.hpp"
 #include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
@@ -87,6 +88,8 @@ private:
                                                   "trees",
                                                   "vehicles_1",
                                                   "vehicles_2"};
+
+  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_strategy_;
 
 public:
   CIFAR100DataLoader(bool use_coarse_labels = false)
@@ -235,6 +238,11 @@ public:
       if (label >= 0 && label < num_classes) {
         batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
       }
+    }
+
+    // Apply augmentation if strategy is set
+    if (augmentation_strategy_) {
+      augmentation_strategy_->apply(batch_data, batch_labels);
     }
 
     this->current_index_ += actual_batch_size;
@@ -425,6 +433,11 @@ public:
         }
       }
 
+      // Apply augmentation if strategy is set
+      if (augmentation_strategy_) {
+        augmentation_strategy_->apply(batch_data, batch_fine_labels);
+      }
+
       batched_data_.emplace_back(std::move(batch_data));
       batched_fine_labels_.emplace_back(std::move(batch_fine_labels));
       batched_coarse_labels_.emplace_back(std::move(batch_coarse_labels));
@@ -446,6 +459,34 @@ public:
    * Check if batches are prepared
    */
   bool are_batches_prepared() const override { return batches_prepared_; }
+
+  /**
+   * Set augmentation strategy to apply during batch preparation and retrieval
+   */
+  void
+  set_augmentation_strategy(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> strategy) {
+    augmentation_strategy_ = std::move(strategy);
+  }
+
+  /**
+   * Set augmentation strategy using a copy
+   */
+  void set_augmentation_strategy(const data_augmentation::AugmentationStrategy<T> &strategy) {
+    augmentation_strategy_ = std::make_unique<data_augmentation::AugmentationStrategy<T>>();
+    for (const auto &aug : strategy.get_augmentations()) {
+      augmentation_strategy_->add_augmentation(aug->clone());
+    }
+  }
+
+  /**
+   * Clear the augmentation strategy
+   */
+  void clear_augmentation_strategy() { augmentation_strategy_.reset(); }
+
+  /**
+   * Check if augmentation is enabled
+   */
+  bool has_augmentation() const { return augmentation_strategy_ != nullptr; }
 
   /**
    * Get data statistics for debugging

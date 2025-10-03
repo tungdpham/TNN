@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "data_augmentation/augmentation.hpp"
 #include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
@@ -33,31 +34,6 @@ constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE;
 namespace data_loading {
 
 /**
- * Data augmentation parameters for CIFAR-10
- */
-struct CIFAR10AugmentationConfig {
-  bool enable_horizontal_flip = true;
-  bool enable_rotation = true;
-  bool enable_brightness_contrast = true;
-  bool enable_noise = false;
-  bool enable_random_crop = true;
-
-  float horizontal_flip_prob = 0.5f;
-  float rotation_prob = 0.5f;
-  float brightness_contrast_prob = 0.5f;
-  float noise_prob = 0.3f;
-  float random_crop_prob = 0.5f;
-
-  float max_rotation_degrees = 15.0f;
-  float brightness_range = 0.2f; // ±20% brightness
-  float contrast_range = 0.2f;   // ±20% contrast
-  float noise_std = 0.05f;       // Standard deviation for Gaussian noise
-  int crop_padding = 4;          // Padding for random crop
-
-  CIFAR10AugmentationConfig() = default;
-};
-
-/**
  * Enhanced CIFAR-10 data loader for binary format adapted for CNN (2D RGB
  * images) Extends ImageDataLoader for proper inheritance
  */
@@ -73,191 +49,7 @@ private:
   std::vector<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
                                            "dog",      "frog",       "horse", "ship", "truck"};
 
-  // Data augmentation configuration
-  CIFAR10AugmentationConfig aug_config_;
-  bool augmentation_enabled_ = false;
-
-  /**
-   * Apply horizontal flip augmentation to image data
-   */
-  void apply_horizontal_flip(std::vector<T> &image_data) const {
-    std::vector<T> flipped(image_data.size());
-
-    for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
-      for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
-        for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++w) {
-          int src_idx = c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                        h * cifar10_constants::IMAGE_WIDTH + w;
-          int dst_idx = c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                        h * cifar10_constants::IMAGE_WIDTH +
-                        (cifar10_constants::IMAGE_WIDTH - 1 - w);
-          flipped[dst_idx] = image_data[src_idx];
-        }
-      }
-    }
-    image_data = std::move(flipped);
-  }
-
-  /**
-   * Apply rotation augmentation to image data
-   */
-  void apply_rotation(std::vector<T> &image_data, float angle_degrees) const {
-    const float angle_rad = angle_degrees * M_PI / 180.0f;
-    const float cos_angle = std::cos(angle_rad);
-    const float sin_angle = std::sin(angle_rad);
-    const int center_x = cifar10_constants::IMAGE_WIDTH / 2;
-    const int center_y = cifar10_constants::IMAGE_HEIGHT / 2;
-
-    std::vector<T> rotated(image_data.size(), static_cast<T>(0));
-
-    for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
-      for (int y = 0; y < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++y) {
-        for (int x = 0; x < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++x) {
-          // Transform coordinates to center origin
-          float src_x = (x - center_x) * cos_angle - (y - center_y) * sin_angle + center_x;
-          float src_y = (x - center_x) * sin_angle + (y - center_y) * cos_angle + center_y;
-
-          // Bilinear interpolation
-          int x1 = static_cast<int>(std::floor(src_x));
-          int y1 = static_cast<int>(std::floor(src_y));
-          int x2 = x1 + 1;
-          int y2 = y1 + 1;
-
-          if (x1 >= 0 && x2 < static_cast<int>(cifar10_constants::IMAGE_WIDTH) && y1 >= 0 &&
-              y2 < static_cast<int>(cifar10_constants::IMAGE_HEIGHT)) {
-
-            float wx = src_x - x1;
-            float wy = src_y - y1;
-
-            int base_idx = c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH;
-            T val1 = image_data[base_idx + y1 * cifar10_constants::IMAGE_WIDTH + x1];
-            T val2 = image_data[base_idx + y1 * cifar10_constants::IMAGE_WIDTH + x2];
-            T val3 = image_data[base_idx + y2 * cifar10_constants::IMAGE_WIDTH + x1];
-            T val4 = image_data[base_idx + y2 * cifar10_constants::IMAGE_WIDTH + x2];
-
-            T interpolated = val1 * (1 - wx) * (1 - wy) + val2 * wx * (1 - wy) +
-                             val3 * (1 - wx) * wy + val4 * wx * wy;
-
-            rotated[c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                    y * cifar10_constants::IMAGE_WIDTH + x] = interpolated;
-          }
-        }
-      }
-    }
-    image_data = std::move(rotated);
-  }
-
-  /**
-   * Apply brightness and contrast adjustments
-   */
-  void apply_brightness_contrast(std::vector<T> &image_data, float brightness_factor,
-                                 float contrast_factor) const {
-    for (auto &pixel : image_data) {
-      pixel = std::clamp(pixel * contrast_factor + brightness_factor, static_cast<T>(0),
-                         static_cast<T>(1));
-    }
-  }
-
-  /**
-   * Apply Gaussian noise augmentation
-   */
-  void apply_noise(std::vector<T> &image_data, float noise_std) const {
-    std::normal_distribution<float> noise_dist(0.0f, noise_std);
-
-    for (auto &pixel : image_data) {
-      float noise = noise_dist(this->rng_);
-      pixel = std::clamp(pixel + static_cast<T>(noise), static_cast<T>(0), static_cast<T>(1));
-    }
-  }
-
-  /**
-   * Apply random crop with padding
-   */
-  void apply_random_crop(std::vector<T> &image_data, int padding) const {
-    if (padding <= 0)
-      return;
-
-    // Create padded image
-    const int padded_size = cifar10_constants::IMAGE_WIDTH + 2 * padding;
-    std::vector<T> padded(cifar10_constants::NUM_CHANNELS * padded_size * padded_size,
-                          static_cast<T>(0));
-
-    // Copy original image to center of padded image
-    for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
-      for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
-        for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++w) {
-          int src_idx = c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                        h * cifar10_constants::IMAGE_WIDTH + w;
-          int dst_idx = c * padded_size * padded_size + (h + padding) * padded_size + (w + padding);
-          padded[dst_idx] = image_data[src_idx];
-        }
-      }
-    }
-
-    // Random crop from padded image
-    std::uniform_int_distribution<int> crop_dist(0, 2 * padding);
-    int start_x = crop_dist(this->rng_);
-    int start_y = crop_dist(this->rng_);
-
-    std::vector<T> cropped(image_data.size());
-    for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
-      for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
-        for (int w = 0; w < static_cast<int>(cifar10_constants::IMAGE_WIDTH); ++w) {
-          int src_idx = c * padded_size * padded_size + (start_y + h) * padded_size + (start_x + w);
-          int dst_idx = c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                        h * cifar10_constants::IMAGE_WIDTH + w;
-          cropped[dst_idx] = padded[src_idx];
-        }
-      }
-    }
-    image_data = std::move(cropped);
-  }
-
-  /**
-   * Apply all enabled augmentations to a single image
-   */
-  void apply_augmentations(std::vector<T> &image_data) const {
-    if (!augmentation_enabled_)
-      return;
-
-    std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
-
-    // Apply horizontal flip
-    if (aug_config_.enable_horizontal_flip &&
-        prob_dist(this->rng_) < aug_config_.horizontal_flip_prob) {
-      apply_horizontal_flip(image_data);
-    }
-
-    // Apply rotation
-    if (aug_config_.enable_rotation && prob_dist(this->rng_) < aug_config_.rotation_prob) {
-      std::uniform_real_distribution<float> angle_dist(-aug_config_.max_rotation_degrees,
-                                                       aug_config_.max_rotation_degrees);
-      float angle = angle_dist(this->rng_);
-      apply_rotation(image_data, angle);
-    }
-
-    // Apply random crop
-    if (aug_config_.enable_random_crop && prob_dist(this->rng_) < aug_config_.random_crop_prob) {
-      apply_random_crop(image_data, aug_config_.crop_padding);
-    }
-
-    // Apply brightness and contrast adjustments
-    if (aug_config_.enable_brightness_contrast &&
-        prob_dist(this->rng_) < aug_config_.brightness_contrast_prob) {
-      std::uniform_real_distribution<float> brightness_dist(-aug_config_.brightness_range,
-                                                            aug_config_.brightness_range);
-      std::uniform_real_distribution<float> contrast_dist(1.0f - aug_config_.contrast_range,
-                                                          1.0f + aug_config_.contrast_range);
-      float brightness = brightness_dist(this->rng_);
-      float contrast = contrast_dist(this->rng_);
-      apply_brightness_contrast(image_data, brightness, contrast);
-    }
-
-    // Apply noise
-    if (aug_config_.enable_noise && prob_dist(this->rng_) < aug_config_.noise_prob) {
-      apply_noise(image_data, aug_config_.noise_std);
-    }
-  }
+  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_strategy_;
 
 public:
   CIFAR10DataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
@@ -374,11 +166,7 @@ public:
     batch_labels.fill(static_cast<T>(0.0));
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
-      // Make a copy of the image data for augmentation
-      std::vector<T> image_data = data_[this->current_index_ + i];
-
-      // Apply augmentations if enabled
-      apply_augmentations(image_data);
+      const std::vector<T> &image_data = data_[this->current_index_ + i];
 
       for (int c = 0; c < static_cast<int>(cifar10_constants::NUM_CHANNELS); ++c) {
         for (int h = 0; h < static_cast<int>(cifar10_constants::IMAGE_HEIGHT); ++h) {
@@ -395,6 +183,10 @@ public:
       if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
         batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
       }
+    }
+
+    if (augmentation_strategy_) {
+      augmentation_strategy_->apply(batch_data, batch_labels);
     }
 
     this->current_index_ += actual_batch_size;
@@ -510,12 +302,7 @@ public:
 
       for (size_t i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
-
-        // Make a copy of the image data for augmentation
-        std::vector<T> image_data = data_[sample_idx];
-
-        // Apply augmentations if enabled
-        apply_augmentations(image_data);
+        const std::vector<T> &image_data = data_[sample_idx];
 
         for (size_t c = 0; c < cifar10_constants::NUM_CHANNELS; ++c) {
           for (size_t h = 0; h < cifar10_constants::IMAGE_HEIGHT; ++h) {
@@ -532,6 +319,10 @@ public:
         if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
           batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
         }
+      }
+
+      if (augmentation_strategy_) {
+        augmentation_strategy_->apply(batch_data, batch_labels);
       }
 
       batched_data_.emplace_back(std::move(batch_data));
@@ -556,104 +347,32 @@ public:
   bool are_batches_prepared() const override { return batches_prepared_; }
 
   /**
-   * Enable or disable data augmentation
+   * Set augmentation strategy to apply during batch preparation and retrieval
    */
-  void set_augmentation_enabled(bool enabled) {
-    augmentation_enabled_ = enabled;
-    if (enabled) {
-      std::cout << "Data augmentation enabled" << std::endl;
-    } else {
-      std::cout << "Data augmentation disabled" << std::endl;
+  void
+  set_augmentation_strategy(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> strategy) {
+    augmentation_strategy_ = std::move(strategy);
+  }
+
+  /**
+   * Set augmentation strategy using a copy
+   */
+  void set_augmentation_strategy(const data_augmentation::AugmentationStrategy<T> &strategy) {
+    augmentation_strategy_ = std::make_unique<data_augmentation::AugmentationStrategy<T>>();
+    for (const auto &aug : strategy.get_augmentations()) {
+      augmentation_strategy_->add_augmentation(aug->clone());
     }
   }
 
   /**
-   * Get current augmentation status
+   * Clear the augmentation strategy
    */
-  bool is_augmentation_enabled() const { return augmentation_enabled_; }
+  void clear_augmentation_strategy() { augmentation_strategy_.reset(); }
 
   /**
-   * Set augmentation configuration
+   * Check if augmentation is enabled
    */
-  void set_augmentation_config(const CIFAR10AugmentationConfig &config) {
-    aug_config_ = config;
-    std::cout << "Updated augmentation configuration" << std::endl;
-  }
-
-  /**
-   * Get current augmentation configuration
-   */
-  const CIFAR10AugmentationConfig &get_augmentation_config() const { return aug_config_; }
-
-  /**
-   * Enable specific augmentation with custom probability
-   */
-  void enable_horizontal_flip(float probability = 0.5f) {
-    aug_config_.enable_horizontal_flip = true;
-    aug_config_.horizontal_flip_prob = probability;
-  }
-
-  void enable_rotation(float probability = 0.5f, float max_degrees = 15.0f) {
-    aug_config_.enable_rotation = true;
-    aug_config_.rotation_prob = probability;
-    aug_config_.max_rotation_degrees = max_degrees;
-  }
-
-  void enable_brightness_contrast(float probability = 0.5f, float brightness_range = 0.2f,
-                                  float contrast_range = 0.2f) {
-    aug_config_.enable_brightness_contrast = true;
-    aug_config_.brightness_contrast_prob = probability;
-    aug_config_.brightness_range = brightness_range;
-    aug_config_.contrast_range = contrast_range;
-  }
-
-  void enable_noise(float probability = 0.3f, float std_dev = 0.05f) {
-    aug_config_.enable_noise = true;
-    aug_config_.noise_prob = probability;
-    aug_config_.noise_std = std_dev;
-  }
-
-  void enable_random_crop(float probability = 0.5f, int padding = 4) {
-    aug_config_.enable_random_crop = true;
-    aug_config_.random_crop_prob = probability;
-    aug_config_.crop_padding = padding;
-  }
-
-  /**
-   * Disable specific augmentations
-   */
-  void disable_horizontal_flip() { aug_config_.enable_horizontal_flip = false; }
-  void disable_rotation() { aug_config_.enable_rotation = false; }
-  void disable_brightness_contrast() { aug_config_.enable_brightness_contrast = false; }
-  void disable_noise() { aug_config_.enable_noise = false; }
-  void disable_random_crop() { aug_config_.enable_random_crop = false; }
-
-  /**
-   * Print current augmentation settings
-   */
-  void print_augmentation_config() const {
-    std::cout << "\nData Augmentation Configuration:" << std::endl;
-    std::cout << "Augmentation enabled: " << (augmentation_enabled_ ? "Yes" : "No") << std::endl;
-    if (augmentation_enabled_) {
-      std::cout << "Horizontal flip: " << (aug_config_.enable_horizontal_flip ? "Yes" : "No")
-                << " (prob: " << aug_config_.horizontal_flip_prob << ")" << std::endl;
-      std::cout << "Rotation: " << (aug_config_.enable_rotation ? "Yes" : "No")
-                << " (prob: " << aug_config_.rotation_prob
-                << ", max_degrees: " << aug_config_.max_rotation_degrees << ")" << std::endl;
-      std::cout << "Brightness/Contrast: "
-                << (aug_config_.enable_brightness_contrast ? "Yes" : "No")
-                << " (prob: " << aug_config_.brightness_contrast_prob << ", brightness_range: ±"
-                << aug_config_.brightness_range << ", contrast_range: ±"
-                << aug_config_.contrast_range << ")" << std::endl;
-      std::cout << "Noise: " << (aug_config_.enable_noise ? "Yes" : "No")
-                << " (prob: " << aug_config_.noise_prob << ", std: " << aug_config_.noise_std << ")"
-                << std::endl;
-      std::cout << "Random crop: " << (aug_config_.enable_random_crop ? "Yes" : "No")
-                << " (prob: " << aug_config_.random_crop_prob
-                << ", padding: " << aug_config_.crop_padding << ")" << std::endl;
-    }
-    std::cout << std::endl;
-  }
+  bool has_augmentation() const { return augmentation_strategy_ != nullptr; }
 
   /**
    * Get data statistics for debugging

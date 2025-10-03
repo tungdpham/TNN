@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "data_augmentation/augmentation.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
 #include <iostream>
@@ -113,12 +114,49 @@ public:
   std::mt19937 &get_rng() { return rng_; }
   const std::mt19937 &get_rng() const { return rng_; }
 
+  /**
+   * Set augmentation strategy
+   * @param aug Unique pointer to augmentation strategy (takes ownership)
+   *
+   * This allows clean separation between data loading and augmentation.
+   * Different datasets can use different augmentation strategies without
+   * coupling the augmentation logic to the data loader.
+   *
+   * Example usage:
+   *   auto aug = std::make_unique<CIFAR10Augmentation<float>>(0.1f, true);
+   *   loader.set_augmentation(std::move(aug));
+   */
+  void set_augmentation(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> aug) {
+    augmentation_ = std::move(aug);
+  }
+
+  /**
+   * Remove augmentation strategy (useful for validation/test sets)
+   */
+  void clear_augmentation() { augmentation_.reset(); }
+
+  /**
+   * Check if augmentation is enabled
+   */
+  bool has_augmentation() const { return augmentation_ != nullptr; }
+
 protected:
   size_t current_index_ = 0;
   size_t current_batch_index_ = 0;
   size_t batch_size_ = 32;
   bool batches_prepared_ = false;
   mutable std::mt19937 rng_{std::random_device{}()};
+  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_;
+
+  /**
+   * Apply augmentation to batch if augmentation strategy is set
+   * Called internally by derived classes after loading batch data
+   */
+  void apply_augmentation(Tensor<T> &batch_data, Tensor<T> &batch_labels) {
+    if (augmentation_) {
+      augmentation_->apply(batch_data, batch_labels);
+    }
+  }
 
   /**
    * Utility function to shuffle indices

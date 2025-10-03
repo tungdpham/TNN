@@ -1,3 +1,4 @@
+#include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
@@ -18,6 +19,10 @@
 #include <sstream>
 #include <vector>
 
+using namespace tnn;
+using namespace data_augmentation;
+using namespace data_loading;
+
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
@@ -33,7 +38,7 @@ int main() {
     std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
-    data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
+    CIFAR10DataLoader<float> train_loader, test_loader;
 
     std::vector<std::string> train_files;
     for (int i = 1; i <= 5; ++i) {
@@ -53,17 +58,15 @@ int main() {
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
     std::cout << "\nConfiguring data augmentation for training..." << std::endl;
-    train_loader.set_augmentation_enabled(true);
 
-    train_loader.enable_horizontal_flip(0.5f);
-    train_loader.enable_rotation(0.4f, 10.0f);
-    train_loader.enable_brightness_contrast(0.3f, 0.15f, 0.15f);
-    train_loader.enable_random_crop(0.6f, 4);
-    train_loader.enable_noise(0.2f, 0.03f);
-
-    train_loader.print_augmentation_config();
-
-    test_loader.set_augmentation_enabled(false);
+    std::unique_ptr<AugmentationStrategy<float>> aug_strategy = AugmentationBuilder<float>()
+                                                                    .horizontal_flip(0.5f)
+                                                                    .rotation(0.4f, 10.0f)
+                                                                    .brightness(0.3f, 0.15f)
+                                                                    .contrast(0.3f, 0.15f)
+                                                                    .gaussian_noise(0.3f, 0.05f)
+                                                                    .build();
+    train_loader.set_augmentation(std::move(aug_strategy));
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
