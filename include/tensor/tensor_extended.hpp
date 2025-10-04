@@ -6,6 +6,45 @@
 #ifdef __AVX2__
 constexpr size_t KERNEL_W_BLOCKSIZE = 3;
 
+// Helper function to pad a tensor with zeros
+template <typename T>
+Tensor<T, NCHW> pad_tensor(const Tensor<T, NCHW> &input_tensor, size_t pad_h, size_t pad_w) {
+  const size_t batch_size = input_tensor.batch_size();
+  const size_t channels = input_tensor.channels();
+  const size_t in_h = input_tensor.height();
+  const size_t in_w = input_tensor.width();
+  const size_t out_h = in_h + 2 * pad_h;
+  const size_t out_w = in_w + 2 * pad_w;
+
+  Tensor<T, NCHW> padded(batch_size, channels, out_h, out_w, nullptr);
+
+  const T *input_data = input_tensor.data();
+  T *padded_data = padded.data();
+
+  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+    const T *input_channel = input_data + (n * channels + c) * in_h * in_w;
+    T *padded_channel = padded_data + (n * channels + c) * out_h * out_w;
+
+    // Zero out top padding
+    std::fill(padded_channel, padded_channel + pad_h * out_w, T(0));
+
+    // Copy rows with left/right padding
+    for (size_t h = 0; h < in_h; ++h) {
+      T *padded_row = padded_channel + (h + pad_h) * out_w;
+
+      std::fill(padded_row, padded_row + pad_w, T(0));
+
+      std::copy(input_channel + h * in_w, input_channel + (h + 1) * in_w, padded_row + pad_w);
+
+      std::fill(padded_row + pad_w + in_w, padded_row + out_w, T(0));
+    }
+
+    std::fill(padded_channel + (pad_h + in_h) * out_w, padded_channel + out_h * out_w, T(0));
+  });
+
+  return padded;
+}
+
 template <typename T>
 Matrix<T> optimized_im2col_stride_1_pad_0(const Tensor<T, NCHW> &input_tensor, size_t kernel_h,
                                           size_t kernel_w) {
@@ -36,7 +75,7 @@ Matrix<T> optimized_im2col_stride_1_pad_0(const Tensor<T, NCHW> &input_tensor, s
                            ((c * kernel_h + kh) * kernel_w + kw) * (batch_size * col_width) +
                            n * col_width;
         T *col_row_ptr_2 = col_row_ptr_1 + (batch_size * col_width);
-        T *col_row_ptr_3 = col_row_ptr_2 + (batch_size * col_width);
+        T *col_row_ptr_3 = col_row_ptr_1 + 2 * (batch_size * col_width);
 
         for (size_t h = 0; h < out_h; ++h) {
           const T *input_row_ptr = input_base_ptr + h * in_w;
@@ -93,97 +132,9 @@ template <typename T>
 Matrix<T> optimized_im2col_stride_1_with_padding(const Tensor<T, NCHW> &input_tensor,
                                                  size_t kernel_h, size_t kernel_w, size_t pad_h,
                                                  size_t pad_w) {
-  const size_t in_h = input_tensor.height();
-  const size_t in_w = input_tensor.width();
-  const size_t padded_h = in_h + 2 * pad_h;
-  const size_t padded_w = in_w + 2 * pad_w;
-  const size_t out_h = (padded_h - kernel_h) + 1;
-  const size_t out_w = (padded_w - kernel_w) + 1;
-  const size_t channels = input_tensor.channels();
-  const size_t batch_size = input_tensor.batch_size();
-  size_t col_height = channels * kernel_h * kernel_w;
-  size_t col_width = out_h * out_w;
-
-  Matrix<T> col_matrix(col_height, batch_size * col_width);
-
-  T *col_matrix_data = col_matrix.data();
-  const T *input_data = input_tensor.data();
-  __m256 zero = _mm256_setzero_ps();
-
-  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-    const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
-
-    for (size_t kh = 0; kh < kernel_h; ++kh) {
-      for (size_t kw = 0; kw < kernel_w; ++kw) {
-        T *col_row_ptr = col_matrix_data +
-                         ((c * kernel_h + kh) * kernel_w + kw) * (batch_size * col_width) +
-                         n * col_width;
-
-        // Calculate valid input range for this kernel position
-        const size_t h_start = (pad_h > kh) ? (pad_h - kh) : 0;
-        const size_t h_end = std::min(out_h, in_h + pad_h - kh);
-
-        const size_t w_start = (pad_w > kw) ? (pad_w - kw) : 0;
-        const size_t w_end = std::min(out_w, in_w + pad_w - kw);
-
-        // Fill top padding rows with zeros
-        const size_t simd_end_w = (out_w / 8) * 8;
-        for (size_t h = 0; h < h_start; ++h) {
-          for (size_t w = 0; w < simd_end_w; w += 8) {
-            _mm256_storeu_ps(col_row_ptr + h * out_w + w, zero);
-          }
-          for (size_t w = simd_end_w; w < out_w; ++w) {
-            col_row_ptr[h * out_w + w] = T(0);
-          }
-        }
-
-        // Process valid rows
-        for (size_t h = h_start; h < h_end; ++h) {
-          const size_t h_in = h + kh - pad_h;
-          const T *input_row_ptr = input_channel_ptr + h_in * in_w;
-          T *output_row_ptr = col_row_ptr + h * out_w;
-
-          // Left padding
-          for (size_t w = 0; w < w_start; ++w) {
-            output_row_ptr[w] = T(0);
-          }
-
-          // Valid data with SIMD
-          const size_t valid_w_start = w_start;
-          const size_t valid_w_end = w_end;
-          const size_t valid_len = valid_w_end - valid_w_start;
-          const size_t valid_simd_end = (valid_len / 8) * 8;
-
-          const size_t w_in_offset = valid_w_start + kw - pad_w;
-
-          for (size_t w = 0; w < valid_simd_end; w += 8) {
-            __m256 data = _mm256_loadu_ps(input_row_ptr + w_in_offset + w);
-            _mm256_storeu_ps(output_row_ptr + valid_w_start + w, data);
-          }
-          for (size_t w = valid_simd_end; w < valid_len; ++w) {
-            output_row_ptr[valid_w_start + w] = input_row_ptr[w_in_offset + w];
-          }
-
-          // Right padding
-          for (size_t w = valid_w_end; w < out_w; ++w) {
-            output_row_ptr[w] = T(0);
-          }
-        }
-
-        // Fill bottom padding rows with zeros
-        for (size_t h = h_end; h < out_h; ++h) {
-          for (size_t w = 0; w < simd_end_w; w += 8) {
-            _mm256_storeu_ps(col_row_ptr + h * out_w + w, zero);
-          }
-          for (size_t w = simd_end_w; w < out_w; ++w) {
-            col_row_ptr[h * out_w + w] = T(0);
-          }
-        }
-      }
-    }
-  });
-
-  return col_matrix;
+  // Pad the input tensor once, then use the fast no-padding version
+  Tensor<T, NCHW> padded_tensor = pad_tensor(input_tensor, pad_h, pad_w);
+  return optimized_im2col_stride_1_pad_0(padded_tensor, kernel_h, kernel_w);
 }
 #endif
 

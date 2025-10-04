@@ -7,7 +7,7 @@
 #include <oneapi/tbb/parallel_for.h>
 #endif
 constexpr size_t N = 64;
-constexpr size_t C = 64;
+constexpr size_t C = 128;
 constexpr size_t H = 32;
 constexpr size_t W = 32;
 constexpr size_t OC = 64;
@@ -25,29 +25,6 @@ void benchmark(const Tensor<float, NCHW> &input, const size_t kernel_h, const si
   benchmark("im2col",
             [&]() { col = im2col(input, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w); });
 
-  if (stride_h == 1 && stride_w == 1 && pad_h == 0 && pad_w == 0) {
-#ifdef __AVX2__
-    Matrix<float> col_opt;
-    benchmark("optimized_im2col_stride_1_pad_0",
-              [&]() { col_opt = optimized_im2col_stride_1_pad_0(input, kernel_h, kernel_w); });
-
-    // verify
-    if (col_opt.rows() != col.rows() || col_opt.cols() != col.cols()) {
-      std::cerr << "Optimized im2col dimensions do not match!" << std::endl;
-      return;
-    }
-    for (size_t i = 0; i < col.rows(); ++i) {
-      for (size_t j = 0; j < col.cols(); ++j) {
-        if (std::abs(col_opt(i, j) - col(i, j)) > 1e-5f) {
-          std::cerr << "Mismatch at (" << i << ", " << j << "): " << col_opt(i, j) << " vs "
-                    << col(i, j) << std::endl;
-          return;
-        }
-      }
-    }
-    std::cout << "Optimized im2col matches standard im2col." << std::endl;
-#endif
-  }
   Tensor<float, NCHW> output;
   benchmark("col2im", [&]() {
     output = col2im(col, N, C, H, W, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
