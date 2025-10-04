@@ -12,7 +12,9 @@
 #include "pipeline_stage.hpp"
 #include "tcp_communicator.hpp"
 #include <atomic>
+#include <chrono>
 #include <csignal>
+#include <future>
 #include <iostream>
 #include <memory>
 
@@ -59,15 +61,23 @@ public:
   }
 
   void stop() override {
-    if (this->should_stop_)
-      return;
+    std::cout << "Stopping network stage worker." << '\n';
+
     PipelineStage<T>::stop();
-    tcp_communicator_->stop();
+
+    if (tcp_communicator_) {
+      tcp_communicator_->stop();
+      std::cout << "TCP communicator stopped." << '\n';
+    }
 
     work_guard_.reset();
+    std::cout << "Work guard reset." << '\n';
+
     io_context_.stop();
+    std::cout << "IO context stopped." << '\n';
 
     if (io_thread_.joinable()) {
+      std::cout << "Joining IO thread." << '\n';
       io_thread_.join();
     }
 

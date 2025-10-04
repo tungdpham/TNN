@@ -639,20 +639,6 @@ public:
    * @return true if load balancing should be skipped, false if it should proceed
    */
   bool should_skip_load_balancing(const std::vector<tnn::StageLoadInfo> &current_load_info) {
-    auto now = std::chrono::steady_clock::now();
-
-    // Check minimum time interval
-    if (last_balance_time_.time_since_epoch().count() > 0) {
-      auto time_since_last =
-          std::chrono::duration_cast<std::chrono::seconds>(now - last_balance_time_);
-      if (static_cast<size_t>(time_since_last.count()) < MIN_BALANCE_INTERVAL_SECONDS) {
-        std::cout << "Skipping load balancing: Only " << time_since_last.count()
-                  << " seconds since last balance (minimum " << MIN_BALANCE_INTERVAL_SECONDS
-                  << "s)\n";
-        return true;
-      }
-    }
-
     // Check if we have previous load info to compare against
     if (last_load_info_.empty() || last_load_info_.size() != current_load_info.size()) {
       std::cout << "No previous load info available, proceeding with load balancing\n";
@@ -757,7 +743,6 @@ protected:
   std::chrono::steady_clock::time_point last_balance_time_;
   size_t consecutive_no_change_count_ = 0;
   static constexpr double LOAD_IMPROVEMENT_THRESHOLD = 0.05; // 5% improvement required
-  static constexpr size_t MIN_BALANCE_INTERVAL_SECONDS = 30;
   static constexpr size_t MAX_CONSECUTIVE_NO_CHANGE = 3;
 
   mutable std::mutex message_notification_mutex_;

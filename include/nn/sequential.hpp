@@ -12,6 +12,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <stdexcept>
 #include <string>
@@ -38,6 +39,9 @@ private:
   bool is_training_;
 
   bool enable_profiling_ = false;
+
+  mutable std::mutex forward_times_mutex_;
+  mutable std::mutex backward_times_mutex_;
   std::map<std::string, int64_t> forward_times_microseconds_;
   std::map<std::string, int64_t> backward_times_microseconds_;
 
@@ -75,6 +79,16 @@ public:
     if (other.loss_) {
       loss_ = other.loss_->clone();
     }
+
+    // Thread-safe copy of timing maps
+    {
+      std::lock_guard<std::mutex> forward_lock(other.forward_times_mutex_);
+      forward_times_microseconds_ = other.forward_times_microseconds_;
+    }
+    {
+      std::lock_guard<std::mutex> backward_lock(other.backward_times_mutex_);
+      backward_times_microseconds_ = other.backward_times_microseconds_;
+    }
   }
 
   Sequential(Sequential &&other) noexcept
@@ -99,8 +113,27 @@ public:
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
 
-      forward_times_microseconds_.clear();
-      backward_times_microseconds_.clear();
+      // Thread-safe clearing and copying of timing maps
+      {
+        std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
+        forward_times_microseconds_.clear();
+      }
+      {
+        std::lock_guard<std::mutex> backward_lock(backward_times_mutex_);
+        backward_times_microseconds_.clear();
+      }
+
+      // Copy timing maps from other with proper locking
+      {
+        std::lock_guard<std::mutex> other_forward_lock(other.forward_times_mutex_);
+        std::lock_guard<std::mutex> this_forward_lock(forward_times_mutex_);
+        forward_times_microseconds_ = other.forward_times_microseconds_;
+      }
+      {
+        std::lock_guard<std::mutex> other_backward_lock(other.backward_times_mutex_);
+        std::lock_guard<std::mutex> this_backward_lock(backward_times_mutex_);
+        backward_times_microseconds_ = other.backward_times_microseconds_;
+      }
     }
     return *this;
   }
@@ -164,8 +197,14 @@ public:
 
   void clear() {
     layers_.clear();
-    forward_times_microseconds_.clear();
-    backward_times_microseconds_.clear();
+    {
+      std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
+      forward_times_microseconds_.clear();
+    }
+    {
+      std::lock_guard<std::mutex> backward_lock(backward_times_mutex_);
+      backward_times_microseconds_.clear();
+    }
   }
 
   size_t layer_size() const { return layers_.size(); }
@@ -193,8 +232,14 @@ public:
   void enable_profiling(bool enable = true) {
     enable_profiling_ = enable;
     if (enable) {
-      forward_times_microseconds_.clear();
-      backward_times_microseconds_.clear();
+      {
+        std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
+        forward_times_microseconds_.clear();
+      }
+      {
+        std::lock_guard<std::mutex> backward_lock(backward_times_mutex_);
+        backward_times_microseconds_.clear();
+      }
     }
     for (auto &layer : layers_) {
       layer->enable_profiling(enable);
@@ -210,8 +255,14 @@ public:
    * @brief Clears all recorded profiling data.
    */
   void clear_profiling_data() {
-    forward_times_microseconds_.clear();
-    backward_times_microseconds_.clear();
+    {
+      std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
+      forward_times_microseconds_.clear();
+    }
+    {
+      std::lock_guard<std::mutex> backward_lock(backward_times_mutex_);
+      backward_times_microseconds_.clear();
+    }
     for (auto &layer : layers_) {
       layer->reset_profiling_info();
     }
@@ -220,24 +271,32 @@ public:
   /**
    * @brief Clears only the recorded forward times.
    */
-  void clear_forward_times() { forward_times_microseconds_.clear(); }
+  void clear_forward_times() {
+    std::lock_guard<std::mutex> lock(forward_times_mutex_);
+    forward_times_microseconds_.clear();
+  }
 
   /**
    * @brief Clears only the recorded backward times.
    */
-  void clear_backward_times() { backward_times_microseconds_.clear(); }
+  void clear_backward_times() {
+    std::lock_guard<std::mutex> lock(backward_times_mutex_);
+    backward_times_microseconds_.clear();
+  }
 
   /**
    * @brief Returns the recorded forward times for each layer in milliseconds.
    */
-  const std::map<std::string, int64_t> &get_forward_times() const {
+  std::map<std::string, int64_t> get_forward_times() const {
+    std::lock_guard<std::mutex> lock(forward_times_mutex_);
     return forward_times_microseconds_;
   }
 
   /**
    * @brief Returns the recorded backward times for each layer in milliseconds.
    */
-  const std::map<std::string, int64_t> &get_backward_times() const {
+  std::map<std::string, int64_t> get_backward_times() const {
+    std::lock_guard<std::mutex> lock(backward_times_mutex_);
     return backward_times_microseconds_;
   }
 
@@ -246,7 +305,26 @@ public:
    * prints a warning.
    */
   void print_profiling_summary() const {
-    if (!enable_profiling_ || forward_times_microseconds_.empty()) {
+    if (!enable_profiling_) {
+      std::cout << "No profiling data available. Enable profiling with "
+                   "enable_profiling(true)\n";
+      return;
+    }
+
+    // Create thread-safe copies of the timing maps
+    std::map<std::string, int64_t> forward_times_copy;
+    std::map<std::string, int64_t> backward_times_copy;
+
+    {
+      std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
+      forward_times_copy = forward_times_microseconds_;
+    }
+    {
+      std::lock_guard<std::mutex> backward_lock(backward_times_mutex_);
+      backward_times_copy = backward_times_microseconds_;
+    }
+
+    if (forward_times_copy.empty()) {
       std::cout << "No profiling data available. Enable profiling with "
                    "enable_profiling(true)\n";
       return;
@@ -269,14 +347,14 @@ public:
       }
 
       int64_t forward_time = 0;
-      auto forward_it = forward_times_microseconds_.find(layer_name);
-      if (forward_it != forward_times_microseconds_.end()) {
+      auto forward_it = forward_times_copy.find(layer_name);
+      if (forward_it != forward_times_copy.end()) {
         forward_time = forward_it->second;
       }
 
       int64_t backward_time = 0;
-      auto backward_it = backward_times_microseconds_.find(layer_name);
-      if (backward_it != backward_times_microseconds_.end()) {
+      auto backward_it = backward_times_copy.find(layer_name);
+      if (backward_it != backward_times_copy.end()) {
         backward_time = backward_it->second;
       }
 
@@ -331,7 +409,11 @@ public:
           if (!config.name.empty()) {
             layer_name = config.name;
           }
-          forward_times_microseconds_[layer_name] += duration.count();
+
+          {
+            std::lock_guard<std::mutex> lock(forward_times_mutex_);
+            forward_times_microseconds_[layer_name] += duration.count();
+          }
         } else {
           layers_[i]->forward_inplace(current_output, micro_batch_id);
         }
@@ -390,7 +472,11 @@ public:
           if (!config.name.empty()) {
             layer_name = config.name;
           }
-          backward_times_microseconds_[layer_name] += duration.count();
+
+          {
+            std::lock_guard<std::mutex> lock(backward_times_mutex_);
+            backward_times_microseconds_[layer_name] += duration.count();
+          }
         } else {
           layers_[i]->backward_inplace(current_grad, micro_batch_id);
         }
@@ -996,6 +1082,8 @@ public:
       }
       config["loss"] = loss_json;
     }
+
+    return config;
   }
 
   /**

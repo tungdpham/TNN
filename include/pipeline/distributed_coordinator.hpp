@@ -95,6 +95,8 @@ public:
   }
 
   ~DistributedPipelineCoordinator() {
+    this->stop();
+
     this->should_stop_ = true;
     this->message_notification_cv_.notify_all();
 
@@ -103,6 +105,8 @@ public:
     if (io_thread_.joinable()) {
       io_thread_.join();
     }
+
+    this->coordinator_comm_.reset();
   }
 
   bool deploy_stages() {

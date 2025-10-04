@@ -15,6 +15,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
 #include <unordered_map>
 
@@ -26,7 +27,11 @@ public:
   static constexpr size_t MAX_POOL_SIZE = 32;
 
   std::shared_ptr<std::vector<uint8_t>> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    if (is_shutting_down_) {
+      auto buffer = std::make_shared<std::vector<uint8_t>>();
+      buffer->resize(min_size);
+      return buffer;
+    }
 
     for (auto it = pool_.begin(); it != pool_.end(); ++it) {
       if ((*it)->capacity() >= min_size) {
@@ -46,9 +51,6 @@ public:
   void return_buffer(std::shared_ptr<std::vector<uint8_t>> buffer) {
     if (!buffer)
       return;
-
-    std::lock_guard<std::mutex> lock(mutex_);
-
     if (pool_.size() < MAX_POOL_SIZE) {
       buffer->clear();
       pool_.push_back(buffer);
@@ -60,9 +62,15 @@ public:
     return pool;
   }
 
+  ~BufferPool() {
+    is_shutting_down_ = true;
+    pool_.clear();
+  }
+
 private:
   std::mutex mutex_;
   std::deque<std::shared_ptr<std::vector<uint8_t>>> pool_;
+  std::atomic<bool> is_shutting_down_{false};
 };
 
 template <typename T = float> class TcpPipelineCommunicator : public PipelineCommunicator<T> {
@@ -104,7 +112,7 @@ public:
     }
 
     {
-      std::lock_guard<std::mutex> lock(connections_mutex_);
+      std::lock_guard<std::shared_mutex> lock(connections_mutex_);
       for (auto &[id, conn] : connections_) {
         if (conn->socket.is_open()) {
           std::error_code ec;
@@ -165,7 +173,7 @@ public:
       connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
 
       {
-        std::lock_guard<std::mutex> lock(connections_mutex_);
+        std::lock_guard<std::shared_mutex> lock(connections_mutex_);
         connections_[peer_id] = connection;
       }
 
@@ -205,7 +213,14 @@ private:
 
     ~Connection() {
       if (read_buffer) {
-        BufferPool::instance().return_buffer(read_buffer);
+        try {
+          BufferPool::instance().return_buffer(read_buffer);
+        } catch (...) {
+          // Ignore exceptions during shutdown - buffer pool may already be destroyed
+          std::cerr << "Warning: Exception caught while returning buffer to pool during Connection "
+                       "destruction.\n";
+        }
+        read_buffer.reset(); // Explicitly reset the shared_ptr
       }
     }
   };
@@ -219,7 +234,7 @@ private:
   std::atomic<bool> is_running_;
 
   std::unordered_map<std::string, std::shared_ptr<Connection>> connections_;
-  std::mutex connections_mutex_;
+  std::shared_mutex connections_mutex_;
 
   void accept_connections() {
     if (!is_running_)
@@ -238,7 +253,7 @@ private:
             remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
 
         {
-          std::lock_guard<std::mutex> lock(connections_mutex_);
+          std::lock_guard<std::shared_mutex> lock(connections_mutex_);
           connections_[temp_id] = new_connection;
         }
 
@@ -281,7 +296,8 @@ private:
                     }
                   });
             } else {
-              handle_connection_error(connection_id, ec);
+              std::cerr << "Invalid message length: " << msg_length << std::endl;
+              return;
             }
           } else {
             handle_connection_error(connection_id, ec);
@@ -302,7 +318,7 @@ private:
   }
 
   void handle_connection_error(const std::string &connection_id, std::error_code ec) {
-    std::lock_guard<std::mutex> lock(connections_mutex_);
+    std::lock_guard<std::shared_mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
@@ -324,7 +340,7 @@ private:
     std::shared_ptr<Connection> connection;
 
     {
-      std::lock_guard<std::mutex> lock(connections_mutex_);
+      std::shared_lock<std::shared_mutex> lock(connections_mutex_);
       auto it = connections_.find(recipient_id);
       if (it == connections_.end()) {
         return;

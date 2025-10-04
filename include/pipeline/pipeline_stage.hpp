@@ -71,6 +71,7 @@ public:
     if (monitoring_thread_.joinable()) {
       monitoring_thread_.join();
     }
+    std::cout << "Base Stage " << name_ << " has stopped." << std::endl;
   }
 
   void message_loop() {
@@ -221,6 +222,7 @@ protected:
       break;
     }
     case CommandType::SHUTDOWN:
+      std::cout << "Stage " << name_ << " received SHUTDOWN command. Stopping." << std::endl;
       this->stop();
       break;
     default:
