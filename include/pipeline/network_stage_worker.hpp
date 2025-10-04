@@ -28,7 +28,7 @@ template <typename T = float> class NetworkStageWorker : public PipelineStage<T>
 public:
   explicit NetworkStageWorker(int listen_port)
       : PipelineStage<T>(), listen_port_(listen_port), io_context_(),
-        work_guard_(asio::make_work_guard(io_context_)), is_configured_(false) {
+        work_guard_(asio::make_work_guard(io_context_)) {
     tcp_communicator_ =
         std::make_unique<TcpPipelineCommunicator<T>>(io_context_, "localhost", listen_port_);
 
@@ -72,78 +72,12 @@ public:
     std::cout << "Network stage worker stopped" << '\n';
   }
 
-  bool is_configured() const { return is_configured_; }
-  std::string get_stage_id() const { return stage_id_; }
-
 private:
   int listen_port_;
   asio::io_context io_context_;
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
   std::unique_ptr<TcpPipelineCommunicator<T>> tcp_communicator_;
-
-  std::atomic<bool> is_configured_;
-  std::string stage_id_;
-
-  void process_message(const Message<T> &message) override {
-    switch (message.command_type) {
-    case CommandType::CONFIG_TRANSFER:
-      std::cout << "Handling configuration message" << '\n';
-      handle_configuration(message);
-      break;
-    default:
-      PipelineStage<T>::process_message(message);
-      break;
-    }
-  }
-
-  void handle_configuration(const Message<T> &message) {
-    if (!message.has_text()) {
-      std::cout << "Configuration message missing text data" << '\n';
-      return;
-    }
-
-    try {
-      nlohmann::json config_json = nlohmann::json::parse(message.get_text());
-
-      std::cout << "Received configuration JSON: " << config_json.dump(2) << '\n';
-
-      StageConfig config = StageConfig::from_json(config_json);
-
-      stage_id_ = config.stage_id;
-
-      std::cout << "Received configuration for stage " << stage_id_ << '\n';
-
-      this->model_ = std::make_unique<tnn::Sequential<T>>(
-          tnn::Sequential<T>::load_from_config(config.model_config));
-
-      this->model_->enable_profiling(true);
-
-      std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
-
-      setup_stage_connections(config);
-
-      this->name_ = stage_id_;
-
-      is_configured_ = true;
-
-      auto ready_msg = Message<T>::create_signal_message(CommandType::CONFIG_RECEIVED, true,
-                                                         stage_id_, "coordinator");
-      tcp_communicator_->enqueue_output_message(ready_msg);
-      tcp_communicator_->flush_output_messages();
-
-      std::cout << "Stage " << stage_id_ << " configured and ready" << '\n';
-
-    } catch (const std::exception &e) {
-      std::cout << "Failed to configure stage: " << e.what() << '\n';
-
-      auto error_msg =
-          Message<T>::error_message(std::string("Configuration failed: ") + e.what(),
-                                    stage_id_.empty() ? "unknown" : stage_id_, "coordinator");
-      tcp_communicator_->enqueue_output_message(error_msg);
-      tcp_communicator_->flush_output_messages();
-    }
-  }
 
   void setup_stage_connections(const StageConfig &config) {
 
@@ -176,7 +110,7 @@ private:
     }
   }
 
-  std::pair<std::string, int> parse_endpoint(const std::string &endpoint) {
+  std::pair<std::string, int> parse_endpoint(const std::string &endpoint) const {
     size_t colon_pos = endpoint.find(':');
     if (colon_pos == std::string::npos) {
       throw std::invalid_argument("Invalid endpoint format: " + endpoint);

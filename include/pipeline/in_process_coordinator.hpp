@@ -12,6 +12,23 @@
 #include "pipeline_coordinator.hpp"
 
 namespace tpipeline {
+
+// Concrete implementation of PipelineStage for in-process communication
+template <typename T = float> class InProcessPipelineStage : public PipelineStage<T> {
+public:
+  InProcessPipelineStage(
+      std::unique_ptr<tnn::Sequential<T>> model,
+      std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
+          communicator,
+      const std::string &name)
+      : PipelineStage<T>(std::move(model), std::move(communicator), name) {}
+
+protected:
+  void setup_stage_connections(const StageConfig &config) override {
+    // No-op for in-process communication - connections are set up by the coordinator
+  }
+};
+
 template <typename T = float> class InProcessPipelineCoordinator : public PipelineCoordinator<T> {
 public:
   InProcessPipelineCoordinator(tnn::Sequential<T> model, int num_stages = 4,
@@ -45,7 +62,7 @@ public:
           std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>(
               stage_communicator.get(), [](PipelineCommunicator<T> *) {});
 
-      auto stage = std::make_unique<PipelineStage<T>>(
+      auto stage = std::make_unique<InProcessPipelineStage<T>>(
           std::move(model_ptr), std::move(stage_comm_unique), this->stage_names_[i]);
 
       temp_stages_.emplace_back(std::move(stage));
@@ -60,13 +77,17 @@ public:
   }
 
   std::vector<std::unique_ptr<PipelineStage<T>>> get_stages() {
-    auto stages = std::move(temp_stages_);
+    // Convert InProcessPipelineStage to base PipelineStage
+    std::vector<std::unique_ptr<PipelineStage<T>>> stages;
+    for (auto &stage : temp_stages_) {
+      stages.emplace_back(std::move(stage));
+    }
     temp_stages_.clear();
     return stages;
   }
 
 private:
-  std::vector<std::unique_ptr<PipelineStage<T>>> temp_stages_;
+  std::vector<std::unique_ptr<InProcessPipelineStage<T>>> temp_stages_;
   std::vector<std::shared_ptr<PipelineCommunicator<T>>> stage_comm_refs_;
 
   void setup_communication_network(
@@ -114,6 +135,10 @@ private:
       coordinator_comm_shared->register_recipient(this->stage_names_[i],
                                                   StageEndpoint::in_process(this->stage_names_[i]));
     }
+  }
+
+  void setup_stage_connections(const StageConfig &config) {
+    // No-op for in-process communication
   }
 };
 

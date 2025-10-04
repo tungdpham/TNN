@@ -88,20 +88,20 @@ public:
         break;
       }
 
-      if (this->coordinator_comm_->message_count(CommandType::LOAD_REPORT) > 0) {
-        std::vector<Message<T>> load_messages =
-            this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
+      // if (this->coordinator_comm_->message_count(CommandType::LOAD_REPORT) > 0) {
+      //   std::vector<Message<T>> load_messages =
+      //       this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
 
-        for (const auto &load_msg : load_messages) {
-          if (load_msg.has_binary()) {
-            std::vector<uint8_t> serialized_data = load_msg.get_binary();
-            LoadTracker tracker = LoadTracker::deserialize(serialized_data);
-            std::cout << "Received load report from " << load_msg.sender_id
-                      << ": avg_forward_time=" << tracker.avg_forward_time_
-                      << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
-          }
-        }
-      }
+      //   for (const auto &load_msg : load_messages) {
+      //     if (load_msg.has_binary()) {
+      //       std::vector<uint8_t> serialized_data = load_msg.get_binary();
+      //       LoadTracker tracker = LoadTracker::deserialize(serialized_data);
+      //       std::cout << "Received load report from " << load_msg.sender_id
+      //                 << ": avg_forward_time=" << tracker.avg_forward_time_
+      //                 << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
+      //     }
+      //   }
+      // }
     }
   }
 
@@ -265,12 +265,15 @@ public:
   /**
    * @brief Sends a request to all stages for load report
    */
-  void request_load_report_from_all_stages() {
+  void balance_load() {
     for (const auto &stage_name : this->stage_names_) {
       auto load_msg =
           Message<T>::create_control_message(CommandType::REPORT_LOAD, "coordinator", stage_name);
       this->coordinator_comm_->send_message(load_msg);
     }
+    join(CommandType::LOAD_REPORT, this->num_stages_, 30);
+    std::vector<Message<T>> load_messages =
+        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
   }
 
   /**

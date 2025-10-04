@@ -184,7 +184,7 @@ int main() {
                 << std::endl;
       std::cout << "Batch " << batch_index << "/"
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
-      coordinator.request_load_report_from_all_stages();
+      coordinator.balance_load();
       coordinator.print_profiling_on_all_stages();
     }
     coordinator.clear_profiling_data();

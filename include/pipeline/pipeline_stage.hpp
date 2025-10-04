@@ -39,7 +39,9 @@ public:
   virtual ~PipelineStage() { stop(); }
 
 protected:
-  PipelineStage() : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true) {
+  PipelineStage()
+      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
+        is_configured_(false) {
     if (!cpu_info_.initialize()) {
       std::cerr << "Failed to initialize CPU information" << std::endl;
     }
@@ -100,6 +102,10 @@ public:
       update_load_tracker();
     }
   }
+
+  bool is_configured() const { return is_configured_; }
+
+  std::string get_stage_id() const { return stage_id_; }
 
   std::string name() const { return name_; }
 
@@ -165,6 +171,9 @@ protected:
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
       break;
+    case CommandType::CONFIG_TRANSFER:
+      this->handle_configuration(message);
+      break;
     case CommandType::LOAD_PARAMS: {
       // decode and deserialize
       std::vector<uint8_t> params = message.get_binary();
@@ -225,12 +234,63 @@ protected:
     }
   }
 
+  void handle_configuration(const Message<T> &message) {
+    if (!message.has_text()) {
+      std::cout << "Configuration message missing text data" << '\n';
+      return;
+    }
+
+    try {
+      nlohmann::json config_json = nlohmann::json::parse(message.get_text());
+
+      std::cout << "Received configuration JSON: " << config_json.dump(2) << '\n';
+
+      StageConfig config = StageConfig::from_json(config_json);
+
+      stage_id_ = config.stage_id;
+
+      std::cout << "Received configuration for stage " << stage_id_ << '\n';
+
+      this->model_ = std::make_unique<tnn::Sequential<T>>(
+          tnn::Sequential<T>::load_from_config(config.model_config));
+
+      this->model_->enable_profiling(true);
+
+      std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
+
+      setup_stage_connections(config);
+
+      this->name_ = stage_id_;
+
+      is_configured_ = true;
+
+      auto ready_msg = Message<T>::create_signal_message(CommandType::CONFIG_RECEIVED, true,
+                                                         stage_id_, "coordinator");
+      this->communicator_->enqueue_output_message(ready_msg);
+      this->communicator_->flush_output_messages();
+
+      std::cout << "Stage " << stage_id_ << " configured and ready" << '\n';
+
+    } catch (const std::exception &e) {
+      std::cout << "Failed to configure stage: " << e.what() << '\n';
+
+      auto error_msg =
+          Message<T>::error_message(std::string("Configuration failed: ") + e.what(),
+                                    stage_id_.empty() ? "unknown" : stage_id_, "coordinator");
+      this->communicator_->enqueue_output_message(error_msg);
+      this->communicator_->flush_output_messages();
+    }
+  }
+
+  virtual void setup_stage_connections(const StageConfig &config) = 0;
+
   std::unique_ptr<tnn::Sequential<T>> model_;
   std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
       communicator_;
   std::string name_;
-
   std::atomic<bool> should_stop_;
+  std::atomic<bool> is_configured_;
+  std::string stage_id_;
 
   std::mutex message_available_mutex_;
   std::condition_variable message_available_cv_;
