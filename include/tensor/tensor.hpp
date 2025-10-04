@@ -88,8 +88,7 @@ private:
     if (ptr == nullptr) {
       throw std::bad_alloc();
     }
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L && !defined(__APPLE__)
-    // Use C11 aligned_alloc when available (excluding macOS for compatibility)
+#elif defined(__linux__) || defined(__unix__) 
     ptr = aligned_alloc(alignment, aligned_size);
     if (ptr == nullptr) {
       throw std::bad_alloc();
