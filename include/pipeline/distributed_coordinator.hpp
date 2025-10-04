@@ -95,6 +95,9 @@ public:
   }
 
   ~DistributedPipelineCoordinator() {
+    this->should_stop_ = true;
+    this->message_notification_cv_.notify_all();
+
     work_guard_.reset();
     io_context_.stop();
     if (io_thread_.joinable()) {

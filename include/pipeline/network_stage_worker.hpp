@@ -37,10 +37,7 @@ public:
             tcp_communicator_.get(), [](PipelineCommunicator<T> *) {});
   }
 
-  ~NetworkStageWorker() {
-    PipelineStage<T>::stop();
-    stop();
-  }
+  ~NetworkStageWorker() { stop(); }
 
   void start() override {
     if (!this->should_stop_)
@@ -62,6 +59,7 @@ public:
   }
 
   void stop() override {
+    PipelineStage<T>::stop();
     tcp_communicator_->stop();
 
     work_guard_.reset();
