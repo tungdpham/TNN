@@ -89,13 +89,11 @@ int main() {
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
-    model.enable_profiling(true);
-
-    train_classification_model(model, train_loader, test_loader,
-                               {mnist_constants::EPOCHS, mnist_constants::BATCH_SIZE,
-                                mnist_constants::LR_DECAY_FACTOR,
-                                mnist_constants::LR_DECAY_INTERVAL,
-                                mnist_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
+    train_classification_model(
+        model, train_loader, test_loader,
+        {mnist_constants::EPOCHS, mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
+         mnist_constants::LR_DECAY_INTERVAL, mnist_constants::PROGRESS_PRINT_INTERVAL,
+         DEFAULT_NUM_THREADS, ProfilerType::CUMULATIVE});
   } catch (const std::exception &e) {
     std::cerr << "Error during training: " << e.what() << std::endl;
     return -1;

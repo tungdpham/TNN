@@ -93,11 +93,11 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader,
-                               {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
-                                cifar10_constants::LR_DECAY_FACTOR,
-                                cifar10_constants::LR_DECAY_INTERVAL,
-                                cifar10_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
+    train_classification_model(
+        model, train_loader, test_loader,
+        {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
+         cifar10_constants::LR_DECAY_FACTOR, cifar10_constants::LR_DECAY_INTERVAL,
+         cifar10_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS, ProfilerType::NORMAL});
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
   } catch (const std::exception &e) {

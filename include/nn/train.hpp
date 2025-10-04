@@ -30,6 +30,8 @@ void tbb_cleanup() {
 
 constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
 
+enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
+
 struct TrainingConfig {
   int epochs = 10;
   size_t batch_size = 32;
@@ -37,6 +39,8 @@ struct TrainingConfig {
   size_t lr_decay_interval = 5; // in epochs
   int progress_print_interval = 100;
   uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+  ProfilerType profiler_type = ProfilerType::NONE;
+  bool print_layer_profiling = false;
 };
 
 struct ClassResult {
@@ -78,7 +82,8 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
-        model.print_layers_profiling_info();
+        if (config.print_layer_profiling)
+          model.print_layers_profiling_info();
         model.print_profiling_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
@@ -86,7 +91,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
                 << accuracy * 100.0f << "%" << std::endl;
     }
     if (model.is_profiling_enabled()) {
-      model.clear_profiling_data();
+      // model.clear_profiling_data();
     }
   }
   std::cout << std::endl;
@@ -133,6 +138,13 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
+
+  if (config.profiler_type == ProfilerType::NONE) {
+    model.enable_profiling(false);
+  } else if (config.profiler_type == ProfilerType::NORMAL ||
+             config.profiler_type == ProfilerType::CUMULATIVE) {
+    model.enable_profiling(true);
+  }
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
