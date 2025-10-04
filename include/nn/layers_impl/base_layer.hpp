@@ -49,10 +49,18 @@ public:
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
 
-  virtual uint32_t
+  virtual uint64_t
   forward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
-  virtual uint32_t
+  virtual uint64_t
   backward_complexity(const std::vector<size_t> &input_shape) = 0; // relative complexity
+
+  virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;
+  virtual uint64_t backward_flops(const std::vector<size_t> &input_shape) const = 0;
+  virtual uint64_t forward_memory_traffic(const std::vector<size_t> &input_shape) const = 0;
+  virtual uint64_t backward_memory_traffic(const std::vector<size_t> &input_shape) const = 0;
+  virtual double forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const = 0;
+  virtual double backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const = 0;
+
   virtual bool has_parameters() const { return false; }
 
   virtual std::string type() const = 0;

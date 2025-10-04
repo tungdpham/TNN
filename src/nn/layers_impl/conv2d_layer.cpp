@@ -64,7 +64,14 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
+  auto im2col_start = std::chrono::high_resolution_clock::now();
   Matrix<T> col_matrix = im2col(input, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  auto im2col_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float im2col_duration =
+        std::chrono::duration<float, std::milli>(im2col_end - im2col_start).count();
+    this->perf_timers_["im2col"] += im2col_duration;
+  }
 
   Tensor<T> output(batch_size, out_channels_, output_h, output_w, nullptr);
 
@@ -143,6 +150,7 @@ template <typename T>
 void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                                           const size_t output_size, const size_t kernel_size,
                                           const size_t out_channels) const {
+  auto conv_start = std::chrono::high_resolution_clock::now();
 #ifdef USE_MKL
   utils::mkl::conv_forward_gemm(
       weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
@@ -151,6 +159,11 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
   utils::avx2_set_scalar(output_data, T(0), out_channels * output_size);
   tmath::sgemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
 #endif
+  auto conv_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float conv_duration = std::chrono::duration<float, std::milli>(conv_end - conv_start).count();
+    this->perf_timers_["conv_forward"] += conv_duration;
+  }
 }
 
 template <typename T>
@@ -158,6 +171,7 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
                                               T *weight_grad_data, const size_t output_size,
                                               const size_t kernel_size,
                                               const size_t out_channels) const {
+  auto wg_start = std::chrono::high_resolution_clock::now();
 #ifdef USE_MKL
   utils::mkl::conv_weight_grad_gemm(
       gradient_data, col_data, weight_grad_data, static_cast<MKL_INT>(out_channels),
@@ -166,6 +180,11 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
   tmath::sgemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
                false, true);
 #endif
+  auto wg_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float wg_duration = std::chrono::duration<float, std::milli>(wg_end - wg_start).count();
+    this->perf_timers_["weight_gradients"] += wg_duration;
+  }
 }
 
 template <typename T>
@@ -173,6 +192,7 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
                                              T *col_grad_data, const size_t output_size,
                                              const size_t kernel_size,
                                              const size_t out_channels) const {
+  auto ig_start = std::chrono::high_resolution_clock::now();
 #ifdef USE_MKL
   utils::mkl::conv_input_grad_gemm(
       weight_data, gradient_data, col_grad_data, static_cast<MKL_INT>(out_channels),
@@ -182,6 +202,11 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
   tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
                true, false);
 #endif
+  auto ig_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float ig_duration = std::chrono::duration<float, std::milli>(ig_end - ig_start).count();
+    this->perf_timers_["input_gradients"] += ig_duration;
+  }
 }
 
 template <typename T>
@@ -274,51 +299,145 @@ template <typename T> void Conv2DLayer<T>::clear_gradients() {
 }
 
 template <typename T>
-uint32_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t Conv2DLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   assert(input_shape.size() == 4 && "Input shape must be 4D");
-  // im2col transformation: O(batch_size * in_channels * kernel_h * kernel_w * output_h *
-  // output_w)
-  // Matrix multiplication: O(out_channels * in_channels * kernel_h * kernel_w * output_h *
-  // output_w)
-  // Bias addition: O(batch_size * out_channels * output_h * output_w)
   size_t batch_size = input_shape[0];
   size_t input_h = input_shape[2];
   size_t input_w = input_shape[3];
   size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
-
-  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
+  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
 
-  size_t im2col_ops = output_size * kernel_size;
-  size_t matmul_ops = 2 * out_channels_ * kernel_size * output_size;
-  size_t bias_ops = batch_size * out_channels_ * output_h * output_w;
-  size_t total_ops = im2col_ops + matmul_ops + bias_ops;
-  return total_ops;
+  // Main convolution computation: 2 FLOPs per MAC (multiply-add)
+  uint64_t conv_flops = 2ULL * out_channels_ * kernel_size * output_size;
+
+  // Bias addition: 1 FLOP per output element
+  uint64_t bias_flops = use_bias_ ? (batch_size * out_channels_ * output_h * output_w) : 0;
+
+  return conv_flops + bias_flops;
 }
 
 template <typename T>
-uint32_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
-  assert(input_shape.size() == 4 && "Gradient shape must be 4D");
-  // Weight gradients: O(out_channels * in_channels * kernel_h * kernel_w * output_h * output_w)
-  // Bias gradients: O(batch_size * out_channels * output_h * output_w)
-  // Input gradients: O(batch_size * in_channels * input_h * input_w * kernel_h * kernel_w)
-  // col2im transformation: O(batch_size * in_channels * input_h * input_w * kernel_h * kernel_w)
+uint64_t Conv2DLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
+  size_t batch_size = input_shape[0];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+  size_t output_size = batch_size * output_h * output_w;
+  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
+
+  // weight gradients: gradient × im2col_input^T (2 FLOPs per MAC)
+  uint64_t weight_grad_flops = 2ULL * out_channels_ * kernel_size * output_size;
+
+  // input gradients: weights^T × gradient (2 FLOPs per MAC)
+  uint64_t input_grad_flops = 2ULL * out_channels_ * kernel_size * output_size;
+
+  // bias gradients: reduction across batch and spatial dimensions (1 FLOP per add)
+  uint64_t bias_grad_flops = use_bias_ ? (batch_size * out_channels_ * output_h * output_w) : 0;
+
+  return weight_grad_flops + input_grad_flops + bias_grad_flops;
+}
+
+template <typename T>
+uint64_t Conv2DLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
   size_t batch_size = input_shape[0];
   size_t input_h = input_shape[2];
   size_t input_w = input_shape[3];
   size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
-  size_t output_size = batch_size * output_h * output_w;
+  size_t bytes_per_element = sizeof(T);
 
-  size_t weight_grad_ops = 2 * out_channels_ * kernel_size * output_size;
-  size_t bias_grad_ops = out_channels_ * output_size;
-  size_t input_grad_ops = 2 * out_channels_ * kernel_size * output_size;
-  size_t col2im_ops = input_grad_ops;
-  size_t total_ops = weight_grad_ops + bias_grad_ops + input_grad_ops + col2im_ops;
-  return total_ops;
+  // input tensor size
+  uint64_t input_bytes = batch_size * in_channels_ * input_h * input_w * bytes_per_element;
+
+  // output tensor size
+  uint64_t output_bytes = batch_size * out_channels_ * output_h * output_w * bytes_per_element;
+
+  // weight tensor size
+  uint64_t weight_bytes = out_channels_ * in_channels_ * kernel_h_ * kernel_w_ * bytes_per_element;
+
+  // bias tensor size (if used)
+  uint64_t bias_bytes = use_bias_ ? (out_channels_ * bytes_per_element) : 0;
+
+  // Im2Col expanded matrix size (major memory overhead)
+  // each output position requires kernel_h * kernel_w * in_channels elements
+  uint64_t im2col_bytes = batch_size * (in_channels_ * kernel_h_ * kernel_w_) *
+                          (output_h * output_w) * bytes_per_element;
+
+  // total memory traffic: read inputs + weights + bias, write outputs + im2col buffer
+  return input_bytes + weight_bytes + bias_bytes + output_bytes + im2col_bytes;
+}
+
+template <typename T>
+uint64_t Conv2DLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
+  size_t batch_size = input_shape[0];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
+
+  size_t bytes_per_element = sizeof(T);
+
+  // output gradient tensor (read)
+  uint64_t output_grad_bytes = batch_size * out_channels_ * output_h * output_w * bytes_per_element;
+
+  // input tensor (read, for weight gradients)
+  uint64_t input_bytes = batch_size * in_channels_ * input_h * input_w * bytes_per_element;
+
+  // weight tensor (read, for input gradients)
+  uint64_t weight_bytes = out_channels_ * in_channels_ * kernel_h_ * kernel_w_ * bytes_per_element;
+
+  // weight gradients (write)
+  uint64_t weight_grad_bytes =
+      out_channels_ * in_channels_ * kernel_h_ * kernel_w_ * bytes_per_element;
+
+  // input gradients (write)
+  uint64_t input_grad_bytes = batch_size * in_channels_ * input_h * input_w * bytes_per_element;
+
+  // bias gradients (write, if used)
+  uint64_t bias_grad_bytes = use_bias_ ? (out_channels_ * bytes_per_element) : 0;
+
+  // Im2col matrix from forward pass (read)
+  uint64_t im2col_bytes = batch_size * (in_channels_ * kernel_h_ * kernel_w_) *
+                          (output_h * output_w) * bytes_per_element;
+
+  // Col2im operations (additional memory traffic for gradient scattering)
+  uint64_t col2im_bytes = im2col_bytes;
+
+  return output_grad_bytes + input_bytes + weight_bytes + weight_grad_bytes + input_grad_bytes +
+         bias_grad_bytes + im2col_bytes + col2im_bytes;
+}
+
+template <typename T>
+double Conv2DLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = forward_flops(input_shape);
+  uint64_t memory_bytes = forward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+double Conv2DLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = backward_flops(input_shape);
+  uint64_t memory_bytes = backward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+uint64_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+  return static_cast<uint64_t>(
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T>
+uint64_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  return static_cast<uint64_t>(
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 // Explicit template instantiations

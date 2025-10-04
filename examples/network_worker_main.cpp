@@ -1,7 +1,9 @@
 #include "pipeline/network_stage_worker.hpp"
 #include <cstdlib>
 #include <iostream>
+#ifdef USE_MKL
 #include <mkl.h>
+#endif
 #include <oneapi/tbb/global_control.h>
 #include <oneapi/tbb/task_arena.h>
 int main(int argc, char *argv[]) {

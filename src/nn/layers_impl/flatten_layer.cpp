@@ -68,16 +68,59 @@ std::unique_ptr<Layer<T>> FlattenLayer<T>::create_from_config(const LayerConfig 
 }
 
 template <typename T>
-uint32_t FlattenLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
-  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+uint64_t FlattenLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
+  return 0;
 }
 
 template <typename T>
-uint32_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
-  return std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+uint64_t FlattenLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
+
+  return 0;
 }
 
-// Explicit template instantiations
+template <typename T>
+uint64_t FlattenLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t bytes_per_element = sizeof(T);
+
+  return 2 * num_elements * bytes_per_element;
+}
+
+template <typename T>
+uint64_t FlattenLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t bytes_per_element = sizeof(T);
+
+  return 2 * num_elements * bytes_per_element;
+}
+
+template <typename T>
+double FlattenLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  return 0.0;
+}
+
+template <typename T>
+double
+FlattenLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  return 0.0;
+}
+
+template <typename T>
+uint64_t FlattenLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+
+  return static_cast<uint64_t>(
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T>
+uint64_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+
+  return static_cast<uint64_t>(
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
 template class FlattenLayer<float>;
 template class FlattenLayer<double>;
 

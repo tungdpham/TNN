@@ -372,15 +372,118 @@ template <typename T> void BatchNormLayer<T>::clear_gradients() {
 }
 
 template <typename T>
-uint32_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
-  return size_t(5) *
-         std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+uint64_t BatchNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t batch_size = input_shape[0];
+  size_t spatial_size = num_elements / (batch_size * num_features_);
+
+  // mean computation: sum reduction across batch and spatial dimensions
+  uint64_t mean_flops = batch_size * spatial_size * num_features_;
+
+  // variance computation: (x - mean)^2 for each element + sum reduction
+  uint64_t var_flops = 2 * num_elements + mean_flops;
+
+  // normalization: (x - mean) / sqrt(var + epsilon) for each element
+  uint64_t norm_flops = 3 * num_elements; // subtract, sqrt+add, divide
+
+  // scale and shift (if affine): gamma * normalized + beta
+  uint64_t affine_flops = affine_ ? (2 * num_elements) : 0;
+
+  return mean_flops + var_flops + norm_flops + affine_flops;
 }
 
 template <typename T>
-uint32_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
-  return size_t(8) *
-         std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+uint64_t BatchNormLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t batch_size = input_shape[0];
+  size_t spatial_size = num_elements / (batch_size * num_features_);
+
+  // Gradient w.r.t. gamma and beta (if affine)
+  uint64_t param_grad_flops = affine_ ? (2 * batch_size * spatial_size * num_features_) : 0;
+
+  // Gradient w.r.t. input involves multiple terms:
+  // 1. Direct gradient scaling: 2 * num_elements
+  // 2. Mean gradient compensation: 3 * num_elements
+  // 3. Variance gradient compensation: 4 * num_elements
+  uint64_t input_grad_flops = 9 * num_elements;
+
+  return param_grad_flops + input_grad_flops;
+}
+
+template <typename T>
+uint64_t BatchNormLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t bytes_per_element = sizeof(T);
+
+  // input tensor (read)
+  uint64_t input_bytes = num_elements * bytes_per_element;
+
+  // parameters: gamma, beta, running_mean, running_var (read)
+  uint64_t param_bytes =
+      affine_ ? (4 * num_features_ * bytes_per_element) : (2 * num_features_ * bytes_per_element);
+
+  // output tensor (write)
+  uint64_t output_bytes = num_elements * bytes_per_element;
+
+  // intermediate storage for backward pass (normalized, std)
+  uint64_t intermediate_bytes = 2 * num_elements * bytes_per_element;
+
+  return input_bytes + param_bytes + output_bytes + intermediate_bytes;
+}
+
+template <typename T>
+uint64_t BatchNormLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  size_t num_elements =
+      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
+  size_t bytes_per_element = sizeof(T);
+
+  // output gradient (read)
+  uint64_t output_grad_bytes = num_elements * bytes_per_element;
+
+  // stored intermediate values from forward pass (read)
+  uint64_t intermediate_bytes = 2 * num_elements * bytes_per_element; // normalized, std
+
+  // parameters (read, for gradient computation)
+  uint64_t param_bytes = affine_ ? (2 * num_features_ * bytes_per_element) : 0;
+
+  // parameter gradients (write)
+  uint64_t param_grad_bytes = affine_ ? (2 * num_features_ * bytes_per_element) : 0;
+
+  // input gradients (write)
+  uint64_t input_grad_bytes = num_elements * bytes_per_element;
+
+  return output_grad_bytes + intermediate_bytes + param_bytes + param_grad_bytes + input_grad_bytes;
+}
+
+template <typename T>
+double
+BatchNormLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = forward_flops(input_shape);
+  uint64_t memory_bytes = forward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+double
+BatchNormLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = backward_flops(input_shape);
+  uint64_t memory_bytes = backward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+uint64_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+  return static_cast<uint64_t>(
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T>
+uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  return static_cast<uint64_t>(
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 // Explicit template instantiations

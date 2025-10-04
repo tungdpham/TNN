@@ -68,8 +68,15 @@ public:
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
-  uint32_t forward_complexity(const std::vector<size_t> &input_shape) override;
-  uint32_t backward_complexity(const std::vector<size_t> &input_shape) override;
+  uint64_t forward_complexity(const std::vector<size_t> &input_shape) override;
+  uint64_t backward_complexity(const std::vector<size_t> &input_shape) override;
+
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
+  uint64_t forward_memory_traffic(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_memory_traffic(const std::vector<size_t> &input_shape) const override;
+  double forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const override;
+  double backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const override;
 
   std::string type() const override;
   LayerConfig get_config() const override;

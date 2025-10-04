@@ -202,35 +202,116 @@ std::unique_ptr<Layer<T>> MaxPool2DLayer<T>::create_from_config(const LayerConfi
 }
 
 template <typename T>
-uint32_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t MaxPool2DLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   assert(input_shape.size() == 4 && "Input shape must be 4D");
-  // Forward pass: for each output element, we do pool_h * pool_w comparisons
-  // Total operations = batch_size * channels * output_h * output_w * (pool_h * pool_w)
   size_t batch_size = input_shape[0];
   size_t channels = input_shape[1];
   size_t input_h = input_shape[2];
   size_t input_w = input_shape[3];
 
-  size_t padded_h = input_h + 2 * pad_h_;
-  size_t padded_w = input_w + 2 * pad_w_;
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  size_t total_operations = batch_size * channels * (padded_h * padded_w) * (pool_h_ * pool_w_);
+  // Each output element requires pool_h * pool_w comparisons to find max
+  // Approximating comparisons as 1 FLOP each
+  uint64_t comparisons_per_output = pool_h_ * pool_w_;
+  uint64_t total_outputs = batch_size * channels * output_h * output_w;
 
-  return static_cast<uint32_t>(total_operations);
+  return comparisons_per_output * total_outputs;
 }
 
 template <typename T>
-uint32_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
-  assert(input_shape.size() == 4 && "Gradient shape must be 4D");
-  // Backward pass: for each output gradient element, we do one addition to the input gradient
-  // Total operations = batch_size * channels * output_h * output_w
+uint64_t MaxPool2DLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
   size_t batch_size = input_shape[0];
   size_t channels = input_shape[1];
-  size_t output_h = input_shape[2];
-  size_t output_w = input_shape[3];
-  size_t total_operations = batch_size * channels * output_h * output_w;
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
 
-  return static_cast<uint32_t>(total_operations);
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+
+  // Each output gradient element gets routed to exactly one input position
+  // This is essentially a scatter operation with minimal computation
+  return batch_size * channels * output_h * output_w;
+}
+
+template <typename T>
+uint64_t MaxPool2DLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+
+  size_t bytes_per_element = sizeof(T);
+
+  // Input tensor (read)
+  uint64_t input_bytes = batch_size * channels * input_h * input_w * bytes_per_element;
+
+  // Output tensor (write)
+  uint64_t output_bytes = batch_size * channels * output_h * output_w * bytes_per_element;
+
+  // Mask indices for backward pass (write, assuming same size as output)
+  uint64_t mask_bytes = batch_size * channels * output_h * output_w * sizeof(size_t);
+
+  return input_bytes + output_bytes + mask_bytes;
+}
+
+template <typename T>
+uint64_t MaxPool2DLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
+  assert(input_shape.size() == 4 && "Input shape must be 4D");
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
+  size_t input_h = input_shape[2];
+  size_t input_w = input_shape[3];
+  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
+
+  size_t bytes_per_element = sizeof(T);
+
+  // Output gradient (read)
+  uint64_t output_grad_bytes = batch_size * channels * output_h * output_w * bytes_per_element;
+
+  // Mask indices from forward pass (read)
+  uint64_t mask_bytes = batch_size * channels * output_h * output_w * sizeof(size_t);
+
+  // Input gradient (write)
+  uint64_t input_grad_bytes = batch_size * channels * input_h * input_w * bytes_per_element;
+
+  return output_grad_bytes + mask_bytes + input_grad_bytes;
+}
+
+template <typename T>
+double
+MaxPool2DLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = forward_flops(input_shape);
+  uint64_t memory_bytes = forward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+double
+MaxPool2DLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
+  uint64_t flops = backward_flops(input_shape);
+  uint64_t memory_bytes = backward_memory_traffic(input_shape);
+  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
+}
+
+template <typename T>
+uint64_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
+  return static_cast<uint64_t>(
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T>
+uint64_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
+  return static_cast<uint64_t>(
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 // Explicit template instantiations

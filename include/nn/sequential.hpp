@@ -6,6 +6,7 @@
  */
 #pragma once
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
@@ -251,12 +252,12 @@ public:
       return;
     }
 
-    std::cout << std::string(60, '=') << "\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << "Performance Profile: " << name_ << "\n";
-    std::cout << std::string(60, '=') << "\n";
+    std::cout << std::string(70, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer" << std::setw(15) << "Forward (ms)"
               << std::setw(15) << "Backward (ms)" << std::setw(15) << "Total (ms)" << "\n";
-    std::cout << std::string(60, '-') << "\n";
+    std::cout << std::string(70, '-') << "\n";
 
     int64_t total_forward = 0, total_backward = 0;
     for (size_t i = 0; i < layers_.size(); ++i) {
@@ -291,14 +292,14 @@ public:
                 << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
     }
 
-    std::cout << std::string(60, '-') << "\n";
+    std::cout << std::string(70, '-') << "\n";
     std::cout << std::left << std::setw(20) << "TOTAL" << std::setw(15) << std::fixed
               << std::setprecision(3) << static_cast<double>(total_forward / 1000.0)
               << std::setw(15) << std::fixed << std::setprecision(3)
               << static_cast<double>(total_backward / 1000.0) << std::setw(15) << std::fixed
               << std::setprecision(3)
               << static_cast<double>(total_forward + total_backward) / 1000.0 << "\n"
-              << std::string(60, '=') << "\n\n";
+              << std::string(70, '=') << "\n\n";
   }
 
   /**
@@ -342,6 +343,22 @@ public:
     }
 
     return current_output;
+  }
+
+  /**
+   * @brief Prints layers' profiling info for specific operations if profiling is enabled.
+   */
+  void print_layers_profiling_info() const {
+    if (!enable_profiling_) {
+      std::cout << "Profiling is not enabled. Enable it with enable_profiling(true)\n";
+      return;
+    }
+
+    std::cout << "Layers' Profiling Info:\n";
+    std::cout << std::string(40, '=') << "\n";
+    for (const auto &layer : layers_) {
+      layer->print_profiling_info();
+    }
   }
 
   /**
@@ -489,16 +506,16 @@ public:
    * @brief Returns the relative forward complexity (in FLOPs) for each layer given an input shape.
    * @param input_shape The shape of the input tensor as a vector of sizes.
    */
-  std::vector<uint32_t> forward_complexity(const std::vector<size_t> &input_shape) {
+  std::vector<uint64_t> forward_complexity(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
       return {};
     }
 
-    std::vector<uint32_t> layer_complexities;
+    std::vector<uint64_t> layer_complexities;
     std::vector<size_t> current_shape = input_shape;
 
     for (const auto &layer : layers_) {
-      uint32_t layer_complexity = layer->forward_complexity(current_shape);
+      uint64_t layer_complexity = layer->forward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
       current_shape = layer->compute_output_shape(current_shape);
     }
@@ -511,8 +528,8 @@ public:
    * partition
    * @param input_shape The shape of the input tensor as a vector of sizes.
    */
-  std::vector<uint32_t> forward_complexity(const std::vector<size_t> &input_shape,
-                                           const Partition &part) {
+  std::vector<uint64_t> forward_complexity(const std::vector<size_t> &input_shape,
+                                           const Partition &part) const {
     if (layers_.empty()) {
       return {};
     }
@@ -521,11 +538,11 @@ public:
       throw std::out_of_range("Partition indices out of range");
     }
 
-    std::vector<uint32_t> layer_complexities;
+    std::vector<uint64_t> layer_complexities;
     std::vector<size_t> current_shape = input_shape;
 
     for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      uint32_t layer_complexity = layers_[i]->forward_complexity(current_shape);
+      uint64_t layer_complexity = layers_[i]->forward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
       current_shape = layers_[i]->compute_output_shape(current_shape);
     }
@@ -538,16 +555,16 @@ public:
    * shape.
    * @param input_shape The shape of the gradient tensor as a vector of sizes.
    */
-  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &input_shape) {
+  std::vector<uint64_t> backward_complexity(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
       return {};
     }
 
-    std::vector<uint32_t> layer_complexities;
+    std::vector<uint64_t> layer_complexities;
     std::vector<size_t> current_shape = input_shape;
 
     for (auto &layer : layers_) {
-      uint32_t layer_complexity = layer->backward_complexity(current_shape);
+      uint64_t layer_complexity = layer->backward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
       current_shape = layer->compute_output_shape(current_shape);
     }
@@ -561,8 +578,8 @@ public:
    * @param input_shape The shape of the gradient tensor as a vector of sizes.
    * @param part The partition specifying the range of layers.
    */
-  std::vector<uint32_t> backward_complexity(const std::vector<size_t> &input_shape,
-                                            const Partition &part) {
+  std::vector<uint64_t> backward_complexity(const std::vector<size_t> &input_shape,
+                                            const Partition &part) const {
     if (layers_.empty()) {
       return {};
     }
@@ -571,11 +588,11 @@ public:
       throw std::out_of_range("Partition indices out of range");
     }
 
-    std::vector<uint32_t> layer_complexities;
+    std::vector<uint64_t> layer_complexities;
     std::vector<size_t> current_shape = input_shape;
 
     for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      uint32_t layer_complexity = layers_[i]->backward_complexity(current_shape);
+      uint64_t layer_complexity = layers_[i]->backward_complexity(current_shape);
       layer_complexities.push_back(layer_complexity);
       current_shape = layers_[i]->compute_output_shape(current_shape);
     }
@@ -598,8 +615,8 @@ public:
     std::cout << "Model Summary: " << name_ << "\n";
     std::cout << std::string(75, '=') << "\n";
     std::cout << std::left << std::setw(15) << "Layer (Type)" << std::setw(15) << "Input Shape"
-              << std::setw(15) << "Output Shape" << std::setw(15) << "Forward FLOPs"
-              << std::setw(15) << "Backward FLOPs" << "\n";
+              << std::setw(15) << "Output Shape" << std::setw(20) << "Forward Complexity"
+              << std::setw(20) << "Backward Complexity" << "\n";
 
     std::vector<size_t> current_shape = input_shape;
     for (size_t i = 0; i < layers_.size(); ++i) {
@@ -626,7 +643,7 @@ public:
       output_shape_str += ")";
       std::cout << std::setw(15) << output_shape_str;
 
-      std::cout << std::setw(15) << layer->forward_complexity(current_shape) << std::setw(15)
+      std::cout << std::setw(20) << layer->forward_complexity(current_shape) << std::setw(20)
                 << layer->backward_complexity(current_shape) << "\n";
       current_shape = layer->compute_output_shape(current_shape);
     }
@@ -640,14 +657,25 @@ public:
    * @param path The base path to save the model (without file extension).
    */
   void save_to_file(const std::string &path) const {
+    // Create directory if it doesn't exist
+    auto dir_path = std::filesystem::path(path).parent_path();
+    if (!dir_path.empty() && !std::filesystem::exists(dir_path)) {
+      std::filesystem::create_directories(dir_path);
+    }
 
     nlohmann::json config_json = get_config();
 
     std::ofstream config_file(path + ".json");
+    if (!config_file.is_open()) {
+      throw std::runtime_error("Could not create config file: " + path + ".json");
+    }
     config_file << config_json.dump(4);
     config_file.close();
 
     std::ofstream weights_file(path + ".bin", std::ios::binary);
+    if (!weights_file.is_open()) {
+      throw std::runtime_error("Could not create weights file: " + path + ".bin");
+    }
     for (const auto &layer : layers_) {
       if (layer->has_parameters()) {
         auto params = const_cast<Layer<T> *>(layer.get())->parameters();

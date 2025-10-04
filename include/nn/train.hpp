@@ -28,7 +28,7 @@ void tbb_cleanup() {
 }
 #endif
 
-constexpr uint32_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
+constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
   int epochs = 10;
@@ -36,7 +36,7 @@ struct TrainingConfig {
   float lr_decay_factor = 0.9f;
   size_t lr_decay_interval = 5; // in epochs
   int progress_print_interval = 100;
-  uint32_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+  uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
 };
 
 struct ClassResult {
@@ -78,6 +78,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
+        model.print_layers_profiling_info();
         model.print_profiling_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
@@ -259,6 +260,7 @@ RegResult train_reg_epoch(tnn::Sequential<float> &model,
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
+        model.print_layers_profiling_info();
         model.print_profiling_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
