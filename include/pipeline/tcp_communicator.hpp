@@ -262,7 +262,7 @@ private:
             std::memcpy(&msg_length, connection->read_buffer->data(), 4);
             msg_length = ntohl(msg_length);
 
-            if (msg_length > 0 && msg_length < 2048 * 2048) {
+            if (msg_length > 0 && msg_length < 8192 * 8192) {
 
               if (connection->read_buffer->size() < msg_length) {
                 BufferPool::instance().return_buffer(connection->read_buffer);
@@ -281,7 +281,7 @@ private:
                     }
                   });
             } else {
-              start_read(connection_id, connection);
+              handle_connection_error(connection_id, ec);
             }
           } else {
             handle_connection_error(connection_id, ec);

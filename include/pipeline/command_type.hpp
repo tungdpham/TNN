@@ -34,6 +34,8 @@ enum class CommandType {
   CONFIG_RECEIVED,
   LOAD_PARAMS,
   PARAMS_LOADED,
+  SEND_PARAMS,
+  PARAMS_TRANSFER,
 
   // status and monitoring
   STATUS_REQUEST,

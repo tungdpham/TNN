@@ -29,13 +29,42 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 Sequential<float> create_demo_model() {
   auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
                    .input({3, 32, 32})
-                   .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv0")
+                   .batchnorm(1e-5f, 0.1f, true, "bn0")
+                   .activation("relu", "relu0")
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
-                   .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                   .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
+                   .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv2")
+                   .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
-                   .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
+                   .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv3")
+                   .batchnorm(1e-5f, 0.1f, true, "bn3")
+                   .activation("relu", "relu3")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
+                   .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv4")
+                   .batchnorm(1e-5f, 0.1f, true, "bn5")
+                   .activation("relu", "relu5")
+                   .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv5")
+                   .activation("relu", "relu6")
+                   .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv6")
+                   .batchnorm(1e-5f, 0.1f, true, "bn6")
+                   .activation("relu", "relu6")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+                   .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv7")
+                   .batchnorm(1e-5f, 0.1f, true, "bn8")
+                   .activation("relu", "relu7")
+                   .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv8")
+                   .batchnorm(1e-5f, 0.1f, true, "bn9")
+                   .activation("relu", "relu8")
+                   .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv9")
+                   .batchnorm(1e-5f, 0.1f, true, "bn10")
+                   .activation("relu", "relu9")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
                    .flatten("flatten")
+                   .dense(512, "linear", true, "fc0")
+                   .activation("relu", "relu10")
                    .dense(10, "linear", true, "fc1")
                    .build();
 
@@ -174,7 +203,7 @@ int main() {
     auto update_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(update_end - update_start);
 
-    if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+    if ((batch_index + 1) % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
       std::cout << "Get batch completed in " << get_next_batch_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Split completed in " << split_duration.count() << " microseconds" << std::endl;
@@ -186,8 +215,8 @@ int main() {
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
       coordinator.balance_load();
       coordinator.print_profiling_on_all_stages();
+      coordinator.clear_profiling_data();
     }
-    coordinator.clear_profiling_data();
     ++batch_index;
   }
 

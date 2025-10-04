@@ -913,6 +913,92 @@ public:
   }
 
   /**
+   * @brief Gets the config json from partition params
+   */
+  nlohmann::json get_config(const tnn::Partition &partition) const {
+    if (partition.start_layer >= layers_.size() || partition.end_layer > layers_.size() ||
+        partition.start_layer >= partition.end_layer) {
+      throw std::out_of_range("Partition indices out of range");
+    }
+
+    nlohmann::json config;
+    config["name"] = name_ + "_part_" + std::to_string(partition.start_layer) + "_" +
+                     std::to_string(partition.end_layer);
+    config["is_training"] = is_training_;
+
+    nlohmann::json layers_config = nlohmann::json::array();
+    for (size_t i = partition.start_layer; i < partition.end_layer; ++i) {
+      const auto &layer = layers_[i];
+      LayerConfig layer_config = layer->get_config();
+      nlohmann::json layer_json;
+      layer_json["type"] = layer->type();
+      layer_json["name"] = layer_config.name;
+      layer_json["parameters"] = nlohmann::json::object();
+
+      for (const auto &[key, value] : layer_config.parameters) {
+        try {
+          if (auto *int_ptr = std::any_cast<int>(&value)) {
+            layer_json["parameters"][key] = *int_ptr;
+          } else if (auto *size_ptr = std::any_cast<size_t>(&value)) {
+            layer_json["parameters"][key] = *size_ptr;
+          } else if (auto *float_ptr = std::any_cast<float>(&value)) {
+            layer_json["parameters"][key] = *float_ptr;
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
+            layer_json["parameters"][key] = *double_ptr;
+          } else if (auto *bool_ptr = std::any_cast<bool>(&value)) {
+            layer_json["parameters"][key] = *bool_ptr;
+          } else if (auto *string_ptr = std::any_cast<std::string>(&value)) {
+            layer_json["parameters"][key] = *string_ptr;
+          }
+        } catch (const std::bad_any_cast &) {
+        }
+      }
+      layers_config.push_back(layer_json);
+    }
+    config["layers"] = layers_config;
+
+    if (optimizer_) {
+      OptimizerConfig opt_config = optimizer_->get_config();
+      nlohmann::json opt_json;
+      opt_json["type"] = opt_config.type;
+      opt_json["name"] = opt_config.name;
+      opt_json["parameters"] = nlohmann::json::object();
+
+      for (const auto &[key, value] : opt_config.parameters) {
+        try {
+          if (auto *float_ptr = std::any_cast<float>(&value)) {
+            opt_json["parameters"][key] = *float_ptr;
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
+            opt_json["parameters"][key] = *double_ptr;
+          }
+        } catch (const std::bad_any_cast &) {
+        }
+      }
+      config["optimizer"] = opt_json;
+    }
+
+    if (loss_) {
+      LossConfig loss_config = loss_->get_config();
+      nlohmann::json loss_json;
+      loss_json["type"] = loss_config.type;
+      loss_json["name"] = loss_config.name;
+      loss_json["parameters"] = nlohmann::json::object();
+
+      for (const auto &[key, value] : loss_config.parameters) {
+        try {
+          if (auto *float_ptr = std::any_cast<float>(&value)) {
+            loss_json["parameters"][key] = *float_ptr;
+          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
+            loss_json["parameters"][key] = *double_ptr;
+          }
+        } catch (const std::bad_any_cast &) {
+        }
+      }
+      config["loss"] = loss_json;
+    }
+  }
+
+  /**
    * @brief Loads a Sequential model from a JSON configuration object.
    * @param config The JSON object containing the model configuration.
    * @return The constructed Sequential model.

@@ -65,8 +65,6 @@ public:
   }
 
   virtual void stop() {
-    std::cout << "Stopping stage " << name_ << std::endl;
-
     should_stop_ = true;
     message_available_cv_.notify_all();
 
@@ -187,6 +185,33 @@ protected:
       communicator_->send_message(response);
       break;
     }
+    case CommandType::SEND_PARAMS: {
+      try {
+        std::vector<Tensor<T> *> param_ptrs = model_->parameters();
+        std::vector<Tensor<T>> params_copy;
+        params_copy.reserve(param_ptrs.size());
+        for (const auto &param_ptr : param_ptrs) {
+          if (param_ptr) {
+            params_copy.emplace_back(param_ptr->clone());
+          }
+        }
+
+        auto serialized_params = BinarySerializer::serialize_parameters(params_copy);
+        auto params_msg = Message<T>(CommandType::PARAMS_TRANSFER, serialized_params);
+        params_msg.sender_id = name_;
+        params_msg.recipient_id = message.sender_id;
+
+        communicator_->send_message(params_msg);
+        std::cout << "Sent " << params_copy.size() << " parameters to " << message.sender_id
+                  << std::endl;
+      } catch (const std::exception &e) {
+        std::cerr << "Failed to send parameters: " << e.what() << std::endl;
+        auto error_msg = Message<T>::error_message(
+            std::string("Failed to send parameters: ") + e.what(), name_, message.sender_id);
+        communicator_->send_message(error_msg);
+      }
+      break;
+    }
     case CommandType::REPORT_LOAD: {
       std::vector<uint8_t> serialized_tracker = LoadTracker::serialize(load_tracker_);
       Message<T> load_msg(CommandType::LOAD_REPORT, serialized_tracker);
@@ -220,8 +245,10 @@ protected:
           backward_times.begin(), backward_times.end(), 0LL,
           [](int64_t sum, const std::pair<std::string, int64_t> &p) { return sum + p.second; });
 
-      load_tracker_.avg_forward_time_ = static_cast<float>(cummulative_forward_time / 1000.0f);
-      load_tracker_.avg_backward_time_ = static_cast<float>(cummulative_backward_time / 1000.0f);
+      load_tracker_.avg_forward_time_ =
+          static_cast<float>(static_cast<double>(cummulative_forward_time) / 1000.0);
+      load_tracker_.avg_backward_time_ =
+          static_cast<float>(static_cast<double>(cummulative_backward_time) / 1000.0);
     }
 
     if (cpu_info_.update_dynamic_info()) {
@@ -243,7 +270,7 @@ protected:
     try {
       nlohmann::json config_json = nlohmann::json::parse(message.get_text());
 
-      std::cout << "Received configuration JSON: " << config_json.dump(2) << '\n';
+      // std::cout << "Received configuration JSON: " << config_json.dump(2) << '\n';
 
       StageConfig config = StageConfig::from_json(config_json);
 
@@ -268,9 +295,6 @@ protected:
                                                          stage_id_, "coordinator");
       this->communicator_->enqueue_output_message(ready_msg);
       this->communicator_->flush_output_messages();
-
-      std::cout << "Stage " << stage_id_ << " configured and ready" << '\n';
-
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
 

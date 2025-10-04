@@ -11,13 +11,20 @@
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
+#include "nn/partitioner.hpp"
 #include "old_binary_serializer.hpp"
 #include "pipeline_stage.hpp"
+#include "utils/avx2.hpp"
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <future>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 namespace tpipeline {
 
@@ -190,6 +197,57 @@ public:
   }
 
   /**
+   * @brief Intelligently sends parameters only to stages that need them based on partition changes.
+   * @param old_partitions The previous partition configuration
+   * @param new_partitions The new partition configuration
+   * @return true if all necessary parameters were sent successfully, false otherwise
+   */
+  bool send_updated_parameters(const std::vector<tnn::Partition> &old_partitions,
+                               const std::vector<tnn::Partition> &new_partitions) {
+    if (old_partitions.size() != new_partitions.size() ||
+        new_partitions.size() != stage_names_.size()) {
+      std::cerr << "Partition size mismatch in send_updated_parameters\n";
+      return false;
+    }
+
+    std::vector<std::future<bool>> param_futures;
+
+    for (size_t i = 0; i < stage_names_.size(); ++i) {
+      const std::string &stage_name = stage_names_[i];
+      const auto &old_partition = old_partitions[i];
+      const auto &new_partition = new_partitions[i];
+
+      // Check if this stage's partition actually changed
+      bool partition_changed = (old_partition.start_layer != new_partition.start_layer ||
+                                old_partition.end_layer != new_partition.end_layer);
+
+      if (partition_changed) {
+        std::cout << "Partition changed for stage " << stage_name << ": ["
+                  << old_partition.start_layer << "," << old_partition.end_layer << ") -> ["
+                  << new_partition.start_layer << "," << new_partition.end_layer << ")\n";
+
+        auto future = std::async(std::launch::async, [this, stage_name, new_partition]() {
+          return this->send_params(stage_name, new_partition);
+        });
+        param_futures.push_back(std::move(future));
+      } else {
+        std::cout << "No partition change for stage " << stage_name
+                  << ", skipping parameter update\n";
+      }
+    }
+
+    // Wait for all parameter transfers to complete
+    bool all_params_sent = true;
+    for (auto &future : param_futures) {
+      if (!future.get()) {
+        all_params_sent = false;
+      }
+    }
+
+    return all_params_sent;
+  }
+
+  /**
    * @brief Waits for a specified number of confirmations for a given command type.
    * @param type The command type to wait for (e.g., CommandType::UPDATE_PARAMETERS).
    * @param expected_count The number of confirmations to wait for.
@@ -266,14 +324,178 @@ public:
    * @brief Sends a request to all stages for load report
    */
   void balance_load() {
+    std::cout << "Starting load balancing procedure...\n";
+
+    // Request load reports from all stages
     for (const auto &stage_name : this->stage_names_) {
       auto load_msg =
           Message<T>::create_control_message(CommandType::REPORT_LOAD, "coordinator", stage_name);
       this->coordinator_comm_->send_message(load_msg);
     }
-    join(CommandType::LOAD_REPORT, this->num_stages_, 30);
+
+    // Wait for all load reports to arrive
+    bool received_all_reports = join(CommandType::LOAD_REPORT, this->num_stages_, 30);
+    if (!received_all_reports) {
+      std::cerr << "Warning: Not all stages reported load data within timeout. Using current "
+                   "partitions.\n";
+      return;
+    }
+
+    // Collect and process load reports
     std::vector<Message<T>> load_messages =
         this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
+
+    if (load_messages.size() != static_cast<size_t>(this->num_stages_)) {
+      std::cerr << "Warning: Expected " << this->num_stages_ << " load reports, got "
+                << load_messages.size() << ". Using current partitions.\n";
+      return;
+    }
+
+    // Convert load messages to StageLoadInfo
+    std::vector<tnn::StageLoadInfo> stage_load_info(this->num_stages_);
+    std::map<std::string, LoadTracker> load_trackers;
+
+    // First pass: collect all load trackers by stage name
+    for (const auto &load_msg : load_messages) {
+      if (load_msg.has_binary()) {
+        try {
+          std::vector<uint8_t> serialized_data = load_msg.get_binary();
+          LoadTracker tracker = LoadTracker::deserialize(serialized_data);
+          load_trackers[load_msg.sender_id] = tracker;
+
+          std::cout << "Received load report from " << load_msg.sender_id
+                    << ": avg_forward_time=" << tracker.avg_forward_time_
+                    << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
+        } catch (const std::exception &e) {
+          std::cerr << "Warning: Failed to deserialize load data from " << load_msg.sender_id
+                    << ": " << e.what() << "\n";
+        }
+      }
+    }
+
+    // Second pass: map load trackers to stage indices
+    for (size_t i = 0; i < stage_names_.size(); ++i) {
+      const std::string &stage_name = stage_names_[i];
+      auto it = load_trackers.find(stage_name);
+      if (it != load_trackers.end()) {
+        stage_load_info[i].avg_forward_time_ms = it->second.avg_forward_time_;
+        stage_load_info[i].avg_backward_time_ms = it->second.avg_backward_time_;
+        stage_load_info[i].compute_throughput_score();
+      } else {
+        std::cerr << "Warning: No load data found for stage " << stage_name
+                  << ". Using default throughput score.\n";
+        stage_load_info[i].throughput_score = 1.0f;
+      }
+    }
+
+    // Check convergence conditions before proceeding
+    if (should_skip_load_balancing(stage_load_info)) {
+      update_load_balancing_state(stage_load_info);
+      return;
+    }
+
+    // Collect current parameters from all stages before repartitioning
+    std::cout << "Collecting current parameters from stages...\n";
+    if (!collect_current_parameters()) {
+      std::cerr << "Warning: Failed to collect current parameters. Load balancing aborted.\n";
+      return;
+    }
+
+    try {
+      std::vector<size_t> input_shape = {64, 3, 32, 32}; // Default CIFAR-10 like shape
+
+      auto new_partitions = tnn::LoadAwarePartitioner::get_partitions(
+          this->model_, input_shape, static_cast<size_t>(this->num_stages_), stage_load_info);
+
+      // Check if partitions actually changed
+      bool partitions_changed = false;
+      if (new_partitions.size() != this->partitions_.size()) {
+        partitions_changed = true;
+      } else {
+        for (size_t i = 0; i < new_partitions.size(); ++i) {
+          if (new_partitions[i].start_layer != this->partitions_[i].start_layer ||
+              new_partitions[i].end_layer != this->partitions_[i].end_layer) {
+            partitions_changed = true;
+            break;
+          }
+        }
+      }
+
+      if (!partitions_changed) {
+        std::cout
+            << "Load balancing completed: No changes needed, current partitions are optimal.\n";
+        update_load_balancing_state(stage_load_info);
+        return;
+      }
+
+      std::cout << "Load balancing: Applying new partitions...\n";
+
+      // Print new partition layout
+      for (size_t i = 0; i < new_partitions.size(); ++i) {
+        std::cout << "  Stage " << stage_names_[i] << ": layers [" << new_partitions[i].start_layer
+                  << ", " << new_partitions[i].end_layer
+                  << ") - throughput_score=" << stage_load_info[i].throughput_score << "\n";
+      }
+
+      // Store old partitions for parameter diffing
+      std::vector<tnn::Partition> old_partitions = this->partitions_;
+
+      // Send new configurations to all stages
+      std::vector<std::future<bool>> config_futures;
+
+      for (size_t i = 0; i < stage_names_.size(); ++i) {
+        auto future = std::async(std::launch::async, [this, i, &new_partitions]() {
+          return this->send_config(stage_names_[i], new_partitions[i]);
+        });
+        config_futures.push_back(std::move(future));
+      }
+
+      // Wait for all configs to be sent
+      bool all_configs_sent = true;
+      for (auto &future : config_futures) {
+        if (!future.get()) {
+          all_configs_sent = false;
+        }
+      }
+
+      if (!all_configs_sent) {
+        std::cerr << "Warning: Failed to send all stage configurations during load balancing.\n";
+        return;
+      }
+
+      // Wait for configuration confirmations
+      if (!this->wait_for_config_received()) {
+        std::cerr << "Warning: Not all stages confirmed new configuration during load balancing.\n";
+        return;
+      }
+
+      // Update stored partitions only after successful config
+      this->partitions_ = new_partitions;
+
+      // Send parameters only to stages that need them (smart parameter updates)
+      std::cout << "Sending updated parameters to affected stages...\n";
+      if (!send_updated_parameters(old_partitions, new_partitions)) {
+        std::cerr << "Warning: Failed to send all updated parameters during load balancing.\n";
+        return;
+      }
+
+      // Wait for parameter loading confirmations
+      if (!this->wait_for_params_loaded()) {
+        std::cerr << "Warning: Not all stages confirmed parameter loading during load balancing.\n";
+        return;
+      }
+
+      // Update load balancing state
+      update_load_balancing_state(stage_load_info);
+      consecutive_no_change_count_ = 0; // Reset on successful change
+
+      std::cout << "Load balancing completed successfully!\n";
+
+    } catch (const std::exception &e) {
+      std::cerr << "Error during load balancing: " << e.what() << "\n";
+      std::cerr << "Keeping current partitions.\n";
+      update_load_balancing_state(stage_load_info);
+    }
   }
 
   /**
@@ -298,6 +520,98 @@ public:
     }
   }
 
+  /**
+   * @brief Collects current parameters from all stages to ensure coordinator has up-to-date
+   * weights.
+   * @return true if all parameters were collected successfully, false otherwise
+   */
+  bool collect_current_parameters() {
+    std::cout << "Collecting current parameters from all stages...\n";
+
+    // Request parameters from all stages
+    for (const auto &stage_name : this->stage_names_) {
+      auto params_request_msg =
+          Message<T>::create_control_message(CommandType::SEND_PARAMS, "coordinator", stage_name);
+      this->coordinator_comm_->send_message(params_request_msg);
+    }
+
+    // Wait for all parameter responses
+    bool received_all_params = join(CommandType::PARAMS_TRANSFER, this->num_stages_, 30);
+    if (!received_all_params) {
+      std::cerr << "Warning: Not all stages sent their parameters within timeout.\n";
+      return false;
+    }
+
+    // Collect parameter messages
+    std::vector<Message<T>> params_messages =
+        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PARAMS_TRANSFER);
+
+    if (params_messages.size() != static_cast<size_t>(this->num_stages_)) {
+      std::cerr << "Warning: Expected " << this->num_stages_ << " parameter messages, got "
+                << params_messages.size() << ".\n";
+      return false;
+    }
+
+    // Update model parameters with received data
+    std::map<std::string, std::vector<Tensor<T>>> stage_parameters;
+
+    for (const auto &params_msg : params_messages) {
+      if (params_msg.has_binary()) {
+        try {
+          std::vector<uint8_t> serialized_data = params_msg.get_binary();
+          auto params = BinarySerializer::deserialize_parameters<T>(serialized_data);
+          stage_parameters[params_msg.sender_id] = std::move(params);
+
+          std::cout << "Received " << params.size() << " parameters from " << params_msg.sender_id
+                    << "\n";
+        } catch (const std::exception &e) {
+          std::cerr << "Warning: Failed to deserialize parameters from " << params_msg.sender_id
+                    << ": " << e.what() << "\n";
+          return false;
+        }
+      }
+    }
+
+    // Reconstruct the full model from stage parameters
+    try {
+      // Find the stage index for each stage name and update model accordingly
+      for (size_t i = 0; i < stage_names_.size(); ++i) {
+        const std::string &stage_name = stage_names_[i];
+        auto it = stage_parameters.find(stage_name);
+        if (it != stage_parameters.end()) {
+          // Update model parameters for this partition
+          auto model_params = model_.parameters(partitions_[i]);
+          const auto &stage_params = it->second;
+
+          if (model_params.size() == stage_params.size()) {
+            for (size_t j = 0; j < model_params.size(); ++j) {
+              if (model_params[j]) {
+                // Check if tensors have the same size before copying
+                if (model_params[j]->size() == stage_params[j].size()) {
+                  utils::avx2_copy(stage_params[j].data(), model_params[j]->data(),
+                                   model_params[j]->size());
+                } else {
+                  std::cerr << "Warning: Tensor size mismatch for parameter " << j << " in stage "
+                            << stage_name << "\n";
+                }
+              }
+            }
+          } else {
+            std::cerr << "Warning: Parameter count mismatch for stage " << stage_name
+                      << ". Expected " << model_params.size() << ", got " << stage_params.size()
+                      << "\n";
+          }
+        }
+      }
+
+      std::cout << "Successfully updated coordinator model with current parameters.\n";
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Error updating model parameters: " << e.what() << "\n";
+      return false;
+    }
+  }
+
   void request_status_from_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true, "coordinator", stage_name);
@@ -319,7 +633,116 @@ public:
     return join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
   }
 
+  /**
+   * @brief Checks if load balancing should be skipped due to convergence or timing constraints.
+   * @param current_load_info The current load information from all stages
+   * @return true if load balancing should be skipped, false if it should proceed
+   */
+  bool should_skip_load_balancing(const std::vector<tnn::StageLoadInfo> &current_load_info) {
+    auto now = std::chrono::steady_clock::now();
+
+    // Check minimum time interval
+    if (last_balance_time_.time_since_epoch().count() > 0) {
+      auto time_since_last =
+          std::chrono::duration_cast<std::chrono::seconds>(now - last_balance_time_);
+      if (static_cast<size_t>(time_since_last.count()) < MIN_BALANCE_INTERVAL_SECONDS) {
+        std::cout << "Skipping load balancing: Only " << time_since_last.count()
+                  << " seconds since last balance (minimum " << MIN_BALANCE_INTERVAL_SECONDS
+                  << "s)\n";
+        return true;
+      }
+    }
+
+    // Check if we have previous load info to compare against
+    if (last_load_info_.empty() || last_load_info_.size() != current_load_info.size()) {
+      std::cout << "No previous load info available, proceeding with load balancing\n";
+      return false;
+    }
+
+    // Calculate load improvement
+    double total_old_time = 0.0, total_new_time = 0.0;
+    for (size_t i = 0; i < current_load_info.size(); ++i) {
+      total_old_time +=
+          last_load_info_[i].avg_forward_time_ms + last_load_info_[i].avg_backward_time_ms;
+      total_new_time +=
+          current_load_info[i].avg_forward_time_ms + current_load_info[i].avg_backward_time_ms;
+    }
+
+    if (total_old_time > 0.0) {
+      double improvement = (total_old_time - total_new_time) / total_old_time;
+      std::cout << "Load improvement since last balance: " << (improvement * 100.0) << "%\n";
+
+      if (std::abs(improvement) < LOAD_IMPROVEMENT_THRESHOLD) {
+        consecutive_no_change_count_++;
+        std::cout << "Load improvement below threshold (" << (LOAD_IMPROVEMENT_THRESHOLD * 100.0)
+                  << "%), consecutive count: " << consecutive_no_change_count_ << "\n";
+
+        if (consecutive_no_change_count_ >= MAX_CONSECUTIVE_NO_CHANGE) {
+          std::cout << "Skipping load balancing: No significant improvement for "
+                    << consecutive_no_change_count_ << " consecutive attempts\n";
+          return true;
+        }
+      } else {
+        consecutive_no_change_count_ = 0; // Reset counter on improvement
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * @brief Updates load balancing state after a balancing operation.
+   * @param load_info The load information used for this balancing operation
+   */
+  void update_load_balancing_state(const std::vector<tnn::StageLoadInfo> &load_info) {
+    last_load_info_ = load_info;
+    last_balance_time_ = std::chrono::steady_clock::now();
+  }
+
 protected:
+  /**
+   * @brief Sends configuration to a specific stage
+   * @param stage_id The stage identifier
+   * @param partition The partition containing layer information for this stage
+   * @return true if configuration was sent successfully, false otherwise
+   */
+  bool send_config(const std::string &stage_id, const tnn::Partition &partition) {
+    try {
+      // Create a model segment for this partition
+      std::vector<tnn::Partition> partitions = {partition};
+      auto stage_model = model_.split(partitions)[0];
+
+      // Create stage configuration
+      StageConfig config;
+      config.stage_id = stage_id;
+      config.model_config = stage_model.get_config();
+      config.model_config["name"] = stage_id;
+
+      // Set stage index based on position in stage_names_
+      auto it = std::find(stage_names_.begin(), stage_names_.end(), stage_id);
+      if (it != stage_names_.end()) {
+        config.stage_index = static_cast<int>(std::distance(stage_names_.begin(), it));
+      } else {
+        config.stage_index = 0; // fallback
+      }
+
+      // Send configuration as JSON
+      std::string config_json = config.to_json().dump();
+      auto config_msg = Message<T>::create_text_message(CommandType::CONFIG_TRANSFER, config_json,
+                                                        "coordinator", stage_id);
+
+      this->coordinator_comm_->send_message(config_msg);
+
+      std::cout << "Sent configuration to stage " << stage_id << " for partition ["
+                << partition.start_layer << ", " << partition.end_layer << ")\n";
+
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Failed to send configuration to stage " << stage_id << ": " << e.what() << '\n';
+      return false;
+    }
+  }
+
   int num_stages_;
   int num_microbatches_;
   bool should_stop_ = true;
@@ -328,6 +751,14 @@ protected:
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
   std::thread message_thread_;
+
+  // Load balancing state tracking
+  std::vector<tnn::StageLoadInfo> last_load_info_;
+  std::chrono::steady_clock::time_point last_balance_time_;
+  size_t consecutive_no_change_count_ = 0;
+  static constexpr double LOAD_IMPROVEMENT_THRESHOLD = 0.05; // 5% improvement required
+  static constexpr size_t MIN_BALANCE_INTERVAL_SECONDS = 30;
+  static constexpr size_t MAX_CONSECUTIVE_NO_CHANGE = 3;
 
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;

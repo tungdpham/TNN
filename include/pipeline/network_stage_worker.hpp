@@ -59,6 +59,8 @@ public:
   }
 
   void stop() override {
+    if (this->should_stop_)
+      return;
     PipelineStage<T>::stop();
     tcp_communicator_->stop();
 
