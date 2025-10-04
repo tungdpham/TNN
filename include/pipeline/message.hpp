@@ -84,18 +84,18 @@ template <typename T = float> struct Message {
     return msg;
   }
 
-  static Message<T> load_params_message(const std::vector<uint8_t> &serialized_params,
-                                        const std::string &sender = "",
-                                        const std::string &recipient = "") {
-    Message<T> msg(CommandType::LOAD_PARAMS, serialized_params);
+  static Message<T> create_status_message(CommandType cmd_type, const std::string &sender = "",
+                                          const std::string &recipient = "") {
+    Message<T> msg(cmd_type);
     msg.sender_id = sender;
     msg.recipient_id = recipient;
     return msg;
   }
 
-  static Message<T> status_message(const std::string &status_text, const std::string &sender = "",
-                                   const std::string &recipient = "") {
-    Message<T> msg(CommandType::STATUS_RESPONSE, status_text);
+  static Message<T> load_params_message(const std::vector<uint8_t> &serialized_params,
+                                        const std::string &sender = "",
+                                        const std::string &recipient = "") {
+    Message<T> msg(CommandType::LOAD_PARAMS, serialized_params);
     msg.sender_id = sender;
     msg.recipient_id = recipient;
     return msg;

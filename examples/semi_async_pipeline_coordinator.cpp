@@ -1,9 +1,11 @@
 
 
+#include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/ops.hpp"
@@ -16,6 +18,8 @@
 
 using namespace tnn;
 using namespace tpipeline;
+using namespace data_augmentation;
+using namespace data_loading;
 
 namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.01f;
@@ -27,7 +31,7 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
 
 Sequential<float> create_mnist_trainer() {
-  auto model = tnn::SequentialBuilder<float>("mnist_cnn_model")
+  auto model = SequentialBuilder<float>("mnist_cnn_model")
                    .input({1, 32, 32})
                    .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
@@ -45,16 +49,16 @@ Sequential<float> create_mnist_trainer() {
                    .build();
 
   auto optimizer =
-      std::make_unique<tnn::Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+      std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
+  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
   model.set_loss_function(std::move(loss_function));
   return model;
 }
 
 Sequential<float> create_cifar10_trainer_v1() {
-  auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier_v1")
+  auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                    .input({3, 32, 32})
                    .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
@@ -68,16 +72,16 @@ Sequential<float> create_cifar10_trainer_v1() {
                    .dense(10, "linear", true, "fc1")
                    .build();
 
-  auto optimizer = std::make_unique<tnn::SGD<float>>(semi_async_constants::LR_INITIAL, 0.9f);
+  auto optimizer = std::make_unique<SGD<float>>(semi_async_constants::LR_INITIAL, 0.9f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
+  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
   model.set_loss_function(std::move(loss_function));
   return model;
 }
 
 Sequential<float> create_cifar10_trainer_v2() {
-  auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier")
+  auto model = SequentialBuilder<float>("cifar10_cnn_classifier")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv0")
                    .batchnorm(1e-5f, 0.1f, true, "bn0")
@@ -119,10 +123,10 @@ Sequential<float> create_cifar10_trainer_v2() {
                    .build();
 
   auto optimizer =
-      std::make_unique<tnn::Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+      std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
+  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
   model.set_loss_function(std::move(loss_function));
   return model;
 }
@@ -194,8 +198,13 @@ void get_mnist_data_loaders(data_loading::MNISTDataLoader<float> &train_loader,
   test_loader.reset();
 }
 
+ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+                                   CIFAR10DataLoader<float> &train_loader);
+ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+                                      CIFAR10DataLoader<float> &test_loader);
+
 int main() {
-  auto model = create_mnist_trainer();
+  auto model = create_cifar10_trainer_v2();
 
   model.print_config();
 
@@ -230,26 +239,41 @@ int main() {
 
   coordinator.start();
 
-  data_loading::MNISTDataLoader<float> train_loader, test_loader;
+  // data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
-  get_mnist_data_loaders(train_loader, test_loader);
+  data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
 
+  get_cifar10_data_loaders(train_loader, test_loader);
+
+  auto aug_strategy = AugmentationBuilder<float>()
+                          .horizontal_flip(0.25f)
+                          .rotation(0.3f, 10.0f)
+                          .brightness(0.3f, 0.15f)
+                          .contrast(0.3f, 0.15f)
+                          .gaussian_noise(0.3f, 0.05f)
+                          .build();
+  std::cout << "Configuring data augmentation for training." << std::endl;
+  train_loader.set_augmentation(std::move(aug_strategy));
+
+  Tensor<float> batch_data, batch_labels;
+
+  train_semi_async_epoch(coordinator, train_loader);
+
+  validate_semi_async_epoch(coordinator, test_loader);
+  return 0;
+}
+
+ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+                                   CIFAR10DataLoader<float> &train_loader) {
   Tensor<float> batch_data, batch_labels;
 
   size_t batch_index = 0;
 
   auto epoch_start = std::chrono::high_resolution_clock::now();
 
-  while (true) {
-    auto get_next_batch_start = std::chrono::high_resolution_clock::now();
-    bool is_valid_batch = train_loader.get_next_batch(batch_data, batch_labels);
-    if (!is_valid_batch) {
-      break;
-    }
-    auto get_next_batch_end = std::chrono::high_resolution_clock::now();
-    auto get_next_batch_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-        get_next_batch_end - get_next_batch_start);
+  float total_loss = 0.0f;
 
+  while (train_loader.get_next_batch(batch_data, batch_labels)) {
     auto split_start = std::chrono::high_resolution_clock::now();
 
     std::vector<Tensor<float>> micro_batches =
@@ -263,7 +287,7 @@ int main() {
         std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
 
     auto process_start = std::chrono::high_resolution_clock::now();
-    coordinator.async_process_batch(micro_batches, micro_batch_labels);
+    total_loss += coordinator.async_process_batch(micro_batches, micro_batch_labels);
     auto process_end = std::chrono::high_resolution_clock::now();
     auto process_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
@@ -276,14 +300,13 @@ int main() {
         std::chrono::duration_cast<std::chrono::microseconds>(update_end - update_start);
 
     if ((batch_index + 1) % semi_async_constants::PROGRESS_PRINT_INTERVAL == 0) {
-      std::cout << "Get batch completed in " << get_next_batch_duration.count() << " microseconds"
-                << std::endl;
+
       std::cout << "Split completed in " << split_duration.count() << " microseconds" << std::endl;
       std::cout << "Async process completed in " << process_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Parameter update completed in " << update_duration.count() << " microseconds"
                 << std::endl;
-      std::cout << "Batch " << batch_index << "/"
+      std::cout << "Batch " << batch_index + 1 << "/"
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
       coordinator.balance_load();
       coordinator.print_profiling_on_all_stages();
@@ -297,10 +320,17 @@ int main() {
       std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
   std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1 << " completed in "
             << epoch_duration.count() << " milliseconds" << std::endl;
+  return {total_loss / batch_index, -1.0f};
+}
+
+ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+                                      CIFAR10DataLoader<float> &test_loader) {
+  Tensor<float> batch_data, batch_labels;
 
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
+
   while (test_loader.get_batch(semi_async_constants::BATCH_SIZE, batch_data, batch_labels)) {
 
     std::vector<Tensor<float>> micro_batches =
@@ -334,8 +364,8 @@ int main() {
     for (auto &task : forward_tasks) {
       task.data.apply_softmax();
       val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
-      val_accuracy +=
-          utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);
+      val_accuracy += ::utils::compute_class_accuracy<float>(
+          task.data, micro_batch_labels[task.micro_batch_id]);
     }
     ++val_batches;
   }
@@ -343,7 +373,9 @@ int main() {
   std::cout << "Validation completed." << std::endl;
   std::cout << "Average Validation Loss: " << (val_loss / val_batches)
             << ", Average Validation Accuracy: "
-            << (val_accuracy / val_batches / semi_async_constants::NUM_MICROBATCHES) * 100.0f << "%"
+            << (val_accuracy * 100.0f / val_batches / semi_async_constants::NUM_MICROBATCHES) << "%"
             << std::endl;
-  return 0;
+  return {static_cast<float>(val_loss / val_batches),
+          static_cast<float>(
+              (val_accuracy * 100.0f / val_batches / semi_async_constants::NUM_MICROBATCHES))};
 }

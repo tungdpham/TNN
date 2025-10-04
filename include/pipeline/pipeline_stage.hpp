@@ -71,7 +71,6 @@ public:
     if (monitoring_thread_.joinable()) {
       monitoring_thread_.join();
     }
-    std::cout << "Base Stage " << name_ << " has stopped." << std::endl;
   }
 
   void message_loop() {
@@ -159,6 +158,9 @@ protected:
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
+        auto outgoing_message = Message<T>::create_status_message(CommandType::PROFILING_PRINTED,
+                                                                  name_, message.sender_id);
+        communicator_->send_message(outgoing_message);
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
       }
@@ -166,6 +168,9 @@ protected:
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->clear_profiling_data();
+        auto outgoing_message = Message<T>::create_status_message(CommandType::PROFILING_CLEARED,
+                                                                  name_, message.sender_id);
+        communicator_->send_message(outgoing_message);
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
@@ -182,7 +187,7 @@ protected:
 
       // send confirmation
       auto response =
-          Message<T>::create_control_message(CommandType::PARAMS_LOADED, name_, message.sender_id);
+          Message<T>::create_status_message(CommandType::PARAMS_LOADED, name_, message.sender_id);
       communicator_->send_message(response);
       break;
     }

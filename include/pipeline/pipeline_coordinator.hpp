@@ -273,8 +273,8 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  void async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
-                           std::vector<Tensor<T>> &microbatch_labels) {
+  float async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
+                            std::vector<Tensor<T>> &microbatch_labels) {
     if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
         microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
@@ -283,6 +283,8 @@ public:
     for (int i = 0; i < this->num_microbatches_; ++i) {
       this->forward(microbatch_inputs[i], i);
     }
+
+    float total_loss = 0.0f;
 
     // Assuming no microbatch are lost during transmission/processing. May need additional handling
     // for production use.
@@ -303,6 +305,8 @@ public:
 
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
+          float loss = this->compute_loss(predictions, targets);
+          total_loss += loss;
           Tensor<T> gradient = this->model_.loss_function()->compute_gradient(predictions, targets);
 
           this->backward(gradient, task.micro_batch_id);
@@ -318,6 +322,8 @@ public:
     });
 
     this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_TASK);
+
+    return total_loss;
   }
 
   /**
@@ -507,6 +513,10 @@ public:
                                                               "coordinator", stage_name);
       this->coordinator_comm_->send_message(profiling_msg);
     }
+    bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
+    if (!all_printed) {
+      std::cerr << "Warning: Not all stages confirmed profiling print within timeout.\n";
+    }
   }
 
   /**
@@ -517,6 +527,10 @@ public:
       auto clear_msg = Message<T>::create_control_message(CommandType::CLEAR_PROFILING,
                                                           "coordinator", stage_name);
       this->coordinator_comm_->send_message(clear_msg);
+    }
+    bool all_cleared = join(CommandType::PROFILING_CLEARED, this->num_stages_, 30);
+    if (!all_cleared) {
+      std::cerr << "Warning: Not all stages confirmed profiling clear within timeout.\n";
     }
   }
 

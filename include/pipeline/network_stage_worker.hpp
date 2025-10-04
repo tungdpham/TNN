@@ -67,17 +67,12 @@ public:
 
     if (tcp_communicator_) {
       tcp_communicator_->stop();
-      std::cout << "TCP communicator stopped." << '\n';
     }
 
     work_guard_.reset();
-    std::cout << "Work guard reset." << '\n';
-
     io_context_.stop();
-    std::cout << "IO context stopped." << '\n';
 
     if (io_thread_.joinable()) {
-      std::cout << "Joining IO thread." << '\n';
       io_thread_.join();
     }
 

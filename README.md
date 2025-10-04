@@ -1,61 +1,34 @@
 # Getting Started
 
-## Getting the datasets
-Download the MNIST dataset from kaggle (preferred) and put it in data/mnist. Name the training and validation data set train.csv and test.csv respectively.
-
-# Build Instructions
+## Build Instructions
 
 ## Dependencies
-You should have these dependencies for the main programs installed before building:
+You should have these dependencies for the main programs installed before building. Other dependencies and open-source frameworks are fetched directly from their repository for proper licensing and up-to-date builds.
 
 ```bash
-# Install Intel TBB
+# Install Intel TBB (Required)
 sudo apt install libtbb-dev
 
-# Install OpenMP (usually comes with GCC)
-sudo apt install libomp-dev
-
-# Install Intel MKL
-# add oneAPI repository
+# Install Intel MKL (Recommended)
+# 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
 sudo apt update
-# instal mkl
+# 2. Install MKL
 sudo apt install intel-oneapi-mkl-devel
-# source env vars
+# 3. Source environment variables
 source /opt/intel/oneapi/setvars.sh
 
-# Install CUDA (follow NVIDIA's installation guide)
-
-# For python scripts, install the dependencies from requirements.txt
+# For Python scripts (Optional, not related to our library), install the dependencies from requirements.txt
 pip install -r requirements.txt
 ```
 
-## Prepraring Data
-Download the dataset needed before running the examples.
-the structure should look like this. Alternatively, you change the path to data in the examples' code.
-
-- For MNIST dataset, download from [kaggle](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv).
-- For CIFAR10 and CIFAR100, download from
-[here](https://www.cs.toronto.edu/~kriz/cifar.html)
-- For UJI and UTS indoor positioning dataset, download from their paper.
-
-```
-data/
-  mnist/
-    train.csv
-    test.csv
-  cifar-10-batches-bin/ (default extract)
-  cifar-100-binary/ (default extract)
-  uji/ (default extract)
-  uts/
-    train.csv
-    test.csv
-```
-## Quick Start
-
+## Build Instructions
 ### Option 1: Using the build script (Recommended)
 ```bash
+# Add executable permission to build script
+chmod +x ./build.sh
+
 # Simple build with default settings
 ./build.sh
 
@@ -64,12 +37,6 @@ data/
 
 # Debug build with sanitizers
 ./build.sh --debug
-
-# Enable CUDA support
-./build.sh --cuda
-
-# Enable Intel TBB support
-./build.sh --tbb
 
 # Enable OpenMP support
 ./build.sh --openmp
@@ -95,18 +62,42 @@ cmake .. -DCMAKE_BUILD_TYPE=Release \
          -DENABLE_CUDA=OFF \
          -DENABLE_TBB=OFF
 
-# Build
+# Build with maximum number of cores
 cmake --build . -j$(nproc)
 ```
 
-## Build Options
+### Build Options
 
 | Option | Default | Description |
 |--------|---------|-------------|
-| `ENABLE_OPENMP` | OFF | Enable OpenMP parallel processing |
-| `ENABLE_CUDA` | OFF | Enable CUDA GPU acceleration |
+| `Enable_MKL` | OFF | ENABLE Intel Math Kernel Library |
 | `ENABLE_TBB` | ON | Enable Intel Threading Building Blocks |
 | `ENABLE_DEBUG` | OFF | Enable debug build with AddressSanitizer |
+
+## Prepraring Data
+Download the dataset needed before running the examples.
+
+- For MNIST dataset, download from [kaggle](https://www.kaggle.com/datasets/oddrationale/mnist-in-csv).
+- For CIFAR10 and CIFAR100, download from
+[here](https://www.cs.toronto.edu/~kriz/cifar.html)
+- For UJI and UTS indoor positioning dataset, download from their paper.
+
+The structure of your data directory should look like this.
+
+```
+data/
+  mnist/
+    train.csv
+    test.csv
+  cifar-10-batches-bin/ (default extract)
+  cifar-100-binary/ (default extract)
+  uji/ (default extract)
+  uts/
+    train.csv
+    test.csv
+```
+
+Alternatively, you change the path to data in the examples' code.
 
 # Running the examples
 There are two different ways to run the examples
@@ -123,7 +114,7 @@ For Linux with GCC
 ./bin/mnist_cnn_trainer
 ```
 
-For Windows with MSVC, you should see a Release folder inside bin/ if you are building optimized build, or Debug/ if you want to debug or profile the code.
+For Windows with MSVC, you should see a Release/Debug folder inside bin/. if you are building optimized build, or Debug/ if you want to debug or profile the code.
 ```bash
 # Example:
 ./bin/Release/mnist_cnn_trainer.exe
@@ -148,12 +139,4 @@ docker compose --profile sync up -d
 
 ## For semi async
 docker compose --profile semi-async up -d
-```
-
-## Other utilities for debugging/monitoring
-### CPU Monitor uses:
-If (profile is semi_async for example) run the following command to draw cpu load:
-
-```bash
-python3 plot_cpu_range.py --logs ./logs --out cpu_usage_sync_0_25.png --tmin 0 --tmax 25
 ```

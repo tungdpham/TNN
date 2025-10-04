@@ -306,7 +306,7 @@ public:
    */
   void print_profiling_summary() const {
     if (!enable_profiling_) {
-      std::cout << "No profiling data available. Enable profiling with "
+      std::cout << "Profiling disabled. Enable profiling with "
                    "enable_profiling(true)\n";
       return;
     }
@@ -325,7 +325,7 @@ public:
     }
 
     if (forward_times_copy.empty()) {
-      std::cout << "No profiling data available. Enable profiling with "
+      std::cout << "Profiling disabled. Enable profiling with "
                    "enable_profiling(true)\n";
       return;
     }

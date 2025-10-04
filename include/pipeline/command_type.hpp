@@ -58,7 +58,9 @@ enum class CommandType {
 
   // profiling and debugging
   PRINT_PROFILING,
+  PROFILING_PRINTED,
   CLEAR_PROFILING,
+  PROFILING_CLEARED,
 
   _COUNT
 };
