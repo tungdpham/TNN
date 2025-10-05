@@ -5,6 +5,14 @@
 *.swo
 *~
 
+# CMake temporary files
+_deps/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+build/
+
 # Virtual environment
 .venv/
 

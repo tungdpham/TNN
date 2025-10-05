@@ -84,7 +84,7 @@ services:
     image: dcnn:latest
     container_name: dcnn-single-model
     command: ["./bin/cifar10_cnn_trainer"]
-    cpuset: "0-4"
+    cpuset: "0-8"
     depends_on:
       - dcnn-base
 
