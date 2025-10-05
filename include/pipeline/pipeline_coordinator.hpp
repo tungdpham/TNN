@@ -357,11 +357,9 @@ public:
       return;
     }
 
-    // Convert load messages to StageLoadInfo
-    std::vector<tnn::StageLoadInfo> stage_load_info(this->num_stages_);
     std::map<std::string, LoadTracker> load_trackers;
 
-    // First pass: collect all load trackers by stage name
+    // Collect load trackers by stage id
     for (const auto &load_msg : load_messages) {
       if (load_msg.has_binary()) {
         try {
@@ -377,130 +375,6 @@ public:
                     << ": " << e.what() << "\n";
         }
       }
-    }
-
-    // Second pass: map load trackers to stage indices
-    for (size_t i = 0; i < stage_names_.size(); ++i) {
-      const std::string &stage_name = stage_names_[i];
-      auto it = load_trackers.find(stage_name);
-      if (it != load_trackers.end()) {
-        stage_load_info[i].avg_forward_time_ms = it->second.avg_forward_time_;
-        stage_load_info[i].avg_backward_time_ms = it->second.avg_backward_time_;
-        stage_load_info[i].compute_throughput_score();
-      } else {
-        std::cerr << "Warning: No load data found for stage " << stage_name
-                  << ". Using default throughput score.\n";
-        stage_load_info[i].throughput_score = 1.0f;
-      }
-    }
-
-    // Check convergence conditions before proceeding
-    if (should_skip_load_balancing(stage_load_info)) {
-      update_load_balancing_state(stage_load_info);
-      return;
-    }
-
-    // Collect current parameters from all stages before repartitioning
-    std::cout << "Collecting current parameters from stages...\n";
-    if (!collect_current_parameters()) {
-      std::cerr << "Warning: Failed to collect current parameters. Load balancing aborted.\n";
-      return;
-    }
-
-    try {
-      std::vector<size_t> input_shape = {64, 3, 32, 32}; // Default CIFAR-10 like shape
-
-      auto new_partitions = tnn::LoadAwarePartitioner::get_partitions(
-          this->model_, input_shape, static_cast<size_t>(this->num_stages_), stage_load_info);
-
-      // Check if partitions actually changed
-      bool partitions_changed = false;
-      if (new_partitions.size() != this->partitions_.size()) {
-        partitions_changed = true;
-      } else {
-        for (size_t i = 0; i < new_partitions.size(); ++i) {
-          if (new_partitions[i].start_layer != this->partitions_[i].start_layer ||
-              new_partitions[i].end_layer != this->partitions_[i].end_layer) {
-            partitions_changed = true;
-            break;
-          }
-        }
-      }
-
-      if (!partitions_changed) {
-        std::cout
-            << "Load balancing completed: No changes needed, current partitions are optimal.\n";
-        update_load_balancing_state(stage_load_info);
-        return;
-      }
-
-      std::cout << "Load balancing: Applying new partitions...\n";
-
-      // Print new partition layout
-      for (size_t i = 0; i < new_partitions.size(); ++i) {
-        std::cout << "  Stage " << stage_names_[i] << ": layers [" << new_partitions[i].start_layer
-                  << ", " << new_partitions[i].end_layer
-                  << ") - throughput_score=" << stage_load_info[i].throughput_score << "\n";
-      }
-
-      // Store old partitions for parameter diffing
-      std::vector<tnn::Partition> old_partitions = this->partitions_;
-
-      // Send new configurations to all stages
-      std::vector<std::future<bool>> config_futures;
-
-      for (size_t i = 0; i < stage_names_.size(); ++i) {
-        auto future = std::async(std::launch::async, [this, i, &new_partitions]() {
-          return this->send_config(stage_names_[i], new_partitions[i]);
-        });
-        config_futures.push_back(std::move(future));
-      }
-
-      // Wait for all configs to be sent
-      bool all_configs_sent = true;
-      for (auto &future : config_futures) {
-        if (!future.get()) {
-          all_configs_sent = false;
-        }
-      }
-
-      if (!all_configs_sent) {
-        std::cerr << "Warning: Failed to send all stage configurations during load balancing.\n";
-        return;
-      }
-
-      // Wait for configuration confirmations
-      if (!this->wait_for_config_received()) {
-        std::cerr << "Warning: Not all stages confirmed new configuration during load balancing.\n";
-        return;
-      }
-
-      // Update stored partitions only after successful config
-      this->partitions_ = new_partitions;
-
-      // Send parameters only to stages that need them (smart parameter updates)
-      std::cout << "Sending updated parameters to affected stages...\n";
-      if (!send_updated_parameters(old_partitions, new_partitions)) {
-        std::cerr << "Warning: Failed to send all updated parameters during load balancing.\n";
-        return;
-      }
-
-      // Wait for parameter loading confirmations
-      if (!this->wait_for_params_loaded()) {
-        std::cerr << "Warning: Not all stages confirmed parameter loading during load balancing.\n";
-        return;
-      }
-
-      // Update load balancing state
-      update_load_balancing_state(stage_load_info);
-      consecutive_no_change_count_ = 0; // Reset on successful change
-
-      std::cout << "Load balancing completed successfully!\n";
-
-    } catch (const std::exception &e) {
-      std::cerr << "Error during load balancing: " << e.what() << "\n";
-      std::cerr << "Keeping current partitions.\n";
-      update_load_balancing_state(stage_load_info);
     }
   }
 
@@ -647,58 +521,6 @@ public:
     return join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
   }
 
-  /**
-   * @brief Checks if load balancing should be skipped due to convergence or timing constraints.
-   * @param current_load_info The current load information from all stages
-   * @return true if load balancing should be skipped, false if it should proceed
-   */
-  bool should_skip_load_balancing(const std::vector<tnn::StageLoadInfo> &current_load_info) {
-    // Check if we have previous load info to compare against
-    if (last_load_info_.empty() || last_load_info_.size() != current_load_info.size()) {
-      std::cout << "No previous load info available, proceeding with load balancing\n";
-      return false;
-    }
-
-    // Calculate load improvement
-    double total_old_time = 0.0, total_new_time = 0.0;
-    for (size_t i = 0; i < current_load_info.size(); ++i) {
-      total_old_time +=
-          last_load_info_[i].avg_forward_time_ms + last_load_info_[i].avg_backward_time_ms;
-      total_new_time +=
-          current_load_info[i].avg_forward_time_ms + current_load_info[i].avg_backward_time_ms;
-    }
-
-    if (total_old_time > 0.0) {
-      double improvement = (total_old_time - total_new_time) / total_old_time;
-      std::cout << "Load improvement since last balance: " << (improvement * 100.0) << "%\n";
-
-      if (std::abs(improvement) < LOAD_IMPROVEMENT_THRESHOLD) {
-        consecutive_no_change_count_++;
-        std::cout << "Load improvement below threshold (" << (LOAD_IMPROVEMENT_THRESHOLD * 100.0)
-                  << "%), consecutive count: " << consecutive_no_change_count_ << "\n";
-
-        if (consecutive_no_change_count_ >= MAX_CONSECUTIVE_NO_CHANGE) {
-          std::cout << "Skipping load balancing: No significant improvement for "
-                    << consecutive_no_change_count_ << " consecutive attempts\n";
-          return true;
-        }
-      } else {
-        consecutive_no_change_count_ = 0; // Reset counter on improvement
-      }
-    }
-
-    return false;
-  }
-
-  /**
-   * @brief Updates load balancing state after a balancing operation.
-   * @param load_info The load information used for this balancing operation
-   */
-  void update_load_balancing_state(const std::vector<tnn::StageLoadInfo> &load_info) {
-    last_load_info_ = load_info;
-    last_balance_time_ = std::chrono::steady_clock::now();
-  }
-
 protected:
   /**
    * @brief Sends configuration to a specific stage
@@ -751,13 +573,6 @@ protected:
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
   std::thread message_thread_;
-
-  // Load balancing state tracking
-  std::vector<tnn::StageLoadInfo> last_load_info_;
-  std::chrono::steady_clock::time_point last_balance_time_;
-  size_t consecutive_no_change_count_ = 0;
-  static constexpr double LOAD_IMPROVEMENT_THRESHOLD = 0.05; // 5% improvement required
-  static constexpr size_t MAX_CONSECUTIVE_NO_CHANGE = 3;
 
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;

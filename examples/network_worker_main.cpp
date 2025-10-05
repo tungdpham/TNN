@@ -21,7 +21,7 @@ int main(int argc, char *argv[]) {
   }
 
 #ifdef USE_TBB
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(8));
+  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(4));
 
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
 #ifdef USE_MKL

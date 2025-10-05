@@ -274,57 +274,6 @@ uint64_t DenseLayer<T>::backward_flops(const std::vector<size_t> &input_shape) c
 }
 
 template <typename T>
-uint64_t DenseLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
-  size_t batch_size = input_shape[0];
-  size_t bytes_per_element = sizeof(T);
-
-  uint64_t input_bytes = batch_size * input_features_ * bytes_per_element;
-
-  uint64_t weight_bytes = output_features_ * input_features_ * bytes_per_element;
-
-  uint64_t bias_bytes = use_bias_ ? (output_features_ * bytes_per_element) : 0;
-
-  uint64_t output_bytes = batch_size * output_features_ * bytes_per_element;
-
-  return input_bytes + weight_bytes + bias_bytes + output_bytes;
-}
-
-template <typename T>
-uint64_t DenseLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
-  size_t batch_size = input_shape[0];
-  size_t bytes_per_element = sizeof(T);
-
-  uint64_t output_grad_bytes = batch_size * output_features_ * bytes_per_element;
-
-  uint64_t input_bytes = batch_size * input_features_ * bytes_per_element;
-
-  uint64_t weight_bytes = output_features_ * input_features_ * bytes_per_element;
-
-  uint64_t weight_grad_bytes = output_features_ * input_features_ * bytes_per_element;
-
-  uint64_t bias_grad_bytes = use_bias_ ? (output_features_ * bytes_per_element) : 0;
-
-  uint64_t input_grad_bytes = batch_size * input_features_ * bytes_per_element;
-
-  return output_grad_bytes + input_bytes + weight_bytes + weight_grad_bytes + bias_grad_bytes +
-         input_grad_bytes;
-}
-
-template <typename T>
-double DenseLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
-  uint64_t flops = forward_flops(input_shape);
-  uint64_t memory_bytes = forward_memory_traffic(input_shape);
-  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
-}
-
-template <typename T>
-double DenseLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
-  uint64_t flops = backward_flops(input_shape);
-  uint64_t memory_bytes = backward_memory_traffic(input_shape);
-  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
-}
-
-template <typename T>
 uint64_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
 
   return static_cast<uint64_t>(

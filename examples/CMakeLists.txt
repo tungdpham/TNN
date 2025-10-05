@@ -7,7 +7,6 @@ create_executable(uji_ips_trainer uji_ips_trainer.cpp)
 
 # Examples
 create_executable(hardware_info_example hardware_info_example.cpp)
-create_executable(load_aware_partitioner_example load_aware_partitioner_example.cpp)
 
 # Eval executables
 create_executable(mnist_cnn_test mnist_cnn_test.cpp)

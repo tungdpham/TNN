@@ -25,8 +25,8 @@ namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 64;
-constexpr int NUM_MICROBATCHES = 1;
-constexpr int NUM_EPOCHS = 1;
+constexpr int NUM_MICROBATCHES = 2;
+constexpr int NUM_EPOCHS = 5;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
 
@@ -257,9 +257,33 @@ int main() {
 
   Tensor<float> batch_data, batch_labels;
 
-  train_semi_async_epoch(coordinator, train_loader);
+#ifdef USE_MKL
+  std::cout << "Setting MKL number of threads to: " << 8 << std::endl;
+  mkl_set_threading_layer(MKL_THREADING_TBB);
+#endif
 
-  validate_semi_async_epoch(coordinator, test_loader);
+#ifdef USE_TBB
+  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(2));
+  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
+  arena.execute([&]() {
+#endif
+    for (size_t epoch = 0; epoch < semi_async_constants::NUM_EPOCHS; ++epoch) {
+      std::cout << "\n=== Epoch " << (epoch + 1) << "/" << semi_async_constants::NUM_EPOCHS
+                << " ===" << std::endl;
+      train_loader.reset();
+      test_loader.reset();
+
+      train_loader.shuffle();
+
+      train_semi_async_epoch(coordinator, train_loader);
+
+      validate_semi_async_epoch(coordinator, test_loader);
+
+      train_loader.prepare_batches(semi_async_constants::BATCH_SIZE);
+    }
+#ifdef USE_TBB
+  });
+#endif
   return 0;
 }
 

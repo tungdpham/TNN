@@ -133,67 +133,6 @@ uint64_t DropoutLayer<T>::backward_flops(const std::vector<size_t> &input_shape)
 }
 
 template <typename T>
-uint64_t DropoutLayer<T>::forward_memory_traffic(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-  size_t bytes_per_element = sizeof(T);
-
-  uint64_t input_bytes = num_elements * bytes_per_element;
-
-  uint64_t output_bytes = num_elements * bytes_per_element;
-
-  if (!this->is_training_) {
-
-    return input_bytes + output_bytes;
-  }
-
-  uint64_t mask_bytes = num_elements * bytes_per_element;
-
-  return input_bytes + output_bytes + mask_bytes;
-}
-
-template <typename T>
-uint64_t DropoutLayer<T>::backward_memory_traffic(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-  size_t bytes_per_element = sizeof(T);
-
-  if (!this->is_training_) {
-
-    return 2 * num_elements * bytes_per_element;
-  }
-
-  uint64_t input_grad_bytes = num_elements * bytes_per_element;
-
-  uint64_t mask_bytes = num_elements * bytes_per_element;
-
-  uint64_t output_grad_bytes = num_elements * bytes_per_element;
-
-  return input_grad_bytes + mask_bytes + output_grad_bytes;
-}
-
-template <typename T>
-double DropoutLayer<T>::forward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
-  uint64_t flops = forward_flops(input_shape);
-  uint64_t memory_bytes = forward_memory_traffic(input_shape);
-
-  if (memory_bytes == 0)
-    return 0.0;
-  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
-}
-
-template <typename T>
-double
-DropoutLayer<T>::backward_arithmetic_intensity(const std::vector<size_t> &input_shape) const {
-  uint64_t flops = backward_flops(input_shape);
-  uint64_t memory_bytes = backward_memory_traffic(input_shape);
-
-  if (memory_bytes == 0)
-    return 0.0;
-  return static_cast<double>(flops) / static_cast<double>(memory_bytes);
-}
-
-template <typename T>
 uint64_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
 
   return static_cast<uint64_t>(
