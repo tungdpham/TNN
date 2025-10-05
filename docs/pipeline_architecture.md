@@ -75,5 +75,4 @@ And you see the pattern, the task continue so on. An important note: After finis
 ## Semi-Asynchronous Training
 For semi-asynchronous training, it will happen the same as synchronous except each microbatch that get to the coordinator will have immediate loss computation and be backwarded.
 
-## Load balancing
-The most important of our proposed architecture.
+## Load balancing (Coming Soon)

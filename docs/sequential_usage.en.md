@@ -10,9 +10,25 @@ This guide covers how to use the `Sequential` class and `SequentialBuilder` to b
 - [Model Persistence](#model-persistence)
 - [Performance Monitoring](#performance-monitoring-optional)
 
-## Basic Sequential Class Usage
 
-### Creating a Model
+## SequentialBuilder for Automatic Shape Inference
+The sequential builder provides an intuitive way to define your model. 
+
+### Basic Usage Pattern
+```cpp
+auto model = tnn::SequentialBuilder<float>("model_name")
+    .input({channels, height, width})  // Set input shape first
+    .conv2d(out_channels, kernel_h, kernel_w, ...)  // Auto-infers input channels
+    .maxpool2d(pool_h, pool_w, ...)
+    .flatten()
+    .dense(output_features, ...)  // Auto-infers input features
+    .build();
+```
+
+
+## Manual Model Configuration
+
+### Manual Model Creation
 ```cpp
 // Create an empty sequential model
 tnn::Sequential<float> model("my_model_name");
@@ -27,30 +43,10 @@ model.add(std::make_unique<DenseLayer<float>>(128, 10, "linear"));
 // Insert layer at specific position
 model.insert(1, std::make_unique<DropoutLayer<float>>(0.5));
 
-// Remove layer by index
-model.remove(2);
-
-// Access layers
-Layer<float>& layer = model[0];  // or model.at(0)
-
 // Get model size
 size_t num_layers = model.size();
 ```
 
-## SequentialBuilder for Automatic Shape Inference
-
-The `SequentialBuilder` provides a fluent interface with automatic shape inference, eliminating the need to manually calculate input dimensions for each layer.
-
-### Basic Usage Pattern
-```cpp
-auto model = tnn::SequentialBuilder<float>("model_name")
-    .input({channels, height, width})  // Set input shape first
-    .conv2d(out_channels, kernel_h, kernel_w, ...)  // Auto-infers input channels
-    .maxpool2d(pool_h, pool_w, ...)
-    .flatten()
-    .dense(output_features, ...)  // Auto-infers input features
-    .build();
-```
 
 ### Layer Methods
 
@@ -203,7 +199,7 @@ model.clear_profiling_data();
 
 ### Model Information
 ```cpp
-// Print model architecture summary
+// Print model architecture summary with given input dimension
 model.print_summary({batch_size, channels, height, width});
 
 // Get parameter count
@@ -231,16 +227,18 @@ model.optimizer()->set_learning_rate(new_lr);
 
 // Build model with automatic shape inference
 auto model = tnn::SequentialBuilder<float>("mnist_classifier")
-    .input({1, 28, 28})                           // 1 channel, 28x28 image
-    .conv2d(32, 5, 5, 1, 1, 0, 0, "relu")        // 32 filters, 5x5 kernel, 1x1 stride, 0x0 padding
-    .maxpool2d(2, 2, 2, 2, 0, 0)                 // 2x2 pool, 2x2 stride, 0x0 padding
-    .conv2d(64, 5, 5, 1, 1, 0, 0, "relu")        // 64 filters, 5x5 kernel, 1x1 stride, 0x0 padding
-    .maxpool2d(2, 2, 2, 2)                       // 2x2 pooling, 2x2 stride, 0x0 padding
-    .flatten()                                    // Flatten for dense layers
-    .dense(128, "relu")                           // 128 output features
-    .dropout(0.5)                                 // 50% dropout 
-    .dense(10, "linear")                          // 10 output features, linear activation
-    .build();
+    .input({1, 28, 28})                                 // 1 channel, 28x28 image
+    .conv2d(32, 5, 5, 1, 1, 0, 0, true, "conv2d_1")     // 32 filters, 5x5 kernel, 1x1 stride, 0x0 padding
+    .activation("relu", "relu_1")                       // ReLU activation, manual name
+    .maxpool2d(2, 2, 2, 2, 0, 0)                        // 2x2 pool, 2x2 stride, 0x0 padding
+    .activation("sigmoid")                              // Sigmoid activation, manual name
+    .conv2d(64, 5, 5, 1, 1, 0, 0, false)                // 64 filters, 5x5 kernel, 1x1 stride, 0x0 padding
+    .maxpool2d(2, 2, 2, 2)                              // 2x2 pooling, 2x2 stride, 0x0 padding
+    .flatten()                                          // Flatten for dense layers
+    .dense(128, "relu")                                 // 128 output features with relu activation
+    .dropout(0.5)                                       // 50% dropout 
+    .dense(10, "linear")                                // 10 output features, linear activation
+    .build();                                           // returns a sequential class.
 
 // Configure training
 auto optimizer = std::make_unique<tnn::Adam<float>>(0.001f, 0.9f, 0.999f, 1e-8f);
@@ -260,14 +258,3 @@ for (int epoch = 0; epoch < epochs; ++epoch) {
 // Save trained model
 model.save_to_file("trained_model");
 ```
-
-## Key Benefits
-
-1. **Automatic Shape Inference**: No need to manually calculate dimensions between layers
-2. **Fluent Interface**: Chain layer additions with method chaining
-3. **Type Safety**: Template-based design ensures type consistency
-4. **Flexible Configuration**: Support for various optimizers and loss functions
-5. **Performance Monitoring**: Built-in profiling and debugging capabilities
-6. **Model Persistence**: Easy saving and loading of complete models
-
-This design makes building and training neural networks more intuitive while maintaining the flexibility needed for complex architectures.
