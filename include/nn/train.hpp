@@ -90,8 +90,8 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
                 << std::setprecision(4) << loss << ", Batch's Accuracy: " << std::setprecision(2)
                 << accuracy * 100.0f << "%" << std::endl;
     }
-    if (model.is_profiling_enabled()) {
-      // model.clear_profiling_data();
+    if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
+      model.clear_profiling_data();
     }
   }
   std::cout << std::endl;
@@ -152,17 +152,10 @@ void train_classification_model(tnn::Sequential<float> &model,
   std::vector<size_t> image_shape = train_loader.get_image_shape();
 
 #ifdef USE_MKL
-  std::cout << "Setting MKL number of threads to: " << 8 << std::endl;
   mkl_set_threading_layer(MKL_THREADING_TBB);
 #endif
 
   model.print_summary({config.batch_size, image_shape[0], image_shape[1], image_shape[2]});
-
-  auto [best_val_loss, best_val_accuracy] = validate_class_model(model, test_loader);
-
-  std::cout << "Initial validation - Loss: " << std::fixed << std::setprecision(4) << best_val_loss
-            << ", Accuracy: " << std::setprecision(2) << best_val_accuracy * 100.0f << "%"
-            << std::endl;
 
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
@@ -170,6 +163,12 @@ void train_classification_model(tnn::Sequential<float> &model,
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
   arena.execute([&] {
 #endif
+    auto [best_val_loss, best_val_accuracy] = validate_class_model(model, test_loader);
+
+    std::cout << "Initial validation - Loss: " << std::fixed << std::setprecision(4)
+              << best_val_loss << ", Accuracy: " << std::setprecision(2)
+              << best_val_accuracy * 100.0f << "%" << std::endl;
+
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;
 

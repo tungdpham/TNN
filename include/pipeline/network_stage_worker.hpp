@@ -215,21 +215,13 @@ private:
 template <typename T = float> class StandaloneNetworkWorker {
 public:
   /**
-   * @brief Run network worker with default settings (no E-core affinity)
-   * @param listen_port Port to listen on
-   * @return Exit code (0 for success)
-   */
-  static int run_worker(int listen_port) { return run_worker_with_affinity(listen_port, false); }
-
-  /**
    * @brief Run network worker with E-core affinity configuration
    * @param listen_port Port to listen on
    * @param use_ecore_affinity Whether to bind to E-cores
    * @param max_ecore_threads Maximum E-cores to use (-1 for all)
    * @return Exit code (0 for success)
    */
-  static int run_worker_with_affinity(int listen_port, bool use_ecore_affinity,
-                                      int max_ecore_threads = -1) {
+  static int run_worker(int listen_port, bool use_ecore_affinity, int max_ecore_threads = -1) {
     try {
       NetworkStageWorker<T> worker(listen_port, use_ecore_affinity, max_ecore_threads);
 

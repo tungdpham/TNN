@@ -29,6 +29,7 @@ constexpr size_t BATCH_SIZE = 64;
 constexpr int LR_DECAY_INTERVAL = 3;
 constexpr float LR_DECAY_FACTOR = 0.85f;
 constexpr float LR_INITIAL = 0.001f;
+constexpr int NUM_THREADS = 8;
 } // namespace cifar10_constants
 
 int main() {
@@ -132,7 +133,8 @@ int main() {
         model, train_loader, test_loader,
         {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
          cifar10_constants::LR_DECAY_FACTOR, cifar10_constants::LR_DECAY_INTERVAL,
-         cifar10_constants::PROGRESS_PRINT_INTERVAL, 4, ProfilerType::NORMAL});
+         cifar10_constants::PROGRESS_PRINT_INTERVAL, cifar10_constants::NUM_THREADS,
+         ProfilerType::NORMAL}); // Use default threads
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
   } catch (const std::exception &e) {

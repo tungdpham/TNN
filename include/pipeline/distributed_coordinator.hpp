@@ -193,6 +193,8 @@ public:
 
     is_deployed_ = true;
     std::cout << "All stages deployed and ready!\n";
+    // clear model
+    this->model_.clear();
     return true;
   }
 

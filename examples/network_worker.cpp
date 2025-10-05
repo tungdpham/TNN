@@ -8,6 +8,8 @@
 #include <oneapi/tbb/global_control.h>
 #include <oneapi/tbb/task_arena.h>
 
+constexpr int MAX_THREADS = 16;
+
 void print_usage(const char *program_name) {
   std::cout << "Usage: " << program_name << " <listen_port> [options]" << std::endl;
   std::cout << std::endl;
@@ -96,7 +98,10 @@ int main(int argc, char *argv[]) {
               << std::endl;
   }
 #ifdef USE_TBB
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(4));
+  // get system max threads
+  int max_threads = std::thread::hardware_concurrency();
+  max_threads = std::min(max_threads, MAX_THREADS);
+  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(max_threads));
 
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
 #ifdef USE_MKL
@@ -106,8 +111,8 @@ int main(int argc, char *argv[]) {
 #endif
   arena.execute([&] {
 #endif
-    tpipeline::StandaloneNetworkWorker<float>::run_worker_with_affinity(
-        listen_port, use_ecore_affinity, max_ecore_threads);
+    tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port, use_ecore_affinity,
+                                                          max_ecore_threads);
 #ifdef USE_TBB
   });
 #endif

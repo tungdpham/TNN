@@ -172,7 +172,10 @@ public:
       this->coordinator_comm_->send_message(update_msg);
     }
 
-    wait_for_parameter_updates();
+    bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
+    if (!success) {
+      std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
+    }
   }
 
   bool send_params(const std::string &stage_id, const tnn::Partition &partition) {
@@ -370,6 +373,9 @@ public:
           std::cout << "Received load report from " << load_msg.sender_id
                     << ": avg_forward_time=" << tracker.avg_forward_time_
                     << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
+          // NOTE: memory usage report is broken, needs some fixing. Just use top command for now.
+          // std::cout << "  avg_cpu_utilization=" << tracker.avg_cpu_utilization_
+          //           << "%, max_memory_usage=" << tracker.max_memory_usage_ << "MB\n";
         } catch (const std::exception &e) {
           std::cerr << "Warning: Failed to deserialize load data from " << load_msg.sender_id
                     << ": " << e.what() << "\n";
@@ -516,10 +522,6 @@ public:
   }
 
   bool wait_for_params_loaded() { return join(CommandType::PARAMS_LOADED, this->num_stages_, 30); }
-
-  bool wait_for_parameter_updates() {
-    return join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
-  }
 
 protected:
   /**

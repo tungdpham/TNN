@@ -15,7 +15,7 @@ services:
       - "8001:8001"
     networks:
       - dcnn-network
-    cpuset: "0-2,9"
+    cpuset: "0-3,8-19"
     depends_on:
       - dcnn-base
 
@@ -31,7 +31,7 @@ services:
       - "8002:8002"
     networks:
       - dcnn-network
-    cpuset: "3,10"
+    cpuset: "4-7,20-31"
     depends_on:
       - dcnn-base
 
@@ -55,7 +55,7 @@ services:
       - PROFILE=${PROFILE}
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
-    cpuset: "8"
+    cpuset: "0"
 
   semi-async-coordinator:
     profiles:
@@ -76,15 +76,15 @@ services:
       - COORDINATOR_HOST=semi-async-coordinator
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
-    cpuset: "8"
+    cpuset: "0,1"
   
   single-model:
     profiles:
       - single-model
     image: dcnn:latest
     container_name: dcnn-single-model
-    command: ["./bin/cifar10_cnn_trainer"]
-    cpuset: "0-8"
+    command: ["./bin/cifar10_cnn_trainer_v2"]
+    cpuset: "0-31"
     depends_on:
       - dcnn-base
 
