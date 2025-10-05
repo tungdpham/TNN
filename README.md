@@ -6,8 +6,8 @@
 You should have these dependencies for the main programs installed before building. Other dependencies and open-source frameworks are fetched directly from their repository for proper licensing and up-to-date builds.
 
 ```bash
-# Install Intel TBB (Required)
-sudo apt install libtbb-dev
+# General Dependencies
+sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev
 
 # Install Intel MKL (Recommended)
 # 1. Add oneAPI repository
@@ -18,9 +18,6 @@ sudo apt update
 sudo apt install intel-oneapi-mkl-devel
 # 3. Source environment variables
 source /opt/intel/oneapi/setvars.sh
-
-# For Python scripts (Optional, not related to our library), install the dependencies from requirements.txt
-pip install -r requirements.txt
 ```
 
 ## Build Instructions
