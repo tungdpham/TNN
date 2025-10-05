@@ -12,6 +12,6 @@ create_executable(hardware_info_example hardware_info_example.cpp)
 create_executable(mnist_cnn_test mnist_cnn_test.cpp)
 
 # Network executables
-create_executable(network_worker network_worker_main.cpp)
+create_executable(network_worker network_worker.cpp)
 create_executable(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
 create_executable(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)

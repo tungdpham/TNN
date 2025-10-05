@@ -1823,4 +1823,42 @@ bool HardwareInfo::update_macos_ram_usage() {
 }
 #endif
 
+std::vector<int> HardwareInfo::get_recommended_cpu_affinity(int thread_count) const {
+  std::vector<int> recommended_cores;
+
+  // Prefer E-cores for energy efficiency if available
+  if (efficiency_cores_ > 0) {
+    // Get E-core logical CPU IDs
+    for (size_t i = 0;
+         i < cores_.size() && static_cast<int>(recommended_cores.size()) < thread_count; ++i) {
+      if (!cores_[i].is_performance_core) {
+        recommended_cores.push_back(static_cast<int>(i));
+      }
+    }
+  }
+
+  // If we don't have enough E-cores or no E-cores available, use P-cores
+  if (static_cast<int>(recommended_cores.size()) < thread_count) {
+    for (size_t i = 0;
+         i < cores_.size() && static_cast<int>(recommended_cores.size()) < thread_count; ++i) {
+      if (cores_[i].is_performance_core) {
+        recommended_cores.push_back(static_cast<int>(i));
+      }
+    }
+  }
+
+  // If still not enough cores (shouldn't happen), fill with remaining logical cores
+  if (static_cast<int>(recommended_cores.size()) < thread_count) {
+    for (int i = 0; i < logical_cores_ && static_cast<int>(recommended_cores.size()) < thread_count;
+         ++i) {
+      if (std::find(recommended_cores.begin(), recommended_cores.end(), i) ==
+          recommended_cores.end()) {
+        recommended_cores.push_back(i);
+      }
+    }
+  }
+
+  return recommended_cores;
+}
+
 } // namespace utils
