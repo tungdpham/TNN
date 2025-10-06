@@ -27,7 +27,7 @@ namespace mnist_constants {
 
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 10;
+constexpr int EPOCHS = 5;
 constexpr size_t BATCH_SIZE = 64;
 constexpr int LR_DECAY_INTERVAL = 2;
 constexpr float LR_DECAY_FACTOR = 0.8f;
@@ -80,6 +80,7 @@ int main() {
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .flatten("flatten")
                      .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
+                     .activation("softmax", "softmax_output")
                      .build();
 
     auto optimizer =
@@ -89,6 +90,7 @@ int main() {
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
+    model.print_config();
     train_classification_model(
         model, train_loader, test_loader,
         {mnist_constants::EPOCHS, mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,

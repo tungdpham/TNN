@@ -183,6 +183,7 @@ void Softmax<T>::apply_softmax_spatial(Tensor<T> &tensor, size_t n, size_t h, si
     sum += tensor(n, c, h, w);
   }
 
+  sum = std::max(sum, T(1e-10));
   for (size_t c = 0; c < channels; ++c) {
     tensor(n, c, h, w) /= sum;
   }

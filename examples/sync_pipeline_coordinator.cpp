@@ -18,8 +18,8 @@ using namespace tpipeline;
 namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 128;
-constexpr int NUM_MICROBATCHES = 4;
+constexpr int BATCH_SIZE = 64;
+constexpr int NUM_MICROBATCHES = 1;
 constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace mnist_constants
@@ -182,7 +182,7 @@ int main() {
 
     std::vector<tpipeline::Task<float>> backward_tasks;
     for (auto &task : forward_tasks) {
-
+      task.data.apply_softmax();
       loss += loss_function->compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
       avg_accuracy +=
           utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);

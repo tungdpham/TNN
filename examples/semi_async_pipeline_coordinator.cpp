@@ -31,28 +31,28 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
 
 Sequential<float> create_mnist_trainer() {
-  auto model = SequentialBuilder<float>("mnist_cnn_model")
+  auto model = tnn::SequentialBuilder<float>("mnist_cnn_model")
                    .input({1, 28, 28})
-                   .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
-                   .batchnorm(1e-5f, 0.1f, true, "bn1")
-                   .activation("relu", "relu1")
-                   .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                   .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
-                   .batchnorm(1e-5f, 0.1f, true, "bn2")
-                   .activation("relu", "relu2")
-                   .conv2d(48, 5, 5, 1, 1, 0, 0, true, "conv3")
-                   .batchnorm(1e-5f, 0.1f, true, "bn3")
-                   .activation("relu", "relu3")
-                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+                   //  .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   //  .activation("relu", "relu1")
+                   //  .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+                   //  .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn2")
+                   //  .activation("relu", "relu2")
+                   //  .conv2d(48, 5, 5, 1, 1, 0, 0, true, "conv3")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn3")
+                   //  .activation("relu", "relu3")
+                   //  .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                    .flatten("flatten")
-                   .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
+                   .dense(10, "linear", true, "output")
                    .build();
 
   auto optimizer =
-      std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+      std::make_unique<tnn::Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
+  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
   model.set_loss_function(std::move(loss_function));
   return model;
 }
@@ -249,15 +249,15 @@ int main() {
 
   // get_cifar10_data_loaders(train_loader, test_loader);
 
-  auto aug_strategy = AugmentationBuilder<float>()
-                          .horizontal_flip(0.25f)
-                          .rotation(0.3f, 10.0f)
-                          .brightness(0.3f, 0.15f)
-                          .contrast(0.3f, 0.15f)
-                          .gaussian_noise(0.3f, 0.05f)
-                          .build();
-  std::cout << "Configuring data augmentation for training." << std::endl;
-  train_loader.set_augmentation(std::move(aug_strategy));
+  // auto aug_strategy = AugmentationBuilder<float>()
+  //                         .horizontal_flip(0.25f)
+  //                         .rotation(0.3f, 10.0f)
+  //                         .brightness(0.3f, 0.15f)
+  //                         .contrast(0.3f, 0.15f)
+  //                         .gaussian_noise(0.3f, 0.05f)
+  //                         .build();
+  // std::cout << "Configuring data augmentation for training." << std::endl;
+  // train_loader.set_augmentation(std::move(aug_strategy));
 
   Tensor<float> batch_data, batch_labels;
 
@@ -310,6 +310,18 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(semi_async_constants::NUM_MICROBATCHES);
 
+    // std::cout << "Microbatch inputs:" << std::endl;
+
+    // for (auto &mb : micro_batches) {
+    //   std::cout << "  Microbatch shape: " << mb.shape_str() << std::endl;
+    //   mb.print_data();
+    // }
+
+    // for (auto &mb : micro_batch_labels) {
+    //   std::cout << "  Microbatch label shape: " << mb.shape_str() << std::endl;
+    //   mb.print_data();
+    // }
+
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
@@ -334,6 +346,8 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
                 << std::endl;
       std::cout << "Parameter update completed in " << update_duration.count() << " microseconds"
                 << std::endl;
+      std::cout << "Average Loss after " << (batch_index + 1)
+                << " batches: " << (total_loss / (batch_index + 1)) << std::endl;
       std::cout << "Batch " << batch_index + 1 << "/"
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
       coordinator.balance_load();

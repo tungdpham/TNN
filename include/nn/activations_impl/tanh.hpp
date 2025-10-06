@@ -15,9 +15,9 @@ public:
   void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const override;
   void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const override;
 
-  Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+  Tensor<T> compute_gradient(const Tensor<T> &input,
                              const Tensor<T> *upstream_gradient = nullptr) const override;
-  void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+  void compute_gradient_inplace(const Tensor<T> &input,
                                 Tensor<T> &upstream_gradient) const override;
 
   void apply_channel_wise(Tensor<T> &tensor, int channel) const override;

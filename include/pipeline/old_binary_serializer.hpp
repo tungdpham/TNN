@@ -47,7 +47,6 @@ public:
 
   template <typename T>
   static Tensor<T> deserialize_tensor(const std::vector<uint8_t> &buffer, size_t &offset) {
-
     uint32_t shape_size = read_value<uint32_t>(buffer, offset);
     std::vector<size_t> shape(shape_size);
 

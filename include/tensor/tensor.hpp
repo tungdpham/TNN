@@ -88,7 +88,7 @@ private:
     if (ptr == nullptr) {
       throw std::bad_alloc();
     }
-#elif defined(__linux__) || defined(__unix__) 
+#elif defined(__linux__) || defined(__unix__)
     ptr = aligned_alloc(alignment, aligned_size);
     if (ptr == nullptr) {
       throw std::bad_alloc();
@@ -542,12 +542,18 @@ public:
     return result;
   }
 
+  /**
+   * @brief Slice the tensor along the batch dimension.
+   * @param start_batch Starting batch index (inclusive)
+   * @param end_batch Ending batch index (exclusive)
+   * @return A new tensor containing the sliced batches
+   */
   Tensor<T, L> slice_batch(size_t start_batch, size_t end_batch) const {
     if (end_batch > batch_size() || start_batch > end_batch) {
       throw std::invalid_argument("Invalid batch slice range");
     }
 
-    size_t new_batch_size = end_batch - start_batch + 1;
+    size_t new_batch_size = end_batch - start_batch;
     std::vector<size_t> new_shape(shape_, shape_ + dims_);
     new_shape[0] = new_batch_size;
     Tensor<T, L> result(new_shape);
@@ -646,25 +652,40 @@ public:
   }
 
   void apply_softmax() {
+    // Only supports 4D tensors (NCHW layout)
+    if (dims_ != 4) {
+      throw std::invalid_argument("apply_softmax() only supports 4D tensors");
+    }
+
     const size_t batch_size = shape_[0];
     const size_t num_classes = shape_[1];
+    const size_t height = shape_[2];
+    const size_t width = shape_[3];
 
+    // Apply softmax across channels at each spatial location
     for (size_t batch = 0; batch < batch_size; ++batch) {
-      float max_val = (*this)(batch, 0, 0, 0);
-      for (size_t j = 1; j < num_classes; ++j) {
-        max_val = std::max(max_val, (*this)(batch, j, 0, 0));
-      }
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          // Find max value for numerical stability
+          T max_val = (*this)(batch, 0, h, w);
+          for (size_t c = 1; c < num_classes; ++c) {
+            max_val = std::max(max_val, (*this)(batch, c, h, w));
+          }
 
-      float sum = 0.0f;
-      for (size_t j = 0; j < num_classes; ++j) {
-        const float exp_val = std::exp((*this)(batch, j, 0, 0) - max_val);
-        (*this)(batch, j, 0, 0) = exp_val;
-        sum += exp_val;
-      }
+          // Apply exp and sum
+          T sum = T(0);
+          for (size_t c = 0; c < num_classes; ++c) {
+            const T exp_val = std::exp((*this)(batch, c, h, w) - max_val);
+            (*this)(batch, c, h, w) = exp_val;
+            sum += exp_val;
+          }
 
-      const float inv_sum = 1.0f / std::max(sum, 1e-8f);
-      for (size_t j = 0; j < num_classes; ++j) {
-        (*this)(batch, j, 0, 0) *= inv_sum;
+          // Normalize with numerical stability protection
+          const T inv_sum = T(1) / std::max(sum, static_cast<T>(1e-8));
+          for (size_t c = 0; c < num_classes; ++c) {
+            (*this)(batch, c, h, w) *= inv_sum;
+          }
+        }
       }
     }
   }
@@ -682,7 +703,7 @@ public:
       size_t end = (i == num_splits - 1) ? batch_size() : start + split_size;
 
       if constexpr (dims_ == 4) {
-        splits.emplace_back(slice_batch(start, end - 1));
+        splits.emplace_back(slice_batch(start, end));
       } else {
         throw std::runtime_error("Unsupported tensor dimensionality for splitting");
       }

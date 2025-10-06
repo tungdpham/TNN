@@ -17,9 +17,9 @@ public:
   virtual void apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const = 0;
   virtual void apply_with_scalar_bias(Tensor<T> &tensor, T bias) const = 0;
 
-  virtual Tensor<T> compute_gradient(const Tensor<T> &pre_activation_values,
+  virtual Tensor<T> compute_gradient(const Tensor<T> &input,
                                      const Tensor<T> *upstream_gradient = nullptr) const = 0;
-  virtual void compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+  virtual void compute_gradient_inplace(const Tensor<T> &input,
                                         Tensor<T> &upstream_gradient) const = 0;
 
   virtual void apply_channel_wise(Tensor<T> &tensor, int channel) const = 0;

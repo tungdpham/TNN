@@ -305,7 +305,6 @@ public:
           ++processed_microbatches_;
 
           const Task<T> &task = forward_msg.get_task();
-
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
           float loss = this->compute_loss(predictions, targets);

@@ -288,6 +288,7 @@ protected:
       this->model_ = std::make_unique<tnn::Sequential<T>>(
           tnn::Sequential<T>::load_from_config(config.model_config));
 
+      this->model_->print_config();
       this->model_->enable_profiling(true);
 
       std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';

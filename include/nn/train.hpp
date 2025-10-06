@@ -66,7 +66,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
     ++num_batches;
 
     predictions = model.forward(batch_data);
-    predictions.apply_softmax();
+    // predictions.apply_softmax();
 
     const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
     const float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
@@ -116,7 +116,7 @@ ClassResult validate_class_model(tnn::Sequential<float> &model,
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
     predictions = model.forward(batch_data);
-    predictions.apply_softmax();
+    // predictions.apply_softmax();
 
     val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
     val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
