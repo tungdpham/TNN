@@ -142,9 +142,6 @@ for (int epoch = 0; epoch < num_epochs; ++epoch) {
         
         Tensor<float> predictions = model.forward(batch_data);
         
-        // Apply softmax for classification
-        utils::apply_softmax<float>(predictions);
-        
         // Compute loss (for monitoring)
         float loss = model.loss_function()->compute_loss(predictions, batch_labels);
         
