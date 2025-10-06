@@ -32,7 +32,7 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 
 Sequential<float> create_mnist_trainer() {
   auto model = SequentialBuilder<float>("mnist_cnn_model")
-                   .input({1, 32, 32})
+                   .input({1, 28, 28})
                    .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
@@ -199,12 +199,14 @@ void get_mnist_data_loaders(data_loading::MNISTDataLoader<float> &train_loader,
 }
 
 ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
-                                   CIFAR10DataLoader<float> &train_loader);
+                                   ImageDataLoader<float> &train_loader);
 ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
-                                      CIFAR10DataLoader<float> &test_loader);
+                                      ImageDataLoader<float> &test_loader);
 
 int main() {
-  auto model = create_cifar10_trainer_v2();
+  // auto model = create_cifar10_trainer_v2();
+
+  auto model = create_mnist_trainer();
 
   model.print_config();
 
@@ -239,11 +241,13 @@ int main() {
 
   coordinator.start();
 
-  // data_loading::MNISTDataLoader<float> train_loader, test_loader;
+  data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
-  data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
+  get_mnist_data_loaders(train_loader, test_loader);
 
-  get_cifar10_data_loaders(train_loader, test_loader);
+  // data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
+
+  // get_cifar10_data_loaders(train_loader, test_loader);
 
   auto aug_strategy = AugmentationBuilder<float>()
                           .horizontal_flip(0.25f)
@@ -288,7 +292,7 @@ int main() {
 }
 
 ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
-                                   CIFAR10DataLoader<float> &train_loader) {
+                                   ImageDataLoader<float> &train_loader) {
   Tensor<float> batch_data, batch_labels;
 
   size_t batch_index = 0;
@@ -348,7 +352,7 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
 }
 
 ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
-                                      CIFAR10DataLoader<float> &test_loader) {
+                                      ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
   double val_loss = 0.0;

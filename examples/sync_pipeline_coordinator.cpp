@@ -26,7 +26,7 @@ constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 
 Sequential<float> create_demo_model() {
   auto model = tnn::SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-                   .input({3, 32, 32})
+                   .input({1, 28, 28})
                    .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
                    .activation("relu", "relu1")
                    .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
