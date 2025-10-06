@@ -69,6 +69,7 @@ int main() {
                      .dense(512, "relu", true, "fc1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
                      .dense(100, "linear", true, "output")
+                     .activation("softmax", "softmax_output")
                      .build();
 
     auto optimizer =

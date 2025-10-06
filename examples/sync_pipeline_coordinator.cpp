@@ -35,6 +35,7 @@ Sequential<float> create_demo_model() {
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                    .flatten("flatten")
                    .dense(10, "linear", true, "fc1")
+                   .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer =
