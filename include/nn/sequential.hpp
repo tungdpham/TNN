@@ -42,8 +42,8 @@ private:
 
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
-  std::map<std::string, int64_t> forward_times_microseconds_;
-  std::map<std::string, int64_t> backward_times_microseconds_;
+  std::map<std::string, uint64_t> forward_times_microseconds_;
+  std::map<std::string, uint64_t> backward_times_microseconds_;
 
   // Helper function to distribute optimizer whenever it changes
   void distribute_optimizer_to_layers() {
@@ -287,7 +287,7 @@ public:
   /**
    * @brief Returns the recorded forward times for each layer in milliseconds.
    */
-  std::map<std::string, int64_t> get_forward_times() const {
+  std::map<std::string, uint64_t> get_forward_times() const {
     std::lock_guard<std::mutex> lock(forward_times_mutex_);
     return forward_times_microseconds_;
   }
@@ -295,7 +295,7 @@ public:
   /**
    * @brief Returns the recorded backward times for each layer in milliseconds.
    */
-  std::map<std::string, int64_t> get_backward_times() const {
+  std::map<std::string, uint64_t> get_backward_times() const {
     std::lock_guard<std::mutex> lock(backward_times_mutex_);
     return backward_times_microseconds_;
   }
@@ -312,8 +312,8 @@ public:
     }
 
     // Create thread-safe copies of the timing maps
-    std::map<std::string, int64_t> forward_times_copy;
-    std::map<std::string, int64_t> backward_times_copy;
+    std::map<std::string, uint64_t> forward_times_copy;
+    std::map<std::string, uint64_t> backward_times_copy;
 
     {
       std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
@@ -337,7 +337,7 @@ public:
               << std::setw(15) << "Backward (ms)" << std::setw(15) << "Total (ms)" << "\n";
     std::cout << std::string(70, '-') << "\n";
 
-    int64_t total_forward = 0, total_backward = 0;
+    uint64_t total_forward = 0, total_backward = 0;
     for (size_t i = 0; i < layers_.size(); ++i) {
 
       std::string layer_name = layers_[i]->type();
@@ -346,19 +346,19 @@ public:
         layer_name = config.name;
       }
 
-      int64_t forward_time = 0;
+      uint64_t forward_time = 0;
       auto forward_it = forward_times_copy.find(layer_name);
       if (forward_it != forward_times_copy.end()) {
         forward_time = forward_it->second;
       }
 
-      int64_t backward_time = 0;
+      uint64_t backward_time = 0;
       auto backward_it = backward_times_copy.find(layer_name);
       if (backward_it != backward_times_copy.end()) {
         backward_time = backward_it->second;
       }
 
-      int64_t total_time = forward_time + backward_time;
+      uint64_t total_time = forward_time + backward_time;
 
       total_forward += forward_time;
       total_backward += backward_time;

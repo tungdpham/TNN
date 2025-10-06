@@ -61,7 +61,7 @@ public:
       this->coordinator_comm_->send_message(start_msg);
     }
 
-    message_thread_ = std::thread(&PipelineCoordinator::message_loop, this);
+    // message_thread_ = std::thread(&PipelineCoordinator::message_loop, this);
 
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
@@ -81,35 +81,6 @@ public:
     }
 
     std::cout << "Stopped all pipeline stages" << std::endl;
-  }
-
-  void message_loop() {
-    should_stop_ = false;
-    while (!should_stop_) {
-      std::unique_lock<std::mutex> lock(this->message_notification_mutex_);
-      this->message_notification_cv_.wait(
-          lock, [this]() { return this->coordinator_comm_->has_input_message() || should_stop_; });
-
-      if (should_stop_) {
-        std::cout << "Coordinator stopping message loop" << std::endl;
-        break;
-      }
-
-      // if (this->coordinator_comm_->message_count(CommandType::LOAD_REPORT) > 0) {
-      //   std::vector<Message<T>> load_messages =
-      //       this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
-
-      //   for (const auto &load_msg : load_messages) {
-      //     if (load_msg.has_binary()) {
-      //       std::vector<uint8_t> serialized_data = load_msg.get_binary();
-      //       LoadTracker tracker = LoadTracker::deserialize(serialized_data);
-      //       std::cout << "Received load report from " << load_msg.sender_id
-      //                 << ": avg_forward_time=" << tracker.avg_forward_time_
-      //                 << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
-      //     }
-      //   }
-      // }
-    }
   }
 
   void process_message(const Message<T> &message) {}
@@ -159,10 +130,28 @@ public:
    * @return The computed loss value.
    */
   float compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) {
-    if (!this->model_.loss_function()) {
-      throw std::runtime_error("No loss function defined in the model");
+    if (!loss_function_) {
+      throw std::runtime_error("Loss function is not set in the coordinator");
     }
-    return this->model_.loss_function()->compute_loss(predictions, targets);
+    return loss_function_->compute_loss(predictions, targets);
+  }
+
+  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
+    if (!loss) {
+      throw std::invalid_argument("Loss function cannot be null");
+    }
+    loss_function_ = std::move(loss);
+  }
+
+  /**
+   * @brief Computes gradient of the loss with respect to predictions using the model's loss
+   * function.
+   */
+  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) {
+    if (!loss_function_) {
+      throw std::runtime_error("Loss function is not set in the coordinator");
+    }
+    return loss_function_->compute_gradient(predictions, targets);
   }
 
   void update_parameters() {
@@ -200,7 +189,8 @@ public:
   }
 
   /**
-   * @brief Intelligently sends parameters only to stages that need them based on partition changes.
+   * @brief Intelligently sends parameters only to stages that need them based on partition
+   * changes.
    * @param old_partitions The previous partition configuration
    * @param new_partitions The new partition configuration
    * @return true if all necessary parameters were sent successfully, false otherwise
@@ -289,8 +279,8 @@ public:
 
     float total_loss = 0.0f;
 
-    // Assuming no microbatch are lost during transmission/processing. May need additional handling
-    // for production use.
+    // Assuming no microbatch are lost during transmission/processing. May need additional
+    // handling for production use.
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
@@ -307,10 +297,9 @@ public:
           const Task<T> &task = forward_msg.get_task();
           Tensor<T> predictions = task.data;
           Tensor<T> targets = microbatch_labels[task.micro_batch_id];
-          float loss = this->compute_loss(predictions, targets);
+          float loss = loss_function_->compute_loss(predictions, targets);
           total_loss += loss;
-          Tensor<T> gradient = this->model_.loss_function()->compute_gradient(predictions, targets);
-
+          Tensor<T> gradient = loss_function_->compute_gradient(predictions, targets);
           this->backward(gradient, task.micro_batch_id);
         }
       }
@@ -406,10 +395,6 @@ public:
       auto clear_msg = Message<T>::create_control_message(CommandType::CLEAR_PROFILING,
                                                           "coordinator", stage_name);
       this->coordinator_comm_->send_message(clear_msg);
-    }
-    bool all_cleared = join(CommandType::PROFILING_CLEARED, this->num_stages_, 30);
-    if (!all_cleared) {
-      std::cerr << "Warning: Not all stages confirmed profiling clear within timeout.\n";
     }
   }
 
@@ -571,6 +556,7 @@ protected:
   bool should_stop_ = true;
   tnn::Sequential<T> model_;
   std::shared_ptr<PipelineCommunicator<T>> coordinator_comm_;
+  std::unique_ptr<tnn::Loss<T>> loss_function_;
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
   std::thread message_thread_;

@@ -276,7 +276,6 @@ Conv2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) con
 }
 
 template <typename T> void Conv2DLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
-  params.reserve(use_bias_ ? 2 : 1);
   params.push_back(&weights_);
   if (use_bias_) {
     params.push_back(&bias_);
@@ -284,7 +283,6 @@ template <typename T> void Conv2DLayer<T>::collect_parameters(std::vector<Tensor
 }
 
 template <typename T> void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
-  grads.reserve(use_bias_ ? 2 : 1);
   grads.push_back(&weight_gradients_);
   if (use_bias_) {
     grads.push_back(&bias_gradients_);

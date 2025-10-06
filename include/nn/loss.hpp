@@ -23,8 +23,7 @@ struct LossConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -41,10 +40,8 @@ template <typename T = float> class Loss {
 public:
   virtual ~Loss() = default;
 
-  virtual T compute_loss(const Tensor<T> &predictions,
-                         const Tensor<T> &targets) = 0;
-  virtual Tensor<T> compute_gradient(const Tensor<T> &predictions,
-                                     const Tensor<T> &targets) = 0;
+  virtual T compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) = 0;
+  virtual Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) = 0;
 
   virtual std::string name() const = 0;
   virtual LossConfig get_config() const = 0;
@@ -57,11 +54,9 @@ public:
 
 template <typename T = float> class CrossEntropyLoss : public Loss<T> {
 public:
-  explicit CrossEntropyLoss(T epsilon = static_cast<T>(1e-15))
-      : epsilon_(epsilon) {}
+  explicit CrossEntropyLoss(T epsilon = static_cast<T>(1e-15)) : epsilon_(epsilon) {}
 
-  T compute_loss(const Tensor<T> &predictions,
-                 const Tensor<T> &targets) override {
+  T compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     const size_t batch_size = predictions.shape()[0];
     const size_t num_classes = predictions.shape()[1];
 
@@ -70,8 +65,8 @@ public:
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < num_classes; ++j) {
         if (targets(i, j, 0, 0) > static_cast<T>(0.5)) {
-          const T pred = std::clamp(predictions(i, j, 0, 0), epsilon_,
-                                    static_cast<T>(1.0) - epsilon_);
+          const T pred =
+              std::clamp(predictions(i, j, 0, 0), epsilon_, static_cast<T>(1.0) - epsilon_);
           total_loss -= std::log(pred);
           break;
         }
@@ -81,17 +76,15 @@ public:
     return static_cast<T>(total_loss / batch_size);
   }
 
-  Tensor<T> compute_gradient(const Tensor<T> &predictions,
-                             const Tensor<T> &targets) override {
-    Tensor<T> gradient = predictions;
+  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
+    Tensor<T> gradient = predictions.clone();
     const size_t batch_size = predictions.shape()[0];
     const size_t num_classes = predictions.shape()[1];
     const T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < num_classes; ++j) {
-        gradient(i, j, 0, 0) =
-            (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * inv_batch_size;
+        gradient(i, j, 0, 0) = (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * inv_batch_size;
       }
     }
 
@@ -120,8 +113,7 @@ template <typename T = float> class MSELoss : public Loss<T> {
 public:
   MSELoss() = default;
 
-  T compute_loss(const Tensor<T> &predictions,
-                 const Tensor<T> &targets) override {
+  T compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 
@@ -137,18 +129,15 @@ public:
     return static_cast<T>(total_loss / (batch_size * output_size));
   }
 
-  Tensor<T> compute_gradient(const Tensor<T> &predictions,
-                             const Tensor<T> &targets) override {
+  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     Tensor<T> gradient = predictions;
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
-    const T scale =
-        static_cast<T>(2.0) / static_cast<T>(batch_size * output_size);
+    const T scale = static_cast<T>(2.0) / static_cast<T>(batch_size * output_size);
 
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
-        gradient(i, j, 0, 0) =
-            (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * scale;
+        gradient(i, j, 0, 0) = (predictions(i, j, 0, 0) - targets(i, j, 0, 0)) * scale;
       }
     }
 
@@ -164,17 +153,14 @@ public:
     return config;
   }
 
-  std::unique_ptr<Loss<T>> clone() const override {
-    return std::make_unique<MSELoss<T>>();
-  }
+  std::unique_ptr<Loss<T>> clone() const override { return std::make_unique<MSELoss<T>>(); }
 };
 
 template <typename T = float> class MAELoss : public Loss<T> {
 public:
   MAELoss() = default;
 
-  T compute_loss(const Tensor<T> &predictions,
-                 const Tensor<T> &targets) override {
+  T compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 
@@ -189,13 +175,11 @@ public:
     return static_cast<T>(total_loss / (batch_size * output_size));
   }
 
-  Tensor<T> compute_gradient(const Tensor<T> &predictions,
-                             const Tensor<T> &targets) override {
+  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     Tensor<T> gradient = predictions;
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
-    const T scale =
-        static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
+    const T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
 
 #if defined(_OPENMP)
 #pragma omp parallel for if (batch_size > 32)
@@ -219,17 +203,14 @@ public:
     return config;
   }
 
-  std::unique_ptr<Loss<T>> clone() const override {
-    return std::make_unique<MAELoss<T>>();
-  }
+  std::unique_ptr<Loss<T>> clone() const override { return std::make_unique<MAELoss<T>>(); }
 };
 
 template <typename T = float> class HuberLoss : public Loss<T> {
 public:
   explicit HuberLoss(T delta = static_cast<T>(1.0)) : delta_(delta) {}
 
-  T compute_loss(const Tensor<T> &predictions,
-                 const Tensor<T> &targets) override {
+  T compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 
@@ -241,8 +222,7 @@ public:
         if (diff <= delta_) {
           total_loss += static_cast<double>(0.5 * diff * diff);
         } else {
-          total_loss +=
-              static_cast<double>(delta_ * diff - 0.5 * delta_ * delta_);
+          total_loss += static_cast<double>(delta_ * diff - 0.5 * delta_ * delta_);
         }
       }
     }
@@ -250,13 +230,11 @@ public:
     return static_cast<T>(total_loss / (batch_size * output_size));
   }
 
-  Tensor<T> compute_gradient(const Tensor<T> &predictions,
-                             const Tensor<T> &targets) override {
+  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
     Tensor<T> gradient = predictions;
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
-    const T scale =
-        static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
+    const T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
 
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
@@ -266,8 +244,7 @@ public:
         if (abs_diff <= delta_) {
           gradient(i, j, 0, 0) = diff * scale;
         } else {
-          gradient(i, j, 0, 0) =
-              (diff > static_cast<T>(0) ? delta_ : -delta_) * scale;
+          gradient(i, j, 0, 0) = (diff > static_cast<T>(0) ? delta_ : -delta_) * scale;
         }
       }
     }
@@ -285,9 +262,7 @@ public:
     return config;
   }
 
-  std::unique_ptr<Loss<T>> clone() const override {
-    return std::make_unique<HuberLoss<T>>(delta_);
-  }
+  std::unique_ptr<Loss<T>> clone() const override { return std::make_unique<HuberLoss<T>>(delta_); }
 
   void set_delta(T delta) { delta_ = delta; }
   T get_delta() const { return delta_; }
@@ -332,18 +307,13 @@ public:
     throw std::invalid_argument("Unknown loss type: " + config.type);
   }
 
-  static std::unique_ptr<Loss<T>>
-  create_crossentropy(T epsilon = static_cast<T>(1e-15)) {
+  static std::unique_ptr<Loss<T>> create_crossentropy(T epsilon = static_cast<T>(1e-15)) {
     return std::make_unique<CrossEntropyLoss<T>>(epsilon);
   }
 
-  static std::unique_ptr<Loss<T>> create_mse() {
-    return std::make_unique<MSELoss<T>>();
-  }
+  static std::unique_ptr<Loss<T>> create_mse() { return std::make_unique<MSELoss<T>>(); }
 
-  static std::unique_ptr<Loss<T>> create_mae() {
-    return std::make_unique<MAELoss<T>>();
-  }
+  static std::unique_ptr<Loss<T>> create_mae() { return std::make_unique<MAELoss<T>>(); }
 
   static std::unique_ptr<Loss<T>> create_huber(T delta = static_cast<T>(1.0)) {
     return std::make_unique<HuberLoss<T>>(delta);

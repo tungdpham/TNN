@@ -22,10 +22,10 @@ using namespace data_augmentation;
 using namespace data_loading;
 
 namespace semi_async_constants {
-constexpr float LR_INITIAL = 0.01f;
+constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 64;
-constexpr int NUM_MICROBATCHES = 2;
+constexpr int NUM_MICROBATCHES = 4;
 constexpr int NUM_EPOCHS = 5;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
@@ -53,8 +53,6 @@ Sequential<float> create_mnist_trainer() {
       std::make_unique<tnn::Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
 
-  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
-  model.set_loss_function(std::move(loss_function));
   return model;
 }
 
@@ -71,13 +69,11 @@ Sequential<float> create_cifar10_trainer_v1() {
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                    .flatten("flatten")
                    .dense(10, "linear", true, "fc1")
+                   .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer = std::make_unique<SGD<float>>(semi_async_constants::LR_INITIAL, 0.9f);
   model.set_optimizer(std::move(optimizer));
-
-  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
-  model.set_loss_function(std::move(loss_function));
   return model;
 }
 
@@ -85,50 +81,48 @@ Sequential<float> create_cifar10_trainer_v2() {
   auto model = SequentialBuilder<float>("cifar10_cnn_classifier")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv0")
-                   .batchnorm(1e-5f, 0.1f, true, "bn0")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn0")
                    .activation("relu", "relu0")
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
-                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
                    .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv2")
-                   .batchnorm(1e-5f, 0.1f, true, "bn2")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
                    .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv3")
-                   .batchnorm(1e-5f, 0.1f, true, "bn3")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn3")
                    .activation("relu", "relu3")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
                    .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv4")
-                   .batchnorm(1e-5f, 0.1f, true, "bn5")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn5")
                    .activation("relu", "relu5")
                    .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv5")
                    .activation("relu", "relu6")
                    .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv6")
-                   .batchnorm(1e-5f, 0.1f, true, "bn6")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn6")
                    .activation("relu", "relu6")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                    .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv7")
-                   .batchnorm(1e-5f, 0.1f, true, "bn8")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn8")
                    .activation("relu", "relu7")
                    .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv8")
-                   .batchnorm(1e-5f, 0.1f, true, "bn9")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn9")
                    .activation("relu", "relu8")
                    .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv9")
-                   .batchnorm(1e-5f, 0.1f, true, "bn10")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn10")
                    .activation("relu", "relu9")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
                    .flatten("flatten")
                    .dense(512, "linear", true, "fc0")
                    .activation("relu", "relu10")
                    .dense(10, "linear", true, "fc1")
+                   .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer =
       std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
-
-  auto loss_function = LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
-  model.set_loss_function(std::move(loss_function));
   return model;
 }
 
@@ -205,9 +199,13 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
                                       ImageDataLoader<float> &test_loader);
 
 int main() {
-  // auto model = create_cifar10_trainer_v2();
+  auto model = create_cifar10_trainer_v2();
 
-  auto model = create_mnist_trainer();
+  // auto model = create_cifar10_trainer_v1();
+
+  // auto model = create_mnist_trainer();
+
+  model.set_training(true);
 
   model.print_config();
 
@@ -230,6 +228,8 @@ int main() {
   DistributedPipelineCoordinator<float> coordinator(
       std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
+  auto loss_function = tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
+  coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
@@ -242,23 +242,23 @@ int main() {
 
   coordinator.start();
 
-  data_loading::MNISTDataLoader<float> train_loader, test_loader;
+  // data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
-  get_mnist_data_loaders(train_loader, test_loader);
+  // get_mnist_data_loaders(train_loader, test_loader);
 
-  // data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
+  data_loading::CIFAR10DataLoader<float> train_loader, test_loader;
 
-  // get_cifar10_data_loaders(train_loader, test_loader);
+  get_cifar10_data_loaders(train_loader, test_loader);
 
-  // auto aug_strategy = AugmentationBuilder<float>()
-  //                         .horizontal_flip(0.25f)
-  //                         .rotation(0.3f, 10.0f)
-  //                         .brightness(0.3f, 0.15f)
-  //                         .contrast(0.3f, 0.15f)
-  //                         .gaussian_noise(0.3f, 0.05f)
-  //                         .build();
-  // std::cout << "Configuring data augmentation for training." << std::endl;
-  // train_loader.set_augmentation(std::move(aug_strategy));
+  auto aug_strategy = AugmentationBuilder<float>()
+                          .horizontal_flip(0.25f)
+                          .rotation(0.3f, 10.0f)
+                          .brightness(0.3f, 0.15f)
+                          .contrast(0.3f, 0.15f)
+                          .gaussian_noise(0.3f, 0.05f)
+                          .build();
+  std::cout << "Configuring data augmentation for training." << std::endl;
+  train_loader.set_augmentation(std::move(aug_strategy));
 
   Tensor<float> batch_data, batch_labels;
 
@@ -270,6 +270,8 @@ int main() {
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(2));
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
+
+  // validate_semi_async_epoch(coordinator, test_loader);
   arena.execute([&]() {
 #endif
     for (size_t epoch = 0; epoch < semi_async_constants::NUM_EPOCHS; ++epoch) {
@@ -311,18 +313,6 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
     std::vector<Tensor<float>> micro_batch_labels =
         batch_labels.split(semi_async_constants::NUM_MICROBATCHES);
 
-    // std::cout << "Microbatch inputs:" << std::endl;
-
-    // for (auto &mb : micro_batches) {
-    //   std::cout << "  Microbatch shape: " << mb.shape_str() << std::endl;
-    //   mb.print_data();
-    // }
-
-    // for (auto &mb : micro_batch_labels) {
-    //   std::cout << "  Microbatch label shape: " << mb.shape_str() << std::endl;
-    //   mb.print_data();
-    // }
-
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
@@ -351,9 +341,6 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
                 << " batches: " << (total_loss / (batch_index + 1)) << std::endl;
       std::cout << "Batch " << batch_index + 1 << "/"
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
-      coordinator.balance_load();
-      coordinator.print_profiling_on_all_stages();
-      coordinator.clear_profiling_data();
     }
     ++batch_index;
   }
@@ -370,8 +357,8 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
                                       ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
-  double val_loss = 0.0;
-  double val_accuracy = 0.0;
+  float total_val_loss = 0.0f;
+  float total_val_correct = 0.0f;
   int val_batches = 0;
 
   while (test_loader.get_batch(semi_async_constants::BATCH_SIZE, batch_data, batch_labels)) {
@@ -404,21 +391,30 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
       }
     }
 
+    auto val_loss = 0.0f;
+    auto val_correct = 0.0f;
+
     for (auto &task : forward_tasks) {
-      task.data.apply_softmax();
       val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
-      val_accuracy += ::utils::compute_class_accuracy<float>(
+      val_correct += ::utils::compute_class_corrects<float>(
           task.data, micro_batch_labels[task.micro_batch_id]);
+      // print accuracy per micro-batch
+      std::cout << "Batch: " << val_batches << " Micro-batch " << task.micro_batch_id
+                << " accuracy: "
+                   "Micro-batch "
+                << task.micro_batch_id << " accuracy: "
+                << val_correct / micro_batch_labels[task.micro_batch_id].shape()[0] * 100.0f << "%"
+                << std::endl;
     }
+    total_val_loss += val_loss;
+    total_val_correct += val_correct;
     ++val_batches;
   }
 
   std::cout << "Validation completed." << std::endl;
-  std::cout << "Average Validation Loss: " << (val_loss / val_batches)
+  std::cout << "Average Validation Loss: " << (total_val_loss / val_batches)
             << ", Average Validation Accuracy: "
-            << (val_accuracy * 100.0f / val_batches / semi_async_constants::NUM_MICROBATCHES) << "%"
-            << std::endl;
-  return {static_cast<float>(val_loss / val_batches),
-          static_cast<float>(
-              (val_accuracy * 100.0f / val_batches / semi_async_constants::NUM_MICROBATCHES))};
+            << (total_val_correct / test_loader.size()) * 100.0f << "%" << std::endl;
+  return {static_cast<float>(total_val_loss / val_batches),
+          static_cast<float>((total_val_correct / test_loader.size()) * 100.0f)};
 }

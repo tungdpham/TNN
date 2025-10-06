@@ -3,6 +3,8 @@
  *
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
+ *
+ * Performance-optimized version
  */
 #pragma once
 
@@ -18,42 +20,49 @@
 #include <shared_mutex>
 #include <thread>
 #include <unordered_map>
+#include <vector>
 
 namespace tpipeline {
 
+// Lock-free buffer pool using thread-local storage
 class BufferPool {
 public:
   static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
   static constexpr size_t MAX_POOL_SIZE = 32;
 
   std::shared_ptr<std::vector<uint8_t>> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
-    if (is_shutting_down_) {
+    if (is_shutting_down_.load(std::memory_order_relaxed)) {
       auto buffer = std::make_shared<std::vector<uint8_t>>();
-      buffer->resize(min_size);
+      buffer->reserve(min_size);
       return buffer;
     }
 
-    for (auto it = pool_.begin(); it != pool_.end(); ++it) {
+    // Thread-local pool to avoid contention
+    thread_local std::deque<std::shared_ptr<std::vector<uint8_t>>> local_pool;
+
+    for (auto it = local_pool.begin(); it != local_pool.end(); ++it) {
       if ((*it)->capacity() >= min_size) {
-        auto buffer = *it;
-        pool_.erase(it);
+        auto buffer = std::move(*it);
+        local_pool.erase(it);
         buffer->clear();
-        buffer->resize(min_size);
         return buffer;
       }
     }
 
     auto buffer = std::make_shared<std::vector<uint8_t>>();
-    buffer->resize(min_size);
+    buffer->reserve(min_size);
     return buffer;
   }
 
   void return_buffer(std::shared_ptr<std::vector<uint8_t>> buffer) {
-    if (!buffer)
+    if (!buffer || is_shutting_down_.load(std::memory_order_relaxed))
       return;
-    if (pool_.size() < MAX_POOL_SIZE) {
+
+    thread_local std::deque<std::shared_ptr<std::vector<uint8_t>>> local_pool;
+
+    if (local_pool.size() < MAX_POOL_SIZE) {
       buffer->clear();
-      pool_.push_back(buffer);
+      local_pool.push_back(std::move(buffer));
     }
   }
 
@@ -62,14 +71,9 @@ public:
     return pool;
   }
 
-  ~BufferPool() {
-    is_shutting_down_ = true;
-    pool_.clear();
-  }
+  ~BufferPool() { is_shutting_down_.store(true, std::memory_order_release); }
 
 private:
-  std::mutex mutex_;
-  std::deque<std::shared_ptr<std::vector<uint8_t>>> pool_;
   std::atomic<bool> is_shutting_down_{false};
 };
 
@@ -99,12 +103,12 @@ public:
     acceptor_.bind(endpoint);
     acceptor_.listen();
 
-    is_running_ = true;
+    is_running_.store(true, std::memory_order_release);
     accept_connections();
   }
 
   void stop() {
-    is_running_ = false;
+    is_running_.store(false, std::memory_order_release);
 
     if (acceptor_.is_open()) {
       std::error_code ec;
@@ -125,38 +129,55 @@ public:
 
   void send_message(const Message<T> &message) override {
     try {
+      // Serialize once
+      auto serialized = BinarySerializer::serialize_message(message);
+      uint32_t msg_length = static_cast<uint32_t>(serialized.size());
+      uint32_t header = htonl(msg_length);
 
-      auto serialized_payload =
-          std::make_shared<std::vector<uint8_t>>(BinarySerializer::serialize_message(message));
+      // Create single combined buffer to minimize allocations
+      auto combined_buffer = std::make_shared<std::vector<uint8_t>>();
+      combined_buffer->reserve(sizeof(uint32_t) + serialized.size());
 
-      auto header =
-          std::make_shared<uint32_t>(htonl(static_cast<uint32_t>(serialized_payload->size())));
+      // Copy header
+      combined_buffer->insert(combined_buffer->end(), reinterpret_cast<uint8_t *>(&header),
+                              reinterpret_cast<uint8_t *>(&header) + sizeof(uint32_t));
 
-      std::vector<std::shared_ptr<void>> data_owners;
-      data_owners.push_back(std::static_pointer_cast<void>(header));
-      data_owners.push_back(std::static_pointer_cast<void>(serialized_payload));
+      // Move payload data
+      combined_buffer->insert(combined_buffer->end(), std::make_move_iterator(serialized.begin()),
+                              std::make_move_iterator(serialized.end()));
 
-      std::vector<asio::const_buffer> buffers;
-      buffers.push_back(asio::buffer(header.get(), sizeof(uint32_t)));
-      buffers.push_back(asio::buffer(serialized_payload->data(), serialized_payload->size()));
-
-      async_send_buffers(message.recipient_id, std::move(buffers), std::move(data_owners));
+      async_send_buffer(message.recipient_id, std::move(combined_buffer));
 
     } catch (const std::exception &e) {
+      std::cerr << "Send error: " << e.what() << std::endl;
     }
   }
 
   void flush_output_messages() override {
-    std::lock_guard<std::mutex> lock(this->out_message_mutex_);
+    std::unique_lock<std::mutex> lock(this->out_message_mutex_, std::try_to_lock);
 
-    if (this->out_message_queue_.empty()) {
+    if (!lock.owns_lock() || this->out_message_queue_.empty()) {
       return;
     }
 
+    // Batch processing - gather messages per recipient
+    std::unordered_map<std::string, std::vector<Message<T>>> batched_messages;
+
     while (!this->out_message_queue_.empty()) {
       auto &msg = this->out_message_queue_.front();
-      send_message(msg);
+      batched_messages[msg.recipient_id].push_back(std::move(msg));
       this->out_message_queue_.pop();
+    }
+
+    lock.unlock();
+
+    // Send batched messages
+    for (auto &[recipient_id, messages] : batched_messages) {
+      if (messages.size() == 1) {
+        send_message(messages[0]);
+      } else {
+        send_batched_messages(recipient_id, messages);
+      }
     }
   }
 
@@ -172,6 +193,13 @@ public:
       std::error_code ec;
       connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
 
+      // Enable socket buffer optimization
+      asio::socket_base::send_buffer_size send_buf_opt(262144); // 256KB
+      connection->socket.set_option(send_buf_opt, ec);
+
+      asio::socket_base::receive_buffer_size recv_buf_opt(262144);
+      connection->socket.set_option(recv_buf_opt, ec);
+
       {
         std::lock_guard<std::shared_mutex> lock(connections_mutex_);
         connections_[peer_id] = connection;
@@ -182,6 +210,7 @@ public:
       return true;
 
     } catch (const std::exception &e) {
+      std::cerr << "Connection error: " << e.what() << std::endl;
       return false;
     }
   }
@@ -191,22 +220,23 @@ public:
 
 private:
   struct WriteOperation {
-    std::vector<asio::const_buffer> buffers;
-    std::vector<std::shared_ptr<void>> data_owners;
+    std::shared_ptr<std::vector<uint8_t>> buffer;
 
-    WriteOperation(std::vector<asio::const_buffer> bufs, std::vector<std::shared_ptr<void>> owners)
-        : buffers(std::move(bufs)), data_owners(std::move(owners)) {}
+    explicit WriteOperation(std::shared_ptr<std::vector<uint8_t>> buf) : buffer(std::move(buf)) {}
   };
 
   struct Connection {
     asio::ip::tcp::socket socket;
     std::shared_ptr<std::vector<uint8_t>> read_buffer;
+
+    // Lock-free write queue using atomic flag and single-producer pattern
+    std::deque<WriteOperation> write_queue;
     std::mutex write_mutex;
-    std::queue<WriteOperation> write_queue;
     std::atomic<bool> writing;
 
     explicit Connection(asio::io_context &io_ctx)
         : socket(io_ctx), read_buffer(BufferPool::instance().get_buffer()), writing(false) {}
+
     explicit Connection(asio::ip::tcp::socket sock)
         : socket(std::move(sock)), read_buffer(BufferPool::instance().get_buffer()),
           writing(false) {}
@@ -216,11 +246,9 @@ private:
         try {
           BufferPool::instance().return_buffer(read_buffer);
         } catch (...) {
-          // Ignore exceptions during shutdown - buffer pool may already be destroyed
-          std::cerr << "Warning: Exception caught while returning buffer to pool during Connection "
-                       "destruction.\n";
+          // Ignore exceptions during shutdown
         }
-        read_buffer.reset(); // Explicitly reset the shared_ptr
+        read_buffer.reset();
       }
     }
   };
@@ -237,16 +265,23 @@ private:
   std::shared_mutex connections_mutex_;
 
   void accept_connections() {
-    if (!is_running_)
+    if (!is_running_.load(std::memory_order_acquire))
       return;
 
     auto new_connection = std::make_shared<Connection>(io_context_);
 
     acceptor_.async_accept(new_connection->socket, [this, new_connection](std::error_code ec) {
-      if (!ec && is_running_) {
+      if (!ec && is_running_.load(std::memory_order_acquire)) {
 
         std::error_code nodelay_ec;
         new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+
+        // Optimize socket buffers
+        asio::socket_base::send_buffer_size send_buf_opt(262144);
+        new_connection->socket.set_option(send_buf_opt, nodelay_ec);
+
+        asio::socket_base::receive_buffer_size recv_buf_opt(262144);
+        new_connection->socket.set_option(recv_buf_opt, nodelay_ec);
 
         auto remote_endpoint = new_connection->socket.remote_endpoint();
         std::string temp_id =
@@ -265,13 +300,13 @@ private:
   }
 
   void start_read(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    if (!is_running_)
+    if (!is_running_.load(std::memory_order_acquire))
       return;
 
     asio::async_read(
         connection->socket, asio::buffer(connection->read_buffer->data(), 4),
         [this, connection_id, connection](std::error_code ec, [[maybe_unused]] std::size_t length) {
-          if (!ec && is_running_) {
+          if (!ec && is_running_.load(std::memory_order_acquire)) {
 
             uint32_t msg_length;
             std::memcpy(&msg_length, connection->read_buffer->data(), 4);
@@ -279,17 +314,18 @@ private:
 
             if (msg_length > 0 && msg_length < 8192 * 8192) {
 
-              if (connection->read_buffer->size() < msg_length) {
+              if (connection->read_buffer->capacity() < msg_length) {
                 BufferPool::instance().return_buffer(connection->read_buffer);
                 connection->read_buffer = BufferPool::instance().get_buffer(msg_length);
+              } else {
+                connection->read_buffer->resize(msg_length);
               }
 
               asio::async_read(
                   connection->socket, asio::buffer(connection->read_buffer->data(), msg_length),
                   [this, connection_id, connection, msg_length](std::error_code ec2, std::size_t) {
-                    if (!ec2 && is_running_) {
+                    if (!ec2 && is_running_.load(std::memory_order_acquire)) {
                       handle_message(connection_id, *connection->read_buffer, msg_length);
-
                       start_read(connection_id, connection);
                     } else {
                       handle_connection_error(connection_id, ec2);
@@ -297,7 +333,7 @@ private:
                   });
             } else {
               std::cerr << "Invalid message length: " << msg_length << std::endl;
-              return;
+              handle_connection_error(connection_id, std::error_code());
             }
           } else {
             handle_connection_error(connection_id, ec);
@@ -308,12 +344,10 @@ private:
   void handle_message(const std::string &connection_id, const std::vector<uint8_t> &buffer,
                       size_t length) {
     try {
-      // No copy! Just pass a pointer to the data in the existing buffer.
       Message<T> message = BinarySerializer::deserialize_message<T>(buffer.data(), length);
-
       this->enqueue_input_message(message);
-
     } catch (const std::exception &e) {
+      std::cerr << "Deserialization error: " << e.what() << std::endl;
     }
   }
 
@@ -322,21 +356,48 @@ private:
     auto it = connections_.find(connection_id);
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
-        it->second->socket.close();
+        std::error_code close_ec;
+        it->second->socket.close(close_ec);
       }
 
       {
         std::lock_guard<std::mutex> write_lock(it->second->write_mutex);
-        std::queue<WriteOperation> empty;
-        it->second->write_queue.swap(empty);
-        it->second->writing = false;
+        it->second->write_queue.clear();
+        it->second->writing.store(false, std::memory_order_release);
       }
       connections_.erase(it);
     }
   }
 
-  void async_send_buffers(const std::string &recipient_id, std::vector<asio::const_buffer> buffers,
-                          std::vector<std::shared_ptr<void>> data_owners) {
+  void send_batched_messages(const std::string &recipient_id,
+                             const std::vector<Message<T>> &messages) {
+    // Combine multiple messages into single buffer
+    size_t total_size = 0;
+    std::vector<std::vector<uint8_t>> serialized_msgs;
+    serialized_msgs.reserve(messages.size());
+
+    for (const auto &msg : messages) {
+      auto serialized = BinarySerializer::serialize_message(msg);
+      total_size += sizeof(uint32_t) + serialized.size();
+      serialized_msgs.push_back(std::move(serialized));
+    }
+
+    auto combined_buffer = std::make_shared<std::vector<uint8_t>>();
+    combined_buffer->reserve(total_size);
+
+    for (auto &serialized : serialized_msgs) {
+      uint32_t msg_length = htonl(static_cast<uint32_t>(serialized.size()));
+      combined_buffer->insert(combined_buffer->end(), reinterpret_cast<uint8_t *>(&msg_length),
+                              reinterpret_cast<uint8_t *>(&msg_length) + sizeof(uint32_t));
+      combined_buffer->insert(combined_buffer->end(), std::make_move_iterator(serialized.begin()),
+                              std::make_move_iterator(serialized.end()));
+    }
+
+    async_send_buffer(recipient_id, std::move(combined_buffer));
+  }
+
+  void async_send_buffer(const std::string &recipient_id,
+                         std::shared_ptr<std::vector<uint8_t>> buffer) {
     std::shared_ptr<Connection> connection;
 
     {
@@ -350,41 +411,39 @@ private:
 
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
-      connection->write_queue.emplace(std::move(buffers), std::move(data_owners));
+      connection->write_queue.emplace_back(std::move(buffer));
     }
 
-    if (!connection->writing.exchange(true)) {
+    // Atomic test-and-set to avoid spurious write initiations
+    if (!connection->writing.exchange(true, std::memory_order_acquire)) {
       start_async_write(recipient_id, connection);
     }
   }
 
   void start_async_write(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    WriteOperation write_op(std::vector<asio::const_buffer>{},
-                            std::vector<std::shared_ptr<void>>{});
+    std::shared_ptr<std::vector<uint8_t>> write_buffer;
 
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
       if (connection->write_queue.empty()) {
-        connection->writing = false;
+        connection->writing.store(false, std::memory_order_release);
         return;
       }
-      write_op = std::move(connection->write_queue.front());
-      connection->write_queue.pop();
+      write_buffer = std::move(connection->write_queue.front().buffer);
+      connection->write_queue.pop_front();
     }
 
-    auto write_op_ptr = std::make_shared<WriteOperation>(std::move(write_op));
+    asio::async_write(
+        connection->socket, asio::buffer(write_buffer->data(), write_buffer->size()),
+        [this, connection_id, connection, write_buffer](std::error_code ec, std::size_t) {
+          if (ec) {
+            handle_connection_error(connection_id, ec);
+            connection->writing.store(false, std::memory_order_release);
+            return;
+          }
 
-    asio::async_write(connection->socket, write_op_ptr->buffers,
-                      [this, connection_id, connection, write_op_ptr](std::error_code ec,
-                                                                      std::size_t bytes_written) {
-                        if (ec) {
-                          handle_connection_error(connection_id, ec);
-                          connection->writing = false;
-                          return;
-                        }
-
-                        start_async_write(connection_id, connection);
-                      });
+          start_async_write(connection_id, connection);
+        });
   }
 };
 

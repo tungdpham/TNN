@@ -61,7 +61,7 @@ public:
       message_available_cv_.notify_all();
     });
 
-    monitoring_thread_ = std::thread(&PipelineStage::monitoring_loop, this);
+    // monitoring_thread_ = std::thread(&PipelineStage::monitoring_loop, this);
   }
 
   virtual void stop() {
@@ -111,7 +111,7 @@ protected:
   virtual void process_message(const tpipeline::Message<T> &message) {
     switch (message.command_type) {
     case CommandType::FORWARD_TASK: {
-      const Task<T> &forward_task = message.get_task();
+      const Task<T> forward_task = message.get_task();
       Tensor<T> output_data = this->model_->forward(forward_task.data, forward_task.micro_batch_id);
       Task<T> output_task(TaskType::FORWARD, std::move(output_data), forward_task.micro_batch_id);
 
@@ -121,7 +121,7 @@ protected:
       communicator_->send_message(output_message);
     } break;
     case CommandType::BACKWARD_TASK: {
-      const Task<T> &backward_task = message.get_task();
+      const Task<T> backward_task = message.get_task();
       Tensor<T> output_data =
           this->model_->backward(backward_task.data, backward_task.micro_batch_id);
       Task<T> output_task(TaskType::BACKWARD, std::move(output_data), backward_task.micro_batch_id);
@@ -241,16 +241,16 @@ protected:
       load_tracker_.avg_forward_time_ = 0;
       load_tracker_.avg_backward_time_ = 0;
     } else {
-      const std::map<std::string, int64_t> forward_times = model_->get_forward_times();
-      const std::map<std::string, int64_t> backward_times = model_->get_backward_times();
+      const std::map<std::string, uint64_t> forward_times = model_->get_forward_times();
+      const std::map<std::string, uint64_t> backward_times = model_->get_backward_times();
 
-      int64_t cummulative_forward_time = std::accumulate(
+      uint64_t cummulative_forward_time = std::accumulate(
           forward_times.begin(), forward_times.end(), 0LL,
-          [](int64_t sum, const std::pair<std::string, int64_t> &p) { return sum + p.second; });
+          [](uint64_t sum, const std::pair<std::string, uint64_t> &p) { return sum + p.second; });
 
-      int64_t cummulative_backward_time = std::accumulate(
+      uint64_t cummulative_backward_time = std::accumulate(
           backward_times.begin(), backward_times.end(), 0LL,
-          [](int64_t sum, const std::pair<std::string, int64_t> &p) { return sum + p.second; });
+          [](uint64_t sum, const std::pair<std::string, uint64_t> &p) { return sum + p.second; });
 
       load_tracker_.avg_forward_time_ =
           static_cast<float>(static_cast<double>(cummulative_forward_time) / 1000.0);
@@ -329,7 +329,7 @@ protected:
 
   utils::HardwareInfo cpu_info_;
   LoadTracker load_tracker_;
-  uint32_t update_interval = 1000;
+  uint32_t update_interval = 10000;
   std::thread monitoring_thread_;
 };
 

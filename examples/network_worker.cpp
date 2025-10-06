@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   }
 #ifdef USE_TBB
   // get system max threads
-  int max_threads = std::thread::hardware_concurrency();
+  int max_threads = 4;
   max_threads = std::min(max_threads, MAX_THREADS);
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(max_threads));
 

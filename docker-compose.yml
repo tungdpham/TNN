@@ -15,7 +15,9 @@ services:
       - "8001:8001"
     networks:
       - dcnn-network
-    cpuset: "0-3,8-19"
+    cpuset: "0-3"
+    volumes:
+      - .:/app
     depends_on:
       - dcnn-base
 
@@ -31,7 +33,9 @@ services:
       - "8002:8002"
     networks:
       - dcnn-network
-    cpuset: "4-7,20-31"
+    cpuset: "4-7"
+    volumes:
+      - .:/app
     depends_on:
       - dcnn-base
 
@@ -72,11 +76,13 @@ services:
       - dcnn-base
       - worker-8001
       - worker-8002
+    volumes:
+      - .:/app
     environment:
       - COORDINATOR_HOST=semi-async-coordinator
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
-    cpuset: "0,1"
+    cpuset: "0,4"
   
   single-model:
     profiles:

@@ -13,7 +13,8 @@ signed main() {
   auto naive_serialize_end = std::chrono::high_resolution_clock::now();
   size_t offset = 0;
   auto naive_deserialize_start = std::chrono::high_resolution_clock::now();
-  Tensor<float> deserialized = tpipeline::BinarySerializer::deserialize_tensor<float>(serialized);
+  Tensor<float> deserialized =
+      tpipeline::BinarySerializer::deserialize_tensor<float>(serialized, offset);
   auto naive_deserialize_end = std::chrono::high_resolution_clock::now();
   [[maybe_unused]] float *deserialized_data = deserialized.data();
   for (size_t i = 0; i < tensor.size(); ++i) {

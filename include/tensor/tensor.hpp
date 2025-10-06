@@ -386,7 +386,7 @@ public:
       }
     } else {
       auto int_range = static_cast<
-          typename std::conditional<std::is_signed<T>::value, std::int64_t, std::uint64_t>::type>(
+          typename std::conditional<std::is_signed<T>::value, std::uint64_t, std::uint64_t>::type>(
           range);
       std::uniform_int_distribution<decltype(int_range)> dis(-int_range, int_range);
       for (size_t i = 0; i < data_size_; ++i) {
