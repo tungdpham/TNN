@@ -36,9 +36,8 @@ inline void compute_channel_mean(const T *input_data, T *mean_data, size_t batch
 }
 
 template <typename T>
-inline void compute_channel_variance_optimized(const T *input_data, const T *mean_data, T *var_data,
-                                               size_t batch_size, size_t channels,
-                                               size_t spatial_size) {
+inline void compute_channel_variance(const T *input_data, const T *mean_data, T *var_data,
+                                     size_t batch_size, size_t channels, size_t spatial_size) {
   const size_t total_elements = batch_size * spatial_size;
   const T inv_total = T(1) / static_cast<T>(total_elements);
 
@@ -51,10 +50,8 @@ inline void compute_channel_variance_optimized(const T *input_data, const T *mea
     for (size_t n = 0; n < batch_size; ++n) {
       const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
 
-      for (size_t i = 0; i < spatial_size; ++i) {
-        T diff = batch_channel_ptr[i] - mean_val;
-        sum_sq += diff * diff;
-      }
+      // Use AVX2-optimized sum of squared differences
+      sum_sq += utils::avx2_sum_squared_diff(batch_channel_ptr, mean_val, spatial_size);
     }
 
     var_data[c] = sum_sq * inv_total;
@@ -169,8 +166,8 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
 
     compute_channel_mean(input.data(), batch_mean.data(), batch_size, channels, spatial_size);
 
-    compute_channel_variance_optimized(input.data(), batch_mean.data(), batch_var.data(),
-                                       batch_size, channels, spatial_size);
+    compute_channel_variance(input.data(), batch_mean.data(), batch_var.data(), batch_size,
+                             channels, spatial_size);
 
     for (size_t c = 0; c < channels; ++c) {
       batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);

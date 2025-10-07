@@ -1268,6 +1268,83 @@ inline float avx2_dot_product(const float *a, const float *b, size_t size) {
 
 inline float avx2_norm_squared(const float *a, size_t size) { return avx2_dot_product(a, a, size); }
 
+// Compute sum of squared differences: sum((a[i] - mean)^2)
+inline float avx2_sum_squared_diff(const float *a, float mean, size_t size) {
+  __m256 sum = _mm256_setzero_ps();
+  __m256 vec_mean = _mm256_set1_ps(mean);
+  size_t vec_size = (size / 8) * 8;
+
+  bool aligned = (reinterpret_cast<uintptr_t>(a) % 32 == 0);
+
+  if (aligned) {
+    for (size_t i = 0; i < vec_size; i += 8) {
+      __m256 vec_a = _mm256_load_ps(&a[i]);
+      __m256 diff = _mm256_sub_ps(vec_a, vec_mean);
+      sum = _mm256_fmadd_ps(diff, diff, sum); // sum += diff * diff
+    }
+  } else {
+    for (size_t i = 0; i < vec_size; i += 8) {
+      __m256 vec_a = _mm256_loadu_ps(&a[i]);
+      __m256 diff = _mm256_sub_ps(vec_a, vec_mean);
+      sum = _mm256_fmadd_ps(diff, diff, sum); // sum += diff * diff
+    }
+  }
+
+  // Horizontal sum of the vector
+  __m128 hi = _mm256_extractf128_ps(sum, 1);
+  __m128 lo = _mm256_castps256_ps128(sum);
+  __m128 sum128 = _mm_add_ps(hi, lo);
+  sum128 = _mm_hadd_ps(sum128, sum128);
+  sum128 = _mm_hadd_ps(sum128, sum128);
+  float result = _mm_cvtss_f32(sum128);
+
+  // Handle remaining elements
+  for (size_t i = vec_size; i < size; ++i) {
+    float diff = a[i] - mean;
+    result += diff * diff;
+  }
+
+  return result;
+}
+
+// Double precision version
+inline double avx2_sum_squared_diff(const double *a, double mean, size_t size) {
+  __m256d sum = _mm256_setzero_pd();
+  __m256d vec_mean = _mm256_set1_pd(mean);
+  size_t vec_size = (size / 4) * 4;
+
+  bool aligned = (reinterpret_cast<uintptr_t>(a) % 32 == 0);
+
+  if (aligned) {
+    for (size_t i = 0; i < vec_size; i += 4) {
+      __m256d vec_a = _mm256_load_pd(&a[i]);
+      __m256d diff = _mm256_sub_pd(vec_a, vec_mean);
+      sum = _mm256_fmadd_pd(diff, diff, sum); // sum += diff * diff
+    }
+  } else {
+    for (size_t i = 0; i < vec_size; i += 4) {
+      __m256d vec_a = _mm256_loadu_pd(&a[i]);
+      __m256d diff = _mm256_sub_pd(vec_a, vec_mean);
+      sum = _mm256_fmadd_pd(diff, diff, sum); // sum += diff * diff
+    }
+  }
+
+  // Horizontal sum of the vector
+  __m128d hi = _mm256_extractf128_pd(sum, 1);
+  __m128d lo = _mm256_castpd256_pd128(sum);
+  __m128d sum128 = _mm_add_pd(hi, lo);
+  sum128 = _mm_hadd_pd(sum128, sum128);
+  double result = _mm_cvtsd_f64(sum128);
+
+  // Handle remaining elements
+  for (size_t i = vec_size; i < size; ++i) {
+    double diff = a[i] - mean;
+    result += diff * diff;
+  }
+
+  return result;
+}
+
 inline void avx2_unaligned_equal(const float *a, const float *b, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
   for (size_t i = 0; i < vec_size; i += 8) {

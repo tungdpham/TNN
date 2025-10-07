@@ -176,14 +176,15 @@ void train_classification_model(tnn::Sequential<float> &model,
       auto train_start = std::chrono::high_resolution_clock::now();
       auto [avg_train_loss, avg_train_accuracy] = train_class_epoch(model, train_loader, config);
       auto train_end = std::chrono::high_resolution_clock::now();
-      auto epoch_duration =
+      auto train_epoch_duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(train_end - train_start);
 
       // validation phrase
       auto val_start = std::chrono::high_resolution_clock::now();
       auto [avg_val_loss, avg_val_accuracy] = validate_class_model(model, test_loader);
       auto val_end = std::chrono::high_resolution_clock::now();
-      epoch_duration += std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
+      auto val_epoch_duration =
+          std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
@@ -199,7 +200,7 @@ void train_classification_model(tnn::Sequential<float> &model,
 
       std::cout << std::string(60, '-') << std::endl;
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << " completed in "
-                << epoch_duration.count() << "ms" << std::endl;
+                << train_epoch_duration.count() << "ms" << std::endl;
       std::cout << "Training   - Loss: " << std::fixed << std::setprecision(4) << avg_train_loss
                 << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
                 << std::endl;
