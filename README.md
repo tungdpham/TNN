@@ -35,11 +35,8 @@ chmod +x ./build.sh
 # Debug build with sanitizers
 ./build.sh --debug
 
-# Enable OpenMP support
-./build.sh --openmp
-
-# Disable OpenMP (enabled by default)
-./build.sh --no-openmp
+# Enable Intel MKL
+./build.sh --mkl
 
 # Verbose build output
 ./build.sh --verbose
@@ -55,9 +52,8 @@ cmake ..
 
 # Configure with options
 cmake .. -DCMAKE_BUILD_TYPE=Release \
-         -DENABLE_OPENMP=ON \
-         -DENABLE_CUDA=OFF \
-         -DENABLE_TBB=OFF
+         -DENABLE_MKL=ON \ 
+         -DENABLE_TBB=OFF \
 
 # Build with maximum number of cores
 cmake --build . -j$(nproc)
@@ -136,4 +132,22 @@ docker compose --profile sync up -d
 
 ## For semi async
 docker compose --profile semi-async up -d
+```
+
+### Configuring number of cores:
+```bash
+cpuset: "0-3" # Assign first 4 CPU cores to this worker
+```
+To modify the core set of the container, first see the available logical cores on your system and modify it accordingly.
+
+
+### Simulating network delay between containers
+```bash
+sudo tc qdisc add dev <interface_name> root netem delay 1ms 0.1ms # Add 1ms delay and 0.1ms jitter to the network interface
+```
+
+Example to docker0 (default Docker's network bridge):
+
+```bash
+sudo tc qdisc add dev docker0 root netem delay 1ms 0.1ms
 ```
