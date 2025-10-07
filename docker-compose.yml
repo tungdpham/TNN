@@ -56,7 +56,6 @@ services:
       - worker-8002
     environment:
       - COORDINATOR_HOST=coordinator
-      - PROFILE=${PROFILE}
       - WORKER_HOST_8001=worker-8001
       - WORKER_HOST_8002=worker-8002
     cpuset: "0" # Assign CPU core 0 to the coordinator
@@ -91,6 +90,8 @@ services:
     container_name: dcnn-single-model
     command: ["./bin/cifar10_cnn_trainer_v2"]
     cpuset: "0-31" # Assign all CPU cores to this service
+    volumes:
+      - .:/app
     depends_on:
       - dcnn-base
 
