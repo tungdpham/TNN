@@ -398,13 +398,6 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
       val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
       val_correct += ::utils::compute_class_corrects<float>(
           task.data, micro_batch_labels[task.micro_batch_id]);
-      // print accuracy per micro-batch
-      std::cout << "Batch: " << val_batches << " Micro-batch " << task.micro_batch_id
-                << " accuracy: "
-                   "Micro-batch "
-                << task.micro_batch_id << " accuracy: "
-                << val_correct / micro_batch_labels[task.micro_batch_id].shape()[0] * 100.0f << "%"
-                << std::endl;
     }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
