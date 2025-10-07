@@ -109,6 +109,84 @@ private:
   T epsilon_;
 };
 
+// Numerically stable Softmax + CrossEntropy combined loss
+// Takes raw logits as input (NOT probabilities)
+// Uses Log-Sum-Exp trick for numerical stability
+template <typename T = float> class SoftmaxCrossEntropyLoss : public Loss<T> {
+public:
+  SoftmaxCrossEntropyLoss() = default;
+
+  T compute_loss(const Tensor<T> &logits, const Tensor<T> &targets) override {
+    const size_t batch_size = logits.shape()[0];
+    const size_t num_classes = logits.shape()[1];
+
+    double total_loss = 0.0;
+
+    for (size_t i = 0; i < batch_size; ++i) {
+      T max_logit = logits(i, 0, 0, 0);
+      for (size_t j = 1; j < num_classes; ++j) {
+        max_logit = std::max(max_logit, logits(i, j, 0, 0));
+      }
+
+      double sum_exp = 0.0;
+      for (size_t j = 0; j < num_classes; ++j) {
+        sum_exp += std::exp(static_cast<double>(logits(i, j, 0, 0) - max_logit));
+      }
+      const T log_sum_exp = static_cast<T>(std::log(sum_exp)) + max_logit;
+
+      for (size_t j = 0; j < num_classes; ++j) {
+        if (targets(i, j, 0, 0) > static_cast<T>(0.5)) {
+          total_loss += static_cast<double>(log_sum_exp - logits(i, j, 0, 0));
+          break;
+        }
+      }
+    }
+
+    return static_cast<T>(total_loss / batch_size);
+  }
+
+  Tensor<T> compute_gradient(const Tensor<T> &logits, const Tensor<T> &targets) override {
+    const size_t batch_size = logits.shape()[0];
+    const size_t num_classes = logits.shape()[1];
+    const T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
+
+    Tensor<T> gradient = logits.clone();
+
+    for (size_t i = 0; i < batch_size; ++i) {
+      T max_logit = logits(i, 0, 0, 0);
+      for (size_t j = 1; j < num_classes; ++j) {
+        max_logit = std::max(max_logit, logits(i, j, 0, 0));
+      }
+
+      double sum_exp = 0.0;
+      for (size_t j = 0; j < num_classes; ++j) {
+        sum_exp += std::exp(static_cast<double>(logits(i, j, 0, 0) - max_logit));
+      }
+
+      for (size_t j = 0; j < num_classes; ++j) {
+        const T softmax_prob =
+            static_cast<T>(std::exp(static_cast<double>(logits(i, j, 0, 0) - max_logit)) / sum_exp);
+        gradient(i, j, 0, 0) = (softmax_prob - targets(i, j, 0, 0)) * inv_batch_size;
+      }
+    }
+
+    return gradient;
+  }
+
+  std::string name() const override { return "SoftmaxCrossEntropyLoss"; }
+
+  LossConfig get_config() const override {
+    LossConfig config;
+    config.type = "softmax_crossentropy";
+    config.name = "SoftmaxCrossEntropyLoss";
+    return config;
+  }
+
+  std::unique_ptr<Loss<T>> clone() const override {
+    return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
+  }
+};
+
 template <typename T = float> class MSELoss : public Loss<T> {
 public:
   MSELoss() = default;
@@ -181,9 +259,6 @@ public:
     const size_t output_size = predictions.shape()[1];
     const T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
 
-#if defined(_OPENMP)
-#pragma omp parallel for if (batch_size > 32)
-#endif
     for (size_t i = 0; i < batch_size; ++i) {
       for (size_t j = 0; j < output_size; ++j) {
         const T diff = predictions(i, j, 0, 0) - targets(i, j, 0, 0);
@@ -277,6 +352,9 @@ public:
     if (loss_type == "crossentropy" || loss_type == "ce") {
       return std::make_unique<CrossEntropyLoss<T>>();
     }
+    if (loss_type == "softmax_crossentropy" || loss_type == "softmax_ce") {
+      return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
+    }
     if (loss_type == "mse" || loss_type == "mean_squared_error") {
       return std::make_unique<MSELoss<T>>();
     }
@@ -294,6 +372,9 @@ public:
       T epsilon = config.get<T>("epsilon", static_cast<T>(1e-15));
       return std::make_unique<CrossEntropyLoss<T>>(epsilon);
     }
+    if (config.type == "softmax_crossentropy" || config.type == "softmax_ce") {
+      return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
+    }
     if (config.type == "mse" || config.type == "mean_squared_error") {
       return std::make_unique<MSELoss<T>>();
     }
@@ -309,6 +390,10 @@ public:
 
   static std::unique_ptr<Loss<T>> create_crossentropy(T epsilon = static_cast<T>(1e-15)) {
     return std::make_unique<CrossEntropyLoss<T>>(epsilon);
+  }
+
+  static std::unique_ptr<Loss<T>> create_softmax_crossentropy() {
+    return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
   }
 
   static std::unique_ptr<Loss<T>> create_mse() { return std::make_unique<MSELoss<T>>(); }

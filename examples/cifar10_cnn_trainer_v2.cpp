@@ -107,13 +107,15 @@ int main() {
                      .dense(512, "linear", true, "fc0")
                      .activation("relu", "relu10")
                      .dense(10, "linear", true, "fc1")
-                     .activation("softmax", "softmax_output")
+                     //  .activation("softmax", "softmax_output")
                      .build();
     auto optimizer =
         std::make_unique<tnn::Adam<float>>(cifar10_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    // auto loss_function =
+    // tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     // Load pre-trained weights if available

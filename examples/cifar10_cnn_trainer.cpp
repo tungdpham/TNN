@@ -82,13 +82,15 @@ int main() {
                      .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                      .flatten("flatten")
                      .dense(10, "linear", true, "fc1")
-                     .activation("softmax", "softmax_output")
+                     //  .activation("softmax", "softmax_output")
                      .build();
 
     auto optimizer = std::make_unique<tnn::SGD<float>>(cifar10_constants::LR_INITIAL, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    // auto loss_function =
+    // tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);

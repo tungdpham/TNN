@@ -80,14 +80,15 @@ int main() {
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .flatten("flatten")
                      .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
-                     .activation("softmax", "softmax_output")
+                     //  .activation("softmax", "softmax_output")
                      .build();
 
     auto optimizer =
         std::make_unique<tnn::Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+    // auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
+    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     model.print_config();
