@@ -228,7 +228,7 @@ auto model = tnn::SequentialBuilder<float>("mnist_classifier")
     .conv2d(32, 5, 5, 1, 1, 0, 0, true, "conv2d_1")     // 32 filters, 5x5 kernel, 1x1 stride, 0x0 padding
     .activation("relu", "relu_1")                       // ReLU activation, manual name
     .maxpool2d(2, 2, 2, 2, 0, 0)                        // 2x2 pool, 2x2 stride, 0x0 padding
-    .activation("sigmoid")                              // Sigmoid activation, manual name
+    .activation("sigmoid")                              // Sigmoid activation, automatically named
     .conv2d(64, 5, 5, 1, 1, 0, 0, false)                // 64 filters, 5x5 kernel, 1x1 stride, 0x0 padding
     .maxpool2d(2, 2, 2, 2)                              // 2x2 pooling, 2x2 stride, 0x0 padding
     .flatten()                                          // Flatten for dense layers

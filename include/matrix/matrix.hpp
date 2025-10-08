@@ -272,9 +272,6 @@ public:
 
     size_t other_cols = other.cols();
 
-#if defined(_OPENMP)
-#pragma omp parallel for collapse(2) schedule(static)
-#endif
     for (size_t r = 0; r < rows_; ++r) {
       for (size_t c = 0; c < other_cols; ++c) {
         T sum = 0.0;
@@ -295,9 +292,7 @@ public:
     Matrix result(cols_, rows_);
 
     T *result_data = result.data();
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
+
     for (size_t r = 0; r < rows_; ++r) {
       for (size_t c = 0; c < cols_; ++c) {
         result_data[c * rows_ + r] = this->data_[r * cols_ + c];
@@ -316,9 +311,7 @@ public:
   Matrix pad(size_t padrows_, size_t padcols_, T value = 0.0) const {
     Matrix result(rows_ + 2 * padrows_, cols_ + 2 * padcols_);
     result.fill(value);
-#if defined(_OPENMP)
-#pragma omp parallel for schedule(static)
-#endif
+
     for (size_t r = 0; r < rows_; ++r) {
       for (size_t c = 0; c < cols_; ++c) {
         result(r + padrows_, c + padcols_) = (*this)(r, c);
@@ -333,9 +326,7 @@ public:
       throw std::invalid_argument("Invalid crop dimensions.");
     }
     Matrix result(endRow - startRow + 1, endCol - startCol + 1);
-#if defined(_OPENMP)
-#pragma omp parallel for
-#endif
+
     for (size_t r = startRow; r <= endRow; ++r) {
       for (size_t c = startCol; c <= endCol; ++c) {
         result(r - startRow, c - startCol) = (*this)(r, c);
