@@ -173,16 +173,12 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
       batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
     }
 
-    micro_batch_std_[micro_batch_id] = batch_std.clone();
-
-    Tensor<T> normalized(input.shape());
+    Tensor<T> normalized(input.shape(), nullptr);
 
     normalize_and_scale_optimized(input.data(), batch_mean.data(), batch_std.data(),
                                   affine_ ? gamma_.data() : nullptr,
                                   affine_ ? beta_.data() : nullptr, output.data(),
                                   normalized.data(), batch_size, channels, spatial_size, affine_);
-
-    micro_batch_normalized_[micro_batch_id] = normalized.clone();
 
     utils::parallel_for<size_t>(0, channels, [&](size_t c) {
       running_mean_(c, 0, 0, 0) =
@@ -190,6 +186,9 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
       running_var_(c, 0, 0, 0) =
           (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
     });
+
+    micro_batch_std_[micro_batch_id] = std::move(batch_std);
+    micro_batch_normalized_[micro_batch_id] = std::move(normalized);
 
   } else {
     utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
@@ -221,6 +220,84 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   }
 
   return output;
+}
+
+template <typename T>
+void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id) {
+  if (input.channels() != num_features_) {
+    throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
+  }
+
+  const size_t batch_size = input.batch_size();
+  const size_t channels = input.channels();
+  const size_t height = input.height();
+  const size_t width = input.width();
+  const size_t spatial_size = height * width;
+
+  Tensor<T> output(input.shape(), nullptr);
+
+  if (this->is_training_) {
+    Tensor<T> batch_mean(channels, 1, 1, 1, nullptr);
+    Tensor<T> batch_var(channels, 1, 1, 1, nullptr);
+    Tensor<T> batch_std(channels, 1, 1, 1, nullptr);
+
+    compute_channel_mean(input.data(), batch_mean.data(), batch_size, channels, spatial_size);
+
+    compute_channel_variance(input.data(), batch_mean.data(), batch_var.data(), batch_size,
+                             channels, spatial_size);
+
+    for (size_t c = 0; c < channels; ++c) {
+      batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
+    }
+
+    Tensor<T> normalized(input.shape(), nullptr);
+
+    normalize_and_scale_optimized(input.data(), batch_mean.data(), batch_std.data(),
+                                  affine_ ? gamma_.data() : nullptr,
+                                  affine_ ? beta_.data() : nullptr, output.data(),
+                                  normalized.data(), batch_size, channels, spatial_size, affine_);
+
+    utils::parallel_for<size_t>(0, channels, [&](size_t c) {
+      running_mean_(c, 0, 0, 0) =
+          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
+      running_var_(c, 0, 0, 0) =
+          (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
+    });
+
+    micro_batch_std_[micro_batch_id] = std::move(batch_std);
+    micro_batch_normalized_[micro_batch_id] = std::move(normalized);
+
+  } else {
+    utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+      T mean_val = running_mean_(c, 0, 0, 0);
+      T var_val = running_var_(c, 0, 0, 0);
+      T std_val = std::sqrt(var_val + epsilon_);
+      const T inv_std = T(1) / std_val;
+
+      const size_t channel_stride = channels * spatial_size;
+      const size_t base_idx = n * channel_stride + c * spatial_size;
+
+      const T *input_ptr = input.data() + base_idx;
+      T *output_ptr = output.data() + base_idx;
+
+      if (affine_) {
+        const T gamma_val = gamma_(c, 0, 0, 0);
+        const T beta_val = beta_(c, 0, 0, 0);
+
+        for (size_t i = 0; i < spatial_size; ++i) {
+          T normalized_val = (input_ptr[i] - mean_val) * inv_std;
+          output_ptr[i] = gamma_val * normalized_val + beta_val;
+        }
+      } else {
+        for (size_t i = 0; i < spatial_size; ++i) {
+          output_ptr[i] = (input_ptr[i] - mean_val) * inv_std;
+        }
+      }
+    });
+  }
+
+  micro_batch_inputs_[micro_batch_id] = std::move(input);
+  input = std::move(output);
 }
 
 template <typename T>

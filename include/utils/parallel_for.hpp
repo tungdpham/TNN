@@ -31,10 +31,13 @@ inline void parallel_for(const Index begin, const Index end, Func f) {
     f(i);
   }
 #elif defined(USE_TBB)
-  tbb::parallel_for(tbb::blocked_range<Index>(begin, end), [&](const tbb::blocked_range<Index> &r) {
-    for (Index i = r.begin(); i != r.end(); ++i)
-      f(i);
-  });
+  tbb::parallel_for(
+      tbb::blocked_range<Index>(begin, end),
+      [&](const tbb::blocked_range<Index> &r) {
+        for (Index i = r.begin(); i != r.end(); ++i)
+          f(i);
+      },
+      tbb::static_partitioner());
 #else
   for (Index i = begin; i < end; ++i)
     f(i);
@@ -52,14 +55,16 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
     }
   }
 #elif defined(USE_TBB)
-  tbb::parallel_for(tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
-                    [&](const tbb::blocked_range2d<Index> &r) {
-                      for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
-                        for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
-                          f(i, j);
-                        }
-                      }
-                    });
+  tbb::parallel_for(
+      tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
+      [&](const tbb::blocked_range2d<Index> &r) {
+        for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
+          for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
+            f(i, j);
+          }
+        }
+      },
+      tbb::static_partitioner());
 #else
   std::cout << "Warning: Running parallel_for_2d in serial mode.\n";
   for (Index i = 0; i < dim0; ++i) {

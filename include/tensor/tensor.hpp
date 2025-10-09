@@ -420,58 +420,62 @@ public:
       return *this;
     }
 
-    const size_t batch_size_ = batch_size();
-    const size_t channels_ = channels();
-    const size_t height_ = height();
-    const size_t width_ = width();
+    if (L == Layout::NCHW) {
+      const size_t batch_size_ = batch_size();
+      const size_t channels_ = channels();
+      const size_t height_ = height();
+      const size_t width_ = width();
 
-    Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w, nullptr);
+      Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w, nullptr);
 
-    const T *input_data = this->data();
-    T *result_data = result.data();
+      const T *input_data = this->data();
+      T *result_data = result.data();
 
-    utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-      const size_t padded_height = height_ + 2 * pad_h;
-      const size_t padded_width = width_ + 2 * pad_w;
-      // fill top padding rows
-      for (size_t h = 0; h < pad_h; ++h) {
-        std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                  &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                      padded_width,
-                  value);
-      }
+      utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+        const size_t padded_height = height_ + 2 * pad_h;
+        const size_t padded_width = width_ + 2 * pad_w;
+        // fill top padding rows
+        for (size_t h = 0; h < pad_h; ++h) {
+          std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+                    &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
+                        padded_width,
+                    value);
+        }
 
-      // Copy middle rows with left and right padding
-      for (size_t h = 0; h < height_; ++h) {
-        const size_t new_h = h + pad_h;
-        // copy the row over
-        std::copy(
-            &input_data[((n * channels_ + c) * height_ + h) * width_],
-            &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
-            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
+        // Copy middle rows with left and right padding
+        for (size_t h = 0; h < height_; ++h) {
+          const size_t new_h = h + pad_h;
+          // copy the row over
+          std::copy(
+              &input_data[((n * channels_ + c) * height_ + h) * width_],
+              &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
+              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
 
-        // set values on left and right
-        std::fill(
-            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
-            &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
-            value);
-        std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
-                               pad_w + width_],
-                  &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
-                               padded_width],
-                  value);
-      }
+          // set values on left and right
+          std::fill(
+              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
+              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
+              value);
+          std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
+                                 pad_w + width_],
+                    &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
+                                 padded_width],
+                    value);
+        }
 
-      // fill bottom padding rows
-      for (size_t h = height_ + pad_h; h < padded_height; ++h) {
-        std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                  &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                      padded_width,
-                  value);
-      }
-    });
+        // fill bottom padding rows
+        for (size_t h = height_ + pad_h; h < padded_height; ++h) {
+          std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+                    &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
+                        padded_width,
+                    value);
+        }
+      });
 
-    return result;
+      return result;
+    } else {
+      throw std::runtime_error("Unsupported tensor layout for padding");
+    }
   }
 
   Tensor<T, L> unpad(size_t pad_h, size_t pad_w) const {
@@ -489,7 +493,7 @@ public:
       throw std::invalid_argument("Padding size too large for unpadding");
     }
 
-    Tensor<T, L> result(batch_size_, channels_, height_ - 2 * pad_h, width_ - 2 * pad_w);
+    Tensor<T, L> result(batch_size_, channels_, height_ - 2 * pad_h, width_ - 2 * pad_w, nullptr);
 
     const T *input_data = this->data();
     T *result_data = result.data();
@@ -518,28 +522,31 @@ public:
       throw std::invalid_argument("Invalid crop dimensions");
     }
 
-    const size_t new_height = end_h - start_h + 1;
-    const size_t new_width = end_w - start_w + 1;
+    if (L == NCHW) {
+      const size_t new_height = end_h - start_h + 1;
+      const size_t new_width = end_w - start_w + 1;
 
-    const size_t batch_size_ = batch_size();
-    const size_t channels_ = channels();
-    const size_t height_ = height();
-    const size_t width_ = width();
-    Tensor<T, L> result(batch_size_, channels_, new_height, new_width);
+      const size_t batch_size_ = batch_size();
+      const size_t channels_ = channels();
+      const size_t height_ = height();
+      const size_t width_ = width();
+      Tensor<T, L> result(batch_size_, channels_, new_height, new_width, nullptr);
 
-    T *result_data = result.data();
-    for (size_t n = 0; n < batch_size_; ++n) {
-      for (size_t c = 0; c < channels_; ++c) {
-        for (size_t h = 0; h < new_height; ++h) {
-          std::copy(&data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w],
-                    &data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w] +
-                        new_width,
-                    &result_data[((n * channels_ + c) * new_height + h) * new_width]);
+      T *result_data = result.data();
+      for (size_t n = 0; n < batch_size_; ++n) {
+        for (size_t c = 0; c < channels_; ++c) {
+          for (size_t h = 0; h < new_height; ++h) {
+            std::copy(&data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w],
+                      &data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w] +
+                          new_width,
+                      &result_data[((n * channels_ + c) * new_height + h) * new_width]);
+          }
         }
       }
+      return result;
+    } else {
+      throw std::runtime_error("Unsupported tensor layout for cropping");
     }
-
-    return result;
   }
 
   /**
@@ -591,7 +598,7 @@ public:
 
     size_t new_channels = end_ch - start_ch + 1;
 
-    if constexpr (dims_ == 4) {
+    if constexpr (L == NCHW) {
       Tensor<T, L> result(batch_size(), new_channels, height(), width());
 
       for (size_t n = 0; n < batch_size(); ++n) {
@@ -605,25 +612,18 @@ public:
       }
       return result;
     } else {
-      throw std::runtime_error("Unsupported tensor dimensionality for channel slicing");
+      throw std::runtime_error("Unsupported tensor layout for channel slicing");
     }
   }
 
   T mean() const {
-    T sum = T(0);
-    for (size_t i = 0; i < data_size_; ++i) {
-      sum += data_[i];
-    }
+    T sum = utils::avx2_sum(data_, data_size_);
     return sum / static_cast<T>(data_size_);
   }
 
   T variance() const {
     T m = mean();
-    T sum_sq_diff = T(0);
-    for (size_t i = 0; i < data_size_; ++i) {
-      T diff = data_[i] - m;
-      sum_sq_diff += diff * diff;
-    }
+    T sum_sq_diff = utils::avx2_sum_squared_diff(data_, m, data_size_);
     return sum_sq_diff / static_cast<T>(data_size_);
   }
 
