@@ -34,7 +34,7 @@
 #include <windows.h>
 #endif
 
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 
 #ifdef __AVX2__
 #include <immintrin.h>
@@ -431,7 +431,7 @@ public:
       const T *input_data = this->data();
       T *result_data = result.data();
 
-      utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+      tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
         const size_t padded_height = height_ + 2 * pad_h;
         const size_t padded_width = width_ + 2 * pad_w;
         // fill top padding rows
@@ -498,7 +498,7 @@ public:
     const T *input_data = this->data();
     T *result_data = result.data();
 
-    utils::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
+    tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
       for (size_t h = 0; h < height_ - 2 * pad_h; ++h) {
         const size_t src_h = h + pad_h;
         std::copy(

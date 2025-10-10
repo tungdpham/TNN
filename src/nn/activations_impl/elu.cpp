@@ -7,7 +7,7 @@
 
 #include "nn/activations_impl/elu.hpp"
 #include "nn/activations_impl/base_activation.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 template <typename T> ELU<T>::ELU(T alpha) : alpha_(alpha) {}
@@ -16,7 +16,7 @@ template <typename T> void ELU<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     data[i] = data[i] > T(0) ? data[i] : alpha_ * (std::exp(data[i]) - T(1));
   });
 }
@@ -30,7 +30,7 @@ template <typename T> void ELU<T>::apply_with_bias(Tensor<T> &tensor, const Tens
   const T *bias_data = bias.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias_data[i];
     data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
   });
@@ -40,7 +40,7 @@ template <typename T> void ELU<T>::apply_with_scalar_bias(Tensor<T> &tensor, T b
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias;
     data[i] = val > T(0) ? val : alpha_ * (std::exp(val) - T(1));
   });
@@ -72,7 +72,7 @@ void ELU<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
   T *grad_data = upstream_gradient.data();
   size_t size = pre_activation_values.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
     grad_data[i] *= local_grad;
   });
@@ -88,7 +88,7 @@ template <typename T> void ELU<T>::apply_channel_wise(Tensor<T> &tensor, int cha
   size_t width = tensor.width();
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -115,7 +115,7 @@ void ELU<T>::apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
   }
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -135,7 +135,7 @@ template <typename T> void ELU<T>::apply_batch_wise(Tensor<T> &tensor, int batch
   size_t width = tensor.width();
 
   const size_t total = channels * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t c = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;

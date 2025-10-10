@@ -4,11 +4,11 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-
 #pragma once
 
+#include <cassert>
 #include <cstddef>
-#include <functional>
+#include <cstdint>
 
 #ifdef USE_TBB
 #include <oneapi/tbb/blocked_range.h>
@@ -20,9 +20,19 @@
 #include <omp.h>
 #endif
 
-namespace utils {
+namespace tthreads {
+inline uint32_t get_num_threads() {
+#ifdef _OPENMP
+  return static_cast<uint32_t>(omp_get_max_threads());
+#elif defined(USE_TBB)
+  return static_cast<uint32_t>(tbb::this_task_arena::max_concurrency());
+#else
+  return 1;
+#endif
+}
+
 template <typename Index = size_t, typename Func>
-inline void parallel_for(const Index begin, const Index end, Func f) {
+static inline void parallel_for(const Index begin, const Index end, Func f) {
   assert(end >= begin && "Invalid range");
 #if defined(_OPENMP)
 #pragma omp parallel for schedule(static)
@@ -73,4 +83,5 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
   }
 #endif
 }
-} // namespace utils
+
+} // namespace tthreads

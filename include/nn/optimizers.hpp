@@ -68,7 +68,7 @@ public:
       initialized_ = true;
     }
 
-    utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
+    tthreads::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       if (momentum_ > 0.0f) {
 
         velocities_[i] *= momentum_;
@@ -134,7 +134,7 @@ public:
     const T bias_correction2 = static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_));
     const T step_size = this->learning_rate_ / bias_correction1;
 
-    utils::parallel_for<size_t>(0, params.size(), [&](size_t i) {
+    tthreads::parallel_for<size_t>(0, params.size(), [&](size_t i) {
       m_[i] *= beta1_;
       m_[i] += (*grads[i]) * one_minus_beta1;
 

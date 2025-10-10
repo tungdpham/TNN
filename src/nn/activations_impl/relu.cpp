@@ -7,11 +7,13 @@
 
 #include "nn/activations_impl/relu.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
+#include "utils/avx2.hpp"
 #include <cassert>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace tnn {
@@ -21,8 +23,19 @@ template <typename T> void ReLU<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(
-      0, size, [&](size_t i) { data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i]; });
+  if (negative_slope_ == T(0)) {
+
+    const size_t num_threads = tthreads::get_num_threads();
+    const size_t block_size = size / num_threads;
+    tthreads::parallel_for<size_t>(0, num_threads, [&](size_t i) {
+      size_t start = i * block_size;
+      size_t end = std::min(start + block_size, size);
+      utils::avx2_scalar_max(data + start, T(0), data + start, end - start);
+    });
+  } else {
+    tthreads::parallel_for<size_t>(
+        0, size, [&](size_t i) { data[i] = data[i] > T(0) ? data[i] : negative_slope_ * data[i]; });
+  }
 }
 
 template <typename T>
@@ -35,7 +48,7 @@ void ReLU<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const {
   const T *bias_data = bias.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias_data[i];
     data[i] = val > T(0) ? val : negative_slope_ * val;
   });
@@ -45,7 +58,7 @@ template <typename T> void ReLU<T>::apply_with_scalar_bias(Tensor<T> &tensor, T 
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias;
     data[i] = val > T(0) ? val : negative_slope_ * val;
   });
@@ -75,7 +88,7 @@ void ReLU<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
   T *grad_data = upstream_gradient.data();
   const size_t size = pre_activation_values.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;
     grad_data[i] *= local_grad;
   });
@@ -91,7 +104,7 @@ template <typename T> void ReLU<T>::apply_channel_wise(Tensor<T> &tensor, int ch
   size_t width = tensor.width();
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -118,7 +131,7 @@ void ReLU<T>::apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
   }
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -138,7 +151,7 @@ template <typename T> void ReLU<T>::apply_batch_wise(Tensor<T> &tensor, int batc
   size_t width = tensor.width();
 
   const size_t total = channels * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t c = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;

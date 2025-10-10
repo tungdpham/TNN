@@ -6,8 +6,8 @@
  */
 #pragma once
 
+#include "threading/thread_handler.hpp"
 #include "utils/ops.hpp"
-#include "utils/parallel_for.hpp"
 #include "utils/simd_asm.hpp"
 #include <algorithm>
 #ifdef __AVX2__

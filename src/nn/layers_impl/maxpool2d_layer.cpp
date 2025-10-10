@@ -9,7 +9,7 @@
 #include <limits>
 #include <stdexcept>
 
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -111,7 +111,7 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(const T *input_data, T *output_
                                                  std::vector<size_t> &mask_indices) const {
   const T MIN_VALUE = std::numeric_limits<T>::lowest();
 
-  utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
         T max_val = MIN_VALUE;
@@ -144,7 +144,7 @@ void MaxPool2DLayer<T>::compute_max_pool_backward(const T *gradient_data, T *gra
                                                   size_t batch_size, size_t channels,
                                                   size_t output_h, size_t output_w,
                                                   const std::vector<size_t> &mask_indices) const {
-  utils::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
         const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;

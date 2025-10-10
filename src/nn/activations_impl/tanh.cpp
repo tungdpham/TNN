@@ -8,7 +8,7 @@
 #include "nn/activations_impl/tanh.hpp"
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -21,7 +21,7 @@ template <typename T> void Tanh<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] = std::tanh(data[i]); });
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] = std::tanh(data[i]); });
 }
 
 template <typename T>
@@ -34,7 +34,7 @@ void Tanh<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const {
   const T *bias_data = bias.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias_data[i];
     data[i] = std::tanh(val);
   });
@@ -44,7 +44,7 @@ template <typename T> void Tanh<T>::apply_with_scalar_bias(Tensor<T> &tensor, T 
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias;
     data[i] = std::tanh(val);
   });
@@ -80,7 +80,7 @@ void Tanh<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
   T *grad_data = upstream_gradient.data();
   size_t size = pre_activation_values.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T tanh_val = std::tanh(input_data[i]);
     T local_grad = T(1) - tanh_val * tanh_val;
     grad_data[i] *= local_grad;
@@ -97,7 +97,7 @@ template <typename T> void Tanh<T>::apply_channel_wise(Tensor<T> &tensor, int ch
   size_t width = tensor.width();
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -124,7 +124,7 @@ void Tanh<T>::apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
   }
 
   const size_t total = batch_size * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t n = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;
@@ -144,7 +144,7 @@ template <typename T> void Tanh<T>::apply_batch_wise(Tensor<T> &tensor, int batc
   size_t width = tensor.width();
 
   const size_t total = channels * height * width;
-  utils::parallel_for<size_t>(0, total, [&](size_t idx) {
+  tthreads::parallel_for<size_t>(0, total, [&](size_t idx) {
     size_t c = idx / (height * width);
     size_t rem = idx % (height * width);
     size_t h = rem / width;

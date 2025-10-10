@@ -8,7 +8,7 @@
 #include "nn/activations_impl/linear.hpp"
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -27,7 +27,7 @@ void Linear<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const 
   const T *bias_data = bias.data();
   const size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
 }
 
 template <typename T> void Linear<T>::apply_with_scalar_bias(Tensor<T> &tensor, T bias) const {
@@ -35,7 +35,7 @@ template <typename T> void Linear<T>::apply_with_scalar_bias(Tensor<T> &tensor, 
     T *data = tensor.data();
     size_t size = tensor.size();
 
-    utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
+    tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
   }
 }
 

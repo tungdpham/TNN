@@ -122,38 +122,6 @@ inline void conv_input_grad_gemm(const T *weights, const T *output_grad, T *col_
        output_size, T(0.0), col_grad, output_size);
 }
 
-/**
- * @brief Set MKL number of threads
- */
-inline void set_num_threads(int num_threads) { mkl_set_num_threads(num_threads); }
-
-/**
- * @brief Get MKL number of threads
- */
-inline int get_num_threads() { return mkl_get_max_threads(); }
-
-/**
- * @brief Initialize MKL for optimal performance
- */
-inline void initialize() {
-  // Set MKL to use all available cores by default
-  mkl_set_num_threads(0);
-
-  // Enable optimized memory management
-  mkl_set_memory_limit(MKL_MEM_MCDRAM, 0);
-
-  // Set interface layer
-  mkl_set_interface_layer(MKL_INTERFACE_LP64);
-
-  // Set threading layer
-  mkl_set_threading_layer(MKL_THREADING_INTEL);
-}
-
-/**
- * @brief Cleanup MKL resources
- */
-inline void finalize() { mkl_free_buffers(); }
-
 } // namespace mkl
 } // namespace utils
 

@@ -28,7 +28,7 @@ Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, size_t kernel_h, si
   const T *input_data = input_tensor.data();
   T *col_data = col_matrix.data();
 
-  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
 
     for (size_t kh = 0; kh < kernel_h; ++kh) {
@@ -108,7 +108,7 @@ Matrix<T> im2col(const Tensor<T, NCHW> &input_tensor, size_t kernel_h, size_t ke
   const T *input_data = input_tensor.data();
   T *col_data = col_matrix.data();
 
-  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
 
     for (size_t kh = 0; kh < kernel_h; ++kh) {
@@ -152,7 +152,7 @@ static Tensor<T, NCHW> col2im_padded(const Matrix<T> &col_matrix, size_t batch_s
   T *result_data = result.data();
   const size_t col_width = output_h * output_w;
 
-  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     T *result_channel_ptr = result_data + (n * channels + c) * height * width;
 
     for (size_t kh = 0; kh < kernel_h; ++kh) {
@@ -231,7 +231,7 @@ static Tensor<T, NCHW> col2im(const Matrix<T> &col_matrix, size_t batch_size, si
   T *result_data = result.data();
   const size_t col_width = output_h * output_w;
 
-  utils::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     T *result_channel_ptr = result_data + (n * channels + c) * padded_h * padded_w;
 
     for (size_t kh = 0; kh < kernel_h; ++kh) {

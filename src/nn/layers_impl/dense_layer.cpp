@@ -11,8 +11,8 @@
 #include <stdexcept>
 
 #include "nn/layers_impl/parameterized_layer.hpp"
+#include "threading/thread_handler.hpp"
 #include "utils/ops.hpp"
-#include "utils/parallel_for.hpp"
 
 namespace tnn {
 
@@ -116,7 +116,7 @@ template <typename T>
 void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
                                           const size_t batch_size, const size_t input_features,
                                           const size_t output_features) const {
-  utils::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
+  tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
     output_data[n * output_features + out_f] = utils::simd_dot_product(
         &weight_data[out_f * input_features], &input_data[n * input_features], input_features);
   });
@@ -133,7 +133,7 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data, const T *gradi
   utils::transpose_2d(input_data, input_transposed, batch_size, input_features);
   utils::transpose_2d(gradient_data, gradient_transposed, batch_size, output_features);
 
-  utils::parallel_for_2d(output_features, input_features, [&](size_t out_f, size_t in_f) {
+  tthreads::parallel_for_2d(output_features, input_features, [&](size_t out_f, size_t in_f) {
     weight_grad_data[out_f * input_features + in_f] += utils::simd_dot_product(
         &gradient_transposed[out_f * batch_size], &input_transposed[in_f * batch_size], batch_size);
   });
@@ -149,7 +149,7 @@ void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *wei
   T *weights_transposed = (T *)malloc(sizeof(T) * output_features * input_features);
   utils::transpose_2d(weight_data, weights_transposed, output_features, input_features);
 
-  utils::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
+  tthreads::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
     grad_input_data[n * input_features + in_f] =
         utils::simd_dot_product(&gradient_data[n * output_features],
                                 &weights_transposed[in_f * output_features], output_features);
@@ -161,7 +161,7 @@ void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *wei
 template <typename T>
 void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
                                            size_t batch_size, size_t output_features) const {
-  utils::parallel_for<size_t>(0, output_features, [&](size_t out_f) {
+  tthreads::parallel_for<size_t>(0, output_features, [&](size_t out_f) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       grad_sum += current_grad_data[n * output_features + out_f];
@@ -173,7 +173,7 @@ void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_g
 template <typename T>
 void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
                                     size_t output_features) const {
-  utils::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
+  tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
     output_data[n * output_features + out_f] += bias_data[out_f];
   });
 }

@@ -15,7 +15,7 @@
 #include <unordered_map>
 
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 
 #include "activations_impl/base_activation.hpp"
 #include "activations_impl/elu.hpp"

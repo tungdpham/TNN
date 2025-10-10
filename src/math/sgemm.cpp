@@ -1,4 +1,5 @@
 #include "math/sgemm.hpp"
+#include "threading/thread_handler.hpp"
 #include <cstring>
 
 namespace tmath {
@@ -481,7 +482,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {
@@ -492,7 +493,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
         }
       });
     } else {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {
@@ -512,7 +513,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {
@@ -523,7 +524,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
         }
       });
     } else {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {
@@ -542,7 +543,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {
@@ -553,7 +554,7 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
         }
       });
     } else {
-      utils::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
         int i = block_i * M_BLOCK_SIZE;
         int j = block_j * N_BLOCK_SIZE;
         for (int k = 0; k < K; k += K_BLOCK_SIZE) {

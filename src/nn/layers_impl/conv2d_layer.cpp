@@ -11,8 +11,8 @@
 #include <stdexcept>
 
 #include "math/gemm.hpp"
+#include "threading/thread_handler.hpp"
 #include "utils/ops.hpp"
-#include "utils/parallel_for.hpp"
 
 #ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
@@ -217,7 +217,7 @@ void Conv2DLayer<T>::compute_bias_gradients(const T *gradient_data, T *bias_grad
   const size_t N_stride = out_channels * output_h * output_w;
   const size_t C_stride = output_h * output_w;
 
-  utils::parallel_for<size_t>(0, out_channels, [&](size_t oc) {
+  tthreads::parallel_for<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
       std::accumulate(gradient_data + n * N_stride + oc * C_stride,
@@ -231,7 +231,7 @@ template <typename T>
 void Conv2DLayer<T>::add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
                                         const size_t output_h, const size_t output_w,
                                         const size_t out_channels) const {
-  utils::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
+  tthreads::parallel_for_2d(batch_size, out_channels, [&](size_t n, size_t oc) {
     utils::avx2_add_scalar(
         output_data + (n * out_channels + oc) * output_h * output_w, bias_data[oc],
         output_data + (n * out_channels + oc) * output_h * output_w, output_h * output_w);

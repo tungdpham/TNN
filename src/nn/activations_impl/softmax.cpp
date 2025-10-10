@@ -8,7 +8,7 @@
 #include "nn/activations_impl/softmax.hpp"
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -21,7 +21,7 @@ template <typename T> void Softmax<T>::apply(Tensor<T> &tensor) const {
   size_t height = tensor.height();
   size_t width = tensor.width();
 
-  utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         apply_softmax_spatial(tensor, n, h, w);
@@ -40,7 +40,7 @@ void Softmax<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const
   const T *bias_data = bias.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
 
   apply(tensor);
 }
@@ -50,7 +50,7 @@ template <typename T> void Softmax<T>::apply_with_scalar_bias(Tensor<T> &tensor,
     T *data = tensor.data();
     size_t size = tensor.size();
 
-    utils::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
+    tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
   }
 
   apply(tensor);
@@ -90,7 +90,7 @@ void Softmax<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values
   Tensor<T> softmax_values = pre_activation_values;
   apply(softmax_values);
 
-  utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         T dot_product = T(0);
@@ -133,7 +133,7 @@ template <typename T> void Softmax<T>::apply_batch_wise(Tensor<T> &tensor, int b
   size_t height = tensor.height();
   size_t width = tensor.width();
 
-  utils::parallel_for<size_t>(0, height, [&](size_t h) {
+  tthreads::parallel_for<size_t>(0, height, [&](size_t h) {
     for (size_t w = 0; w < width; ++w) {
       apply_softmax_spatial(tensor, batch_idx, h, w);
     }

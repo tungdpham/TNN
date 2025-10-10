@@ -8,7 +8,7 @@
 #include "nn/activations_impl/sigmoid.hpp"
 #include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 #include <cmath>
 #include <memory>
 #include <stdexcept>
@@ -20,8 +20,8 @@ template <typename T> void Sigmoid<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size,
-                              [&](size_t i) { data[i] = T(1) / (T(1) + std::exp(-data[i])); });
+  tthreads::parallel_for<size_t>(0, size,
+                                 [&](size_t i) { data[i] = T(1) / (T(1) + std::exp(-data[i])); });
 }
 
 template <typename T>
@@ -34,7 +34,7 @@ void Sigmoid<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const
   const T *bias_data = bias.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias_data[i];
     data[i] = T(1) / (T(1) + std::exp(-val));
   });
@@ -44,7 +44,7 @@ template <typename T> void Sigmoid<T>::apply_with_scalar_bias(Tensor<T> &tensor,
   T *data = tensor.data();
   size_t size = tensor.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T val = data[i] + bias;
     data[i] = T(1) / (T(1) + std::exp(-val));
   });
@@ -80,7 +80,7 @@ void Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values
   T *grad_data = upstream_gradient.data();
   size_t size = pre_activation_values.size();
 
-  utils::parallel_for<size_t>(0, size, [&](size_t i) {
+  tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));
     T local_grad = sigmoid_val * (T(1) - sigmoid_val);
     grad_data[i] *= local_grad;
@@ -96,7 +96,7 @@ template <typename T> void Sigmoid<T>::apply_channel_wise(Tensor<T> &tensor, int
   size_t height = tensor.height();
   size_t width = tensor.width();
 
-  utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         T &val = tensor(n, channel, h, w);
@@ -122,7 +122,7 @@ void Sigmoid<T>::apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
     throw std::invalid_argument("Bias size must match spatial dimensions");
   }
 
-  utils::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         T val = tensor(n, channel, h, w) + bias[h * width + w];
@@ -141,7 +141,7 @@ template <typename T> void Sigmoid<T>::apply_batch_wise(Tensor<T> &tensor, int b
   size_t height = tensor.height();
   size_t width = tensor.width();
 
-  utils::parallel_for<size_t>(0, channels, [&](size_t c) {
+  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         T &val = tensor(batch_idx, c, h, w);

@@ -4,7 +4,7 @@
 #include <immintrin.h>
 #endif
 
-#include "parallel_for.hpp"
+#include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
@@ -533,6 +533,34 @@ inline void avx2_unaligned_max(const double *a, const double *b, double *c, size
   }
 }
 
+inline void avx2_unaligned_scalar_max(const double *a, double b, double *c, size_t size) {
+  __m256d vec_b = _mm256_set1_pd(b);
+  size_t vec_size = (size / 4) * 4;
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_loadu_pd(&a[i]);
+    __m256d vec_c = _mm256_max_pd(vec_a, vec_b);
+    _mm256_storeu_pd(&c[i], vec_c);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = std::max(a[i], b);
+  }
+}
+
+inline void avx2_aligned_scalar_max(const double *a, double b, double *c, size_t size) {
+  __m256d vec_b = _mm256_set1_pd(b);
+  size_t vec_size = (size / 4) * 4;
+  for (size_t i = 0; i < vec_size; i += 4) {
+    __m256d vec_a = _mm256_load_pd(&a[i]);
+    __m256d vec_c = _mm256_max_pd(vec_a, vec_b);
+    _mm256_store_pd(&c[i], vec_c);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = std::max(a[i], b);
+  }
+}
+
 inline void avx2_aligned_max(const double *a, const double *b, double *c, size_t size) {
   size_t vec_size = (size / 4) * 4;
   for (size_t i = 0; i < vec_size; i += 4) {
@@ -945,7 +973,7 @@ inline void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
 inline void avx2_aligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
-  utils::parallel_for<size_t>(0, (size / 8), [&](size_t block) {
+  tthreads::parallel_for<size_t>(0, (size / 8), [&](size_t block) {
     size_t i = block * 8;
     _mm256_store_ps(&c[i], vec_scalar);
   });
@@ -1114,6 +1142,34 @@ inline void avx2_aligned_max(const float *a, const float *b, float *c, size_t si
 
   for (size_t i = vec_size; i < size; ++i) {
     c[i] = std::max(a[i], b[i]);
+  }
+}
+
+inline void avx2_unaligned_scalar_max(const float *a, float scalar, float *c, size_t size) {
+  __m256 vec_scalar = _mm256_set1_ps(scalar);
+  size_t vec_size = (size / 8) * 8;
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_loadu_ps(&a[i]);
+    __m256 vec_c = _mm256_max_ps(vec_a, vec_scalar);
+    _mm256_storeu_ps(&c[i], vec_c);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = std::max(a[i], scalar);
+  }
+}
+
+inline void avx2_aligned_scalar_max(const float *a, float scalar, float *c, size_t size) {
+  __m256 vec_scalar = _mm256_set1_ps(scalar);
+  size_t vec_size = (size / 8) * 8;
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_load_ps(&a[i]);
+    __m256 vec_c = _mm256_max_ps(vec_a, vec_scalar);
+    _mm256_store_ps(&c[i], vec_c);
+  }
+
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = std::max(a[i], scalar);
   }
 }
 
@@ -1871,6 +1927,20 @@ inline void avx2_max(const double *a, const double *b, double *c, size_t size) {
 #endif
 }
 
+inline void avx2_scalar_max(const double *a, double scalar, double *c, size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_scalar_max(a, scalar, c, size);
+  } else {
+    avx2_unaligned_scalar_max(a, scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = std::max(scalar, a[i]);
+  }
+#endif
+}
+
 inline void avx2_clamp(const double *a, double min_val, double max_val, double *c, size_t size) {
 #ifdef __AVX2__
   if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
@@ -2081,6 +2151,20 @@ inline void avx2_max(const float *a, const float *b, float *c, size_t size) {
 #else
   for (size_t i = 0; i < size; ++i) {
     c[i] = std::max(a[i], b[i]);
+  }
+#endif
+}
+
+inline void avx2_scalar_max(const float *a, float scalar, float *c, size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_scalar_max(a, scalar, c, size);
+  } else {
+    avx2_unaligned_scalar_max(a, scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = std::max(scalar, a[i]);
   }
 #endif
 }
