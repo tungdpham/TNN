@@ -1,6 +1,7 @@
 #pragma once
 
 #include "internal_compressor.hpp"
+#include "pipeline/tbuffer.hpp"
 #include <cstdint>
 #include <cstring>
 #include <stdexcept>
@@ -8,8 +9,7 @@
 #include <vector>
 
 namespace tpipeline {
-static void internal_compress(const std::vector<uint8_t> &data,
-                              const std::string name) {
+static void internal_compress(const TBuffer &data, const std::string name) {
   if (name == "zstd") {
     ZstdCompressor::compress(data);
   } else if (name == "lz4hc") {
@@ -19,8 +19,7 @@ static void internal_compress(const std::vector<uint8_t> &data,
   }
 }
 
-static void internal_decompress(const std::vector<uint8_t> &data,
-                                const std::string name) {
+static void internal_decompress(const TBuffer &data, const std::string name) {
   if (name == "zstd") {
     ZstdCompressor::decompress(data);
   } else if (name == "lz4hc") {
@@ -32,9 +31,8 @@ static void internal_decompress(const std::vector<uint8_t> &data,
 
 class BloscCompressor {
 public:
-  static std::vector<uint8_t> compress(const std::vector<uint8_t> &data,
-                                       int clevel = 5, int shuffle = 1);
+  static TBuffer compress(const TBuffer &data, int clevel = 5, int shuffle = 1);
 
-  static std::vector<uint8_t> decompress(const std::vector<uint8_t> &data);
+  static TBuffer decompress(const TBuffer &data);
 };
 } // namespace tpipeline

@@ -12,7 +12,6 @@
 
 #include "communicator.hpp"
 #include "nn/partitioner.hpp"
-#include "old_binary_serializer.hpp"
 #include "pipeline_stage.hpp"
 #include "utils/avx2.hpp"
 #include <algorithm>
@@ -28,9 +27,9 @@
 
 namespace tpipeline {
 
-template <typename T = float> class PipelineCoordinator {
+class PipelineCoordinator {
 public:
-  PipelineCoordinator(int num_stages, int num_microbatches, tnn::Sequential<T> model)
+  PipelineCoordinator(int num_stages, int num_microbatches, tnn::Sequential<float> model)
       : num_stages_(num_stages), num_microbatches_(num_microbatches), model_(std::move(model)) {
     if (num_stages < 1 || num_microbatches < 1) {
       throw std::invalid_argument("Number of stages and microbatches must be at least 1");
@@ -56,8 +55,7 @@ public:
 
   void start() {
     for (const auto &stage_name : this->stage_names_) {
-      auto start_msg =
-          Message<T>::create_control_message(CommandType::TRAIN_MODE, "coordinator", stage_name);
+      Message start_msg(stage_name, CommandType::TRAIN_MODE, std::monostate{});
       this->coordinator_comm_->send_message(start_msg);
     }
 
@@ -68,8 +66,7 @@ public:
 
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
-      auto stop_msg =
-          Message<T>::create_control_message(CommandType::SHUTDOWN, "coordinator", stage_name);
+      Message stop_msg(stage_name, CommandType::SHUTDOWN, std::monostate{});
       this->coordinator_comm_->send_message(stop_msg);
     }
     should_stop_ = true;
@@ -83,23 +80,22 @@ public:
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
-  void process_message(const Message<T> &message) {}
+  void process_message(const Message &message) {}
 
   /**
    * @brief Forwards input batch but does not wait for the result.
    * @param input The input tensor to be processed.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void forward(const Tensor<T> &input, size_t microbatch_id) {
+  void forward(const Tensor<float> &input, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &first_stage = this->stage_names_[0];
 
-    Task<T> task{TaskType::FORWARD, input, microbatch_id};
-    auto forward_msg = Message<T>::forward_task(task, "coordinator", first_stage);
-    forward_msg.sequence_number = microbatch_id;
+    Task<float> task{input, microbatch_id};
+    Message forward_msg(first_stage, CommandType::FORWARD_TASK, task);
 
     this->coordinator_comm_->send_message(forward_msg);
   }
@@ -109,16 +105,15 @@ public:
    * @param gradient The gradient tensor to be backpropagated.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void backward(const Tensor<T> &gradient, size_t microbatch_id) {
+  void backward(const Tensor<float> &gradient, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &last_stage = this->stage_names_.back();
 
-    Task<T> task{TaskType::BACKWARD, gradient, microbatch_id};
-    auto backward_msg = Message<T>::backward_task(task, "coordinator", last_stage);
-    backward_msg.sequence_number = microbatch_id;
+    Task<float> task{gradient, microbatch_id};
+    Message backward_msg(last_stage, CommandType::BACKWARD_TASK, task);
 
     this->coordinator_comm_->send_message(backward_msg);
   }
@@ -129,14 +124,14 @@ public:
    * @param targets The target output tensor.
    * @return The computed loss value.
    */
-  float compute_loss(const Tensor<T> &predictions, const Tensor<T> &targets) {
+  float compute_loss(const Tensor<float> &predictions, const Tensor<float> &targets) {
     if (!loss_function_) {
       throw std::runtime_error("Loss function is not set in the coordinator");
     }
     return loss_function_->compute_loss(predictions, targets);
   }
 
-  void set_loss_function(std::unique_ptr<tnn::Loss<T>> loss) {
+  void set_loss_function(std::unique_ptr<tnn::Loss<float>> loss) {
     if (!loss) {
       throw std::invalid_argument("Loss function cannot be null");
     }
@@ -147,7 +142,7 @@ public:
    * @brief Computes gradient of the loss with respect to predictions using the model's loss
    * function.
    */
-  Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) {
+  Tensor<float> compute_gradient(const Tensor<float> &predictions, const Tensor<float> &targets) {
     if (!loss_function_) {
       throw std::runtime_error("Loss function is not set in the coordinator");
     }
@@ -156,8 +151,7 @@ public:
 
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
-      auto update_msg = Message<T>::create_signal_message(CommandType::UPDATE_PARAMETERS, true,
-                                                          "coordinator", stage_name);
+      Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
       this->coordinator_comm_->send_message(update_msg);
     }
 
@@ -169,19 +163,20 @@ public:
 
   bool send_params(const std::string &stage_id, const tnn::Partition &partition) {
     try {
-      std::vector<Tensor<T> *> params = model_.parameters(partition);
-      std::vector<Tensor<T>> params_copy;
-      for (const auto &param_ptr : params) {
-        if (param_ptr) {
-          params_copy.push_back(*param_ptr);
-        }
-      }
-      auto serialized_params = BinarySerializer::serialize_parameters(params_copy);
+      // std::vector<Tensor<float> *> params = model_.parameters(partition);
+      // std::vector<Tensor<float>> params_copy;
+      // for (const auto &param_ptr : params) {
+      //   if (param_ptr) {
+      //     params_copy.push_back(*param_ptr);
+      //   }
+      // }
 
-      auto params_msg = Message<T>::load_params_message(serialized_params, "coordinator", stage_id);
+      // Message params_msg(stage_id, CommandType::LOAD_PARAMS, params_copy);
+      // params_msg.header.sender_id = "coordinator";
 
-      this->coordinator_comm_->send_message(params_msg);
-      return true;
+      // this->coordinator_comm_->send_message(params_msg);
+      // return true;
+      throw new std::runtime_error("Not implemented yet");
     } catch (const std::exception &e) {
       std::cerr << "Failed to send parameters to stage " << stage_id << ": " << e.what() << '\n';
       return false;
@@ -266,8 +261,8 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  float async_process_batch(std::vector<Tensor<T>> &microbatch_inputs,
-                            std::vector<Tensor<T>> &microbatch_labels) {
+  float async_process_batch(std::vector<Tensor<float>> &microbatch_inputs,
+                            std::vector<Tensor<float>> &microbatch_labels) {
     if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
         microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
@@ -287,19 +282,19 @@ public:
       message_notification_cv_.wait(lock, [this]() {
         return this->coordinator_comm_->message_count(CommandType::FORWARD_TASK) > 0;
       });
-      std::vector<Message<T>> FORWARD_TASKs =
+      std::vector<Message> FORWARD_TASKs =
           this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_TASK);
 
       for (const auto &forward_msg : FORWARD_TASKs) {
-        if (forward_msg.has_task()) {
+        if (forward_msg.has_type<Task<float>>()) {
           ++processed_microbatches_;
 
-          const Task<T> &task = forward_msg.get_task();
-          Tensor<T> predictions = task.data;
-          Tensor<T> targets = microbatch_labels[task.micro_batch_id];
+          const Task<float> &task = forward_msg.get<Task<float>>();
+          Tensor<float> predictions = task.data;
+          Tensor<float> targets = microbatch_labels[task.micro_batch_id];
           float loss = loss_function_->compute_loss(predictions, targets);
           total_loss += loss;
-          Tensor<T> gradient = loss_function_->compute_gradient(predictions, targets);
+          Tensor<float> gradient = loss_function_->compute_gradient(predictions, targets);
           this->backward(gradient, task.micro_batch_id);
         }
       }
@@ -325,8 +320,7 @@ public:
 
     // Request load reports from all stages
     for (const auto &stage_name : this->stage_names_) {
-      auto load_msg =
-          Message<T>::create_control_message(CommandType::REPORT_LOAD, "coordinator", stage_name);
+      Message load_msg(stage_name, CommandType::REPORT_LOAD, std::monostate{});
       this->coordinator_comm_->send_message(load_msg);
     }
 
@@ -339,7 +333,7 @@ public:
     }
 
     // Collect and process load reports
-    std::vector<Message<T>> load_messages =
+    std::vector<Message> load_messages =
         this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
 
     if (load_messages.size() != static_cast<size_t>(this->num_stages_)) {
@@ -352,20 +346,19 @@ public:
 
     // Collect load trackers by stage id
     for (const auto &load_msg : load_messages) {
-      if (load_msg.has_binary()) {
+      if (load_msg.has_type<LoadTracker>()) {
         try {
-          std::vector<uint8_t> serialized_data = load_msg.get_binary();
-          LoadTracker tracker = LoadTracker::deserialize(serialized_data);
-          load_trackers[load_msg.sender_id] = tracker;
+          LoadTracker tracker = load_msg.get<LoadTracker>();
+          load_trackers[load_msg.header.sender_id] = tracker;
 
-          std::cout << "Received load report from " << load_msg.sender_id
+          std::cout << "Received load report from " << load_msg.header.sender_id
                     << ": avg_forward_time=" << tracker.avg_forward_time_
                     << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
           // NOTE: memory usage report is broken, needs some fixing. Just use top command for now.
           // std::cout << "  avg_cpu_utilization=" << tracker.avg_cpu_utilization_
           //           << "%, max_memory_usage=" << tracker.max_memory_usage_ << "MB\n";
         } catch (const std::exception &e) {
-          std::cerr << "Warning: Failed to deserialize load data from " << load_msg.sender_id
+          std::cerr << "Warning: Failed to deserialize load data from " << load_msg.header.sender_id
                     << ": " << e.what() << "\n";
         }
       }
@@ -377,8 +370,7 @@ public:
    */
   void print_profiling_on_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
-      auto profiling_msg = Message<T>::create_control_message(CommandType::PRINT_PROFILING,
-                                                              "coordinator", stage_name);
+      Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(profiling_msg);
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
@@ -392,8 +384,7 @@ public:
    */
   void clear_profiling_data() {
     for (const auto &stage_name : this->stage_names_) {
-      auto clear_msg = Message<T>::create_control_message(CommandType::CLEAR_PROFILING,
-                                                          "coordinator", stage_name);
+      Message clear_msg(stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(clear_msg);
     }
   }
@@ -408,8 +399,7 @@ public:
 
     // Request parameters from all stages
     for (const auto &stage_name : this->stage_names_) {
-      auto params_request_msg =
-          Message<T>::create_control_message(CommandType::SEND_PARAMS, "coordinator", stage_name);
+      Message params_request_msg(stage_name, CommandType::SEND_PARAMS, std::monostate{});
       this->coordinator_comm_->send_message(params_request_msg);
     }
 
@@ -421,7 +411,7 @@ public:
     }
 
     // Collect parameter messages
-    std::vector<Message<T>> params_messages =
+    std::vector<Message> params_messages =
         this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PARAMS_TRANSFER);
 
     if (params_messages.size() != static_cast<size_t>(this->num_stages_)) {
@@ -430,59 +420,59 @@ public:
       return false;
     }
 
-    // Update model parameters with received data
-    std::map<std::string, std::vector<Tensor<T>>> stage_parameters;
+    // // Update model parameters with received data
+    // std::map<std::string, std::vector<Tensor<float>>> stage_parameters;
 
-    for (const auto &params_msg : params_messages) {
-      if (params_msg.has_binary()) {
-        try {
-          std::vector<uint8_t> serialized_data = params_msg.get_binary();
-          auto params = BinarySerializer::deserialize_parameters<T>(serialized_data);
-          stage_parameters[params_msg.sender_id] = std::move(params);
+    // for (const auto &params_msg : params_messages) {
+    //   if (params_msg.has_type<std::vector<Tensor<float>>>()) {
+    //     try {
+    //       auto params = params_msg.get<std::vector<Tensor<float>>>();
+    //       stage_parameters[params_msg.header.sender_id] = std::move(params);
 
-          std::cout << "Received " << params.size() << " parameters from " << params_msg.sender_id
-                    << "\n";
-        } catch (const std::exception &e) {
-          std::cerr << "Warning: Failed to deserialize parameters from " << params_msg.sender_id
-                    << ": " << e.what() << "\n";
-          return false;
-        }
-      }
-    }
+    //       std::cout << "Received " << params.size() << " parameters from "
+    //                 << params_msg.header.sender_id << "\n";
+    //     } catch (const std::exception &e) {
+    //       std::cerr << "Warning: Failed to deserialize parameters from "
+    //                 << params_msg.header.sender_id << ": " << e.what() << "\n";
+    //       return false;
+    //     }
+    //   }
+    // }
 
     // Reconstruct the full model from stage parameters
     try {
       // Find the stage index for each stage name and update model accordingly
-      for (size_t i = 0; i < stage_names_.size(); ++i) {
-        const std::string &stage_name = stage_names_[i];
-        auto it = stage_parameters.find(stage_name);
-        if (it != stage_parameters.end()) {
-          // Update model parameters for this partition
-          auto model_params = model_.parameters(partitions_[i]);
-          const auto &stage_params = it->second;
+      // for (size_t i = 0; i < stage_names_.size(); ++i) {
+      //   const std::string &stage_name = stage_names_[i];
+      //   auto it = stage_parameters.find(stage_name);
+      //   if (it != stage_parameters.end()) {
+      //     // Update model parameters for this partition
+      //     auto model_params = model_.parameters(partitions_[i]);
+      //     const auto &stage_params = it->second;
 
-          if (model_params.size() == stage_params.size()) {
-            for (size_t j = 0; j < model_params.size(); ++j) {
-              if (model_params[j]) {
-                // Check if tensors have the same size before copying
-                if (model_params[j]->size() == stage_params[j].size()) {
-                  utils::avx2_copy(stage_params[j].data(), model_params[j]->data(),
-                                   model_params[j]->size());
-                } else {
-                  std::cerr << "Warning: Tensor size mismatch for parameter " << j << " in stage "
-                            << stage_name << "\n";
-                }
-              }
-            }
-          } else {
-            std::cerr << "Warning: Parameter count mismatch for stage " << stage_name
-                      << ". Expected " << model_params.size() << ", got " << stage_params.size()
-                      << "\n";
-          }
-        }
-      }
+      //     if (model_params.size() == stage_params.size()) {
+      //       for (size_t j = 0; j < model_params.size(); ++j) {
+      //         if (model_params[j]) {
+      //           // Check if tensors have the same size before copying
+      //           if (model_params[j]->size() == stage_params[j].size()) {
+      //             utils::avx2_copy(stage_params[j].data(), model_params[j]->data(),
+      //                              model_params[j]->size());
+      //           } else {
+      //             std::cerr << "Warning: Tensor size mismatch for parameter " << j << " in stage
+      //             "
+      //                       << stage_name << "\n";
+      //           }
+      //         }
+      //       }
+      //     } else {
+      //       std::cerr << "Warning: Parameter count mismatch for stage " << stage_name
+      //                 << ". Expected " << model_params.size() << ", got " << stage_params.size()
+      //                 << "\n";
+      //     }
+      //   }
+      // }
 
-      std::cout << "Successfully updated coordinator model with current parameters.\n";
+      // std::cout << "Successfully updated coordinator model with current parameters.\n";
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Error updating model parameters: " << e.what() << "\n";
@@ -492,12 +482,12 @@ public:
 
   void request_status_from_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
-      auto status_msg = Message<T>(CommandType::STATUS_REQUEST, true, "coordinator", stage_name);
+      Message status_msg(stage_name, CommandType::STATUS_REQUEST, std::monostate{});
       this->coordinator_comm_->send_message(status_msg);
     }
   }
 
-  std::vector<Message<T>> dequeue_all_messages(CommandType target_type) {
+  std::vector<Message> dequeue_all_messages(CommandType target_type) {
     return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
   }
 
@@ -536,8 +526,7 @@ protected:
 
       // Send configuration as JSON
       std::string config_json = config.to_json().dump();
-      auto config_msg = Message<T>::create_text_message(CommandType::CONFIG_TRANSFER, config_json,
-                                                        "coordinator", stage_id);
+      Message config_msg(stage_id, CommandType::CONFIG_TRANSFER, config_json);
 
       this->coordinator_comm_->send_message(config_msg);
 
@@ -554,9 +543,9 @@ protected:
   int num_stages_;
   int num_microbatches_;
   bool should_stop_ = true;
-  tnn::Sequential<T> model_;
-  std::shared_ptr<PipelineCommunicator<T>> coordinator_comm_;
-  std::unique_ptr<tnn::Loss<T>> loss_function_;
+  tnn::Sequential<float> model_;
+  std::shared_ptr<PipelineCommunicator> coordinator_comm_;
+  std::unique_ptr<tnn::Loss<float>> loss_function_;
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
   std::thread message_thread_;

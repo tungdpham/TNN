@@ -78,7 +78,7 @@ int main() {
 
   std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
 
-  std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints = {
+  std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
       {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
       {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
@@ -92,7 +92,7 @@ int main() {
   }
 
   std::cout << "\nCreating distributed coordinator..." << std::endl;
-  DistributedPipelineCoordinator<float> coordinator(
+  DistributedPipelineCoordinator coordinator(
       std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
@@ -171,13 +171,13 @@ int main() {
         std::chrono::duration_cast<std::chrono::microseconds>(forward_end - forward_start);
     auto compute_loss_start = std::chrono::high_resolution_clock::now();
 
-    std::vector<tpipeline::Message<float>> all_messages =
+    std::vector<tpipeline::Message> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
-      if (message.command_type == CommandType::FORWARD_TASK) {
-        forward_tasks.push_back(message.get_task());
+      if (message.header.command_type == CommandType::FORWARD_TASK) {
+        forward_tasks.push_back(message.get<tpipeline::Task<float>>());
       }
     }
 
@@ -191,8 +191,7 @@ int main() {
       Tensor<float> gradient =
           loss_function->compute_gradient(task.data, micro_batch_labels[task.micro_batch_id]);
 
-      tpipeline::Task<float> backward_task{tpipeline::TaskType::BACKWARD, gradient,
-                                           task.micro_batch_id};
+      tpipeline::Task<float> backward_task{gradient, task.micro_batch_id};
 
       backward_tasks.push_back(backward_task);
     }
@@ -268,7 +267,7 @@ int main() {
 
     coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
 
-    std::vector<tpipeline::Message<float>> all_messages =
+    std::vector<tpipeline::Message> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
     if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
@@ -279,8 +278,8 @@ int main() {
 
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
-      if (message.command_type == CommandType::FORWARD_TASK) {
-        forward_tasks.push_back(message.get_task());
+      if (message.header.command_type == CommandType::FORWARD_TASK) {
+        forward_tasks.push_back(message.get<tpipeline::Task<float>>());
       }
     }
 

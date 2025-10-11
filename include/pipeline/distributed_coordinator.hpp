@@ -26,7 +26,7 @@ namespace tpipeline {
  * Handles deployment of pipeline stages to remote machines, establishes
  * network communication topology, and coordinates distributed training.
  */
-template <typename T = float> class DistributedPipelineCoordinator : public PipelineCoordinator<T> {
+class DistributedPipelineCoordinator : public PipelineCoordinator {
 public:
   struct RemoteEndpoint {
     std::string host;
@@ -37,12 +37,12 @@ public:
         : host(std::move(h)), port(p), stage_id(std::move(id)) {}
   };
 
-  DistributedPipelineCoordinator(tnn::Sequential<T> model,
+  DistributedPipelineCoordinator(tnn::Sequential<float> model,
                                  const std::vector<RemoteEndpoint> &endpoints,
                                  int num_microbatches = 4,
                                  const std::string &coordinator_host = "localhost",
                                  int coordinator_port = 8000)
-      : PipelineCoordinator<T>(endpoints.size(), num_microbatches, std::move(model)),
+      : PipelineCoordinator(endpoints.size(), num_microbatches, std::move(model)),
         remote_endpoints_(endpoints), coordinator_port_(coordinator_port), io_context_(),
         work_guard_(asio::make_work_guard(io_context_)), is_deployed_(false) {
 
@@ -83,8 +83,8 @@ public:
       this->stage_names_.push_back(config.stage_id);
     }
 
-    this->coordinator_comm_ = std::make_unique<TcpPipelineCommunicator<T>>(
-        io_context_, coordinator_host, coordinator_port_);
+    this->coordinator_comm_ =
+        std::make_unique<TcpPipelineCommunicator>(io_context_, coordinator_host, coordinator_port_);
 
     this->add_message_callback();
 
@@ -165,31 +165,31 @@ public:
       return false;
     }
 
-    std::vector<std::future<bool>> params_futures;
+    // std::vector<std::future<bool>> params_futures;
 
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
-      auto future = std::async(std::launch::async, [this, i]() {
-        return this->send_params(remote_endpoints_[i].stage_id, this->partitions_[i]);
-      });
-      params_futures.push_back(std::move(future));
-    }
+    // for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+    //   auto future = std::async(std::launch::async, [this, i]() {
+    //     return this->send_params(remote_endpoints_[i].stage_id, this->partitions_[i]);
+    //   });
+    //   params_futures.push_back(std::move(future));
+    // }
 
-    bool all_params_sent = true;
+    // bool all_params_sent = true;
 
-    for (auto &future : params_futures) {
-      if (!future.get()) {
-        all_params_sent = false;
-      }
-    }
-    if (!all_params_sent) {
-      std::cout << "Failed to send parameters to all stages\n";
-      return false;
-    }
+    // for (auto &future : params_futures) {
+    //   if (!future.get()) {
+    //     all_params_sent = false;
+    //   }
+    // }
+    // if (!all_params_sent) {
+    //   std::cout << "Failed to send parameters to all stages\n";
+    //   return false;
+    // }
 
-    if (!this->wait_for_params_loaded()) {
-      std::cerr << "Failed to receive parameters confirmation from all stages\n";
-      return false;
-    }
+    // if (!this->wait_for_params_loaded()) {
+    //   std::cerr << "Failed to receive parameters confirmation from all stages\n";
+    //   return false;
+    // }
 
     is_deployed_ = true;
     std::cout << "All stages deployed and ready!\n";
@@ -215,7 +215,7 @@ private:
     try {
       std::cout << "Connecting to stage " << endpoint.stage_id << " at " << endpoint.host << ":"
                 << endpoint.port << std::endl;
-      auto tcp_comm = static_cast<TcpPipelineCommunicator<T> *>(this->coordinator_comm_.get());
+      auto tcp_comm = static_cast<TcpPipelineCommunicator *>(this->coordinator_comm_.get());
       bool connected = tcp_comm->connect_to_peer(endpoint.stage_id, endpoint.host, endpoint.port);
 
       if (connected) {
@@ -236,8 +236,7 @@ private:
     try {
 
       std::string config_json = config.to_json().dump();
-      auto config_msg = Message<T>::create_text_message(CommandType::CONFIG_TRANSFER, config_json,
-                                                        "coordinator", stage_id);
+      auto config_msg = Message(stage_id, CommandType::CONFIG_TRANSFER, config_json);
 
       this->coordinator_comm_->send_message(config_msg);
 

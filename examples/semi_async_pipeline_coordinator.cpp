@@ -193,15 +193,15 @@ void get_mnist_data_loaders(data_loading::MNISTDataLoader<float> &train_loader,
   test_loader.reset();
 }
 
-ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                    ImageDataLoader<float> &train_loader);
-ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                       ImageDataLoader<float> &test_loader);
 
 int main() {
-  auto model = create_cifar10_trainer_v2();
+  // auto model = create_cifar10_trainer_v2();
 
-  // auto model = create_cifar10_trainer_v1();
+  auto model = create_cifar10_trainer_v1();
 
   // auto model = create_mnist_trainer();
 
@@ -211,7 +211,7 @@ int main() {
 
   std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
 
-  std::vector<DistributedPipelineCoordinator<float>::RemoteEndpoint> endpoints = {
+  std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
       {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
       {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
@@ -225,7 +225,7 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedPipelineCoordinator<float> coordinator(
+  DistributedPipelineCoordinator coordinator(
       std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
   // auto loss_function =
@@ -296,7 +296,7 @@ int main() {
   return 0;
 }
 
-ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                    ImageDataLoader<float> &train_loader) {
   Tensor<float> batch_data, batch_labels;
 
@@ -355,7 +355,7 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator<float> &coordi
   return {total_loss / batch_index, -1.0f};
 }
 
-ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coordinator,
+ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                       ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
@@ -377,7 +377,7 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
 
     coordinator.join(CommandType::FORWARD_TASK, semi_async_constants::NUM_MICROBATCHES, 60);
 
-    std::vector<tpipeline::Message<float>> all_messages =
+    std::vector<tpipeline::Message> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
     if (all_messages.size() != semi_async_constants::NUM_MICROBATCHES) {
@@ -388,8 +388,8 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator<float> &coo
 
     std::vector<tpipeline::Task<float>> forward_tasks;
     for (const auto &message : all_messages) {
-      if (message.command_type == CommandType::FORWARD_TASK) {
-        forward_tasks.push_back(message.get_task());
+      if (message.header.command_type == CommandType::FORWARD_TASK) {
+        forward_tasks.push_back(message.get<Task<float>>());
       }
     }
 

@@ -10,7 +10,7 @@
 
 #include "communicator.hpp"
 #include "load_tracker.hpp"
-#include "old_binary_serializer.hpp"
+#include "stage_config.hpp"
 #include "task.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
@@ -26,11 +26,11 @@
 
 namespace tpipeline {
 
-template <typename T = float> class PipelineStage {
+class PipelineStage {
 public:
   explicit PipelineStage(
-      std::unique_ptr<tnn::Sequential<T>> model,
-      std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
+      std::unique_ptr<tnn::Sequential<float>> model,
+      std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>
           communicator,
       const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
@@ -108,32 +108,34 @@ public:
   std::string name() const { return name_; }
 
 protected:
-  virtual void process_message(const tpipeline::Message<T> &message) {
-    switch (message.command_type) {
+  virtual void process_message(const tpipeline::Message &message) {
+    switch (message.header.command_type) {
     case CommandType::FORWARD_TASK: {
-      const Task<T> forward_task = message.get_task();
-      Tensor<T> output_data = this->model_->forward(forward_task.data, forward_task.micro_batch_id);
-      Task<T> output_task(TaskType::FORWARD, std::move(output_data), forward_task.micro_batch_id);
+      const Task<float> forward_task = message.get<Task<float>>();
+      Tensor<float> output_data =
+          this->model_->forward(forward_task.data, forward_task.micro_batch_id);
+      Task<float> output_task(std::move(output_data), forward_task.micro_batch_id);
 
-      auto output_message = Message<T>::forward_task(output_task, name_, "next_stage");
-      output_message.sequence_number = message.sequence_number;
+      Message output_message("next_stage", CommandType::FORWARD_TASK, output_task);
+      output_message.header.sender_id = name_;
 
       communicator_->send_message(output_message);
     } break;
     case CommandType::BACKWARD_TASK: {
-      const Task<T> backward_task = message.get_task();
-      Tensor<T> output_data =
+      const Task<float> backward_task = message.get<Task<float>>();
+      Tensor<float> output_data =
           this->model_->backward(backward_task.data, backward_task.micro_batch_id);
-      Task<T> output_task(TaskType::BACKWARD, std::move(output_data), backward_task.micro_batch_id);
+      Task<float> output_task(std::move(output_data), backward_task.micro_batch_id);
 
-      auto output_message = Message<T>::backward_task(output_task, name_, "prev_stage");
-      output_message.sequence_number = message.sequence_number;
+      Message output_message("prev_stage", CommandType::BACKWARD_TASK, output_task);
+      output_message.header.sender_id = name_;
 
       communicator_->send_message(output_message);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       model_->update_parameters();
-      auto response = Message<T>::parameters_updated(this->name_, "coordinator");
+      Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
+      response.header.sender_id = name_;
       communicator_->send_message(response);
     } break;
     case CommandType::TRAIN_MODE:
@@ -150,16 +152,17 @@ protected:
     }
 
     case CommandType::ERROR_REPORT:
-      if (message.has_text()) {
-        std::cout << "Stage " << name_ << " received error: " << message.get_text() << " from "
-                  << message.sender_id << std::endl;
+      if (message.has_type<std::string>()) {
+        std::cout << "Stage " << name_ << " received error: " << message.get<std::string>()
+                  << " from " << message.header.sender_id << std::endl;
       }
       break;
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
-        auto outgoing_message = Message<T>::create_status_message(CommandType::PROFILING_PRINTED,
-                                                                  name_, message.sender_id);
+        Message outgoing_message(message.header.sender_id, CommandType::PROFILING_PRINTED,
+                                 std::monostate{});
+        outgoing_message.header.sender_id = name_;
         communicator_->send_message(outgoing_message);
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
@@ -168,8 +171,9 @@ protected:
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->clear_profiling_data();
-        auto outgoing_message = Message<T>::create_status_message(CommandType::PROFILING_CLEARED,
-                                                                  name_, message.sender_id);
+        Message outgoing_message(message.header.sender_id, CommandType::PROFILING_CLEARED,
+                                 std::monostate{});
+        outgoing_message.header.sender_id = name_;
         communicator_->send_message(outgoing_message);
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
@@ -179,51 +183,47 @@ protected:
       this->handle_configuration(message);
       break;
     case CommandType::LOAD_PARAMS: {
-      // decode and deserialize
-      std::vector<uint8_t> params = message.get_binary();
-      std::vector<Tensor<T>> parameters = BinarySerializer::deserialize_parameters<T>(params);
+      // // decode and deserialize
+      // std::vector<Tensor<float>> parameters = message.get<std::vector<Tensor<float>>>();
+      // model_->load_parameters(std::move(parameters));
 
-      model_->load_parameters(std::move(parameters));
-
-      // send confirmation
-      auto response =
-          Message<T>::create_status_message(CommandType::PARAMS_LOADED, name_, message.sender_id);
-      communicator_->send_message(response);
+      // // send confirmation
+      // Message response(message.header.sender_id, CommandType::PARAMS_LOADED, std::monostate{});
+      // response.header.sender_id = name_;
+      // communicator_->send_message(response);
+      throw new std::runtime_error("Not implemented yet");
       break;
     }
     case CommandType::SEND_PARAMS: {
       try {
-        std::vector<Tensor<T> *> param_ptrs = model_->parameters();
-        std::vector<Tensor<T>> params_copy;
-        params_copy.reserve(param_ptrs.size());
-        for (const auto &param_ptr : param_ptrs) {
-          if (param_ptr) {
-            params_copy.emplace_back(param_ptr->clone());
-          }
-        }
+        // std::vector<Tensor<float> *> param_ptrs = model_->parameters();
+        // std::vector<Tensor<float>> params_copy;
+        // params_copy.reserve(param_ptrs.size());
+        // for (const auto &param_ptr : param_ptrs) {
+        //   if (param_ptr) {
+        //     params_copy.emplace_back(param_ptr->clone());
+        //   }
+        // }
 
-        auto serialized_params = BinarySerializer::serialize_parameters(params_copy);
-        auto params_msg = Message<T>(CommandType::PARAMS_TRANSFER, serialized_params);
-        params_msg.sender_id = name_;
-        params_msg.recipient_id = message.sender_id;
+        // Message params_msg(message.header.sender_id, CommandType::PARAMS_TRANSFER, params_copy);
+        // params_msg.header.sender_id = name_;
 
-        communicator_->send_message(params_msg);
-        std::cout << "Sent " << params_copy.size() << " parameters to " << message.sender_id
-                  << std::endl;
+        // communicator_->send_message(params_msg);
+        // std::cout << "Sent " << params_copy.size() << " parameters to " <<
+        // message.header.sender_id
+        //           << std::endl;
+
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
-        auto error_msg = Message<T>::error_message(
-            std::string("Failed to send parameters: ") + e.what(), name_, message.sender_id);
+        std::string error_text = std::string("Failed to send parameters: ") + e.what();
+        Message error_msg(message.header.sender_id, CommandType::ERROR_REPORT, error_text);
+        error_msg.header.sender_id = name_;
         communicator_->send_message(error_msg);
       }
       break;
     }
     case CommandType::REPORT_LOAD: {
-      std::vector<uint8_t> serialized_tracker = LoadTracker::serialize(load_tracker_);
-      Message<T> load_msg(CommandType::LOAD_REPORT, serialized_tracker);
-      load_msg.sender_id = name_;
-      load_msg.recipient_id = "coordinator";
-      communicator_->send_message(load_msg);
+      throw std::runtime_error("Not implemented yet");
       break;
     }
     case CommandType::SHUTDOWN:
@@ -268,16 +268,14 @@ protected:
     }
   }
 
-  void handle_configuration(const Message<T> &message) {
-    if (!message.has_text()) {
+  void handle_configuration(const Message &message) {
+    if (!message.has_type<std::string>()) {
       std::cout << "Configuration message missing text data" << '\n';
       return;
     }
 
     try {
-      nlohmann::json config_json = nlohmann::json::parse(message.get_text());
-
-      // std::cout << "Received configuration JSON: " << config_json.dump(2) << '\n';
+      nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
 
       StageConfig config = StageConfig::from_json(config_json);
 
@@ -285,8 +283,8 @@ protected:
 
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
 
-      this->model_ = std::make_unique<tnn::Sequential<T>>(
-          tnn::Sequential<T>::load_from_config(config.model_config));
+      this->model_ = std::make_unique<tnn::Sequential<float>>(
+          tnn::Sequential<float>::load_from_config(config.model_config));
 
       this->model_->print_config();
       this->model_->enable_profiling(true);
@@ -299,26 +297,21 @@ protected:
 
       is_configured_ = true;
 
-      auto ready_msg = Message<T>::create_signal_message(CommandType::CONFIG_RECEIVED, true,
-                                                         stage_id_, "coordinator");
-      this->communicator_->enqueue_output_message(ready_msg);
-      this->communicator_->flush_output_messages();
+      Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
+      this->communicator_->send_message(ready_msg);
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
 
-      auto error_msg =
-          Message<T>::error_message(std::string("Configuration failed: ") + e.what(),
-                                    stage_id_.empty() ? "unknown" : stage_id_, "coordinator");
-      this->communicator_->enqueue_output_message(error_msg);
-      this->communicator_->flush_output_messages();
+      std::string error_text = std::string("Configuration failed: ") + e.what();
+      Message error_msg("coordinator", CommandType::ERROR_REPORT, error_text);
+      this->communicator_->send_message(error_msg);
     }
   }
 
   virtual void setup_stage_connections(const StageConfig &config) = 0;
 
-  std::unique_ptr<tnn::Sequential<T>> model_;
-  std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>
-      communicator_;
+  std::unique_ptr<tnn::Sequential<float>> model_;
+  std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>> communicator_;
   std::string name_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;

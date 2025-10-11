@@ -12,10 +12,10 @@
 
 namespace tpipeline {
 
-template <typename T = float> class ConcurrentMessageMap {
+class ConcurrentMessageMap {
 private:
   std::atomic<size_t> total_message_count_{0};
-  tbb::concurrent_unordered_map<CommandType, tbb::concurrent_queue<Message<T>>> queues_;
+  tbb::concurrent_unordered_map<CommandType, tbb::concurrent_queue<Message>> queues_;
 
 public:
   ConcurrentMessageMap() = default;
@@ -35,12 +35,12 @@ public:
 
   ~ConcurrentMessageMap() { clear(); }
 
-  void push(CommandType type, const Message<T> &message) {
+  void push(CommandType type, const Message &message) {
     queues_[type].push(message);
     total_message_count_.fetch_add(1, std::memory_order_relaxed);
   }
 
-  bool pop(CommandType type, Message<T> &message) {
+  bool pop(CommandType type, Message &message) {
     auto it = queues_.find(type);
     if (it != queues_.end()) {
       if (it->second.try_pop(message)) {
@@ -63,11 +63,11 @@ public:
 
   bool empty() const { return total_message_count_.load(std::memory_order_relaxed) == 0; }
 
-  std::vector<Message<T>> pop_all(CommandType type) {
-    std::vector<Message<T>> messages;
+  std::vector<Message> pop_all(CommandType type) {
+    std::vector<Message> messages;
     auto it = queues_.find(type);
     if (it != queues_.end()) {
-      Message<T> message;
+      Message message;
       while (it->second.try_pop(message)) {
         messages.push_back(std::move(message));
       }
@@ -77,7 +77,7 @@ public:
 
   void clear() {
     for (auto &pair : queues_) {
-      Message<T> dummy;
+      Message dummy;
       while (pair.second.try_pop(dummy)) {
       }
     }

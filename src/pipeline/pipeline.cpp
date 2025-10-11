@@ -14,12 +14,4 @@ namespace tpipeline {
 /**
  * Template instantiations for commonly used types. Uncomment as needed.
  */
-template class DistributedPipelineCoordinator<float>;
-// template class DistributedPipelineCoordinator<double>;
-
-template class InProcessPipelineCoordinator<float>;
-// template class InProcessPipelineCoordinator<double>;
-
-template class NetworkStageWorker<float>;
-// template class NetworkStageWorker<double>;
 } // namespace tpipeline

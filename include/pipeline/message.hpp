@@ -7,149 +7,133 @@
 #pragma once
 
 #include "command_type.hpp"
+#include "load_tracker.hpp"
 #include "task.hpp"
+#include "tbuffer.hpp"
+#include "tensor/tensor.hpp"
+#include <arpa/inet.h>
 #include <chrono>
+#include <cstring>
 #include <string>
 #include <variant>
 #include <vector>
 
 namespace tpipeline {
+// Note: Changing the order of types in this variant will break serialization/deserialization!
+using PayloadType = std::variant<std::monostate, Task<float>, std::string, bool, LoadTracker>;
 
-template <typename T = float> struct Message {
-  CommandType command_type;
+struct FixedHeader {
+  uint8_t PROTOCOL_VERSION = 1;
+  uint8_t endianess;   // 1 for little-endian, 0 for big-endian
+  uint64_t length = 0; // Length of the rest of the message (excluding fixed header part)
 
-  using PayloadType =
-      std::variant<std::monostate, Task<T>, std::string, bool, std::vector<uint8_t>>;
+  FixedHeader() : endianess((htons(1) == 1) ? 1 : 0) {}
+
+  FixedHeader(uint64_t len) : length(len) { endianess = (htons(1) == 1) ? 1 : 0; }
+
+  static constexpr uint64_t size() {
+    return sizeof(uint8_t) + // PROTOCOL_VERSION
+           sizeof(uint8_t) + // endianess
+           sizeof(uint64_t); // length
+  }
+};
+
+struct MessageHeader {
+  std::string recipient_id; // ID of the recipient stage
+  std::string sender_id;    // ID of the sender stage
+  CommandType command_type; // Type of command
+
+  MessageHeader() : command_type(CommandType::_START) {}
+
+  MessageHeader(std::string recipient, CommandType cmd_type)
+      : recipient_id(std::move(recipient)), sender_id(""), command_type(cmd_type) {}
+
+  MessageHeader(const MessageHeader &other)
+      : recipient_id(other.recipient_id), sender_id(other.sender_id),
+        command_type(other.command_type) {}
+
+  const uint64_t size() const {
+    return sizeof(uint64_t) + recipient_id.size() + // recipient_id length + data
+           sizeof(uint64_t) + sender_id.size() +    // sender_id length + data
+           sizeof(uint16_t);                        // command_type (serialized as uint16_t)
+  }
+};
+
+struct MessageData {
+  uint64_t payload_type; // to indicate which type is held in the variant
   PayloadType payload;
 
-  std::string sender_id;
-  std::string recipient_id;
-
-  std::chrono::steady_clock::time_point timestamp;
-  size_t sequence_number = 0;
-
-  Message() : payload(std::monostate{}) {}
-
-  Message(CommandType cmd_type)
-      : command_type(cmd_type), payload(std::monostate{}),
-        timestamp(std::chrono::steady_clock::now()) {}
-
-  Message(CommandType cmd_type, Task<T> &task_data)
-      : command_type(cmd_type), payload(std::move(task_data)),
-        timestamp(std::chrono::steady_clock::now()) {}
-
-  Message(CommandType cmd_type, const std::string &text)
-      : command_type(cmd_type), payload(text), timestamp(std::chrono::steady_clock::now()) {}
-
-  Message(CommandType cmd_type, bool signal_value)
-      : command_type(cmd_type), payload(signal_value), timestamp(std::chrono::steady_clock::now()) {
+  MessageData(const PayloadType &pay) : payload(std::move(pay)) {
+    payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  Message(CommandType cmd_type, const std::vector<uint8_t> &binary_data)
-      : command_type(cmd_type), payload(binary_data), timestamp(std::chrono::steady_clock::now()) {}
+  MessageData(const MessageData &other)
+      : payload_type(other.payload_type), payload(other.payload) {}
+
+  const uint64_t size() const {
+    // Rough estimate of size; actual serialization may differ
+    uint64_t size = 0;
+
+    // size of payload_type
+    size += sizeof(payload_type);
+
+    // size of payload
+    if (std::holds_alternative<std::monostate>(payload)) {
+      return size;
+    } else if (std::holds_alternative<Task<float>>(payload)) {
+      const auto &task = std::get<Task<float>>(payload);
+      size += sizeof(uint64_t); // micro_batch_id
+      size += sizeof(uint64_t); // shape size (uint64_t in serialization)
+      size +=
+          task.data.shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
+      // No size prefix for tensor data itself
+      size += task.data.size() * sizeof(float); // data
+
+    } else if (std::holds_alternative<std::string>(payload)) {
+      const auto &str = std::get<std::string>(payload);
+      size += sizeof(uint64_t); // string length (uint64_t in serialization)
+      size += str.size();       // string data
+
+    } else if (std::holds_alternative<bool>(payload)) {
+      size += sizeof(uint8_t); // bool serialized as uint8_t
+
+    } else {
+      throw new std::runtime_error("Unknown payload type in MessageData");
+    }
+    return size;
+  }
+};
+
+struct Message {
+  MessageHeader header;
+  MessageData data;
+
+  Message() : header("", CommandType::_START), data(std::monostate{}) {}
+
+  Message(std::string recipient_id, CommandType cmd_type, PayloadType payload)
+      : header(std::move(recipient_id), cmd_type), data(std::move(payload)) {}
+
+  Message(std::string recipient_id, CommandType cmd_type)
+      : header(std::move(recipient_id), cmd_type), data(std::monostate{}) {}
+
+  Message(const Message &other) : header(other.header), data(other.data) {}
 
   ~Message() = default;
 
-  bool has_task() const { return std::holds_alternative<Task<T>>(payload); }
-  bool has_text() const { return std::holds_alternative<std::string>(payload); }
-  bool has_signal() const { return std::holds_alternative<bool>(payload); }
-  bool has_binary() const { return std::holds_alternative<std::vector<uint8_t>>(payload); }
-
-  const Task<T> &get_task() const { return std::get<Task<T>>(payload); }
-  const std::string &get_text() const { return std::get<std::string>(payload); }
-  bool get_signal() const { return std::get<bool>(payload); }
-  const std::vector<uint8_t> &get_binary() const { return std::get<std::vector<uint8_t>>(payload); }
-
-  static Message<T> forward_task(Task<T> &task, const std::string &sender = "",
-                                 const std::string &recipient = "") {
-    Message<T> msg(CommandType::FORWARD_TASK, task);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
+  template <typename PayloadType> bool has_type() const {
+    return std::holds_alternative<PayloadType>(data.payload);
   }
 
-  static Message<T> backward_task(Task<T> &task, const std::string &sender = "",
-                                  const std::string &recipient = "") {
-    Message<T> msg(CommandType::BACKWARD_TASK, task);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
+  template <typename PayloadType> const PayloadType &get() const {
+    return std::get<PayloadType>(data.payload);
   }
 
-  static Message<T> create_control_message(CommandType cmd_type, const std::string &sender = "",
-                                           const std::string &recipient = "") {
-    Message<T> msg(cmd_type);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
+  template <typename PayloadType> void set(const PayloadType &new_payload) {
+    data.payload = new_payload;
+    data.payload_type = static_cast<uint64_t>(data.payload.index());
   }
 
-  static Message<T> create_status_message(CommandType cmd_type, const std::string &sender = "",
-                                          const std::string &recipient = "") {
-    Message<T> msg(cmd_type);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  static Message<T> load_params_message(const std::vector<uint8_t> &serialized_params,
-                                        const std::string &sender = "",
-                                        const std::string &recipient = "") {
-    Message<T> msg(CommandType::LOAD_PARAMS, serialized_params);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  static Message<T> parameters_updated(const std::string &sender = "",
-                                       const std::string &recipient = "") {
-    Message<T> msg(CommandType::PARAMETERS_UPDATED);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  static Message<T> error_message(const std::string &error_text, const std::string &sender = "",
-                                  const std::string &recipient = "") {
-    Message<T> msg(CommandType::ERROR_REPORT, error_text);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  static Message<T> create_text_message(CommandType cmd_type, const std::string &text,
-                                        const std::string &sender = "",
-                                        const std::string &recipient = "") {
-    Message<T> msg(cmd_type, text);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  static Message<T> create_signal_message(CommandType cmd_type, bool signal_value,
-                                          const std::string &sender = "",
-                                          const std::string &recipient = "") {
-    Message<T> msg(cmd_type, signal_value);
-    msg.sender_id = sender;
-    msg.recipient_id = recipient;
-    return msg;
-  }
-
-  std::string to_string() const {
-    std::string result = "Message(" + std::to_string(static_cast<int>(command_type)) +
-                         ", sender: " + sender_id + ", recipient: " + recipient_id;
-    if (has_task()) {
-      result += ", task: " + get_task().to_string();
-    }
-    if (has_text()) {
-      result += ", text: " + get_text();
-    }
-    if (has_signal()) {
-      result += ", signal: " + std::to_string(get_signal());
-    }
-    result += ")";
-    return result;
-  }
+  const uint64_t size() const { return header.size() + data.size(); }
 };
 
 } // namespace tpipeline

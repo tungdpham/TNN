@@ -1,15 +1,15 @@
 # Getting Started
 
-## Build Instructions
-
 ## Dependencies
 You should have these dependencies for the main programs installed before building. Other dependencies and open-source frameworks are fetched directly from their repository for proper licensing and up-to-date builds.
 
+### Install Required Packages
 ```bash
-# General Dependencies
 sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev
+```
 
-# Install Intel MKL (Recommended)
+### Install Intel MKL (Recommended)
+```bash
 # 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
 echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list

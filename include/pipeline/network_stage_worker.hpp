@@ -28,7 +28,7 @@ namespace tpipeline {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline tasks.
  */
-template <typename T = float> class NetworkStageWorker : public PipelineStage<T> {
+template <typename T = float> class NetworkStageWorker : public PipelineStage {
 public:
   /**
    * @brief Constructor with optional thread affinity configuration
@@ -38,7 +38,7 @@ public:
    */
   explicit NetworkStageWorker(int listen_port, bool use_ecore_affinity = false,
                               int max_ecore_threads = -1)
-      : PipelineStage<T>(), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
+      : PipelineStage(), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
         max_ecore_threads_(max_ecore_threads), io_context_(),
         work_guard_(asio::make_work_guard(io_context_)) {
 
@@ -58,11 +58,11 @@ public:
     }
 
     tcp_communicator_ =
-        std::make_unique<TcpPipelineCommunicator<T>>(io_context_, "localhost", listen_port_);
+        std::make_unique<TcpPipelineCommunicator>(io_context_, "localhost", listen_port_);
 
     this->communicator_ =
-        std::unique_ptr<PipelineCommunicator<T>, std::function<void(PipelineCommunicator<T> *)>>(
-            tcp_communicator_.get(), [](PipelineCommunicator<T> *) {});
+        std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>(
+            tcp_communicator_.get(), [](PipelineCommunicator *) {});
   }
 
   ~NetworkStageWorker() { stop(); }
@@ -103,7 +103,7 @@ public:
     if (!this->should_stop_)
       return;
 
-    PipelineStage<T>::start();
+    PipelineStage::start();
 
     std::cout << "Starting network stage worker on port " << listen_port_ << '\n';
 
@@ -135,7 +135,7 @@ public:
   void stop() override {
     std::cout << "Stopping network stage worker." << '\n';
 
-    PipelineStage<T>::stop();
+    PipelineStage::stop();
 
     if (tcp_communicator_) {
       tcp_communicator_->stop();
@@ -160,7 +160,7 @@ private:
   asio::io_context io_context_;
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   std::thread io_thread_;
-  std::unique_ptr<TcpPipelineCommunicator<T>> tcp_communicator_;
+  std::unique_ptr<TcpPipelineCommunicator> tcp_communicator_;
 
   void setup_stage_connections(const StageConfig &config) {
 
@@ -223,7 +223,7 @@ public:
    */
   static int run_worker(int listen_port, bool use_ecore_affinity, int max_ecore_threads = -1) {
     try {
-      NetworkStageWorker<T> worker(listen_port, use_ecore_affinity, max_ecore_threads);
+      NetworkStageWorker worker(listen_port, use_ecore_affinity, max_ecore_threads);
 
       std::signal(SIGINT, [](int) {
         std::cout << '\n' << "Received interrupt signal, shutting down..." << '\n';

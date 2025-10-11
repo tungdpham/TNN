@@ -6,5 +6,4 @@
  */
 #pragma once
 
-#include "old_binary_serializer.hpp"
-#include "protobuf_serializer.hpp"
+#include "binary_serializer.hpp"

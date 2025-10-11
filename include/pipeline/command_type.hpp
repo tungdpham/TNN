@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <cstdint>
+
 namespace tpipeline {
 
 /**
@@ -15,8 +17,7 @@ namespace tpipeline {
  * highest value, and START to be lowest. Ordering the enum by priority is
  * advised.
  */
-enum class CommandType {
-
+enum CommandType : uint16_t {
   _START,
 
   // core commands

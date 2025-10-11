@@ -10,7 +10,7 @@
 #include "communicator.hpp"
 
 namespace tpipeline {
-template <typename T> class InProcessPipelineCommunicator : public PipelineCommunicator<T> {
+class InProcessPipelineCommunicator : public PipelineCommunicator {
 public:
   InProcessPipelineCommunicator() : shutdown_flag_(false) { start_delivery_thread(); }
 
@@ -22,8 +22,8 @@ public:
     }
   }
 
-  void send_message(const Message<T> &message) override {
-    if (message.recipient_id.empty()) {
+  void send_message(const Message &message) override {
+    if (message.header.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     this->enqueue_output_message(message);
@@ -46,13 +46,13 @@ public:
           continue;
         }
 
-        Message<T> outgoing = std::move(this->out_message_queue_.front());
+        Message outgoing = std::move(this->out_message_queue_.front());
         this->out_message_queue_.pop();
         lock.unlock();
 
         try {
           std::lock_guard<std::mutex> comm_lock(communicators_mutex_);
-          auto it = communicators_.find(outgoing.recipient_id);
+          auto it = communicators_.find(outgoing.header.recipient_id);
           if (it != communicators_.end() && it->second) {
             it->second->enqueue_input_message(outgoing);
           }
@@ -65,7 +65,7 @@ public:
 
   void flush_output_messages() override {
     while (this->has_output_message()) {
-      Message<T> message = this->out_message_queue_.front();
+      Message message = this->out_message_queue_.front();
       this->out_message_queue_.pop();
 
       send_message(message);
@@ -73,7 +73,7 @@ public:
   }
 
   void register_communicator(const std::string &recipient_id,
-                             std::shared_ptr<PipelineCommunicator<T>> communicator) {
+                             std::shared_ptr<PipelineCommunicator> communicator) {
     std::lock_guard<std::mutex> lock(communicators_mutex_);
     communicators_[recipient_id] = communicator;
   }
@@ -81,7 +81,7 @@ public:
 private:
   std::condition_variable outgoing_cv_;
   std::thread delivery_thread_;
-  std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator<T>>> communicators_;
+  std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator>> communicators_;
   mutable std::mutex communicators_mutex_;
   std::atomic<bool> shutdown_flag_;
 };

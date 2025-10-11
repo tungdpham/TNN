@@ -10,7 +10,9 @@
 
 #include "asio.hpp"
 #include "communicator.hpp"
+#include "message.hpp"
 #include "network_serialization.hpp"
+#include "tbuffer.hpp"
 #include <atomic>
 #include <deque>
 #include <functional>
@@ -30,15 +32,14 @@ public:
   static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
   static constexpr size_t MAX_POOL_SIZE = 32;
 
-  std::shared_ptr<std::vector<uint8_t>> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
+  std::shared_ptr<TBuffer> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
     if (is_shutting_down_.load(std::memory_order_relaxed)) {
-      auto buffer = std::make_shared<std::vector<uint8_t>>();
-      buffer->reserve(min_size);
+      auto buffer = std::make_shared<TBuffer>(min_size);
       return buffer;
     }
 
     // Thread-local pool to avoid contention
-    thread_local std::deque<std::shared_ptr<std::vector<uint8_t>>> local_pool;
+    thread_local std::deque<std::shared_ptr<TBuffer>> local_pool;
 
     for (auto it = local_pool.begin(); it != local_pool.end(); ++it) {
       if ((*it)->capacity() >= min_size) {
@@ -49,16 +50,15 @@ public:
       }
     }
 
-    auto buffer = std::make_shared<std::vector<uint8_t>>();
-    buffer->reserve(min_size);
+    auto buffer = std::make_shared<TBuffer>(min_size);
     return buffer;
   }
 
-  void return_buffer(std::shared_ptr<std::vector<uint8_t>> buffer) {
+  void return_buffer(std::shared_ptr<TBuffer> buffer) {
     if (!buffer || is_shutting_down_.load(std::memory_order_relaxed))
       return;
 
-    thread_local std::deque<std::shared_ptr<std::vector<uint8_t>>> local_pool;
+    thread_local std::deque<std::shared_ptr<TBuffer>> local_pool;
 
     if (local_pool.size() < MAX_POOL_SIZE) {
       buffer->clear();
@@ -77,7 +77,7 @@ private:
   std::atomic<bool> is_shutting_down_{false};
 };
 
-template <typename T = float> class TcpPipelineCommunicator : public PipelineCommunicator<T> {
+class TcpPipelineCommunicator : public PipelineCommunicator {
 public:
   explicit TcpPipelineCommunicator(asio::io_context &io_context,
                                    const std::string &local_endpoint = "", int listen_port = 0)
@@ -127,26 +127,26 @@ public:
     }
   }
 
-  void send_message(const Message<T> &message) override {
+  void send_message(const Message &message) override {
     try {
-      // Serialize once
-      auto serialized = BinarySerializer::serialize_message(message);
-      uint32_t msg_length = static_cast<uint32_t>(serialized.size());
-      uint32_t header = htonl(msg_length);
+      // std::cout << "Sending message to " << message.header.recipient_id << " of type "
+      //           << static_cast<int>(message.header.command_type) << " size " << message.size()
+      //           << " bytes" << std::endl;
+      // Pre-allocate buffer with estimated size (header + message)
+      size_t msg_size = message.size();
 
-      // Create single combined buffer to minimize allocations
-      auto combined_buffer = std::make_shared<std::vector<uint8_t>>();
-      combined_buffer->reserve(sizeof(uint32_t) + serialized.size());
+      FixedHeader fixed_header = FixedHeader(msg_size);
 
-      // Copy header
-      combined_buffer->insert(combined_buffer->end(), reinterpret_cast<uint8_t *>(&header),
-                              reinterpret_cast<uint8_t *>(&header) + sizeof(uint32_t));
+      // Allocate buffer for FixedHeader + Message
+      auto buffer = std::make_shared<TBuffer>(msg_size + FixedHeader::size());
 
-      // Move payload data
-      combined_buffer->insert(combined_buffer->end(), std::make_move_iterator(serialized.begin()),
-                              std::make_move_iterator(serialized.end()));
+      BinarySerializer::serialize(fixed_header, *buffer);
+      BinarySerializer::serialize(message, *buffer);
 
-      async_send_buffer(message.recipient_id, std::move(combined_buffer));
+      // std::cout << "DEBUG send: buffer size after serialization = " << buffer->size()
+      //           << ", expected = " << (msg_size + FixedHeader::size()) << std::endl;
+
+      async_send_buffer(message.header.recipient_id, std::move(buffer));
 
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
@@ -160,25 +160,13 @@ public:
       return;
     }
 
-    // Batch processing - gather messages per recipient
-    std::unordered_map<std::string, std::vector<Message<T>>> batched_messages;
-
     while (!this->out_message_queue_.empty()) {
       auto &msg = this->out_message_queue_.front();
-      batched_messages[msg.recipient_id].push_back(std::move(msg));
+      send_message(msg);
       this->out_message_queue_.pop();
     }
 
     lock.unlock();
-
-    // Send batched messages
-    for (auto &[recipient_id, messages] : batched_messages) {
-      if (messages.size() == 1) {
-        send_message(messages[0]);
-      } else {
-        send_batched_messages(recipient_id, messages);
-      }
-    }
   }
 
   bool connect_to_peer(const std::string &peer_id, const std::string &host, int port) {
@@ -220,14 +208,14 @@ public:
 
 private:
   struct WriteOperation {
-    std::shared_ptr<std::vector<uint8_t>> buffer;
+    std::shared_ptr<TBuffer> buffer;
 
-    explicit WriteOperation(std::shared_ptr<std::vector<uint8_t>> buf) : buffer(std::move(buf)) {}
+    explicit WriteOperation(std::shared_ptr<TBuffer> buf) : buffer(std::move(buf)) {}
   };
 
   struct Connection {
     asio::ip::tcp::socket socket;
-    std::shared_ptr<std::vector<uint8_t>> read_buffer;
+    std::shared_ptr<TBuffer> read_buffer;
 
     // Lock-free write queue using atomic flag and single-producer pattern
     std::deque<WriteOperation> write_queue;
@@ -303,48 +291,78 @@ private:
     if (!is_running_.load(std::memory_order_acquire))
       return;
 
-    asio::async_read(
-        connection->socket, asio::buffer(connection->read_buffer->data(), 4),
-        [this, connection_id, connection](std::error_code ec, [[maybe_unused]] std::size_t length) {
-          if (!ec && is_running_.load(std::memory_order_acquire)) {
+    // read fixed-size header part first
+    const size_t fixed_header_size = FixedHeader::size();
+    connection->read_buffer->resize(fixed_header_size);
+    // No need to fill with zeros, async_read will overwrite
 
-            uint32_t msg_length;
-            std::memcpy(&msg_length, connection->read_buffer->data(), 4);
-            msg_length = ntohl(msg_length);
-
-            if (msg_length > 0 && msg_length < 8192 * 8192) {
-
-              if (connection->read_buffer->capacity() < msg_length) {
-                BufferPool::instance().return_buffer(connection->read_buffer);
-                connection->read_buffer = BufferPool::instance().get_buffer(msg_length);
-              } else {
-                connection->read_buffer->resize(msg_length);
-              }
-
-              asio::async_read(
-                  connection->socket, asio::buffer(connection->read_buffer->data(), msg_length),
-                  [this, connection_id, connection, msg_length](std::error_code ec2, std::size_t) {
-                    if (!ec2 && is_running_.load(std::memory_order_acquire)) {
-                      handle_message(connection_id, *connection->read_buffer, msg_length);
-                      start_read(connection_id, connection);
-                    } else {
-                      handle_connection_error(connection_id, ec2);
-                    }
-                  });
-            } else {
-              std::cerr << "Invalid message length: " << msg_length << std::endl;
-              handle_connection_error(connection_id, std::error_code());
-            }
-          } else {
-            handle_connection_error(connection_id, ec);
-          }
-        });
+    asio::async_read(connection->socket,
+                     asio::buffer(connection->read_buffer->get(), fixed_header_size),
+                     [this, connection_id, connection](std::error_code ec, std::size_t length) {
+                       if (!ec && is_running_.load(std::memory_order_acquire)) {
+                         if (length != fixed_header_size) {
+                           std::cerr << "Header fixed part read error: expected "
+                                     << fixed_header_size << " bytes, got " << length << " bytes"
+                                     << std::endl;
+                           return;
+                         }
+                         read_message(connection_id, connection);
+                       } else {
+                         handle_connection_error(connection_id, ec);
+                       }
+                     });
   }
 
-  void handle_message(const std::string &connection_id, const std::vector<uint8_t> &buffer,
-                      size_t length) {
+  void read_message(const std::string &connection_id, std::shared_ptr<Connection> connection) {
+    TBuffer &buf = *connection->read_buffer;
+    size_t offset = 0;
+
     try {
-      Message<T> message = BinarySerializer::deserialize_message<T>(buffer.data(), length);
+      FixedHeader fixed_header;
+      BinarySerializer::deserialize(buf, offset, fixed_header);
+
+      const size_t fixed_header_size = FixedHeader::size();
+      buf.resize(fixed_header.length + fixed_header_size);
+
+      asio::async_read(
+          connection->socket, asio::buffer(buf.get() + fixed_header_size, fixed_header.length),
+          [this, connection_id, connection, fixed_header](std::error_code ec, std::size_t length) {
+            if (!ec && is_running_.load(std::memory_order_acquire)) {
+              if (length != fixed_header.length) {
+                std::cerr << "Message body read error: expected " << fixed_header.length
+                          << " bytes, got " << length << " bytes" << std::endl;
+                return;
+              }
+              handle_message(connection_id, *connection->read_buffer,
+                             fixed_header.length + FixedHeader::size());
+              start_read(connection_id, connection);
+            }
+          });
+
+    } catch (const std::exception &e) {
+      std::cerr << "Message parsing error: " << e.what() << std::endl;
+      // Don't call handle_connection_error with empty error_code as it shows "Success"
+      // Just close the connection directly
+      std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+      auto it = connections_.find(connection_id);
+      if (it != connections_.end()) {
+        if (it->second->socket.is_open()) {
+          std::error_code close_ec;
+          it->second->socket.close(close_ec);
+        }
+        connections_.erase(it);
+      }
+    }
+  }
+
+  void handle_message(const std::string &connection_id, const TBuffer &buffer, size_t length) {
+    try {
+      Message message;
+      size_t offset = FixedHeader::size(); // Skip the fixed header, already parsed
+      BinarySerializer::deserialize(buffer, offset, message);
+
+      // TODO: Set sender_id properly and do validation middlewares.
+      message.header.sender_id = connection_id;
       this->enqueue_input_message(message);
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
@@ -352,6 +370,7 @@ private:
   }
 
   void handle_connection_error(const std::string &connection_id, std::error_code ec) {
+    std::cerr << "Connection " << connection_id << " error: " << ec.message() << std::endl;
     std::lock_guard<std::shared_mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
     if (it != connections_.end()) {
@@ -369,35 +388,7 @@ private:
     }
   }
 
-  void send_batched_messages(const std::string &recipient_id,
-                             const std::vector<Message<T>> &messages) {
-    // Combine multiple messages into single buffer
-    size_t total_size = 0;
-    std::vector<std::vector<uint8_t>> serialized_msgs;
-    serialized_msgs.reserve(messages.size());
-
-    for (const auto &msg : messages) {
-      auto serialized = BinarySerializer::serialize_message(msg);
-      total_size += sizeof(uint32_t) + serialized.size();
-      serialized_msgs.push_back(std::move(serialized));
-    }
-
-    auto combined_buffer = std::make_shared<std::vector<uint8_t>>();
-    combined_buffer->reserve(total_size);
-
-    for (auto &serialized : serialized_msgs) {
-      uint32_t msg_length = htonl(static_cast<uint32_t>(serialized.size()));
-      combined_buffer->insert(combined_buffer->end(), reinterpret_cast<uint8_t *>(&msg_length),
-                              reinterpret_cast<uint8_t *>(&msg_length) + sizeof(uint32_t));
-      combined_buffer->insert(combined_buffer->end(), std::make_move_iterator(serialized.begin()),
-                              std::make_move_iterator(serialized.end()));
-    }
-
-    async_send_buffer(recipient_id, std::move(combined_buffer));
-  }
-
-  void async_send_buffer(const std::string &recipient_id,
-                         std::shared_ptr<std::vector<uint8_t>> buffer) {
+  void async_send_buffer(const std::string &recipient_id, std::shared_ptr<TBuffer> buffer) {
     std::shared_ptr<Connection> connection;
 
     {
@@ -414,14 +405,13 @@ private:
       connection->write_queue.emplace_back(std::move(buffer));
     }
 
-    // Atomic test-and-set to avoid spurious write initiations
     if (!connection->writing.exchange(true, std::memory_order_acquire)) {
       start_async_write(recipient_id, connection);
     }
   }
 
   void start_async_write(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    std::shared_ptr<std::vector<uint8_t>> write_buffer;
+    std::shared_ptr<TBuffer> write_buffer;
 
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
@@ -434,7 +424,7 @@ private:
     }
 
     asio::async_write(
-        connection->socket, asio::buffer(write_buffer->data(), write_buffer->size()),
+        connection->socket, asio::buffer(write_buffer->get(), write_buffer->size()),
         [this, connection_id, connection, write_buffer](std::error_code ec, std::size_t) {
           if (ec) {
             handle_connection_error(connection_id, ec);
@@ -450,14 +440,14 @@ private:
 class TcpCommunicatorFactory {
 public:
   template <typename T = float>
-  static std::unique_ptr<TcpPipelineCommunicator<T>> create_server(asio::io_context &io_context,
-                                                                   int listen_port) {
-    return std::make_unique<TcpPipelineCommunicator<T>>(io_context, "", listen_port);
+  static std::unique_ptr<TcpPipelineCommunicator> create_server(asio::io_context &io_context,
+                                                                int listen_port) {
+    return std::make_unique<TcpPipelineCommunicator>(io_context, "", listen_port);
   }
 
   template <typename T = float>
-  static std::unique_ptr<TcpPipelineCommunicator<T>> create_client(asio::io_context &io_context) {
-    return std::make_unique<TcpPipelineCommunicator<T>>(io_context);
+  static std::unique_ptr<TcpPipelineCommunicator> create_client(asio::io_context &io_context) {
+    return std::make_unique<TcpPipelineCommunicator>(io_context);
   }
 };
 
