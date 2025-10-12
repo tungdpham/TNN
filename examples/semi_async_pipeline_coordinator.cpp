@@ -199,9 +199,9 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinato
                                       ImageDataLoader<float> &test_loader);
 
 int main() {
-  // auto model = create_cifar10_trainer_v2();
+  auto model = create_cifar10_trainer_v2();
 
-  auto model = create_cifar10_trainer_v1();
+  // auto model = create_cifar10_trainer_v1();
 
   // auto model = create_mnist_trainer();
 
@@ -350,8 +350,7 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
   auto epoch_end = std::chrono::high_resolution_clock::now();
   auto epoch_duration =
       std::chrono::duration_cast<std::chrono::milliseconds>(epoch_end - epoch_start);
-  std::cout << "\nEpoch " << (batch_index / train_loader.size()) + 1 << " completed in "
-            << epoch_duration.count() << " milliseconds" << std::endl;
+  std::cout << "\nEpoch completed in " << epoch_duration.count() << " milliseconds" << std::endl;
   return {total_loss / batch_index, -1.0f};
 }
 

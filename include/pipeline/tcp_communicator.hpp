@@ -129,25 +129,16 @@ public:
 
   void send_message(const Message &message) override {
     try {
-      // std::cout << "Sending message to " << message.header.recipient_id << " of type "
-      //           << static_cast<int>(message.header.command_type) << " size " << message.size()
-      //           << " bytes" << std::endl;
-      // Pre-allocate buffer with estimated size (header + message)
       size_t msg_size = message.size();
 
       FixedHeader fixed_header = FixedHeader(msg_size);
 
-      // Allocate buffer for FixedHeader + Message
       auto buffer = std::make_shared<TBuffer>(msg_size + FixedHeader::size());
 
       BinarySerializer::serialize(fixed_header, *buffer);
       BinarySerializer::serialize(message, *buffer);
 
-      // std::cout << "DEBUG send: buffer size after serialization = " << buffer->size()
-      //           << ", expected = " << (msg_size + FixedHeader::size()) << std::endl;
-
       async_send_buffer(message.header.recipient_id, std::move(buffer));
-
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -181,7 +172,6 @@ public:
       std::error_code ec;
       connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
 
-      // Enable socket buffer optimization
       asio::socket_base::send_buffer_size send_buf_opt(262144); // 256KB
       connection->socket.set_option(send_buf_opt, ec);
 
@@ -291,36 +281,44 @@ private:
     if (!is_running_.load(std::memory_order_acquire))
       return;
 
-    // read fixed-size header part first
-    const size_t fixed_header_size = FixedHeader::size();
-    connection->read_buffer->resize(fixed_header_size);
-    // No need to fill with zeros, async_read will overwrite
+    try {
+      // read fixed-size header part first
+      const size_t fixed_header_size = FixedHeader::size();
+      connection->read_buffer->resize(fixed_header_size);
 
-    asio::async_read(connection->socket,
-                     asio::buffer(connection->read_buffer->get(), fixed_header_size),
-                     [this, connection_id, connection](std::error_code ec, std::size_t length) {
-                       if (!ec && is_running_.load(std::memory_order_acquire)) {
-                         if (length != fixed_header_size) {
-                           std::cerr << "Header fixed part read error: expected "
-                                     << fixed_header_size << " bytes, got " << length << " bytes"
-                                     << std::endl;
-                           return;
-                         }
-                         read_message(connection_id, connection);
-                       } else {
-                         handle_connection_error(connection_id, ec);
-                       }
-                     });
+      asio::async_read(
+          connection->socket, asio::buffer(connection->read_buffer->get(), fixed_header_size),
+          [this, connection_id, connection](std::error_code ec, std::size_t length) {
+            if (!ec && is_running_.load(std::memory_order_acquire)) {
+              if (length != fixed_header_size) {
+                std::cerr << "Header fixed part read error: expected " << fixed_header_size
+                          << " bytes, got " << length << " bytes" << std::endl;
+                return;
+              }
+              FixedHeader fixed_header;
+              size_t offset = 0;
+              BinarySerializer::deserialize(*connection->read_buffer, offset,
+                                            fixed_header); // length automatically get bswapped if
+                                                           // host endian != message endian
+              connection->read_buffer->set_endianess(fixed_header.endianess);
+              read_message(connection_id, connection, fixed_header);
+            } else {
+              handle_connection_error(connection_id, ec);
+            }
+          });
+    } catch (const std::exception &e) {
+      std::cerr << "Start Read error: " << e.what() << std::endl;
+      handle_connection_error(connection_id, asio::error::operation_aborted);
+    }
   }
 
-  void read_message(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    TBuffer &buf = *connection->read_buffer;
-    size_t offset = 0;
-
+  void read_message(const std::string &connection_id, std::shared_ptr<Connection> connection,
+                    FixedHeader fixed_header) {
     try {
-      FixedHeader fixed_header;
-      BinarySerializer::deserialize(buf, offset, fixed_header);
-
+      if (fixed_header.length == 0) {
+        throw std::runtime_error("Invalid message length: 0");
+      }
+      TBuffer &buf = *connection->read_buffer;
       const size_t fixed_header_size = FixedHeader::size();
       buf.resize(fixed_header.length + fixed_header_size);
 
@@ -329,20 +327,16 @@ private:
           [this, connection_id, connection, fixed_header](std::error_code ec, std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               if (length != fixed_header.length) {
-                std::cerr << "Message body read error: expected " << fixed_header.length
-                          << " bytes, got " << length << " bytes" << std::endl;
-                return;
+                throw std::runtime_error("Incomplete message body received");
               }
-              handle_message(connection_id, *connection->read_buffer,
-                             fixed_header.length + FixedHeader::size());
+
+              handle_message(connection_id, *connection->read_buffer, length);
               start_read(connection_id, connection);
             }
           });
 
     } catch (const std::exception &e) {
       std::cerr << "Message parsing error: " << e.what() << std::endl;
-      // Don't call handle_connection_error with empty error_code as it shows "Success"
-      // Just close the connection directly
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
       auto it = connections_.find(connection_id);
       if (it != connections_.end()) {
@@ -355,10 +349,17 @@ private:
     }
   }
 
-  void handle_message(const std::string &connection_id, const TBuffer &buffer, size_t length) {
+  /**
+   * @brief a fully received message in the buffer.
+   * @param connection_id The ID of the connection from which the message was received.
+   * @param buffer The buffer containing the serialized message.
+   * @param length The length of the message data in the buffer.
+   * @note This function assumes that the buffer contains a complete and valid message.
+   */
+  void handle_message(const std::string &connection_id, TBuffer &buffer, size_t length) {
     try {
       Message message;
-      size_t offset = FixedHeader::size(); // Skip the fixed header, already parsed
+      size_t offset = FixedHeader::size(); // Skip fixed header part
       BinarySerializer::deserialize(buffer, offset, message);
 
       // TODO: Set sender_id properly and do validation middlewares.
@@ -373,6 +374,8 @@ private:
     std::cerr << "Connection " << connection_id << " error: " << ec.message() << std::endl;
     std::lock_guard<std::shared_mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
+
+    // Clean up connection's resources
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
         std::error_code close_ec;
@@ -436,19 +439,4 @@ private:
         });
   }
 };
-
-class TcpCommunicatorFactory {
-public:
-  template <typename T = float>
-  static std::unique_ptr<TcpPipelineCommunicator> create_server(asio::io_context &io_context,
-                                                                int listen_port) {
-    return std::make_unique<TcpPipelineCommunicator>(io_context, "", listen_port);
-  }
-
-  template <typename T = float>
-  static std::unique_ptr<TcpPipelineCommunicator> create_client(asio::io_context &io_context) {
-    return std::make_unique<TcpPipelineCommunicator>(io_context);
-  }
-};
-
 } // namespace tpipeline

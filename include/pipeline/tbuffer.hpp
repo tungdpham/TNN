@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "endian.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +22,9 @@ private:
   uint8_t *data_;
   size_t size_;
   size_t capacity_;
+  // Endianess of the data in the buffer, does not apply to write. Read functions will swap bytes if
+  // needed.
+  Endianness endianess_ = get_system_endianness(); // 0 for little-endian and 1 for big-endian
 
   static constexpr size_t MAX_ARRAY_SIZE = static_cast<size_t>(-1) - 8;
   static constexpr size_t DEFAULT_CAPACITY = 10;
@@ -143,6 +147,10 @@ public:
 
   const uint8_t &operator[](size_t index) const { return data_[index]; }
 
+  void set_endianess(Endianness endianess) { endianess_ = endianess; }
+
+  Endianness get_endianess() const { return endianess_; }
+
   uint8_t *get() { return data_; }
   const uint8_t *get() const { return data_; }
 
@@ -173,6 +181,12 @@ public:
 
   void clear() { size_ = 0; }
 
+  void write_value(const int &value) { write_value<int32_t>(static_cast<int32_t>(value)); }
+
+  void write_value(const long &value) { write_value<int64_t>(static_cast<int64_t>(value)); }
+
+  void write_value(const size_t &value) { write_value<uint64_t>(static_cast<uint64_t>(value)); }
+
   template <typename T> void write_value(const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
@@ -181,7 +195,7 @@ public:
     size_ += sizeof(T);
   }
 
-  void write_value(const std::string &str) {
+  void write_string(const std::string &str) {
     uint64_t str_length = static_cast<uint64_t>(str.size());
     write_value(str_length);
     if (str_length > 0) {
@@ -206,8 +220,28 @@ public:
       throw std::out_of_range(get_out_of_bound_msg(offset + sizeof(T)));
     }
     T value;
-    std::memcpy(&value, data_ + offset, sizeof(T));
-    offset += sizeof(T);
+    if constexpr (std::is_same<T, int>::value && sizeof(int) != sizeof(int32_t)) {
+      int32_t temp;
+      std::memcpy(&temp, data_ + offset, sizeof(int32_t));
+      value = static_cast<int>(temp);
+      offset += sizeof(int32_t);
+    } else if constexpr (std::is_same<T, long>::value && sizeof(long) != sizeof(int64_t)) {
+      int64_t temp;
+      std::memcpy(&temp, data_ + offset, sizeof(int64_t));
+      value = static_cast<long>(temp);
+      offset += sizeof(int64_t);
+    } else if constexpr (std::is_same<T, size_t>::value && sizeof(size_t) != sizeof(uint64_t)) {
+      uint64_t temp;
+      std::memcpy(&temp, data_ + offset, sizeof(uint64_t));
+      value = static_cast<size_t>(temp);
+      offset += sizeof(uint64_t);
+    } else {
+      std::memcpy(&value, data_ + offset, sizeof(T));
+      offset += sizeof(T);
+    }
+    if (endianess_ != get_system_endianness()) {
+      bswap(value);
+    }
     return value;
   }
 
@@ -233,6 +267,11 @@ public:
       throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
     }
     std::memcpy(arr, data_ + offset, byte_size);
+    if (endianess_ != get_system_endianness()) {
+      for (size_t i = 0; i < length; ++i) {
+        bswap(arr[i]);
+      }
+    }
     offset += byte_size;
   }
 

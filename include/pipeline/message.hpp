@@ -7,6 +7,7 @@
 #pragma once
 
 #include "command_type.hpp"
+#include "endian.hpp"
 #include "load_tracker.hpp"
 #include "task.hpp"
 #include "tbuffer.hpp"
@@ -24,17 +25,17 @@ using PayloadType = std::variant<std::monostate, Task<float>, std::string, bool,
 
 struct FixedHeader {
   uint8_t PROTOCOL_VERSION = 1;
-  uint8_t endianess;   // 1 for little-endian, 0 for big-endian
-  uint64_t length = 0; // Length of the rest of the message (excluding fixed header part)
+  Endianness endianess; // 1 for little-endian, 0 for big-endian
+  uint64_t length = 0;  // Length of the rest of the message (excluding fixed header part)
 
-  FixedHeader() : endianess((htons(1) == 1) ? 1 : 0) {}
+  FixedHeader() : endianess(get_system_endianness()) {}
 
-  FixedHeader(uint64_t len) : length(len) { endianess = (htons(1) == 1) ? 1 : 0; }
+  FixedHeader(uint64_t len) : length(len) { endianess = get_system_endianness(); }
 
   static constexpr uint64_t size() {
-    return sizeof(uint8_t) + // PROTOCOL_VERSION
-           sizeof(uint8_t) + // endianess
-           sizeof(uint64_t); // length
+    return sizeof(uint8_t) +    // PROTOCOL_VERSION
+           sizeof(Endianness) + // endianess
+           sizeof(uint64_t);    // length
   }
 };
 

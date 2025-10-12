@@ -1,5 +1,6 @@
 #pragma once
 
+#include "endian.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
 
@@ -30,7 +31,7 @@ public:
     for (size_t dim : shape) {
       buffer.write_value(static_cast<uint64_t>(dim));
     }
-    buffer.write_array(tensor.data(), tensor.size()); // write_array expects count, not bytes
+    buffer.write_array(tensor.data(), tensor.size());
   }
 
   static void serialize(const FixedHeader &header, TBuffer &buffer) {
@@ -40,8 +41,8 @@ public:
   }
 
   static void serialize(const MessageHeader &header, TBuffer &buffer) {
-    buffer.write_value(header.recipient_id);
-    buffer.write_value(header.sender_id);
+    buffer.write_string(header.recipient_id);
+    buffer.write_string(header.sender_id);
     buffer.write_value(header.command_type);
   }
 
@@ -78,8 +79,11 @@ public:
 
   static void deserialize(const TBuffer &buffer, size_t &offset, FixedHeader &header) {
     header.PROTOCOL_VERSION = buffer.read_value<uint8_t>(offset);
-    header.endianess = buffer.read_value<uint8_t>(offset);
+    header.endianess = static_cast<Endianness>(buffer.read_value<uint8_t>(offset));
     header.length = buffer.read_value<uint64_t>(offset);
+    if (header.endianess != get_system_endianness()) {
+      bswap(header.length);
+    }
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, MessageHeader &header) {
@@ -88,16 +92,17 @@ public:
     header.command_type = static_cast<CommandType>(buffer.read_value<uint16_t>(offset));
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Tensor<float> &tensor) {
+  template <typename T = float>
+  static void deserialize(const TBuffer &buffer, size_t &offset, Tensor<T> &tensor) {
     uint64_t shape_size = buffer.read_value<uint64_t>(offset);
     std::vector<size_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
       shape[i] = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
     }
-    tensor = Tensor<float>(shape);
+    tensor = Tensor<T>(shape);
     if (tensor.size() > 0) {
-      std::memcpy(tensor.data(), buffer.get() + offset, tensor.size() * sizeof(float));
-      offset += tensor.size() * sizeof(float);
+      std::memcpy(tensor.data(), buffer.get() + offset, tensor.size() * sizeof(T));
+      offset += tensor.size() * sizeof(T);
     }
   }
 
