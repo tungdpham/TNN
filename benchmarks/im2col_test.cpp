@@ -1,11 +1,6 @@
 #include "math/gemm.hpp"
 #include "tensor/tensor_extended.hpp"
 #include "utils/misc.hpp"
-#include "utils/parallel_for.hpp"
-#ifdef USE_TBB
-#include <oneapi/tbb/blocked_range2d.h>
-#include <oneapi/tbb/parallel_for.h>
-#endif
 constexpr size_t N = 64;
 constexpr size_t C = 128;
 constexpr size_t H = 32;

@@ -11,9 +11,9 @@
 #include <cstdint>
 
 #ifdef USE_TBB
-#include <oneapi/tbb/blocked_range.h>
-#include <oneapi/tbb/blocked_range2d.h>
-#include <oneapi/tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <tbb/blocked_range2d.h>
+#include <tbb/parallel_for.h>
 #endif
 
 #ifdef _OPENMP

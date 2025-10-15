@@ -253,7 +253,7 @@ int main() {
   mkl_set_threading_layer(MKL_THREADING_TBB);
 #endif
 
-  ThreadWrapper thread_wrapper({get_env<int>("COORDINATOR_NUM_THREADS", 4)});
+  ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
   thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {
     train_model(coordinator, train_loader, test_loader);

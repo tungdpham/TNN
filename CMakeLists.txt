@@ -79,8 +79,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(asio nlohmann_json zstd)
 
 # find packages
-find_package(Protobuf REQUIRED)
-
 if(ENABLE_OPENMP)
     message("Finding OpenMP")
     find_package(OpenMP REQUIRED)
@@ -280,7 +278,6 @@ function(create_executable target_name source_file)
     endif()
     
     target_link_libraries(${target_name} PRIVATE dcnn_lib dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils)
-    target_link_libraries(${target_name} PRIVATE protobuf::libprotobuf)
     
     target_link_libraries(${target_name} PRIVATE nlohmann_json::nlohmann_json)
     target_link_libraries(${target_name} PRIVATE libzstd_static)

@@ -7,8 +7,8 @@
 #pragma once
 
 #include "message.hpp"
-#include <oneapi/tbb/concurrent_queue.h>
-#include <oneapi/tbb/concurrent_unordered_map.h>
+#include <tbb/concurrent_queue.h>
+#include <tbb/concurrent_unordered_map.h>
 
 namespace tpipeline {
 

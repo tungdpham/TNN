@@ -54,8 +54,8 @@ int main() {
     const float lr_initial = ::utils::get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
     const float lr_decay_factor =
         ::utils::get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
-    const int lr_decay_interval =
-        ::utils::get_env<int>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
+    const size_t lr_decay_interval =
+        ::utils::get_env<size_t>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
     const int progress_print_interval =
         ::utils::get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
 

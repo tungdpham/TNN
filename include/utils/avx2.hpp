@@ -960,7 +960,7 @@ inline void avx2_unaligned_set_scalar(float *c, float scalar, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
 
-  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+  tthreads::parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
     size_t i = block * 8;
     _mm256_storeu_ps(&c[i], vec_scalar);
   });
@@ -1208,7 +1208,7 @@ inline void avx2_aligned_clamp(const float *a, float min_val, float max_val, flo
 inline void avx2_unaligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
 
-  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+  tthreads::parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
     size_t i = block * 8;
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
     _mm256_storeu_ps(&c[i], vec_a);
@@ -1222,7 +1222,7 @@ inline void avx2_unaligned_copy(const float *a, float *c, size_t size) {
 inline void avx2_aligned_copy(const float *a, float *c, size_t size) {
   size_t vec_size = (size / 8) * 8;
 
-  parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
+  tthreads::parallel_for<size_t>(0, vec_size / 8, [&](size_t block) {
     size_t i = block * 8;
     __m256 vec_a = _mm256_load_ps(&a[i]);
     _mm256_store_ps(&c[i], vec_a);
