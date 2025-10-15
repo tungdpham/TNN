@@ -119,58 +119,9 @@ target_include_directories(dcnn_pipeline PUBLIC
 target_include_directories(dcnn_pipeline PRIVATE 
     ${asio_SOURCE_DIR}/asio/include
 )
-target_link_libraries(dcnn_pipeline PUBLIC dcnn_nn protobuf::libprotobuf)
 target_link_libraries(dcnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(dcnn_pipeline PUBLIC libzstd_static)
 target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
-
-set(PROTO_DIR "${CMAKE_SOURCE_DIR}/include/pipeline/proto")
-# auto generate proto files
-if(EXISTS "${PROTO_DIR}")
-    file(GLOB PROTO_FILES "${PROTO_DIR}/*.proto")
-    if(PROTO_FILES)
-        set(PROTO_OUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/pipeline")
-        file(MAKE_DIRECTORY ${PROTO_OUT_DIR})
-        
-        # Generate protobuf files in the pipeline subdirectory
-        set(PROTOBUF_GENERATE_CPP_APPEND_PATH OFF)
-        protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
-        
-        # Override output paths to place files in pipeline folder
-        set(PROTO_SRCS)
-        set(PROTO_HDRS)
-        foreach(PROTO_FILE ${PROTO_FILES})
-            get_filename_component(PROTO_NAME ${PROTO_FILE} NAME_WE)
-            list(APPEND PROTO_SRCS "${PROTO_OUT_DIR}/${PROTO_NAME}.pb.cc")
-            list(APPEND PROTO_HDRS "${PROTO_OUT_DIR}/${PROTO_NAME}.pb.h")
-        endforeach()
-        
-        add_custom_command(
-            OUTPUT ${PROTO_SRCS} ${PROTO_HDRS}
-            COMMAND protobuf::protoc
-            ARGS --cpp_out=${PROTO_OUT_DIR}
-                 -I${PROTO_DIR}
-                 ${PROTO_FILES}
-            DEPENDS ${PROTO_FILES} protobuf::protoc
-            COMMENT "Generating protobuf files in pipeline folder"
-            VERBATIM
-        )
-        
-        set_source_files_properties(${PROTO_SRCS} ${PROTO_HDRS} PROPERTIES
-            GENERATED TRUE
-        )
-        
-        add_library(dcnn_proto STATIC ${PROTO_SRCS})
-        target_link_libraries(dcnn_proto PUBLIC protobuf::libprotobuf)
-        target_include_directories(dcnn_proto PUBLIC 
-            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
-            $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-            $<INSTALL_INTERFACE:include>
-        )
-        
-        target_link_libraries(dcnn_pipeline PUBLIC dcnn_proto)
-    endif()
-endif()
 
 add_library(dcnn_instantiations INTERFACE)
 target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils)
