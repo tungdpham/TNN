@@ -219,26 +219,16 @@ public:
     if (offset + sizeof(T) > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + sizeof(T)));
     }
-    T value;
     if constexpr (std::is_same<T, int>::value && sizeof(int) != sizeof(int32_t)) {
-      int32_t temp;
-      std::memcpy(&temp, data_ + offset, sizeof(int32_t));
-      value = static_cast<int>(temp);
-      offset += sizeof(int32_t);
+      return static_cast<int>(read_value<int32_t>(offset));
     } else if constexpr (std::is_same<T, long>::value && sizeof(long) != sizeof(int64_t)) {
-      int64_t temp;
-      std::memcpy(&temp, data_ + offset, sizeof(int64_t));
-      value = static_cast<long>(temp);
-      offset += sizeof(int64_t);
+      return static_cast<long>(read_value<int64_t>(offset));
     } else if constexpr (std::is_same<T, size_t>::value && sizeof(size_t) != sizeof(uint64_t)) {
-      uint64_t temp;
-      std::memcpy(&temp, data_ + offset, sizeof(uint64_t));
-      value = static_cast<size_t>(temp);
-      offset += sizeof(uint64_t);
-    } else {
-      std::memcpy(&value, data_ + offset, sizeof(T));
-      offset += sizeof(T);
+      return static_cast<size_t>(read_value<uint64_t>(offset));
     }
+    T value;
+    std::memcpy(&value, data_ + offset, sizeof(T));
+    offset += sizeof(T);
     if (endianess_ != get_system_endianness()) {
       bswap(value);
     }
@@ -318,4 +308,5 @@ private:
     capacity_ = new_capacity;
   }
 };
+
 } // namespace tpipeline

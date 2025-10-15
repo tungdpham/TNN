@@ -14,4 +14,5 @@ namespace tpipeline {
 /**
  * Template instantiations for commonly used types. Uncomment as needed.
  */
+template class Task<float>;
 } // namespace tpipeline

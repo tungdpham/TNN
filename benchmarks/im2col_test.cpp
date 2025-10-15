@@ -10,7 +10,6 @@ constexpr size_t N = 64;
 constexpr size_t C = 128;
 constexpr size_t H = 32;
 constexpr size_t W = 32;
-constexpr size_t OC = 64;
 
 using namespace tmath;
 using namespace utils;

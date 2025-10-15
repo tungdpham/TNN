@@ -5,10 +5,13 @@
 #ifdef USE_MKL
 #include <mkl.h>
 #endif
-#include <oneapi/tbb/global_control.h>
-#include <oneapi/tbb/task_arena.h>
+#include "threading/thread_wrapper.hpp"
 
-constexpr int MAX_THREADS = 16;
+using namespace tnn;
+using namespace tpipeline;
+using namespace tthreads;
+
+constexpr int MAX_THREADS = 4;
 
 void print_usage(const char *program_name) {
   std::cout << "Usage: " << program_name << " <listen_port> [options]" << std::endl;
@@ -97,24 +100,15 @@ int main(int argc, char *argv[]) {
               << (max_ecore_threads == -1 ? "All available" : std::to_string(max_ecore_threads))
               << std::endl;
   }
-#ifdef USE_TBB
-  // get system max threads
-  int max_threads = 4;
-  max_threads = std::min(max_threads, MAX_THREADS);
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(max_threads));
-
-  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
 #ifdef USE_MKL
-  // set MKL to use TBB threading layer
-  std::cout << "Setting MKL number of threads to: " << arena.max_concurrency() << std::endl;
   mkl_set_threading_layer(MKL_THREADING_TBB);
 #endif
-  arena.execute([&] {
-#endif
+  ThreadWrapper thread_wrapper(
+      {MAX_THREADS}); // wrapper to cleanly manage branching with different backends
+
+  thread_wrapper.execute([&]() {
     tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port, use_ecore_affinity,
                                                           max_ecore_threads);
-#ifdef USE_TBB
   });
-#endif
   return 0;
 }

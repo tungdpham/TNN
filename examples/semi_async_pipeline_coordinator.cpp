@@ -8,6 +8,7 @@
 #include "nn/train.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/ops.hpp"
 #include "utils/utils_extended.hpp"
 #include <chrono>
@@ -20,12 +21,13 @@ using namespace tnn;
 using namespace tpipeline;
 using namespace data_augmentation;
 using namespace data_loading;
+using namespace ::utils;
 
 namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 64;
-constexpr int NUM_MICROBATCHES = 4;
+constexpr int NUM_MICROBATCHES = 2;
 constexpr int NUM_EPOCHS = 5;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
@@ -46,7 +48,6 @@ Sequential<float> create_mnist_trainer() {
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                    .flatten("flatten")
                    .dense(10, "linear", true, "output")
-                   //  .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer =
@@ -69,7 +70,6 @@ Sequential<float> create_cifar10_trainer_v1() {
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                    .flatten("flatten")
                    .dense(10, "linear", true, "fc1")
-                   //  .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer = std::make_unique<SGD<float>>(semi_async_constants::LR_INITIAL, 0.9f);
@@ -117,36 +117,12 @@ Sequential<float> create_cifar10_trainer_v2() {
                    .dense(512, "linear", true, "fc0")
                    .activation("relu", "relu10")
                    .dense(10, "linear", true, "fc1")
-                   //  .activation("softmax", "softmax_output")
                    .build();
 
   auto optimizer =
       std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
   model.set_optimizer(std::move(optimizer));
   return model;
-}
-
-std::string get_host(const std::string &env_var, const std::string &default_host) {
-#ifdef _WIN32
-#ifdef _MSC_VER
-
-  char *env_value = nullptr;
-  size_t len = 0;
-  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
-    std::string result(env_value);
-    free(env_value);
-    return result;
-  }
-  return default_host;
-#else
-
-  const char *env_value = std::getenv(env_var.c_str());
-  return env_value ? std::string(env_value) : default_host;
-#endif
-#else
-  const char *env_value = std::getenv(env_var.c_str());
-  return env_value ? std::string(env_value) : default_host;
-#endif
 }
 
 void get_cifar10_data_loaders(data_loading::CIFAR10DataLoader<float> &train_loader,
@@ -199,21 +175,21 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinato
                                       ImageDataLoader<float> &test_loader);
 
 int main() {
-  auto model = create_cifar10_trainer_v2();
-
-  // auto model = create_cifar10_trainer_v1();
-
   // auto model = create_mnist_trainer();
+
+  auto model = create_cifar10_trainer_v1();
+
+  // auto model = create_cifar10_trainer_v2();
 
   model.set_training(true);
 
   model.print_config();
 
-  std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
+  std::string coordinator_host = get_env("COORDINATOR_HOST", "localhost");
 
   std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
-      {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-      {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+      {get_env("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
+      {get_env("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
   };
 
@@ -228,8 +204,6 @@ int main() {
   DistributedPipelineCoordinator coordinator(
       std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_host, 8000);
 
-  // auto loss_function =
-  // tnn::LossFactory<float>::create_crossentropy(semi_async_constants::EPSILON);
   auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
   coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
