@@ -6,7 +6,9 @@
  */
 #include "nn/layers_impl/conv2d_layer.hpp"
 
+#include <chrono>
 #include <cmath>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 
