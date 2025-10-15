@@ -8,6 +8,7 @@
 #include "nn/train.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
+#include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/ops.hpp"
 #include "utils/utils_extended.hpp"
@@ -22,6 +23,7 @@ using namespace tpipeline;
 using namespace data_augmentation;
 using namespace data_loading;
 using namespace ::utils;
+using namespace tthreads;
 
 namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
@@ -169,12 +171,21 @@ void get_mnist_data_loaders(data_loading::MNISTDataLoader<float> &train_loader,
   test_loader.reset();
 }
 
+void train_model(DistributedPipelineCoordinator &coordinator, ImageDataLoader<float> &train_loader,
+                 ImageDataLoader<float> &test_loader);
+
 ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                    ImageDataLoader<float> &train_loader);
 ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
                                       ImageDataLoader<float> &test_loader);
 
 int main() {
+  // Load environment variables from .env file
+  std::cout << "Loading environment variables..." << std::endl;
+  if (!load_env_file("./.env")) {
+    std::cout << "No .env file found, using system environment variables only." << std::endl;
+  }
+
   // auto model = create_mnist_trainer();
 
   auto model = create_cifar10_trainer_v1();
@@ -185,11 +196,11 @@ int main() {
 
   model.print_config();
 
-  std::string coordinator_host = get_env("COORDINATOR_HOST", "localhost");
+  std::string coordinator_host = get_env<std::string>("COORDINATOR_HOST", "localhost");
 
   std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
-      {get_env("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-      {get_env("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+      {get_env<std::string>("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
+      {get_env<std::string>("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
   };
 
@@ -239,35 +250,33 @@ int main() {
   Tensor<float> batch_data, batch_labels;
 
 #ifdef USE_MKL
-  std::cout << "Setting MKL number of threads to: " << 8 << std::endl;
   mkl_set_threading_layer(MKL_THREADING_TBB);
 #endif
 
-#ifdef USE_TBB
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(2));
-  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
+  ThreadWrapper thread_wrapper({get_env<int>("COORDINATOR_NUM_THREADS", 4)});
 
-  // validate_semi_async_epoch(coordinator, test_loader);
-  arena.execute([&]() {
-#endif
-    for (size_t epoch = 0; epoch < semi_async_constants::NUM_EPOCHS; ++epoch) {
-      std::cout << "\n=== Epoch " << (epoch + 1) << "/" << semi_async_constants::NUM_EPOCHS
-                << " ===" << std::endl;
-      train_loader.reset();
-      test_loader.reset();
-
-      train_loader.shuffle();
-
-      train_semi_async_epoch(coordinator, train_loader);
-
-      validate_semi_async_epoch(coordinator, test_loader);
-
-      train_loader.prepare_batches(semi_async_constants::BATCH_SIZE);
-    }
-#ifdef USE_TBB
+  thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {
+    train_model(coordinator, train_loader, test_loader);
   });
-#endif
   return 0;
+}
+
+void train_model(DistributedPipelineCoordinator &coordinator, ImageDataLoader<float> &train_loader,
+                 ImageDataLoader<float> &test_loader) {
+  for (size_t epoch = 0; epoch < semi_async_constants::NUM_EPOCHS; ++epoch) {
+    std::cout << "\n=== Epoch " << (epoch + 1) << "/" << semi_async_constants::NUM_EPOCHS
+              << " ===" << std::endl;
+    train_loader.reset();
+    test_loader.reset();
+
+    train_loader.shuffle();
+
+    train_semi_async_epoch(coordinator, train_loader);
+
+    validate_semi_async_epoch(coordinator, test_loader);
+
+    train_loader.prepare_batches(semi_async_constants::BATCH_SIZE);
+  }
 }
 
 ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,

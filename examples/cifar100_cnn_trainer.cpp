@@ -15,7 +15,12 @@
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/ops.hpp"
+
+using namespace tnn;
+using namespace data_loading;
+using namespace ::utils;
 
 namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;
@@ -29,7 +34,31 @@ constexpr float LR_INITIAL = 0.001f;
 
 int main() {
   try {
+    // Load environment variables from .env file
+    std::cout << "Loading environment variables..." << std::endl;
+    if (!load_env_file("./.env")) {
+      std::cout << "No .env file found, using default training parameters." << std::endl;
+    }
+
+    // Get training parameters from environment or use defaults
+    const int epochs = get_env<int>("EPOCHS", cifar100_constants::EPOCHS);
+    const size_t batch_size = get_env<size_t>("BATCH_SIZE", cifar100_constants::BATCH_SIZE);
+    const float lr_initial = get_env<float>("LR_INITIAL", cifar100_constants::LR_INITIAL);
+    const float lr_decay_factor =
+        get_env<float>("LR_DECAY_FACTOR", cifar100_constants::LR_DECAY_FACTOR);
+    const size_t lr_decay_interval =
+        get_env<size_t>("LR_DECAY_INTERVAL", cifar100_constants::LR_DECAY_INTERVAL);
+    const int progress_print_interval =
+        get_env<int>("PROGRESS_PRINT_INTERVAL", cifar100_constants::PROGRESS_PRINT_INTERVAL);
+
     std::cout << "CIFAR-100 CNN Tensor<float> Neural Network Training" << std::endl;
+    std::cout << std::string(50, '=') << std::endl;
+    std::cout << "Training Parameters:" << std::endl;
+    std::cout << "  Epochs: " << epochs << std::endl;
+    std::cout << "  Batch Size: " << batch_size << std::endl;
+    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
+    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
+    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
     data_loading::CIFAR100DataLoader<float> train_loader, test_loader;
@@ -72,8 +101,7 @@ int main() {
                      .activation("softmax", "softmax_output")
                      .build();
 
-    auto optimizer =
-        std::make_unique<tnn::Adam<float>>(cifar100_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
@@ -83,10 +111,8 @@ int main() {
 
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
     train_classification_model(model, train_loader, test_loader,
-                               {cifar100_constants::EPOCHS, cifar100_constants::BATCH_SIZE,
-                                cifar100_constants::LR_DECAY_FACTOR,
-                                cifar100_constants::LR_DECAY_INTERVAL,
-                                cifar100_constants::PROGRESS_PRINT_INTERVAL, DEFAULT_NUM_THREADS});
+                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
+                                progress_print_interval, DEFAULT_NUM_THREADS});
 
     std::cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
                  "successfully!"

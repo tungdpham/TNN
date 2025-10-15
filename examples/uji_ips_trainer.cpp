@@ -5,6 +5,7 @@
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/misc.hpp"
 #include "utils/ops.hpp"
 
@@ -22,6 +23,10 @@
 #include <sstream>
 #include <string_view>
 #include <vector>
+
+using namespace tnn;
+using namespace data_loading;
+using namespace ::utils;
 
 namespace ips_constants {
 constexpr float EPSILON = 1e-15f;
@@ -437,8 +442,31 @@ void train_ips_model(tnn::Sequential<float> &model, WiFiDataLoader &train_loader
 
 int main() {
   try {
+    // Load environment variables from .env file
+    std::cout << "Loading environment variables..." << std::endl;
+    if (!load_env_file("./.env")) {
+      std::cout << "No .env file found, using default training parameters." << std::endl;
+    }
+
+    // Get training parameters from environment or use defaults
+    const size_t max_epochs = get_env<size_t>("EPOCHS", ips_constants::MAX_EPOCHS);
+    const size_t batch_size = get_env<size_t>("BATCH_SIZE", ips_constants::MAX_BATCH_SIZE);
+    const float lr_initial = get_env<float>("LR_INITIAL", ips_constants::learning_rate);
+    const float lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", ips_constants::LR_DECAY_FACTOR);
+    const int lr_decay_interval =
+        get_env<int>("LR_DECAY_INTERVAL", ips_constants::LR_DECAY_INTERVAL);
+    const int progress_print_interval =
+        get_env<int>("PROGRESS_PRINT_INTERVAL", ips_constants::PROGRESS_PRINT_INTERVAL);
+
     std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
     std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;
+    std::cout << std::string(70, '=') << std::endl;
+    std::cout << "Training Parameters:" << std::endl;
+    std::cout << "  Max Epochs: " << max_epochs << std::endl;
+    std::cout << "  Batch Size: " << batch_size << std::endl;
+    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
+    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
+    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
     std::cout << std::string(70, '=') << std::endl;
     bool is_regression = true;
     WiFiDataLoader train_loader(is_regression), test_loader(is_regression);
@@ -522,16 +550,12 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
-    model.set_optimizer(std::make_unique<tnn::Adam<float>>(0.01f, 0.9f, 0.999f, 1e-8f));
+    model.set_optimizer(std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
     model.set_loss_function(tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;
 
-    constexpr int epochs = ips_constants::MAX_EPOCHS;
-    constexpr int batch_size = ips_constants::MAX_BATCH_SIZE;
-    constexpr float learning_rate = ips_constants::learning_rate;
-
     std::cout << "\nStarting IPS model training..." << std::endl;
-    train_ips_model(model, train_loader, test_loader, epochs, batch_size, learning_rate);
+    train_ips_model(model, train_loader, test_loader, max_epochs, batch_size, lr_initial);
 
     std::cout << "\nIPS model training completed successfully!" << std::endl;
 

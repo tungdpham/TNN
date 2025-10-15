@@ -20,6 +20,7 @@
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/misc.hpp"
 #include "utils/ops.hpp"
 
@@ -40,6 +41,33 @@ int main() {
   std::cin.tie(nullptr);
   std::ios::sync_with_stdio(false);
   try {
+
+    // Load environment variables from .env file
+    std::cout << "Loading environment variables..." << std::endl;
+    if (!::utils::load_env_file("./.env")) {
+      std::cout << "No .env file found, using default training parameters." << std::endl;
+    }
+
+    // Get training parameters from environment or use defaults
+    const int epochs = ::utils::get_env<int>("EPOCHS", mnist_constants::EPOCHS);
+    const size_t batch_size = ::utils::get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
+    const float lr_initial = ::utils::get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
+    const float lr_decay_factor =
+        ::utils::get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
+    const int lr_decay_interval =
+        ::utils::get_env<int>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
+    const int progress_print_interval =
+        ::utils::get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
+
+    std::cout << "MNIST CNN Tensor<float> Neural Network Training" << std::endl;
+    std::cout << std::string(50, '=') << std::endl;
+    std::cout << "Training Parameters:" << std::endl;
+    std::cout << "  Epochs: " << epochs << std::endl;
+    std::cout << "  Batch Size: " << batch_size << std::endl;
+    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
+    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
+    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
+    std::cout << std::string(50, '=') << std::endl;
 
     data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
@@ -83,8 +111,7 @@ int main() {
                      //  .activation("softmax", "softmax_output")
                      .build();
 
-    auto optimizer =
-        std::make_unique<tnn::Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     // auto loss_function = tnn::LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
@@ -92,11 +119,10 @@ int main() {
     model.set_loss_function(std::move(loss_function));
 
     model.print_config();
-    train_classification_model(
-        model, train_loader, test_loader,
-        {mnist_constants::EPOCHS, mnist_constants::BATCH_SIZE, mnist_constants::LR_DECAY_FACTOR,
-         mnist_constants::LR_DECAY_INTERVAL, mnist_constants::PROGRESS_PRINT_INTERVAL,
-         DEFAULT_NUM_THREADS, ProfilerType::NORMAL});
+    train_classification_model(model, train_loader, test_loader,
+                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
+                                progress_print_interval, DEFAULT_NUM_THREADS,
+                                ProfilerType::NORMAL});
   } catch (const std::exception &e) {
     std::cerr << "Error during training: " << e.what() << std::endl;
     return -1;

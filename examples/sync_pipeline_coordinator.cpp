@@ -4,6 +4,7 @@
 #include "nn/sequential.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/ops.hpp"
 #include "utils/utils_extended.hpp"
 #include <chrono>
@@ -14,6 +15,7 @@
 
 using namespace tnn;
 using namespace tpipeline;
+using namespace ::utils;
 
 namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
@@ -47,40 +49,36 @@ Sequential<float> create_demo_model() {
   return model;
 }
 
-std::string get_host(const std::string &env_var, const std::string &default_host) {
-#ifdef _WIN32
-#ifdef _MSC_VER
-
-  char *env_value = nullptr;
-  size_t len = 0;
-  if (_dupenv_s(&env_value, &len, env_var.c_str()) == 0 && env_value != nullptr) {
-    std::string result(env_value);
-    free(env_value);
-    return result;
-  }
-  return default_host;
-#else
-
-  const char *env_value = std::getenv(env_var.c_str());
-  return env_value ? std::string(env_value) : default_host;
-#endif
-#else
-  const char *env_value = std::getenv(env_var.c_str());
-  return env_value ? std::string(env_value) : default_host;
-#endif
-}
-
 int main() {
+  // Load environment variables from .env file
+  std::cout << "Loading environment variables..." << std::endl;
+  if (!load_env_file("./.env")) {
+    std::cout << "No .env file found, using system environment variables only." << std::endl;
+  }
+
+  // Get training parameters from environment or use defaults
+  const int epochs = get_env<int>("EPOCHS", mnist_constants::NUM_EPOCHS);
+  const int batch_size = get_env<int>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
+  const float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
+  const int num_microbatches = get_env<int>("NUM_MICROBATCHES", mnist_constants::NUM_MICROBATCHES);
+  const int progress_print_interval =
+      get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
 
   auto model = create_demo_model();
 
   model.print_config();
 
-  std::string coordinator_host = get_host("COORDINATOR_HOST", "localhost");
+  std::cout << "Training Parameters:" << std::endl;
+  std::cout << "  Epochs: " << epochs << std::endl;
+  std::cout << "  Batch Size: " << batch_size << std::endl;
+  std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
+  std::cout << "  Number of Microbatches: " << num_microbatches << std::endl;
+
+  std::string coordinator_host = get_env<std::string>("COORDINATOR_HOST", "localhost");
 
   std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
-      {get_host("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-      {get_host("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+      {get_env<std::string>("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
+      {get_env<std::string>("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
 
   };
 
@@ -92,8 +90,8 @@ int main() {
   }
 
   std::cout << "\nCreating distributed coordinator..." << std::endl;
-  DistributedPipelineCoordinator coordinator(
-      std::move(model), endpoints, mnist_constants::NUM_MICROBATCHES, coordinator_host, 8000);
+  DistributedPipelineCoordinator coordinator(std::move(model), endpoints, num_microbatches,
+                                             coordinator_host, 8000);
 
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {
@@ -128,8 +126,8 @@ int main() {
 
   train_loader.shuffle();
 
-  train_loader.prepare_batches(mnist_constants::BATCH_SIZE);
-  test_loader.prepare_batches(mnist_constants::BATCH_SIZE);
+  train_loader.prepare_batches(batch_size);
+  test_loader.prepare_batches(batch_size);
 
   train_loader.reset();
   test_loader.reset();
@@ -149,10 +147,9 @@ int main() {
     float loss = 0.0f, avg_accuracy = 0.0f;
     auto split_start = std::chrono::high_resolution_clock::now();
 
-    std::vector<Tensor<float>> micro_batches = batch_data.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batches = batch_data.split(num_microbatches);
 
-    std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(num_microbatches);
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
@@ -164,7 +161,7 @@ int main() {
     }
 
     // Wait for all forward tasks to complete with a timeout
-    coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
+    coordinator.join(CommandType::FORWARD_TASK, num_microbatches, 60);
 
     auto forward_end = std::chrono::high_resolution_clock::now();
     auto forward_duration =
@@ -196,8 +193,8 @@ int main() {
       backward_tasks.push_back(backward_task);
     }
 
-    loss /= mnist_constants::NUM_MICROBATCHES;
-    avg_accuracy /= mnist_constants::NUM_MICROBATCHES;
+    loss /= num_microbatches;
+    avg_accuracy /= num_microbatches;
 
     auto compute_loss_end = std::chrono::high_resolution_clock::now();
     auto compute_loss_duration = std::chrono::duration_cast<std::chrono::microseconds>(
@@ -209,7 +206,7 @@ int main() {
       coordinator.backward(task.data, task.micro_batch_id);
     }
 
-    coordinator.join(CommandType::BACKWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
+    coordinator.join(CommandType::BACKWARD_TASK, num_microbatches, 60);
 
     coordinator.dequeue_all_messages(tpipeline::CommandType::BACKWARD_TASK);
 
@@ -224,7 +221,7 @@ int main() {
     auto update_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(update_end - update_start);
 
-    if (batch_index % mnist_constants::PROGRESS_PRINT_INTERVAL == 0) {
+    if (batch_index % progress_print_interval == 0) {
       std::cout << "Get batch completed in " << get_next_batch_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Split completed in " << split_duration.count() << " microseconds" << std::endl;
@@ -254,26 +251,25 @@ int main() {
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
-  while (test_loader.get_batch(mnist_constants::BATCH_SIZE, batch_data, batch_labels)) {
+  while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
 
-    std::vector<Tensor<float>> micro_batches = batch_data.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batches = batch_data.split(num_microbatches);
 
-    std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(mnist_constants::NUM_MICROBATCHES);
+    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(num_microbatches);
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(CommandType::FORWARD_TASK, mnist_constants::NUM_MICROBATCHES, 60);
+    coordinator.join(CommandType::FORWARD_TASK, num_microbatches, 60);
 
     std::vector<tpipeline::Message> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
-    if (all_messages.size() != mnist_constants::NUM_MICROBATCHES) {
+    if (all_messages.size() != static_cast<size_t>(num_microbatches)) {
       throw std::runtime_error(
           "Unexpected number of messages: " + std::to_string(all_messages.size()) +
-          ", expected: " + std::to_string(mnist_constants::NUM_MICROBATCHES));
+          ", expected: " + std::to_string(num_microbatches));
     }
 
     std::vector<tpipeline::Task<float>> forward_tasks;

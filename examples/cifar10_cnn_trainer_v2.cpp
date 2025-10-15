@@ -5,6 +5,7 @@
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
+#include "utils/env.hpp"
 #include "utils/ops.hpp"
 
 #include <algorithm>
@@ -20,6 +21,7 @@
 using namespace tnn;
 using namespace data_loading;
 using namespace data_augmentation;
+using namespace ::utils;
 
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
@@ -34,7 +36,33 @@ constexpr int NUM_THREADS = 8;
 
 int main() {
   try {
+    // Load environment variables from .env file
+    std::cout << "Loading environment variables..." << std::endl;
+    if (!load_env_file("./.env")) {
+      std::cout << "No .env file found, using default training parameters." << std::endl;
+    }
+
+    // Get training parameters from environment or use defaults
+    const int epochs = get_env<int>("EPOCHS", cifar10_constants::EPOCHS);
+    const size_t batch_size = get_env<size_t>("BATCH_SIZE", cifar10_constants::BATCH_SIZE);
+    const float lr_initial = get_env<float>("LR_INITIAL", cifar10_constants::LR_INITIAL);
+    const float lr_decay_factor =
+        get_env<float>("LR_DECAY_FACTOR", cifar10_constants::LR_DECAY_FACTOR);
+    const size_t lr_decay_interval =
+        get_env<size_t>("LR_DECAY_INTERVAL", cifar10_constants::LR_DECAY_INTERVAL);
+    const int progress_print_interval =
+        get_env<int>("PROGRESS_PRINT_INTERVAL", cifar10_constants::PROGRESS_PRINT_INTERVAL);
+    const size_t num_threads = get_env<int>("NUM_THREADS", cifar10_constants::NUM_THREADS);
+
     std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
+    std::cout << std::string(50, '=') << std::endl;
+    std::cout << "Training Parameters:" << std::endl;
+    std::cout << "  Epochs: " << epochs << std::endl;
+    std::cout << "  Batch Size: " << batch_size << std::endl;
+    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
+    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
+    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
+    std::cout << "  Number of Threads: " << num_threads << std::endl;
     std::cout << std::string(50, '=') << std::endl;
 
     CIFAR10DataLoader<float> train_loader, test_loader;
@@ -109,8 +137,7 @@ int main() {
                      .dense(10, "linear", true, "fc1")
                      //  .activation("softmax", "softmax_output")
                      .build();
-    auto optimizer =
-        std::make_unique<tnn::Adam<float>>(cifar10_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     // auto loss_function =
@@ -132,12 +159,10 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_classification_model(
-        model, train_loader, test_loader,
-        {cifar10_constants::EPOCHS, cifar10_constants::BATCH_SIZE,
-         cifar10_constants::LR_DECAY_FACTOR, cifar10_constants::LR_DECAY_INTERVAL,
-         cifar10_constants::PROGRESS_PRINT_INTERVAL, cifar10_constants::NUM_THREADS,
-         ProfilerType::NORMAL}); // Use default threads
+    train_classification_model(model, train_loader, test_loader,
+                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
+                                progress_print_interval, num_threads,
+                                ProfilerType::NORMAL}); // Use default threads
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
   } catch (const std::exception &e) {
