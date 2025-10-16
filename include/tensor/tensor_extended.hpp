@@ -10,72 +10,71 @@
 #include "tensor.hpp"
 
 template <typename T>
-Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, size_t kernel_h, size_t kernel_w,
-                        size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
-  const size_t in_h = input_tensor.height();
-  const size_t in_w = input_tensor.width();
-  const size_t padded_h = in_h + 2 * pad_h;
-  const size_t padded_w = in_w + 2 * pad_w;
-  const size_t out_h = (padded_h - kernel_h) / stride_h + 1;
-  const size_t out_w = (padded_w - kernel_w) / stride_w + 1;
-  const size_t channels = input_tensor.channels();
-  const size_t batch_size = input_tensor.batch_size();
-
-  size_t col_height = channels * kernel_h * kernel_w;
-  size_t col_width = out_h * out_w;
-  Matrix<T> col_matrix(col_height, batch_size * col_width);
-
-  const T *input_data = input_tensor.data();
-  T *col_data = col_matrix.data();
-
-  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-    const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
-
-    for (size_t kh = 0; kh < kernel_h; ++kh) {
-      for (size_t kw = 0; kw < kernel_w; ++kw) {
-        size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-        T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
-
-        const size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
-        const size_t h_end = std::min(out_h, (in_h + pad_h - kh) / stride_h);
-
-        const size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
-        const size_t w_end = std::min(out_w, (in_w + pad_w - kw) / stride_w);
-
-        std::fill(col_row_ptr, col_row_ptr + h_start * out_w, T(0));
-        col_row_ptr += h_start * out_w;
-
-        for (size_t h = h_start; h < h_end; ++h) {
-          const size_t h_in = h * stride_h + kh - pad_h;
-          const T *input_row = input_channel_ptr + h_in * in_w;
-
-          std::fill(col_row_ptr, col_row_ptr + w_start, T(0));
-          col_row_ptr += w_start;
-
-          if (stride_w == 1) {
-            const size_t w_in_start = w_start * stride_w + kw - pad_w;
-            std::copy(input_row + w_in_start, input_row + w_in_start + (w_end - w_start),
-                      col_row_ptr);
-            col_row_ptr += (w_end - w_start);
-          } else {
-            for (size_t w = w_start; w < w_end; ++w) {
-              const size_t w_in = w * stride_w + kw - pad_w;
-              *col_row_ptr++ = input_row[w_in];
+Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, const size_t kernel_h, const size_t kernel_w,
+                        const size_t stride_h, const size_t stride_w, const size_t pad_h, const size_t pad_w) {
+    const size_t in_h = input_tensor.height();
+    const size_t in_w = input_tensor.width();
+    const size_t padded_h = in_h + 2 * pad_h;
+    const size_t padded_w = in_w + 2 * pad_w;
+    const size_t out_h = (padded_h - kernel_h) / stride_h + 1;
+    const size_t out_w = (padded_w - kernel_w) / stride_w + 1;
+    const size_t channels = input_tensor.channels();
+    const size_t batch_size = input_tensor.batch_size();
+    
+    size_t col_height = channels * kernel_h * kernel_w;
+    size_t col_width = out_h * out_w;
+    Matrix<T> col_matrix(col_height, batch_size * col_width);
+    
+    const T *input_data = input_tensor.data();
+    T *col_data = col_matrix.data();
+    
+    tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+        const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
+        const size_t batch_offset = n * col_width;
+        const size_t col_stride = batch_size * col_width;
+        
+        for (size_t kh = 0; kh < kernel_h; ++kh) {
+            for (size_t kw = 0; kw < kernel_w; ++kw) {
+                size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+                T *col_row_base = col_data + col_row_idx * col_stride + batch_offset;
+                
+                const size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
+                const size_t h_end = std::min(out_h, (in_h + pad_h - kh) / stride_h);
+                const size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
+                const size_t w_end = std::min(out_w, (in_w + pad_w - kw) / stride_w);
+                
+                std::fill(col_row_base, col_row_base + h_start * out_w, T(0));
+                
+                for (size_t h = h_start; h < h_end; ++h) {
+                    const size_t h_in = h * stride_h + kh - pad_h;
+                    const T *input_row = input_channel_ptr + h_in * in_w;
+                    T *col_ptr = col_row_base + h * out_w;
+                    
+                    std::fill(col_ptr, col_ptr + w_start, T(0));
+                    
+                    if (stride_w == 1) {
+                        const size_t w_in_start = w_start + kw - pad_w;
+                        const size_t copy_len = w_end - w_start;
+                        std::copy(input_row + w_in_start, input_row + w_in_start + copy_len,
+                                  col_ptr + w_start);
+                    } else {
+                        for (size_t w = w_start; w < w_end; ++w) {
+                            const size_t w_in = w * stride_w + kw - pad_w;
+                            col_ptr[w] = input_row[w_in];
+                        }
+                    }
+                    
+                    std::fill(col_ptr + w_end, col_ptr + out_w, T(0));
+                }
+                
+                std::fill(col_row_base + h_end * out_w, col_row_base + out_h * out_w, T(0));
             }
-          }
-
-          std::fill(col_row_ptr, col_row_ptr + (out_w - w_end), T(0));
-          col_row_ptr += (out_w - w_end);
         }
-
-        std::fill(col_row_ptr, col_row_ptr + (out_h - h_end) * out_w, T(0));
-        col_row_ptr += (out_h - h_end) * out_w;
-      }
-    }
-  });
-
-  return col_matrix;
+    });
+    
+    return col_matrix;
 }
+
 
 /**
  * @brief Convert a 4D image tensor to a column matrix for convolution.

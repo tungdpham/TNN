@@ -103,14 +103,6 @@ class OptimizedCIFAR10CNN(nn.Module):
     def __init__(self, enable_profiling=False):
         super(OptimizedCIFAR10CNN, self).__init__()
         
-        # Architecture matching C++ model:
-        # .input({3, 32, 32})
-        # .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv0")
-        # .conv2d(64, 3, 3, 1, 1, 1, 1, "relu", true, "conv1")
-        # .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
-        # .batchnorm(1e-5f, 0.1f, true, "bn1")
-        # ... and so on
-        
         # Block 1: 64 channels
         self.conv0 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=True)
         self.conv1 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)

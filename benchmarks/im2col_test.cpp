@@ -2,7 +2,7 @@
 #include "tensor/tensor_extended.hpp"
 #include "utils/misc.hpp"
 constexpr size_t N = 64;
-constexpr size_t C = 128;
+constexpr size_t C = 256;
 constexpr size_t H = 32;
 constexpr size_t W = 32;
 
@@ -34,11 +34,11 @@ int main() {
 #endif
     Tensor<float, NCHW> input(N, C, H, W);
     input.fill_random_uniform(1.0f);
-    benchmark(input, 3, 3, 1, 1, 0, 0);
+    // benchmark(input, 3, 3, 1, 1, 0, 0);
     benchmark(input, 3, 3, 1, 1, 1, 1);
-    benchmark(input, 5, 5, 1, 1, 2, 2);
-    benchmark(input, 3, 3, 2, 2, 1, 1);
-    benchmark(input, 5, 5, 2, 2, 1, 1);
+    // benchmark(input, 5, 5, 1, 1, 2, 2);
+    // benchmark(input, 3, 3, 2, 2, 1, 1);
+    // benchmark(input, 5, 5, 2, 2, 1, 1);
 #ifdef USE_TBB
   });
 #endif
