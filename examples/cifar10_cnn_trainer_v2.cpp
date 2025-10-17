@@ -54,16 +54,15 @@ int main() {
         get_env<int>("PROGRESS_PRINT_INTERVAL", cifar10_constants::PROGRESS_PRINT_INTERVAL);
     const size_t num_threads = get_env<int>("NUM_THREADS", cifar10_constants::NUM_THREADS);
 
-    std::cout << "CIFAR-10 CNN Tensor<float> Neural Network Training" << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
-    std::cout << "Training Parameters:" << std::endl;
-    std::cout << "  Epochs: " << epochs << std::endl;
-    std::cout << "  Batch Size: " << batch_size << std::endl;
-    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
-    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
-    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
-    std::cout << "  Number of Threads: " << num_threads << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
+    TrainingConfig train_config{epochs,
+                                batch_size,
+                                lr_decay_factor,
+                                lr_decay_interval,
+                                progress_print_interval,
+                                num_threads,
+                                ProfilerType::NORMAL};
+
+    train_config.print_config();
 
     CIFAR10DataLoader<float> train_loader, test_loader;
 
@@ -159,10 +158,7 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader,
-                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
-                                progress_print_interval, num_threads,
-                                ProfilerType::NORMAL}); // Use default threads
+    train_classification_model(model, train_loader, test_loader, train_config);
 
     std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
   } catch (const std::exception &e) {

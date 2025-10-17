@@ -59,15 +59,15 @@ int main() {
     const int progress_print_interval =
         ::utils::get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
 
-    std::cout << "MNIST CNN Tensor<float> Neural Network Training" << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
-    std::cout << "Training Parameters:" << std::endl;
-    std::cout << "  Epochs: " << epochs << std::endl;
-    std::cout << "  Batch Size: " << batch_size << std::endl;
-    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
-    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
-    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
+    TrainingConfig train_config{epochs,
+                                batch_size,
+                                lr_decay_factor,
+                                lr_decay_interval,
+                                progress_print_interval,
+                                DEFAULT_NUM_THREADS,
+                                ProfilerType::NORMAL};
+
+    train_config.print_config();
 
     data_loading::MNISTDataLoader<float> train_loader, test_loader;
 
@@ -85,7 +85,7 @@ int main() {
               << std::endl;
     std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
 
-    std::cout << "\nBuilding CNN model architecture with automatic shape inference..." << std::endl;
+    std::cout << "\nBuilding CNN model architecture" << std::endl;
 
     auto aug_strategy = data_augmentation::AugmentationBuilder<float>()
                             .contrast(0.3f, 0.15f)
@@ -119,10 +119,7 @@ int main() {
     model.set_loss_function(std::move(loss_function));
 
     model.print_config();
-    train_classification_model(model, train_loader, test_loader,
-                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
-                                progress_print_interval, DEFAULT_NUM_THREADS,
-                                ProfilerType::NORMAL});
+    train_classification_model(model, train_loader, test_loader, train_config);
   } catch (const std::exception &e) {
     std::cerr << "Error during training: " << e.what() << std::endl;
     return -1;

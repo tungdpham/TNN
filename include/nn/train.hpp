@@ -41,6 +41,23 @@ struct TrainingConfig {
   uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
+
+  void print_config() const {
+    std::cout << "Training Configuration:" << std::endl;
+    std::cout << "  Epochs: " << epochs << std::endl;
+    std::cout << "  Batch Size: " << batch_size << std::endl;
+    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
+    std::cout << "  LR Decay Interval (epochs): " << lr_decay_interval << std::endl;
+    std::cout << "  Progress Print Interval (batches): " << progress_print_interval << std::endl;
+    std::cout << "  Number of Threads: " << num_threads << std::endl;
+    std::cout << "  Profiler Type: "
+              << (profiler_type == ProfilerType::NONE
+                      ? "None"
+                      : (profiler_type == ProfilerType::NORMAL ? "Normal" : "Cumulative"))
+              << std::endl;
+    std::cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No")
+              << std::endl;
+  }
 };
 
 struct ClassResult {

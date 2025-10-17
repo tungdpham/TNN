@@ -13,11 +13,16 @@ constexpr Endianness get_system_endianness() {
 }
 
 template <typename T> void bswap(T &value) {
-  if constexpr (sizeof(T) == 2) {
+  if constexpr (sizeof(T) == 1) {
+    return;
+  } else if constexpr (sizeof(T) == 2) {
     value = __builtin_bswap16(value);
   } else if constexpr (sizeof(T) == 4) {
     value = __builtin_bswap32(value);
   } else if constexpr (sizeof(T) == 8) {
     value = __builtin_bswap64(value);
+  } else {
+    static_assert(sizeof(T) == 2 || sizeof(T) == 4 || sizeof(T) == 8,
+                  "bswap is only supported for 2, 4, or 8 byte types");
   }
 }

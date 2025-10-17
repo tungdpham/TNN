@@ -51,15 +51,15 @@ int main() {
     const int progress_print_interval =
         get_env<int>("PROGRESS_PRINT_INTERVAL", cifar100_constants::PROGRESS_PRINT_INTERVAL);
 
-    std::cout << "CIFAR-100 CNN Tensor<float> Neural Network Training" << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
-    std::cout << "Training Parameters:" << std::endl;
-    std::cout << "  Epochs: " << epochs << std::endl;
-    std::cout << "  Batch Size: " << batch_size << std::endl;
-    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
-    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
-    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
-    std::cout << std::string(50, '=') << std::endl;
+    TrainingConfig train_config{epochs,
+                                batch_size,
+                                lr_decay_factor,
+                                lr_decay_interval,
+                                progress_print_interval,
+                                DEFAULT_NUM_THREADS,
+                                ProfilerType::NORMAL};
+
+    train_config.print_config();
 
     data_loading::CIFAR100DataLoader<float> train_loader, test_loader;
 
@@ -70,9 +70,6 @@ int main() {
     if (!test_loader.load_data("./data/cifar-100-binary/test.bin")) {
       return -1;
     }
-
-    std::cout << "\nDataset Information:" << std::endl;
-    train_loader.print_data_stats();
 
     std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
               << std::endl;
@@ -110,9 +107,7 @@ int main() {
     model.enable_profiling(true);
 
     std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
-    train_classification_model(model, train_loader, test_loader,
-                               {epochs, batch_size, lr_decay_factor, lr_decay_interval,
-                                progress_print_interval, DEFAULT_NUM_THREADS});
+    train_classification_model(model, train_loader, test_loader, train_config);
 
     std::cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
                  "successfully!"
