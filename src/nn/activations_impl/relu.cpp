@@ -65,28 +65,27 @@ template <typename T> void ReLU<T>::apply_with_scalar_bias(Tensor<T> &tensor, T 
 }
 
 template <typename T>
-Tensor<T> ReLU<T>::compute_gradient(const Tensor<T> &pre_activation_values,
+Tensor<T> ReLU<T>::compute_gradient(const Tensor<T> &input,
                                     const Tensor<T> *upstream_gradient) const {
   Tensor<T> gradient;
   if (upstream_gradient != nullptr) {
     gradient = upstream_gradient->clone();
   } else {
-    gradient = Tensor<T>(pre_activation_values.shape());
+    gradient = Tensor<T>(input.shape());
     gradient.fill(T(1));
   }
-  compute_gradient_inplace(pre_activation_values, gradient);
+  compute_gradient_inplace(input, gradient);
   return gradient;
 }
 
 template <typename T>
-void ReLU<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
-                                       Tensor<T> &upstream_gradient) const {
-  assert(pre_activation_values.shape() == upstream_gradient.shape() &&
+void ReLU<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
+  assert(input.shape() == upstream_gradient.shape() &&
          "Shapes must match for in-place gradient computation");
 
-  const T *input_data = pre_activation_values.data();
+  const T *input_data = input.data();
   T *grad_data = upstream_gradient.data();
-  const size_t size = pre_activation_values.size();
+  const size_t size = input.size();
 
   tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T local_grad = input_data[i] > T(0) ? T(1) : negative_slope_;

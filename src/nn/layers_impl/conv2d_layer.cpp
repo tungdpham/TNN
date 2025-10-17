@@ -14,16 +14,8 @@
 
 #include "math/gemm.hpp"
 #include "threading/thread_handler.hpp"
-#include "utils/ops.hpp"
-
-#ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
-#endif
-
-#ifdef USE_TBB
-#include <tbb/blocked_range2d.h>
-#include <tbb/parallel_for.h>
-#endif
+#include "utils/ops.hpp"
 
 namespace tnn {
 

@@ -57,37 +57,37 @@ template <typename T> void Softmax<T>::apply_with_scalar_bias(Tensor<T> &tensor,
 }
 
 template <typename T>
-Tensor<T> Softmax<T>::compute_gradient(const Tensor<T> &pre_activation_values,
+Tensor<T> Softmax<T>::compute_gradient(const Tensor<T> &input,
                                        const Tensor<T> *upstream_gradient) const {
   if (upstream_gradient == nullptr) {
     throw std::invalid_argument("Upstream gradient must be provided for "
                                 "softmax gradient computation");
   }
 
-  if (upstream_gradient->shape() != pre_activation_values.shape()) {
+  if (upstream_gradient->shape() != input.shape()) {
     throw std::invalid_argument("Upstream gradient must have the same "
                                 "shape as pre-activation values");
   }
 
   Tensor<T> gradient = upstream_gradient->clone();
-  compute_gradient_inplace(pre_activation_values, gradient);
+  compute_gradient_inplace(input, gradient);
   return gradient;
 }
 
 template <typename T>
-void Softmax<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+void Softmax<T>::compute_gradient_inplace(const Tensor<T> &input,
                                           Tensor<T> &upstream_gradient) const {
-  size_t batch_size = pre_activation_values.batch_size();
-  size_t channels = pre_activation_values.channels();
-  size_t height = pre_activation_values.height();
-  size_t width = pre_activation_values.width();
+  size_t batch_size = input.batch_size();
+  size_t channels = input.channels();
+  size_t height = input.height();
+  size_t width = input.width();
 
-  if (upstream_gradient.shape() != pre_activation_values.shape()) {
+  if (upstream_gradient.shape() != input.shape()) {
     throw std::invalid_argument("Upstream gradient must have the same "
                                 "shape as pre-activation values");
   }
 
-  Tensor<T> softmax_values = pre_activation_values;
+  Tensor<T> softmax_values = input;
   apply(softmax_values);
 
   tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {

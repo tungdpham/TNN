@@ -51,34 +51,34 @@ template <typename T> void Sigmoid<T>::apply_with_scalar_bias(Tensor<T> &tensor,
 }
 
 template <typename T>
-Tensor<T> Sigmoid<T>::compute_gradient(const Tensor<T> &pre_activation_values,
+Tensor<T> Sigmoid<T>::compute_gradient(const Tensor<T> &input,
                                        const Tensor<T> *upstream_gradient) const {
   Tensor<T> gradient;
   if (upstream_gradient != nullptr) {
-    if (upstream_gradient->shape() != pre_activation_values.shape()) {
+    if (upstream_gradient->shape() != input.shape()) {
       throw std::invalid_argument("Upstream gradient must have the same "
                                   "shape as pre-activation values");
     }
     gradient = upstream_gradient->clone();
   } else {
-    gradient = Tensor<T>(pre_activation_values.shape());
+    gradient = Tensor<T>(input.shape());
     gradient.fill(T(1));
   }
-  compute_gradient_inplace(pre_activation_values, gradient);
+  compute_gradient_inplace(input, gradient);
   return gradient;
 }
 
 template <typename T>
-void Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+void Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &input,
                                           Tensor<T> &upstream_gradient) const {
-  if (upstream_gradient.shape() != pre_activation_values.shape()) {
+  if (upstream_gradient.shape() != input.shape()) {
     throw std::invalid_argument("Upstream gradient must have the same "
                                 "shape as pre-activation values");
   }
 
-  const T *input_data = pre_activation_values.data();
+  const T *input_data = input.data();
   T *grad_data = upstream_gradient.data();
-  size_t size = pre_activation_values.size();
+  size_t size = input.size();
 
   tthreads::parallel_for<size_t>(0, size, [&](size_t i) {
     T sigmoid_val = T(1) / (T(1) + std::exp(-input_data[i]));

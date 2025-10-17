@@ -22,6 +22,8 @@
 
 namespace tthreads {
 
+enum class SchedulePolicy { Static, Auto, Affinity };
+
 inline uint32_t get_num_threads() {
 #ifdef _OPENMP
   return static_cast<uint32_t>(omp_get_max_threads());
@@ -33,21 +35,56 @@ inline uint32_t get_num_threads() {
 }
 
 template <typename Index = size_t, typename Func>
-static inline void parallel_for(const Index begin, const Index end, Func f) {
+static inline void parallel_for(const Index begin, const Index end, Func f,
+                                SchedulePolicy policy = SchedulePolicy::Static) {
   assert(end >= begin && "Invalid range");
 #if defined(_OPENMP)
+  switch (policy) {
+  case SchedulePolicy::Static:
 #pragma omp parallel for schedule(static)
-  for (Index i = begin; i < end; ++i) {
-    f(i);
+    for (Index i = begin; i < end; ++i) {
+      f(i);
+    }
+    break;
+  case SchedulePolicy::Auto:
+  case SchedulePolicy::Affinity:
+#pragma omp parallel for schedule(dynamic)
+    for (Index i = begin; i < end; ++i) {
+      f(i);
+    }
+    break;
   }
 #elif defined(USE_TBB)
-  tbb::parallel_for(
-      tbb::blocked_range<Index>(begin, end),
-      [&](const tbb::blocked_range<Index> &r) {
-        for (Index i = r.begin(); i != r.end(); ++i)
-          f(i);
-      },
-      tbb::auto_partitioner());
+  switch (policy) {
+  case SchedulePolicy::Static:
+    tbb::parallel_for(
+        tbb::blocked_range<Index>(begin, end),
+        [&](const tbb::blocked_range<Index> &r) {
+          for (Index i = r.begin(); i != r.end(); ++i)
+            f(i);
+        },
+        tbb::static_partitioner());
+    break;
+  case SchedulePolicy::Auto:
+    tbb::parallel_for(
+        tbb::blocked_range<Index>(begin, end),
+        [&](const tbb::blocked_range<Index> &r) {
+          for (Index i = r.begin(); i != r.end(); ++i)
+            f(i);
+        },
+        tbb::auto_partitioner());
+    break;
+  case SchedulePolicy::Affinity:
+    tbb::affinity_partitioner ap;
+    tbb::parallel_for(
+        tbb::blocked_range<Index>(begin, end),
+        [&](const tbb::blocked_range<Index> &r) {
+          for (Index i = r.begin(); i != r.end(); ++i)
+            f(i);
+        },
+        ap);
+    break;
+  }
 #else
   for (Index i = begin; i < end; ++i)
     f(i);
@@ -55,26 +92,76 @@ static inline void parallel_for(const Index begin, const Index end, Func f) {
 }
 
 template <typename Index = size_t, typename Func>
-inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
+inline void parallel_for_2d(const Index dim0, const Index dim1, Func f,
+                            SchedulePolicy policy = SchedulePolicy::Static) {
   assert(dim0 >= 0 && dim1 >= 0 && "Invalid dimensions");
 #if defined(_OPENMP)
+  switch (policy) {
+  case SchedulePolicy::Static:
 #pragma omp parallel for collapse(2) schedule(static)
-  for (Index i = 0; i < dim0; ++i) {
-    for (Index j = 0; j < dim1; ++j) {
-      f(i, j);
+    for (Index i = 0; i < dim0; ++i) {
+      for (Index j = 0; j < dim1; ++j) {
+        f(i, j);
+      }
     }
+    break;
+  case SchedulePolicy::Auto:
+#pragma omp parallel for collapse(2) schedule(auto)
+    for (Index i = 0; i < dim0; ++i) {
+      for (Index j = 0; j < dim1; ++j) {
+        f(i, j);
+      }
+    }
+    break;
+  case SchedulePolicy::Affinity:
+#pragma omp parallel for collapse(2) schedule(affinity)
+    for (Index i = 0; i < dim0; ++i) {
+      for (Index j = 0; j < dim1; ++j) {
+        f(i, j);
+      }
+    }
+    break;
   }
 #elif defined(USE_TBB)
-  tbb::parallel_for(
-      tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
-      [&](const tbb::blocked_range2d<Index> &r) {
-        for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
-          for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
-            f(i, j);
+  switch (policy) {
+  case SchedulePolicy::Static:
+    tbb::parallel_for(
+        tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
+        [&](const tbb::blocked_range2d<Index> &r) {
+          for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
+            for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
+              f(i, j);
+            }
           }
-        }
-      },
-      tbb::auto_partitioner());
+        },
+        tbb::static_partitioner());
+    break;
+  case SchedulePolicy::Auto:
+    tbb::parallel_for(
+        tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
+        [&](const tbb::blocked_range2d<Index> &r) {
+          for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
+            for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
+              f(i, j);
+            }
+          }
+        },
+        tbb::auto_partitioner());
+    break;
+  case SchedulePolicy::Affinity:
+    tbb::affinity_partitioner ap;
+    tbb::parallel_for(
+        tbb::blocked_range2d<Index>(0, dim0, 0, dim1),
+        [&](const tbb::blocked_range2d<Index> &r) {
+          for (Index i = r.rows().begin(); i != r.rows().end(); ++i) {
+            for (Index j = r.cols().begin(); j != r.cols().end(); ++j) {
+              f(i, j);
+            }
+          }
+        },
+        ap);
+    break;
+  }
 #else
   std::cout << "Warning: Running parallel_for_2d in serial mode.\n";
   for (Index i = 0; i < dim0; ++i) {

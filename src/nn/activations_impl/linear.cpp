@@ -40,7 +40,7 @@ template <typename T> void Linear<T>::apply_with_scalar_bias(Tensor<T> &tensor, 
 }
 
 template <typename T>
-Tensor<T> Linear<T>::compute_gradient(const Tensor<T> &pre_activation_values,
+Tensor<T> Linear<T>::compute_gradient(const Tensor<T> &input,
                                       const Tensor<T> *upstream_gradient) const {
   if (upstream_gradient == nullptr) {
     throw std::runtime_error("Upstream gradient must be provided for Linear activation");
@@ -49,9 +49,9 @@ Tensor<T> Linear<T>::compute_gradient(const Tensor<T> &pre_activation_values,
 }
 
 template <typename T>
-void Linear<T>::compute_gradient_inplace(const Tensor<T> &pre_activation_values,
+void Linear<T>::compute_gradient_inplace(const Tensor<T> &input,
                                          Tensor<T> &upstream_gradient) const {
-  if (upstream_gradient.shape() != pre_activation_values.shape()) {
+  if (upstream_gradient.shape() != input.shape()) {
     throw std::invalid_argument("Upstream gradient must have the same "
                                 "shape as pre-activation values");
   }

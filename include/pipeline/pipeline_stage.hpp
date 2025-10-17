@@ -183,35 +183,12 @@ protected:
       this->handle_configuration(message);
       break;
     case CommandType::LOAD_PARAMS: {
-      // // decode and deserialize
-      // std::vector<Tensor<float>> parameters = message.get<std::vector<Tensor<float>>>();
-      // model_->load_parameters(std::move(parameters));
-
-      // // send confirmation
-      // Message response(message.header.sender_id, CommandType::PARAMS_LOADED, std::monostate{});
-      // response.header.sender_id = name_;
-      // communicator_->send_message(response);
+      // // decode and deserialize parameters
       throw new std::runtime_error("Not implemented yet");
       break;
     }
     case CommandType::SEND_PARAMS: {
       try {
-        // std::vector<Tensor<float> *> param_ptrs = model_->parameters();
-        // std::vector<Tensor<float>> params_copy;
-        // params_copy.reserve(param_ptrs.size());
-        // for (const auto &param_ptr : param_ptrs) {
-        //   if (param_ptr) {
-        //     params_copy.emplace_back(param_ptr->clone());
-        //   }
-        // }
-
-        // Message params_msg(message.header.sender_id, CommandType::PARAMS_TRANSFER, params_copy);
-        // params_msg.header.sender_id = name_;
-
-        // communicator_->send_message(params_msg);
-        // std::cout << "Sent " << params_copy.size() << " parameters to " <<
-        // message.header.sender_id
-        //           << std::endl;
 
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;

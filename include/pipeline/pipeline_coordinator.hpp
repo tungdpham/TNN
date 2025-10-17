@@ -424,59 +424,8 @@ public:
       return false;
     }
 
-    // // Update model parameters with received data
-    // std::map<std::string, std::vector<Tensor<float>>> stage_parameters;
-
-    // for (const auto &params_msg : params_messages) {
-    //   if (params_msg.has_type<std::vector<Tensor<float>>>()) {
-    //     try {
-    //       auto params = params_msg.get<std::vector<Tensor<float>>>();
-    //       stage_parameters[params_msg.header.sender_id] = std::move(params);
-
-    //       std::cout << "Received " << params.size() << " parameters from "
-    //                 << params_msg.header.sender_id << "\n";
-    //     } catch (const std::exception &e) {
-    //       std::cerr << "Warning: Failed to deserialize parameters from "
-    //                 << params_msg.header.sender_id << ": " << e.what() << "\n";
-    //       return false;
-    //     }
-    //   }
-    // }
-
-    // Reconstruct the full model from stage parameters
     try {
-      // Find the stage index for each stage name and update model accordingly
-      // for (size_t i = 0; i < stage_names_.size(); ++i) {
-      //   const std::string &stage_name = stage_names_[i];
-      //   auto it = stage_parameters.find(stage_name);
-      //   if (it != stage_parameters.end()) {
-      //     // Update model parameters for this partition
-      //     auto model_params = model_.parameters(partitions_[i]);
-      //     const auto &stage_params = it->second;
 
-      //     if (model_params.size() == stage_params.size()) {
-      //       for (size_t j = 0; j < model_params.size(); ++j) {
-      //         if (model_params[j]) {
-      //           // Check if tensors have the same size before copying
-      //           if (model_params[j]->size() == stage_params[j].size()) {
-      //             utils::avx2_copy(stage_params[j].data(), model_params[j]->data(),
-      //                              model_params[j]->size());
-      //           } else {
-      //             std::cerr << "Warning: Tensor size mismatch for parameter " << j << " in stage
-      //             "
-      //                       << stage_name << "\n";
-      //           }
-      //         }
-      //       }
-      //     } else {
-      //       std::cerr << "Warning: Parameter count mismatch for stage " << stage_name
-      //                 << ". Expected " << model_params.size() << ", got " << stage_params.size()
-      //                 << "\n";
-      //     }
-      //   }
-      // }
-
-      // std::cout << "Successfully updated coordinator model with current parameters.\n";
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Error updating model parameters: " << e.what() << "\n";
