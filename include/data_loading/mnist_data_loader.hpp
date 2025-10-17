@@ -355,4 +355,15 @@ public:
   bool has_augmentation() const { return augmentation_strategy_ != nullptr; }
 };
 
+void create_mnist_data_loaders(std::string data_path, MNISTDataLoader<float> &train_loader,
+                               MNISTDataLoader<float> &test_loader) {
+  if (!train_loader.load_data(data_path + "/mnist/train.csv")) {
+    throw std::runtime_error("Failed to load training data!");
+  }
+
+  if (!test_loader.load_data(data_path + "/mnist/test.csv")) {
+    throw std::runtime_error("Failed to load test data!");
+  }
+}
+
 } // namespace data_loading

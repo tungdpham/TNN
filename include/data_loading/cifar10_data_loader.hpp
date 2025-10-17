@@ -413,6 +413,22 @@ public:
   }
 };
 
+template <typename T>
+void create_cifar10_dataloader(const std::string &data_path, CIFAR10DataLoader<T> &train_loader,
+                               CIFAR10DataLoader<T> &test_loader) {
+  if (!train_loader.load_multiple_files({data_path + "/cifar-10-batches-bin/data_batch_1.bin",
+                                         data_path + "/cifar-10-batches-bin/data_batch_2.bin",
+                                         data_path + "/cifar-10-batches-bin/data_batch_3.bin",
+                                         data_path + "/cifar-10-batches-bin/data_batch_4.bin",
+                                         data_path + "/cifar-10-batches-bin/data_batch_5.bin"})) {
+    throw std::runtime_error("Failed to load training data!");
+  }
+
+  if (!test_loader.load_data(data_path + "/cifar-10-batches-bin/test_batch.bin")) {
+    throw std::runtime_error("Failed to load test data!");
+  }
+}
+
 using CIFAR10DataLoaderFloat = CIFAR10DataLoader<float>;
 using CIFAR10DataLoaderDouble = CIFAR10DataLoader<double>;
 

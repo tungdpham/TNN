@@ -11,7 +11,7 @@ from typing import Tuple, List
 from fvcore.nn import FlopCountAnalysis
 os.environ['PYTORCH_JIT'] = '0'
 
-# CIFAR-10 Constants (matching C++ implementation)
+# CIFAR-10 Constants (matching C++ implementation exactly)
 class CIFAR10Constants:
     IMAGE_HEIGHT = 32
     IMAGE_WIDTH = 32
@@ -23,8 +23,8 @@ class CIFAR10Constants:
     EPSILON = 1e-15
     PROGRESS_PRINT_INTERVAL = 100
     EPOCHS = 40
-    BATCH_SIZE = 32
-    LR_DECAY_INTERVAL = 5
+    BATCH_SIZE = 64
+    LR_DECAY_INTERVAL = 3  # Matching C++ version (was 5)
     LR_DECAY_FACTOR = 0.85
     LR_INITIAL = 0.001
 
@@ -103,185 +103,254 @@ class OptimizedCIFAR10CNN(nn.Module):
     def __init__(self, enable_profiling=False):
         super(OptimizedCIFAR10CNN, self).__init__()
         
-        # Block 1: 64 channels
-        self.conv0 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv1 = nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True)
-        self.pool0 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.bn1 = nn.BatchNorm2d(64, eps=1e-5, momentum=0.1)
-        
-        # Block 2: 128 channels
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=True)
-        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.bn2 = nn.BatchNorm2d(128, eps=1e-5, momentum=0.1)
-        
-        # Block 3: 256 channels
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv5 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv6 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True)
-        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.bn3 = nn.BatchNorm2d(256, eps=1e-5, momentum=0.1)
-        
-        # Block 4: 512 channels
-        self.conv7 = nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv8 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.conv9 = nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True)
-        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)
-        self.bn4 = nn.BatchNorm2d(512, eps=1e-5, momentum=0.1)
-        
-        # Fully connected layers
-        # After 4 pooling operations: 32 -> 16 -> 8 -> 4 -> 2
-        # So flattened size = 512 * 2 * 2 = 2048
-        self.fc0 = nn.Linear(512 * 2 * 2, 512, bias=True)
-        self.bn5 = nn.BatchNorm1d(512, eps=1e-5, momentum=0.1)
-        self.fc1 = nn.Linear(512, CIFAR10Constants.NUM_CLASSES, bias=True)
-        
         # Profiling setup
         self.enable_profiling = enable_profiling
         self.layer_times = {}
         self.profile_count = 0
         
+        # Build the model using Sequential for optimized forward pass
+        # This matches the C++ architecture exactly: Conv→ReLU→Conv→ReLU→Pool→BatchNorm pattern
+        
+        # Block 1: 64 channels (conv0→relu0→conv1→relu1→pool0→bn0)
+        self.block1 = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=True),      # conv0
+            nn.ReLU(inplace=True),                                                # relu0
+            nn.Conv2d(64, 64, kernel_size=3, stride=1, padding=1, bias=True),    # conv1  
+            nn.ReLU(inplace=True),                                                # relu1
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),                    # pool0
+            nn.BatchNorm2d(64, eps=1e-5, momentum=0.1)                          # bn0
+        )
+        
+        # Block 2: 128 channels (conv2→relu2→conv3→relu3→pool1→bn1) 
+        self.block2 = nn.Sequential(
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1, bias=True),   # conv2
+            nn.ReLU(inplace=True),                                                # relu2
+            nn.Conv2d(128, 128, kernel_size=3, stride=1, padding=1, bias=True),  # conv3
+            nn.ReLU(inplace=True),                                                # relu3
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),                    # pool1
+            nn.BatchNorm2d(128, eps=1e-5, momentum=0.1)                         # bn1
+        )
+        
+        # Block 3: 256 channels (conv4→relu5→conv5→relu6→conv6→relu6→pool2→bn6)
+        self.block3 = nn.Sequential(
+            nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1, bias=True),  # conv4
+            nn.ReLU(inplace=True),                                                # relu5
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True),  # conv5
+            nn.ReLU(inplace=True),                                                # relu6
+            nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1, bias=True),  # conv6
+            nn.ReLU(inplace=True),                                                # relu6 (reused name in C++)
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),                    # pool2
+            nn.BatchNorm2d(256, eps=1e-5, momentum=0.1)                         # bn6
+        )
+        
+        # Block 4: 512 channels (conv7→relu7→conv8→relu8→conv9→relu9→pool3→bn10)
+        self.block4 = nn.Sequential(
+            nn.Conv2d(256, 512, kernel_size=3, stride=1, padding=1, bias=True),  # conv7
+            nn.ReLU(inplace=True),                                                # relu7
+            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True),  # conv8
+            nn.ReLU(inplace=True),                                                # relu8
+            nn.Conv2d(512, 512, kernel_size=3, stride=1, padding=1, bias=True),  # conv9
+            nn.ReLU(inplace=True),                                                # relu9
+            nn.MaxPool2d(kernel_size=2, stride=2, padding=0),                    # pool3
+            nn.BatchNorm2d(512, eps=1e-5, momentum=0.1)                         # bn10
+        )
+        
+        # Fully connected layers (flatten→fc0→relu10→fc1)
+        # After 4 pooling operations: 32 -> 16 -> 8 -> 4 -> 2
+        # So flattened size = 512 * 2 * 2 = 2048
+        self.classifier = nn.Sequential(
+            nn.Flatten(),                                                         # flatten
+            nn.Linear(512 * 2 * 2, 512, bias=True),                             # fc0
+            nn.ReLU(inplace=True),                                                # relu10
+            nn.Linear(512, CIFAR10Constants.NUM_CLASSES, bias=True)             # fc1
+        )
+        
+        # For profiling, we need to access individual layers
+        self.conv0 = self.block1[0]  # Conv2d
+        self.relu0 = self.block1[1]  # ReLU
+        self.conv1 = self.block1[2]  # Conv2d  
+        self.relu1 = self.block1[3]  # ReLU
+        self.pool0 = self.block1[4]  # MaxPool2d
+        self.bn0 = self.block1[5]    # BatchNorm2d
+        
+        self.conv2 = self.block2[0]  # Conv2d
+        self.relu2 = self.block2[1]  # ReLU
+        self.conv3 = self.block2[2]  # Conv2d
+        self.relu3 = self.block2[3]  # ReLU
+        self.pool1 = self.block2[4]  # MaxPool2d
+        self.bn1 = self.block2[5]    # BatchNorm2d
+        
+        self.conv4 = self.block3[0]  # Conv2d
+        self.relu5 = self.block3[1]  # ReLU
+        self.conv5 = self.block3[2]  # Conv2d
+        self.relu6a = self.block3[3] # ReLU
+        self.conv6 = self.block3[4]  # Conv2d
+        self.relu6b = self.block3[5] # ReLU (second relu6)
+        self.pool2 = self.block3[6]  # MaxPool2d
+        self.bn6 = self.block3[7]    # BatchNorm2d
+        
+        self.conv7 = self.block4[0]  # Conv2d
+        self.relu7 = self.block4[1]  # ReLU
+        self.conv8 = self.block4[2]  # Conv2d
+        self.relu8 = self.block4[3]  # ReLU
+        self.conv9 = self.block4[4]  # Conv2d
+        self.relu9 = self.block4[5]  # ReLU
+        self.pool3 = self.block4[6]  # MaxPool2d
+        self.bn10 = self.block4[7]   # BatchNorm2d
+        
+        self.flatten = self.classifier[0]  # Flatten
+        self.fc0 = self.classifier[1]      # Linear
+        self.relu10 = self.classifier[2]   # ReLU
+        self.fc1 = self.classifier[3]      # Linear
+        
     def forward(self, x):
         if self.enable_profiling:
             return self._forward_with_profiling(x)
         else:
-            return self._forward_normal(x)
+            # Optimized forward pass using Sequential blocks for better performance
+            x = self.block1(x)  # conv0→relu0→conv1→relu1→pool0→bn0
+            x = self.block2(x)  # conv2→relu2→conv3→relu3→pool1→bn1
+            x = self.block3(x)  # conv4→relu5→conv5→relu6→conv6→relu6→pool2→bn6
+            x = self.block4(x)  # conv7→relu7→conv8→relu8→conv9→relu9→pool3→bn10
+            x = self.classifier(x)  # flatten→fc0→relu10→fc1
+            return x
     
     def _forward_normal(self, x):
-        # Block 1
-        x = F.relu(self.conv0(x))
-        x = F.relu(self.conv1(x))
-        x = self.pool0(x)
-        x = self.bn1(x)
-        
-        # Block 2
-        x = F.relu(self.conv2(x))
-        x = F.relu(self.conv3(x))
-        x = self.pool1(x)
-        x = self.bn2(x)
-        
-        # Block 3
-        x = F.relu(self.conv4(x))
-        x = F.relu(self.conv5(x))
-        x = F.relu(self.conv6(x))
-        x = self.pool2(x)
-        x = self.bn3(x)
-        
-        # Block 4
-        x = F.relu(self.conv7(x))
-        x = F.relu(self.conv8(x))
-        x = F.relu(self.conv9(x))
-        x = self.pool3(x)
-        x = self.bn4(x)
-        
-        # Flatten
-        x = x.view(x.size(0), -1)
-        
-        # Fully connected layers
-        x = self.fc0(x)
-        x = self.bn5(x)
-        x = F.relu(x)
-        x = self.fc1(x)
-        
-        return x
+        # This method is no longer used but kept for compatibility
+        return self.forward(x)
     
     def _forward_with_profiling(self, x):
         """Forward pass with layer-wise timing using high-precision perf_counter()"""
         layer_times = {}
         
-        # Block 1
+        # Block 1: conv0→relu0→conv1→relu1→pool0→bn0
         start_time = time.perf_counter()
-        x = F.relu(self.conv0(x))
+        x = self.conv0(x)
         layer_times['conv0'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv1(x))
+        x = self.relu0(x)
+        layer_times['relu0'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv1(x)
         layer_times['conv1'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.relu1(x)
+        layer_times['relu1'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
         x = self.pool0(x)
         layer_times['pool0'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = self.bn1(x)
-        layer_times['bn1'] = (time.perf_counter() - start_time) * 1000
+        x = self.bn0(x)
+        layer_times['bn0'] = (time.perf_counter() - start_time) * 1000
         
-        # Block 2
+        # Block 2: conv2→relu2→conv3→relu3→pool1→bn1
         start_time = time.perf_counter()
-        x = F.relu(self.conv2(x))
+        x = self.conv2(x)
         layer_times['conv2'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv3(x))
+        x = self.relu2(x)
+        layer_times['relu2'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv3(x)
         layer_times['conv3'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.relu3(x)
+        layer_times['relu3'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
         x = self.pool1(x)
         layer_times['pool1'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = self.bn2(x)
-        layer_times['bn2'] = (time.perf_counter() - start_time) * 1000
+        x = self.bn1(x)
+        layer_times['bn1'] = (time.perf_counter() - start_time) * 1000
         
-        # Block 3
+        # Block 3: conv4→relu5→conv5→relu6→conv6→relu6→pool2→bn6
         start_time = time.perf_counter()
-        x = F.relu(self.conv4(x))
+        x = self.conv4(x)
         layer_times['conv4'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv5(x))
+        x = self.relu5(x)
+        layer_times['relu5'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv5(x)
         layer_times['conv5'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv6(x))
+        x = self.relu6a(x)
+        layer_times['relu6'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv6(x)
         layer_times['conv6'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.relu6b(x)  # Second relu6 in C++ 
+        layer_times['relu6b'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
         x = self.pool2(x)
         layer_times['pool2'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = self.bn3(x)
-        layer_times['bn3'] = (time.perf_counter() - start_time) * 1000
+        x = self.bn6(x)
+        layer_times['bn6'] = (time.perf_counter() - start_time) * 1000
         
-        # Block 4
+        # Block 4: conv7→relu7→conv8→relu8→conv9→relu9→pool3→bn10
         start_time = time.perf_counter()
-        x = F.relu(self.conv7(x))
+        x = self.conv7(x)
         layer_times['conv7'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv8(x))
+        x = self.relu7(x)
+        layer_times['relu7'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv8(x)
         layer_times['conv8'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = F.relu(self.conv9(x))
+        x = self.relu8(x)
+        layer_times['relu8'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.conv9(x)
         layer_times['conv9'] = (time.perf_counter() - start_time) * 1000
+        
+        start_time = time.perf_counter()
+        x = self.relu9(x)
+        layer_times['relu9'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
         x = self.pool3(x)
         layer_times['pool3'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = self.bn4(x)
-        layer_times['bn4'] = (time.perf_counter() - start_time) * 1000
+        x = self.bn10(x)
+        layer_times['bn10'] = (time.perf_counter() - start_time) * 1000
         
-        # Flatten
+        # Classifier: flatten→fc0→relu10→fc1
         start_time = time.perf_counter()
-        x = x.view(x.size(0), -1)
+        x = self.flatten(x)
         layer_times['flatten'] = (time.perf_counter() - start_time) * 1000
         
-        # Fully connected layers
         start_time = time.perf_counter()
         x = self.fc0(x)
         layer_times['fc0'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
-        x = self.bn5(x)
-        layer_times['bn5'] = (time.perf_counter() - start_time) * 1000
-        
-        start_time = time.perf_counter()
-        x = F.relu(x)
-        layer_times['relu3'] = (time.perf_counter() - start_time) * 1000
+        x = self.relu10(x)
+        layer_times['relu10'] = (time.perf_counter() - start_time) * 1000
         
         start_time = time.perf_counter()
         x = self.fc1(x)
@@ -308,11 +377,12 @@ class OptimizedCIFAR10CNN(nn.Module):
         print("-" * 60)
         
         total_time = 0.0
-        layer_order = ['conv0', 'conv1', 'pool0', 'bn1', 
-                      'conv2', 'conv3', 'pool1', 'bn2',
-                      'conv4', 'conv5', 'conv6', 'pool2', 'bn3',
-                      'conv7', 'conv8', 'conv9', 'pool3', 'bn4',
-                      'flatten', 'fc0', 'bn5', 'relu3', 'fc1']
+        # Layer order matching C++ implementation exactly
+        layer_order = ['conv0', 'relu0', 'conv1', 'relu1', 'pool0', 'bn0',
+                      'conv2', 'relu2', 'conv3', 'relu3', 'pool1', 'bn1',
+                      'conv4', 'relu5', 'conv5', 'relu6', 'conv6', 'relu6b', 'pool2', 'bn6',
+                      'conv7', 'relu7', 'conv8', 'relu8', 'conv9', 'relu9', 'pool3', 'bn10',
+                      'flatten', 'fc0', 'relu10', 'fc1']
         
         for layer_name in layer_order:
             if layer_name in self.layer_times:
@@ -394,25 +464,40 @@ def evaluate_model(model: nn.Module, test_loader: DataLoader,
 def print_model_summary(model: nn.Module, input_shape: Tuple[int, ...]):
     """Print model architecture summary"""
     print("\nModel Architecture Summary:")
-    print("=" * 50)
+    print("=" * 70)
     
     total_params = 0
     trainable_params = 0
     
-    for name, module in model.named_modules():
-        if len(list(module.children())) == 0:  # Leaf modules only
+    print(f"{'Block/Layer':<20} {'Module':<35} {'Params':>8}")
+    print("-" * 70)
+    
+    # Print block-wise summary for better readability
+    blocks = [
+        ('Block1', model.block1),
+        ('Block2', model.block2), 
+        ('Block3', model.block3),
+        ('Block4', model.block4),
+        ('Classifier', model.classifier)
+    ]
+    
+    for block_name, block in blocks:
+        print(f"{block_name}:")
+        for name, module in block.named_children():
             params = sum(p.numel() for p in module.parameters())
             trainable = sum(p.numel() for p in module.parameters() if p.requires_grad)
             
             if params > 0:
-                print(f"{name:15} {str(module):30} Params: {params:8}")
+                module_str = str(module).replace('\n', ' ')[:30] + ('...' if len(str(module)) > 30 else '')
+                print(f"  {name:<18} {module_str:<33} {params:>8,}")
                 total_params += params
                 trainable_params += trainable
+        print()
     
-    print("=" * 50)
+    print("=" * 70)
     print(f"Total parameters: {total_params:,}")
     print(f"Trainable parameters: {trainable_params:,}")
-    print("=" * 50)
+    print("=" * 70)
     
     # Test forward pass with dummy input
     model.eval()
@@ -422,8 +507,10 @@ def print_model_summary(model: nn.Module, input_shape: Tuple[int, ...]):
             output = model(dummy_input)
             print(f"Input shape: {input_shape}")
             print(f"Output shape: {output.shape}")
+            print("Forward pass successful!")
         except Exception as e:
             print(f"Error in forward pass: {e}")
+    print("=" * 70)
 
 def save_model(model: nn.Module, filepath: str):
     """Save model state dict"""

@@ -46,6 +46,10 @@ public:
     coordinator_comm_.reset();
   }
 
+  int num_stages() const { return num_stages_; }
+
+  int num_microbatches() const { return num_microbatches_; }
+
   void add_message_callback() {
     this->coordinator_comm_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(this->message_notification_mutex_);

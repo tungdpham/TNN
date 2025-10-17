@@ -21,6 +21,7 @@
 #endif
 
 namespace tthreads {
+
 inline uint32_t get_num_threads() {
 #ifdef _OPENMP
   return static_cast<uint32_t>(omp_get_max_threads());
@@ -46,7 +47,7 @@ static inline void parallel_for(const Index begin, const Index end, Func f) {
         for (Index i = r.begin(); i != r.end(); ++i)
           f(i);
       },
-      tbb::static_partitioner());
+      tbb::auto_partitioner());
 #else
   for (Index i = begin; i < end; ++i)
     f(i);
@@ -73,7 +74,7 @@ inline void parallel_for_2d(const Index dim0, const Index dim1, Func f) {
           }
         }
       },
-      tbb::static_partitioner());
+      tbb::auto_partitioner());
 #else
   std::cout << "Warning: Running parallel_for_2d in serial mode.\n";
   for (Index i = 0; i < dim0; ++i) {

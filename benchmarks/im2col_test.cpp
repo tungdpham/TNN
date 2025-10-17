@@ -2,7 +2,7 @@
 #include "tensor/tensor_extended.hpp"
 #include "utils/misc.hpp"
 constexpr size_t N = 64;
-constexpr size_t C = 256;
+constexpr size_t C = 128;
 constexpr size_t H = 32;
 constexpr size_t W = 32;
 
@@ -16,8 +16,17 @@ void benchmark(const Tensor<float, NCHW> &input, const size_t kernel_h, const si
             << ", stride: " << stride_h << "x" << stride_w << ", padding: " << pad_h << "x" << pad_w
             << std::endl;
   Matrix<float> col;
-  benchmark("im2col",
-            [&]() { col = im2col(input, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w); });
+  benchmark("im2col padded", [&]() {
+    col = im2col_padded(input, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  });
+
+  Matrix<float> col2;
+  benchmark("im2col 3x3 pad 1 stride 1", [&]() { col2 = im2col_pad_1_stride_1_kernel_3(input); });
+
+  Matrix<float> col3;
+  benchmark("im2col explicit padding", [&]() {
+    col3 = im2col(input.pad(pad_h, pad_w), kernel_h, kernel_w, stride_h, stride_w, 0, 0);
+  });
 
   Tensor<float, NCHW> output;
   benchmark("col2im", [&]() {

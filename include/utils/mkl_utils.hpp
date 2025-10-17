@@ -15,6 +15,8 @@
 namespace utils {
 namespace mkl {
 
+inline void initialize_mkl() { mkl_set_threading_layer(MKL_THREADING_TBB); }
+
 /**
  * @brief Wrapper for Intel MKL SGEMM (single precision)
  * Performs C = alpha * A * B + beta * C

@@ -23,7 +23,7 @@ template <typename EnumType> constexpr std::vector<EnumType> get_enum_vector() {
   return values;
 }
 
-template <typename Func> void benchmark(const std::string &name, Func &&func, int bench_runs = 3) {
+template <typename Func> void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
   std::cout << "Benchmarking: " << name << std::endl;
   std::vector<double> times;
   for (int i = 0; i < bench_runs; ++i) {

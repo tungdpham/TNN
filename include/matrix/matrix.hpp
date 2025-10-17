@@ -66,28 +66,32 @@ public:
   Matrix(size_t rows_, size_t cols_, T *initialdata_ = nullptr) : rows_(rows_), cols_(cols_) {
     data_ = allocate_aligned(rows_ * cols_);
     if (initialdata_ != nullptr) {
+      std::cout << "Copying data into matrix of size " << rows_ << "x" << cols_ << std::endl;
       memcpy(data_, initialdata_, rows_ * cols_ * sizeof(T));
     } else {
     }
   }
 
-  Matrix(const Matrix &other) {
+  Matrix(const Matrix<T> &other) {
     if (this->size() != other.size()) {
       deallocate_aligned(this->data_);
     }
     this->rows_ = other.rows_;
     this->cols_ = other.cols_;
+    this->data_ = allocate_aligned(rows_ * cols_);
     memcpy(data_, other.data_, rows_ * cols_ * sizeof(T));
   }
 
-  Matrix(Matrix &&other) noexcept : rows_(other.rows_), cols_(other.cols_), data_(other.data_) {
+  Matrix(Matrix<T> &&other) noexcept : rows_(other.rows_), cols_(other.cols_), data_(other.data_) {
 
     other.rows_ = 0;
     other.cols_ = 0;
     other.data_ = nullptr;
   }
 
-  Matrix &operator=(Matrix &&other) noexcept {
+  Matrix &operator=(const Matrix<T> &other) = delete;
+
+  Matrix &operator=(Matrix<T> &&other) noexcept {
     if (this != &other) {
       deallocate_aligned(data_);
 
@@ -123,11 +127,11 @@ public:
     }
   }
 
-  inline Matrix operator+(const Matrix &other) const {
+  inline Matrix<T> operator+(const Matrix<T> &other) const {
     if (rows_ != other.rows_ || cols_ != other.cols_) {
-      throw std::invalid_argument("Matrix dimensions must match for addition.");
+      throw std::invalid_argument("Matrix<T> dimensions must match for addition.");
     }
-    Matrix result(rows_, cols_);
+    Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
     if (size > 32) {
@@ -141,9 +145,9 @@ public:
     return result;
   }
 
-  inline Matrix operator+=(const Matrix &other) {
+  inline Matrix<T> &operator+=(const Matrix<T> &other) {
     if (rows_ != other.rows_ || cols_ != other.cols_) {
-      throw std::invalid_argument("Matrix dimensions must match for addition.");
+      throw std::invalid_argument("Matrix<T> dimensions must match for addition.");
     }
     size_t size = rows_ * cols_;
 
@@ -158,11 +162,11 @@ public:
     return *this;
   }
 
-  inline Matrix operator-(const Matrix &other) const {
+  inline Matrix<T> operator-(const Matrix<T> &other) const {
     if (rows_ != other.rows_ || cols_ != other.cols_) {
-      throw std::invalid_argument("Matrix dimensions must match for subtraction.");
+      throw std::invalid_argument("Matrix<T> dimensions must match for subtraction.");
     }
-    Matrix result(rows_, cols_);
+    Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
     if (size > 32) {
@@ -176,9 +180,9 @@ public:
     return result;
   }
 
-  inline Matrix operator-=(const Matrix &other) {
+  inline Matrix<T> &operator-=(const Matrix<T> &other) {
     if (rows_ != other.rows_ || cols_ != other.cols_) {
-      throw std::invalid_argument("Matrix dimensions must match for subtraction.");
+      throw std::invalid_argument("Matrix<T> dimensions must match for subtraction.");
     }
     size_t size = rows_ * cols_;
 
@@ -193,8 +197,8 @@ public:
     return *this;
   }
 
-  inline Matrix operator*(T scalar) const {
-    Matrix result(rows_, cols_);
+  inline Matrix<T> operator*(T scalar) const {
+    Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
     if (size > 32) {
@@ -207,7 +211,7 @@ public:
     return result;
   }
 
-  inline Matrix operator*=(T scalar) {
+  inline Matrix<T> &operator*=(T scalar) {
     size_t size = rows_ * cols_;
 
     if (size > 32) {
@@ -221,11 +225,11 @@ public:
     return *this;
   }
 
-  inline Matrix operator/(T scalar) const {
+  inline Matrix<T> operator/(T scalar) const {
     if (scalar == 0) {
       throw std::invalid_argument("Division by zero.");
     }
-    Matrix result(rows_, cols_);
+    Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
     if (size > 32) {
@@ -239,7 +243,7 @@ public:
     return result;
   }
 
-  inline Matrix operator/=(T scalar) {
+  inline Matrix<T> &operator/=(T scalar) {
     if (scalar == 0) {
       throw std::invalid_argument("Division by zero.");
     }
@@ -256,11 +260,11 @@ public:
     return *this;
   }
 
-  inline Matrix operator*(const Matrix &other) const {
+  inline Matrix<T> operator*(const Matrix<T> &other) const {
     if (cols_ != other.rows_) {
-      throw std::invalid_argument("Matrix dimensions must match for multiplication.");
+      throw std::invalid_argument("Matrix<T> dimensions must match for multiplication.");
     }
-    Matrix result(rows_, other.cols_);
+    Matrix<T> result(rows_, other.cols_);
     result.fill(0.0);
 
     if constexpr (std::is_same_v<T, float>) {
@@ -284,12 +288,10 @@ public:
     return result;
   }
 
-  inline Matrix &operator=(const Matrix &other) = delete;
-
   Matrix<T> clone() const { return Matrix(rows_, cols_, data_); }
 
-  Matrix transpose() const {
-    Matrix result(cols_, rows_);
+  Matrix<T> transpose() const {
+    Matrix<T> result(cols_, rows_);
 
     T *result_data = result.data();
 
@@ -301,15 +303,15 @@ public:
     return result;
   }
 
-  Matrix reshape(size_t newrows_, size_t newcols_) const {
+  Matrix<T> reshape(size_t newrows_, size_t newcols_) const {
     if (rows_ * cols_ != newrows_ * newcols_) {
       throw std::invalid_argument("Total number of elements must remain the same for reshape.");
     }
     return Matrix(newrows_, newcols_, data_);
   }
 
-  Matrix pad(size_t padrows_, size_t padcols_, T value = 0.0) const {
-    Matrix result(rows_ + 2 * padrows_, cols_ + 2 * padcols_);
+  Matrix<T> pad(size_t padrows_, size_t padcols_, T value = 0.0) const {
+    Matrix<T> result(rows_ + 2 * padrows_, cols_ + 2 * padcols_);
     result.fill(value);
 
     for (size_t r = 0; r < rows_; ++r) {
@@ -320,12 +322,12 @@ public:
     return result;
   }
 
-  Matrix crop(size_t startRow, size_t startCol, size_t endRow, size_t endCol) const {
+  Matrix<T> crop(size_t startRow, size_t startCol, size_t endRow, size_t endCol) const {
     if (startRow < 0 || startCol < 0 || endRow >= rows_ || endCol >= cols_ || startRow >= endRow ||
         startCol >= endCol) {
       throw std::invalid_argument("Invalid crop dimensions.");
     }
-    Matrix result(endRow - startRow + 1, endCol - startCol + 1);
+    Matrix<T> result(endRow - startRow + 1, endCol - startCol + 1);
 
     for (size_t r = startRow; r <= endRow; ++r) {
       for (size_t c = startCol; c <= endCol; ++c) {
