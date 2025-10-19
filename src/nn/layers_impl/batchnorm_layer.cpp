@@ -16,131 +16,32 @@
 namespace tnn {
 
 template <typename T>
-inline void compute_channel_mean(const T *input_data, T *mean_data, size_t batch_size,
-                                 size_t channels, size_t spatial_size) {
-  const size_t total_elements = batch_size * spatial_size;
-  const T inv_total = T(1) / static_cast<T>(total_elements);
-
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T sum = T(0);
-    const size_t channel_stride = channels * spatial_size;
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
-      sum += utils::avx2_sum(batch_channel_ptr, spatial_size);
-    }
-
-    mean_data[c] = sum * inv_total;
-  });
-}
-
-template <typename T>
-inline void compute_channel_variance(const T *input_data, const T *mean_data, T *var_data,
-                                     size_t batch_size, size_t channels, size_t spatial_size) {
-  const size_t total_elements = batch_size * spatial_size;
-  const T inv_total = T(1) / static_cast<T>(total_elements);
-
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T sum_sq = T(0);
-    const T mean_val = mean_data[c];
-    const size_t channel_stride = channels * spatial_size;
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
-
-      // Use AVX2-optimized sum of squared differences
-      sum_sq += utils::avx2_sum_squared_diff(batch_channel_ptr, mean_val, spatial_size);
-    }
-
-    var_data[c] = sum_sq * inv_total;
-  });
-}
-
-template <typename T>
-inline void normalize_and_scale_optimized(const T *input_data, const T *mean_data,
-                                          const T *std_data, const T *gamma_data,
-                                          const T *beta_data, T *output_data, T *normalized_data,
-                                          size_t batch_size, size_t channels, size_t spatial_size,
-                                          bool affine) {
-  const size_t channel_stride = channels * spatial_size;
-
-  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const T mean_val = mean_data[c];
-    const T std_val = std_data[c];
-    const T inv_std = T(1) / std_val;
-
-    const size_t n_offset = n * channel_stride;
-    const size_t c_offset = c * spatial_size;
-    const size_t base_idx = n_offset + c_offset;
-
-    const T *input_ptr = input_data + base_idx;
-    T *normalized_ptr = normalized_data + base_idx;
-    T *output_ptr = output_data + base_idx;
-
-    // Normalize: (x - mean) / std - vectorized with AVX2
-    utils::avx2_sub_mul_scalar(input_ptr, mean_val, inv_std, normalized_ptr, spatial_size);
-
-    if (affine) {
-      const T gamma_val = gamma_data[c];
-      const T beta_val = beta_data[c];
-
-      // Scale and shift: gamma * normalized + beta - vectorized FMA with AVX2
-      utils::avx2_mul_add_scalar(normalized_ptr, gamma_val, beta_val, output_ptr, spatial_size);
-    } else {
-      utils::avx2_copy(normalized_ptr, output_ptr, spatial_size);
-    }
-  });
-}
-
-template <typename T>
-inline void compute_affine_gradients_optimized(const T *gradient_data, const T *normalized_data,
-                                               T *gamma_grad, T *beta_grad, size_t batch_size,
-                                               size_t channels, size_t spatial_size) {
-  const size_t channel_stride = channels * spatial_size;
-
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T gamma_sum = T(0);
-    T beta_sum = T(0);
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const size_t base_idx = n * channel_stride + c_offset;
-      const T *grad_ptr = gradient_data + base_idx;
-      const T *norm_ptr = normalized_data + base_idx;
-
-      for (size_t i = 0; i < spatial_size; ++i) {
-        gamma_sum += grad_ptr[i] * norm_ptr[i];
-        beta_sum += grad_ptr[i];
-      }
-    }
-
-    gamma_grad[c] += gamma_sum;
-    beta_grad[c] += beta_sum;
-  });
-}
-
-template <typename T>
 BatchNormLayer<T>::BatchNormLayer(size_t num_features, T epsilon, T momentum, bool affine,
                                   const std::string &name)
     : ParameterizedLayer<T>(name), num_features_(num_features), epsilon_(epsilon),
-      momentum_(momentum), affine_(affine) {
+      momentum_(momentum), affine_(affine) {}
+
+template <typename T> void BatchNormLayer<T>::initialize_params() {
+  if (this->initialized_) {
+    return;
+  }
 
   if (affine_) {
-    gamma_ = Tensor<T>(num_features, 1, 1, 1);
-    beta_ = Tensor<T>(num_features, 1, 1, 1);
-    gamma_gradients_ = Tensor<T>(num_features, 1, 1, 1);
-    beta_gradients_ = Tensor<T>(num_features, 1, 1, 1);
+    gamma_ = Tensor<T>(num_features_, 1, 1, 1);
+    beta_ = Tensor<T>(num_features_, 1, 1, 1);
+    gamma_gradients_ = Tensor<T>(num_features_, 1, 1, 1);
+    beta_gradients_ = Tensor<T>(num_features_, 1, 1, 1);
 
     gamma_.fill(T(1));
     beta_.fill(T(0));
   }
 
-  running_mean_ = Tensor<T>(num_features, 1, 1, 1);
-  running_var_ = Tensor<T>(num_features, 1, 1, 1);
+  running_mean_ = Tensor<T>(num_features_, 1, 1, 1);
+  running_var_ = Tensor<T>(num_features_, 1, 1, 1);
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
+
+  this->initialized_ = true;
 }
 
 template <typename T>
@@ -391,6 +292,115 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   });
 
   return grad_input;
+}
+
+template <typename T>
+void BatchNormLayer<T>::compute_channel_mean(const T *input_data, T *mean_data, size_t batch_size,
+                                             size_t channels, size_t spatial_size) {
+  const size_t total_elements = batch_size * spatial_size;
+  const T inv_total = T(1) / static_cast<T>(total_elements);
+
+  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
+    T sum = T(0);
+    const size_t channel_stride = channels * spatial_size;
+    const size_t c_offset = c * spatial_size;
+
+    for (size_t n = 0; n < batch_size; ++n) {
+      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
+      sum += utils::avx2_sum(batch_channel_ptr, spatial_size);
+    }
+
+    mean_data[c] = sum * inv_total;
+  });
+}
+
+template <typename T>
+void BatchNormLayer<T>::compute_channel_variance(const T *input_data, const T *mean_data,
+                                                 T *var_data, size_t batch_size, size_t channels,
+                                                 size_t spatial_size) {
+  const size_t total_elements = batch_size * spatial_size;
+  const T inv_total = T(1) / static_cast<T>(total_elements);
+
+  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
+    T sum_sq = T(0);
+    const T mean_val = mean_data[c];
+    const size_t channel_stride = channels * spatial_size;
+    const size_t c_offset = c * spatial_size;
+
+    for (size_t n = 0; n < batch_size; ++n) {
+      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
+
+      // Use AVX2-optimized sum of squared differences
+      sum_sq += utils::avx2_sum_squared_diff(batch_channel_ptr, mean_val, spatial_size);
+    }
+
+    var_data[c] = sum_sq * inv_total;
+  });
+}
+
+template <typename T>
+void BatchNormLayer<T>::normalize_and_scale_optimized(const T *input_data, const T *mean_data,
+                                                      const T *std_data, const T *gamma_data,
+                                                      const T *beta_data, T *output_data,
+                                                      T *normalized_data, size_t batch_size,
+                                                      size_t channels, size_t spatial_size,
+                                                      bool affine) {
+  const size_t channel_stride = channels * spatial_size;
+
+  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    const T mean_val = mean_data[c];
+    const T std_val = std_data[c];
+    const T inv_std = T(1) / std_val;
+
+    const size_t n_offset = n * channel_stride;
+    const size_t c_offset = c * spatial_size;
+    const size_t base_idx = n_offset + c_offset;
+
+    const T *input_ptr = input_data + base_idx;
+    T *normalized_ptr = normalized_data + base_idx;
+    T *output_ptr = output_data + base_idx;
+
+    // Normalize: (x - mean) / std - vectorized with AVX2
+    utils::avx2_sub_mul_scalar(input_ptr, mean_val, inv_std, normalized_ptr, spatial_size);
+
+    if (affine) {
+      const T gamma_val = gamma_data[c];
+      const T beta_val = beta_data[c];
+
+      // Scale and shift: gamma * normalized + beta - vectorized FMA with AVX2
+      utils::avx2_mul_add_scalar(normalized_ptr, gamma_val, beta_val, output_ptr, spatial_size);
+    } else {
+      utils::avx2_copy(normalized_ptr, output_ptr, spatial_size);
+    }
+  });
+}
+
+template <typename T>
+void BatchNormLayer<T>::compute_affine_gradients_optimized(const T *gradient_data,
+                                                           const T *normalized_data, T *gamma_grad,
+                                                           T *beta_grad, size_t batch_size,
+                                                           size_t channels, size_t spatial_size) {
+  const size_t channel_stride = channels * spatial_size;
+
+  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
+    T gamma_sum = T(0);
+    T beta_sum = T(0);
+    const size_t c_offset = c * spatial_size;
+
+    for (size_t n = 0; n < batch_size; ++n) {
+      const size_t base_idx = n * channel_stride + c_offset;
+      const T *grad_ptr = gradient_data + base_idx;
+      const T *norm_ptr = normalized_data + base_idx;
+
+      for (size_t i = 0; i < spatial_size; ++i) {
+        gamma_sum += grad_ptr[i] * norm_ptr[i];
+        beta_sum += grad_ptr[i];
+      }
+    }
+
+    gamma_grad[c] += gamma_sum;
+    beta_grad[c] += beta_sum;
+  });
 }
 
 template <typename T> std::string BatchNormLayer<T>::type() const { return "batchnorm"; }

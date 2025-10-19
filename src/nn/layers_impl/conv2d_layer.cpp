@@ -25,23 +25,28 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
                             size_t pad_w, bool use_bias, const std::string &name)
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias), micro_batch_im2col_matrices_() {
-  weights_ = Tensor<T>(out_channels, in_channels, kernel_h, kernel_w);
-  weight_gradients_ = Tensor<T>(out_channels, in_channels, kernel_h, kernel_w);
+      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias), micro_batch_im2col_matrices_() {}
+
+template <typename T> void Conv2DLayer<T>::initialize_params() {
+  weights_ = Tensor<T>(out_channels_, in_channels_, kernel_h_, kernel_w_);
+  weight_gradients_ = Tensor<T>(out_channels_, in_channels_, kernel_h_, kernel_w_);
 
   if (use_bias_) {
-    bias_ = Tensor<T>(out_channels, 1, 1, 1);
-    bias_gradients_ = Tensor<T>(out_channels, 1, 1, 1);
+    bias_ = Tensor<T>(out_channels_, 1, 1, 1);
+    bias_gradients_ = Tensor<T>(out_channels_, 1, 1, 1);
   }
 
-  T fan_in = static_cast<T>(in_channels * kernel_h * kernel_w);
-  T fan_out = static_cast<T>(out_channels * kernel_h * kernel_w);
+  T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
+  T fan_out = static_cast<T>(out_channels_ * kernel_h_ * kernel_w_);
   T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
   weights_.fill_random_normal(T(0), std_dev);
 }
 
 template <typename T>
 Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+  if (!this->initialized_) {
+    throw std::runtime_error("Conv2DLayer must be initialized before forward pass.");
+  }
   if (input.channels() != in_channels_) {
     std::cerr << "Input shape: " << input.channels() << " channels, expected: " << in_channels_
               << " channels" << std::endl;
@@ -91,6 +96,9 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
 
 template <typename T>
 Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+  if (!this->initialized_) {
+    throw std::runtime_error("Conv2DLayer must be initialized before backward pass.");
+  }
   auto it_input_shape = micro_batch_input_shapes_.find(micro_batch_id);
   auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
 

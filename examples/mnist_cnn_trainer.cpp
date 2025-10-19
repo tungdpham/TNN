@@ -111,6 +111,8 @@ int main() {
                      //  .activation("softmax", "softmax_output")
                      .build();
 
+    model.initialize();
+
     auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 

@@ -6,6 +6,7 @@
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
+#include "partitioner/naive_partitioner.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "pipeline/train.hpp"
 #include "tensor/tensor.hpp"
@@ -14,7 +15,6 @@
 #include "utils/mkl_utils.hpp"
 #include "utils/ops.hpp"
 #include "utils/utils_extended.hpp"
-
 #include <chrono>
 #include <cstdlib>
 #include <iostream>
@@ -84,6 +84,9 @@ int main() {
   std::cout << "Creating distributed coordinator." << std::endl;
   DistributedPipelineCoordinator coordinator(
       std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_host, 8000);
+
+  coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
+  coordinator.initialize();
 
   auto loss_function = LossFactory<float>::create_softmax_crossentropy();
   coordinator.set_loss_function(std::move(loss_function));

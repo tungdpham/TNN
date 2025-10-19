@@ -180,7 +180,7 @@ protected:
       }
       break;
     case CommandType::CONFIG_TRANSFER:
-      this->handle_configuration(message);
+      handle_configuration(message);
       break;
     case CommandType::LOAD_PARAMS: {
       // // decode and deserialize parameters
@@ -252,25 +252,27 @@ protected:
     }
 
     try {
+      // Parse configuration
       nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
 
       StageConfig config = StageConfig::from_json(config_json);
 
       stage_id_ = config.stage_id;
-
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
-
       this->model_ = std::make_unique<tnn::Sequential<float>>(
           tnn::Sequential<float>::load_from_config(config.model_config));
 
+      this->model_->initialize();
+
       this->model_->print_config();
+
       this->model_->enable_profiling(true);
 
       std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
 
       setup_stage_connections(config);
 
-      this->name_ = stage_id_;
+      name_ = stage_id_;
 
       is_configured_ = true;
 
@@ -293,6 +295,7 @@ protected:
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
   std::string stage_id_;
+  std::vector<StageConfig> stage_configs_;
 
   std::mutex message_available_mutex_;
   std::condition_variable message_available_cv_;

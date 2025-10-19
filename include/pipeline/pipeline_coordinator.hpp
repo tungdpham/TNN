@@ -11,7 +11,7 @@
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
-#include "nn/partitioner.hpp"
+#include "partitioner/partitioner.hpp"
 #include "pipeline_stage.hpp"
 #include "utils/avx2.hpp"
 #include <algorithm>
@@ -44,6 +44,23 @@ public:
       message_thread_.join();
     }
     coordinator_comm_.reset();
+  }
+
+  void initialize() {
+    initialize_partitions();
+    initialize_communicator();
+    initialize_topology();
+  }
+
+  void set_partitioner(std::unique_ptr<partitioner::Partitioner<float>> partitioner) {
+    partitioner_ = std::move(partitioner);
+  }
+
+  void set_loss_function(std::unique_ptr<tnn::Loss<float>> loss) {
+    if (!loss) {
+      throw std::invalid_argument("Loss function cannot be null");
+    }
+    loss_function_ = std::move(loss);
   }
 
   int num_stages() const { return num_stages_; }
@@ -135,13 +152,6 @@ public:
     return loss_function_->compute_loss(predictions, targets);
   }
 
-  void set_loss_function(std::unique_ptr<tnn::Loss<float>> loss) {
-    if (!loss) {
-      throw std::invalid_argument("Loss function cannot be null");
-    }
-    loss_function_ = std::move(loss);
-  }
-
   /**
    * @brief Computes gradient of the loss with respect to predictions using the model's loss
    * function.
@@ -167,19 +177,6 @@ public:
 
   bool send_params(const std::string &stage_id, const tnn::Partition &partition) {
     try {
-      // std::vector<Tensor<float> *> params = model_.parameters(partition);
-      // std::vector<Tensor<float>> params_copy;
-      // for (const auto &param_ptr : params) {
-      //   if (param_ptr) {
-      //     params_copy.push_back(*param_ptr);
-      //   }
-      // }
-
-      // Message params_msg(stage_id, CommandType::LOAD_PARAMS, params_copy);
-      // params_msg.header.sender_id = "coordinator";
-
-      // this->coordinator_comm_->send_message(params_msg);
-      // return true;
       throw new std::runtime_error("Not implemented yet");
     } catch (const std::exception &e) {
       std::cerr << "Failed to send parameters to stage " << stage_id << ": " << e.what() << '\n';
@@ -450,7 +447,18 @@ public:
 
   bool wait_for_params_loaded() { return join(CommandType::PARAMS_LOADED, this->num_stages_, 30); }
 
+private:
+  void initialize_partitions() {
+    if (!partitioner_) {
+      throw std::runtime_error("Partitioner must be set before initialization");
+    }
+    this->partitions_ = partitioner_->get_partitions(this->model_.get_layers(), this->num_stages_);
+  }
+
 protected:
+  virtual void initialize_communicator() = 0;
+  virtual void initialize_topology() = 0;
+
   /**
    * @brief Sends configuration to a specific stage
    * @param stage_id The stage identifier
@@ -501,6 +509,7 @@ protected:
   std::unique_ptr<tnn::Loss<float>> loss_function_;
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
+  std::unique_ptr<partitioner::Partitioner<float>> partitioner_;
   std::thread message_thread_;
 
   mutable std::mutex message_notification_mutex_;

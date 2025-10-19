@@ -41,7 +41,6 @@ public:
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-public:
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 };
 

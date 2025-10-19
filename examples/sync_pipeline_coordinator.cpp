@@ -2,6 +2,7 @@
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
+#include "partitioner/naive_partitioner.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/env.hpp"
@@ -92,6 +93,8 @@ int main() {
   std::cout << "\nCreating distributed coordinator..." << std::endl;
   DistributedPipelineCoordinator coordinator(std::move(model), endpoints, num_microbatches,
                                              coordinator_host, 8000);
+
+  coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
 
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {

@@ -114,7 +114,13 @@ private:
 
 public:
   // Constructors and Destructor
-  Tensor() : data_(nullptr), data_size_(0) { data_ = allocate_aligned(0); }
+  Tensor() : data_(nullptr), data_size_(0) {
+    for (size_t i = 0; i < dims_; ++i) {
+      shape_[i] = 0;
+      strides_[i] = 0;
+    }
+    data_ = allocate_aligned(0);
+  }
 
   Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
     static_assert(dims_ == 4, "This constructor is only for 4D tensors");

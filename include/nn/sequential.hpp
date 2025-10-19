@@ -153,6 +153,12 @@ public:
     return *this;
   }
 
+  void initialize() {
+    for (auto &layer : layers_) {
+      layer->initialize();
+    }
+  }
+
   void add(std::unique_ptr<Layer<T>> layer) {
     if (!layer) {
       throw std::invalid_argument("Cannot add null layer");

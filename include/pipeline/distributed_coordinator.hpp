@@ -7,8 +7,8 @@
 #pragma once
 
 #include "network_serialization.hpp"
-#include "nn/partitioner.hpp"
 #include "nn/sequential.hpp"
+#include "partitioner/naive_partitioner.hpp"
 #include "pipeline_coordinator.hpp"
 #include "tcp_communicator.hpp"
 #include <asio.hpp>
@@ -43,56 +43,9 @@ public:
                                  const std::string &coordinator_host = "localhost",
                                  int coordinator_port = 8000)
       : PipelineCoordinator(endpoints.size(), num_microbatches, std::move(model)),
-        remote_endpoints_(endpoints), coordinator_port_(coordinator_port), io_context_(),
-        work_guard_(asio::make_work_guard(io_context_)), is_deployed_(false) {
-
-    if (this->model_.get_layers().size() < endpoints.size()) {
-      std::cout << "Error: Model has fewer layers (" << this->model_.get_layers().size()
-                << ") than remote endpoints (" << endpoints.size() << ")\n";
-      throw std::invalid_argument("Model must have at least as many layers as remote endpoints");
-    }
-
-    this->partitions_ = tnn::NaivePartitioner::get_partitions(
-        this->model_.get_layers(), static_cast<size_t>(endpoints.size()));
-
-    auto splitted_models = this->model_.split(this->partitions_);
-
-    for (size_t i = 0; i < endpoints.size(); ++i) {
-      StageConfig config;
-      config.stage_id = endpoints[i].stage_id;
-      config.stage_index = static_cast<int>(i);
-      config.model_config = splitted_models[i].get_config();
-      config.model_config["name"] = endpoints[i].stage_id;
-      config.coordinator_endpoint = coordinator_host + ":" + std::to_string(coordinator_port_);
-
-      if (i > 0) {
-        config.prev_stage_endpoint =
-            endpoints[i - 1].host + ":" + std::to_string(endpoints[i - 1].port);
-      } else {
-
-        config.prev_stage_endpoint = coordinator_host + ":" + std::to_string(coordinator_port_);
-      }
-      if (i < endpoints.size() - 1) {
-        config.next_stage_endpoint =
-            endpoints[i + 1].host + ":" + std::to_string(endpoints[i + 1].port);
-      } else {
-        config.next_stage_endpoint = coordinator_host + ":" + std::to_string(coordinator_port_);
-      }
-
-      stage_configs_.push_back(config);
-      this->stage_names_.push_back(config.stage_id);
-    }
-
-    this->coordinator_comm_ =
-        std::make_unique<TcpPipelineCommunicator>(io_context_, coordinator_host, coordinator_port_);
-
-    this->add_message_callback();
-
-    io_thread_ = std::thread([this]() { io_context_.run(); });
-
-    std::cout << "Distributed coordinator initialized with " << endpoints.size()
-              << " remote endpoints\n";
-  }
+        remote_endpoints_(endpoints), coordinator_host_(coordinator_host),
+        coordinator_port_(coordinator_port), io_context_(),
+        work_guard_(asio::make_work_guard(io_context_)), is_deployed_(false) {}
 
   ~DistributedPipelineCoordinator() {
     this->stop();
@@ -107,6 +60,46 @@ public:
     }
 
     this->coordinator_comm_.reset();
+  }
+
+  void initialize_communicator() override {
+    // Communicator is initialized in the constructor
+    this->coordinator_comm_ = std::make_unique<TcpPipelineCommunicator>(
+        io_context_, coordinator_host_, coordinator_port_);
+
+    this->add_message_callback();
+
+    io_thread_ = std::thread([this]() { io_context_.run(); });
+  }
+
+  void initialize_topology() override {
+    auto splitted_model = this->model_.split(this->partitions_);
+
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+      StageConfig config;
+      config.stage_id = remote_endpoints_[i].stage_id;
+      config.stage_index = static_cast<int>(i);
+      config.model_config = splitted_model[i].get_config();
+      config.model_config["name"] = remote_endpoints_[i].stage_id;
+      config.coordinator_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+
+      if (i > 0) {
+        config.prev_stage_endpoint =
+            remote_endpoints_[i - 1].host + ":" + std::to_string(remote_endpoints_[i - 1].port);
+      } else {
+
+        config.prev_stage_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+      }
+      if (i < remote_endpoints_.size() - 1) {
+        config.next_stage_endpoint =
+            remote_endpoints_[i + 1].host + ":" + std::to_string(remote_endpoints_[i + 1].port);
+      } else {
+        config.next_stage_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+      }
+
+      stage_configs_.push_back(config);
+      this->stage_names_.push_back(config.stage_id);
+    }
   }
 
   bool deploy_stages() {
@@ -165,32 +158,6 @@ public:
       return false;
     }
 
-    // std::vector<std::future<bool>> params_futures;
-
-    // for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
-    //   auto future = std::async(std::launch::async, [this, i]() {
-    //     return this->send_params(remote_endpoints_[i].stage_id, this->partitions_[i]);
-    //   });
-    //   params_futures.push_back(std::move(future));
-    // }
-
-    // bool all_params_sent = true;
-
-    // for (auto &future : params_futures) {
-    //   if (!future.get()) {
-    //     all_params_sent = false;
-    //   }
-    // }
-    // if (!all_params_sent) {
-    //   std::cout << "Failed to send parameters to all stages\n";
-    //   return false;
-    // }
-
-    // if (!this->wait_for_params_loaded()) {
-    //   std::cerr << "Failed to receive parameters confirmation from all stages\n";
-    //   return false;
-    // }
-
     is_deployed_ = true;
     std::cout << "All stages deployed and ready!\n";
     // clear model
@@ -203,6 +170,7 @@ public:
 private:
   std::vector<RemoteEndpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
+  std::string coordinator_host_;
   int coordinator_port_;
 
   asio::io_context io_context_;

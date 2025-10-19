@@ -35,6 +35,8 @@ template <typename T = float> class Layer {
 public:
   virtual ~Layer() = default;
 
+  virtual void initialize() {};
+
   virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
   virtual Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
 

@@ -8,7 +8,6 @@
 #pragma once
 
 #include "in_process_communicator.hpp"
-#include "nn/partitioner.hpp"
 #include "pipeline_coordinator.hpp"
 
 namespace tpipeline {
@@ -39,7 +38,11 @@ public:
       throw std::invalid_argument("Model must have at least as many layers as stages");
     }
 
-    auto partitions = tnn::NaivePartitioner::get_partitions(model.get_layers(), num_stages);
+    if (this->partitioner_ == nullptr) {
+      throw std::runtime_error("Partitioner is not set");
+    }
+
+    auto partitions = partitioner_->get_partitions(this->model_.get_layers(), this->num_stages_);
     auto splitted_models = model.split(partitions);
 
     this->coordinator_comm_ = std::make_shared<InProcessPipelineCommunicator>();

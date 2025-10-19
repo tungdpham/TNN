@@ -111,6 +111,8 @@ int main() {
                      //  .activation("softmax", "softmax_output")
                      .build();
 
+    model.initialize();
+
     auto optimizer = std::make_unique<tnn::SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 

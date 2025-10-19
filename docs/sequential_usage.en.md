@@ -22,8 +22,12 @@ auto model = tnn::SequentialBuilder<float>("model_name")
     .maxpool2d(pool_h, pool_w, ...)
     .flatten()
     .dense(output_features, ...)  // Auto-infers input features
-    .build();
+    .build(); // Returns the constructed model 
+
+model.initialize(); // Initialize parameters for all layers
 ```
+
+NOTE: For distributed usage, do not invoke on coordinator side, it will use a lot of memory to initialize the parameters.
 
 
 ## Manual Model Configuration
