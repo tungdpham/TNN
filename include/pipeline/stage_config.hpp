@@ -6,7 +6,6 @@
 namespace tpipeline {
 struct StageConfig {
   std::string stage_id;
-  int stage_index;
   nlohmann::json model_config;
   std::string next_stage_endpoint;
   std::string prev_stage_endpoint;
@@ -14,7 +13,6 @@ struct StageConfig {
 
   nlohmann::json to_json() const {
     return nlohmann::json{{"stage_id", stage_id},
-                          {"stage_index", stage_index},
                           {"model_config", model_config},
                           {"next_stage_endpoint", next_stage_endpoint},
                           {"prev_stage_endpoint", prev_stage_endpoint},
@@ -24,7 +22,6 @@ struct StageConfig {
   static StageConfig from_json(const nlohmann::json &j) {
     StageConfig config;
     config.stage_id = j["stage_id"];
-    config.stage_index = j["stage_index"];
     config.model_config = j["model_config"];
     config.next_stage_endpoint = j["next_stage_endpoint"];
     config.prev_stage_endpoint = j["prev_stage_endpoint"];

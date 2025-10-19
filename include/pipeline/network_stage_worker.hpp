@@ -39,8 +39,7 @@ public:
   explicit NetworkStageWorker(int listen_port, bool use_ecore_affinity = false,
                               int max_ecore_threads = -1)
       : PipelineStage(), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
-        max_ecore_threads_(max_ecore_threads), io_context_(),
-        work_guard_(asio::make_work_guard(io_context_)) {
+        max_ecore_threads_(max_ecore_threads) {
 
     // Initialize hardware info for affinity
     if (use_ecore_affinity_) {
@@ -57,8 +56,7 @@ public:
       }
     }
 
-    tcp_communicator_ =
-        std::make_unique<TcpPipelineCommunicator>(io_context_, "localhost", listen_port_);
+    tcp_communicator_ = std::make_unique<TcpPipelineCommunicator>("localhost", listen_port_);
 
     this->communicator_ =
         std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>(
@@ -106,29 +104,6 @@ public:
     PipelineStage::start();
 
     std::cout << "Starting network stage worker on port " << listen_port_ << '\n';
-
-    io_thread_ = std::thread([this]() {
-// Ignore SIGPIPE to prevent crashes on broken connections
-#ifdef __linux__
-      std::signal(SIGPIPE, SIG_IGN);
-#endif
-
-      // Apply E-core affinity if configured
-      if (use_ecore_affinity_ && thread_affinity_) {
-        utils::AffinityConfig config;
-        config.core_type = utils::CoreType::EFFICIENCY_CORES;
-        config.max_threads = max_ecore_threads_;
-
-        if (thread_affinity_->set_current_thread_affinity(config)) {
-          std::cout << "Network worker I/O thread bound to E-cores" << '\n';
-        } else {
-          std::cout << "Warning: Failed to bind I/O thread to E-cores" << '\n';
-        }
-      }
-
-      io_context_.run();
-    });
-
     std::cout << "Network stage worker listening on port " << listen_port_ << '\n';
   }
 
@@ -141,13 +116,6 @@ public:
       tcp_communicator_->stop();
     }
 
-    work_guard_.reset();
-    io_context_.stop();
-
-    if (io_thread_.joinable()) {
-      io_thread_.join();
-    }
-
     std::cout << "Network stage worker stopped" << '\n';
   }
 
@@ -157,9 +125,6 @@ private:
   int max_ecore_threads_;
   utils::HardwareInfo hw_info_;
   std::unique_ptr<utils::ThreadAffinity> thread_affinity_;
-  asio::io_context io_context_;
-  asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
-  std::thread io_thread_;
   std::unique_ptr<TcpPipelineCommunicator> tcp_communicator_;
 
   void setup_stage_connections(const StageConfig &config) {
