@@ -477,14 +477,6 @@ protected:
       config.model_config = stage_model.get_config();
       config.model_config["name"] = stage_id;
 
-      // Set stage index based on position in stage_names_
-      auto it = std::find(stage_names_.begin(), stage_names_.end(), stage_id);
-      if (it != stage_names_.end()) {
-        config.stage_index = static_cast<int>(std::distance(stage_names_.begin(), it));
-      } else {
-        config.stage_index = 0; // fallback
-      }
-
       // Send configuration as JSON
       std::string config_json = config.to_json().dump();
       Message config_msg(stage_id, CommandType::CONFIG_TRANSFER, config_json);
@@ -505,7 +497,7 @@ protected:
   int num_microbatches_;
   bool should_stop_ = true;
   tnn::Sequential<float> model_;
-  std::shared_ptr<PipelineCommunicator> coordinator_comm_;
+  std::shared_ptr<Communicator> coordinator_comm_;
   std::unique_ptr<tnn::Loss<float>> loss_function_;
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;

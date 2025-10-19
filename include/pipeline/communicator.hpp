@@ -30,14 +30,14 @@ namespace tpipeline {
  * Defines the interface for sending and receiving messages
  * between different stages in a distributed pipeline.
  */
-class PipelineCommunicator {
+class Communicator {
 private:
   std::vector<CommandType> all_command_types_ = utils::get_enum_vector<CommandType>();
 
 public:
-  PipelineCommunicator() = default;
+  Communicator() = default;
 
-  virtual ~PipelineCommunicator() {
+  virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
     std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
 

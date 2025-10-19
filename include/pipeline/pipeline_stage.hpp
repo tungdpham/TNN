@@ -30,8 +30,7 @@ class PipelineStage {
 public:
   explicit PipelineStage(
       std::unique_ptr<tnn::Sequential<float>> model,
-      std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>
-          communicator,
+      std::unique_ptr<Communicator, std::function<void(Communicator *)>> communicator,
       const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
         should_stop_(true) {}
@@ -290,7 +289,7 @@ protected:
   virtual void setup_stage_connections(const StageConfig &config) = 0;
 
   std::unique_ptr<tnn::Sequential<float>> model_;
-  std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>> communicator_;
+  std::unique_ptr<Communicator, std::function<void(Communicator *)>> communicator_;
   std::string name_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;

@@ -17,8 +17,7 @@ class InProcessPipelineStage : public PipelineStage {
 public:
   InProcessPipelineStage(
       std::unique_ptr<tnn::Sequential<float>> model,
-      std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>
-          communicator,
+      std::unique_ptr<Communicator, std::function<void(Communicator *)>> communicator,
       const std::string &name)
       : PipelineStage(std::move(model), std::move(communicator), name) {}
 
@@ -45,25 +44,24 @@ public:
     auto partitions = partitioner_->get_partitions(this->model_.get_layers(), this->num_stages_);
     auto splitted_models = model.split(partitions);
 
-    this->coordinator_comm_ = std::make_shared<InProcessPipelineCommunicator>();
+    this->coordinator_comm_ = std::make_shared<InProcessCommunicator>();
 
     for (int i = 0; i < this->num_stages_; ++i) {
       this->stage_names_.push_back("stage_" + std::to_string(i));
     }
 
-    std::vector<std::shared_ptr<PipelineCommunicator>> stage_communicators;
+    std::vector<std::shared_ptr<Communicator>> stage_communicators;
 
     for (int i = 0; i < this->num_stages_; ++i) {
 
       splitted_models[i].enable_profiling(true);
       auto model_ptr = std::make_unique<tnn::Sequential<float>>(std::move(splitted_models[i]));
 
-      auto stage_communicator = std::make_shared<InProcessPipelineCommunicator>();
+      auto stage_communicator = std::make_shared<InProcessCommunicator>();
       stage_communicators.push_back(stage_communicator);
 
-      auto stage_comm_unique =
-          std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>(
-              stage_communicator.get(), [](PipelineCommunicator *) {});
+      auto stage_comm_unique = std::unique_ptr<Communicator, std::function<void(Communicator *)>>(
+          stage_communicator.get(), [](Communicator *) {});
 
       auto stage = std::make_unique<InProcessPipelineStage>(
           std::move(model_ptr), std::move(stage_comm_unique), this->stage_names_[i]);
@@ -91,23 +89,22 @@ public:
 
 private:
   std::vector<std::unique_ptr<InProcessPipelineStage>> temp_stages_;
-  std::vector<std::shared_ptr<PipelineCommunicator>> stage_comm_refs_;
+  std::vector<std::shared_ptr<Communicator>> stage_comm_refs_;
 
-  void setup_communication_network(
-      const std::vector<std::shared_ptr<PipelineCommunicator>> &stage_comms) {
+  void setup_communication_network(const std::vector<std::shared_ptr<Communicator>> &stage_comms) {
 
     stage_comm_refs_ = stage_comms;
 
     auto coordinator_comm_shared =
-        std::static_pointer_cast<InProcessPipelineCommunicator>(this->coordinator_comm_);
+        std::static_pointer_cast<InProcessCommunicator>(this->coordinator_comm_);
 
     for (int i = 0; i < this->num_stages_; ++i) {
-      auto stage_comm = std::static_pointer_cast<InProcessPipelineCommunicator>(stage_comms[i]);
+      auto stage_comm = std::static_pointer_cast<InProcessCommunicator>(stage_comms[i]);
       stage_comm->register_communicator("coordinator", this->coordinator_comm_);
     }
 
     for (int i = 0; i < this->num_stages_; ++i) {
-      auto current_comm = std::static_pointer_cast<InProcessPipelineCommunicator>(stage_comms[i]);
+      auto current_comm = std::static_pointer_cast<InProcessCommunicator>(stage_comms[i]);
 
       if (i > 0) {
         current_comm->register_communicator("prev_stage", stage_comms[i - 1]);

@@ -58,7 +58,7 @@ public:
   void initialize_communicator() override {
     // Communicator now manages its own io_context, work_guard, and io_thread
     this->coordinator_comm_ =
-        std::make_unique<TcpPipelineCommunicator>(coordinator_host_, coordinator_port_);
+        std::make_unique<TcpCommunicator>(coordinator_host_, coordinator_port_);
 
     this->add_message_callback();
   }
@@ -169,7 +169,7 @@ private:
     try {
       std::cout << "Connecting to stage " << endpoint.stage_id << " at " << endpoint.host << ":"
                 << endpoint.port << std::endl;
-      auto tcp_comm = static_cast<TcpPipelineCommunicator *>(this->coordinator_comm_.get());
+      auto tcp_comm = static_cast<TcpCommunicator *>(this->coordinator_comm_.get());
       bool connected = tcp_comm->connect_to_peer(endpoint.stage_id, endpoint.host, endpoint.port);
 
       if (connected) {

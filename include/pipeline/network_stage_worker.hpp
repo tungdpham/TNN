@@ -56,11 +56,10 @@ public:
       }
     }
 
-    tcp_communicator_ = std::make_unique<TcpPipelineCommunicator>("localhost", listen_port_);
+    tcp_communicator_ = std::make_unique<TcpCommunicator>("localhost", listen_port_);
 
-    this->communicator_ =
-        std::unique_ptr<PipelineCommunicator, std::function<void(PipelineCommunicator *)>>(
-            tcp_communicator_.get(), [](PipelineCommunicator *) {});
+    this->communicator_ = std::unique_ptr<Communicator, std::function<void(Communicator *)>>(
+        tcp_communicator_.get(), [](Communicator *) {});
   }
 
   ~NetworkStageWorker() { stop(); }
@@ -125,7 +124,7 @@ private:
   int max_ecore_threads_;
   utils::HardwareInfo hw_info_;
   std::unique_ptr<utils::ThreadAffinity> thread_affinity_;
-  std::unique_ptr<TcpPipelineCommunicator> tcp_communicator_;
+  std::unique_ptr<TcpCommunicator> tcp_communicator_;
 
   void setup_stage_connections(const StageConfig &config) {
 

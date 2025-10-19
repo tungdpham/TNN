@@ -77,9 +77,9 @@ private:
   std::atomic<bool> is_shutting_down_{false};
 };
 
-class TcpPipelineCommunicator : public PipelineCommunicator {
+class TcpCommunicator : public Communicator {
 public:
-  explicit TcpPipelineCommunicator(const std::string &local_endpoint = "", int listen_port = 0)
+  explicit TcpCommunicator(const std::string &local_endpoint = "", int listen_port = 0)
       : io_context_(), work_guard_(asio::make_work_guard(io_context_)), acceptor_(io_context_),
         socket_(io_context_), listen_port_(listen_port), local_endpoint_(local_endpoint),
         is_running_(false) {
@@ -92,7 +92,7 @@ public:
     io_thread_ = std::thread([this]() { io_context_.run(); });
   }
 
-  ~TcpPipelineCommunicator() override { stop(); }
+  ~TcpCommunicator() override { stop(); }
 
   void start_server() {
     if (listen_port_ <= 0) {

@@ -10,11 +10,11 @@
 #include "communicator.hpp"
 
 namespace tpipeline {
-class InProcessPipelineCommunicator : public PipelineCommunicator {
+class InProcessCommunicator : public Communicator {
 public:
-  InProcessPipelineCommunicator() : shutdown_flag_(false) { start_delivery_thread(); }
+  InProcessCommunicator() : shutdown_flag_(false) { start_delivery_thread(); }
 
-  ~InProcessPipelineCommunicator() {
+  ~InProcessCommunicator() {
     shutdown_flag_ = true;
     outgoing_cv_.notify_one();
     if (delivery_thread_.joinable()) {
@@ -73,7 +73,7 @@ public:
   }
 
   void register_communicator(const std::string &recipient_id,
-                             std::shared_ptr<PipelineCommunicator> communicator) {
+                             std::shared_ptr<Communicator> communicator) {
     std::lock_guard<std::mutex> lock(communicators_mutex_);
     communicators_[recipient_id] = communicator;
   }
@@ -81,7 +81,7 @@ public:
 private:
   std::condition_variable outgoing_cv_;
   std::thread delivery_thread_;
-  std::unordered_map<std::string, std::shared_ptr<PipelineCommunicator>> communicators_;
+  std::unordered_map<std::string, std::shared_ptr<Communicator>> communicators_;
   mutable std::mutex communicators_mutex_;
   std::atomic<bool> shutdown_flag_;
 };
