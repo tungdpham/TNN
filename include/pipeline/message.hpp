@@ -20,7 +20,6 @@
 #include <vector>
 
 namespace tpipeline {
-// Note: Changing the order of types in this variant will break serialization/deserialization!
 using PayloadType = std::variant<std::monostate, Task<float>, std::string, bool, LoadTracker>;
 
 struct FixedHeader {

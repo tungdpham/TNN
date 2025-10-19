@@ -455,8 +455,6 @@ int main() {
     const float lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", ips_constants::LR_DECAY_FACTOR);
     const int lr_decay_interval =
         get_env<int>("LR_DECAY_INTERVAL", ips_constants::LR_DECAY_INTERVAL);
-    const int progress_print_interval =
-        get_env<int>("PROGRESS_PRINT_INTERVAL", ips_constants::PROGRESS_PRINT_INTERVAL);
 
     std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
     std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;

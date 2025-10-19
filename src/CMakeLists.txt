@@ -1,4 +1,6 @@
+# DCNN CMakeLists.txt
 
+# Matrix library
 file(GLOB_RECURSE DCNN_MATRIX_SOURCES 
     "matrix/*.cpp"
 )
@@ -11,6 +13,7 @@ if(NOT MSVC)
     target_link_libraries(dcnn_matrix PUBLIC m)
 endif()
 
+# Tensor library
 file(GLOB_RECURSE DCNN_TENSOR_SOURCES 
     "tensor/*.cpp"
 )
@@ -25,6 +28,7 @@ else()
     target_link_libraries(dcnn_tensor PUBLIC dcnn_matrix)
 endif()
 
+# Utilities library
 file(GLOB_RECURSE DCNN_UTILS_SOURCES 
     "utils/*.cpp"
 )
@@ -70,6 +74,7 @@ else()
     target_link_libraries(dcnn_utils PUBLIC pdh)
 endif()
 
+# Data loading library
 file(GLOB_RECURSE DCNN_DATA_LOADING_SOURCES 
     "data_loading/*.cpp"
 )
@@ -80,6 +85,7 @@ target_include_directories(dcnn_data_loading PUBLIC
 )
 target_link_libraries(dcnn_data_loading PUBLIC dcnn_utils dcnn_tensor dcnn_matrix)
 
+# Math library
 file(GLOB_RECURSE DCNN_MATH_SOURCES 
     "math/*.cpp"
 )
@@ -90,22 +96,23 @@ target_include_directories(dcnn_math PUBLIC
 )
 target_link_libraries(dcnn_math PUBLIC dcnn_utils)
 
+# Neural Network library
 file(GLOB_RECURSE DCNN_NN_SOURCES 
     "nn/*.cpp"
 )
-
 add_library(dcnn_nn STATIC ${DCNN_NN_SOURCES})
 target_include_directories(dcnn_nn PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 if(NOT MSVC)
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading m)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading)
 else()
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_matrix dcnn_utils dcnn_data_loading)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading)
 endif()
 target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
 
+# Pipeline library
 file(GLOB_RECURSE DCNN_PIPELINE_SOURCES 
     "pipeline/*.cpp"
 )
@@ -123,9 +130,11 @@ target_link_libraries(dcnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(dcnn_pipeline PUBLIC libzstd_static)
 target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
 
+# Instantiations library
 add_library(dcnn_instantiations INTERFACE)
 target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils)
 
+# Main DCNN library
 add_library(dcnn_lib INTERFACE)
 target_include_directories(dcnn_lib INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
@@ -136,8 +145,6 @@ if(NOT MSVC)
 else()
     target_link_libraries(dcnn_lib INTERFACE dcnn_instantiations)
 endif()
-
-target_compile_definitions(dcnn_lib INTERFACE ASIO_STANDALONE)
 
 if(WIN32)
     target_link_libraries(dcnn_lib INTERFACE ws2_32 wsock32 mswsock)

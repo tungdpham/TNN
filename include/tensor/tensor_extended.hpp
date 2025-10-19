@@ -20,6 +20,8 @@ template <typename T> Matrix<T> im2col_pad_1_stride_1_kernel_3(const Tensor<T, N
   size_t col_width = in_h * in_w;
   Matrix<T> col_matrix(col_height, batch_size * col_width);
 
+  const __m256 zero = _mm256_setzero_ps();
+
   const T *input_data = input.data();
   T *col_data = col_matrix.data();
 
@@ -30,8 +32,6 @@ template <typename T> Matrix<T> im2col_pad_1_stride_1_kernel_3(const Tensor<T, N
           const float *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
           const size_t batch_offset = n * col_width;
           const size_t col_stride = batch_size * col_width;
-
-          const __m256 zero = _mm256_setzero_ps();
           constexpr size_t simd_width = 8;
 
           const size_t simd_end_full = (in_w >> 3) << 3;
@@ -386,7 +386,7 @@ static Tensor<T, NCHW> col2im_padded(const Matrix<T> &col_matrix, size_t batch_s
           }
         }
       },
-      tthreads::SchedulePolicy::Static);
+      tthreads::SchedulePolicy::Auto);
 
   return result;
 }
