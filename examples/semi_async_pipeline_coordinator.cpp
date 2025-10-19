@@ -66,24 +66,26 @@ int main() {
 
   model.print_config();
 
-  std::string coordinator_host = get_env<std::string>("COORDINATOR_HOST", "localhost");
+  Endpoint coordinator_endpoint =
+      Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
+                        get_env<int>("COORDINATOR_PORT", 8000));
 
-  std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
-      {get_env<std::string>("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-      {get_env<std::string>("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
+  std::vector<Endpoint> endpoints = {
+      Endpoint::network(get_env<std::string>("WORKER1_HOST", "localhost"),
+                        get_env<int>("WORKER1_PORT", 8001)),
+      Endpoint::network(get_env<std::string>("WORKER2_HOST", "localhost"),
+                        get_env<int>("WORKER2_PORT", 8002)),
 
   };
 
-  std::cout << "Using coordinator host: " << coordinator_host << std::endl;
-
   std::cout << "Configured " << endpoints.size() << " remote endpoints:" << std::endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port << std::endl;
+    std::cout << ep.to_json().dump(4) << std::endl;
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
   DistributedPipelineCoordinator coordinator(
-      std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_host, 8000);
+      std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_endpoint);
 
   coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
   coordinator.initialize();
@@ -92,7 +94,7 @@ int main() {
   coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
+    std::cout << "  Worker expected at " << ep.to_json().dump(4) << std::endl;
   }
 
   if (!coordinator.deploy_stages()) {
@@ -118,7 +120,9 @@ int main() {
 
   Tensor<float> batch_data, batch_labels;
 
+#ifdef USE_MKL
   mkl::initialize_mkl();
+#endif
 
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 

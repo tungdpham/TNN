@@ -56,10 +56,8 @@ public:
       }
     }
 
-    tcp_communicator_ = std::make_unique<TcpCommunicator>("localhost", listen_port_);
-
-    this->communicator_ = std::unique_ptr<Communicator, std::function<void(Communicator *)>>(
-        tcp_communicator_.get(), [](Communicator *) {});
+    this->communicator_ =
+        std::make_unique<TcpCommunicator>(Endpoint::network("localhost", listen_port_));
   }
 
   ~NetworkStageWorker() { stop(); }
@@ -111,10 +109,6 @@ public:
 
     PipelineStage::stop();
 
-    if (tcp_communicator_) {
-      tcp_communicator_->stop();
-    }
-
     std::cout << "Network stage worker stopped" << '\n';
   }
 
@@ -124,49 +118,11 @@ private:
   int max_ecore_threads_;
   utils::HardwareInfo hw_info_;
   std::unique_ptr<utils::ThreadAffinity> thread_affinity_;
-  std::unique_ptr<TcpCommunicator> tcp_communicator_;
 
   void setup_stage_connections(const StageConfig &config) {
-
-    if (!config.coordinator_endpoint.empty()) {
-      auto [host, port] = parse_endpoint(config.coordinator_endpoint);
-      if (!tcp_communicator_->connect_to_peer("coordinator", host, port)) {
-        throw std::runtime_error("Failed to connect to coordinator");
-      }
-      std::cout << "Connected to coordinator at " << config.coordinator_endpoint << '\n';
-    }
-
-    if (!config.next_stage_endpoint.empty()) {
-      auto [host, port] = parse_endpoint(config.next_stage_endpoint);
-      if (!tcp_communicator_->connect_to_peer("next_stage", host, port)) {
-        std::cout << "Warning: Failed to connect to next stage at " << config.next_stage_endpoint
-                  << '\n';
-      } else {
-        std::cout << "Connected to next stage at " << config.next_stage_endpoint << '\n';
-      }
-    }
-
-    if (!config.prev_stage_endpoint.empty()) {
-      auto [host, port] = parse_endpoint(config.prev_stage_endpoint);
-      if (!tcp_communicator_->connect_to_peer("prev_stage", host, port)) {
-        std::cout << "Warning: Failed to connect to previous stage at "
-                  << config.prev_stage_endpoint << '\n';
-      } else {
-        std::cout << "Connected to previous stage at " << config.prev_stage_endpoint << '\n';
-      }
-    }
-  }
-
-  std::pair<std::string, int> parse_endpoint(const std::string &endpoint) const {
-    size_t colon_pos = endpoint.find(':');
-    if (colon_pos == std::string::npos) {
-      throw std::invalid_argument("Invalid endpoint format: " + endpoint);
-    }
-
-    std::string host = endpoint.substr(0, colon_pos);
-    int port = std::stoi(endpoint.substr(colon_pos + 1));
-
-    return {host, port};
+    this->communicator_->connect("coordinator", config.coordinator_endpoint);
+    this->communicator_->connect("next_stage", config.next_stage_endpoint);
+    this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
   }
 };
 

@@ -79,12 +79,18 @@ private:
 
 class TcpCommunicator : public Communicator {
 public:
-  explicit TcpCommunicator(const std::string &local_endpoint = "", int listen_port = 0)
+  explicit TcpCommunicator(const Endpoint &endpoint)
       : io_context_(), work_guard_(asio::make_work_guard(io_context_)), acceptor_(io_context_),
-        socket_(io_context_), listen_port_(listen_port), local_endpoint_(local_endpoint),
-        is_running_(false) {
-
-    if (listen_port > 0) {
+        socket_(io_context_) {
+    try {
+      host_ = endpoint.get_parameter("host");
+      port_ = std::stoi(endpoint.get_parameter("port"));
+    } catch (const std::exception &e) {
+      std::cerr << "TcpCommunicator initialization error: " << e.what() << std::endl;
+      throw;
+    }
+    is_running_ = false;
+    if (port_ > 0) {
       start_server();
     }
 
@@ -95,12 +101,11 @@ public:
   ~TcpCommunicator() override { stop(); }
 
   void start_server() {
-    if (listen_port_ <= 0) {
+    if (port_ <= 0) {
       throw std::invalid_argument("Listen port must be greater than 0");
     }
 
-    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(),
-                                     static_cast<asio::ip::port_type>(listen_port_));
+    asio::ip::tcp::endpoint endpoint(asio::ip::tcp::v4(), static_cast<asio::ip::port_type>(port_));
     acceptor_.open(endpoint.protocol());
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);
@@ -171,12 +176,13 @@ public:
     lock.unlock();
   }
 
-  bool connect_to_peer(const std::string &peer_id, const std::string &host, int port) {
+  bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
     try {
       auto connection = std::make_shared<Connection>(io_context_);
 
       asio::ip::tcp::resolver resolver(io_context_);
-      auto endpoints = resolver.resolve(host, std::to_string(port));
+      auto endpoints =
+          resolver.resolve(endpoint.get_parameter("host"), endpoint.get_parameter("port"));
 
       asio::connect(connection->socket, endpoints);
 
@@ -204,8 +210,20 @@ public:
     }
   }
 
-  int get_listen_port() const { return listen_port_; }
-  std::string get_local_endpoint() const { return local_endpoint_; }
+  bool disconnect_from_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
+    std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+    auto it = connections_.find(peer_id);
+    if (it != connections_.end()) {
+      auto &connection = it->second;
+      if (connection->socket.is_open()) {
+        std::error_code ec;
+        connection->socket.close(ec);
+      }
+      connections_.erase(it);
+      return true;
+    }
+    return false;
+  }
 
 private:
   struct WriteOperation {
@@ -248,8 +266,8 @@ private:
   asio::ip::tcp::acceptor acceptor_;
   asio::ip::tcp::socket socket_;
 
-  int listen_port_;
-  std::string local_endpoint_;
+  std::string host_;
+  int port_;
   std::atomic<bool> is_running_;
 
   std::unordered_map<std::string, std::shared_ptr<Connection>> connections_;

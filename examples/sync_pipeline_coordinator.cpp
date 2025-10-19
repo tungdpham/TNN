@@ -75,30 +75,24 @@ int main() {
   std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
   std::cout << "  Number of Microbatches: " << num_microbatches << std::endl;
 
-  std::string coordinator_host = get_env<std::string>("COORDINATOR_HOST", "localhost");
+  Endpoint coordinator_endpoint =
+      Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
+                        get_env<int>("COORDINATOR_PORT", 8000));
 
-  std::vector<DistributedPipelineCoordinator::RemoteEndpoint> endpoints = {
-      {get_env<std::string>("WORKER_HOST_8001", "localhost"), 8001, "stage_0"},
-      {get_env<std::string>("WORKER_HOST_8002", "localhost"), 8002, "stage_1"},
-
+  std::vector<Endpoint> endpoints = {
+      Endpoint::network(get_env<std::string>("WORKER_HOST_8001", "localhost"), 8001),
+      Endpoint::network(get_env<std::string>("WORKER_HOST_8002", "localhost"), 8002),
   };
-
-  std::cout << "Using coordinator host: " << coordinator_host << std::endl;
-
-  std::cout << "\nConfigured " << endpoints.size() << " remote endpoints:" << std::endl;
-  for (const auto &ep : endpoints) {
-    std::cout << "  " << ep.stage_id << " -> " << ep.host << ":" << ep.port << std::endl;
-  }
 
   std::cout << "\nCreating distributed coordinator..." << std::endl;
   DistributedPipelineCoordinator coordinator(std::move(model), endpoints, num_microbatches,
-                                             coordinator_host, 8000);
+                                             coordinator_endpoint);
 
   coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
 
   std::cout << "\nDeploying stages to remote endpoints..." << std::endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  Worker expected at " << ep.host << ":" << ep.port << std::endl;
+    std::cout << "  Worker expected at " << ep.to_json().dump(4) << std::endl;
   }
 
   if (!coordinator.deploy_stages()) {

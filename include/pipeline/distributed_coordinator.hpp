@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "endpoint.hpp"
 #include "network_serialization.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
@@ -28,23 +29,13 @@ namespace tpipeline {
  */
 class DistributedPipelineCoordinator : public PipelineCoordinator {
 public:
-  struct RemoteEndpoint {
-    std::string host;
-    int port;
-    std::string stage_id;
-
-    RemoteEndpoint(std::string h, int p, std::string id)
-        : host(std::move(h)), port(p), stage_id(std::move(id)) {}
-  };
-
   DistributedPipelineCoordinator(tnn::Sequential<float> model,
-                                 const std::vector<RemoteEndpoint> &endpoints,
-                                 int num_microbatches = 4,
-                                 const std::string &coordinator_host = "localhost",
-                                 int coordinator_port = 8000)
+                                 const std::vector<Endpoint> &endpoints, int num_microbatches = 4,
+                                 Endpoint coordinator_endpoint = Endpoint::network("localhost",
+                                                                                   8000))
       : PipelineCoordinator(endpoints.size(), num_microbatches, std::move(model)),
-        remote_endpoints_(endpoints), coordinator_host_(coordinator_host),
-        coordinator_port_(coordinator_port), is_deployed_(false) {}
+        remote_endpoints_(endpoints), coordinator_endpoint_(coordinator_endpoint),
+        is_deployed_(false) {}
 
   ~DistributedPipelineCoordinator() {
     this->stop();
@@ -57,9 +48,7 @@ public:
 
   void initialize_communicator() override {
     // Communicator now manages its own io_context, work_guard, and io_thread
-    this->coordinator_comm_ =
-        std::make_unique<TcpCommunicator>(coordinator_host_, coordinator_port_);
-
+    this->coordinator_comm_ = std::make_unique<TcpCommunicator>(coordinator_endpoint_);
     this->add_message_callback();
   }
 
@@ -68,23 +57,20 @@ public:
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
-      config.stage_id = remote_endpoints_[i].stage_id;
+      config.stage_id = this->stage_names_[i];
       config.model_config = splitted_model[i].get_config();
-      config.model_config["name"] = remote_endpoints_[i].stage_id;
-      config.coordinator_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+      config.model_config["name"] = this->stage_names_[i];
+      config.coordinator_endpoint = coordinator_endpoint_;
 
       if (i > 0) {
-        config.prev_stage_endpoint =
-            remote_endpoints_[i - 1].host + ":" + std::to_string(remote_endpoints_[i - 1].port);
+        config.prev_stage_endpoint = remote_endpoints_[i - 1];
       } else {
-
-        config.prev_stage_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+        config.prev_stage_endpoint = coordinator_endpoint_;
       }
       if (i < remote_endpoints_.size() - 1) {
-        config.next_stage_endpoint =
-            remote_endpoints_[i + 1].host + ":" + std::to_string(remote_endpoints_[i + 1].port);
+        config.next_stage_endpoint = remote_endpoints_[i + 1];
       } else {
-        config.next_stage_endpoint = coordinator_host_ + ":" + std::to_string(coordinator_port_);
+        config.next_stage_endpoint = coordinator_endpoint_;
       }
 
       stage_configs_.push_back(config);
@@ -102,9 +88,10 @@ public:
 
     std::vector<std::future<bool>> connection_futures;
 
-    for (const auto &endpoint : remote_endpoints_) {
-      auto future = std::async(std::launch::async,
-                               [this, &endpoint]() { return connect_to_endpoint(endpoint); });
+    for (int i = 0; i < remote_endpoints_.size(); ++i) {
+      auto future = std::async(std::launch::async, [this, i]() {
+        return connect_to_endpoint(this->stage_names_[i], remote_endpoints_[i]);
+      });
       connection_futures.push_back(std::move(future));
     }
 
@@ -126,7 +113,7 @@ public:
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       auto future = std::async(std::launch::async, [this, i]() {
-        return deploy_stage_config(remote_endpoints_[i].stage_id, stage_configs_[i]);
+        return deploy_stage_config(this->stage_names_[i], stage_configs_[i]);
       });
       deployment_futures.push_back(std::move(future));
     }
@@ -158,30 +145,22 @@ public:
   bool is_deployed() const { return is_deployed_; }
 
 private:
-  std::vector<RemoteEndpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
-  std::string coordinator_host_;
-  int coordinator_port_;
+  std::vector<Endpoint> remote_endpoints_;
+  Endpoint coordinator_endpoint_;
 
   std::atomic<bool> is_deployed_;
 
-  bool connect_to_endpoint(const RemoteEndpoint &endpoint) {
+  bool connect_to_endpoint(const std::string &stage_id, const Endpoint &endpoint) {
     try {
-      std::cout << "Connecting to stage " << endpoint.stage_id << " at " << endpoint.host << ":"
-                << endpoint.port << std::endl;
-      auto tcp_comm = static_cast<TcpCommunicator *>(this->coordinator_comm_.get());
-      bool connected = tcp_comm->connect_to_peer(endpoint.stage_id, endpoint.host, endpoint.port);
-
-      if (connected) {
-        std::cout << "Connected to stage " << endpoint.stage_id << " at " << endpoint.host << ":"
-                  << endpoint.port << std::endl;
-      }
+      std::cout << "Connecting to stage with endpoint" << endpoint.to_json().dump(4) << std::endl;
+      bool connected = this->coordinator_comm_->connect(stage_id, endpoint);
+      std::cout << "Connected to stage " << endpoint.to_json().dump(4) << std::endl;
 
       return connected;
-
     } catch (const std::exception &e) {
-      std::cout << "Failed to connect to " << endpoint.host << ":" << endpoint.port << " - "
-                << e.what() << '\n';
+      std::cout << "Failed to connect to " << endpoint.to_json().dump(4) << " - " << e.what()
+                << '\n';
       return false;
     }
   }

@@ -15,10 +15,8 @@ namespace tpipeline {
 // Concrete implementation of PipelineStage for in-process communication
 class InProcessPipelineStage : public PipelineStage {
 public:
-  InProcessPipelineStage(
-      std::unique_ptr<tnn::Sequential<float>> model,
-      std::unique_ptr<Communicator, std::function<void(Communicator *)>> communicator,
-      const std::string &name)
+  InProcessPipelineStage(std::unique_ptr<tnn::Sequential<float>> model,
+                         std::unique_ptr<Communicator> communicator, const std::string &name)
       : PipelineStage(std::move(model), std::move(communicator), name) {}
 
 protected:
@@ -60,8 +58,7 @@ public:
       auto stage_communicator = std::make_shared<InProcessCommunicator>();
       stage_communicators.push_back(stage_communicator);
 
-      auto stage_comm_unique = std::unique_ptr<Communicator, std::function<void(Communicator *)>>(
-          stage_communicator.get(), [](Communicator *) {});
+      auto stage_comm_unique = std::unique_ptr<Communicator>(stage_communicator.get());
 
       auto stage = std::make_unique<InProcessPipelineStage>(
           std::move(model_ptr), std::move(stage_comm_unique), this->stage_names_[i]);
@@ -108,31 +105,27 @@ private:
 
       if (i > 0) {
         current_comm->register_communicator("prev_stage", stage_comms[i - 1]);
-        current_comm->register_recipient("prev_stage",
-                                         StageEndpoint::in_process(this->stage_names_[i - 1]));
+        current_comm->connect("prev_stage", Endpoint::in_process());
       } else {
-
         current_comm->register_communicator("prev_stage", this->coordinator_comm_);
-        current_comm->register_recipient("prev_stage", StageEndpoint::in_process("coordinator"));
+        current_comm->connect("prev_stage", Endpoint::in_process());
       }
 
       if (i < this->num_stages_ - 1) {
         current_comm->register_communicator("next_stage", stage_comms[i + 1]);
-        current_comm->register_recipient("next_stage",
-                                         StageEndpoint::in_process(this->stage_names_[i + 1]));
+        current_comm->connect("next_stage", Endpoint::in_process());
       } else {
 
         current_comm->register_communicator("next_stage", this->coordinator_comm_);
-        current_comm->register_recipient("next_stage", StageEndpoint::in_process("coordinator"));
+        current_comm->connect("next_stage", Endpoint::in_process());
       }
 
-      current_comm->register_recipient("coordinator", StageEndpoint::in_process("coordinator"));
+      current_comm->connect("coordinator", Endpoint::in_process());
     }
 
     for (int i = 0; i < this->num_stages_; ++i) {
       coordinator_comm_shared->register_communicator(this->stage_names_[i], stage_comms[i]);
-      coordinator_comm_shared->register_recipient(this->stage_names_[i],
-                                                  StageEndpoint::in_process(this->stage_names_[i]));
+      coordinator_comm_shared->connect(this->stage_names_[i], Endpoint::in_process());
     }
   }
 

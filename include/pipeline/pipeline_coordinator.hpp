@@ -47,6 +47,9 @@ public:
   }
 
   void initialize() {
+    for (int i = 0; i < num_stages_; ++i) {
+      stage_names_.push_back("stage_" + std::to_string(i));
+    }
     initialize_partitions();
     initialize_communicator();
     initialize_topology();

@@ -72,10 +72,20 @@ public:
     }
   }
 
-  void register_communicator(const std::string &recipient_id,
-                             std::shared_ptr<Communicator> communicator) {
+  bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
+    // No-op for in-process communicator
+    return true;
+  }
+
+  bool disconnect_from_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
+    // No-op for in-process communicator
+    return true;
+  }
+
+  void register_communicator(const std::string &id,
+                             const std::shared_ptr<Communicator> &communicator) {
     std::lock_guard<std::mutex> lock(communicators_mutex_);
-    communicators_[recipient_id] = communicator;
+    communicators_[id] = communicator;
   }
 
 private:

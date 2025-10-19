@@ -7,8 +7,8 @@
 #pragma once
 
 #include "concurrent_message_map.hpp"
+#include "endpoint.hpp"
 #include "message.hpp"
-#include "pipeline_endpoint.hpp"
 #include "task.hpp"
 #include "utils/misc.hpp"
 #include <atomic>
@@ -55,17 +55,30 @@ public:
 
   virtual void flush_output_messages() = 0;
 
-  virtual void register_recipient(const std::string &recipient_id, const StageEndpoint &endpoint) {
-    std::lock_guard<std::mutex> lock(recipients_mutex_);
-    recipients_[recipient_id] = endpoint;
+  bool connect(const std::string &name, const Endpoint &endpoint) {
+    try {
+      connect_to_endpoint(name, endpoint);
+      register_recipient(name, endpoint);
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Failed to connect to endpoint: " << e.what() << std::endl;
+      return false;
+    }
   }
 
-  virtual void unregister_recipient(const std::string &recipient_id) {
-    std::lock_guard<std::mutex> lock(recipients_mutex_);
-    recipients_.erase(recipient_id);
+  bool disconnect(const std::string &name) {
+    try {
+      Endpoint endpoint = get_recipient(name);
+      disconnect_from_endpoint(name, endpoint);
+      unregister_recipient(name);
+      return true;
+    } catch (const std::exception &e) {
+      std::cerr << "Failed to disconnect from endpoint: " << e.what() << std::endl;
+      return false;
+    }
   }
 
-  virtual StageEndpoint get_recipient(const std::string &recipient_id) const {
+  virtual Endpoint get_recipient(const std::string &recipient_id) const {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     auto it = recipients_.find(recipient_id);
     if (it == recipients_.end()) {
@@ -134,6 +147,21 @@ public:
   }
 
 protected:
+  virtual bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) = 0;
+
+  virtual bool disconnect_from_endpoint(const std::string &peer_id, const Endpoint &endpoint) = 0;
+
+  void register_recipient(const std::string &recipient_id, const Endpoint &endpoint) {
+    std::lock_guard<std::mutex> lock(recipients_mutex_);
+    recipients_[recipient_id] = endpoint;
+  }
+
+  void unregister_recipient(const std::string &recipient_id) {
+    std::lock_guard<std::mutex> lock(recipients_mutex_);
+    recipients_.erase(recipient_id);
+  }
+
+protected:
   ConcurrentMessageMap message_queues_;
 
   std::queue<Message> out_message_queue_;
@@ -143,6 +171,6 @@ protected:
 
   std::function<void()> message_notification_callback_;
 
-  std::unordered_map<std::string, StageEndpoint> recipients_;
+  std::unordered_map<std::string, Endpoint> recipients_;
 };
 } // namespace tpipeline

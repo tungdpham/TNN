@@ -79,7 +79,8 @@ struct MessageData {
 
     // size of payload
     if (std::holds_alternative<std::monostate>(payload)) {
-      return size;
+      // No additional size for monostate
+
     } else if (std::holds_alternative<Task<float>>(payload)) {
       const auto &task = std::get<Task<float>>(payload);
       size += sizeof(uint64_t); // micro_batch_id
@@ -96,7 +97,6 @@ struct MessageData {
 
     } else if (std::holds_alternative<bool>(payload)) {
       size += sizeof(uint8_t); // bool serialized as uint8_t
-
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }
