@@ -13,7 +13,7 @@
 
 namespace tpipeline {
 
-ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
+ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
                                    data_loading::BaseDataLoader<float> &train_loader,
                                    size_t progress_print_interval) {
   Tensor<float> batch_data, batch_labels;
@@ -65,7 +65,7 @@ ClassResult train_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
   return {total_loss / batch_index, -1.0f};
 }
 
-ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinator,
+ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
                                       data_loading::BaseDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
@@ -122,7 +122,7 @@ ClassResult validate_semi_async_epoch(DistributedPipelineCoordinator &coordinato
           static_cast<float>((total_val_correct / test_loader.size()) * 100.0f)};
 }
 
-void train_model(DistributedPipelineCoordinator &coordinator,
+void train_model(DistributedCoordinator &coordinator,
                  data_loading::BaseDataLoader<float> &train_loader,
                  data_loading::BaseDataLoader<float> &test_loader,
                  TrainingConfig config = TrainingConfig()) {

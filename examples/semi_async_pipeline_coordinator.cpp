@@ -84,8 +84,8 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedPipelineCoordinator coordinator(
-      std::move(model), endpoints, semi_async_constants::NUM_MICROBATCHES, coordinator_endpoint);
+  DistributedCoordinator coordinator(std::move(model), endpoints,
+                                     semi_async_constants::NUM_MICROBATCHES, coordinator_endpoint);
 
   coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
   coordinator.initialize();

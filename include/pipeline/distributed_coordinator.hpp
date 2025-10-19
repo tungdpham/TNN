@@ -6,11 +6,11 @@
  */
 #pragma once
 
+#include "coordinator.hpp"
 #include "endpoint.hpp"
 #include "network_serialization.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline_coordinator.hpp"
 #include "tcp_communicator.hpp"
 #include <asio.hpp>
 #include <future>
@@ -27,17 +27,16 @@ namespace tpipeline {
  * Handles deployment of pipeline stages to remote machines, establishes
  * network communication topology, and coordinates distributed training.
  */
-class DistributedPipelineCoordinator : public PipelineCoordinator {
+class DistributedCoordinator : public Coordinator {
 public:
-  DistributedPipelineCoordinator(tnn::Sequential<float> model,
-                                 const std::vector<Endpoint> &endpoints, int num_microbatches = 4,
-                                 Endpoint coordinator_endpoint = Endpoint::network("localhost",
-                                                                                   8000))
-      : PipelineCoordinator(endpoints.size(), num_microbatches, std::move(model)),
+  DistributedCoordinator(tnn::Sequential<float> model, const std::vector<Endpoint> &endpoints,
+                         int num_microbatches = 4,
+                         Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000))
+      : Coordinator(endpoints.size(), num_microbatches, std::move(model)),
         remote_endpoints_(endpoints), coordinator_endpoint_(coordinator_endpoint),
         is_deployed_(false) {}
 
-  ~DistributedPipelineCoordinator() {
+  ~DistributedCoordinator() {
     this->stop();
 
     this->should_stop_ = true;
@@ -88,7 +87,7 @@ public:
 
     std::vector<std::future<bool>> connection_futures;
 
-    for (int i = 0; i < remote_endpoints_.size(); ++i) {
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       auto future = std::async(std::launch::async, [this, i]() {
         return connect_to_endpoint(this->stage_names_[i], remote_endpoints_[i]);
       });

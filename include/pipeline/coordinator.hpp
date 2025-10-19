@@ -27,9 +27,9 @@
 
 namespace tpipeline {
 
-class PipelineCoordinator {
+class Coordinator {
 public:
-  PipelineCoordinator(int num_stages, int num_microbatches, tnn::Sequential<float> model)
+  Coordinator(int num_stages, int num_microbatches, tnn::Sequential<float> model)
       : num_stages_(num_stages), num_microbatches_(num_microbatches), model_(std::move(model)) {
     if (num_stages < 1 || num_microbatches < 1) {
       throw std::invalid_argument("Number of stages and microbatches must be at least 1");
@@ -39,7 +39,7 @@ public:
     }
   }
 
-  ~PipelineCoordinator() {
+  ~Coordinator() {
     if (message_thread_.joinable()) {
       message_thread_.join();
     }
@@ -83,7 +83,7 @@ public:
       this->coordinator_comm_->send_message(start_msg);
     }
 
-    // message_thread_ = std::thread(&PipelineCoordinator::message_loop, this);
+    // message_thread_ = std::thread(&Coordinator::message_loop, this);
 
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }

@@ -7,8 +7,8 @@
 
 #pragma once
 
+#include "coordinator.hpp"
 #include "in_process_communicator.hpp"
-#include "pipeline_coordinator.hpp"
 
 namespace tpipeline {
 
@@ -25,11 +25,10 @@ protected:
   }
 };
 
-class InProcessPipelineCoordinator : public PipelineCoordinator {
+class InProcessCoordinator : public Coordinator {
 public:
-  InProcessPipelineCoordinator(tnn::Sequential<float> model, int num_stages = 4,
-                               int num_microbatches = 4)
-      : PipelineCoordinator(num_stages, num_microbatches, std::move(model)) {
+  InProcessCoordinator(tnn::Sequential<float> model, int num_stages = 4, int num_microbatches = 4)
+      : Coordinator(num_stages, num_microbatches, std::move(model)) {
 
     if (model.get_layers().size() < static_cast<size_t>(num_stages)) {
       throw std::invalid_argument("Model must have at least as many layers as stages");
