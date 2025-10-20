@@ -54,6 +54,7 @@ enum CommandType : uint16_t {
   CHECKPOINT_COMPLETE,
 
   // load balancing and resource management
+  UPDATE_LOAD,
   REPORT_LOAD,
   LOAD_REPORT,
 

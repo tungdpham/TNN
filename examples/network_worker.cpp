@@ -107,8 +107,8 @@ int main(int argc, char *argv[]) {
       {MAX_THREADS}); // wrapper to cleanly manage branching with different backends
 
   thread_wrapper.execute([&]() {
-    tpipeline::StandaloneNetworkWorker<float>::run_worker(listen_port, use_ecore_affinity,
-                                                          max_ecore_threads);
+    NetworkStageWorker worker(listen_port, use_ecore_affinity, max_ecore_threads);
+    worker.start();
   });
   return 0;
 }

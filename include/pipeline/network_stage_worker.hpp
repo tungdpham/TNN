@@ -99,9 +99,6 @@ public:
       return;
 
     PipelineStage::start();
-
-    std::cout << "Starting network stage worker on port " << listen_port_ << '\n';
-    std::cout << "Network stage worker listening on port " << listen_port_ << '\n';
   }
 
   void stop() override {
@@ -125,48 +122,4 @@ private:
     this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
   }
 };
-
-/**
- * @brief Standalone network stage worker application
- *
- * Creates a worker that listens on a specified port and waits for
- * stage configuration from a distributed coordinator.
- */
-template <typename T = float> class StandaloneNetworkWorker {
-public:
-  /**
-   * @brief Run network worker with E-core affinity configuration
-   * @param listen_port Port to listen on
-   * @param use_ecore_affinity Whether to bind to E-cores
-   * @param max_ecore_threads Maximum E-cores to use (-1 for all)
-   * @return Exit code (0 for success)
-   */
-  static int run_worker(int listen_port, bool use_ecore_affinity, int max_ecore_threads = -1) {
-    try {
-      NetworkStageWorker worker(listen_port, use_ecore_affinity, max_ecore_threads);
-
-      std::signal(SIGINT, [](int) {
-        std::cout << '\n' << "Received interrupt signal, shutting down..." << '\n';
-        std::exit(0);
-      });
-
-      if (use_ecore_affinity) {
-        std::cout << "Network stage worker configured with E-core affinity" << std::endl;
-        worker.print_affinity_info();
-      }
-
-      worker.start();
-
-      std::cout << "Network stage worker started on port " << listen_port << std::endl;
-
-      worker.message_loop();
-
-      return 0;
-    } catch (const std::exception &e) {
-      std::cout << "Worker failed: " << e.what() << '\n';
-      return -1;
-    }
-  }
-};
-
 } // namespace tpipeline

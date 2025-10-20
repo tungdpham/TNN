@@ -58,19 +58,16 @@ public:
       message_available_cv_.notify_all();
     });
 
-    // monitoring_thread_ = std::thread(&PipelineStage::monitoring_loop, this);
+    message_loop();
   }
 
   virtual void stop() {
     should_stop_ = true;
     message_available_cv_.notify_all();
-
-    if (monitoring_thread_.joinable()) {
-      monitoring_thread_.join();
-    }
   }
 
   void message_loop() {
+    std::cout << "Running event loop" << std::endl;
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
       message_available_cv_.wait(
@@ -85,16 +82,6 @@ public:
         auto message = communicator_->dequeue_input_message();
         this->process_message(message);
       }
-    }
-  }
-
-  void monitoring_loop() {
-    while (!should_stop_) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(update_interval));
-      if (should_stop_) {
-        break;
-      }
-      update_load_tracker();
     }
   }
 
@@ -194,6 +181,11 @@ protected:
         error_msg.header.sender_id = name_;
         communicator_->send_message(error_msg);
       }
+      break;
+    }
+    case CommandType::UPDATE_LOAD: {
+      // update load tracker info
+      update_load_tracker();
       break;
     }
     case CommandType::REPORT_LOAD: {

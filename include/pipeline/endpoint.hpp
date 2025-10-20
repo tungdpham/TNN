@@ -16,9 +16,11 @@ namespace tpipeline {
 class Communicator;
 
 struct Endpoint {
+private:
   std::string communication_type;
   std::unordered_map<std::string, std::any> parameters;
 
+public:
   Endpoint() = default;
   explicit Endpoint(std::string comm_type) : communication_type(std::move(comm_type)) {}
 
