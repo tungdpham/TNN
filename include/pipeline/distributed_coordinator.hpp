@@ -46,7 +46,6 @@ public:
   }
 
   void initialize_communicator() override {
-    // Communicator now manages its own io_context, work_guard, and io_thread
     this->coordinator_comm_ = std::make_unique<TcpCommunicator>(coordinator_endpoint_);
     this->add_message_callback();
   }

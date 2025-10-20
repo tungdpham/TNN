@@ -71,8 +71,6 @@ public:
   virtual std::vector<size_t>
   compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
 
-  virtual void update_parameters() {}
-
   void enable_profiling(bool enable) { enable_profiling_ = enable; }
 
   void print_profiling_info() const {

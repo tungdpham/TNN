@@ -45,23 +45,6 @@ private:
   std::map<std::string, uint64_t> forward_times_microseconds_;
   std::map<std::string, uint64_t> backward_times_microseconds_;
 
-  // Helper function to distribute optimizer whenever it changes
-  void distribute_optimizer_to_layers() {
-    if (!optimizer_) {
-      return;
-    }
-
-    for (auto &layer : layers_) {
-      if (layer->has_parameters()) {
-
-        auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
-        if (param_layer) {
-          param_layer->set_optimizer(optimizer_->clone());
-        }
-      }
-    }
-  }
-
 public:
   explicit Sequential(const std::string &name = "sequential")
       : name_(name), is_training_(true), enable_profiling_(false) {}
@@ -74,7 +57,6 @@ public:
     }
     if (other.optimizer_) {
       optimizer_ = other.optimizer_->clone();
-      distribute_optimizer_to_layers();
     }
     if (other.loss_) {
       loss_ = other.loss_->clone();
@@ -105,9 +87,6 @@ public:
         layers_.push_back(layer->clone());
       }
       optimizer_ = other.optimizer_ ? other.optimizer_->clone() : nullptr;
-      if (optimizer_) {
-        distribute_optimizer_to_layers();
-      }
       loss_ = other.loss_ ? other.loss_->clone() : nullptr;
       name_ = other.name_;
       is_training_ = other.is_training_;
@@ -164,14 +143,6 @@ public:
       throw std::invalid_argument("Cannot add null layer");
     }
     layer->set_training(is_training_);
-
-    if (optimizer_ && layer->has_parameters()) {
-      auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
-      if (param_layer) {
-        param_layer->set_optimizer(optimizer_->clone());
-      }
-    }
-
     layers_.push_back(std::move(layer));
   }
 
@@ -183,14 +154,6 @@ public:
       throw std::out_of_range("Insert index out of range");
     }
     layer->set_training(is_training_);
-
-    if (optimizer_ && layer->has_parameters()) {
-      auto *param_layer = dynamic_cast<ParameterizedLayer<T> *>(layer.get());
-      if (param_layer) {
-        param_layer->set_optimizer(optimizer_->clone());
-      }
-    }
-
     layers_.insert(layers_.begin() + index, std::move(layer));
   }
 
@@ -532,6 +495,7 @@ public:
     std::vector<Tensor<T> *> all_grads;
     for (auto &layer : layers_) {
       auto layer_grads = layer->gradients();
+      all_grads.insert(all_grads.end(), layer_grads.begin(), layer_grads.end());
     }
     return all_grads;
   }
@@ -847,11 +811,28 @@ public:
   void set_name(const std::string &name) { name_ = name; }
 
   void update_parameters() const {
-    for (const auto &layer : layers_) {
-      if (layer->has_parameters()) {
-        layer->update_parameters();
-      }
+    auto params = parameters();
+    auto grads = gradients();
+    if (params.size() != grads.size()) {
+      std::cout << "Params size: " << params.size() << ", Grads size: " << grads.size() << "\n";
+      throw std::runtime_error("Parameter and gradient count mismatch during update");
     }
+    if (!optimizer_) {
+      throw std::runtime_error("No optimizer set for model");
+    }
+    optimizer_->update(params, grads);
+    clear_gradients();
+  }
+
+  void clear_gradients() const {
+    tthreads::parallel_for<size_t>(0, layers_.size(), [&](size_t i) {
+      if (layers_[i]->has_parameters()) {
+        auto parameterized_layer = dynamic_cast<ParameterizedLayer<T> *>(layers_[i].get());
+        if (parameterized_layer) {
+          parameterized_layer->clear_gradients();
+        }
+      }
+    });
   }
 
   void load_parameters(std::vector<Tensor<T>> &&parameters) {
@@ -884,7 +865,6 @@ public:
 
   void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
     this->optimizer_ = std::move(optimizer);
-    distribute_optimizer_to_layers();
   }
 
   void set_loss_function(std::unique_ptr<Loss<T>> loss) { this->loss_ = std::move(loss); }
