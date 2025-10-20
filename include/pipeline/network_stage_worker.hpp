@@ -60,7 +60,7 @@ public:
         std::make_unique<TcpCommunicator>(Endpoint::network("localhost", listen_port_));
   }
 
-  ~NetworkStageWorker() { stop(); }
+  ~NetworkStageWorker() {}
 
   /**
    * @brief Enable or disable E-core affinity at runtime

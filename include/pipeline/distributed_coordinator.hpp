@@ -34,12 +34,7 @@ public:
                          const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), coordinator_endpoint, endpoints) {}
 
-  ~DistributedCoordinator() {
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
-    coordinator_comm_.reset();
-  }
+  ~DistributedCoordinator() = default;
 
   void initialize_communicator() override {
     this->coordinator_comm_ = std::make_unique<TcpCommunicator>(coordinator_endpoint_);

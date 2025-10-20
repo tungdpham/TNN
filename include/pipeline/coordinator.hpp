@@ -38,7 +38,7 @@ public:
     num_microbatches_ = 1;
   }
 
-  ~Coordinator() {
+  virtual ~Coordinator() {
     if (message_thread_.joinable()) {
       message_thread_.join();
     }

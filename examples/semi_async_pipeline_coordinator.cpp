@@ -33,7 +33,7 @@ constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gra
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 64;
 constexpr int NUM_MICROBATCHES = 2;
-constexpr int NUM_EPOCHS = 5;
+constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 } // namespace semi_async_constants
 
@@ -128,6 +128,8 @@ int main() {
   thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {
     train_model(coordinator, train_loader, test_loader, get_training_config());
   });
+
+  coordinator.stop();
 
   return 0;
 }
