@@ -27,10 +27,12 @@ protected:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(tnn::Sequential<float> model, int num_stages = 4, int num_microbatches = 4)
-      : Coordinator(num_stages, num_microbatches, std::move(model)) {
+  InProcessCoordinator(tnn::Sequential<float> model,
+                       Endpoint coordinator_endpoint = Endpoint::in_process(),
+                       std::vector<Endpoint> remote_endpoints = {})
+      : Coordinator(std::move(model), coordinator_endpoint, std::move(remote_endpoints)) {
 
-    if (model.get_layers().size() < static_cast<size_t>(num_stages)) {
+    if (model.get_layers().size() < static_cast<size_t>(this->num_stages_)) {
       throw std::invalid_argument("Model must have at least as many layers as stages");
     }
 

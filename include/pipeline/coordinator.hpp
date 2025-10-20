@@ -29,14 +29,13 @@ namespace tpipeline {
 
 class Coordinator {
 public:
-  Coordinator(int num_stages, int num_microbatches, tnn::Sequential<float> model)
-      : num_stages_(num_stages), num_microbatches_(num_microbatches), model_(std::move(model)) {
-    if (num_stages < 1 || num_microbatches < 1) {
-      throw std::invalid_argument("Number of stages and microbatches must be at least 1");
-    }
-    if (this->model_.get_layers().size() < static_cast<size_t>(num_stages)) {
-      throw std::invalid_argument("Model must have at least as many layers as stages");
-    }
+  Coordinator(tnn::Sequential<float> model,
+              const Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
+              const std::vector<Endpoint> &remote_endpoints = {})
+      : model_(std::move(model)), coordinator_endpoint_(coordinator_endpoint),
+        remote_endpoints_(std::move(remote_endpoints)) {
+    num_stages_ = static_cast<int>(remote_endpoints_.size());
+    num_microbatches_ = 1;
   }
 
   ~Coordinator() {
@@ -67,6 +66,15 @@ public:
   }
 
   int num_stages() const { return num_stages_; }
+
+  bool set_num_microbatches(int num_microbatches) {
+    if (num_microbatches <= 0) {
+      std::cerr << "Number of microbatches must be positive\n";
+      return false;
+    }
+    num_microbatches_ = num_microbatches;
+    return true;
+  }
 
   int num_microbatches() const { return num_microbatches_; }
 
@@ -100,6 +108,8 @@ public:
     if (message_thread_.joinable()) {
       message_thread_.join();
     }
+
+    this->coordinator_comm_.reset();
 
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
@@ -444,11 +454,65 @@ public:
     return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
   }
 
-  bool wait_for_config_received() {
-    return join(CommandType::CONFIG_RECEIVED, this->num_stages_, 30);
-  }
+  bool deploy_stages() {
+    if (is_deployed_) {
+      std::cout << "Stages already deployed\n";
+      return true;
+    }
 
-  bool wait_for_params_loaded() { return join(CommandType::PARAMS_LOADED, this->num_stages_, 30); }
+    std::vector<std::future<bool>> connection_futures;
+
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+      auto future = std::async(std::launch::async, [this, i]() {
+        return this->coordinator_comm_->connect(this->stage_names_[i], remote_endpoints_[i]);
+      });
+      connection_futures.push_back(std::move(future));
+    }
+
+    bool all_connected = true;
+    for (auto &future : connection_futures) {
+      if (!future.get()) {
+        all_connected = false;
+      }
+    }
+
+    if (!all_connected) {
+      std::cout << "Failed to connect to all endpoints\n";
+      return false;
+    }
+
+    std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
+
+    std::vector<std::future<bool>> deployment_futures;
+
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+      auto future = std::async(std::launch::async, [this, i]() {
+        return deploy_stage_config(this->stage_names_[i], stage_configs_[i]);
+      });
+      deployment_futures.push_back(std::move(future));
+    }
+
+    bool all_deployed = true;
+    for (auto &future : deployment_futures) {
+      if (!future.get()) {
+        all_deployed = false;
+      }
+    }
+
+    if (!all_deployed) {
+      std::cout << "Failed to deploy all stages\n";
+      return false;
+    }
+
+    if (!join(CommandType::CONFIG_RECEIVED, this->num_stages_, 60)) {
+      std::cerr << "Not all stages reported ready\n";
+      return false;
+    }
+
+    is_deployed_ = true;
+    std::cout << "All stages deployed and ready!\n";
+    return true;
+  }
 
 private:
   void initialize_partitions() {
@@ -458,55 +522,73 @@ private:
     this->partitions_ = partitioner_->get_partitions(this->model_.get_layers(), this->num_stages_);
   }
 
-protected:
-  virtual void initialize_communicator() = 0;
-  virtual void initialize_topology() = 0;
+  void initialize_topology() {
+    auto splitted_model = this->model_.split(this->partitions_);
 
-  /**
-   * @brief Sends configuration to a specific stage
-   * @param stage_id The stage identifier
-   * @param partition The partition containing layer information for this stage
-   * @return true if configuration was sent successfully, false otherwise
-   */
-  bool send_config(const std::string &stage_id, const tnn::Partition &partition) {
-    try {
-      // Create a model segment for this partition
-      std::vector<tnn::Partition> partitions = {partition};
-      auto stage_model = model_.split(partitions)[0];
-
-      // Create stage configuration
+    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
-      config.stage_id = stage_id;
-      config.model_config = stage_model.get_config();
-      config.model_config["name"] = stage_id;
+      config.stage_id = this->stage_names_[i];
+      config.model_config = splitted_model[i].get_config();
+      config.model_config["name"] = this->stage_names_[i];
+      config.coordinator_endpoint = coordinator_endpoint_;
 
-      // Send configuration as JSON
+      if (i > 0) {
+        config.prev_stage_endpoint = remote_endpoints_[i - 1];
+      } else {
+        config.prev_stage_endpoint = coordinator_endpoint_;
+      }
+      if (i < remote_endpoints_.size() - 1) {
+        config.next_stage_endpoint = remote_endpoints_[i + 1];
+      } else {
+        config.next_stage_endpoint = coordinator_endpoint_;
+      }
+
+      stage_configs_.push_back(config);
+      this->stage_names_.push_back(config.stage_id);
+    }
+  }
+
+  bool deploy_stage_config(const std::string &stage_id, const StageConfig &config) {
+    try {
       std::string config_json = config.to_json().dump();
-      Message config_msg(stage_id, CommandType::CONFIG_TRANSFER, config_json);
+      auto config_msg = Message(stage_id, CommandType::CONFIG_TRANSFER, config_json);
 
       this->coordinator_comm_->send_message(config_msg);
 
-      std::cout << "Sent configuration to stage " << stage_id << " for partition ["
-                << partition.start_layer << ", " << partition.end_layer << ")\n";
+      std::cout << "Sent configuration to stage " << stage_id << '\n';
 
       return true;
     } catch (const std::exception &e) {
-      std::cerr << "Failed to send configuration to stage " << stage_id << ": " << e.what() << '\n';
+      std::cout << "Failed to deploy config to stage " << stage_id << ": " << e.what() << '\n';
       return false;
     }
   }
 
+protected:
+  virtual void initialize_communicator() = 0;
+
+  // Training Parameters
   int num_stages_;
-  int num_microbatches_;
+  int num_microbatches_ = 1;
   bool should_stop_ = true;
+
+  // Components of the coordinator
   tnn::Sequential<float> model_;
   std::shared_ptr<Communicator> coordinator_comm_;
   std::unique_ptr<tnn::Loss<float>> loss_function_;
+  std::unique_ptr<partitioner::Partitioner<float>> partitioner_;
+  Endpoint coordinator_endpoint_;
+
+  std::atomic<bool> is_deployed_;
+
+  // Topology information
   std::vector<std::string> stage_names_;
   std::vector<tnn::Partition> partitions_;
-  std::unique_ptr<partitioner::Partitioner<float>> partitioner_;
+  std::vector<Endpoint> remote_endpoints_;
+  std::vector<StageConfig> stage_configs_;
   std::thread message_thread_;
 
+  // Message synchronization
   mutable std::mutex message_notification_mutex_;
   mutable std::condition_variable message_notification_cv_;
 };

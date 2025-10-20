@@ -85,8 +85,7 @@ int main() {
   };
 
   std::cout << "\nCreating distributed coordinator..." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), endpoints, num_microbatches,
-                                     coordinator_endpoint);
+  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
 
   coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
 
