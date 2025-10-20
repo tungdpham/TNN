@@ -83,8 +83,8 @@ public:
       : io_context_(), work_guard_(asio::make_work_guard(io_context_)), acceptor_(io_context_),
         socket_(io_context_) {
     try {
-      host_ = endpoint.get_parameter("host");
-      port_ = std::stoi(endpoint.get_parameter("port"));
+      host_ = endpoint.get_parameter<std::string>("host");
+      port_ = std::stoi(endpoint.get_parameter<std::string>("port"));
     } catch (const std::exception &e) {
       std::cerr << "TcpCommunicator initialization error: " << e.what() << std::endl;
       throw;
@@ -181,8 +181,10 @@ public:
       auto connection = std::make_shared<Connection>(io_context_);
 
       asio::ip::tcp::resolver resolver(io_context_);
-      auto endpoints =
-          resolver.resolve(endpoint.get_parameter("host"), endpoint.get_parameter("port"));
+
+      std::string host = endpoint.get_parameter<std::string>("host");
+      std::string port = endpoint.get_parameter<std::string>("port");
+      auto endpoints = resolver.resolve(host, port);
 
       asio::connect(connection->socket, endpoints);
 

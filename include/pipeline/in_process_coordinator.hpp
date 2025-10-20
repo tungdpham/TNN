@@ -27,8 +27,7 @@ protected:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(tnn::Sequential<float> model,
-                       Endpoint coordinator_endpoint = Endpoint::in_process(),
+  InProcessCoordinator(tnn::Sequential<float> model, Endpoint coordinator_endpoint,
                        std::vector<Endpoint> remote_endpoints = {})
       : Coordinator(std::move(model), coordinator_endpoint, std::move(remote_endpoints)) {
 
@@ -105,28 +104,26 @@ private:
       auto current_comm = std::static_pointer_cast<InProcessCommunicator>(stage_comms[i]);
 
       if (i > 0) {
-        current_comm->register_communicator("prev_stage", stage_comms[i - 1]);
-        current_comm->connect("prev_stage", Endpoint::in_process());
+        current_comm->connect("prev_stage", Endpoint::in_process(stage_comms[i - 1]));
       } else {
-        current_comm->register_communicator("prev_stage", this->coordinator_comm_);
-        current_comm->connect("prev_stage", Endpoint::in_process());
+        current_comm->connect("prev_stage", Endpoint::in_process(coordinator_comm_));
       }
 
       if (i < this->num_stages_ - 1) {
         current_comm->register_communicator("next_stage", stage_comms[i + 1]);
-        current_comm->connect("next_stage", Endpoint::in_process());
+        current_comm->connect("next_stage", Endpoint::in_process(stage_comms[i + 1]));
       } else {
 
         current_comm->register_communicator("next_stage", this->coordinator_comm_);
-        current_comm->connect("next_stage", Endpoint::in_process());
+        current_comm->connect("next_stage", Endpoint::in_process(coordinator_comm_));
       }
 
-      current_comm->connect("coordinator", Endpoint::in_process());
+      current_comm->connect("coordinator", Endpoint::in_process(coordinator_comm_));
     }
 
     for (int i = 0; i < this->num_stages_; ++i) {
       coordinator_comm_shared->register_communicator(this->stage_names_[i], stage_comms[i]);
-      coordinator_comm_shared->connect(this->stage_names_[i], Endpoint::in_process());
+      coordinator_comm_shared->connect(this->stage_names_[i], Endpoint::in_process(stage_comms[i]));
     }
   }
 
