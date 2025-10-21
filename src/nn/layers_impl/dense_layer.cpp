@@ -137,12 +137,8 @@ template <typename T>
 void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
                                           const size_t batch_size, const size_t input_features,
                                           const size_t output_features) const {
-  // tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
-  //   output_data[n * output_features + out_f] = utils::simd_dot_product(
-  //       &weight_data[out_f * input_features], &input_data[n * input_features], input_features);
-  // });
-  tmath::sgemm(input_data, weight_data, output_data, batch_size, output_features, input_features,
-               false, true);
+  tmath::gemm<T>(input_data, weight_data, output_data, batch_size, output_features, input_features,
+                 false, true);
 }
 
 template <typename T>
@@ -150,35 +146,17 @@ void DenseLayer<T>::compute_weight_gradients(const T *input_data, const T *gradi
                                              T *weight_grad_data, const size_t batch_size,
                                              const size_t input_features,
                                              const size_t output_features) const {
-  T *input_transposed = (T *)malloc(sizeof(T) * input_features * batch_size);
-  T *gradient_transposed = (T *)malloc(sizeof(T) * output_features * batch_size);
-
-  utils::transpose_2d(input_data, input_transposed, batch_size, input_features);
-  utils::transpose_2d(gradient_data, gradient_transposed, batch_size, output_features);
-
-  tthreads::parallel_for_2d(output_features, input_features, [&](size_t out_f, size_t in_f) {
-    weight_grad_data[out_f * input_features + in_f] += utils::simd_dot_product(
-        &gradient_transposed[out_f * batch_size], &input_transposed[in_f * batch_size], batch_size);
-  });
-
-  free(input_transposed);
-  free(gradient_transposed);
+  tmath::gemm<T>(gradient_data, input_data, weight_grad_data, output_features, input_features,
+                 batch_size, true, false);
 }
 
 template <typename T>
 void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *weight_data,
                                             T *grad_input_data, size_t batch_size,
                                             size_t input_features, size_t output_features) const {
-  T *weights_transposed = (T *)malloc(sizeof(T) * output_features * input_features);
-  utils::transpose_2d(weight_data, weights_transposed, output_features, input_features);
-
-  tthreads::parallel_for_2d(batch_size, input_features, [&](size_t n, size_t in_f) {
-    grad_input_data[n * input_features + in_f] =
-        utils::simd_dot_product(&gradient_data[n * output_features],
-                                &weights_transposed[in_f * output_features], output_features);
-  });
-
-  free(weights_transposed);
+  std::fill(grad_input_data, grad_input_data + batch_size * input_features, T(0));
+  tmath::gemm<T>(gradient_data, weight_data, grad_input_data, batch_size, input_features,
+                 output_features, false, false);
 }
 
 template <typename T>

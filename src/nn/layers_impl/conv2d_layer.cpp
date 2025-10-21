@@ -159,7 +159,7 @@ void Conv2DLayer<T>::compute_conv_forward(const T *col_data, const T *weight_dat
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
   utils::avx2_set_scalar(output_data, T(0), out_channels * output_size);
-  tmath::sgemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
+  tmath::gemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
 #endif
   auto conv_end = std::chrono::high_resolution_clock::now();
   if (this->enable_profiling_) {
@@ -179,8 +179,8 @@ void Conv2DLayer<T>::compute_weight_gradients(const T *col_data, const T *gradie
       gradient_data, col_data, weight_grad_data, static_cast<MKL_INT>(out_channels),
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  tmath::sgemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
-               false, true);
+  tmath::gemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
+              false, true);
 #endif
   auto wg_end = std::chrono::high_resolution_clock::now();
   if (this->enable_profiling_) {
@@ -201,8 +201,8 @@ void Conv2DLayer<T>::compute_input_gradients(const T *gradient_data, const T *we
       static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
   utils::avx2_set_scalar(col_grad_data, T(0), kernel_size * output_size);
-  tmath::sgemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
-               true, false);
+  tmath::gemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
+              true, false);
 #endif
   auto ig_end = std::chrono::high_resolution_clock::now();
   if (this->enable_profiling_) {
