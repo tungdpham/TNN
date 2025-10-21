@@ -11,10 +11,10 @@
 using namespace tmath;
 using namespace utils;
 
-constexpr int N = 64;
-constexpr int C = 128;
-constexpr int H = 128;
-constexpr int W = 128;
+constexpr size_t N = 64;
+constexpr size_t C = 128;
+constexpr size_t H = 128;
+constexpr size_t W = 128;
 
 bool check_match(const float *a, const float *b, size_t size, float max_acceptable_error = 1.0f) {
   float max_error = 0;
@@ -39,9 +39,9 @@ int main() {
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
   arena.execute([&] {
 #endif
-    int n = N * C;
-    int m = N * C;
-    int k = H * W;
+    size_t n = N * C;
+    size_t m = N * C;
+    size_t k = H * W;
 
     std::cout << "Matrix A: " << n << " x " << k << std::endl;
     std::cout << "Matrix B: " << k << " x " << m << std::endl;

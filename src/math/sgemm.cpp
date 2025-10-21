@@ -3,24 +3,25 @@
 #include <cstring>
 
 namespace tmath {
-constexpr int DEFAULT_BLOCK_SIZE = 32;
+constexpr size_t DEFAULT_BLOCK_SIZE = 32;
 
 #ifdef __AVX2__
 inline bool is_aligned_32(const void *ptr) { return (reinterpret_cast<uintptr_t>(ptr) & 31) == 0; }
 
-inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const int M, const int N,
-                                 const int K, const int i, const int j, const int k,
-                                 const int i_max, const int j_max, const int k_max) {
-  int ii = i;
+inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const size_t M,
+                                 const size_t N, const size_t K, const size_t i, const size_t j,
+                                 const size_t k, const size_t i_max, const size_t j_max,
+                                 const size_t k_max) {
+  size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec_0 = _mm256_setzero_ps();
       __m256 c_vec_1 = _mm256_setzero_ps();
       __m256 c_vec_2 = _mm256_setzero_ps();
       __m256 c_vec_3 = _mm256_setzero_ps();
 
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 b_vec = _mm256_loadu_ps(&B[kk * N + jj]);
         __m256 a_vec_0 = _mm256_broadcast_ss(&A[(ii + 0) * K + kk]);
         __m256 a_vec_1 = _mm256_broadcast_ss(&A[(ii + 1) * K + kk]);
@@ -42,7 +43,7 @@ inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const
     }
     for (; jj < j_max; ++jj) {
       float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         float b_val = B[kk * N + jj];
         sum0 += A[(ii + 0) * K + kk] * b_val;
         sum1 += A[(ii + 1) * K + kk] * b_val;
@@ -56,10 +57,10 @@ inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const
     }
   }
   for (; ii < i_max; ++ii) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec = _mm256_setzero_ps();
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 a_vec = _mm256_broadcast_ss(&A[ii * K + kk]);
         __m256 b_vec = _mm256_loadu_ps(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_ps(a_vec, b_vec, c_vec);
@@ -68,7 +69,7 @@ inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const
     }
     for (; jj < j_max; ++jj) {
       float sum = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[ii * K + kk] * B[kk * N + jj];
       }
       C[ii * N + jj] += sum;
@@ -76,20 +77,20 @@ inline void sgemm_kernel_avx2_nn(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *C, const int M,
-                                         const int N, const int K, const int i, const int j,
-                                         const int k, const int i_max, const int j_max,
-                                         const int k_max) {
-  int ii = i;
+inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *C, const size_t M,
+                                         const size_t N, const size_t K, const size_t i,
+                                         const size_t j, const size_t k, const size_t i_max,
+                                         const size_t j_max, const size_t k_max) {
+  size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec_0 = _mm256_setzero_ps();
       __m256 c_vec_1 = _mm256_setzero_ps();
       __m256 c_vec_2 = _mm256_setzero_ps();
       __m256 c_vec_3 = _mm256_setzero_ps();
 
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 b_vec = _mm256_load_ps(&B[kk * N + jj]);
         __m256 a_vec_0 = _mm256_broadcast_ss(&A[(ii + 0) * K + kk]);
         __m256 a_vec_1 = _mm256_broadcast_ss(&A[(ii + 1) * K + kk]);
@@ -111,7 +112,7 @@ inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *
     }
     for (; jj < j_max; ++jj) {
       float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         float b_val = B[kk * N + jj];
         sum0 += A[(ii + 0) * K + kk] * b_val;
         sum1 += A[(ii + 1) * K + kk] * b_val;
@@ -125,10 +126,10 @@ inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *
     }
   }
   for (; ii < i_max; ++ii) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec = _mm256_setzero_ps();
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 a_vec = _mm256_broadcast_ss(&A[ii * K + kk]);
         __m256 b_vec = _mm256_load_ps(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_ps(a_vec, b_vec, c_vec);
@@ -137,7 +138,7 @@ inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *
     }
     for (; jj < j_max; ++jj) {
       float sum = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[ii * K + kk] * B[kk * N + jj];
       }
       C[ii * N + jj] += sum;
@@ -145,18 +146,19 @@ inline void sgemm_kernel_avx2_nn_aligned(const float *A, const float *B, float *
   }
 }
 
-inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const int M, const int N,
-                                 const int K, const int i, const int j, const int k,
-                                 const int i_max, const int j_max, const int k_max) {
-  for (int ii = i; ii < i_max; ++ii) {
-    int jj = j;
+inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const size_t M,
+                                 const size_t N, const size_t K, const size_t i, const size_t j,
+                                 const size_t k, const size_t i_max, const size_t j_max,
+                                 const size_t k_max) {
+  for (size_t ii = i; ii < i_max; ++ii) {
+    size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
       __m256 sum0 = _mm256_setzero_ps();
       __m256 sum1 = _mm256_setzero_ps();
       __m256 sum2 = _mm256_setzero_ps();
       __m256 sum3 = _mm256_setzero_ps();
 
-      int kk = k;
+      size_t kk = k;
       for (; kk + 7 < k_max; kk += 8) {
         __m256 a_vec = _mm256_loadu_ps(&A[ii * K + kk]);
         __m256 b0_vec = _mm256_loadu_ps(&B[(jj + 0) * K + kk]);
@@ -207,7 +209,7 @@ inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const
 
     for (; jj < j_max; ++jj) {
       __m256 sum_vec = _mm256_setzero_ps();
-      int kk = k;
+      size_t kk = k;
       for (; kk + 7 < k_max; kk += 8) {
         __m256 a_vec = _mm256_loadu_ps(&A[ii * K + kk]);
         __m256 b_vec = _mm256_loadu_ps(&B[jj * K + kk]);
@@ -234,19 +236,19 @@ inline void sgemm_kernel_avx2_nt(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *C, const int M,
-                                         const int N, const int K, const int i, const int j,
-                                         const int k, const int i_max, const int j_max,
-                                         const int k_max) {
-  for (int ii = i; ii < i_max; ++ii) {
-    int jj = j;
+inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *C, const size_t M,
+                                         const size_t N, const size_t K, const size_t i,
+                                         const size_t j, const size_t k, const size_t i_max,
+                                         const size_t j_max, const size_t k_max) {
+  for (size_t ii = i; ii < i_max; ++ii) {
+    size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
       __m256 sum0 = _mm256_setzero_ps();
       __m256 sum1 = _mm256_setzero_ps();
       __m256 sum2 = _mm256_setzero_ps();
       __m256 sum3 = _mm256_setzero_ps();
 
-      int kk = k;
+      size_t kk = k;
       for (; kk + 7 < k_max; kk += 8) {
         __m256 a_vec = _mm256_load_ps(&A[ii * K + kk]);
         __m256 b0_vec = _mm256_load_ps(&B[(jj + 0) * K + kk]);
@@ -297,7 +299,7 @@ inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *
 
     for (; jj < j_max; ++jj) {
       __m256 sum_vec = _mm256_setzero_ps();
-      int kk = k;
+      size_t kk = k;
       for (; kk + 7 < k_max; kk += 8) {
         __m256 a_vec = _mm256_load_ps(&A[ii * K + kk]);
         __m256 b_vec = _mm256_load_ps(&B[jj * K + kk]);
@@ -324,19 +326,20 @@ inline void sgemm_kernel_avx2_nt_aligned(const float *A, const float *B, float *
   }
 }
 
-inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const int M, const int N,
-                                 const int K, const int i, const int j, const int k,
-                                 const int i_max, const int j_max, const int k_max) {
-  int ii = i;
+inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const size_t M,
+                                 const size_t N, const size_t K, const size_t i, const size_t j,
+                                 const size_t k, const size_t i_max, const size_t j_max,
+                                 const size_t k_max) {
+  size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec_0 = _mm256_setzero_ps();
       __m256 c_vec_1 = _mm256_setzero_ps();
       __m256 c_vec_2 = _mm256_setzero_ps();
       __m256 c_vec_3 = _mm256_setzero_ps();
 
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 b_vec = _mm256_loadu_ps(&B[kk * N + jj]);
 
         __m256 a_vec_0 = _mm256_broadcast_ss(&A[kk * M + ii + 0]);
@@ -361,7 +364,7 @@ inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const
     }
     for (; jj < j_max; ++jj) {
       float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         float b_val = B[kk * N + jj];
         sum0 += A[kk * M + ii + 0] * b_val;
         sum1 += A[kk * M + ii + 1] * b_val;
@@ -376,10 +379,10 @@ inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const
   }
 
   for (; ii < i_max; ++ii) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec = _mm256_setzero_ps();
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 a_vec = _mm256_broadcast_ss(&A[kk * M + ii]);
         __m256 b_vec = _mm256_loadu_ps(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_ps(a_vec, b_vec, c_vec);
@@ -389,7 +392,7 @@ inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const
 
     for (; jj < j_max; ++jj) {
       float sum = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[kk * M + ii] * B[kk * N + jj];
       }
       C[ii * N + jj] += sum;
@@ -397,20 +400,20 @@ inline void sgemm_kernel_avx2_tn(const float *A, const float *B, float *C, const
   }
 }
 
-inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *C, const int M,
-                                         const int N, const int K, const int i, const int j,
-                                         const int k, const int i_max, const int j_max,
-                                         const int k_max) {
-  int ii = i;
+inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *C, const size_t M,
+                                         const size_t N, const size_t K, const size_t i,
+                                         const size_t j, const size_t k, const size_t i_max,
+                                         const size_t j_max, const size_t k_max) {
+  size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec_0 = _mm256_setzero_ps();
       __m256 c_vec_1 = _mm256_setzero_ps();
       __m256 c_vec_2 = _mm256_setzero_ps();
       __m256 c_vec_3 = _mm256_setzero_ps();
 
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 b_vec = _mm256_load_ps(&B[kk * N + jj]);
         __m256 a_vec_0 = _mm256_broadcast_ss(&A[kk * M + ii + 0]);
         __m256 a_vec_1 = _mm256_broadcast_ss(&A[kk * M + ii + 1]);
@@ -432,7 +435,7 @@ inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *
     }
     for (; jj < j_max; ++jj) {
       float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         float b_val = B[kk * N + jj];
         sum0 += A[kk * M + ii + 0] * b_val;
         sum1 += A[kk * M + ii + 1] * b_val;
@@ -446,10 +449,10 @@ inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *
     }
   }
   for (; ii < i_max; ++ii) {
-    int jj = j;
+    size_t jj = j;
     for (; jj + 7 < j_max; jj += 8) {
       __m256 c_vec = _mm256_setzero_ps();
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         __m256 a_vec = _mm256_broadcast_ss(&A[kk * M + ii]);
         __m256 b_vec = _mm256_load_ps(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_ps(a_vec, b_vec, c_vec);
@@ -458,7 +461,7 @@ inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *
     }
     for (; jj < j_max; ++jj) {
       float sum = 0.0f;
-      for (int kk = k; kk < k_max; ++kk) {
+      for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[kk * M + ii] * B[kk * N + jj];
       }
       C[ii * N + jj] += sum;
@@ -467,39 +470,39 @@ inline void sgemm_kernel_avx2_tn_aligned(const float *A, const float *B, float *
 }
 #endif
 
-void sgemm(const float *A, const float *B, float *C, const int M, const int N, const int K,
+void sgemm(const float *A, const float *B, float *C, const size_t M, const size_t N, const size_t K,
            const bool trans_A, const bool trans_B) {
 #ifdef __AVX2__
   bool all_aligned = is_aligned_32(A) && is_aligned_32(B) && is_aligned_32(C);
 
-  int M_BLOCK_SIZE, N_BLOCK_SIZE, K_BLOCK_SIZE;
+  size_t M_BLOCK_SIZE, N_BLOCK_SIZE, K_BLOCK_SIZE;
 
   if (!trans_A && !trans_B) {
     M_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
     N_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
     K_BLOCK_SIZE = DEFAULT_BLOCK_SIZE * 2;
-    int M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
-    int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
+    size_t M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
+    size_t N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_nn_aligned(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
     } else {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_nn(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
@@ -509,28 +512,28 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     N_BLOCK_SIZE = DEFAULT_BLOCK_SIZE / 2;
     K_BLOCK_SIZE = DEFAULT_BLOCK_SIZE * 16;
 
-    int M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
-    int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
+    size_t M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
+    size_t N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_nt_aligned(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
     } else {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_nt(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
@@ -539,28 +542,28 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     M_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
     N_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
     K_BLOCK_SIZE = DEFAULT_BLOCK_SIZE;
-    int M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
-    int N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
+    size_t M_blocks = (M + M_BLOCK_SIZE - 1) / M_BLOCK_SIZE;
+    size_t N_blocks = (N + N_BLOCK_SIZE - 1) / N_BLOCK_SIZE;
 
     if (all_aligned) {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_tn_aligned(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
     } else {
-      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](int block_i, int block_j) {
-        int i = block_i * M_BLOCK_SIZE;
-        int j = block_j * N_BLOCK_SIZE;
-        for (int k = 0; k < K; k += K_BLOCK_SIZE) {
-          int i_max = std::min(i + M_BLOCK_SIZE, M);
-          int j_max = std::min(j + N_BLOCK_SIZE, N);
-          int k_max = std::min(k + K_BLOCK_SIZE, K);
+      tthreads::parallel_for_2d(M_blocks, N_blocks, [&](size_t block_i, size_t block_j) {
+        size_t i = block_i * M_BLOCK_SIZE;
+        size_t j = block_j * N_BLOCK_SIZE;
+        for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
+          size_t i_max = std::min(i + M_BLOCK_SIZE, M);
+          size_t j_max = std::min(j + N_BLOCK_SIZE, N);
+          size_t k_max = std::min(k + K_BLOCK_SIZE, K);
           sgemm_kernel_avx2_tn(A, B, C, M, N, K, i, j, k, i_max, j_max, k_max);
         }
       });
@@ -573,18 +576,18 @@ void sgemm(const float *A, const float *B, float *C, const int M, const int N, c
     free(D);
   }
 #else
-  const int BLOCK_SIZE = 32;
+  const size_t BLOCK_SIZE = 32;
 
-  for (int i = 0; i < M; i += BLOCK_SIZE) {
-    for (int j = 0; j < N; j += BLOCK_SIZE) {
-      for (int k = 0; k < K; k += BLOCK_SIZE) {
-        int i_max = std::min(i + BLOCK_SIZE, M);
-        int j_max = std::min(j + BLOCK_SIZE, N);
-        int k_max = std::min(k + BLOCK_SIZE, K);
-        for (int ii = i; ii < i_max; ++ii) {
-          for (int jj = j; jj < j_max; ++jj) {
+  for (size_t i = 0; i < M; i += BLOCK_SIZE) {
+    for (size_t j = 0; j < N; j += BLOCK_SIZE) {
+      for (size_t k = 0; k < K; k += BLOCK_SIZE) {
+        size_t i_max = std::min(i + BLOCK_SIZE, M);
+        size_t j_max = std::min(j + BLOCK_SIZE, N);
+        size_t k_max = std::min(k + BLOCK_SIZE, K);
+        for (size_t ii = i; ii < i_max; ++ii) {
+          for (size_t jj = j; jj < j_max; ++jj) {
             float sum = C[ii * N + jj];
-            for (int kk = k; kk < k_max; ++kk) {
+            for (size_t kk = k; kk < k_max; ++kk) {
               float a_val = trans_A ? A[kk * M + ii] : A[ii * K + kk];
               float b_val = trans_B ? B[jj * K + kk] : B[kk * N + jj];
               sum += a_val * b_val;

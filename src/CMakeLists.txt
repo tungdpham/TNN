@@ -106,9 +106,9 @@ target_include_directories(dcnn_nn PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 if(NOT MSVC)
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading dcnn_math)
 else()
-    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading)
+    target_link_libraries(dcnn_nn PUBLIC dcnn_tensor dcnn_utils dcnn_data_loading dcnn_math)
 endif()
 target_link_libraries(dcnn_nn PUBLIC nlohmann_json::nlohmann_json)
 
