@@ -10,6 +10,7 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "math/gemm.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "threading/thread_handler.hpp"
 #include "utils/ops.hpp"
@@ -136,10 +137,12 @@ template <typename T>
 void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
                                           const size_t batch_size, const size_t input_features,
                                           const size_t output_features) const {
-  tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
-    output_data[n * output_features + out_f] = utils::simd_dot_product(
-        &weight_data[out_f * input_features], &input_data[n * input_features], input_features);
-  });
+  // tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
+  //   output_data[n * output_features + out_f] = utils::simd_dot_product(
+  //       &weight_data[out_f * input_features], &input_data[n * input_features], input_features);
+  // });
+  tmath::sgemm(input_data, weight_data, output_data, batch_size, output_features, input_features,
+               false, true);
 }
 
 template <typename T>
@@ -308,6 +311,6 @@ uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_sha
 }
 
 template class DenseLayer<float>;
-template class DenseLayer<double>;
+// template class DenseLayer<double>;
 
 } // namespace tnn

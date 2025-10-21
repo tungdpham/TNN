@@ -29,14 +29,7 @@ namespace tpipeline {
 
 class Coordinator {
 public:
-  Coordinator(tnn::Sequential<float> model,
-              const Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
-              const std::vector<Endpoint> &remote_endpoints = {})
-      : model_(std::move(model)), coordinator_endpoint_(coordinator_endpoint),
-        remote_endpoints_(std::move(remote_endpoints)) {
-    num_stages_ = static_cast<int>(remote_endpoints_.size());
-    num_microbatches_ = 1;
-  }
+  Coordinator(tnn::Sequential<float> model) : model_(std::move(model)) {}
 
   virtual ~Coordinator() {
     if (message_thread_.joinable()) {
@@ -50,7 +43,6 @@ public:
       stage_names_.push_back("stage_" + std::to_string(i));
     }
     initialize_partitions();
-    initialize_communicator();
     initialize_topology();
   }
 
@@ -523,6 +515,12 @@ private:
   }
 
   void initialize_topology() {
+    if (coordinator_endpoint_.communication_type() == "") {
+      throw std::runtime_error("Coordinator endpoint is not set");
+    }
+    if (remote_endpoints_.size() != static_cast<size_t>(num_stages_)) {
+      throw std::runtime_error("Remote endpoints size does not match number of stages");
+    }
     auto splitted_model = this->model_.split(this->partitions_);
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
@@ -565,8 +563,6 @@ private:
   }
 
 protected:
-  virtual void initialize_communicator() = 0;
-
   // Training Parameters
   int num_stages_;
   int num_microbatches_ = 1;
@@ -574,7 +570,7 @@ protected:
 
   // Components of the coordinator
   tnn::Sequential<float> model_;
-  std::shared_ptr<Communicator> coordinator_comm_;
+  std::unique_ptr<Communicator> coordinator_comm_;
   std::unique_ptr<tnn::Loss<float>> loss_function_;
   std::unique_ptr<partitioner::Partitioner<float>> partitioner_;
   Endpoint coordinator_endpoint_;

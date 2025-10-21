@@ -21,27 +21,26 @@ public:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(tnn::Sequential<float> model, Endpoint coordinator_endpoint,
-                       const size_t num_stages)
-      : Coordinator(std::move(model), coordinator_endpoint, std::vector<Endpoint>(num_stages)) {
-    this->model_ = std::move(model);
-    this->coordinator_endpoint_ = coordinator_endpoint;
+  InProcessCoordinator(tnn::Sequential<float> model, const size_t num_stages)
+      : Coordinator(std::move(model)) {
+    // Initialize in-process communicator for the coordinator
+    this->coordinator_comm_ = std::make_unique<InProcessCommunicator>();
+    this->add_message_callback();
+
+    this->coordinator_endpoint_ = Endpoint::in_process(this->coordinator_comm_.get());
+
+    // Initialize in-process communicators for each stage
     std::vector<std::unique_ptr<InProcessCommunicator>> stage_comms(num_stages);
     for (size_t i = 0; i < num_stages; ++i) {
       stage_comms[i] = std::make_unique<InProcessCommunicator>();
     }
-    this->remote_endpoints_ = std::vector<Endpoint>(num_stages);
-    temp_stages_ = std::vector<std::unique_ptr<InProcessPipelineStage>>(num_stages);
+    temp_stages_.resize(num_stages);
+    // Initialize remote endpoints and stages
     for (size_t i = 0; i < num_stages; ++i) {
       this->remote_endpoints_[i] = Endpoint::in_process(stage_comms[i].get());
       temp_stages_[i] = std::make_unique<InProcessPipelineStage>(std::move(stage_comms[i]));
     }
     this->num_stages_ = static_cast<int>(num_stages);
-  }
-
-  void initialize_communicator() override {
-    auto in_process_comm = std::make_shared<InProcessCommunicator>();
-    this->add_message_callback();
   }
 
   std::vector<std::unique_ptr<PipelineStage>> get_stages() {

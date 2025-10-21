@@ -17,16 +17,19 @@ class Communicator;
 
 struct Endpoint {
 private:
-  std::string communication_type;
-  std::unordered_map<std::string, std::any> parameters;
+  std::string communication_type_;
+  std::unordered_map<std::string, std::any> parameters_;
 
 public:
   Endpoint() = default;
-  explicit Endpoint(std::string comm_type) : communication_type(std::move(comm_type)) {}
+
+  explicit Endpoint(std::string comm_type) : communication_type_(std::move(comm_type)) {}
+
+  const std::string &communication_type() const { return communication_type_; }
 
   template <typename T> T get_parameter(const std::string &key) const {
-    auto it = parameters.find(key);
-    if (it == parameters.end()) {
+    auto it = parameters_.find(key);
+    if (it == parameters_.end()) {
       throw std::runtime_error("Parameter " + key + " not found");
     }
     try {
@@ -37,7 +40,7 @@ public:
   }
 
   template <typename T> void set_parameter(const std::string &key, T value) {
-    parameters[key] = std::move(value);
+    parameters_[key] = std::move(value);
   }
 
   static Endpoint network(const std::string &host, int port) {
@@ -55,10 +58,10 @@ public:
 
   nlohmann::json to_json() const {
     nlohmann::json j;
-    j["communication_type"] = communication_type;
+    j["communication_type_"] = communication_type_;
     nlohmann::json param_json = nlohmann::json::object();
 
-    for (const auto &pair : parameters) {
+    for (const auto &pair : parameters_) {
       const auto &key = pair.first;
       const auto &val = pair.second;
 
@@ -75,17 +78,17 @@ public:
       }
     }
 
-    j["parameters"] = param_json;
+    j["parameters_"] = param_json;
     return j;
   }
 
   static Endpoint from_json(const nlohmann::json &j) {
     Endpoint endpoint;
-    endpoint.communication_type = j.at("communication_type").get<std::string>();
+    endpoint.communication_type_ = j.at("communication_type_").get<std::string>();
 
-    if (j.contains("parameters")) {
-      for (auto &[key, value] : j["parameters"].items()) {
-        endpoint.parameters[key] = value.get<std::string>();
+    if (j.contains("parameters_")) {
+      for (auto &[key, value] : j["parameters_"].items()) {
+        endpoint.parameters_[key] = value.get<std::string>();
       }
     }
     return endpoint;

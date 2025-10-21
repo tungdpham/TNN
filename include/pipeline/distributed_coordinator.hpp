@@ -32,14 +32,18 @@ public:
   DistributedCoordinator(tnn::Sequential<float> model,
                          Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
                          const std::vector<Endpoint> &endpoints = {})
-      : Coordinator(std::move(model), coordinator_endpoint, endpoints) {}
+      : Coordinator(std::move(model)) {
+    // Initialize coordinator and remote endpoints
+    this->coordinator_endpoint_ = coordinator_endpoint;
+    this->remote_endpoints_ = endpoints;
+    this->num_stages_ = static_cast<int>(endpoints.size());
 
-  ~DistributedCoordinator() = default;
-
-  void initialize_communicator() override {
+    // Initialize TCP communicator for the coordinator
     this->coordinator_comm_ = std::make_unique<TcpCommunicator>(coordinator_endpoint_);
     this->add_message_callback();
   }
+
+  ~DistributedCoordinator() = default;
 };
 
 } // namespace tpipeline
