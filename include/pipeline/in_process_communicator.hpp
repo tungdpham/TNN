@@ -12,7 +12,9 @@
 namespace tpipeline {
 class InProcessCommunicator : public Communicator {
 public:
-  InProcessCommunicator() : shutdown_flag_(false) { start_delivery_thread(); }
+  InProcessCommunicator() : shutdown_flag_(false) {
+    delivery_thread_ = std::thread(&InProcessCommunicator::delivery_loop, this);
+  }
 
   ~InProcessCommunicator() {
     shutdown_flag_ = true;
@@ -31,36 +33,36 @@ public:
     outgoing_cv_.notify_one();
   }
 
-  void start_delivery_thread() {
-    delivery_thread_ = std::thread([this]() {
-      while (!shutdown_flag_) {
-        std::unique_lock<std::mutex> lock(this->out_message_mutex_);
-        outgoing_cv_.wait(lock,
-                          [this]() { return !this->out_message_queue_.empty() || shutdown_flag_; });
+  void delivery_loop() {
+    while (!shutdown_flag_) {
+      std::unique_lock<std::mutex> lock(this->out_message_mutex_);
+      outgoing_cv_.wait(lock,
+                        [this]() { return !this->out_message_queue_.empty() || shutdown_flag_; });
 
-        if (shutdown_flag_) {
-          break;
-        }
+      if (shutdown_flag_) {
+        break;
+      }
 
-        if (this->out_message_queue_.empty()) {
-          continue;
-        }
-
-        Message outgoing = std::move(this->out_message_queue_.front());
+      while (!this->out_message_queue_.empty()) {
+        lock.lock();
+        auto msg = this->out_message_queue_.front();
         this->out_message_queue_.pop();
         lock.unlock();
-
         try {
-          std::lock_guard<std::mutex> comm_lock(communicators_mutex_);
-          auto it = communicators_.find(outgoing.header.recipient_id);
-          if (it != communicators_.end() && it->second) {
-            it->second->enqueue_input_message(outgoing);
+          Endpoint recipient_endpoint = this->get_recipient(msg.header.recipient_id);
+          Communicator *recipient_comm =
+              recipient_endpoint.get_parameter<Communicator *>("communicator");
+          if (recipient_comm == nullptr) {
+            throw std::runtime_error("Recipient communicator is null for " +
+                                     msg.header.recipient_id);
           }
+          recipient_comm->enqueue_input_message(msg);
         } catch (const std::exception &e) {
-          std::cerr << "Error delivering message: " << e.what() << std::endl;
+          std::cerr << "Failed to deliver message to " << msg.header.recipient_id << ": "
+                    << e.what() << std::endl;
         }
       }
-    });
+    }
   }
 
   void flush_output_messages() override {
@@ -82,16 +84,9 @@ public:
     return true;
   }
 
-  void register_communicator(const std::string &id,
-                             const std::shared_ptr<Communicator> &communicator) {
-    std::lock_guard<std::mutex> lock(communicators_mutex_);
-    communicators_[id] = communicator;
-  }
-
 private:
   std::condition_variable outgoing_cv_;
   std::thread delivery_thread_;
-  std::unordered_map<std::string, std::shared_ptr<Communicator>> communicators_;
   mutable std::mutex communicators_mutex_;
   std::atomic<bool> shutdown_flag_;
 };

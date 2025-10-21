@@ -276,10 +276,14 @@ protected:
     }
   }
 
-  virtual void setup_stage_connections(const StageConfig &config) = 0;
+  void setup_stage_connections(const StageConfig &config) {
+    this->communicator_->connect("coordinator", config.coordinator_endpoint);
+    this->communicator_->connect("next_stage", config.next_stage_endpoint);
+    this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
+  }
 
   std::unique_ptr<tnn::Sequential<float>> model_;
-  std::unique_ptr<Communicator> communicator_;
+  std::shared_ptr<Communicator> communicator_;
   std::string name_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;

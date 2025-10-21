@@ -115,11 +115,5 @@ private:
   int max_ecore_threads_;
   utils::HardwareInfo hw_info_;
   std::unique_ptr<utils::ThreadAffinity> thread_affinity_;
-
-  void setup_stage_connections(const StageConfig &config) {
-    this->communicator_->connect("coordinator", config.coordinator_endpoint);
-    this->communicator_->connect("next_stage", config.next_stage_endpoint);
-    this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
-  }
 };
 } // namespace tpipeline

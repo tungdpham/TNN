@@ -47,7 +47,7 @@ public:
     return endpoint;
   }
 
-  static Endpoint in_process(std::shared_ptr<Communicator> comm) {
+  static Endpoint in_process(Communicator *comm) {
     Endpoint endpoint("in_process");
     endpoint.set_parameter("communicator", comm);
     return endpoint;
