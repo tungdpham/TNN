@@ -2,7 +2,7 @@
 #include "tensor/tensor_extended.hpp"
 #include "utils/misc.hpp"
 constexpr size_t N = 64;
-constexpr size_t C = 128;
+constexpr size_t C = 256;
 constexpr size_t H = 32;
 constexpr size_t W = 32;
 
