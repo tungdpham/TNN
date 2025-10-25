@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.18)
 
 project(DCNN LANGUAGES CXX)
 
-# Add cmake modules directory to module path
+# Add cmake modules directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 set(NASM_DIR "" CACHE PATH "Path to NASM executable") # User can set this to their NASM path
@@ -36,7 +36,6 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Project options - users configure these
 option(ENABLE_OPENMP "Enable OpenMP support" OFF)
 option(ENABLE_CUDA "Enable CUDA support" OFF)
 option(ENABLE_TBB "Enable Intel TBB support" ON)
@@ -53,7 +52,6 @@ if(ENABLE_DEBUG)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-# Include modular cmake files
 include(Dependencies)
 
 # Find packages

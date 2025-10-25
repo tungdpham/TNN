@@ -25,7 +25,7 @@ void benchmark(const Tensor<float, NCHW> &input, const size_t kernel_h, const si
 
   Matrix<float> col3;
   benchmark("im2col explicit padding", [&]() {
-    col3 = im2col(input.pad(pad_h, pad_w), kernel_h, kernel_w, stride_h, stride_w, 0, 0);
+    col3 = im2col(pad(input, pad_h, pad_w), kernel_h, kernel_w, stride_h, stride_w, 0, 0);
   });
 
   Tensor<float, NCHW> output;

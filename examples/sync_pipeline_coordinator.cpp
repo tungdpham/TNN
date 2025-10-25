@@ -143,9 +143,9 @@ int main() {
     float loss = 0.0f, avg_accuracy = 0.0f;
     auto split_start = std::chrono::high_resolution_clock::now();
 
-    std::vector<Tensor<float>> micro_batches = batch_data.split(num_microbatches);
+    std::vector<Tensor<float>> micro_batches = split(batch_data, num_microbatches);
 
-    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(num_microbatches);
+    std::vector<Tensor<float>> micro_batch_labels = split(batch_labels, num_microbatches);
     auto split_end = std::chrono::high_resolution_clock::now();
     auto split_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(split_end - split_start);
@@ -176,7 +176,6 @@ int main() {
 
     std::vector<tpipeline::Task<float>> backward_tasks;
     for (auto &task : forward_tasks) {
-      task.data.apply_softmax();
       loss += loss_function->compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
       avg_accuracy +=
           utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);
@@ -249,9 +248,9 @@ int main() {
   int val_batches = 0;
   while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
 
-    std::vector<Tensor<float>> micro_batches = batch_data.split(num_microbatches);
+    std::vector<Tensor<float>> micro_batches = split(batch_data, num_microbatches);
 
-    std::vector<Tensor<float>> micro_batch_labels = batch_labels.split(num_microbatches);
+    std::vector<Tensor<float>> micro_batch_labels = split(batch_labels, num_microbatches);
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
@@ -276,7 +275,6 @@ int main() {
     }
 
     for (auto &task : forward_tasks) {
-      task.data.apply_softmax();
       val_loss += loss_function->compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
       val_accuracy +=
           utils::compute_class_accuracy<float>(task.data, micro_batch_labels[task.micro_batch_id]);

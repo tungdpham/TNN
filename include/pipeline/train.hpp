@@ -26,9 +26,9 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
 
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     // Split batch into micro-batches
-    std::vector<Tensor<float>> micro_batches = batch_data.split(coordinator.num_microbatches());
+    std::vector<Tensor<float>> micro_batches = split(batch_data, coordinator.num_microbatches());
     std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(coordinator.num_microbatches());
+        split(batch_labels, coordinator.num_microbatches());
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
@@ -74,10 +74,10 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
   int val_batches = 0;
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    std::vector<Tensor<float>> micro_batches = batch_data.split(coordinator.num_microbatches());
+    std::vector<Tensor<float>> micro_batches = split(batch_data, coordinator.num_microbatches());
 
     std::vector<Tensor<float>> micro_batch_labels =
-        batch_labels.split(coordinator.num_microbatches());
+        split(batch_labels, coordinator.num_microbatches());
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);

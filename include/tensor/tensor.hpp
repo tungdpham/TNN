@@ -11,7 +11,6 @@
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
-#include <iostream>
 #include <memory>
 #include <numeric>
 #include <random>
@@ -35,10 +34,6 @@
 #endif
 
 #include "threading/thread_handler.hpp"
-
-#ifdef __AVX2__
-#include <immintrin.h>
-#endif
 
 enum ALIGNMENT_TYPE { MKL = 64, AVX2 = 32, DEFAULT = 16 };
 
@@ -316,9 +311,7 @@ public:
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-
     utils::avx2_mul_scalar(data_, scalar, data_, data_size_);
-
     return *this;
   }
 
@@ -326,13 +319,13 @@ public:
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
-
     utils::avx2_div_scalar(data_, scalar, data_, data_size_);
-
     return *this;
   }
 
   std::vector<size_t> shape() const { return std::vector<size_t>(shape_, shape_ + dims_); }
+
+  std::vector<size_t> strides() const { return std::vector<size_t>(strides_, strides_ + dims_); }
 
   std::string shape_str() const {
     std::ostringstream oss;
@@ -420,166 +413,6 @@ public:
     return Tensor<T, L>(new_shape, data_);
   }
 
-  Tensor<T, L> pad(size_t pad_h, size_t pad_w, T value = T(0)) const {
-    assert(dims_ == 4 && "Padding only supported for 4D tensors");
-    if (pad_h == 0 && pad_w == 0) {
-      return *this;
-    }
-
-    if (L == Layout::NCHW) {
-      const size_t batch_size_ = batch_size();
-      const size_t channels_ = channels();
-      const size_t height_ = height();
-      const size_t width_ = width();
-
-      Tensor<T, L> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w, nullptr);
-
-      const T *input_data = this->data();
-      T *result_data = result.data();
-
-      tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-        const size_t padded_height = height_ + 2 * pad_h;
-        const size_t padded_width = width_ + 2 * pad_w;
-        // fill top padding rows
-        for (size_t h = 0; h < pad_h; ++h) {
-          std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                    &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                        padded_width,
-                    value);
-        }
-
-        // Copy middle rows with left and right padding
-        for (size_t h = 0; h < height_; ++h) {
-          const size_t new_h = h + pad_h;
-          // copy the row over
-          std::copy(
-              &input_data[((n * channels_ + c) * height_ + h) * width_],
-              &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
-              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
-
-          // set values on left and right
-          std::fill(
-              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
-              &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
-              value);
-          std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
-                                 pad_w + width_],
-                    &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width +
-                                 padded_width],
-                    value);
-        }
-
-        // fill bottom padding rows
-        for (size_t h = height_ + pad_h; h < padded_height; ++h) {
-          std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                    &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                        padded_width,
-                    value);
-        }
-      });
-
-      return result;
-    } else {
-      throw std::runtime_error("Unsupported tensor layout for padding");
-    }
-  }
-
-  Tensor<T, L> unpad(size_t pad_h, size_t pad_w) const {
-    assert(dims_ == 4 && "Unpadding only supported for 4D tensors");
-    if (pad_h == 0 && pad_w == 0) {
-      return this->clone();
-    }
-
-    const size_t batch_size_ = batch_size();
-    const size_t channels_ = channels();
-    const size_t height_ = height();
-    const size_t width_ = width();
-
-    if (height_ <= 2 * pad_h || width_ <= 2 * pad_w) {
-      throw std::invalid_argument("Padding size too large for unpadding");
-    }
-
-    Tensor<T, L> result(batch_size_, channels_, height_ - 2 * pad_h, width_ - 2 * pad_w, nullptr);
-
-    const T *input_data = this->data();
-    T *result_data = result.data();
-
-    tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-      for (size_t h = 0; h < height_ - 2 * pad_h; ++h) {
-        const size_t src_h = h + pad_h;
-        std::copy(
-            &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w],
-            &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w] +
-                (width_ - 2 * pad_w),
-            &result_data[((n * channels_ + c) * (height_ - 2 * pad_h) + h) * (width_ - 2 * pad_w)]);
-      }
-    });
-
-    return result;
-  }
-
-  Tensor<T, L> crop(const size_t start_h, const size_t start_w, const size_t end_h,
-                    const size_t end_w) const {
-    if constexpr (dims_ != 4) {
-      throw std::runtime_error("2D cropping only supported for 4D tensors");
-    }
-
-    if (end_h >= height() || end_w >= width() || start_h > end_h || start_w > end_w) {
-      throw std::invalid_argument("Invalid crop dimensions");
-    }
-
-    if (L == NCHW) {
-      const size_t new_height = end_h - start_h + 1;
-      const size_t new_width = end_w - start_w + 1;
-
-      const size_t batch_size_ = batch_size();
-      const size_t channels_ = channels();
-      const size_t height_ = height();
-      const size_t width_ = width();
-      Tensor<T, L> result(batch_size_, channels_, new_height, new_width, nullptr);
-
-      T *result_data = result.data();
-      for (size_t n = 0; n < batch_size_; ++n) {
-        for (size_t c = 0; c < channels_; ++c) {
-          for (size_t h = 0; h < new_height; ++h) {
-            std::copy(&data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w],
-                      &data_[((n * channels_ + c) * height_ + (h + start_h)) * width_ + start_w] +
-                          new_width,
-                      &result_data[((n * channels_ + c) * new_height + h) * new_width]);
-          }
-        }
-      }
-      return result;
-    } else {
-      throw std::runtime_error("Unsupported tensor layout for cropping");
-    }
-  }
-
-  /**
-   * @brief Slice the tensor along the batch dimension.
-   * @param start_batch Starting batch index (inclusive)
-   * @param end_batch Ending batch index (exclusive)
-   * @return A new tensor containing the sliced batches
-   */
-  Tensor<T, L> slice_batch(size_t start_batch, size_t end_batch) const {
-    if (end_batch > batch_size() || start_batch > end_batch) {
-      throw std::invalid_argument("Invalid batch slice range");
-    }
-
-    size_t new_batch_size = end_batch - start_batch;
-    std::vector<size_t> new_shape(shape_, shape_ + dims_);
-    new_shape[0] = new_batch_size;
-    Tensor<T, L> result(new_shape);
-
-    T *result_data = result.data();
-    std::copy(&data_[start_batch * strides_[0]], &data_[end_batch * strides_[0]], result_data);
-
-    return result;
-  }
-
-  /**
-   * @brief Copy a specific batch from another tensor to this tensor.
-   */
   void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) const {
     if (dest_batch_idx >= batch_size() || src_batch_idx >= other.batch_size()) {
       throw std::invalid_argument("Invalid batch index for copy");
@@ -588,38 +421,6 @@ public:
     std::copy(&other.data_[src_batch_idx * other.strides_[0]],
               &other.data_[(src_batch_idx + 1) * other.strides_[0]],
               &data_[dest_batch_idx * strides_[0]]);
-  }
-
-  /**
-   * @brief Slice the tensor along the channel dimension.
-   * @param start_ch Starting channel index (inclusive)
-   * @param end_ch Ending channel index (inclusive)
-   * @return A new tensor containing the sliced channels
-   * Note: Only supports 4D tensors (NCHW layout)
-   */
-  Tensor<T, L> slice_channels(size_t start_ch, size_t end_ch) const {
-    if (end_ch >= channels() || start_ch > end_ch) {
-      throw std::invalid_argument("Invalid channel slice range");
-    }
-
-    size_t new_channels = end_ch - start_ch + 1;
-
-    if constexpr (L == NCHW) {
-      Tensor<T, L> result(batch_size(), new_channels, height(), width());
-
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < new_channels; ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              result(n, c, h, w) = (*this)(n, start_ch + c, h, w);
-            }
-          }
-        }
-      }
-      return result;
-    } else {
-      throw std::runtime_error("Unsupported tensor layout for channel slicing");
-    }
   }
 
   T mean() const {
@@ -655,85 +456,6 @@ public:
     }
 
     return means;
-  }
-
-  void apply_softmax() {
-    // Only supports 4D tensors (NCHW layout)
-    if (dims_ != 4) {
-      throw std::invalid_argument("apply_softmax() only supports 4D tensors");
-    }
-
-    const size_t batch_size = shape_[0];
-    const size_t num_classes = shape_[1];
-    const size_t height = shape_[2];
-    const size_t width = shape_[3];
-
-    // Apply softmax across channels at each spatial location
-    for (size_t batch = 0; batch < batch_size; ++batch) {
-      for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; ++w) {
-          // Find max value for numerical stability
-          T max_val = (*this)(batch, 0, h, w);
-          for (size_t c = 1; c < num_classes; ++c) {
-            max_val = std::max(max_val, (*this)(batch, c, h, w));
-          }
-
-          // Apply exp and sum
-          T sum = T(0);
-          for (size_t c = 0; c < num_classes; ++c) {
-            const T exp_val = std::exp((*this)(batch, c, h, w) - max_val);
-            (*this)(batch, c, h, w) = exp_val;
-            sum += exp_val;
-          }
-
-          // Normalize with numerical stability protection
-          const T inv_sum = T(1) / std::max(sum, static_cast<T>(1e-8));
-          for (size_t c = 0; c < num_classes; ++c) {
-            (*this)(batch, c, h, w) *= inv_sum;
-          }
-        }
-      }
-    }
-  }
-
-  std::vector<Tensor<T>> split(size_t num_splits) const {
-    if (num_splits == 0 || num_splits > batch_size()) {
-      throw std::invalid_argument("Invalid number of splits");
-    }
-
-    std::vector<Tensor<T>> splits;
-    size_t split_size = batch_size() / num_splits;
-
-    for (size_t i = 0; i < num_splits; ++i) {
-      size_t start = i * split_size;
-      size_t end = (i == num_splits - 1) ? batch_size() : start + split_size;
-
-      if constexpr (dims_ == 4) {
-        splits.emplace_back(slice_batch(start, end));
-      } else {
-        throw std::runtime_error("Unsupported tensor dimensionality for splitting");
-      }
-    }
-    return splits;
-  }
-
-  template <Layout New_Layout> Tensor<T, New_Layout> as_layout() const {
-    Tensor<T, New_Layout> result(this->shape());
-
-    if constexpr (dims_ == 4) {
-      for (size_t n = 0; n < shape_[0]; ++n) {
-        for (size_t c = 0; c < shape_[1]; ++c) {
-          for (size_t h = 0; h < shape_[2]; ++h) {
-            for (size_t w = 0; w < shape_[3]; ++w) {
-              result(n, c, h, w) = (*this)(n, c, h, w);
-            }
-          }
-        }
-      }
-    } else {
-      throw std::runtime_error("Conversion for this dimensionality not implemented.");
-    }
-    return result;
   }
 
   void print_data() const {
@@ -782,4 +504,5 @@ public:
   }
 };
 
-#include "tensor/tensor_extended.hpp"
+#include "tensor_extended.hpp"
+#include "tensor_ops.hpp"

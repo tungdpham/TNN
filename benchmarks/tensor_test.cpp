@@ -6,7 +6,7 @@ int main() {
   std::cout << "Original tensor shape: " << tensor.shape_str() << std::endl;
   // tensor.print_data();
 
-  auto sliced_tensor = tensor.slice_batch(0, 16);
+  auto sliced_tensor = slice_batch(tensor, 0, 16);
   std::cout << "Sliced tensor shape: " << sliced_tensor.shape_str() << std::endl;
   // sliced_tensor.print_data();
 
@@ -27,7 +27,7 @@ int main() {
   }
   std::cout << "Slice verification passed!" << std::endl;
 
-  auto splits = tensor.split(4);
+  auto splits = split(tensor, 4);
   for (size_t i = 0; i < splits.size(); ++i) {
     std::cout << "Split " << i << " shape: " << splits[i].shape_str() << std::endl;
     // splits[i].print_data();

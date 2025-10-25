@@ -38,7 +38,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   std::unique_ptr<Tensor<T>> padded_input_storage;
 
   if (pad_h_ > 0 || pad_w_ > 0) {
-    padded_input_storage = std::make_unique<Tensor<T>>(input.pad(pad_h_, pad_w_, T(0)));
+    padded_input_storage = std::make_unique<Tensor<T>>(pad(input, pad_h_, pad_w_, T(0)));
     padded_input_ptr = padded_input_storage.get();
   } else {
     padded_input_ptr = &input;
@@ -98,7 +98,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
                             output_w, mask_indices);
 
   if (pad_h_ > 0 || pad_w_ > 0) {
-    return grad_padded_input.unpad(pad_h_, pad_w_);
+    return unpad(grad_padded_input, pad_h_, pad_w_);
   } else {
     return grad_padded_input;
   }
