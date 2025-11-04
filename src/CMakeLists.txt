@@ -38,6 +38,19 @@ target_include_directories(dcnn_utils PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
+# Device library
+file(GLOB_RECURSE DCNN_DEVICE_SOURCES 
+    "device/*.cpp"
+)
+add_library(dcnn_device STATIC ${DCNN_DEVICE_SOURCES})
+target_include_directories(dcnn_device PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+if(ENABLE_CUDA)
+    target_link_libraries(dcnn_device PUBLIC CUDA::cudart)
+endif()
+
 # add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
@@ -132,7 +145,7 @@ target_compile_definitions(dcnn_pipeline PUBLIC ASIO_STANDALONE)
 
 # Instantiations library
 add_library(dcnn_instantiations INTERFACE)
-target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils)
+target_link_libraries(dcnn_instantiations INTERFACE dcnn_pipeline dcnn_nn dcnn_data_loading dcnn_math dcnn_tensor dcnn_matrix dcnn_utils dcnn_device)
 
 # Main DCNN library
 add_library(dcnn_lib INTERFACE)
@@ -153,7 +166,7 @@ if(WIN32)
     endif()
 endif()
 
-set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils dcnn_math dcnn_data_loading dcnn_pipeline)
+set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils dcnn_math dcnn_data_loading dcnn_pipeline dcnn_device)
 
 if(ENABLE_OPENMP)
     foreach(lib ${INSTANTIATION_LIBS})
