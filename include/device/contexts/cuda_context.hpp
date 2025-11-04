@@ -13,6 +13,8 @@ class CUDAContext : public Context {
 public:
   explicit CUDAContext(int id);
 
+  size_t getTotalMemory() const override;
+  size_t getAvailableMemory() const override;
   void *allocateMemory(size_t size) override;
   void deallocateMemory(void *ptr) override;
   void copyToDevice(void *dest, const void *src, size_t size) override;

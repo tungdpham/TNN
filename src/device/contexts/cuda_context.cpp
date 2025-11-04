@@ -17,6 +17,26 @@ CUDAContext::CUDAContext(int id) : Context(id) {
   }
 }
 
+size_t CUDAContext::getTotalMemory() const {
+  size_t total_mem = 0;
+  cudaError_t err = cudaMemGetInfo(nullptr, &total_mem);
+  if (err != cudaSuccess) {
+    throw std::runtime_error("Failed to get total CUDA memory: " +
+                             std::string(cudaGetErrorString(err)));
+  }
+  return total_mem;
+}
+
+size_t CUDAContext::getAvailableMemory() const {
+  size_t free_mem = 0;
+  cudaError_t err = cudaMemGetInfo(&free_mem, nullptr);
+  if (err != cudaSuccess) {
+    throw std::runtime_error("Failed to get available CUDA memory: " +
+                             std::string(cudaGetErrorString(err)));
+  }
+  return free_mem;
+}
+
 void *CUDAContext::allocateMemory(size_t size) {
   void *ptr = nullptr;
   cudaError_t err = cudaMalloc(&ptr, size);

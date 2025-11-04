@@ -72,6 +72,10 @@ while [[ $# -gt 0 ]]; do
             ENABLE_MKL=ON
             shift
             ;;
+        --cuda)
+            ENABLE_CUDA=ON
+            shift
+            ;;
         *)
             echo -e "${RED}Unknown option: $1${NC}"
             show_help

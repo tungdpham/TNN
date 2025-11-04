@@ -2,6 +2,7 @@
 
 #include "context.hpp"
 #include <cstring>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -11,36 +12,31 @@ enum class DeviceType { CPU, GPU };
 
 class Device {
 public:
-  Device(DeviceType type, int id) : type_(type), id_(id) {}
-  ~Device() = default;
+  Device(DeviceType type, int id, std::string context_type);
+  ~Device();
 
-  const DeviceType &getDeviceType() const { return type_; }
+  // Move constructor and assignment operator
+  Device(Device &&other) noexcept;
+  Device &operator=(Device &&other) noexcept;
 
-  int getID() const { return id_; }
+  // Explicitly delete copy constructor and copy assignment operator
+  Device(const Device &) = delete;
+  Device &operator=(const Device &) = delete;
 
-  std::string getName() const {
-    switch (type_) {
-    case DeviceType::CPU:
-      return "CPU" + std::to_string(id_);
-    case DeviceType::GPU:
-      return "GPU" + std::to_string(id_);
-    default:
-      return "UNKNOWN";
-    }
-  }
-
+  const DeviceType &getDeviceType() const;
+  int getID() const;
+  std::string getName() const;
   size_t getTotalMemory() const;
   size_t getAvailableMemory() const;
-
-  void *allocateMemory(size_t size) const {}
+  void *allocateMemory(size_t size) const;
   void deallocateMemory(void *ptr) const;
   void copyToDevice(void *dest, const void *src, size_t size) const;
   void copyToHost(void *dest, const void *src, size_t size) const;
 
 private:
   DeviceType type_;
-  std::vector<Context *> contexts_;
   int id_;
+  std::unique_ptr<Context> context_;
 };
 
 } // namespace tdevice
