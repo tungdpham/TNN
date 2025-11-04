@@ -57,6 +57,12 @@ CTestTestfile.cmake
 **/CTestTestfile.cmake
 DartConfiguration.tcl
 
+# Google Test generated files
+**/*[[]?[]]_include.cmake
+**/*[[]?[]]_tests.cmake
+**/*_include.cmake
+**/*_tests.cmake
+
 # CMake temporary and generated files
 *.cmake.in
 cmake_uninstall.cmake

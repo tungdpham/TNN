@@ -83,3 +83,7 @@ include(Utils)
 
 add_subdirectory(examples)
 add_subdirectory(benchmarks)
+
+# Enable testing
+enable_testing()
+add_subdirectory(unit_tests)
