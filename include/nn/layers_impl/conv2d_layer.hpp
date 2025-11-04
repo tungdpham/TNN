@@ -90,3 +90,5 @@ protected:
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/conv2d_layer.tpp"

@@ -82,3 +82,5 @@ protected:
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/batchnorm_layer.tpp"

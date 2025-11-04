@@ -153,7 +153,7 @@ if(WIN32)
     endif()
 endif()
 
-set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils dcnn_math)
+set(INSTANTIATION_LIBS dcnn_matrix dcnn_tensor dcnn_nn dcnn_utils dcnn_math dcnn_data_loading dcnn_pipeline)
 
 if(ENABLE_OPENMP)
     foreach(lib ${INSTANTIATION_LIBS})

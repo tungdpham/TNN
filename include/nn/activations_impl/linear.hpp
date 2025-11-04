@@ -34,3 +34,5 @@ protected:
 };
 
 } // namespace tnn
+
+#include "nn/activations_impl/linear.tpp"

@@ -43,3 +43,5 @@ public:
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/flatten_layer.tpp"

@@ -40,3 +40,5 @@ private:
 };
 
 } // namespace tnn
+
+#include "nn/activations_impl/softmax.tpp"

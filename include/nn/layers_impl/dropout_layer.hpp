@@ -45,3 +45,5 @@ public:
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/dropout_layer.tpp"

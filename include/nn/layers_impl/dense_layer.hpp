@@ -79,3 +79,5 @@ protected:
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/dense_layer.tpp"

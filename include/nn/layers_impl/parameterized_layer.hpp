@@ -34,3 +34,5 @@ protected:
   bool initialized_ = false;
 };
 } // namespace tnn
+
+#include "nn/layers_impl/parameterized_layer.tpp"

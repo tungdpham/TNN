@@ -39,3 +39,5 @@ protected:
 };
 
 } // namespace tnn
+
+#include "nn/activations_impl/relu.tpp"
