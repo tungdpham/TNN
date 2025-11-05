@@ -38,8 +38,13 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 
   running_mean_ = Tensor<T>(num_features_, 1, 1, 1);
   running_var_ = Tensor<T>(num_features_, 1, 1, 1);
+  running_mean_gradients_ = Tensor<T>(num_features_, 1, 1, 1); // Dummy gradients
+  running_var_gradients_ = Tensor<T>(num_features_, 1, 1, 1);  // Dummy gradients
+
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
+  running_mean_gradients_.fill(T(0)); // Initialize dummy gradients to zero
+  running_var_gradients_.fill(T(0));  // Initialize dummy gradients to zero
 
   this->initialized_ = true;
 }
@@ -431,6 +436,8 @@ template <typename T> void BatchNormLayer<T>::collect_parameters(std::vector<Ten
     params.push_back(&gamma_);
     params.push_back(&beta_);
   }
+  params.push_back(&running_mean_);
+  params.push_back(&running_var_);
 }
 
 template <typename T> void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
@@ -438,6 +445,8 @@ template <typename T> void BatchNormLayer<T>::collect_gradients(std::vector<Tens
     grads.push_back(&gamma_gradients_);
     grads.push_back(&beta_gradients_);
   }
+  grads.push_back(&running_mean_gradients_);
+  grads.push_back(&running_var_gradients_);
 }
 
 template <typename T>
@@ -451,8 +460,10 @@ std::unique_ptr<Layer<T>> BatchNormLayer<T>::create_from_config(const LayerConfi
 }
 
 template <typename T> void BatchNormLayer<T>::clear_gradients() {
-  gamma_gradients_.fill(T(0));
-  beta_gradients_.fill(T(0));
+  if (affine_) {
+    gamma_gradients_.fill(T(0));
+    beta_gradients_.fill(T(0));
+  }
 }
 
 template <typename T>

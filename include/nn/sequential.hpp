@@ -749,6 +749,7 @@ public:
       throw std::runtime_error("Could not open weights file: " + path);
     }
     for (auto &layer : layers_) {
+      layer->initialize();
       if (layer->has_parameters()) {
         auto params = layer->parameters();
         for (auto &param : params) {
@@ -784,6 +785,7 @@ public:
     }
     for (auto &layer : model.layers_) {
       if (layer->has_parameters()) {
+        layer->initialize();
         auto params = layer->parameters();
         for (auto &param : params) {
           *param = Tensor<T>::load(weights_file);

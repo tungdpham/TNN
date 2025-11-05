@@ -32,6 +32,8 @@ private:
 
   Tensor<T> running_mean_;
   Tensor<T> running_var_;
+  Tensor<T> running_mean_gradients_; // dummy gradient
+  Tensor<T> running_var_gradients_;  // dummy gradient
 
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_normalized_;
