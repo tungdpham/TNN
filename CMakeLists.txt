@@ -34,14 +34,11 @@ include(Dependencies)
 
 # Find packages
 if(ENABLE_OPENMP)
-    message(STATUS "Finding OpenMP")
-    find_package(OpenMP REQUIRED)
+    include(FindOpenMP)
 endif()
 
 if(ENABLE_TBB)
-    message(STATUS "Finding TBB")
-    find_package(TBB CONFIG REQUIRED)
-    add_compile_definitions(USE_TBB)
+    include(FindTBB)
 endif()
 
 if(ENABLE_MKL)
@@ -49,13 +46,7 @@ if(ENABLE_MKL)
 endif()
 
 if(ENABLE_CUDA)
-    enable_language(CUDA)
-    find_package(CUDAToolkit REQUIRED)
-    add_compile_definitions(CUDA_ENABLED)
-    set(CMAKE_CUDA_STANDARD 17)
-    set(CMAKE_CUDA_FLAGS "-arch=sm_89 --compiler-options -fPIC")
-    set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
-    set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
+    include(FindCUDA)
 endif()
 
 # Compiler flags
