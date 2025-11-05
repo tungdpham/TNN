@@ -1,0 +1,5 @@
+function(link_windows_libs target_name)
+    if(WIN32)
+        target_link_libraries(${target_name} PRIVATE ${WINDOWS_LIBS})
+    endif()
+endfunction()

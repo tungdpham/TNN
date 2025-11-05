@@ -75,6 +75,12 @@ include_directories(
     ${asio_SOURCE_DIR}/asio/include
 )
 
+# Linkers
+include(LinkTBB)
+include(LinkMKL)
+include(LinkCUDA)
+include(LinkWindowsLibs)
+
 # Template libraries instantiations
 add_subdirectory(src)
 

@@ -1,0 +1,5 @@
+function(link_tbb target_name)
+    if(ENABLE_TBB)
+        target_link_libraries(${target_name} PRIVATE TBB::tbb)
+    endif()
+endfunction()
