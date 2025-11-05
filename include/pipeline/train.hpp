@@ -88,7 +88,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
     std::vector<tpipeline::Message> all_messages =
         coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
 
-    if (all_messages.size() != coordinator.num_microbatches()) {
+    if (all_messages.size() != static_cast<size_t>(coordinator.num_microbatches())) {
       throw std::runtime_error(
           "Unexpected number of messages: " + std::to_string(all_messages.size()) +
           ", expected: " + std::to_string(coordinator.num_microbatches()));
