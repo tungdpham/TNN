@@ -1,0 +1,5 @@
+function(link_openmp target)
+    if(ENABLE_OPENMP)
+        target_link_libraries(${target} PUBLIC OpenMP::OpenMP_CXX)
+    endif()
+endfunction()

@@ -1,13 +1,13 @@
 function(create_math_benchmark target_name source_file)
     add_executable(${target_name} ${source_file})
 
-    # Link core DCNN libraries
+    # Link core TNN libraries
     target_link_libraries(${target_name} PRIVATE
-        dcnn_lib 
-        dcnn_math 
-        dcnn_tensor 
-        dcnn_matrix 
-        dcnn_utils
+        tnn_lib 
+        tnn_math 
+        tnn_tensor 
+        tnn_matrix 
+        tnn_utils
     )
 
     link_tbb(${target_name})

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Build script for DCNN project
+# Build script for TNN project
 
 set -e 
 
@@ -85,7 +85,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # print build configuration
-echo -e "${GREEN}DCNN CMake Build Configuration:${NC}"
+echo -e "${GREEN}TNN CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  Intel TBB: $ENABLE_TBB"

@@ -1,57 +1,57 @@
 services:
-  dcnn-base:
+  tnn-base:
     build: .
-    image: dcnn:latest
+    image: tnn:latest
     
   worker-8001:
     profiles:
       - sync
       - semi-async
-    image: dcnn:latest
-    container_name: dcnn-worker-8001
+    image: tnn:latest
+    container_name: tnn-worker-8001
     command: ["./bin/network_worker", "8001"]
     hostname: worker-8001
     ports:
       - "8001:8001"
     networks:
-      - dcnn-network
+      - tnn-network
     cpuset: "0-3" # Assign first 4 CPU cores to this worker
     volumes:
       - .:/app
     depends_on:
-      - dcnn-base
+      - tnn-base
 
   worker-8002:
     profiles:
       - sync
       - semi-async
-    image: dcnn:latest
-    container_name: dcnn-worker-8002
+    image: tnn:latest
+    container_name: tnn-worker-8002
     command: ["./bin/network_worker", "8002"]
     hostname: worker-8002
     ports:
       - "8002:8002"
     networks:
-      - dcnn-network
+      - tnn-network
     cpuset: "4-7" # Assign next 4 CPU cores to this worker
     volumes:
       - .:/app
     depends_on:
-      - dcnn-base
+      - tnn-base
 
   sync-coordinator:
     profiles:
       - sync
-    image: dcnn:latest
-    container_name: dcnn-sync-coordinator
+    image: tnn:latest
+    container_name: tnn-sync-coordinator
     command: ["./bin/sync_pipeline_coordinator"]
     hostname: coordinator
     ports:
       - "8000:8000"
     networks:
-      - dcnn-network
+      - tnn-network
     depends_on:
-      - dcnn-base
+      - tnn-base
       - worker-8001
       - worker-8002
     environment:
@@ -63,16 +63,16 @@ services:
   semi-async-coordinator:
     profiles:
       - semi-async
-    image: dcnn:latest
-    container_name: dcnn-async-coordinator
+    image: tnn:latest
+    container_name: tnn-async-coordinator
     command: ["./bin/semi_async_pipeline_coordinator"]
     hostname: semi-async-coordinator
     ports:
       - "8000:8000"
     networks:
-      - dcnn-network
+      - tnn-network
     depends_on:
-      - dcnn-base
+      - tnn-base
       - worker-8001
       - worker-8002
     volumes:
@@ -86,17 +86,17 @@ services:
   single-model:
     profiles:
       - single-model
-    image: dcnn:latest
-    container_name: dcnn-single-model
+    image: tnn:latest
+    container_name: tnn-single-model
     command: ["./bin/cifar10_cnn_trainer_v2"]
     cpuset: "0-31" # Assign all CPU cores to this service
     volumes:
       - .:/app
     depends_on:
-      - dcnn-base
+      - tnn-base
 
 networks:
-  dcnn-network:
+  tnn-network:
     driver: bridge
     ipam:
       config:

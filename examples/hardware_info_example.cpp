@@ -9,7 +9,7 @@
 
 int main() {
   try {
-    std::cout << "=== DCNN Hardware Information Test ===" << std::endl;
+    std::cout << "=== TNN Hardware Information Test ===" << std::endl;
 
     utils::HardwareInfo hardware_info;
 

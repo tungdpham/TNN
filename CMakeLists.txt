@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(DCNN LANGUAGES CXX)
+project(TNN LANGUAGES CXX)
 
 # Add cmake modules directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -80,6 +80,7 @@ include(LinkTBB)
 include(LinkMKL)
 include(LinkCUDA)
 include(LinkWindowsLibs)
+include(LinkOpenMP)
 
 # Template libraries instantiations
 add_subdirectory(src)

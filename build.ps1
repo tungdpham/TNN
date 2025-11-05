@@ -1,4 +1,4 @@
-# Build script for DCNN project
+# Build script for TNN project
 
 # Default values
 $BUILD_TYPE = "Release"
@@ -71,7 +71,7 @@ for ($i = 0; $i -lt $args.Count; $i++) {
 }
 
 # Print build configuration
-Write-Color "DCNN CMake Build Configuration:" "Green"
+Write-Color "TNN CMake Build Configuration:" "Green"
 Write-Host "  Build Type: $BUILD_TYPE"
 Write-Host "  Build Directory: $BUILD_DIR"
 Write-Host "  OpenMP: $ENABLE_OPENMP"

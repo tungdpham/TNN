@@ -2,16 +2,16 @@
 function(create_executable target_name source_file)
     add_executable(${target_name} ${source_file})
     
-    # Link core DCNN libraries
+    # Link core TNN libraries
     target_link_libraries(${target_name} PRIVATE 
-        dcnn_lib 
-        dcnn_pipeline 
-        dcnn_nn 
-        dcnn_data_loading 
-        dcnn_math 
-        dcnn_tensor 
-        dcnn_matrix 
-        dcnn_utils
+        tnn_lib 
+        tnn_pipeline 
+        tnn_nn 
+        tnn_data_loading 
+        tnn_math 
+        tnn_tensor 
+        tnn_matrix 
+        tnn_utils
     )
     
     # Link third-party dependencies
