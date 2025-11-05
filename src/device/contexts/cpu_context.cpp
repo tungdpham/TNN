@@ -18,7 +18,7 @@
 #endif
 
 namespace tdevice {
-CPUContext::CPUContext(int id) : Context(id) {}
+CPUContext::CPUContext() : Context() {}
 
 size_t CPUContext::getTotalMemory() const {
 #ifdef __linux__

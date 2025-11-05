@@ -12,7 +12,7 @@ enum class DeviceType { CPU, GPU };
 
 class Device {
 public:
-  Device(DeviceType type, int id, std::string context_type);
+  Device(DeviceType type, int id, std::unique_ptr<Context> context);
   ~Device();
 
   // Move constructor and assignment operator

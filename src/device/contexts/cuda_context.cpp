@@ -8,7 +8,7 @@
 
 namespace tdevice {
 
-CUDAContext::CUDAContext(int id) : Context(id) {
+CUDAContext::CUDAContext(int id) : Context() {
   // Set the device for this context
   cudaError_t err = cudaSetDevice(id);
   if (err != cudaSuccess) {

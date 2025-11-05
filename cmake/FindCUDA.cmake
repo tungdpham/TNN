@@ -1,6 +1,6 @@
 enable_language(CUDA)
 find_package(CUDAToolkit REQUIRED)
-add_compile_definitions(CUDA_ENABLED)
+add_compile_definitions(USE_CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_FLAGS "-arch=sm_89 --compiler-options -fPIC")
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3")

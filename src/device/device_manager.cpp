@@ -6,6 +6,11 @@
 #include <cuda_runtime.h>
 #endif
 
+#include "device/contexts/cpu_context.hpp"
+#ifdef USE_CUDA
+#include "device/contexts/cuda_context.hpp"
+#endif
+
 namespace tdevice {
 DeviceManager DeviceManager::instance_;
 
@@ -49,11 +54,12 @@ void initializeDefaultDevices() {
   // Clear any existing devices
   manager.clearDevices();
 
+  size_t device_index = 0;
   // Always add CPU device with ID 0
   try {
-    Device cpu_device(DeviceType::CPU, 0, "CPU");
+    std::cout << "Discovered CPU device with ID: " << device_index << std::endl;
+    Device cpu_device(DeviceType::CPU, device_index++, std::make_unique<CPUContext>());
     manager.addDevice(std::move(cpu_device));
-    std::cout << "Discovered CPU device with ID: 0" << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Failed to create CPU device: " << e.what() << std::endl;
   }
@@ -66,16 +72,13 @@ void initializeDefaultDevices() {
   if (err == cudaSuccess && cuda_device_count > 0) {
     for (int i = 0; i < cuda_device_count; ++i) {
       try {
-        // Create device with unique ID (CPU gets 0, GPUs get 1, 2, 3, ...)
-        int device_id = i + 1;
-        Device gpu_device(DeviceType::GPU, device_id, "CUDA");
-        manager.addDevice(std::move(gpu_device));
-
         // Get device properties for logging
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, i);
-        std::cout << "Discovered CUDA device with ID: " << device_id << " (CUDA Device " << i
+        std::cout << "Discovered CUDA device with ID: " << device_index << " (CUDA Device " << i
                   << ": " << prop.name << ")" << std::endl;
+        Device gpu_device(DeviceType::GPU, device_index++, std::make_unique<CUDAContext>(i));
+        manager.addDevice(std::move(gpu_device));
       } catch (const std::exception &e) {
         std::cerr << "Failed to create CUDA device " << i << ": " << e.what() << std::endl;
       }

@@ -9,17 +9,8 @@
 #include <stdexcept>
 
 namespace tdevice {
-Device::Device(DeviceType type, int id, std::string context_type) : type_(type), id_(id) {
-  if (context_type == "CPU") {
-    context_ = std::make_unique<CPUContext>(id);
-#ifdef USE_CUDA
-  } else if (context_type == "CUDA") {
-    context_ = std::make_unique<CUDAContext>(id);
-#endif
-  } else {
-    throw std::runtime_error("Unsupported context type: " + context_type);
-  }
-}
+Device::Device(DeviceType type, int id, std::unique_ptr<Context> context)
+    : type_(type), id_(id), context_(std::move(context)) {}
 
 Device::~Device() = default;
 
