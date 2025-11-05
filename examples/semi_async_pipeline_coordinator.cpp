@@ -119,10 +119,6 @@ int main() {
 
   Tensor<float> batch_data, batch_labels;
 
-#ifdef USE_MKL
-  mkl::initialize_mkl();
-#endif
-
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
   thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {

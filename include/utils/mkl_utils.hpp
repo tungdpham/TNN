@@ -15,7 +15,21 @@
 namespace utils {
 namespace mkl {
 
-inline void initialize_mkl() { mkl_set_threading_layer(MKL_THREADING_TBB); }
+inline void initialize_mkl() {
+#ifdef USE_TBB
+  mkl_set_threading_layer(MKL_THREADING_TBB);
+#elif defined(USE_OMP)
+  mkl_set_threading_layer(MKL_THREADING_OMP);
+#endif
+}
+
+// Global constructor to automatically initialize MKL
+namespace {
+struct MklInitializer {
+  MklInitializer() { initialize_mkl(); }
+};
+static MklInitializer mkl_init;
+} // anonymous namespace
 
 /**
  * @brief Wrapper for Intel MKL SGEMM (single precision)

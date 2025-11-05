@@ -100,9 +100,6 @@ int main(int argc, char *argv[]) {
               << (max_ecore_threads == -1 ? "All available" : std::to_string(max_ecore_threads))
               << std::endl;
   }
-#ifdef USE_MKL
-  mkl_set_threading_layer(MKL_THREADING_TBB);
-#endif
   ThreadWrapper thread_wrapper(
       {MAX_THREADS}); // wrapper to cleanly manage branching with different backends
 

@@ -27,9 +27,6 @@ void run_test() {
 
   data_loading::MNISTDataLoader<float> loader;
 
-#ifdef USE_MKL
-  mkl_set_threading_layer(MKL_THREADING_TBB);
-#endif
   if (!loader.load_data("data/mnist/test.csv")) {
     return;
   }

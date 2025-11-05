@@ -87,7 +87,6 @@ int main() {
         3);
 #ifdef USE_MKL
     std::cout << "\n=== MKL Benchmarks ===" << std::endl;
-    mkl_set_threading_layer(MKL_THREADING_TBB);
     mkl_set_num_threads(8);
 
     benchmark(

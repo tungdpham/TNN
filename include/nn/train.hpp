@@ -168,10 +168,6 @@ void train_classification_model(tnn::Sequential<float> &model,
 
   std::vector<size_t> image_shape = train_loader.get_image_shape();
 
-#ifdef USE_MKL
-  mkl_set_threading_layer(MKL_THREADING_TBB);
-#endif
-
   model.print_summary({config.batch_size, image_shape[0], image_shape[1], image_shape[2]});
 
 #ifdef USE_TBB
