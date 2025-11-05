@@ -4,14 +4,7 @@ function(create_executable target_name source_file)
     
     # Link core TNN libraries
     target_link_libraries(${target_name} PRIVATE 
-        tnn_lib 
-        tnn_pipeline 
-        tnn_nn 
-        tnn_data_loading 
-        tnn_math 
-        tnn_tensor 
-        tnn_matrix 
-        tnn_utils
+        tnn_lib
     )
     
     # Link third-party dependencies

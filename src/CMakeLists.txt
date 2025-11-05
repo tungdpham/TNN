@@ -165,10 +165,10 @@ if(WIN32)
 endif()
 
 
-foreach(lib ${TNN_MODULES})
-    link_tbb(${lib})
-    link_cuda(${lib})
-    link_mkl(${lib})
-    link_openmp(${lib})
+foreach(module ${TNN_MODULES})
+    link_tbb(${module})
+    link_cuda(${module})
+    link_mkl(${module})
+    link_openmp(${module})
 endforeach()
 

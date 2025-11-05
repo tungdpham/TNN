@@ -24,9 +24,15 @@ function(create_test test_name)
     gtest_discover_tests(${test_name})
 endfunction()
 
-# Add your test files here
-create_test(tensor_test)
-create_test(device_manager_test)
+set(TEST_FILES 
+    tensor_test.cpp
+    device_manager_test.cpp
+)
+
+foreach(test_file IN LISTS TEST_FILES)
+    get_filename_component(test_name ${test_file} NAME_WE)
+    create_test(${test_name})
+endforeach()
 
 # Optional: Create a target to run all tests
 add_custom_target(run_tests
