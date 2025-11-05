@@ -77,7 +77,7 @@ include(LinkOpenMP)
 add_subdirectory(src)
 
 # Utility functions
-include(Utils)
+include(ExecutableFunctions)
 
 add_subdirectory(examples)
 add_subdirectory(benchmarks)
