@@ -166,9 +166,13 @@ endif()
 
 
 foreach(lib ${TNN_MODULES})
-    link_tbb(${lib})
-    link_cuda(${lib})
-    link_mkl(${lib})
-    link_openmp(${lib})
+    link_tbb(PUBLIC ${lib})
+    link_cuda(PUBLIC ${lib})
+    link_mkl(PUBLIC ${lib})
+    link_openmp(PUBLIC ${lib})
 endforeach()
 
+link_tbb(INTERFACE tnn_lib)
+link_cuda(INTERFACE tnn_lib)
+link_mkl(INTERFACE tnn_lib)
+link_openmp(INTERFACE tnn_lib)

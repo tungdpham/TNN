@@ -14,11 +14,6 @@ function(create_test test_name)
         gmock
         tnn_lib
     )
-
-    link_tbb(${test_name})
-    link_cuda(${test_name})
-    link_mkl(${test_name})
-    link_windows_libs(${test_name})
     
     # Discover tests automatically
     gtest_discover_tests(${test_name})
