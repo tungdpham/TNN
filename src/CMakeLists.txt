@@ -51,6 +51,23 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart)
 endif()
 
+# CUDA library
+if(ENABLE_CUDA)
+    file(GLOB_RECURSE TNN_CUDA_SOURCES 
+        "cuda/*.cu"
+    )
+    add_library(tnn_cuda STATIC ${TNN_CUDA_SOURCES})
+    target_include_directories(tnn_cuda PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    )
+    set_target_properties(tnn_cuda PROPERTIES 
+        CUDA_ARCHITECTURES "89"
+        CUDA_STANDARD 17
+    )
+    target_link_libraries(tnn_cuda PUBLIC CUDA::cudart)
+endif()
+
 # add assembly optimizations for x86_64
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     if(WIN32 AND MSVC AND NOT DISABLE_ASM)
@@ -145,6 +162,9 @@ target_compile_definitions(tnn_pipeline PUBLIC ASIO_STANDALONE)
 
 # Main TNN library
 set(TNN_MODULES tnn_matrix tnn_tensor tnn_nn tnn_utils tnn_math tnn_data_loading tnn_pipeline tnn_device)
+if(ENABLE_CUDA)
+    list(APPEND TNN_MODULES tnn_cuda)
+endif()
 
 add_library(tnn_lib INTERFACE)
 target_include_directories(tnn_lib INTERFACE

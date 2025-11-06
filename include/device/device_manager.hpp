@@ -1,6 +1,6 @@
 #pragma once
 
-#include "device/device.hpp"
+#include "device.hpp"
 #include <unordered_map>
 #include <vector>
 

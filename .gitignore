@@ -49,6 +49,7 @@ CMakeLists.txt.user
 *.vcxproj.filters
 *.dir
 x64/
+.cmake/
 
 # CMake testing
 Testing/

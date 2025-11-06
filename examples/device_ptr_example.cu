@@ -8,25 +8,14 @@
 #include "device/device_manager.hpp"
 #include "device/device_ptr.hpp"
 
+#ifdef USE_CUDA
+#include "cuda/error_handler.hpp"
+#endif
+
 #include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
-
-#ifdef USE_CUDA
-#include <cuda_runtime.h>
-
-// Check CUDA errors
-#define CUDA_CHECK(call)                                                                           \
-  do {                                                                                             \
-    cudaError_t err = call;                                                                        \
-    if (err != cudaSuccess) {                                                                      \
-      std::cerr << "CUDA error at " << __FILE__ << ":" << __LINE__ << " - "                        \
-                << cudaGetErrorString(err) << std::endl;                                           \
-      exit(1);                                                                                     \
-    }                                                                                              \
-  } while (0)
-#endif
 
 using namespace tdevice;
 

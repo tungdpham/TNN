@@ -1,4 +1,4 @@
-#include "device/contexts/cpu_context.hpp"
+#include "device/cpu/cpu_context.hpp"
 
 #include <cstdlib>
 #include <cstring>

@@ -1,4 +1,4 @@
-#include "device/contexts/cuda_context.hpp"
+#include "device/cuda/cuda_context.hpp"
 
 #ifdef USE_CUDA
 

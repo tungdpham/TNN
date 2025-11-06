@@ -1,11 +1,6 @@
 #include "device/device.hpp"
 #include "device/context.hpp"
 
-#include "device/contexts/cpu_context.hpp"
-#ifdef USE_CUDA
-#include "device/contexts/cuda_context.hpp"
-#endif
-
 #include <stdexcept>
 
 namespace tdevice {

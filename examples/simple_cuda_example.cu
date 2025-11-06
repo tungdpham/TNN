@@ -5,21 +5,9 @@
 #include <vector>
 
 #ifdef USE_CUDA
+#include "cuda/error_handler.hpp"
 #include "device/device_manager.hpp"
 #include <cuda_runtime.h>
-
-#ifdef USE_CUDA
-// Check CUDA errors
-#define CUDA_CHECK(call)                                                                           \
-  do {                                                                                             \
-    cudaError_t err = call;                                                                        \
-    if (err != cudaSuccess) {                                                                      \
-      std::cerr << "CUDA error at " << __FILE__ << ":" << __LINE__ << " - "                        \
-                << cudaGetErrorString(err) << std::endl;                                           \
-      exit(1);                                                                                     \
-    }                                                                                              \
-  } while (0)
-#endif
 
 // Simple vector addition kernel
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {

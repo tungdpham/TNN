@@ -10,6 +10,7 @@ create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
 create_cuda(simple_cuda_example simple_cuda_example.cu)
 create_cuda(device_ptr_example device_ptr_example.cu)
+create_cuda(cuda_vs_avx2_comparison cuda_vs_avx2_comparison.cpp)
 
 # Eval executables
 create_default(mnist_cnn_test mnist_cnn_test.cpp)

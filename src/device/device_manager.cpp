@@ -6,9 +6,9 @@
 #include <cuda_runtime.h>
 #endif
 
-#include "device/contexts/cpu_context.hpp"
+#include "device/cpu/cpu_context.hpp"
 #ifdef USE_CUDA
-#include "device/contexts/cuda_context.hpp"
+#include "device/cuda/cuda_context.hpp"
 #endif
 
 namespace tdevice {

@@ -80,6 +80,6 @@ else()
     string(REPLACE "sm_" "" CUDA_ARCH_NUMBER ${CUDA_ARCH})
 endif()
 
-set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --compiler-options -fPIC")
+set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --compiler-options -fPIC -Wno-deprecated-gpu-targets")
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
 set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
