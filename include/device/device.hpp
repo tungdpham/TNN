@@ -1,14 +1,14 @@
 #pragma once
 
 #include "context.hpp"
+#include "device_type.hpp"
+
 #include <cstring>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace tdevice {
-// all supported device types
-enum class DeviceType { CPU, GPU };
 
 class Device {
 public:

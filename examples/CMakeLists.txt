@@ -8,6 +8,8 @@ create_default(uji_ips_trainer uji_ips_trainer.cpp)
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
+create_cuda(simple_cuda_example simple_cuda_example.cu)
+create_cuda(device_ptr_example device_ptr_example.cu)
 
 # Eval executables
 create_default(mnist_cnn_test mnist_cnn_test.cpp)

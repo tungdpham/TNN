@@ -8,6 +8,7 @@
 #include "device/device_manager.hpp"
 #include <cuda_runtime.h>
 
+#ifdef USE_CUDA
 // Check CUDA errors
 #define CUDA_CHECK(call)                                                                           \
   do {                                                                                             \
@@ -18,6 +19,7 @@
       exit(1);                                                                                     \
     }                                                                                              \
   } while (0)
+#endif
 
 // Simple vector addition kernel
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {

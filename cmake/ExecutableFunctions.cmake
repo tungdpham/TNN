@@ -9,11 +9,13 @@ function(create_default target_name source_file)
 endfunction()
 
 function(create_cuda target_name source_file)
-    add_executable(${target_name} ${source_file})
-    
-    # Link core TNN libraries
-    target_link_libraries(${target_name} PRIVATE 
-        tnn_lib
-        CUDA::cudart
-    )
+    if(ENABLE_CUDA)
+        add_executable(${target_name} ${source_file})
+        
+        # Link core TNN libraries
+        target_link_libraries(${target_name} PRIVATE 
+            tnn_lib
+            CUDA::cudart
+        )
+    endif()
 endfunction()
