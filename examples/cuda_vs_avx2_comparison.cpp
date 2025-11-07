@@ -1,4 +1,6 @@
 #include "cuda/kernels.hpp"
+#include "device/device_manager.hpp"
+#include "device/device_ptr.hpp"
 #include "threading/thread_handler.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/avx2.hpp"
@@ -12,20 +14,7 @@
 #include <cuda_runtime.h>
 
 using namespace tthreads;
-
-void printVector(const std::vector<float> &vec, const std::string &name, size_t maxElements = 10) {
-  std::cout << name << ": [";
-  size_t printCount = std::min(maxElements, vec.size());
-  for (size_t i = 0; i < printCount; ++i) {
-    std::cout << std::fixed << std::setprecision(3) << vec[i];
-    if (i < printCount - 1)
-      std::cout << ", ";
-  }
-  if (vec.size() > maxElements) {
-    std::cout << ", ... (" << vec.size() << " total)";
-  }
-  std::cout << "]" << std::endl;
-}
+using namespace tdevice;
 
 template <typename Func> double timeFunction(Func &&func, const std::string &name) {
   auto start = std::chrono::high_resolution_clock::now();
@@ -39,12 +28,8 @@ template <typename Func> double timeFunction(Func &&func, const std::string &nam
 }
 
 // Multithreaded AVX2 implementation
-void avx2_add_multithreaded(const float *a, const float *b, float *c, size_t size,
-                            int num_threads = 0) {
-  if (num_threads <= 0) {
-    num_threads = std::thread::hardware_concurrency();
-  }
-
+void avx2_add_multithreaded(const float *a, const float *b, float *c, size_t size) {
+  size_t num_threads = tbb::this_task_arena::max_concurrency();
   size_t chunk_size = size / num_threads;
 
   tthreads::parallel_for<size_t>(0, num_threads, [&](size_t i) {
@@ -54,12 +39,8 @@ void avx2_add_multithreaded(const float *a, const float *b, float *c, size_t siz
   });
 }
 
-void avx2_mul_multithreaded(const float *a, const float *b, float *c, size_t size,
-                            int num_threads = 0) {
-  if (num_threads <= 0) {
-    num_threads = std::thread::hardware_concurrency();
-  }
-
+void avx2_mul_multithreaded(const float *a, const float *b, float *c, size_t size) {
+  size_t num_threads = tbb::this_task_arena::max_concurrency();
   size_t chunk_size = size / num_threads;
 
   tthreads::parallel_for<size_t>(0, num_threads, [&](size_t i) {
@@ -69,12 +50,8 @@ void avx2_mul_multithreaded(const float *a, const float *b, float *c, size_t siz
   });
 }
 
-void avx2_add_scalar_multithreaded(const float *a, float scalar, float *c, size_t size,
-                                   int num_threads = 0) {
-  if (num_threads <= 0) {
-    num_threads = std::thread::hardware_concurrency();
-  }
-
+void avx2_add_scalar_multithreaded(const float *a, float scalar, float *c, size_t size) {
+  size_t num_threads = tbb::this_task_arena::max_concurrency();
   size_t chunk_size = size / num_threads;
 
   tthreads::parallel_for<size_t>(0, num_threads, [&](size_t i) {
@@ -84,11 +61,8 @@ void avx2_add_scalar_multithreaded(const float *a, float scalar, float *c, size_
   });
 }
 
-void avx2_sqrt_multithreaded(const float *a, float *c, size_t size, int num_threads = 0) {
-  if (num_threads <= 0) {
-    num_threads = std::thread::hardware_concurrency();
-  }
-
+void avx2_sqrt_multithreaded(const float *a, float *c, size_t size) {
+  size_t num_threads = tbb::this_task_arena::max_concurrency();
   size_t chunk_size = size / num_threads;
 
   tthreads::parallel_for<size_t>(0, num_threads, [&](size_t i) {
@@ -116,7 +90,7 @@ double measureMemoryBandwidth(size_t size_mb = 1024) {
 }
 
 int main() {
-  std::cout << "=== Optimized CUDA Kernels vs AVX2 Performance Comparison ===" << std::endl;
+  initializeDefaultDevices();
 
   // Test parameters
   const size_t SIZE = 100000000; // Start with smaller size for more detailed analysis
@@ -130,18 +104,33 @@ int main() {
   std::cout << "System memory bandwidth: " << std::fixed << std::setprecision(1) << memBandwidth
             << " GB/s" << std::endl;
 
+  // Get devices
+  const Device &cpuDevice = getCPU();
+  const Device &gpuDevice = getGPU(0);
+
+  std::cout << "Using CPU device: " << cpuDevice.getName() << std::endl;
+  std::cout << "Using GPU device: " << gpuDevice.getName() << std::endl;
+
   // Timing variables
   double avx2SingleTime = 0.0;
   double avx2MultiTime = 0.0;
   double cudaTime = 0.0;
 
-  // Host data
-  std::vector<float> a(SIZE), b(SIZE), c_cuda(SIZE), c_avx2_single(SIZE), c_avx2_multi(SIZE);
+  // Create device pointers for arrays
+  auto cpu_a = make_array_ptr<float[]>(const_cast<Device *>(&cpuDevice), SIZE);
+  auto cpu_b = make_array_ptr<float[]>(const_cast<Device *>(&cpuDevice), SIZE);
+  auto cpu_c_avx2_single = make_array_ptr<float[]>(const_cast<Device *>(&cpuDevice), SIZE);
+  auto cpu_c_avx2_multi = make_array_ptr<float[]>(const_cast<Device *>(&cpuDevice), SIZE);
+  auto cpu_c_cuda = make_array_ptr<float[]>(const_cast<Device *>(&cpuDevice), SIZE);
 
-  // Initialize test data
+  auto gpu_a = make_array_ptr<float[]>(const_cast<Device *>(&gpuDevice), SIZE);
+  auto gpu_b = make_array_ptr<float[]>(const_cast<Device *>(&gpuDevice), SIZE);
+  auto gpu_c = make_array_ptr<float[]>(const_cast<Device *>(&gpuDevice), SIZE);
+
+  // Initialize test data on CPU
   for (size_t i = 0; i < SIZE; ++i) {
-    a[i] = static_cast<float>(i * 0.001f);
-    b[i] = static_cast<float>((i + 1) * 0.002f);
+    cpu_a.get()[i] = static_cast<float>(i * 0.001f);
+    cpu_b.get()[i] = static_cast<float>((i + 1) * 0.002f);
   }
 
   std::cout << "Test size: " << SIZE << " elements (" << (SIZE * sizeof(float) / 1024 / 1024)
@@ -150,14 +139,8 @@ int main() {
             << std::endl;
   std::cout << "Iterations: " << ITERATIONS << std::endl << std::endl;
 
-  // CUDA setup
-  float *d_a, *d_b, *d_c;
-  cudaMalloc(&d_a, SIZE * sizeof(float));
-  cudaMalloc(&d_b, SIZE * sizeof(float));
-  cudaMalloc(&d_c, SIZE * sizeof(float));
-
-  cudaMemcpy(d_a, a.data(), SIZE * sizeof(float), cudaMemcpyHostToDevice);
-  cudaMemcpy(d_b, b.data(), SIZE * sizeof(float), cudaMemcpyHostToDevice);
+  gpuDevice.copyToDevice(gpu_a.get(), cpu_a.get(), SIZE * sizeof(float));
+  gpuDevice.copyToDevice(gpu_b.get(), cpu_b.get(), SIZE * sizeof(float));
 
   std::cout << "=== CUDA Tests (with memory transfer overhead) ===" << std::endl;
 
@@ -165,10 +148,10 @@ int main() {
   cudaTime = timeFunction(
       [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
-          cudaMemcpy(d_a, a.data(), SIZE * sizeof(float), cudaMemcpyHostToDevice);
-          cudaMemcpy(d_b, b.data(), SIZE * sizeof(float), cudaMemcpyHostToDevice);
-          cuda::cuda_add(d_a, d_b, d_c, SIZE);
-          cudaMemcpy(c_cuda.data(), d_c, SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+          gpuDevice.copyToDevice(gpu_a.get(), cpu_a.get(), SIZE * sizeof(float));
+          gpuDevice.copyToDevice(gpu_b.get(), cpu_b.get(), SIZE * sizeof(float));
+          cuda::cuda_add(gpu_a.get(), gpu_b.get(), gpu_c.get(), SIZE);
+          gpuDevice.copyToHost(cpu_c_cuda.get(), gpu_c.get(), SIZE * sizeof(float));
         }
         cudaDeviceSynchronize();
       },
@@ -180,7 +163,7 @@ int main() {
   double cudaComputeTime = timeFunction(
       [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
-          cuda::cuda_add(d_a, d_b, d_c, SIZE);
+          cuda::cuda_add(gpu_a.get(), gpu_b.get(), gpu_c.get(), SIZE);
         }
         cudaDeviceSynchronize();
       },
@@ -190,7 +173,7 @@ int main() {
   timeFunction(
       [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
-          cuda::cuda_mul(d_a, d_b, d_c, SIZE);
+          cuda::cuda_mul(gpu_a.get(), gpu_b.get(), gpu_c.get(), SIZE);
         }
         cudaDeviceSynchronize();
       },
@@ -199,7 +182,7 @@ int main() {
   timeFunction(
       [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
-          cuda::cuda_add_scalar(d_a, 3.14f, d_c, SIZE);
+          cuda::cuda_add_scalar(gpu_a.get(), 3.14f, gpu_c.get(), SIZE);
         }
         cudaDeviceSynchronize();
       },
@@ -208,7 +191,7 @@ int main() {
   timeFunction(
       [&]() {
         for (int i = 0; i < ITERATIONS; ++i) {
-          cuda::cuda_sqrt(d_a, d_c, SIZE);
+          cuda::cuda_sqrt(gpu_a.get(), gpu_c.get(), SIZE);
         }
         cudaDeviceSynchronize();
       },
@@ -224,7 +207,7 @@ int main() {
     avx2SingleTime = timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            utils::avx2_add(a.data(), b.data(), c_avx2_single.data(), SIZE);
+            utils::avx2_add(cpu_a.get(), cpu_b.get(), cpu_c_avx2_single.get(), SIZE);
           }
         },
         "AVX2 Addition (single-threaded)");
@@ -233,7 +216,7 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            utils::avx2_mul(a.data(), b.data(), c_avx2_single.data(), SIZE);
+            utils::avx2_mul(cpu_a.get(), cpu_b.get(), cpu_c_avx2_single.get(), SIZE);
           }
         },
         "AVX2 Multiplication (single-threaded)");
@@ -241,7 +224,7 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            utils::avx2_add_scalar(a.data(), 3.14f, c_avx2_single.data(), SIZE);
+            utils::avx2_add_scalar(cpu_a.get(), 3.14f, cpu_c_avx2_single.get(), SIZE);
           }
         },
         "AVX2 Add Scalar (single-threaded)");
@@ -249,7 +232,7 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            utils::avx2_sqrt(a.data(), c_avx2_single.data(), SIZE);
+            utils::avx2_sqrt(cpu_a.get(), cpu_c_avx2_single.get(), SIZE);
           }
         },
         "AVX2 Square Root (single-threaded)");
@@ -260,7 +243,7 @@ int main() {
     avx2MultiTime = timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            avx2_add_multithreaded(a.data(), b.data(), c_avx2_multi.data(), SIZE);
+            avx2_add_multithreaded(cpu_a.get(), cpu_b.get(), cpu_c_avx2_multi.get(), SIZE);
           }
         },
         "AVX2 Addition (multi-threaded)");
@@ -269,7 +252,7 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            avx2_mul_multithreaded(a.data(), b.data(), c_avx2_multi.data(), SIZE);
+            avx2_mul_multithreaded(cpu_a.get(), cpu_b.get(), cpu_c_avx2_multi.get(), SIZE);
           }
         },
         "AVX2 Multiplication (multi-threaded)");
@@ -277,7 +260,7 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            avx2_add_scalar_multithreaded(a.data(), 3.14f, c_avx2_multi.data(), SIZE);
+            avx2_add_scalar_multithreaded(cpu_a.get(), 3.14f, cpu_c_avx2_multi.get(), SIZE);
           }
         },
         "AVX2 Add Scalar (multi-threaded)");
@@ -285,17 +268,12 @@ int main() {
     timeFunction(
         [&]() {
           for (int i = 0; i < ITERATIONS; ++i) {
-            avx2_sqrt_multithreaded(a.data(), c_avx2_multi.data(), SIZE);
+            avx2_sqrt_multithreaded(cpu_a.get(), cpu_c_avx2_multi.get(), SIZE);
           }
         },
         "AVX2 Square Root (multi-threaded)");
 #endif
   });
-
-  // Cleanup CUDA memory
-  cudaFree(d_a);
-  cudaFree(d_b);
-  cudaFree(d_c);
 
   // Performance analysis
   std::cout << std::endl << "=== Performance Analysis ===" << std::endl;

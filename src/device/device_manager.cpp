@@ -93,4 +93,30 @@ void initializeDefaultDevices() {
   std::cout << "Default devices initialized" << std::endl;
 }
 
+const Device &getGPU(size_t gpu_index) {
+  DeviceManager &manager = DeviceManager::getInstance();
+  size_t current_gpu = 0;
+  for (int id : manager.getAvailableDeviceIDs()) {
+    const Device &device = manager.getDevice(id);
+    if (device.getDeviceType() == DeviceType::GPU) {
+      if (current_gpu == gpu_index) {
+        return device;
+      }
+      current_gpu++;
+    }
+  }
+  throw std::runtime_error("Requested GPU index not found");
+}
+
+const Device &getCPU() {
+  DeviceManager &manager = DeviceManager::getInstance();
+  for (int id : manager.getAvailableDeviceIDs()) {
+    const Device &device = manager.getDevice(id);
+    if (device.getDeviceType() == DeviceType::CPU) {
+      return device;
+    }
+  }
+  throw std::runtime_error("CPU device not found");
+}
+
 } // namespace tdevice
