@@ -16,6 +16,7 @@ public:
   DeviceManager();
   ~DeviceManager();
 
+  void discoverDevices();
   void addDevice(Device &&device);
   void removeDevice(int id);
   void clearDevices();

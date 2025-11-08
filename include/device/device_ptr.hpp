@@ -135,6 +135,24 @@ public:
   Device *getDevice() const { return device_; }
   size_t getCount() const { return count_; }
 
+  void resize(size_t new_count) {
+    T *new_ptr = static_cast<T *>(device_->allocateMemory(sizeof(T) * new_count));
+    if (!new_ptr) {
+      throw std::runtime_error("Bad Alloc");
+    }
+    if (ptr_) {
+      device_->deallocateMemory(static_cast<void *>(ptr_));
+    }
+    ptr_ = new_ptr;
+    count_ = new_count;
+  }
+
+  void ensure(size_t required_count) {
+    if (count_ < required_count) {
+      resize(required_count);
+    }
+  }
+
   explicit operator bool() const { return ptr_ != nullptr; }
 
 private:
@@ -169,8 +187,9 @@ typename std::enable_if<std::is_array<T>::value, device_ptr<T>>::type make_array
   if (!device) {
     throw std::invalid_argument("Device cannot be null when making array pointer");
   }
+
   if (count == 0) {
-    return device_ptr<T>(nullptr, nullptr, 0);
+    return device_ptr<T>(nullptr, device, 0);
   }
 
   ElementT *ptr = static_cast<ElementT *>(device->allocateMemory(sizeof(ElementT) * count));
