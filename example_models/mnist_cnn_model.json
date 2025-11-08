@@ -4,12 +4,11 @@
         {
             "name": "conv1",
             "parameters": {
-                "activation": "relu",
                 "in_channels": 1,
                 "kernel_h": 5,
                 "kernel_w": 5,
                 "optimized": "native",
-                "out_channels": 8,
+                "out_channels": 16,
                 "pad_h": 0,
                 "pad_w": 0,
                 "stride_h": 1,
@@ -17,6 +16,23 @@
                 "use_bias": true
             },
             "type": "conv2d"
+        },
+        {
+            "name": "bn1",
+            "parameters": {
+                "affine": true,
+                "epsilon": 9.999999747378752e-06,
+                "momentum": 0.10000000149011612,
+                "num_features": 16
+            },
+            "type": "batchnorm"
+        },
+        {
+            "name": "relu1",
+            "parameters": {
+                "activation": "relu"
+            },
+            "type": "activation"
         },
         {
             "name": "pool1",
@@ -33,12 +49,11 @@
         {
             "name": "conv2_1x1",
             "parameters": {
-                "activation": "relu",
-                "in_channels": 8,
+                "in_channels": 16,
                 "kernel_h": 1,
                 "kernel_w": 1,
                 "optimized": "native",
-                "out_channels": 16,
+                "out_channels": 32,
                 "pad_h": 0,
                 "pad_w": 0,
                 "stride_h": 1,
@@ -48,14 +63,30 @@
             "type": "conv2d"
         },
         {
+            "name": "bn2",
+            "parameters": {
+                "affine": true,
+                "epsilon": 9.999999747378752e-06,
+                "momentum": 0.10000000149011612,
+                "num_features": 32
+            },
+            "type": "batchnorm"
+        },
+        {
+            "name": "relu2",
+            "parameters": {
+                "activation": "relu"
+            },
+            "type": "activation"
+        },
+        {
             "name": "conv3",
             "parameters": {
-                "activation": "relu",
-                "in_channels": 16,
+                "in_channels": 32,
                 "kernel_h": 5,
                 "kernel_w": 5,
                 "optimized": "native",
-                "out_channels": 48,
+                "out_channels": 128,
                 "pad_h": 0,
                 "pad_w": 0,
                 "stride_h": 1,
@@ -63,6 +94,23 @@
                 "use_bias": true
             },
             "type": "conv2d"
+        },
+        {
+            "name": "bn3",
+            "parameters": {
+                "affine": true,
+                "epsilon": 9.999999747378752e-06,
+                "momentum": 0.10000000149011612,
+                "num_features": 128
+            },
+            "type": "batchnorm"
+        },
+        {
+            "name": "relu3",
+            "parameters": {
+                "activation": "relu"
+            },
+            "type": "activation"
         },
         {
             "name": "pool2",
@@ -85,7 +133,7 @@
             "name": "output",
             "parameters": {
                 "activation": "none",
-                "input_features": 192,
+                "input_features": 512,
                 "optimized": "native",
                 "output_features": 10,
                 "use_bias": true
@@ -94,11 +142,9 @@
         }
     ],
     "loss": {
-        "name": "CrossEntropyLoss",
-        "parameters": {
-            "epsilon": 1.0000000036274937e-15
-        },
-        "type": "crossentropy"
+        "name": "SoftmaxCrossEntropyLoss",
+        "parameters": {},
+        "type": "softmax_crossentropy"
     },
     "name": "mnist_cnn_model",
     "optimizer": {
@@ -107,7 +153,7 @@
             "beta1": 0.8999999761581421,
             "beta2": 0.9990000128746033,
             "epsilon": 9.99999993922529e-09,
-            "learning_rate": 0.00800000037997961
+            "learning_rate": 0.0013421776238828897
         },
         "type": "adam"
     }
