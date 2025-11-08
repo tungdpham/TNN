@@ -89,6 +89,8 @@ echo -e "${GREEN}TNN CMake Build Configuration:${NC}"
 echo "  Build Type: $BUILD_TYPE"
 echo "  OpenMP: $ENABLE_OPENMP"
 echo "  Intel TBB: $ENABLE_TBB"
+echo "  Intel MKL: $ENABLE_MKL"
+echo "  CUDA: $ENABLE_CUDA"
 echo "  Debug Mode: $ENABLE_DEBUG"
 echo ""
 
@@ -113,6 +115,7 @@ CMAKE_ARGS=(
     -DENABLE_TBB="$ENABLE_TBB"
     -DENABLE_DEBUG="$ENABLE_DEBUG"
     -DENABLE_MKL="$ENABLE_MKL"
+    -DENABLE_CUDA="$ENABLE_CUDA"
 )
 
 cmake . "${CMAKE_ARGS[@]}"

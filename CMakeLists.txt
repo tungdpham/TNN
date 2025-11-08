@@ -76,7 +76,8 @@ include(LinkOpenMP)
 # Template libraries instantiations
 add_subdirectory(src)
 
-include(DefaultTargetConfig)
+# Utility functions
+include(ExecutableFunctions)
 
 add_subdirectory(examples)
 add_subdirectory(benchmarks)

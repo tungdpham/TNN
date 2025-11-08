@@ -1,6 +1,6 @@
 #pragma once
 
-#include "device/device.hpp"
+#include "device.hpp"
 #include <unordered_map>
 #include <vector>
 
@@ -16,6 +16,7 @@ public:
   DeviceManager();
   ~DeviceManager();
 
+  void discoverDevices();
   void addDevice(Device &&device);
   void removeDevice(int id);
   void clearDevices();
@@ -28,4 +29,7 @@ private:
 };
 
 void initializeDefaultDevices();
+const Device &getGPU(size_t gpu_index = 0);
+const Device &getCPU();
+
 } // namespace tdevice

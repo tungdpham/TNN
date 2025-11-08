@@ -12,7 +12,9 @@
 #include <iostream>
 #include <stdexcept>
 
+#include "device/device_manager.hpp"
 #include "math/gemm.hpp"
+#include "tensor/tensor_extended.hpp"
 #include "threading/thread_handler.hpp"
 #include "utils/mkl_utils.hpp"
 #include "utils/ops.hpp"
@@ -25,7 +27,12 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
                             size_t pad_w, bool use_bias, const std::string &name)
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias), micro_batch_im2col_matrices_() {}
+      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {
+  tdevice::Device *device = const_cast<tdevice::Device *>(&tdevice::getCPU());
+  temp_output_buffer_ = tdevice::make_array_ptr<T[]>(device, 0);
+  temp_gradient_buffer_ = tdevice::make_array_ptr<T[]>(device, 0);
+  temp_col_grad_matrix_buffer_ = tdevice::make_array_ptr<T[]>(device, 0);
+}
 
 template <typename T> void Conv2DLayer<T>::initialize_params() {
   weights_ = Tensor<T>(out_channels_, in_channels_, kernel_h_, kernel_w_);
@@ -63,8 +70,26 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
+  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
+  size_t output_size = batch_size * output_h * output_w;
+  size_t col_matrix_size = kernel_size * output_size;
+
+  // Ensure per-microbatch col buffer is allocated
+  auto col_buffer_it = micro_batch_col_buffers_.find(micro_batch_id);
+  if (col_buffer_it == micro_batch_col_buffers_.end()) {
+    tdevice::Device *device = const_cast<tdevice::Device *>(&tdevice::getCPU());
+    micro_batch_col_buffers_[micro_batch_id] =
+        tdevice::make_array_ptr<T[]>(device, col_matrix_size);
+  } else {
+    col_buffer_it->second.ensure(col_matrix_size);
+  }
+
+  size_t output_buffer_size = out_channels_ * output_size;
+  temp_output_buffer_.ensure(output_buffer_size);
+
   auto im2col_start = std::chrono::high_resolution_clock::now();
-  Matrix<T> col_matrix = im2col(input, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  im2col(input, micro_batch_col_buffers_[micro_batch_id].get(), kernel_h_, kernel_w_, stride_h_,
+         stride_w_, pad_h_, pad_w_);
   auto im2col_end = std::chrono::high_resolution_clock::now();
   if (this->enable_profiling_) {
     float im2col_duration =
@@ -74,18 +99,11 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
 
   Tensor<T> output(batch_size, out_channels_, output_h, output_w, nullptr);
 
-  size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
-  size_t output_size = batch_size * output_h * output_w;
+  compute_conv_forward(micro_batch_col_buffers_[micro_batch_id].get(), weights_.data(),
+                       temp_output_buffer_.get(), output_size, kernel_size, out_channels_);
 
-  T *output_flat = (T *)aligned_alloc(64, sizeof(T) * out_channels_ * output_size);
-  compute_conv_forward(col_matrix.data(), weights_.data(), output_flat, output_size, kernel_size,
-                       out_channels_);
-
-  micro_batch_im2col_matrices_[micro_batch_id] = std::move(col_matrix);
-
-  utils::cnhw_to_nchw(output_flat, output.data(), batch_size, out_channels_, output_h, output_w);
-
-  free(output_flat);
+  utils::cnhw_to_nchw(temp_output_buffer_.get(), output.data(), batch_size, out_channels_, output_h,
+                      output_w);
 
   if (use_bias_) {
     add_bias_to_output(output.data(), bias_.data(), batch_size, output_h, output_w, out_channels_);
@@ -100,20 +118,19 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
     throw std::runtime_error("Conv2DLayer must be initialized before backward pass.");
   }
   auto it_input_shape = micro_batch_input_shapes_.find(micro_batch_id);
-  auto it_im2col = micro_batch_im2col_matrices_.find(micro_batch_id);
 
   if (it_input_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error("No cached input shape found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
 
-  if (it_im2col == micro_batch_im2col_matrices_.end()) {
-    throw std::runtime_error("No cached im2col matrix found for micro-batch ID: " +
+  auto it_col_buffer = micro_batch_col_buffers_.find(micro_batch_id);
+  if (it_col_buffer == micro_batch_col_buffers_.end()) {
+    throw std::runtime_error("No cached col buffer found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
 
   const auto &input_shape = it_input_shape->second;
-  const Matrix<T> &cached_im2col_matrix = it_im2col->second;
 
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[2];
@@ -123,28 +140,31 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
+  size_t col_grad_matrix_size = kernel_size * output_size;
 
-  T *gradient_flat = (T *)aligned_alloc(64, sizeof(T) * out_channels_ * output_size);
+  size_t gradient_buffer_size = out_channels_ * output_size;
+  temp_gradient_buffer_.ensure(gradient_buffer_size);
+  temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
 
-  utils::nchw_to_cnhw(gradient.data(), gradient_flat, batch_size, out_channels_, output_h,
-                      output_w);
+  utils::nchw_to_cnhw(gradient.data(), temp_gradient_buffer_.get(), batch_size, out_channels_,
+                      output_h, output_w);
 
-  compute_weight_gradients(cached_im2col_matrix.data(), gradient_flat, weight_gradients_.data(),
-                           output_size, kernel_size, out_channels_);
+  compute_weight_gradients(it_col_buffer->second.get(), temp_gradient_buffer_.get(),
+                           weight_gradients_.data(), output_size, kernel_size, out_channels_);
 
   if (use_bias_) {
     compute_bias_gradients(gradient.data(), bias_gradients_.data(), batch_size, output_h, output_w,
                            out_channels_);
   }
 
-  Matrix<T> col_grad_matrix(kernel_size, output_size);
-  compute_input_gradients(gradient_flat, weights_.data(), col_grad_matrix.data(), output_size,
-                          kernel_size, out_channels_);
+  compute_input_gradients(temp_gradient_buffer_.get(), weights_.data(),
+                          temp_col_grad_matrix_buffer_.get(), output_size, kernel_size,
+                          out_channels_);
 
-  Tensor<T> grad_input = col2im(col_grad_matrix, batch_size, in_channels_, input_h, input_w,
-                                kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  Tensor<T> grad_input(batch_size, in_channels_, input_h, input_w);
+  col2im(temp_col_grad_matrix_buffer_.get(), grad_input.data(), batch_size, in_channels_, input_h,
+         input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  free(gradient_flat);
   return grad_input;
 }
 

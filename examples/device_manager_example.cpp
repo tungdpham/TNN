@@ -67,7 +67,7 @@ int main() {
         if (device.getDeviceType() == DeviceType::GPU) {
           std::cout << "\nTesting allocation on GPU device " << device_id << "..." << std::endl;
 
-          size_t test_size = 1024 * 1024; // 1 MB
+          size_t test_size = 1024 * 1024 * 1024; // 1 GB
           void *ptr = device.allocateMemory(test_size);
 
           if (ptr != nullptr) {
