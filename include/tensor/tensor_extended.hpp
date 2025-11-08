@@ -10,20 +10,18 @@
 #include "tensor.hpp"
 #include <immintrin.h>
 
-template <typename T> Matrix<T> im2col_pad_1_stride_1_kernel_3(const Tensor<T, NCHW> &input) {
+template <typename T>
+void im2col_pad_1_stride_1_kernel_3(const Tensor<T, NCHW> &input, T *col_data) {
   const size_t in_h = input.height();
   const size_t in_w = input.width();
   const size_t channels = input.channels();
   const size_t batch_size = input.batch_size();
 
-  size_t col_height = channels * 3 * 3;
   size_t col_width = in_h * in_w;
-  Matrix<T> col_matrix(col_height, batch_size * col_width);
 
   const __m256 zero = _mm256_setzero_ps();
 
   const T *input_data = input.data();
-  T *col_data = col_matrix.data();
 
   if constexpr (std::is_same_v<T, float>) {
     tthreads::parallel_for_2d<size_t>(
@@ -185,15 +183,28 @@ template <typename T> Matrix<T> im2col_pad_1_stride_1_kernel_3(const Tensor<T, N
         },
         tthreads::SchedulePolicy::Auto);
   } else {
+    // TODO: Add non-float implementation if needed
   }
+}
 
+template <typename T> Matrix<T> im2col_pad_1_stride_1_kernel_3(const Tensor<T, NCHW> &input) {
+  const size_t in_h = input.height();
+  const size_t in_w = input.width();
+  const size_t channels = input.channels();
+  const size_t batch_size = input.batch_size();
+
+  size_t col_height = channels * 3 * 3;
+  size_t col_width = in_h * in_w;
+  Matrix<T> col_matrix(col_height, batch_size * col_width);
+
+  im2col_pad_1_stride_1_kernel_3(input, col_matrix.data());
   return col_matrix;
 }
 
 template <typename T>
-Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, const size_t kernel_h,
-                        const size_t kernel_w, const size_t stride_h, const size_t stride_w,
-                        const size_t pad_h, const size_t pad_w) {
+void im2col_padded(const Tensor<T, NCHW> &input_tensor, T *col_data, const size_t kernel_h,
+                   const size_t kernel_w, const size_t stride_h, const size_t stride_w,
+                   const size_t pad_h, const size_t pad_w) {
   const size_t in_h = input_tensor.height();
   const size_t in_w = input_tensor.width();
   const size_t padded_h = in_h + 2 * pad_h;
@@ -203,12 +214,9 @@ Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, const size_t kernel
   const size_t channels = input_tensor.channels();
   const size_t batch_size = input_tensor.batch_size();
 
-  size_t col_height = channels * kernel_h * kernel_w;
   size_t col_width = out_h * out_w;
-  Matrix<T> col_matrix(col_height, batch_size * col_width);
 
   const T *input_data = input_tensor.data();
-  T *col_data = col_matrix.data();
 
   tthreads::parallel_for_2d<size_t>(
       batch_size, channels,
@@ -256,8 +264,91 @@ Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, const size_t kernel
         }
       },
       tthreads::SchedulePolicy::Auto);
+}
 
+template <typename T>
+Matrix<T> im2col_padded(const Tensor<T, NCHW> &input_tensor, const size_t kernel_h,
+                        const size_t kernel_w, const size_t stride_h, const size_t stride_w,
+                        const size_t pad_h, const size_t pad_w) {
+  const size_t in_h = input_tensor.height();
+  const size_t in_w = input_tensor.width();
+  const size_t padded_h = in_h + 2 * pad_h;
+  const size_t padded_w = in_w + 2 * pad_w;
+  const size_t out_h = (padded_h - kernel_h) / stride_h + 1;
+  const size_t out_w = (padded_w - kernel_w) / stride_w + 1;
+  const size_t channels = input_tensor.channels();
+  const size_t batch_size = input_tensor.batch_size();
+
+  size_t col_height = channels * kernel_h * kernel_w;
+  size_t col_width = out_h * out_w;
+  Matrix<T> col_matrix(col_height, batch_size * col_width);
+
+  im2col_padded(input_tensor, col_matrix.data(), kernel_h, kernel_w, stride_h, stride_w, pad_h,
+                pad_w);
   return col_matrix;
+}
+
+/**
+ * @brief Convert a 4D image tensor to a column buffer for convolution (raw pointer version).
+ * @param input_tensor The input tensor to convert.
+ * @param col_data Pointer to the output column buffer.
+ * @param kernel_h Height of the convolution kernel.
+ * @param kernel_w Width of the convolution kernel.
+ * @param stride_h Vertical stride of the convolution.
+ * @param stride_w Horizontal stride of the convolution.
+ * @param pad_h Vertical padding to be applied to the input tensor.
+ * @param pad_w Horizontal padding to be applied to the input tensor.
+ */
+template <typename T>
+void im2col(const Tensor<T, NCHW> &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
+            size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
+  if (pad_h > 0 || pad_w > 0) {
+    if (pad_h == 1 && pad_w == 1 && stride_h == 1 && stride_w == 1 && kernel_h == 3 &&
+        kernel_w == 3)
+      im2col_pad_1_stride_1_kernel_3(input_tensor, col_data);
+    else
+      im2col_padded(input_tensor, col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+    return;
+  }
+
+  const size_t in_h = input_tensor.height();
+  const size_t in_w = input_tensor.width();
+  const size_t out_h = (in_h - kernel_h) / stride_h + 1;
+  const size_t out_w = (in_w - kernel_w) / stride_w + 1;
+  const size_t channels = input_tensor.channels();
+  const size_t batch_size = input_tensor.batch_size();
+
+  size_t col_width = out_h * out_w;
+
+  const T *input_data = input_tensor.data();
+
+  tthreads::parallel_for_2d<size_t>(
+      batch_size, channels,
+      [&](size_t n, size_t c) {
+        const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
+
+        for (size_t kh = 0; kh < kernel_h; ++kh) {
+          for (size_t kw = 0; kw < kernel_w; ++kw) {
+            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+            T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
+
+            for (size_t h = 0; h < out_h; ++h) {
+              const T *input_row_ptr = input_channel_ptr + (h * stride_h + kh) * in_w + kw;
+
+              //  vectorize where possible
+              if (stride_w == 1) {
+                std::copy(input_row_ptr, input_row_ptr + out_w, col_row_ptr);
+                col_row_ptr += out_w;
+              } else {
+                for (size_t w = 0; w < out_w; ++w) {
+                  *col_row_ptr++ = input_row_ptr[w * stride_w];
+                }
+              }
+            }
+          }
+        }
+      },
+      tthreads::SchedulePolicy::Auto);
 }
 
 /**
@@ -292,55 +383,22 @@ Matrix<T> im2col(const Tensor<T, NCHW> &input_tensor, size_t kernel_h, size_t ke
   size_t col_width = out_h * out_w;
   Matrix<T> col_matrix(col_height, batch_size * col_width);
 
-  const T *input_data = input_tensor.data();
-  T *col_data = col_matrix.data();
-
-  tthreads::parallel_for_2d<size_t>(
-      batch_size, channels,
-      [&](size_t n, size_t c) {
-        const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
-
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
-
-            for (size_t h = 0; h < out_h; ++h) {
-              const T *input_row_ptr = input_channel_ptr + (h * stride_h + kh) * in_w + kw;
-
-              //  vectorize where possible
-              if (stride_w == 1) {
-                std::copy(input_row_ptr, input_row_ptr + out_w, col_row_ptr);
-                col_row_ptr += out_w;
-              } else {
-                for (size_t w = 0; w < out_w; ++w) {
-                  *col_row_ptr++ = input_row_ptr[w * stride_w];
-                }
-              }
-            }
-          }
-        }
-      },
-      tthreads::SchedulePolicy::Auto);
-
+  im2col(input_tensor, col_matrix.data(), kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   return col_matrix;
 }
 
 template <typename T>
-static Tensor<T, NCHW> col2im_padded(const Matrix<T> &col_matrix, size_t batch_size,
-                                     size_t channels, size_t height, size_t width, size_t kernel_h,
-                                     size_t kernel_w, size_t stride_h, size_t stride_w,
-                                     size_t pad_h, size_t pad_w) {
+static void col2im_padded(const T *col_data, T *result_data, size_t batch_size, size_t channels,
+                          size_t height, size_t width, size_t kernel_h, size_t kernel_w,
+                          size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
   const size_t padded_h = height + 2 * pad_h;
   const size_t padded_w = width + 2 * pad_w;
   const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
   const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
-
-  Tensor<T, NCHW> result(batch_size, channels, height, width);
-
-  const T *col_data = col_matrix.data();
-  T *result_data = result.data();
   const size_t col_width = output_h * output_w;
+
+  // Initialize result buffer to zero
+  std::fill(result_data, result_data + batch_size * channels * height * width, T(0));
 
   tthreads::parallel_for_2d<size_t>(
       batch_size, channels,
@@ -387,8 +445,77 @@ static Tensor<T, NCHW> col2im_padded(const Matrix<T> &col_matrix, size_t batch_s
         }
       },
       tthreads::SchedulePolicy::Auto);
+}
 
+template <typename T>
+static Tensor<T, NCHW> col2im_padded(const Matrix<T> &col_matrix, size_t batch_size,
+                                     size_t channels, size_t height, size_t width, size_t kernel_h,
+                                     size_t kernel_w, size_t stride_h, size_t stride_w,
+                                     size_t pad_h, size_t pad_w) {
+  Tensor<T, NCHW> result(batch_size, channels, height, width);
+  col2im_padded(col_matrix.data(), result.data(), batch_size, channels, height, width, kernel_h,
+                kernel_w, stride_h, stride_w, pad_h, pad_w);
   return result;
+}
+
+/**
+ * @brief Convert a column buffer back to the original image tensor (raw pointer version).
+ * @param col_data The input column buffer.
+ * @param result_data The output tensor buffer.
+ * @param batch_size Number of images in the batch.
+ * @param channels Number of channels in the images.
+ * @param height Height of the original images.
+ * @param width Width of the original images.
+ * @param kernel_h Height of the convolution kernel.
+ * @param kernel_w Width of the convolution kernel.
+ * @param stride_h Vertical stride of the convolution.
+ * @param stride_w Horizontal stride of the convolution.
+ * @param pad_h Vertical padding applied to the original images.
+ * @param pad_w Horizontal padding applied to the original images.
+ */
+template <typename T>
+static void col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels,
+                   size_t height, size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h,
+                   size_t stride_w, size_t pad_h, size_t pad_w) {
+  if (pad_h > 0 || pad_w > 0) {
+    col2im_padded(col_data, result_data, batch_size, channels, height, width, kernel_h, kernel_w,
+                  stride_h, stride_w, pad_h, pad_w);
+    return;
+  }
+
+  // No padding case
+  size_t output_h = (height - kernel_h) / stride_h + 1;
+  size_t output_w = (width - kernel_w) / stride_w + 1;
+
+  const size_t col_width = output_h * output_w;
+
+  tthreads::parallel_for_2d<size_t>(
+      batch_size, channels,
+      [&](size_t n, size_t c) {
+        T *result_channel_ptr = result_data + (n * channels + c) * height * width;
+
+        for (size_t kh = 0; kh < kernel_h; ++kh) {
+          for (size_t kw = 0; kw < kernel_w; ++kw) {
+            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
+            const T *col_row_ptr =
+                col_data + col_row_idx * (batch_size * col_width) + n * col_width;
+
+            for (size_t h = 0; h < output_h; ++h) {
+              T *result_row_ptr = result_channel_ptr + (h * stride_h + kh) * width + kw;
+
+              if (stride_w == 1) {
+                utils::avx2_add(result_row_ptr, col_row_ptr, result_row_ptr, output_w);
+                col_row_ptr += output_w;
+              } else {
+                for (size_t w = 0; w < output_w; ++w) {
+                  result_row_ptr[w * stride_w] += *col_row_ptr++;
+                }
+              }
+            }
+          }
+        }
+      },
+      tthreads::SchedulePolicy::Static);
 }
 
 /**
@@ -410,48 +537,8 @@ template <typename T>
 static Tensor<T, NCHW> col2im(const Matrix<T> &col_matrix, size_t batch_size, size_t channels,
                               size_t height, size_t width, size_t kernel_h, size_t kernel_w,
                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
-  if (pad_h > 0 || pad_w > 0) {
-    return col2im_padded(col_matrix, batch_size, channels, height, width, kernel_h, kernel_w,
-                         stride_h, stride_w, pad_h, pad_w);
-  }
-  size_t padded_h = height + 2 * pad_h;
-  size_t padded_w = width + 2 * pad_w;
-  size_t output_h = (padded_h - kernel_h) / stride_h + 1;
-  size_t output_w = (padded_w - kernel_w) / stride_w + 1;
-
-  Tensor<T, NCHW> result(batch_size, channels, padded_h, padded_w);
-
-  const T *col_data = col_matrix.data();
-  T *result_data = result.data();
-  const size_t col_width = output_h * output_w;
-
-  tthreads::parallel_for_2d<size_t>(
-      batch_size, channels,
-      [&](size_t n, size_t c) {
-        T *result_channel_ptr = result_data + (n * channels + c) * padded_h * padded_w;
-
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            const T *col_row_ptr =
-                col_data + col_row_idx * (batch_size * col_width) + n * col_width;
-
-            for (size_t h = 0; h < output_h; ++h) {
-              T *result_row_ptr = result_channel_ptr + (h * stride_h + kh) * padded_w + kw;
-
-              if (stride_w == 1) {
-                utils::avx2_add(result_row_ptr, col_row_ptr, result_row_ptr, output_w);
-                col_row_ptr += output_w;
-              } else {
-                for (size_t w = 0; w < output_w; ++w) {
-                  result_row_ptr[w * stride_w] += *col_row_ptr++;
-                }
-              }
-            }
-          }
-        }
-      },
-      tthreads::SchedulePolicy::Static);
-
+  Tensor<T, NCHW> result(batch_size, channels, height, width);
+  col2im(col_matrix.data(), result.data(), batch_size, channels, height, width, kernel_h, kernel_w,
+         stride_h, stride_w, pad_h, pad_w);
   return result;
 }

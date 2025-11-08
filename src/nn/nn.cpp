@@ -14,15 +14,7 @@
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-/**
- * Template instantiations for commonly used types. Uncomment as needed.
- */
-
 // Sequential model instantiations
 template class Sequential<float>;
-// template class Sequential<double>;
-
-// Sequential builder instantiations
-// template class SequentialBuilder<double>;
-
+template class SequentialBuilder<float>;
 } // namespace tnn

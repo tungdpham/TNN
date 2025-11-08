@@ -1,4 +1,4 @@
-#include "device/contexts/cpu_context.hpp"
+#include "device/cpu/cpu_context.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -18,7 +18,7 @@
 #endif
 
 namespace tdevice {
-CPUContext::CPUContext(int id) : Context(id) {}
+CPUContext::CPUContext() : Context() {}
 
 size_t CPUContext::getTotalMemory() const {
 #ifdef __linux__

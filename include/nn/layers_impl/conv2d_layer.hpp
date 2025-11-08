@@ -13,6 +13,7 @@
 
 #include "../activations.hpp"
 #include "../optimizers.hpp"
+#include "device/device_ptr.hpp"
 #include "matrix/matrix.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -38,7 +39,12 @@ private:
 
   mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
-  mutable std::unordered_map<size_t, Matrix<T>> micro_batch_im2col_matrices_;
+  mutable std::unordered_map<size_t, tdevice::device_ptr<T[]>> micro_batch_col_buffers_;
+
+  // Reusable temporary buffers to avoid allocation overhead
+  mutable tdevice::device_ptr<T[]> temp_output_buffer_;
+  mutable tdevice::device_ptr<T[]> temp_gradient_buffer_;
+  mutable tdevice::device_ptr<T[]> temp_col_grad_matrix_buffer_;
 
   void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                             const size_t output_size, const size_t kernel_size,

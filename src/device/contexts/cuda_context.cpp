@@ -1,4 +1,4 @@
-#include "device/contexts/cuda_context.hpp"
+#include "device/cuda/cuda_context.hpp"
 
 #ifdef USE_CUDA
 
@@ -8,7 +8,7 @@
 
 namespace tdevice {
 
-CUDAContext::CUDAContext(int id) : Context(id) {
+CUDAContext::CUDAContext(int id) : Context() {
   // Set the device for this context
   cudaError_t err = cudaSetDevice(id);
   if (err != cudaSuccess) {

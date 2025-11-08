@@ -37,6 +37,8 @@ public:
 #endif
   }
 
+  const ThreadingConfig &get_config() const { return config_; }
+
 private:
   ThreadingConfig config_;
 #ifdef USE_TBB
