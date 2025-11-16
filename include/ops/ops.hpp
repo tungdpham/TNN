@@ -31,10 +31,10 @@ template <typename T>
 std::unique_ptr<Task> add(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("add: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("add: All device pointers must be on the same device");
   }
   auto device = a.getDevice();
   auto device_type = device->getDeviceType();
@@ -56,10 +56,10 @@ template <typename T>
 std::unique_ptr<Task> sub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("sub: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("sub: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -82,10 +82,10 @@ template <typename T>
 std::unique_ptr<Task> mul(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("mul: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("mul: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -108,10 +108,10 @@ template <typename T>
 std::unique_ptr<Task> div(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("div: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("div: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -134,10 +134,10 @@ template <typename T>
 std::unique_ptr<Task> fmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                             size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("fmadd: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("fmadd: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -160,10 +160,10 @@ template <typename T>
 std::unique_ptr<Task> fmsub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                             size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("fmsub: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("fmsub: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -186,10 +186,10 @@ template <typename T>
 std::unique_ptr<Task> fnmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                              size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("fnmadd: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("fnmadd: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -212,10 +212,10 @@ template <typename T>
 std::unique_ptr<Task> add_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("add_scalar: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("add_scalar: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -238,10 +238,11 @@ template <typename T>
 std::unique_ptr<Task> mul_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("mul_scalar: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    std::cout << "Device pointers: " << a.getDevice() << " " << c.getDevice() << std::endl;
+    throw std::runtime_error("mul_scalar: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -264,10 +265,10 @@ template <typename T>
 std::unique_ptr<Task> div_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("div_scalar: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("div_scalar: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -288,7 +289,7 @@ std::unique_ptr<Task> div_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
 
 template <typename T> std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T scalar, size_t size) {
   if (!c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("set_scalar: Device pointer has no associated device");
   }
 
   auto device = c.getDevice();
@@ -310,10 +311,10 @@ template <typename T> std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T sca
 template <typename T>
 std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("sqrt: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("sqrt: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -335,10 +336,10 @@ std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
 inline std::unique_ptr<Task> rsqrt(const device_ptr<float[]> &a, device_ptr<float[]> &c,
                                    size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("rsqrt: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("rsqrt: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -360,10 +361,10 @@ inline std::unique_ptr<Task> rsqrt(const device_ptr<float[]> &a, device_ptr<floa
 inline std::unique_ptr<Task> rcp(const device_ptr<float[]> &a, device_ptr<float[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("rcp: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("rcp: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -385,10 +386,10 @@ inline std::unique_ptr<Task> rcp(const device_ptr<float[]> &a, device_ptr<float[
 template <typename T>
 std::unique_ptr<Task> abs(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("abs: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("abs: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -411,10 +412,10 @@ template <typename T>
 std::unique_ptr<Task> min(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("min: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("min: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -437,10 +438,10 @@ template <typename T>
 std::unique_ptr<Task> max(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                           size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("max: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("max: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -463,10 +464,10 @@ template <typename T>
 std::unique_ptr<Task> scalar_max(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("scalar_max: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("scalar_max: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -489,10 +490,10 @@ template <typename T>
 std::unique_ptr<Task> clamp(const device_ptr<T[]> &a, T min_val, T max_val, device_ptr<T[]> &c,
                             size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("clamp: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("clamp: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -515,10 +516,10 @@ template <typename T>
 std::unique_ptr<Task> equal(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
                             size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("equal: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("equal: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -541,10 +542,10 @@ template <typename T>
 std::unique_ptr<Task> greater(const device_ptr<T[]> &a, const device_ptr<T[]> &b,
                               device_ptr<T[]> &c, size_t size) {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("greater: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("greater: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -567,14 +568,14 @@ template <typename T>
 std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size,
                            size_t a_offset = 0, size_t c_offset = 0) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("copy: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("copy: All device pointers must be on the same device");
   }
 
   if (a.get() == nullptr || c.get() == nullptr) {
-    throw std::runtime_error("Null pointer exception in copy operation");
+    throw std::runtime_error("copy: Null pointer exception in copy operation");
   }
 
   auto device = a.getDevice();
@@ -596,7 +597,7 @@ std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
 
 template <typename T> std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size) {
   if (!c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("zero: Device pointer has no associated device");
   }
 
   auto device = c.getDevice();
@@ -617,7 +618,7 @@ template <typename T> std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size
 
 template <typename T> T sum(const device_ptr<T[]> &a, size_t size) {
   if (!a.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("sum: Device pointer has no associated device");
   }
 
   auto device_type = a.getDevice()->getDeviceType();
@@ -638,10 +639,10 @@ template <typename T> T sum(const device_ptr<T[]> &a, size_t size) {
 template <typename T>
 T dot_product(const device_ptr<T[]> &a, const device_ptr<T[]> &b, size_t size) {
   if (!a.getDevice() || !b.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("dot_product: Device pointer has no associated device");
   }
   if (a.getDevice() != b.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("dot_product: All device pointers must be on the same device");
   }
 
   auto device_type = a.getDevice()->getDeviceType();
@@ -661,7 +662,7 @@ T dot_product(const device_ptr<T[]> &a, const device_ptr<T[]> &b, size_t size) {
 
 template <typename T> T norm_squared(const device_ptr<T[]> &a, size_t size) {
   if (!a.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("norm_squared: Device pointer has no associated device");
   }
 
   auto device_type = a.getDevice()->getDeviceType();
@@ -681,7 +682,7 @@ template <typename T> T norm_squared(const device_ptr<T[]> &a, size_t size) {
 
 template <typename T> T sum_squared_diff(const device_ptr<T[]> &a, T mean, size_t size) {
   if (!a.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
   }
 
   auto device_type = a.getDevice()->getDeviceType();
@@ -703,10 +704,10 @@ template <typename T>
 std::unique_ptr<Task> sub_mul_scalar(const device_ptr<T[]> &a, T sub_scalar, T mul_scalar,
                                      device_ptr<T[]> &c, size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("sub_mul_scalar: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("sub_mul_scalar: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -731,10 +732,10 @@ template <typename T>
 std::unique_ptr<Task> mul_add_scalar(const device_ptr<T[]> &a, T mul_scalar, T add_scalar,
                                      device_ptr<T[]> &c, size_t size) {
   if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("mul_add_scalar: Device pointer has no associated device");
   }
   if (a.getDevice() != c.getDevice()) {
-    throw std::runtime_error("All device pointers must be on the same device");
+    throw std::runtime_error("mul_add_scalar: All device pointers must be on the same device");
   }
 
   auto device = a.getDevice();
@@ -759,7 +760,7 @@ template <typename T>
 std::unique_ptr<Task> fill_random_uniform(device_ptr<T[]> &data, size_t size, T min_val, T max_val,
                                           unsigned long long seed) {
   if (!data.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("fill_random_uniform: Device pointer has no associated device");
   }
 
   auto device = data.getDevice();
@@ -784,7 +785,7 @@ template <typename T>
 std::unique_ptr<Task> fill_random_normal(device_ptr<T[]> &data, size_t size, T mean, T stddev,
                                          unsigned long long seed) {
   if (!data.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("fill_random_normal: Device pointer has no associated device");
   }
 
   auto device = data.getDevice();
@@ -809,11 +810,11 @@ template <typename T>
 std::unique_ptr<Task> transpose_2d(const device_ptr<T[]> &input, device_ptr<T[]> &output,
                                    size_t rows, size_t cols) {
   if (!input.getDevice() || !output.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("transpose_2d: Device pointer has no associated device");
   }
 
   if (output.getDevice() != input.getDevice()) {
-    throw std::runtime_error("Input and output must be on the same device");
+    throw std::runtime_error("transpose_2d: Input and output must be on the same device");
   }
 
   auto device = input.getDevice();
@@ -837,11 +838,11 @@ template <typename T>
 std::unique_ptr<Task> nchw_to_cnhw(const device_ptr<T[]> &input, device_ptr<T[]> &output, size_t n,
                                    size_t c, size_t h, size_t w) {
   if (!input.getDevice() || !output.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("nchw_to_cnhw: Device pointer has no associated device");
   }
 
   if (output.getDevice() != input.getDevice()) {
-    throw std::runtime_error("Input and output must be on the same device");
+    throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
   }
 
   auto device = input.getDevice();
@@ -865,10 +866,10 @@ template <typename T>
 std::unique_ptr<Task> cnhw_to_nchw(const device_ptr<T[]> &input, device_ptr<T[]> &output, size_t n,
                                    size_t c, size_t h, size_t w) {
   if (!input.getDevice() || !output.getDevice()) {
-    throw std::runtime_error("Device pointer has no associated device");
+    throw std::runtime_error("cnhw_to_nchw: Device pointer has no associated device");
   }
   if (output.getDevice() != input.getDevice()) {
-    throw std::runtime_error("Input and output must be on the same device");
+    throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
   }
   auto device = input.getDevice();
   auto device_type = device->getDeviceType();

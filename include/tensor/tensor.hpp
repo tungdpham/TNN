@@ -162,6 +162,7 @@ public:
     if (this != &other) {
       data_.reset();
 
+      device_ = other.device_;
       layout_trait_ = other.layout_trait_;
       data_ = std::move(other.data_);
       data_size_ = other.data_size_;
@@ -339,6 +340,8 @@ public:
   bool is_aligned(size_t alignment = 32) const {
     return (reinterpret_cast<uintptr_t>(data_.get()) % alignment) == 0;
   }
+
+  const Device *device() const { return device_; }
 
   DeviceType device_type() const { return device_->getDeviceType(); }
 

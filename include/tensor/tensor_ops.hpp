@@ -13,6 +13,9 @@ template <typename T>
 void im2col(const Tensor<T, NCHW> &input_tensor, device_ptr<T[]> &col_data, size_t kernel_h,
             size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
             size_t pad_w = 0) {
+  if (col_data.getDeviceType() != input_tensor.device_type()) {
+    throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
+  }
   if (input_tensor.device_type() != col_data.getDeviceType()) {
     throw std::runtime_error("im2col: Mismatched device types between input tensor and col_data");
   }
@@ -34,6 +37,9 @@ template <typename T>
 void col2im(const device_ptr<T[]> &col_data, const device_ptr<T[]> &result_data, size_t batch_size,
             size_t channels, size_t height, size_t width, size_t kernel_h, size_t kernel_w,
             size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
+  if (col_data.getDeviceType() != result_data.getDeviceType()) {
+    throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
+  }
   if (col_data.getDeviceType() == DeviceType::CPU) {
     cpu::col2im(col_data.get(), result_data.get(), batch_size, channels, height, width, kernel_h,
                 kernel_w, stride_h, stride_w, pad_h, pad_w);
