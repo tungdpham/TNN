@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "../tensor/tensor.hpp"
+#include "tensor/tensor.hpp"
 #include <any>
 #include <cmath>
 #include <memory>
@@ -61,7 +61,7 @@ public:
     if (momentum_ > 0.0f && !initialized_) {
       velocities_.resize(params.size());
       for (size_t i = 0; i < params.size(); ++i) {
-        velocities_[i] = Tensor<T>(params[i]->shape());
+        velocities_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
         velocities_[i].fill(0.0f);
       }
       initialized_ = true;
@@ -69,14 +69,11 @@ public:
 
     parallel_for<size_t>(0, params.size(), [&](size_t i) {
       if (momentum_ > 0.0f) {
-
         velocities_[i] *= momentum_;
         Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
         velocities_[i] -= scaled_grad;
-
         (*params[i]) += velocities_[i];
       } else {
-
         Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
         (*params[i]) -= scaled_grad;
       }
@@ -116,9 +113,9 @@ public:
       m_.resize(params.size());
       v_.resize(params.size());
       for (size_t i = 0; i < params.size(); ++i) {
-        m_[i] = Tensor<T>(params[i]->shape());
+        m_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
         m_[i].fill(0.0f);
-        v_[i] = Tensor<T>(params[i]->shape());
+        v_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
         v_[i].fill(0.0f);
       }
       initialized_ = true;
@@ -134,21 +131,24 @@ public:
     const T step_size = this->learning_rate_ / bias_correction1;
 
     parallel_for<size_t>(0, params.size(), [&](size_t i) {
+      std::cout << "Updating parameter " << i << std::endl;
       m_[i] *= beta1_;
       m_[i] += (*grads[i]) * one_minus_beta1;
+      std::cout << "m updated." << std::endl;
 
       Tensor<T> grad_sq = (*grads[i]) * (*grads[i]);
       v_[i] *= beta2_;
       v_[i] += grad_sq * one_minus_beta2;
+      std::cout << "v updated." << std::endl;
 
       T *param_data = params[i]->data_ptr().get();
       const T *m_data = m_[i].data_ptr().get();
       const T *v_data = v_[i].data_ptr().get();
-
       for (size_t j = 0; j < params[i]->size(); ++j) {
         param_data[j] -=
             step_size * m_data[j] / (std::sqrt(v_data[j] / bias_correction2) + epsilon_);
       }
+      std::cout << "Parameter " << i << " updated." << std::endl;
     });
   }
 

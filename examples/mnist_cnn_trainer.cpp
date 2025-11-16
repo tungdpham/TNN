@@ -26,9 +26,7 @@ constexpr float LR_INITIAL = 0.01f;
 } // namespace mnist_constants
 
 int main() {
-  std::cout.tie(nullptr);
   std::cin.tie(nullptr);
-  std::ios::sync_with_stdio(false);
   try {
 
     // Load environment variables from .env file

@@ -27,19 +27,19 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
       pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {
-  Device *device = const_cast<Device *>(&getCPU());
-  temp_output_buffer_ = make_array_ptr<T[]>(device, 0);
-  temp_gradient_buffer_ = make_array_ptr<T[]>(device, 0);
-  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(device, 0);
+  device_ = &getCPU();
+  temp_output_buffer_ = make_array_ptr<T[]>(device_, 0);
+  temp_gradient_buffer_ = make_array_ptr<T[]>(device_, 0);
+  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(device_, 0);
 }
 
 template <typename T> void Conv2DLayer<T>::initialize_params() {
-  weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_});
-  weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_});
+  weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, device_);
+  weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, device_);
 
   if (use_bias_) {
-    bias_ = Tensor<T>({out_channels_, 1, 1, 1});
-    bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1});
+    bias_ = Tensor<T>({out_channels_, 1, 1, 1}, device_);
+    bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, device_);
   }
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
@@ -76,8 +76,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   // Ensure per-microbatch col buffer is allocated
   auto col_buffer_it = micro_batch_col_buffers_.find(micro_batch_id);
   if (col_buffer_it == micro_batch_col_buffers_.end()) {
-    const Device *device = &getCPU();
-    micro_batch_col_buffers_[micro_batch_id] = make_array_ptr<T[]>(device, col_matrix_size);
+    micro_batch_col_buffers_[micro_batch_id] = make_array_ptr<T[]>(device_, col_matrix_size);
   } else {
     col_buffer_it->second.ensure(col_matrix_size);
   }
@@ -95,7 +94,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     this->perf_timers_["im2col"] += im2col_duration;
   }
 
-  Tensor<T> output({batch_size, out_channels_, output_h, output_w}, &getCPU());
+  Tensor<T> output({batch_size, out_channels_, output_h, output_w}, device_);
 
   compute_conv_forward(micro_batch_col_buffers_[micro_batch_id], weights_.data_ptr(),
                        temp_output_buffer_, output_size, kernel_size, out_channels_);
@@ -108,7 +107,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
                        out_channels_);
   }
 
-  return output;
+  return output.to_cpu();
 }
 
 template <typename T>
@@ -159,11 +158,11 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(), temp_col_grad_matrix_buffer_,
                           output_size, kernel_size, out_channels_);
 
-  Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w});
+  Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, device_);
   col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
          input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  return grad_input;
+  return grad_input.to_cpu();
 }
 
 template <typename T>
