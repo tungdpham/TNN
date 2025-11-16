@@ -5,13 +5,7 @@
  * project root for the full license text.
  */
 
-#include "matrix/matrix.hpp"
-#include "nn/activations.hpp"
-#include "nn/layers.hpp"
-#include "nn/loss.hpp"
-#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 // Sequential model instantiations

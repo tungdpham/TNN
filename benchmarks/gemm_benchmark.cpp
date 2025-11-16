@@ -1,15 +1,17 @@
 #include "math/gemm.hpp"
+#include "matrix/matrix.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
-#include "utils/ops.hpp"
+#include "utils/mkl_utils.hpp"
+
 #include <chrono>
 #include <iostream>
 #include <numeric>
-#include <utils/mkl_utils.hpp>
 #include <vector>
 
-using namespace tmath;
-using namespace utils;
+using namespace tnn;
+using namespace cpu;
+using namespace tnn;
 
 constexpr size_t N = 64;
 constexpr size_t C = 128;
@@ -92,32 +94,32 @@ int main() {
     benchmark(
         "MKL SGEMM (NN)",
         [&]() {
-          utils::mkl::gemm('N', 'N', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C, 1.0f,
-                           c1_mkl.data(), C);
+          mkl::gemm('N', 'N', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C, 1.0f,
+                    c1_mkl.data(), C);
         },
         3);
 
     benchmark(
         "MKL SGEMM (NT)",
         [&]() {
-          utils::mkl::gemm('N', 'T', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(),
-                           C * H * W, 1.0f, c2_mkl.data(), C);
+          mkl::gemm('N', 'T', N, C, C * H * W, 1.0f, a.data(), C * H * W, b.data(), C * H * W, 1.0f,
+                    c2_mkl.data(), C);
         },
         3);
 
     benchmark(
         "MKL SGEMM (TN)",
         [&]() {
-          utils::mkl::gemm('T', 'N', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C, 1.0f,
-                           c3_mkl.data(), C);
+          mkl::gemm('T', 'N', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C, 1.0f, c3_mkl.data(),
+                    C);
         },
         3);
 
     benchmark(
         "MKL SGEMM (TT)",
         [&]() {
-          utils::mkl::gemm('T', 'T', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C * H * W, 1.0f,
-                           c4_mkl.data(), C);
+          mkl::gemm('T', 'T', N, C, C * H * W, 1.0f, a.data(), N, b.data(), C * H * W, 1.0f,
+                    c4_mkl.data(), C);
         },
         3);
 

@@ -1,9 +1,7 @@
 #pragma once
+#include "pipeline/tbuffer.hpp"
 
-#include <cstdint>
-#include <vector>
-
-namespace tpipeline {
+namespace tnn {
 class ZstdCompressor {
 public:
   static TBuffer compress(const TBuffer &data, int compression_level = 3);
@@ -15,4 +13,4 @@ public:
   static TBuffer compress(const TBuffer &data, int compression_level = 3);
   static TBuffer decompress(const TBuffer &data);
 };
-} // namespace tpipeline
+} // namespace tnn

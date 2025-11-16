@@ -22,6 +22,8 @@ endfunction()
 set(TEST_FILES 
     tensor_test.cpp
     device_manager_test.cpp
+    cuda_kernels_test.cpp
+    gpu_tensor_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
@@ -36,7 +38,7 @@ if(ENABLE_CUDA)
         
         # Set CUDA properties
         set_target_properties(${test_name} PROPERTIES 
-            CUDA_ARCHITECTURES "52;60;61;70;75;80;86"
+            CUDA_ARCHITECTURES ${DETECTED_CUDA_ARCH}
             CUDA_STANDARD 17
             CUDA_SEPARABLE_COMPILATION ON
         )
@@ -52,8 +54,7 @@ if(ENABLE_CUDA)
         # Discover tests automatically
         gtest_discover_tests(${test_name})
     endfunction()
-    
-    create_cuda_test(cuda_kernels_test)
+
     set(CUDA_TEST_TARGET cuda_kernels_test)
 else()
     set(CUDA_TEST_TARGET "")
@@ -64,6 +65,7 @@ add_custom_target(run_tests
     COMMAND ${CMAKE_CTEST_COMMAND} --verbose
     DEPENDS tensor_test 
     device_manager_test
+    gpu_tensor_test
     ${CUDA_TEST_TARGET}
     COMMENT "Running all unit tests"
 )

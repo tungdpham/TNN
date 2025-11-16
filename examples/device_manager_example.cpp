@@ -2,7 +2,7 @@
 #include <iostream>
 #include <vector>
 
-using namespace tdevice;
+using namespace tnn;
 
 int main() {
   try {

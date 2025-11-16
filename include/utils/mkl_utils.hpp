@@ -12,7 +12,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace utils {
+namespace tnn {
 namespace mkl {
 
 inline void initialize_mkl() {
@@ -139,6 +139,6 @@ inline void conv_input_grad_gemm(const T *weights, const T *output_grad, T *col_
 }
 
 } // namespace mkl
-} // namespace utils
+} // namespace tnn
 
 #endif // USE_MKL

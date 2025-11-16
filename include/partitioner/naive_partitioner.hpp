@@ -1,21 +1,21 @@
 #pragma once
 
 #include "partitioner.hpp"
+#include <vector>
 
-namespace partitioner {
+namespace tnn {
 template <typename T> class NaivePartitioner : public Partitioner<T> {
   // Simple naive partitioning strategy that divides layers evenly among partitions
 public:
   NaivePartitioner() = default;
   ~NaivePartitioner() = default;
 
-  std::vector<tnn::Partition>
-  get_partitions(const std::vector<std::unique_ptr<tnn::Layer<T>>> &layers_,
-                 const size_t num_partitions) override {
+  std::vector<Partition> get_partitions(const std::vector<std::unique_ptr<Layer<T>>> &layers_,
+                                        const size_t num_partitions) override {
     if (num_partitions < 1) {
       throw std::invalid_argument("Number of partitions must be at least 1");
     }
-    std::vector<tnn::Partition> partitions;
+    std::vector<Partition> partitions;
     size_t total_layers = layers_.size();
     size_t base_partition_size = total_layers / num_partitions;
     size_t remainder = total_layers % num_partitions;
@@ -33,4 +33,4 @@ public:
   }
 };
 
-} // namespace partitioner
+} // namespace tnn

@@ -44,7 +44,7 @@
 #include <sys/types.h>
 #endif
 
-namespace utils {
+namespace tnn {
 
 HardwareInfo::HardwareInfo() : initialized_(false) {
   last_update_ = std::chrono::system_clock::now();
@@ -1861,4 +1861,4 @@ std::vector<int> HardwareInfo::get_recommended_cpu_affinity(int thread_count) co
   return recommended_cores;
 }
 
-} // namespace utils
+} // namespace tnn

@@ -6,15 +6,13 @@
  */
 #pragma once
 
-#include "data_loading/image_data_loader.hpp"
-#include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 
-namespace tpipeline {
+namespace tnn {
 
 ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
-                                   data_loading::BaseDataLoader<float> &train_loader,
+                                   BaseDataLoader<float> &train_loader,
                                    size_t progress_print_interval) {
   Tensor<float> batch_data, batch_labels;
 
@@ -66,7 +64,7 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
 }
 
 ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
-                                      data_loading::BaseDataLoader<float> &test_loader) {
+                                      BaseDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
   float total_val_loss = 0.0f;
@@ -83,10 +81,9 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(CommandType::FORWARD_TASK, coordinator.num_microbatches(), 60);
+    coordinator.join(CommandType::FORWARD_JOB, coordinator.num_microbatches(), 60);
 
-    std::vector<tpipeline::Message> all_messages =
-        coordinator.dequeue_all_messages(tpipeline::CommandType::FORWARD_TASK);
+    std::vector<Message> all_messages = coordinator.dequeue_all_messages(CommandType::FORWARD_JOB);
 
     if (all_messages.size() != static_cast<size_t>(coordinator.num_microbatches())) {
       throw std::runtime_error(
@@ -94,20 +91,20 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
           ", expected: " + std::to_string(coordinator.num_microbatches()));
     }
 
-    std::vector<tpipeline::Task<float>> forward_tasks;
+    std::vector<Job<float>> forward_jobs;
     for (const auto &message : all_messages) {
-      if (message.header.command_type == CommandType::FORWARD_TASK) {
-        forward_tasks.push_back(message.get<Task<float>>());
+      if (message.header.command_type == CommandType::FORWARD_JOB) {
+        forward_jobs.push_back(message.get<Job<float>>());
       }
     }
 
     auto val_loss = 0.0f;
     auto val_correct = 0.0f;
 
-    for (auto &task : forward_tasks) {
-      val_loss += coordinator.compute_loss(task.data, micro_batch_labels[task.micro_batch_id]);
-      val_correct += ::utils::compute_class_corrects<float>(
-          task.data, micro_batch_labels[task.micro_batch_id]);
+    for (auto &job : forward_jobs) {
+      val_loss += coordinator.compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
+      val_correct +=
+          compute_class_corrects<float>(job.data, micro_batch_labels[job.micro_batch_id]);
     }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
@@ -122,10 +119,8 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
           static_cast<float>((total_val_correct / test_loader.size()) * 100.0f)};
 }
 
-void train_model(DistributedCoordinator &coordinator,
-                 data_loading::BaseDataLoader<float> &train_loader,
-                 data_loading::BaseDataLoader<float> &test_loader,
-                 TrainingConfig config = TrainingConfig()) {
+void train_model(DistributedCoordinator &coordinator, BaseDataLoader<float> &train_loader,
+                 BaseDataLoader<float> &test_loader, TrainingConfig config = TrainingConfig()) {
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
 
@@ -144,4 +139,4 @@ void train_model(DistributedCoordinator &coordinator,
   }
 }
 
-} // namespace tpipeline
+} // namespace tnn

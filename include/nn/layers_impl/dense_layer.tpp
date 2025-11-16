@@ -4,16 +4,18 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#pragma once
 #include "nn/layers_impl/dense_layer.hpp"
 
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 
+#include "cpu/dense_ops.hpp"
+#include "cuda/dense_ops.hpp"
 #include "math/gemm.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
-#include "threading/thread_handler.hpp"
-#include "utils/ops.hpp"
+#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -23,12 +25,12 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
                           const std::string &name)
     : ParameterizedLayer<T>(name), input_features_(input_features),
       output_features_(output_features), use_bias_(use_bias), activation_(std::move(activation)) {
-  weights_ = Tensor<T>(output_features, input_features, 1, 1);
-  weight_gradients_ = Tensor<T>(output_features, input_features, 1, 1);
+  weights_ = Tensor<T>({output_features, input_features, 1, 1});
+  weight_gradients_ = Tensor<T>({output_features, input_features, 1, 1});
 
   if (use_bias_) {
-    bias_ = Tensor<T>(output_features, 1, 1, 1);
-    bias_gradients_ = Tensor<T>(output_features, 1, 1, 1);
+    bias_ = Tensor<T>({output_features, 1, 1, 1});
+    bias_gradients_ = Tensor<T>({output_features, 1, 1, 1});
   }
 
   T fan_in = static_cast<T>(input_features);
@@ -38,11 +40,11 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
 }
 
 template <typename T> void DenseLayer<T>::initialize_params() {
-  weights_ = Tensor<T>(output_features_, input_features_, 1, 1);
-  weight_gradients_ = Tensor<T>(output_features_, input_features_, 1, 1);
+  weights_ = Tensor<T>({output_features_, input_features_, 1, 1});
+  weight_gradients_ = Tensor<T>({output_features_, input_features_, 1, 1});
   if (use_bias_) {
-    bias_ = Tensor<T>(output_features_, 1, 1, 1);
-    bias_gradients_ = Tensor<T>(output_features_, 1, 1, 1);
+    bias_ = Tensor<T>({output_features_, 1, 1, 1});
+    bias_gradients_ = Tensor<T>({output_features_, 1, 1, 1});
   }
   T fan_in = static_cast<T>(input_features_);
   T fan_out = static_cast<T>(output_features_);
@@ -66,13 +68,13 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) 
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  Tensor<T> output(batch_size, output_features_, size_t(1), size_t(1), nullptr);
+  Tensor<T> output({batch_size, output_features_, size_t(1), size_t(1)});
 
-  compute_dense_forward(input.data(), weights_.data(), output.data(), batch_size, input_features_,
-                        output_features_);
+  compute_dense_forward(input.data_ptr(), weights_.data_ptr(), output.data_ptr(), batch_size,
+                        input_features_, output_features_);
 
   if (use_bias_) {
-    add_bias_vector(output.data(), bias_.data(), batch_size, output_features_);
+    add_bias_vector(output.data_ptr(), bias_.data_ptr(), batch_size, output_features_);
   }
 
   micro_batch_pre_activations_[micro_batch_id] = output.clone();
@@ -111,7 +113,7 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_
 
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
-  Tensor<T> grad_input(last_input.shape(), nullptr);
+  Tensor<T> grad_input(last_input.shape());
 
   Tensor<T> current_grad = gradient.clone();
 
@@ -119,64 +121,84 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_
     activation_->compute_gradient_inplace(it_pre_act->second, current_grad);
   }
 
-  compute_weight_gradients(last_input.data(), current_grad.data(), weight_gradients_.data(),
-                           batch_size, input_features_, output_features_);
+  compute_weight_gradients(last_input.data_ptr(), current_grad.data_ptr(),
+                           weight_gradients_.data_ptr(), batch_size, input_features_,
+                           output_features_);
 
   if (use_bias_) {
-    compute_bias_gradients(current_grad.data(), bias_gradients_.data(), batch_size,
+    compute_bias_gradients(current_grad.data_ptr(), bias_gradients_.data_ptr(), batch_size,
                            output_features_);
   }
 
-  compute_input_gradients(current_grad.data(), weights_.data(), grad_input.data(), batch_size,
-                          input_features_, output_features_);
+  compute_input_gradients(current_grad.data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
+                          batch_size, input_features_, output_features_);
 
   return grad_input;
 }
 
 template <typename T>
-void DenseLayer<T>::compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
-                                          const size_t batch_size, const size_t input_features,
+void DenseLayer<T>::compute_dense_forward(const device_ptr<T[]> &input_data,
+                                          const device_ptr<T[]> &weight_data,
+                                          device_ptr<T[]> &output_data, const size_t batch_size,
+                                          const size_t input_features,
                                           const size_t output_features) const {
-  tmath::gemm<T>(input_data, weight_data, output_data, batch_size, output_features, input_features,
-                 false, true);
+  gemm<T>(input_data, weight_data, output_data, batch_size, output_features, input_features, false,
+          true);
 }
 
 template <typename T>
-void DenseLayer<T>::compute_weight_gradients(const T *input_data, const T *gradient_data,
-                                             T *weight_grad_data, const size_t batch_size,
-                                             const size_t input_features,
+void DenseLayer<T>::compute_weight_gradients(const device_ptr<T[]> &input_data,
+                                             const device_ptr<T[]> &gradient_data,
+                                             device_ptr<T[]> &weight_grad_data,
+                                             const size_t batch_size, const size_t input_features,
                                              const size_t output_features) const {
-  tmath::gemm<T>(gradient_data, input_data, weight_grad_data, output_features, input_features,
-                 batch_size, true, false);
+  gemm<T>(gradient_data, input_data, weight_grad_data, output_features, input_features, batch_size,
+          true, false);
 }
 
 template <typename T>
-void DenseLayer<T>::compute_input_gradients(const T *gradient_data, const T *weight_data,
-                                            T *grad_input_data, size_t batch_size,
+void DenseLayer<T>::compute_input_gradients(const device_ptr<T[]> &gradient_data,
+                                            const device_ptr<T[]> &weight_data,
+                                            device_ptr<T[]> &grad_input_data, size_t batch_size,
                                             size_t input_features, size_t output_features) const {
-  std::fill(grad_input_data, grad_input_data + batch_size * input_features, T(0));
-  tmath::gemm<T>(gradient_data, weight_data, grad_input_data, batch_size, input_features,
-                 output_features, false, false);
+  ops::set_scalar(grad_input_data, T(0), batch_size * input_features);
+  gemm<T>(gradient_data, weight_data, grad_input_data, batch_size, input_features, output_features,
+          false, false);
 }
 
 template <typename T>
-void DenseLayer<T>::compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
+void DenseLayer<T>::compute_bias_gradients(const device_ptr<T[]> &current_grad_data,
+                                           const device_ptr<T[]> &bias_gradient_data,
                                            size_t batch_size, size_t output_features) const {
-  tthreads::parallel_for<size_t>(0, output_features, [&](size_t out_f) {
-    T grad_sum = T(0);
-    for (size_t n = 0; n < batch_size; ++n) {
-      grad_sum += current_grad_data[n * output_features + out_f];
-    }
-    bias_gradient_data[out_f] += grad_sum;
-  });
+  if (current_grad_data.getDeviceType() != bias_gradient_data.getDeviceType()) {
+    throw std::runtime_error("Device type mismatch in compute_bias_gradients");
+  }
+  if (current_grad_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_bias_gradients<T>(current_grad_data.get(), bias_gradient_data.get(), batch_size,
+                                   output_features);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_bias_gradients<T>(current_grad_data.get(), bias_gradient_data.get(), batch_size,
+                                    output_features);
+  }
+#endif
 }
 
 template <typename T>
-void DenseLayer<T>::add_bias_vector(T *output_data, const T *bias_data, size_t batch_size,
-                                    size_t output_features) const {
-  tthreads::parallel_for_2d(batch_size, output_features, [&](size_t n, size_t out_f) {
-    output_data[n * output_features + out_f] += bias_data[out_f];
-  });
+void DenseLayer<T>::add_bias_vector(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
+                                    size_t batch_size, size_t output_features) const {
+  if (output_data.getDeviceType() != bias_data.getDeviceType()) {
+    throw std::runtime_error("Device type mismatch in add_bias_vector");
+  }
+  if (output_data.getDeviceType() == DeviceType::CPU) {
+    cpu::add_bias_vector<T>(output_data.get(), bias_data.get(), batch_size, output_features);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::add_bias_vector<T>(output_data.get(), bias_data.get(), batch_size, output_features);
+  }
+#endif
 }
 
 template <typename T> std::string DenseLayer<T>::type() const { return "dense"; }
@@ -275,14 +297,14 @@ uint64_t DenseLayer<T>::backward_flops(const std::vector<size_t> &input_shape) c
 }
 
 template <typename T>
-uint64_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
       std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 template <typename T>
-uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));

@@ -5,7 +5,15 @@
  * project root for the full license text.
  */
 #pragma once
+
+#include "blocks.hpp"
+#include "layers.hpp"
+#include "loss.hpp"
+#include "nn/layers_impl/base_layer.hpp"
+#include "optimizers.hpp"
+
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
@@ -17,10 +25,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include "layers.hpp"
-#include "loss.hpp"
-#include "optimizers.hpp"
 
 namespace tnn {
 struct Partition {
@@ -388,8 +392,8 @@ public:
         }
 
       } catch (const std::exception &e) {
-        throw std::runtime_error("Error in layer " + std::to_string(i) + " (" + layers_[i]->type() +
-                                 "): " + e.what());
+        throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
+                                 layers_[i]->name() + "): " + e.what());
       }
     }
 
@@ -827,7 +831,7 @@ public:
   }
 
   void clear_gradients() const {
-    tthreads::parallel_for<size_t>(0, layers_.size(), [&](size_t i) {
+    parallel_for<size_t>(0, layers_.size(), [&](size_t i) {
       if (layers_[i]->has_parameters()) {
         auto parameterized_layer = dynamic_cast<ParameterizedLayer<T> *>(layers_[i].get());
         if (parameterized_layer) {
@@ -989,7 +993,7 @@ public:
   /**
    * @brief Gets the config json from partition params
    */
-  nlohmann::json get_config(const tnn::Partition &partition) const {
+  nlohmann::json get_config(const Partition &partition) const {
     if (partition.start_layer >= layers_.size() || partition.end_layer > layers_.size() ||
         partition.start_layer >= partition.end_layer) {
       throw std::out_of_range("Partition indices out of range");
@@ -1180,174 +1184,169 @@ public:
 template <typename T = float> class SequentialBuilder {
 private:
   Sequential<T> model_;
-  std::vector<size_t> input_shape_;
-  bool input_shape_set_ = false;
-
-  std::vector<size_t> get_current_shape() const {
-    if (!input_shape_set_) {
-      throw std::runtime_error("Input shape must be set before adding layers. "
-                               "Use .input() method first.");
-    }
-
-    std::vector<size_t> shape_with_batch = {1};
-    shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
-
-    return model_.compute_output_shape(shape_with_batch);
-  }
-
-  size_t get_feature_count() const {
-    std::vector<size_t> current_shape = get_current_shape();
-
-    if (current_shape.empty()) {
-      throw std::runtime_error("Cannot compute feature count from empty shape");
-    }
-
-    size_t feature_count = 1;
-    for (size_t i = 1; i < current_shape.size(); ++i) {
-      feature_count *= current_shape[i];
-    }
-
-    return feature_count;
-  }
+  LayerBuilder<T> layer_builder_;
+  std::string model_name_;
 
 public:
-  explicit SequentialBuilder(const std::string &name = "sequential") : model_(name) {}
+  explicit SequentialBuilder(const std::string &name = "sequential")
+      : model_(name), model_name_(name) {}
+
+  std::vector<size_t> get_current_shape() const { return layer_builder_.get_current_shape(); }
 
   SequentialBuilder &input(const std::vector<size_t> &shape) {
-    input_shape_ = shape;
-    input_shape_set_ = true;
+    layer_builder_.input(shape);
     return *this;
   }
 
   SequentialBuilder &dense(size_t output_features, const std::string &activation = "none",
                            bool use_bias = true, const std::string &name = "") {
-
-    size_t input_features = get_feature_count();
-
-    auto layer =
-        tnn::dense<T>(input_features, output_features, activation, use_bias,
-                      name.empty() ? "dense_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.dense(output_features, activation, use_bias,
+                         name.empty() ? "dense_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 
   SequentialBuilder &conv2d(size_t out_channels, size_t kernel_h, size_t kernel_w,
                             size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
                             size_t pad_w = 0, bool use_bias = true, const std::string &name = "") {
-    std::vector<size_t> current_shape = get_current_shape();
-
-    if (current_shape.size() < 4) {
-      throw std::runtime_error("Conv2D requires 4D input (batch, channels, "
-                               "height, width). Current shape has " +
-                               std::to_string(current_shape.size()) + " dimensions.");
-    }
-
-    size_t in_channels = current_shape[1];
-
-    auto layer = tnn::conv2d<T>(
-        in_channels, out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w, use_bias,
-        name.empty() ? "conv2d_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.conv2d(out_channels, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w,
+                          use_bias,
+                          name.empty() ? "conv2d_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 
   SequentialBuilder &batchnorm(T epsilon = T(1e-5), T momentum = T(0.1), bool affine = true,
                                const std::string &name = "") {
-    std::vector<size_t> current_shape = get_current_shape();
-
-    if (current_shape.size() < 2) {
-      throw std::runtime_error("BatchNorm requires at least 2D input (batch, features)");
-    }
-
-    size_t num_features;
-    if (current_shape.size() == 2) {
-
-      num_features = current_shape[1];
-    } else if (current_shape.size() >= 4) {
-
-      num_features = current_shape[1];
-    } else {
-
-      num_features = current_shape[1];
-    }
-
-    auto layer =
-        tnn::batchnorm<T>(num_features, epsilon, momentum, affine,
-                          name.empty() ? "batchnorm_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.batchnorm(epsilon, momentum, affine,
+                             name.empty() ? "batchnorm_" + std::to_string(model_.layer_size())
+                                          : name);
     return *this;
   }
 
   SequentialBuilder &activation(const std::string &activation_name, const std::string &name = "") {
-    auto layer = tnn::activation<T>(
+    layer_builder_.activation(
         activation_name, name.empty() ? "activation_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
     return *this;
   }
 
   SequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
                                size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                                const std::string &name = "") {
-    auto layer =
-        tnn::maxpool2d<T>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                          name.empty() ? "maxpool2d_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.maxpool2d(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                             name.empty() ? "maxpool2d_" + std::to_string(model_.layer_size())
+                                          : name);
     return *this;
   }
 
   SequentialBuilder &dropout(T dropout_rate, const std::string &name = "") {
-    auto layer = tnn::dropout<T>(
-        dropout_rate, name.empty() ? "dropout_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.dropout(dropout_rate,
+                           name.empty() ? "dropout_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 
   SequentialBuilder &flatten(const std::string &name = "") {
-    auto layer =
-        tnn::flatten<T>(name.empty() ? "flatten_" + std::to_string(model_.layer_size()) : name);
-    model_.add(std::move(layer));
+    layer_builder_.flatten(name.empty() ? "flatten_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &residual(std::vector<std::unique_ptr<Layer<T>>> main_path,
+                              std::unique_ptr<Layer<T>> shortcut = nullptr,
+                              const std::string &activation_name = "relu",
+                              const std::string &name = "") {
+    std::unique_ptr<ResidualBlock<T>> res_block = residual_block<T>(
+        std::move(main_path), std::move(shortcut), activation_name,
+        name.empty() ? "residual_block_" + std::to_string(model_.layer_size()) : name);
+    layer_builder_.add_layer(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * @brief Helper function to create a basic residual block (e.g., for ResNet-18/34)
+   * Two 3x3 convolutions with batch normalization
+   */
+  SequentialBuilder &basic_residual_block(size_t in_channels, size_t out_channels,
+                                          size_t stride = 1,
+                                          const std::string &name = "basic_residual_block") {
+    auto current_shape = layer_builder_.get_current_shape();
+    auto input_shape = std::vector<size_t>{in_channels, current_shape[1], current_shape[2]};
+    auto main_path = LayerBuilder<T>()
+                         .input(input_shape)
+                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
+                         .batchnorm()
+                         .activation("relu")
+                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
+                         .batchnorm()
+                         .build();
+
+    std::unique_ptr<Layer<T>> shortcut = nullptr;
+    if (stride != 1 || in_channels != out_channels) {
+      auto shortcut_layers = LayerBuilder<T>()
+                                 .input(input_shape)
+                                 .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                                 .batchnorm()
+                                 .build();
+      shortcut = conv2d_layer<T>(in_channels, out_channels, 1, 1, stride, stride, 0, 0, false);
+    }
+
+    auto res_block = residual_block<T>(
+        std::move(main_path), std::move(shortcut), "relu",
+        name.empty() ? "basic_residual_block_" + std::to_string(model_.layer_size()) : name);
+    layer_builder_.add_layer(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * @brief Helper function to create a bottleneck residual block (for ResNet-50/101/152)
+   * 1x1 conv -> 3x3 conv -> 1x1 conv with batch normalization
+   */
+  SequentialBuilder &
+  bottleneck_residual_block(size_t in_channels, size_t mid_channels, size_t out_channels,
+                            size_t stride = 1,
+                            const std::string &name = "bottleneck_residual_block") {
+    auto current_shape = layer_builder_.get_current_shape();
+    auto input_shape = std::vector<size_t>{in_channels, current_shape[1], current_shape[2]};
+    // Build main path using LayerBuilder
+    auto main_path = LayerBuilder<T>()
+                         .input(input_shape)
+                         .conv2d(mid_channels, 1, 1, 1, 1, 0, 0, false)
+                         .batchnorm()
+                         .activation("relu")
+                         .conv2d(mid_channels, 3, 3, stride, stride, 1, 1, false)
+                         .batchnorm()
+                         .activation("relu")
+                         // 1x1 conv to expand dimensions (no activation, added after residual)
+                         .conv2d(out_channels, 1, 1, 1, 1, 0, 0, false)
+                         .batchnorm()
+                         .build();
+
+    // Build projection shortcut if dimensions change
+    std::unique_ptr<Layer<T>> shortcut = nullptr;
+    if (stride != 1 || in_channels != out_channels) {
+      shortcut = conv2d_layer<T>(in_channels, out_channels, 1, 1, stride, stride, 0, 0, false);
+    }
+
+    auto res_block = residual_block<T>(std::move(main_path), std::move(shortcut), "relu", name);
+    layer_builder_.add_layer(std::move(res_block));
     return *this;
   }
 
   SequentialBuilder &add_layer(std::unique_ptr<Layer<T>> layer) {
-    model_.add(std::move(layer));
+    layer_builder_.add_layer(std::move(layer));
     return *this;
   }
 
   Sequential<T> build() {
-    if (!input_shape_set_) {
+    if (!layer_builder_.is_input_shape_set()) {
       throw std::runtime_error("Input shape must be set before building model. "
                                "Use .input() method.");
     }
-    try {
-      std::vector<size_t> shape_with_batch = {1};
-      shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
 
-      std::vector<size_t> output_shape = model_.compute_output_shape(shape_with_batch);
-      std::cout << "Model built successfully. Input shape (without batch): (";
-      for (size_t i = 0; i < input_shape_.size(); ++i) {
-        if (i > 0)
-          std::cout << ", ";
-        std::cout << input_shape_[i];
-      }
-      std::cout << ") -> Output shape (without batch): (";
-
-      for (size_t i = 1; i < output_shape.size(); ++i) {
-        if (i > 1)
-          std::cout << ", ";
-        std::cout << output_shape[i];
-      }
-      std::cout << ")" << std::endl;
-    } catch (const std::exception &e) {
-      throw std::runtime_error("Shape inference failed during build: " + std::string(e.what()));
+    auto layers = layer_builder_.build();
+    for (auto &layer : layers) {
+      model_.add(std::move(layer));
     }
 
     return std::move(model_);
   }
-
-  Sequential<T> &get_model() { return model_; }
-  const std::vector<size_t> &get_input_shape() const { return input_shape_; }
-  bool is_input_shape_set() const { return input_shape_set_; }
 };
 
 } // namespace tnn

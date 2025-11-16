@@ -21,6 +21,7 @@
 #include <mkl.h>
 #endif
 
+namespace tnn {
 #ifdef USE_TBB
 void tbb_cleanup() {
   // Clean all buffers
@@ -65,8 +66,7 @@ struct ClassResult {
   float avg_accuracy = 0.0f;
 };
 
-ClassResult train_class_epoch(tnn::Sequential<float> &model,
-                              data_loading::ImageDataLoader<float> &train_loader,
+ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &train_loader,
                               const TrainingConfig &config = TrainingConfig()) {
   Tensor<float> batch_data, batch_labels, predictions;
   std::cout << "Starting training epoch..." << std::endl;
@@ -86,7 +86,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
     // predictions.apply_softmax();
 
     const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
-    const float accuracy = utils::compute_class_accuracy<float>(predictions, batch_labels);
+    const float accuracy = compute_class_accuracy<float>(predictions, batch_labels);
 
     total_loss += loss;
     total_accuracy += accuracy;
@@ -119,8 +119,7 @@ ClassResult train_class_epoch(tnn::Sequential<float> &model,
   return {avg_train_loss, avg_train_accuracy};
 }
 
-ClassResult validate_class_model(tnn::Sequential<float> &model,
-                                 data_loading::ImageDataLoader<float> &test_loader) {
+ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels, predictions;
 
   model.set_training(false);
@@ -136,7 +135,7 @@ ClassResult validate_class_model(tnn::Sequential<float> &model,
     // predictions.apply_softmax();
 
     val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
-    val_accuracy += utils::compute_class_accuracy<float>(predictions, batch_labels);
+    val_accuracy += compute_class_accuracy<float>(predictions, batch_labels);
     ++val_batches;
   }
 
@@ -146,9 +145,8 @@ ClassResult validate_class_model(tnn::Sequential<float> &model,
   return {avg_val_loss, avg_val_accuracy};
 }
 
-void train_classification_model(tnn::Sequential<float> &model,
-                                data_loading::ImageDataLoader<float> &train_loader,
-                                data_loading::ImageDataLoader<float> &test_loader,
+void train_classification_model(Sequential<float> &model, ImageDataLoader<float> &train_loader,
+                                ImageDataLoader<float> &test_loader,
                                 const TrainingConfig &config = TrainingConfig()) {
 
   Tensor<float> batch_data, batch_labels, predictions;
@@ -242,7 +240,7 @@ void train_classification_model(tnn::Sequential<float> &model,
       // re prepare batches to reapply augmentation
       train_loader.prepare_batches(config.batch_size);
 
-      std::cout << utils::get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
+      std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }
 
 #ifdef USE_TBB
@@ -255,8 +253,7 @@ struct RegResult {
   float avg_error = 0.0f;
 };
 
-RegResult train_reg_epoch(tnn::Sequential<float> &model,
-                          data_loading::RegressionDataLoader<float> &train_loader,
+RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> &train_loader,
                           const TrainingConfig &config = TrainingConfig()) {
   Tensor<float> batch_data, batch_labels, predictions;
   std::cout << "Starting training epoch..." << std::endl;
@@ -303,8 +300,7 @@ RegResult train_reg_epoch(tnn::Sequential<float> &model,
   return {avg_train_loss, 0.0f};
 }
 
-RegResult validate_reg_model(tnn::Sequential<float> &model,
-                             data_loading::RegressionDataLoader<float> &test_loader) {
+RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels, predictions;
 
   model.set_training(false);
@@ -326,9 +322,8 @@ RegResult validate_reg_model(tnn::Sequential<float> &model,
   return {avg_val_loss, 0.0f};
 }
 
-void train_regression_model(tnn::Sequential<float> &model,
-                            data_loading::RegressionDataLoader<float> &train_loader,
-                            data_loading::RegressionDataLoader<float> &test_loader,
+void train_regression_model(Sequential<float> &model, RegressionDataLoader<float> &train_loader,
+                            RegressionDataLoader<float> &test_loader,
                             const TrainingConfig &config = TrainingConfig()) {
 
   Tensor<float> batch_data, batch_labels, predictions;
@@ -406,10 +401,12 @@ void train_regression_model(tnn::Sequential<float> &model,
       // re prepare batches to reapply augmentation
       train_loader.prepare_batches(config.batch_size);
 
-      std::cout << utils::get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
+      std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }
 
 #ifdef USE_TBB
   });
 #endif
 }
+
+} // namespace tnn

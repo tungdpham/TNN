@@ -14,10 +14,9 @@
 #include <numeric>
 #include <random>
 #include <string>
-#include <string_view>
 #include <vector>
 
-namespace data_loading {
+namespace tnn {
 
 /**
  * Abstract base class for all data loaders
@@ -126,7 +125,7 @@ public:
    *   auto aug = std::make_unique<CIFAR10Augmentation<float>>(0.1f, true);
    *   loader.set_augmentation(std::move(aug));
    */
-  void set_augmentation(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> aug) {
+  void set_augmentation(std::unique_ptr<AugmentationStrategy<T>> aug) {
     augmentation_ = std::move(aug);
   }
 
@@ -146,7 +145,7 @@ protected:
   size_t batch_size_ = 32;
   bool batches_prepared_ = false;
   mutable std::mt19937 rng_{std::random_device{}()};
-  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_;
+  std::unique_ptr<AugmentationStrategy<T>> augmentation_;
 
   /**
    * Apply augmentation to batch if augmentation strategy is set
@@ -199,7 +198,7 @@ std::unique_ptr<BaseDataLoader<T>> create_data_loader(const std::string &dataset
 /**
  * Utility functions for common data loading operations
  */
-namespace utils {
+namespace tnn {
 /**
  * Split dataset into train/validation sets
  */
@@ -269,6 +268,6 @@ template <typename T> DatasetStats<T> calculate_stats(const std::vector<std::vec
 
   return stats;
 }
-} // namespace utils
+} // namespace tnn
 
-} // namespace data_loading
+} // namespace tnn

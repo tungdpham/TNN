@@ -7,5 +7,7 @@
 
 #include "tensor/tensor.hpp"
 
+namespace tnn {
 template struct Tensor<float>;
 // template struct Tensor<double>;
+} // namespace tnn

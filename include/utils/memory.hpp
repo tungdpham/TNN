@@ -6,7 +6,7 @@
 #include <fstream>
 #include <string>
 
-namespace utils {
+namespace tnn {
 inline long get_memory_usage_kb() {
   std::ifstream file("/proc/" + std::to_string(getpid()) + "/status");
   std::string line;
@@ -21,4 +21,4 @@ inline long get_memory_usage_kb() {
   return vmsize;
 }
 
-} // namespace utils
+} // namespace tnn

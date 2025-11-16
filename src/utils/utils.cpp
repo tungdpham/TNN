@@ -5,6 +5,4 @@
  * project root for the full license text.
  */
 
-namespace utils{
-
-}
+namespace tnn {}

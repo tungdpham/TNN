@@ -1,6 +1,6 @@
 #pragma once
 
-namespace tdevice {
+namespace tnn {
 // all supported device types
 enum class DeviceType { CPU, GPU };
-} // namespace tdevice
+} // namespace tnn

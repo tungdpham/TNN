@@ -9,8 +9,9 @@
 
 #include "coordinator.hpp"
 #include "in_process_communicator.hpp"
+#include "pipeline_stage.hpp"
 
-namespace tpipeline {
+namespace tnn {
 
 // Concrete implementation of PipelineStage for in-process communication
 class InProcessPipelineStage : public PipelineStage {
@@ -21,7 +22,7 @@ public:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(tnn::Sequential<float> model, const size_t num_stages)
+  InProcessCoordinator(Sequential<float> model, const size_t num_stages)
       : Coordinator(std::move(model)) {
     // Initialize in-process communicator for the coordinator
     this->coordinator_comm_ = std::make_unique<InProcessCommunicator>();
@@ -57,4 +58,4 @@ private:
   std::vector<std::unique_ptr<InProcessPipelineStage>> temp_stages_;
 };
 
-} // namespace tpipeline
+} // namespace tnn

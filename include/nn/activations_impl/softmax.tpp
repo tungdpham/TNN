@@ -5,15 +5,14 @@
  * project root for the full license text.
  */
 
-#include "nn/activations_impl/softmax.hpp"
 #include "nn/activations_impl/base_activation.hpp"
+#include "nn/activations_impl/softmax.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace tnn {
 template <typename T> void Softmax<T>::apply(Tensor<T> &tensor) const {
@@ -21,57 +20,31 @@ template <typename T> void Softmax<T>::apply(Tensor<T> &tensor) const {
   size_t height = tensor.height();
   size_t width = tensor.width();
 
-  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
-        apply_softmax_spatial(tensor, n, h, w);
+        T max_val = tensor(n, 0, h, w);
+        size_t channels = tensor.channels();
+        for (size_t c = 1; c < channels; ++c) {
+          T val = tensor(n, c, h, w);
+          if (val > max_val) {
+            max_val = val;
+          }
+        }
+
+        T sum_exp = T(0);
+        for (size_t c = 0; c < channels; ++c) {
+          T exp_val = std::exp(tensor(n, c, h, w) - max_val);
+          tensor(n, c, h, w) = exp_val;
+          sum_exp += exp_val;
+        }
+
+        for (size_t c = 0; c < channels; ++c) {
+          tensor(n, c, h, w) /= sum_exp;
+        }
       }
     }
   });
-}
-
-template <typename T>
-void Softmax<T>::apply_with_bias(Tensor<T> &tensor, const Tensor<T> &bias) const {
-  if (tensor.shape() != bias.shape()) {
-    throw std::invalid_argument("Tensor and bias must have the same shape");
-  }
-
-  T *data = tensor.data();
-  const T *bias_data = bias.data();
-  size_t size = tensor.size();
-
-  tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias_data[i]; });
-
-  apply(tensor);
-}
-
-template <typename T> void Softmax<T>::apply_with_scalar_bias(Tensor<T> &tensor, T bias) const {
-  if (bias != T(0)) {
-    T *data = tensor.data();
-    size_t size = tensor.size();
-
-    tthreads::parallel_for<size_t>(0, size, [&](size_t i) { data[i] += bias; });
-  }
-
-  apply(tensor);
-}
-
-template <typename T>
-Tensor<T> Softmax<T>::compute_gradient(const Tensor<T> &input,
-                                       const Tensor<T> *upstream_gradient) const {
-  if (upstream_gradient == nullptr) {
-    throw std::invalid_argument("Upstream gradient must be provided for "
-                                "softmax gradient computation");
-  }
-
-  if (upstream_gradient->shape() != input.shape()) {
-    throw std::invalid_argument("Upstream gradient must have the same "
-                                "shape as pre-activation values");
-  }
-
-  Tensor<T> gradient = upstream_gradient->clone();
-  compute_gradient_inplace(input, gradient);
-  return gradient;
 }
 
 template <typename T>
@@ -90,7 +63,7 @@ void Softmax<T>::compute_gradient_inplace(const Tensor<T> &input,
   Tensor<T> softmax_values = input;
   apply(softmax_values);
 
-  tthreads::parallel_for<size_t>(0, batch_size, [&](size_t n) {
+  parallel_for<size_t>(0, batch_size, [&](size_t n) {
     for (size_t h = 0; h < height; ++h) {
       for (size_t w = 0; w < width; ++w) {
         T dot_product = T(0);
@@ -108,85 +81,10 @@ void Softmax<T>::compute_gradient_inplace(const Tensor<T> &input,
   });
 }
 
-template <typename T> void Softmax<T>::apply_channel_wise(Tensor<T> &tensor, int channel) const {
-  (void)tensor;
-  (void)channel;
-  throw std::runtime_error("Channel-wise softmax is not supported. Use full "
-                           "tensor softmax instead.");
-}
-
-template <typename T>
-void Softmax<T>::apply_channel_wise_with_bias(Tensor<T> &tensor, int channel,
-                                              const std::vector<T> &bias) const {
-  (void)tensor;
-  (void)channel;
-  (void)bias;
-  throw std::runtime_error("Channel-wise softmax is not supported. Use full "
-                           "tensor softmax instead.");
-}
-
-template <typename T> void Softmax<T>::apply_batch_wise(Tensor<T> &tensor, int batch_idx) const {
-  if (batch_idx < 0 || batch_idx >= static_cast<int>(tensor.batch_size())) {
-    throw std::invalid_argument("Batch index out of bounds");
-  }
-
-  size_t height = tensor.height();
-  size_t width = tensor.width();
-
-  tthreads::parallel_for<size_t>(0, height, [&](size_t h) {
-    for (size_t w = 0; w < width; ++w) {
-      apply_softmax_spatial(tensor, batch_idx, h, w);
-    }
-  });
-}
-
-template <typename T>
-void Softmax<T>::apply_spatial(Tensor<T> &tensor, int batch, int channel, int height,
-                               int width) const {
-  (void)channel;
-  apply_softmax_spatial(tensor, batch, height, width);
-}
-
 template <typename T> std::string Softmax<T>::name() const { return "softmax"; }
 
 template <typename T> std::unique_ptr<ActivationFunction<T>> Softmax<T>::clone() const {
   return std::make_unique<Softmax<T>>(*this);
-}
-
-template <typename T> void Softmax<T>::apply_single_value(T &value) const {
-  (void)value;
-  throw std::runtime_error("Single value softmax is not supported. Softmax "
-                           "requires normalization across channels.");
-}
-
-template <typename T> T Softmax<T>::compute_single_gradient(T pre_activation_value) const {
-  (void)pre_activation_value;
-  throw std::runtime_error("Single value softmax gradient is not supported. "
-                           "Use compute_gradient instead.");
-}
-
-template <typename T>
-void Softmax<T>::apply_softmax_spatial(Tensor<T> &tensor, size_t n, size_t h, size_t w) const {
-  size_t channels = tensor.channels();
-
-  T max_val = tensor(n, 0, h, w);
-  for (size_t c = 1; c < channels; ++c) {
-    T val = tensor(n, c, h, w);
-    if (val > max_val)
-      max_val = val;
-  }
-
-  T sum = T(0);
-  for (size_t c = 0; c < channels; ++c) {
-    T val = tensor(n, c, h, w);
-    tensor(n, c, h, w) = std::exp(val - max_val);
-    sum += tensor(n, c, h, w);
-  }
-
-  sum = std::max(sum, T(1e-10));
-  for (size_t c = 0; c < channels; ++c) {
-    tensor(n, c, h, w) /= sum;
-  }
 }
 
 // Explicit template instantiations

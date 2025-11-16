@@ -1,11 +1,11 @@
 #pragma once
 
 #include "internal_compressor.hpp"
-#include <memory>
+#include "pipeline/tbuffer.hpp"
 #include <stdexcept>
 #include <zstd.h>
 
-namespace tpipeline {
+namespace tnn {
 
 TBuffer ZstdCompressor::compress(const TBuffer &data, int compression_level) {
   if (data.empty()) {
@@ -63,4 +63,4 @@ TBuffer Lz4hcCompressor::decompress(const TBuffer &data) {
   return data;
 }
 
-} // namespace tpipeline
+} // namespace tnn

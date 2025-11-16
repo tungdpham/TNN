@@ -11,7 +11,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../activations.hpp"
+#include "nn/activations.hpp"
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
 
@@ -32,8 +32,8 @@ public:
   void forward_inplace(Tensor<T> &input, size_t micro_batch_id = 0) override;
   void backward_inplace(Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) override;
+  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Contrast adjustment augmentation
@@ -50,4 +50,4 @@ private:
   float contrast_range_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

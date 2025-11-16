@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <string>
 
-namespace tdevice {
+namespace tnn {
 
 CUDAContext::CUDAContext(int id) : Context() {
   // Set the device for this context
@@ -51,8 +51,6 @@ void CUDAContext::deallocateMemory(void *ptr) {
   if (ptr != nullptr) {
     cudaError_t err = cudaFree(ptr);
     if (err != cudaSuccess) {
-      // Don't throw in destructor context, but could log the error
-      // For now, we'll throw since this is a critical error
       throw std::runtime_error("Failed to free CUDA memory: " +
                                std::string(cudaGetErrorString(err)));
     }
@@ -75,6 +73,13 @@ void CUDAContext::copyToHost(void *dest, const void *src, size_t size) {
   }
 }
 
-} // namespace tdevice
+void *CUDAContext::allocateAlignedMemory(size_t size, size_t alignment) {
+  // cudaMalloc already provides 256-byte alignment, which is sufficient for most cases
+  (void)alignment; // Unused parameter
+  return allocateMemory(size);
+}
+void CUDAContext::deallocateAlignedMemory(void *ptr) { deallocateMemory(ptr); }
+
+} // namespace tnn
 
 #endif // USE_CUDA

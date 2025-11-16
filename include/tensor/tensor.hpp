@@ -6,22 +6,18 @@
  */
 #pragma once
 
+#include "device/device_ptr.hpp"
+#include "layout_trait.hpp"
 #include <cassert>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
-#include <iomanip>
-#include <memory>
 #include <numeric>
-#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
-
-#include "layout_trait.hpp"
-#include "utils/ops.hpp"
-
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -33,7 +29,12 @@
 #include <windows.h>
 #endif
 
-#include "threading/thread_handler.hpp"
+#include "device/device.hpp"
+#include "device/device_manager.hpp"
+#include "device/device_ptr.hpp"
+#include "ops/ops.hpp"
+
+namespace tnn {
 
 enum ALIGNMENT_TYPE { MKL = 64, AVX2 = 32, DEFAULT = 16 };
 
@@ -51,9 +52,8 @@ template <typename T = float, Layout L = NCHW> struct Tensor {
 
 private:
   LayoutTrait<L> layout_trait_;
-
-  T *data_;
-
+  const Device *device_;
+  device_ptr<T[]> data_;
   static constexpr size_t dims_ = LayoutTrait<L>::dims;
   size_t (&shape_)[LayoutTrait<L>::dims] = layout_trait_.shape;
   size_t (&strides_)[LayoutTrait<L>::dims] = layout_trait_.strides;
@@ -68,133 +68,107 @@ private:
     return index;
   }
 
-  static T *allocate_aligned(size_t count) {
-    if (count == 0)
-      return nullptr;
-
-    constexpr size_t alignment = ALIGNMENT_TYPE::MKL;
-    size_t byte_size = count * sizeof(T);
-    size_t aligned_size = ((byte_size + alignment - 1) / alignment) * alignment;
-
-    void *ptr = nullptr;
-
-#ifdef _WIN32
-    ptr = _aligned_malloc(aligned_size, alignment);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-#elif defined(__linux__) || defined(__unix__)
-    ptr = aligned_alloc(alignment, aligned_size);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-#else
-    // Fall back to POSIX memalign
-    if (posix_memalign(&ptr, alignment, aligned_size) != 0) {
-      throw std::bad_alloc();
-    }
-#endif
-    return static_cast<T *>(ptr);
-  }
-
-  static void deallocate_aligned(T *ptr) {
-    if (ptr != nullptr) {
-#ifdef _WIN32
-      _aligned_free(ptr);
-#else
-      free(ptr);
-#endif
-    }
-  }
+  void allocate_data(size_t size) { data_ = make_array_ptr<T[]>(device_, size); }
 
 public:
   // Constructors and Destructor
-  Tensor() : data_(nullptr), data_size_(0) {
+  Tensor(const Device *device = &getCPU()) : device_(device), data_size_(0) {
     for (size_t i = 0; i < dims_; ++i) {
       shape_[i] = 0;
       strides_[i] = 0;
     }
-    data_ = allocate_aligned(0);
+    allocate_data(0);
   }
 
-  Tensor(size_t batch_size, size_t channels, size_t height, size_t width) : data_(nullptr) {
-    static_assert(dims_ == 4, "This constructor is only for 4D tensors");
-    layout_trait_.assign_shape(batch_size, channels, height, width);
+  Tensor(std::initializer_list<size_t> shape_list, const Device *dt = &getCPU()) : device_(dt) {
+    assert(shape_list.size() == dims_ && "Initializer list size must match tensor dimensions");
+    std::copy(shape_list.begin(), shape_list.end(), shape_);
+    layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
-    data_ = allocate_aligned(data_size_);
-    utils::avx2_set_scalar(data_, T(0), data_size_);
+    allocate_data(data_size_);
+    ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
-  Tensor(size_t batch_size, size_t channels, size_t height, size_t width, T *data)
-      : data_(nullptr) {
-    static_assert(dims_ == 4, "This constructor is only for 4D tensors");
-    layout_trait_.assign_shape(batch_size, channels, height, width);
+  Tensor(std::initializer_list<size_t> shape_list, const device_ptr<T[]> &data,
+         const Device *dt = &getCPU())
+      : device_(dt) {
+    assert(shape_list.size() == dims_ && "Initializer list size must match dimensions");
+    std::copy(shape_list.begin(), shape_list.end(), shape_);
+    layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
-    data_ = allocate_aligned(data_size_);
-    if (data != nullptr)
-      utils::avx2_copy(data, data_, data_size_);
+    allocate_data(data_size_);
+    if (data.get() != nullptr) {
+      ops::copy(data, data_, data_size_)->sync();
+    }
   }
 
-  Tensor(std::vector<size_t> shape) : data_(nullptr) {
+  Tensor(std::vector<size_t> shape, const Device *dt = &getCPU()) : device_(dt) {
     assert(shape.size() == dims_ && "Shape vector size must match tensor dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_aligned(data_size_);
-    utils::avx2_set_scalar(data_, T(0), data_size_);
+    allocate_data(data_size_);
+    ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
-  Tensor(std::vector<size_t> shape, const T *data) : data_(nullptr) {
+  Tensor(std::vector<size_t> shape, const device_ptr<T[]> &data, const Device *dt = &getCPU())
+      : device_(dt) {
     assert(shape.size() == dims_ && "Shape vector size must match dimensions");
     std::copy(shape.begin(), shape.end(), shape_);
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_aligned(data_size_);
-    if (data != nullptr)
-      utils::avx2_copy(data, data_, data_size_);
-  }
-
-  ~Tensor() { deallocate_aligned(data_); }
-
-  Tensor(const Tensor &other) : data_size_(other.data_size_) {
-    layout_trait_ = other.layout_trait_;
-    if (data_size_ > 0) {
-      data_ = allocate_aligned(data_size_);
-      utils::avx2_copy(other.data_, data_, data_size_);
+    allocate_data(data_size_);
+    if (data.get() != nullptr) {
+      ops::copy(data, data_, data_size_)->sync();
     }
   }
 
-  Tensor(Tensor &&other) noexcept : data_(other.data_), data_size_(other.data_size_) {
-    layout_trait_ = other.layout_trait_;
-    other.data_ = nullptr;
-    other.data_size_ = 0;
+  ~Tensor() { data_.reset(); }
+
+  Tensor(const Tensor &other)
+      : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_) {
+    if (data_size_ > 0) {
+      allocate_data(data_size_);
+      ops::copy(other.data_, data_, data_size_)->sync();
+    }
   }
+
+  Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
+    layout_trait_ = other.layout_trait_;
+    data_ = std::move(other.data_);
+  }
+
+  template <typename... Indices> T &operator()(Indices... indices) {
+    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
+    assert(device_->getDeviceType() == DeviceType::CPU &&
+           "Operator() is only available for CPU tensors");
+    return data_.get()[compute_index(indices...)];
+  }
+
+  template <typename... Indices> const T &operator()(Indices... indices) const {
+    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
+    assert(device_->getDeviceType() == DeviceType::CPU &&
+           "Operator() is only available for CPU tensors");
+    return data_.get()[compute_index(indices...)];
+  }
+
+  T *data() { return data_.get(); }
+  const T *data() const { return data_.get(); }
 
   // Operators
   Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
 
   Tensor<T, L> &operator=(Tensor<T, L> &&other) noexcept {
     if (this != &other) {
-      deallocate_aligned(data_);
+      data_.reset();
 
       layout_trait_ = other.layout_trait_;
-      data_ = other.data_;
+      data_ = std::move(other.data_);
       data_size_ = other.data_size_;
 
-      other.data_ = nullptr;
       other.data_size_ = 0;
     }
     return *this;
-  }
-
-  template <typename... Indices> T &operator()(Indices... indices) {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
-    return data_[compute_index(indices...)];
-  }
-
-  template <typename... Indices> const T &operator()(Indices... indices) const {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
-    return data_[compute_index(indices...)];
   }
 
   bool same_shape(const Tensor<T, L> &other) const {
@@ -212,9 +186,9 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_add(data_, other.data_, result.data_, data_size_);
+    ops::add(data_, other.data_, result.data_, data_size_)->sync();
 
     return result;
   }
@@ -225,9 +199,9 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_sub(data_, other.data_, result.data_, data_size_);
+    ops::sub(data_, other.data_, result.data_, data_size_)->sync();
 
     return result;
   }
@@ -238,9 +212,9 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_mul(data_, other.data_, result.data_, data_size_);
+    ops::mul(data_, other.data_, result.data_, data_size_)->sync();
 
     return result;
   }
@@ -251,18 +225,18 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_div(data_, other.data_, result.data_, data_size_);
+    ops::div(data_, other.data_, result.data_, data_size_)->sync();
 
     return result;
   }
 
   Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_mul_scalar(data_, scalar, result.data_, data_size_);
+    ops::mul_scalar(data_, scalar, result.data_, data_size_)->sync();
 
     return result;
   }
@@ -273,9 +247,9 @@ public:
     }
 
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec);
+    Tensor<T, L> result(shape_vec, device_);
 
-    utils::avx2_div_scalar(data_, scalar, result.data_, data_size_);
+    ops::div_scalar(data_, scalar, result.data_, data_size_)->sync();
 
     return result;
   }
@@ -285,7 +259,7 @@ public:
       throw std::invalid_argument("Tensor shapes must match for addition");
     }
 
-    utils::avx2_add(data_, other.data_, data_, data_size_);
+    ops::add(data_, other.data_, data_, data_size_)->sync();
 
     return *this;
   }
@@ -295,7 +269,7 @@ public:
       throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
 
-    utils::avx2_sub(data_, other.data_, data_, data_size_);
+    ops::sub(data_, other.data_, data_, data_size_)->sync();
 
     return *this;
   }
@@ -305,13 +279,13 @@ public:
       throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
 
-    utils::avx2_mul(data_, other.data_, data_, data_size_);
+    ops::mul(data_, other.data_, data_, data_size_)->sync();
 
     return *this;
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-    utils::avx2_mul_scalar(data_, scalar, data_, data_size_);
+    ops::mul_scalar(data_, scalar, data_, data_size_)->sync();
     return *this;
   }
 
@@ -319,7 +293,7 @@ public:
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
-    utils::avx2_div_scalar(data_, scalar, data_, data_size_);
+    ops::div_scalar(data_, scalar, data_, data_size_)->sync();
     return *this;
   }
 
@@ -362,46 +336,72 @@ public:
 
   const size_t size() const { return data_size_; }
 
-  T *data() { return data_; }
-
-  const T *data() const { return data_; }
-
   bool is_aligned(size_t alignment = 32) const {
-    return (reinterpret_cast<uintptr_t>(data_) % alignment) == 0;
+    return (reinterpret_cast<uintptr_t>(data_.get()) % alignment) == 0;
+  }
+
+  DeviceType device_type() const { return device_->getDeviceType(); }
+
+  bool is_on_cpu() const { return device_->getDeviceType() == DeviceType::CPU; }
+
+  bool is_on_gpu() const { return device_->getDeviceType() == DeviceType::GPU; }
+
+  const device_ptr<T[]> &data_ptr() const { return data_; }
+
+  device_ptr<T[]> &data_ptr() { return data_; }
+
+  Tensor<T, L> to_cpu() const {
+    if (device_type() == DeviceType::CPU) {
+      return clone();
+    }
+
+    if (device_type() == DeviceType::GPU) {
+      std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+      Tensor<T, L> cpu_tensor(shape_vec, &getCPU());
+      // Copy from GPU to CPU
+      data_.getDevice()->copyToHost(cpu_tensor.data_.get(), data_.get(), data_size_ * sizeof(T));
+      return cpu_tensor;
+    }
+    throw std::runtime_error("Unsupported device type for to_cpu()");
+  }
+
+  Tensor<T, L> to_gpu(int gpu_id = 0) const {
+    if (device_type() == DeviceType::GPU) {
+      return clone();
+    }
+
+    if (device_type() == DeviceType::CPU) {
+      std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+      Tensor<T, L> gpu_tensor(shape_vec, &getGPU(gpu_id));
+
+      // Copy from CPU to GPU
+      getGPU(gpu_id).copyToDevice(gpu_tensor.data_.get(), data_.get(), data_size_ * sizeof(T));
+      return gpu_tensor;
+    }
+
+    throw std::runtime_error("Unsupported device type for to_gpu()");
   }
 
   Tensor<T, L> clone() const {
-    return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_);
+    return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_, device_);
   }
 
-  void fill(T value) { std::fill(data_, data_ + data_size_, value); }
+  void fill(T value) { ops::set_scalar(data_, value, data_size_)->sync(); }
 
   void fill_random_uniform(T range) {
-    std::mt19937 gen(std::random_device{}());
-    if constexpr (std::is_floating_point<T>::value) {
-      std::uniform_real_distribution<T> dis(-range, range);
-      for (size_t i = 0; i < data_size_; ++i) {
-        data_[i] = dis(gen);
-      }
-    } else {
-      auto int_range = static_cast<
-          typename std::conditional<std::is_signed<T>::value, std::uint64_t, std::uint64_t>::type>(
-          range);
-      std::uniform_int_distribution<decltype(int_range)> dis(-int_range, int_range);
-      for (size_t i = 0; i < data_size_; ++i) {
-        data_[i] = static_cast<T>(dis(gen));
-      }
-    }
+    // Generate seed from current time and pointer address for uniqueness
+    unsigned long long seed = static_cast<unsigned long long>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
+        reinterpret_cast<uintptr_t>(data_.get()));
+    ops::fill_random_uniform(data_, data_size_, T(0), range, seed)->sync();
   }
 
   void fill_random_normal(T mean, T stddev) {
-    static_assert(std::is_floating_point<T>::value,
-                  "Normal distribution requires floating point type");
-    std::mt19937 gen(std::random_device{}());
-    std::normal_distribution<T> dis(mean, stddev);
-    for (size_t i = 0; i < data_size_; ++i) {
-      data_[i] = dis(gen);
-    }
+    // Generate seed from current time and pointer address for uniqueness
+    unsigned long long seed = static_cast<unsigned long long>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
+        reinterpret_cast<uintptr_t>(data_.get()));
+    ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
   }
 
   Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
@@ -410,79 +410,51 @@ public:
     if (new_size != size()) {
       throw std::invalid_argument("New shape must have same total size");
     }
-    return Tensor<T, L>(new_shape, data_);
+    return Tensor<T, L>(new_shape, data_, device_);
   }
 
-  void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) const {
+  void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) {
     if (dest_batch_idx >= batch_size() || src_batch_idx >= other.batch_size()) {
       throw std::invalid_argument("Invalid batch index for copy");
     }
 
-    std::copy(&other.data_[src_batch_idx * other.strides_[0]],
-              &other.data_[(src_batch_idx + 1) * other.strides_[0]],
-              &data_[dest_batch_idx * strides_[0]]);
+    if (device_ != other.device_) {
+      throw std::runtime_error(
+          "Cannot copy batch between tensors on different devices. Transfer to same device first.");
+    }
+
+    size_t batch_stride = strides_[0];
+    size_t src_offset = src_batch_idx * other.strides_[0];
+    size_t dest_offset = dest_batch_idx * batch_stride;
+
+    ops::copy(other.data_, data_, batch_stride, src_offset, dest_offset)->sync();
   }
 
   T mean() const {
-    T sum = utils::avx2_sum(data_, data_size_);
+    T sum = ops::sum(data_, data_size_);
     return sum / static_cast<T>(data_size_);
   }
 
   T variance() const {
     T m = mean();
-    T sum_sq_diff = utils::avx2_sum_squared_diff(data_, m, data_size_);
+    T sum_sq_diff = ops::sum_squared_diff(data_, m, data_size_);
     return sum_sq_diff / static_cast<T>(data_size_);
   }
 
-  std::vector<T> channel_means() const {
-    std::vector<T> means(channels(), T(0));
-
-    if constexpr (dims_ == 4) {
-      size_t channel_size = batch_size() * height() * width();
-
-      for (size_t c = 0; c < channels(); ++c) {
-        T sum = T(0);
-        for (size_t n = 0; n < batch_size(); ++n) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              sum += (*this)(n, c, h, w);
-            }
-          }
-        }
-        means[c] = sum / static_cast<T>(channel_size);
-      }
-    } else {
-      throw std::runtime_error("Unsupported tensor dimensionality for channel statistics");
-    }
-
-    return means;
-  }
-
-  void print_data() const {
-    std::cout << "Tensor data: ";
-    if constexpr (dims_ == 4) {
-      for (size_t n = 0; n < batch_size(); ++n) {
-        for (size_t c = 0; c < channels(); ++c) {
-          for (size_t h = 0; h < height(); ++h) {
-            for (size_t w = 0; w < width(); ++w) {
-              std::cout << operator()(n, c, h, w) << " ";
-            }
-          }
-        }
-        std::cout << std::endl;
-      }
-    }
-    std::cout << std::endl;
-  }
+  void print_data() const { throw new std::runtime_error("print_data not implemented yet"); }
 
   void save(std::ofstream &out) const {
     if (!out.is_open()) {
       throw std::runtime_error("File is not open for writing");
     }
 
+    if (device_type() != DeviceType::CPU) {
+      throw std::runtime_error("Tensor must be on CPU to save to file");
+    }
+
     out.write(reinterpret_cast<const char *>(shape_), dims_ * sizeof(size_t));
 
-    out.write(reinterpret_cast<const char *>(data_), data_size_ * sizeof(T));
+    out.write(reinterpret_cast<const char *>(data_.get()), data_size_ * sizeof(T));
   }
 
   static Tensor<T, L> load(std::ifstream &in) {
@@ -496,7 +468,7 @@ public:
     }
 
     Tensor<T, L> tensor(shape);
-    in.read(reinterpret_cast<char *>(tensor.data()), tensor.size() * sizeof(T));
+    in.read(reinterpret_cast<char *>(tensor.data_.get()), tensor.size() * sizeof(T));
     if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
@@ -504,5 +476,4 @@ public:
   }
 };
 
-#include "tensor_extended.hpp"
-#include "tensor_ops.hpp"
+} // namespace tnn

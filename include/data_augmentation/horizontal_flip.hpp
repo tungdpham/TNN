@@ -3,7 +3,7 @@
 #include "augmentation.hpp"
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Horizontal flip augmentation
@@ -47,4 +47,4 @@ private:
   float probability_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

@@ -17,7 +17,7 @@
 #include <sys/types.h>
 #endif
 
-namespace tdevice {
+namespace tnn {
 CPUContext::CPUContext() : Context() {}
 
 size_t CPUContext::getTotalMemory() const {
@@ -124,4 +124,22 @@ void CPUContext::copyToHost(void *dest, const void *src, size_t size) {
   std::memcpy(dest, src, size);
 }
 
-} // namespace tdevice
+void *CPUContext::allocateAlignedMemory(size_t size, size_t alignment) {
+#ifdef _WIN32
+  return _aligned_malloc(size, alignment);
+#else
+  // POSIX aligned_alloc requires size to be a multiple of alignment
+  size_t adjusted_size = ((size + alignment - 1) / alignment) * alignment;
+  return std::aligned_alloc(alignment, adjusted_size);
+#endif
+}
+
+void CPUContext::deallocateAlignedMemory(void *ptr) {
+#ifdef _WIN32
+  _aligned_free(ptr);
+#else
+  std::free(ptr);
+#endif
+}
+
+} // namespace tnn

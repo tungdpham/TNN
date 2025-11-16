@@ -2,19 +2,17 @@
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/utils_extended.hpp"
-#include <algorithm>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <vector>
+
+using namespace tnn;
 
 void run_test() {
 
-  tnn::Sequential<float> model;
+  Sequential<float> model;
   try {
-    model = tnn::Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
+    model = Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
     std::cout << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
   } catch (const std::exception &e) {
     std::cerr << "Error loading model: " << e.what() << std::endl;
@@ -25,7 +23,7 @@ void run_test() {
 
   model.set_training(false);
 
-  data_loading::MNISTDataLoader<float> loader;
+  MNISTDataLoader<float> loader;
 
   if (!loader.load_data("data/mnist/test.csv")) {
     return;
@@ -38,7 +36,7 @@ void run_test() {
   while (loader.get_batch(batch_size, batch_data, batch_labels)) {
     Tensor<float> predictions = model.forward(batch_data);
 
-    correct_predictions += utils::compute_class_corrects<float>(predictions, batch_labels);
+    correct_predictions += compute_class_corrects<float>(predictions, batch_labels);
   }
 
   double accuracy = (double)correct_predictions / loader.size();

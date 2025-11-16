@@ -9,7 +9,7 @@
 
 #include "communicator.hpp"
 
-namespace tpipeline {
+namespace tnn {
 class InProcessCommunicator : public Communicator {
 public:
   InProcessCommunicator() : shutdown_flag_(false) {
@@ -91,4 +91,4 @@ private:
   std::atomic<bool> shutdown_flag_;
 };
 
-} // namespace tpipeline
+} // namespace tnn

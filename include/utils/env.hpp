@@ -8,7 +8,7 @@
 #include <type_traits>
 #include <unordered_map>
 
-namespace utils {
+namespace tnn {
 
 // Static storage for loaded environment variables from .env file
 static std::unordered_map<std::string, std::string> loaded_env_vars;
@@ -152,4 +152,4 @@ T get_env_auto(const std::string &env_var, const T &default_value,
   return get_env<T>(env_var, default_value);
 }
 
-} // namespace utils
+} // namespace tnn

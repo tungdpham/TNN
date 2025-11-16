@@ -7,14 +7,12 @@
 #pragma once
 
 #include "nn/loss.hpp"
-#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
 #include "partitioner/partitioner.hpp"
-#include "pipeline_stage.hpp"
-#include "utils/avx2.hpp"
-#include <algorithm>
+#include "stage_config.hpp"
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -25,11 +23,11 @@
 #include <thread>
 #include <vector>
 
-namespace tpipeline {
+namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(tnn::Sequential<float> model) : model_(std::move(model)) {}
+  Coordinator(Sequential<float> model) : model_(std::move(model)) {}
 
   virtual ~Coordinator() {
     if (message_thread_.joinable()) {
@@ -46,11 +44,9 @@ public:
     initialize_topology();
   }
 
-  void set_partitioner(std::unique_ptr<partitioner::Partitioner<float>> partitioner) {
-    partitioner_ = std::move(partitioner);
-  }
+  void set_partitioner(std::unique_ptr<Partitioner<float>> tnn) { partitioner_ = std::move(tnn); }
 
-  void set_loss_function(std::unique_ptr<tnn::Loss<float>> loss) {
+  void set_loss_function(std::unique_ptr<Loss<float>> loss) {
     if (!loss) {
       throw std::invalid_argument("Loss function cannot be null");
     }
@@ -120,8 +116,8 @@ public:
 
     const std::string &first_stage = this->stage_names_[0];
 
-    Task<float> task{input, microbatch_id};
-    Message forward_msg(first_stage, CommandType::FORWARD_TASK, task);
+    Job<float> job{input, microbatch_id};
+    Message forward_msg(first_stage, CommandType::FORWARD_JOB, job);
 
     this->coordinator_comm_->send_message(forward_msg);
   }
@@ -138,8 +134,8 @@ public:
 
     const std::string &last_stage = this->stage_names_.back();
 
-    Task<float> task{gradient, microbatch_id};
-    Message backward_msg(last_stage, CommandType::BACKWARD_TASK, task);
+    Job<float> job{gradient, microbatch_id};
+    Message backward_msg(last_stage, CommandType::BACKWARD_JOB, job);
 
     this->coordinator_comm_->send_message(backward_msg);
   }
@@ -180,7 +176,7 @@ public:
     }
   }
 
-  bool send_params(const std::string &stage_id, const tnn::Partition &partition) {
+  bool send_params(const std::string &stage_id, const Partition &partition) {
     try {
       throw new std::runtime_error("Not implemented yet");
     } catch (const std::exception &e) {
@@ -196,8 +192,8 @@ public:
    * @param new_partitions The new partition configuration
    * @return true if all necessary parameters were sent successfully, false otherwise
    */
-  bool send_updated_parameters(const std::vector<tnn::Partition> &old_partitions,
-                               const std::vector<tnn::Partition> &new_partitions) {
+  bool send_updated_parameters(const std::vector<Partition> &old_partitions,
+                               const std::vector<Partition> &new_partitions) {
     if (old_partitions.size() != new_partitions.size() ||
         new_partitions.size() != stage_names_.size()) {
       std::cerr << "Partition size mismatch in send_updated_parameters\n";
@@ -286,22 +282,22 @@ public:
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(lock, [this]() {
-        return this->coordinator_comm_->message_count(CommandType::FORWARD_TASK) > 0;
+        return this->coordinator_comm_->message_count(CommandType::FORWARD_JOB) > 0;
       });
-      std::vector<Message> FORWARD_TASKs =
-          this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_TASK);
+      std::vector<Message> FORWARD_JOBs =
+          this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
-      for (const auto &forward_msg : FORWARD_TASKs) {
-        if (forward_msg.has_type<Task<float>>()) {
+      for (const auto &forward_msg : FORWARD_JOBs) {
+        if (forward_msg.has_type<Job<float>>()) {
           ++processed_microbatches_;
 
-          const Task<float> &task = forward_msg.get<Task<float>>();
-          Tensor<float> predictions = task.data;
-          Tensor<float> targets = microbatch_labels[task.micro_batch_id];
+          const Job<float> &job = forward_msg.get<Job<float>>();
+          Tensor<float> predictions = job.data;
+          Tensor<float> targets = microbatch_labels[job.micro_batch_id];
           float loss = loss_function_->compute_loss(predictions, targets);
           total_loss += loss;
           Tensor<float> gradient = loss_function_->compute_gradient(predictions, targets);
-          this->backward(gradient, task.micro_batch_id);
+          this->backward(gradient, job.micro_batch_id);
         }
       }
     }
@@ -309,11 +305,11 @@ public:
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     message_notification_cv_.wait(lock, [this]() {
-      return this->coordinator_comm_->message_count(CommandType::BACKWARD_TASK) >=
+      return this->coordinator_comm_->message_count(CommandType::BACKWARD_JOB) >=
              static_cast<size_t>(this->num_microbatches_);
     });
 
-    this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_TASK);
+    this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
 
     return total_loss;
   }
@@ -569,17 +565,17 @@ protected:
   bool should_stop_ = true;
 
   // Components of the coordinator
-  tnn::Sequential<float> model_;
+  Sequential<float> model_;
   std::unique_ptr<Communicator> coordinator_comm_;
-  std::unique_ptr<tnn::Loss<float>> loss_function_;
-  std::unique_ptr<partitioner::Partitioner<float>> partitioner_;
+  std::unique_ptr<Loss<float>> loss_function_;
+  std::unique_ptr<Partitioner<float>> partitioner_;
   Endpoint coordinator_endpoint_;
 
   std::atomic<bool> is_deployed_;
 
   // Topology information
   std::vector<std::string> stage_names_;
-  std::vector<tnn::Partition> partitions_;
+  std::vector<Partition> partitions_;
   std::vector<Endpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
   std::thread message_thread_;
@@ -589,4 +585,4 @@ protected:
   mutable std::condition_variable message_notification_cv_;
 };
 
-} // namespace tpipeline
+} // namespace tnn

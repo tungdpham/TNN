@@ -3,7 +3,7 @@
 #include "augmentation.hpp"
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Random crop augmentation with padding
@@ -49,7 +49,7 @@ private:
   void apply_crop(Tensor<T> &data, size_t batch_idx, size_t channels, size_t height, size_t width,
                   int start_x, int start_y) {
     const int padded_size = width + 2 * padding_;
-    Tensor<T> padded(1, channels, padded_size, padded_size);
+    Tensor<T> padded({1, channels, padded_size, padded_size});
     padded.fill(static_cast<T>(0));
 
     // Copy original image to center of padded image
@@ -72,4 +72,4 @@ private:
   }
 };
 
-} // namespace data_augmentation
+} // namespace tnn

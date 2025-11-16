@@ -2,9 +2,7 @@
 
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
 #include "nn/example_models.hpp"
-#include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "pipeline/distributed_coordinator.hpp"
@@ -12,21 +10,12 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
-#include "utils/mkl_utils.hpp"
-#include "utils/ops.hpp"
-#include "utils/utils_extended.hpp"
-#include <chrono>
+
 #include <cstdlib>
 #include <iostream>
-#include <thread>
 #include <vector>
 
 using namespace tnn;
-using namespace tpipeline;
-using namespace data_augmentation;
-using namespace data_loading;
-using namespace ::utils;
-using namespace tthreads;
 
 namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
@@ -86,7 +75,7 @@ int main() {
   std::cout << "Creating distributed coordinator." << std::endl;
   DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
 
-  coordinator.set_partitioner(std::make_unique<partitioner::NaivePartitioner<float>>());
+  coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();
 
   auto loss_function = LossFactory<float>::create_softmax_crossentropy();

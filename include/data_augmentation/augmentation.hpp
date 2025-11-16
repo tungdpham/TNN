@@ -4,9 +4,8 @@
 #include <algorithm>
 #include <memory>
 #include <random>
-#include <vector>
 
-namespace data_augmentation {
+namespace tnn {
 
 // Forward declarations
 template <typename T> class Augmentation;
@@ -31,7 +30,7 @@ protected:
   mutable std::mt19937 rng_{std::random_device{}()};
 };
 
-} // namespace data_augmentation
+} // namespace tnn
 
 // Include concrete augmentation implementations
 #include "brightness.hpp"
@@ -43,7 +42,7 @@ protected:
 #include "rotation.hpp"
 #include "vertical_flip.hpp"
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Augmentation strategy that manages a pipeline of augmentations
@@ -170,4 +169,4 @@ private:
   AugmentationStrategy<T> strategy_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

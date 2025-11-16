@@ -1,0 +1,891 @@
+#pragma once
+
+#include "cpu/kernels.hpp"
+#include "device/device_ptr.hpp"
+#ifdef USE_CUDA
+#include "cuda/kernels.hpp"
+#endif
+#include "device/task.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <stdexcept>
+#include <utility>
+
+namespace tnn {
+namespace ops {
+
+template <typename Func, typename... Args>
+std::unique_ptr<Task> create_cpu_task(Func &&func, const Device *device, Args &&...args) {
+  return std::make_unique<CPUTask>(std::forward<Func>(func), device, std::forward<Args>(args)...);
+}
+
+#ifdef USE_CUDA
+template <typename Func, typename... Args>
+std::unique_ptr<Task> create_gpu_task(Func &&func, const Device *device, Args &&...args) {
+  return std::make_unique<CUDATask>(std::forward<Func>(func), device, std::forward<Args>(args)...);
+}
+#endif
+
+template <typename T>
+std::unique_ptr<Task> add(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::add<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_add<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> sub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::sub<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_sub<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> mul(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::mul<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_mul<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> div(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::div<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_div<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> fmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                            size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::fmadd<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_fmadd<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> fmsub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                            size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::fmsub<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_fmsub<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> fnmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                             size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::fnmadd<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_fnmadd<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> add_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::add_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_add_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> mul_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::mul_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_mul_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> div_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::div_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_div_scalar<T>, device, a.get(), scalar, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T> std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T scalar, size_t size) {
+  if (!c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device = c.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::set_scalar<T>, device, c.get(), scalar, size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_set_scalar<T>, device, c.get(), scalar, size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::sqrt<T>, device, a.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_sqrt<T>, device, a.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+inline std::unique_ptr<Task> rsqrt(const device_ptr<float[]> &a, device_ptr<float[]> &c,
+                                   size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::rsqrt<float>, device, a.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_rsqrt, device, a.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+inline std::unique_ptr<Task> rcp(const device_ptr<float[]> &a, device_ptr<float[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::rcp<float>, device, a.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_rcp, device, a.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> abs(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::abs<T>, device, a.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_abs<T>, device, a.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> min(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::min<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_min<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> max(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                          size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::max<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_max<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> scalar_max(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::scalar_max<T>, device, a.get(), scalar, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_scalar_max<T>, device, a.get(), scalar, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> clamp(const device_ptr<T[]> &a, T min_val, T max_val, device_ptr<T[]> &c,
+                            size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::clamp<T>, device, a.get(), min_val, max_val, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_clamp<T>, device, a.get(), min_val, max_val, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> equal(const device_ptr<T[]> &a, const device_ptr<T[]> &b, device_ptr<T[]> &c,
+                            size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::equal<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_equal<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> greater(const device_ptr<T[]> &a, const device_ptr<T[]> &b,
+                              device_ptr<T[]> &c, size_t size) {
+  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::greater<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_greater<T>, device, a.get(), b.get(), c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size,
+                           size_t a_offset = 0, size_t c_offset = 0) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  if (a.get() == nullptr || c.get() == nullptr) {
+    throw std::runtime_error("Null pointer exception in copy operation");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::copy<T>, device, a.get() + a_offset, c.get() + c_offset, size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_copy<T>, device, a.get() + a_offset, c.get() + c_offset,
+                           size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T> std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size) {
+  if (!c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device = c.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::zero<T>, device, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_zero<T>, device, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T> T sum(const device_ptr<T[]> &a, size_t size) {
+  if (!a.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device_type = a.getDevice()->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return cpu::sum(a.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return cuda::cuda_sum(a.get(), size, 0);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+T dot_product(const device_ptr<T[]> &a, const device_ptr<T[]> &b, size_t size) {
+  if (!a.getDevice() || !b.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device_type = a.getDevice()->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return cpu::dot_product(a.get(), b.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return cuda::cuda_dot_product(a.get(), b.get(), size, 0);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T> T norm_squared(const device_ptr<T[]> &a, size_t size) {
+  if (!a.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device_type = a.getDevice()->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return cpu::norm_squared(a.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return cuda::cuda_norm_squared(a.get(), size, 0);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T> T sum_squared_diff(const device_ptr<T[]> &a, T mean, size_t size) {
+  if (!a.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device_type = a.getDevice()->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return cpu::sum_squared_diff(a.get(), mean, size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return cuda::cuda_sum_squared_diff(a.get(), mean, size, 0);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> sub_mul_scalar(const device_ptr<T[]> &a, T sub_scalar, T mul_scalar,
+                                     device_ptr<T[]> &c, size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::sub_mul_scalar<T>, device, a.get(), sub_scalar, mul_scalar, c.get(),
+                           size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_sub_mul_scalar<T>, device, a.get(), sub_scalar, mul_scalar,
+                           c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> mul_add_scalar(const device_ptr<T[]> &a, T mul_scalar, T add_scalar,
+                                     device_ptr<T[]> &c, size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::mul_add_scalar<T>, device, a.get(), mul_scalar, add_scalar, c.get(),
+                           size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_mul_add_scalar<T>, device, a.get(), mul_scalar, add_scalar,
+                           c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> fill_random_uniform(device_ptr<T[]> &data, size_t size, T min_val, T max_val,
+                                          unsigned long long seed) {
+  if (!data.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device = data.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::fill_random_uniform<T>, device, data.get(), size, min_val, max_val,
+                           seed);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_fill_random_uniform<T>, device, data.get(), size, min_val,
+                           max_val, seed);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> fill_random_normal(device_ptr<T[]> &data, size_t size, T mean, T stddev,
+                                         unsigned long long seed) {
+  if (!data.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  auto device = data.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::fill_random_normal<T>, device, data.get(), size, mean, stddev,
+                           seed);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_fill_random_normal<T>, device, data.get(), size, mean, stddev,
+                           seed);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> transpose_2d(const device_ptr<T[]> &input, device_ptr<T[]> &output,
+                                   size_t rows, size_t cols) {
+  if (!input.getDevice() || !output.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  if (output.getDevice() != input.getDevice()) {
+    throw std::runtime_error("Input and output must be on the same device");
+  }
+
+  auto device = input.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::transpose_2d<T>, device, input.get(), output.get(), rows, cols);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_transpose_2d<T>, device, input.get(), output.get(), rows,
+                           cols);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> nchw_to_cnhw(const device_ptr<T[]> &input, device_ptr<T[]> &output, size_t n,
+                                   size_t c, size_t h, size_t w) {
+  if (!input.getDevice() || !output.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+
+  if (output.getDevice() != input.getDevice()) {
+    throw std::runtime_error("Input and output must be on the same device");
+  }
+
+  auto device = input.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::nchw_to_cnhw<T>, device, input.get(), output.get(), n, c, h, w);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_nchw_to_cnhw<T>, device, input.get(), output.get(), n, c, h,
+                           w);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
+std::unique_ptr<Task> cnhw_to_nchw(const device_ptr<T[]> &input, device_ptr<T[]> &output, size_t n,
+                                   size_t c, size_t h, size_t w) {
+  if (!input.getDevice() || !output.getDevice()) {
+    throw std::runtime_error("Device pointer has no associated device");
+  }
+  if (output.getDevice() != input.getDevice()) {
+    throw std::runtime_error("Input and output must be on the same device");
+  }
+  auto device = input.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(cpu::cnhw_to_nchw<T>, device, input.get(), output.get(), n, c, h, w);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(cuda::cuda_cnhw_to_nchw<T>, device, input.get(), output.get(), n, c, h,
+                           w);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+} // namespace ops
+} // namespace tnn

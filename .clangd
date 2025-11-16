@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - -Iinclude
+  Remove:
+    - -forward-unknown-to-host-compiler
+    - --options-file
+    - --generate-code=*

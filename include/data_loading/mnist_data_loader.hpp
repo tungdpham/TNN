@@ -13,12 +13,9 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <numeric>
 #include <omp.h>
-#include <random>
 #include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace mnist_constants {
@@ -30,7 +27,7 @@ constexpr size_t NUM_CHANNELS = 1;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
 } // namespace mnist_constants
 
-namespace data_loading {
+namespace tnn {
 
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
@@ -45,7 +42,7 @@ private:
   std::vector<Tensor<T>> batched_labels_;
   bool batches_prepared_;
 
-  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_strategy_;
+  std::unique_ptr<AugmentationStrategy<T>> augmentation_strategy_;
 
 public:
   MNISTDataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
@@ -143,10 +140,10 @@ public:
 
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data = Tensor<T>(actual_batch_size, mnist_constants::NUM_CHANNELS,
-                           mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH);
+    batch_data = Tensor<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
+                            mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
-    batch_labels = Tensor<T>(actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL);
+    batch_labels = Tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
     batch_labels.fill(static_cast<T>(0.0));
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
@@ -329,16 +326,15 @@ public:
   /**
    * Set augmentation strategy to apply during batch preparation and retrieval
    */
-  void
-  set_augmentation_strategy(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> strategy) {
+  void set_augmentation_strategy(std::unique_ptr<AugmentationStrategy<T>> strategy) {
     augmentation_strategy_ = std::move(strategy);
   }
 
   /**
    * Set augmentation strategy using a copy
    */
-  void set_augmentation_strategy(const data_augmentation::AugmentationStrategy<T> &strategy) {
-    augmentation_strategy_ = std::make_unique<data_augmentation::AugmentationStrategy<T>>();
+  void set_augmentation_strategy(const AugmentationStrategy<T> &strategy) {
+    augmentation_strategy_ = std::make_unique<AugmentationStrategy<T>>();
     for (const auto &aug : strategy.get_augmentations()) {
       augmentation_strategy_->add_augmentation(aug->clone());
     }
@@ -366,4 +362,4 @@ void create_mnist_data_loaders(std::string data_path, MNISTDataLoader<float> &tr
   }
 }
 
-} // namespace data_loading
+} // namespace tnn

@@ -15,10 +15,7 @@
 #include <iostream>
 #include <numeric>
 #include <omp.h>
-#include <random>
-#include <sstream>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace cifar10_constants {
@@ -31,7 +28,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + IMAGE_SIZE;
 } // namespace cifar10_constants
 
-namespace data_loading {
+namespace tnn {
 
 /**
  * Enhanced CIFAR-10 data loader for binary format adapted for CNN (2D RGB
@@ -49,7 +46,7 @@ private:
   std::vector<std::string> class_names_ = {"airplane", "automobile", "bird",  "cat",  "deer",
                                            "dog",      "frog",       "horse", "ship", "truck"};
 
-  std::unique_ptr<data_augmentation::AugmentationStrategy<T>> augmentation_strategy_;
+  std::unique_ptr<AugmentationStrategy<T>> augmentation_strategy_;
 
 public:
   CIFAR10DataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
@@ -159,10 +156,10 @@ public:
 
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data = Tensor<T>(actual_batch_size, cifar10_constants::NUM_CHANNELS,
-                           cifar10_constants::IMAGE_HEIGHT, cifar10_constants::IMAGE_WIDTH);
+    batch_data = Tensor<T>({actual_batch_size, cifar10_constants::NUM_CHANNELS,
+                            cifar10_constants::IMAGE_HEIGHT, cifar10_constants::IMAGE_WIDTH});
 
-    batch_labels = Tensor<T>(actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1);
+    batch_labels = Tensor<T>({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
     batch_labels.fill(static_cast<T>(0.0));
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
@@ -294,10 +291,10 @@ public:
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
       const size_t actual_batch_size = end_idx - start_idx;
 
-      Tensor<T> batch_data(actual_batch_size, cifar10_constants::NUM_CHANNELS,
-                           cifar10_constants::IMAGE_HEIGHT, cifar10_constants::IMAGE_WIDTH);
+      Tensor<T> batch_data({actual_batch_size, cifar10_constants::NUM_CHANNELS,
+                            cifar10_constants::IMAGE_HEIGHT, cifar10_constants::IMAGE_WIDTH});
 
-      Tensor<T> batch_labels(actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1);
+      Tensor<T> batch_labels({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
       batch_labels.fill(static_cast<T>(0.0));
 
       for (size_t i = 0; i < actual_batch_size; ++i) {
@@ -349,16 +346,15 @@ public:
   /**
    * Set augmentation strategy to apply during batch preparation and retrieval
    */
-  void
-  set_augmentation_strategy(std::unique_ptr<data_augmentation::AugmentationStrategy<T>> strategy) {
+  void set_augmentation_strategy(std::unique_ptr<AugmentationStrategy<T>> strategy) {
     augmentation_strategy_ = std::move(strategy);
   }
 
   /**
    * Set augmentation strategy using a copy
    */
-  void set_augmentation_strategy(const data_augmentation::AugmentationStrategy<T> &strategy) {
-    augmentation_strategy_ = std::make_unique<data_augmentation::AugmentationStrategy<T>>();
+  void set_augmentation_strategy(const AugmentationStrategy<T> &strategy) {
+    augmentation_strategy_ = std::make_unique<AugmentationStrategy<T>>();
     for (const auto &aug : strategy.get_augmentations()) {
       augmentation_strategy_->add_augmentation(aug->clone());
     }
@@ -432,4 +428,4 @@ void create_cifar10_dataloader(const std::string &data_path, CIFAR10DataLoader<T
 using CIFAR10DataLoaderFloat = CIFAR10DataLoader<float>;
 using CIFAR10DataLoaderDouble = CIFAR10DataLoader<double>;
 
-} // namespace data_loading
+} // namespace tnn

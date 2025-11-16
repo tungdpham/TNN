@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Gaussian noise augmentation
@@ -47,4 +47,4 @@ private:
   float noise_std_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

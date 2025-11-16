@@ -6,13 +6,10 @@
  */
 #pragma once
 
-#include "../optimizers.hpp"
 #include "base_layer.hpp"
 #include "tensor/tensor.hpp"
 
-#include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {

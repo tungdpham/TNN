@@ -4,6 +4,7 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#pragma once
 #include "nn/layers_impl/dropout_layer.hpp"
 
 #include <stdexcept>
@@ -33,7 +34,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
 
   T scale = T(1) / (T(1) - dropout_rate_);
 
-  tthreads::parallel_for_2d(input.batch_size(), input.channels(), [&](size_t n, size_t c) {
+  parallel_for_2d(input.batch_size(), input.channels(), [&](size_t n, size_t c) {
     thread_local std::mt19937 local_generator(std::random_device{}());
     thread_local std::uniform_real_distribution<T> local_distribution(T(0), T(1));
     for (size_t h = 0; h < input.height(); ++h) {
@@ -68,7 +69,7 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batc
 
   Tensor<T> grad_input = gradient;
 
-  tthreads::parallel_for_2d(gradient.batch_size(), gradient.channels(), [&](size_t n, size_t c) {
+  parallel_for_2d(gradient.batch_size(), gradient.channels(), [&](size_t n, size_t c) {
     for (size_t h = 0; h < gradient.height(); ++h) {
       for (size_t w = 0; w < gradient.width(); ++w) {
         grad_input(n, c, h, w) *= mask(n, c, h, w);
@@ -133,14 +134,14 @@ uint64_t DropoutLayer<T>::backward_flops(const std::vector<size_t> &input_shape)
 }
 
 template <typename T>
-uint64_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
       std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 template <typename T>
-uint64_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }

@@ -9,10 +9,8 @@
 #include "tensor/tensor.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <fstream>
 #include <iostream>
-#include <memory>
 #include <numeric>
 #include <omp.h>
 #include <random>
@@ -20,6 +18,8 @@
 #include <string>
 #include <string_view>
 #include <vector>
+
+namespace tnn {
 
 class WiFiDataLoader {
 private:
@@ -362,13 +362,13 @@ public:
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
-      const int actual_batch_size = static_cast<int>(end_idx - start_idx);
+      const size_t actual_batch_size = end_idx - start_idx;
 
-      Tensor<float> batch_features(static_cast<size_t>(actual_batch_size), num_features_, 1, 1);
+      Tensor<float> batch_features({actual_batch_size, num_features_, 1, 1});
 
-      Tensor<float> batch_targets(static_cast<size_t>(actual_batch_size), num_outputs_, 1, 1);
+      Tensor<float> batch_targets({actual_batch_size, num_outputs_, 1, 1});
 
-      for (int i = 0; i < actual_batch_size; ++i) {
+      for (size_t i = 0; i < actual_batch_size; ++i) {
         const size_t sample_idx = start_idx + i;
 
         for (size_t j = 0; j < num_features_; ++j) {
@@ -458,3 +458,5 @@ public:
     }
   }
 };
+
+} // namespace tnn

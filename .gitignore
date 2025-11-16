@@ -92,3 +92,6 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# cache files
+.cache/

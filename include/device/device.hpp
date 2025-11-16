@@ -6,9 +6,8 @@
 #include <cstring>
 #include <memory>
 #include <string>
-#include <vector>
 
-namespace tdevice {
+namespace tnn {
 
 class Device {
 public:
@@ -30,6 +29,8 @@ public:
   size_t getAvailableMemory() const;
   void *allocateMemory(size_t size) const;
   void deallocateMemory(void *ptr) const;
+  void *allocateAlignedMemory(size_t size, size_t alignment) const;
+  void deallocateAlignedMemory(void *ptr) const;
   void copyToDevice(void *dest, const void *src, size_t size) const;
   void copyToHost(void *dest, const void *src, size_t size) const;
 
@@ -39,4 +40,4 @@ private:
   std::unique_ptr<Context> context_;
 };
 
-} // namespace tdevice
+} // namespace tnn

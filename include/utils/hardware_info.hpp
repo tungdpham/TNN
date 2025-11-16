@@ -6,7 +6,7 @@
 #include <string>
 #include <vector>
 
-namespace utils {
+namespace tnn {
 
 /**
  * Represents information about a single CPU core
@@ -360,4 +360,4 @@ private:
   std::vector<CpuTimes> prev_core_times_;
 };
 
-} // namespace utils
+} // namespace tnn

@@ -4,7 +4,7 @@
 #include <algorithm>
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Brightness adjustment augmentation
@@ -49,4 +49,4 @@ private:
   float brightness_range_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

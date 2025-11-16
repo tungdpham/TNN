@@ -2,7 +2,7 @@
 
 #include "data_loader.hpp"
 
-namespace data_loading {
+namespace tnn {
 /**
  * Specialized base class for image classification datasets
  * Provides common functionality for image-based datasets like MNIST, CIFAR,
@@ -60,4 +60,4 @@ protected:
   }
 };
 
-} // namespace data_loading
+} // namespace tnn

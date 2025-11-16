@@ -8,8 +8,6 @@
 #include "threading/thread_wrapper.hpp"
 
 using namespace tnn;
-using namespace tpipeline;
-using namespace tthreads;
 
 constexpr int MAX_THREADS = 4;
 
@@ -81,9 +79,9 @@ int main(int argc, char *argv[]) {
 
   // Show core topology if requested
   if (show_cores_only) {
-    utils::HardwareInfo hw_info;
+    HardwareInfo hw_info;
     if (hw_info.initialize()) {
-      utils::ThreadAffinity affinity(hw_info);
+      ThreadAffinity affinity(hw_info);
       affinity.print_affinity_info();
     } else {
       std::cerr << "Failed to initialize hardware info" << std::endl;

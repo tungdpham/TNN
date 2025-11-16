@@ -3,7 +3,7 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-using namespace tdevice;
+using namespace tnn;
 
 class DeviceManagerTest : public ::testing::Test {
 protected:

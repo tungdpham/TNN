@@ -6,7 +6,7 @@
  */
 #include "data_loader.hpp"
 
-namespace data_loading {
+namespace tnn {
 /**
  * Specialized base class for regression datasets
  * Provides common functionality for continuous target prediction
@@ -48,4 +48,4 @@ protected:
   using BaseDataLoader<T>::rng_;
 };
 
-} // namespace data_loading
+} // namespace tnn

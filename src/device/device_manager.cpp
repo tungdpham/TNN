@@ -11,7 +11,7 @@
 #include "device/cuda/cuda_context.hpp"
 #endif
 
-namespace tdevice {
+namespace tnn {
 DeviceManager DeviceManager::instance_;
 
 DeviceManager &DeviceManager::getInstance() { return instance_; }
@@ -45,7 +45,7 @@ void DeviceManager::discoverDevices() {
         std::cout << "Discovered CUDA device with ID: " << device_index << " (CUDA Device " << i
                   << ": " << prop.name << ")" << std::endl;
         Device gpu_device(DeviceType::GPU, device_index++, std::make_unique<CUDAContext>(i));
-        manager.addDevice(std::move(gpu_device));
+        addDevice(std::move(gpu_device));
       } catch (const std::exception &e) {
         std::cerr << "Failed to create CUDA device " << i << ": " << e.what() << std::endl;
       }
@@ -89,6 +89,24 @@ std::vector<int> DeviceManager::getAvailableDeviceIDs() const {
 
 bool DeviceManager::hasDevice(int id) const { return devices_.find(id) != devices_.end(); }
 
+void DeviceManager::setDefaultDevice(int id) {
+  if (hasDevice(id)) {
+    default_device_id_ = id;
+  } else {
+    throw std::runtime_error("Device with the given ID not found");
+  }
+}
+
+void DeviceManager::setDefaultDevice(const DeviceType &type) {
+  for (const auto &pair : devices_) {
+    if (pair.second.getDeviceType() == type) {
+      default_device_id_ = pair.first;
+      return;
+    }
+  }
+  throw std::runtime_error("No device of the specified type found");
+}
+
 void initializeDefaultDevices() {
   DeviceManager &manager = DeviceManager::getInstance();
 
@@ -121,4 +139,4 @@ const Device &getCPU() {
   throw std::runtime_error("CPU device not found");
 }
 
-} // namespace tdevice
+} // namespace tnn

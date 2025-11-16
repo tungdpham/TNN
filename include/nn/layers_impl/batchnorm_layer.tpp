@@ -4,14 +4,14 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#pragma once
 #include "nn/layers_impl/batchnorm_layer.hpp"
 
 #include <cmath>
-#include <iostream>
 #include <stdexcept>
 
-#include "utils/avx2.hpp"
-#include "utils/ops.hpp"
+#include "nn/layers_impl/cpu/batchnorm_ops.hpp"
+#include "nn/layers_impl/cuda/batchnorm_ops.hpp"
 
 namespace tnn {
 
@@ -27,19 +27,19 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
   }
 
   if (affine_) {
-    gamma_ = Tensor<T>(num_features_, 1, 1, 1);
-    beta_ = Tensor<T>(num_features_, 1, 1, 1);
-    gamma_gradients_ = Tensor<T>(num_features_, 1, 1, 1);
-    beta_gradients_ = Tensor<T>(num_features_, 1, 1, 1);
+    gamma_ = Tensor<T>({num_features_, 1, 1, 1});
+    beta_ = Tensor<T>({num_features_, 1, 1, 1});
+    gamma_gradients_ = Tensor<T>({num_features_, 1, 1, 1});
+    beta_gradients_ = Tensor<T>({num_features_, 1, 1, 1});
 
     gamma_.fill(T(1));
     beta_.fill(T(0));
   }
 
-  running_mean_ = Tensor<T>(num_features_, 1, 1, 1);
-  running_var_ = Tensor<T>(num_features_, 1, 1, 1);
-  running_mean_gradients_ = Tensor<T>(num_features_, 1, 1, 1); // Dummy gradients
-  running_var_gradients_ = Tensor<T>(num_features_, 1, 1, 1);  // Dummy gradients
+  running_mean_ = Tensor<T>({num_features_, 1, 1, 1});
+  running_var_ = Tensor<T>({num_features_, 1, 1, 1});
+  running_mean_gradients_ = Tensor<T>({num_features_, 1, 1, 1}); // Dummy gradients
+  running_var_gradients_ = Tensor<T>({num_features_, 1, 1, 1});  // Dummy gradients
 
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
@@ -50,6 +50,68 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
+void BatchNormLayer<T>::compute_batch_std(const Tensor<T> &batch_var, Tensor<T> &batch_std,
+                                          size_t channels) {
+  for (size_t c = 0; c < channels; ++c) {
+    batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
+  }
+}
+
+template <typename T>
+void BatchNormLayer<T>::update_running_stats(const Tensor<T> &batch_mean,
+                                             const Tensor<T> &batch_var, size_t channels) {
+  parallel_for<size_t>(0, channels, [&](size_t c) {
+    running_mean_(c, 0, 0, 0) =
+        (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
+    running_var_(c, 0, 0, 0) =
+        (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
+  });
+}
+
+template <typename T>
+void BatchNormLayer<T>::compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
+                                                 size_t batch_size, size_t channels,
+                                                 size_t spatial_size) {
+  parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+    T mean_val = running_mean_(c, 0, 0, 0);
+    T var_val = running_var_(c, 0, 0, 0);
+    T std_val = std::sqrt(var_val + epsilon_);
+    const T inv_std = T(1) / std_val;
+
+    const size_t channel_stride = channels * spatial_size;
+    const size_t base_idx = n * channel_stride + c * spatial_size;
+
+    const T *input_ptr = input.data() + base_idx;
+    T *output_ptr = output.data() + base_idx;
+
+    if (affine_) {
+      const T gamma_val = gamma_(c, 0, 0, 0);
+      const T beta_val = beta_(c, 0, 0, 0);
+
+      for (size_t i = 0; i < spatial_size; ++i) {
+        T normalized_val = (input_ptr[i] - mean_val) * inv_std;
+        output_ptr[i] = gamma_val * normalized_val + beta_val;
+      }
+    } else {
+      for (size_t i = 0; i < spatial_size; ++i) {
+        output_ptr[i] = (input_ptr[i] - mean_val) * inv_std;
+      }
+    }
+  });
+}
+
+template <typename T>
+void BatchNormLayer<T>::extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size,
+                                                  size_t &channels, size_t &height, size_t &width,
+                                                  size_t &spatial_size) {
+  batch_size = input.batch_size();
+  channels = input.channels();
+  height = input.height();
+  width = input.width();
+  spatial_size = height * width;
+}
+
+template <typename T>
 Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (input.channels() != num_features_) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
@@ -57,72 +119,45 @@ Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
 
   micro_batch_inputs_[micro_batch_id] = input.clone();
 
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height = input.height();
-  const size_t width = input.width();
-  const size_t spatial_size = height * width;
+  size_t batch_size, channels, height, width, spatial_size;
+  extract_tensor_dimensions(input, batch_size, channels, height, width, spatial_size);
 
-  Tensor<T> output(input.shape(), nullptr);
+  Tensor<T> output(input.shape());
 
   if (this->is_training_) {
-    Tensor<T> batch_mean(channels, 1, 1, 1, nullptr);
-    Tensor<T> batch_var(channels, 1, 1, 1, nullptr);
-    Tensor<T> batch_std(channels, 1, 1, 1, nullptr);
+    Tensor<T> batch_mean({channels, 1, 1, 1});
+    Tensor<T> batch_var({channels, 1, 1, 1});
+    Tensor<T> batch_std({channels, 1, 1, 1});
 
-    compute_channel_mean(input.data(), batch_mean.data(), batch_size, channels, spatial_size);
+    compute_channel_mean(input.data_ptr(), batch_mean.data_ptr(), batch_size, channels,
+                         spatial_size);
 
-    compute_channel_variance(input.data(), batch_mean.data(), batch_var.data(), batch_size,
-                             channels, spatial_size);
+    compute_channel_variance(input.data_ptr(), batch_mean.data_ptr(), batch_var.data_ptr(),
+                             batch_size, channels, spatial_size);
 
-    for (size_t c = 0; c < channels; ++c) {
-      batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
+    compute_batch_std(batch_var, batch_std, channels);
+
+    Tensor<T> normalized(input.shape());
+
+    if (affine_) {
+      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
+                                    gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
+                                    normalized.data_ptr(), batch_size, channels, spatial_size,
+                                    affine_);
+    } else {
+      device_ptr<T[]> null_ptr = nullptr;
+      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
+                                    null_ptr, null_ptr, output.data_ptr(), normalized.data_ptr(),
+                                    batch_size, channels, spatial_size, affine_);
     }
 
-    Tensor<T> normalized(input.shape(), nullptr);
-
-    normalize_and_scale_optimized(input.data(), batch_mean.data(), batch_std.data(),
-                                  affine_ ? gamma_.data() : nullptr,
-                                  affine_ ? beta_.data() : nullptr, output.data(),
-                                  normalized.data(), batch_size, channels, spatial_size, affine_);
-
-    tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-      running_mean_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
-    });
+    update_running_stats(batch_mean, batch_var, channels);
 
     micro_batch_std_[micro_batch_id] = std::move(batch_std);
     micro_batch_normalized_[micro_batch_id] = std::move(normalized);
 
   } else {
-    tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-      T mean_val = running_mean_(c, 0, 0, 0);
-      T var_val = running_var_(c, 0, 0, 0);
-      T std_val = std::sqrt(var_val + epsilon_);
-      const T inv_std = T(1) / std_val;
-
-      const size_t channel_stride = channels * spatial_size;
-      const size_t base_idx = n * channel_stride + c * spatial_size;
-
-      const T *input_ptr = input.data() + base_idx;
-      T *output_ptr = output.data() + base_idx;
-
-      if (affine_) {
-        const T gamma_val = gamma_(c, 0, 0, 0);
-        const T beta_val = beta_(c, 0, 0, 0);
-
-        for (size_t i = 0; i < spatial_size; ++i) {
-          T normalized_val = (input_ptr[i] - mean_val) * inv_std;
-          output_ptr[i] = gamma_val * normalized_val + beta_val;
-        }
-      } else {
-        for (size_t i = 0; i < spatial_size; ++i) {
-          output_ptr[i] = (input_ptr[i] - mean_val) * inv_std;
-        }
-      }
-    });
+    compute_inference_output(input, output, batch_size, channels, spatial_size);
   }
 
   return output;
@@ -134,72 +169,45 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height = input.height();
-  const size_t width = input.width();
-  const size_t spatial_size = height * width;
+  size_t batch_size, channels, height, width, spatial_size;
+  extract_tensor_dimensions(input, batch_size, channels, height, width, spatial_size);
 
-  Tensor<T> output(input.shape(), nullptr);
+  Tensor<T> output(input.shape());
 
   if (this->is_training_) {
-    Tensor<T> batch_mean(channels, 1, 1, 1, nullptr);
-    Tensor<T> batch_var(channels, 1, 1, 1, nullptr);
-    Tensor<T> batch_std(channels, 1, 1, 1, nullptr);
+    Tensor<T> batch_mean({channels, 1, 1, 1});
+    Tensor<T> batch_var({channels, 1, 1, 1});
+    Tensor<T> batch_std({channels, 1, 1, 1});
 
-    compute_channel_mean(input.data(), batch_mean.data(), batch_size, channels, spatial_size);
+    compute_channel_mean(input.data_ptr(), batch_mean.data_ptr(), batch_size, channels,
+                         spatial_size);
 
-    compute_channel_variance(input.data(), batch_mean.data(), batch_var.data(), batch_size,
-                             channels, spatial_size);
+    compute_channel_variance(input.data_ptr(), batch_mean.data_ptr(), batch_var.data_ptr(),
+                             batch_size, channels, spatial_size);
 
-    for (size_t c = 0; c < channels; ++c) {
-      batch_std(c, 0, 0, 0) = std::sqrt(batch_var(c, 0, 0, 0) + epsilon_);
+    compute_batch_std(batch_var, batch_std, channels);
+
+    Tensor<T> normalized(input.shape());
+
+    if (affine_) {
+      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
+                                    gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
+                                    normalized.data_ptr(), batch_size, channels, spatial_size,
+                                    affine_);
+    } else {
+      device_ptr<T[]> null_ptr = nullptr;
+      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
+                                    null_ptr, null_ptr, output.data_ptr(), normalized.data_ptr(),
+                                    batch_size, channels, spatial_size, affine_);
     }
 
-    Tensor<T> normalized(input.shape(), nullptr);
-
-    normalize_and_scale_optimized(input.data(), batch_mean.data(), batch_std.data(),
-                                  affine_ ? gamma_.data() : nullptr,
-                                  affine_ ? beta_.data() : nullptr, output.data(),
-                                  normalized.data(), batch_size, channels, spatial_size, affine_);
-
-    tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-      running_mean_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_mean_(c, 0, 0, 0) + momentum_ * batch_mean(c, 0, 0, 0);
-      running_var_(c, 0, 0, 0) =
-          (T(1) - momentum_) * running_var_(c, 0, 0, 0) + momentum_ * batch_var(c, 0, 0, 0);
-    });
+    update_running_stats(batch_mean, batch_var, channels);
 
     micro_batch_std_[micro_batch_id] = std::move(batch_std);
     micro_batch_normalized_[micro_batch_id] = std::move(normalized);
 
   } else {
-    tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
-      T mean_val = running_mean_(c, 0, 0, 0);
-      T var_val = running_var_(c, 0, 0, 0);
-      T std_val = std::sqrt(var_val + epsilon_);
-      const T inv_std = T(1) / std_val;
-
-      const size_t channel_stride = channels * spatial_size;
-      const size_t base_idx = n * channel_stride + c * spatial_size;
-
-      const T *input_ptr = input.data() + base_idx;
-      T *output_ptr = output.data() + base_idx;
-
-      if (affine_) {
-        const T gamma_val = gamma_(c, 0, 0, 0);
-        const T beta_val = beta_(c, 0, 0, 0);
-
-        for (size_t i = 0; i < spatial_size; ++i) {
-          T normalized_val = (input_ptr[i] - mean_val) * inv_std;
-          output_ptr[i] = gamma_val * normalized_val + beta_val;
-        }
-      } else {
-        for (size_t i = 0; i < spatial_size; ++i) {
-          output_ptr[i] = (input_ptr[i] - mean_val) * inv_std;
-        }
-      }
-    });
+    compute_inference_output(input, output, batch_size, channels, spatial_size);
   }
 
   micro_batch_inputs_[micro_batch_id] = std::move(input);
@@ -230,34 +238,35 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t total_elements = batch_size * spatial_size;
   const size_t channel_stride = channels * spatial_size;
 
-  Tensor<T> grad_input(input.shape(), nullptr);
+  Tensor<T> grad_input(input.shape());
 
   if (affine_) {
-    compute_affine_gradients_optimized(gradient.data(), normalized.data(), gamma_gradients_.data(),
-                                       beta_gradients_.data(), batch_size, channels, spatial_size);
+    compute_affine_gradients_optimized(gradient.data_ptr(), normalized.data_ptr(),
+                                       gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
+                                       batch_size, channels, spatial_size);
   }
 
-  Tensor<T> grad_normalized(input.shape(), nullptr);
+  Tensor<T> grad_normalized(input.shape());
   if (affine_) {
-    tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
       const T gamma_val = gamma_(c, 0, 0, 0);
       const size_t base_idx = n * channel_stride + c * spatial_size;
 
       const T *grad_ptr = gradient.data() + base_idx;
       T *grad_norm_ptr = grad_normalized.data() + base_idx;
 
-      utils::avx2_mul_scalar(grad_ptr, gamma_val, grad_norm_ptr, spatial_size);
+      ops::cpu::mul_scalar(grad_ptr, gamma_val, grad_norm_ptr, spatial_size);
     });
   } else {
-    utils::avx2_copy(gradient.data(), grad_normalized.data(), gradient.size());
+    ops::cpu::copy(gradient.data(), grad_normalized.data(), gradient.size());
   }
 
   const T inv_total = T(1) / static_cast<T>(total_elements);
 
-  Tensor<T> sum_grad_normalized(channels, 1, 1, 1, nullptr);
-  Tensor<T> sum_grad_normalized_times_normalized(channels, 1, 1, 1, nullptr);
+  Tensor<T> sum_grad_normalized({channels, 1, 1, 1});
+  Tensor<T> sum_grad_normalized_times_normalized({channels, 1, 1, 1});
 
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
+  parallel_for<size_t>(0, channels, [&](size_t c) {
     T sum_grad_norm = T(0);
     T sum_grad_norm_x_norm = T(0);
     const size_t c_offset = c * spatial_size;
@@ -277,7 +286,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
     sum_grad_normalized_times_normalized(c, 0, 0, 0) = sum_grad_norm_x_norm;
   });
 
-  tthreads::parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+  parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
     const T std_val_c = std_val(c, 0, 0, 0);
     const T inv_std = T(1) / std_val_c;
     const T sum_grad_norm = sum_grad_normalized(c, 0, 0, 0);
@@ -300,112 +309,107 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
 }
 
 template <typename T>
-void BatchNormLayer<T>::compute_channel_mean(const T *input_data, T *mean_data, size_t batch_size,
+void BatchNormLayer<T>::compute_channel_mean(const device_ptr<T[]> &input_data,
+                                             device_ptr<T[]> &mean_data, size_t batch_size,
                                              size_t channels, size_t spatial_size) {
-  const size_t total_elements = batch_size * spatial_size;
-  const T inv_total = T(1) / static_cast<T>(total_elements);
+  if (input_data.getDeviceType() != mean_data.getDeviceType()) {
+    throw std::runtime_error("Input and mean tensors must be on the same device");
+  }
 
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T sum = T(0);
-    const size_t channel_stride = channels * spatial_size;
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
-      sum += utils::avx2_sum(batch_channel_ptr, spatial_size);
-    }
-
-    mean_data[c] = sum * inv_total;
-  });
+  if (input_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
+                              spatial_size);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
+                               spatial_size);
+  }
+#endif
 }
 
 template <typename T>
-void BatchNormLayer<T>::compute_channel_variance(const T *input_data, const T *mean_data,
-                                                 T *var_data, size_t batch_size, size_t channels,
-                                                 size_t spatial_size) {
-  const size_t total_elements = batch_size * spatial_size;
-  const T inv_total = T(1) / static_cast<T>(total_elements);
+void BatchNormLayer<T>::compute_channel_variance(const device_ptr<T[]> &input_data,
+                                                 const device_ptr<T[]> &mean_data,
+                                                 device_ptr<T[]> &var_data, size_t batch_size,
+                                                 size_t channels, size_t spatial_size) {
+  if (input_data.getDeviceType() != mean_data.getDeviceType() ||
+      mean_data.getDeviceType() != var_data.getDeviceType()) {
+    throw std::runtime_error("All tensors must be on the same device for channel variance");
+  }
 
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T sum_sq = T(0);
-    const T mean_val = mean_data[c];
-    const size_t channel_stride = channels * spatial_size;
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
-
-      // Use AVX2-optimized sum of squared differences
-      sum_sq += utils::avx2_sum_squared_diff(batch_channel_ptr, mean_val, spatial_size);
-    }
-
-    var_data[c] = sum_sq * inv_total;
-  });
+  if (input_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(), batch_size,
+                                  channels, spatial_size);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(), batch_size,
+                                   channels, spatial_size);
+  }
+#endif
 }
 
 template <typename T>
-void BatchNormLayer<T>::normalize_and_scale_optimized(const T *input_data, const T *mean_data,
-                                                      const T *std_data, const T *gamma_data,
-                                                      const T *beta_data, T *output_data,
-                                                      T *normalized_data, size_t batch_size,
-                                                      size_t channels, size_t spatial_size,
-                                                      bool affine) {
-  const size_t channel_stride = channels * spatial_size;
+void BatchNormLayer<T>::normalize_and_scale_optimized(
+    const device_ptr<T[]> &input_data, const device_ptr<T[]> &mean_data,
+    const device_ptr<T[]> &std_data, const device_ptr<T[]> &gamma_data,
+    const device_ptr<T[]> &beta_data, device_ptr<T[]> &output_data,
+    device_ptr<T[]> &normalized_data, size_t batch_size, size_t channels, size_t spatial_size,
+    bool affine) {
+  if (input_data.getDeviceType() != mean_data.getDeviceType() ||
+      mean_data.getDeviceType() != std_data.getDeviceType() ||
+      std_data.getDeviceType() != output_data.getDeviceType() ||
+      output_data.getDeviceType() != normalized_data.getDeviceType()) {
+    throw std::runtime_error("All tensors must be on the same device for normalize and scale");
+  }
 
-  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const T mean_val = mean_data[c];
-    const T std_val = std_data[c];
-    const T inv_std = T(1) / std_val;
+  if (affine && (gamma_data.getDeviceType() != input_data.getDeviceType() ||
+                 beta_data.getDeviceType() != input_data.getDeviceType())) {
+    throw std::runtime_error("Gamma and beta tensors must be on the same device as input");
+  }
 
-    const size_t n_offset = n * channel_stride;
-    const size_t c_offset = c * spatial_size;
-    const size_t base_idx = n_offset + c_offset;
-
-    const T *input_ptr = input_data + base_idx;
-    T *normalized_ptr = normalized_data + base_idx;
-    T *output_ptr = output_data + base_idx;
-
-    // Normalize: (x - mean) / std - vectorized with AVX2
-    utils::avx2_sub_mul_scalar(input_ptr, mean_val, inv_std, normalized_ptr, spatial_size);
-
-    if (affine) {
-      const T gamma_val = gamma_data[c];
-      const T beta_val = beta_data[c];
-
-      // Scale and shift: gamma * normalized + beta - vectorized FMA with AVX2
-      utils::avx2_mul_add_scalar(normalized_ptr, gamma_val, beta_val, output_ptr, spatial_size);
-    } else {
-      utils::avx2_copy(normalized_ptr, output_ptr, spatial_size);
-    }
-  });
+  if (input_data.getDeviceType() == DeviceType::CPU) {
+    cpu::normalize_and_scale_optimized(
+        input_data.get(), mean_data.get(), std_data.get(), affine ? gamma_data.get() : nullptr,
+        affine ? beta_data.get() : nullptr, output_data.get(), normalized_data.get(), batch_size,
+        channels, spatial_size, affine);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::normalize_and_scale_optimized(
+        input_data.get(), mean_data.get(), std_data.get(), affine ? gamma_data.get() : nullptr,
+        affine ? beta_data.get() : nullptr, output_data.get(), normalized_data.get(), batch_size,
+        channels, spatial_size, affine);
+  }
+#endif
 }
 
 template <typename T>
-void BatchNormLayer<T>::compute_affine_gradients_optimized(const T *gradient_data,
-                                                           const T *normalized_data, T *gamma_grad,
-                                                           T *beta_grad, size_t batch_size,
-                                                           size_t channels, size_t spatial_size) {
-  const size_t channel_stride = channels * spatial_size;
+void BatchNormLayer<T>::compute_affine_gradients_optimized(const device_ptr<T[]> &gradient_data,
+                                                           const device_ptr<T[]> &normalized_data,
+                                                           device_ptr<T[]> &gamma_grad,
+                                                           device_ptr<T[]> &beta_grad,
+                                                           size_t batch_size, size_t channels,
+                                                           size_t spatial_size) {
+  if (gradient_data.getDeviceType() != normalized_data.getDeviceType() ||
+      normalized_data.getDeviceType() != gamma_grad.getDeviceType() ||
+      gamma_grad.getDeviceType() != beta_grad.getDeviceType()) {
+    throw std::runtime_error("All tensors must be on the same device for affine gradients");
+  }
 
-  tthreads::parallel_for<size_t>(0, channels, [&](size_t c) {
-    T gamma_sum = T(0);
-    T beta_sum = T(0);
-    const size_t c_offset = c * spatial_size;
-
-    for (size_t n = 0; n < batch_size; ++n) {
-      const size_t base_idx = n * channel_stride + c_offset;
-      const T *grad_ptr = gradient_data + base_idx;
-      const T *norm_ptr = normalized_data + base_idx;
-
-      for (size_t i = 0; i < spatial_size; ++i) {
-        gamma_sum += grad_ptr[i] * norm_ptr[i];
-        beta_sum += grad_ptr[i];
-      }
-    }
-
-    gamma_grad[c] += gamma_sum;
-    beta_grad[c] += beta_sum;
-  });
+  if (gradient_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
+                                            gamma_grad.get(), beta_grad.get(), batch_size, channels,
+                                            spatial_size);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
+                                             gamma_grad.get(), beta_grad.get(), batch_size,
+                                             channels, spatial_size);
+  }
+#endif
 }
 
 template <typename T> std::string BatchNormLayer<T>::type() const { return "batchnorm"; }
@@ -508,13 +512,13 @@ uint64_t BatchNormLayer<T>::backward_flops(const std::vector<size_t> &input_shap
 }
 
 template <typename T>
-uint64_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
       std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 template <typename T>
-uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }

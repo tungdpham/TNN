@@ -10,7 +10,7 @@
 #include <iostream>
 #include <unistd.h>
 
-namespace utils {
+namespace tnn {
 
 bool ThreadAffinity::set_current_thread_affinity(const AffinityConfig &config) const {
 #ifdef __linux__
@@ -266,4 +266,4 @@ void ThreadAffinity::print_affinity_info() const {
   std::cout << "=================================" << std::endl;
 }
 
-} // namespace utils
+} // namespace tnn

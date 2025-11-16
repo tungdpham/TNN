@@ -1,9 +1,8 @@
 #pragma once
 
-#include "ops.hpp"
 #include "tensor/tensor.hpp"
 
-namespace utils {
+namespace tnn {
 template <typename T>
 float compute_class_accuracy(const Tensor<float> &predictions, const Tensor<float> &targets) {
   const size_t batch_size = predictions.shape()[0];
@@ -75,4 +74,4 @@ float compute_class_corrects(Tensor<float> &predictions, Tensor<float> &targets,
   return static_cast<float>(total_correct);
 }
 
-} // namespace utils
+} // namespace tnn

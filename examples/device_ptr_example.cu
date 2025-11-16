@@ -13,11 +13,9 @@
 #endif
 
 #include <iostream>
-#include <memory>
-#include <string>
 #include <vector>
 
-using namespace tdevice;
+using namespace tnn;
 
 #ifdef USE_CUDA
 // CUDA kernel to add two arrays

@@ -21,7 +21,7 @@ template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64
  * type to ensure compatibility across different platforms. Here, we use uint64_t for sizes
  * and counts, which is 8 bytes on all platforms.
  */
-namespace tpipeline {
+namespace tnn {
 class BinarySerializer {
 public:
   template <typename T = float> static void serialize(const Tensor<T> &tensor, TBuffer &buffer) {
@@ -51,10 +51,10 @@ public:
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
 
-    } else if (std::holds_alternative<Task<float>>(data.payload)) {
-      const auto &task = std::get<Task<float>>(data.payload);
-      buffer.write_value(static_cast<uint64_t>(task.micro_batch_id));
-      serialize<float>(task.data, buffer);
+    } else if (std::holds_alternative<Job<float>>(data.payload)) {
+      const auto &job = std::get<Job<float>>(data.payload);
+      buffer.write_value(static_cast<uint64_t>(job.micro_batch_id));
+      serialize<float>(job.data, buffer);
 
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
@@ -106,11 +106,11 @@ public:
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Task<float> &task) {
-    task.micro_batch_id = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
+  static void deserialize(const TBuffer &buffer, size_t &offset, Job<float> &job) {
+    job.micro_batch_id = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
     Tensor<float> tensor;
     deserialize(buffer, offset, tensor);
-    task.data = std::move(tensor);
+    job.data = std::move(tensor);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, std::string &str) {
@@ -148,10 +148,10 @@ public:
     case variant_index<PayloadType, std::monostate>(): // std::monostate
       data.payload = std::monostate{};
       break;
-    case variant_index<PayloadType, Task<float>>(): { // Task<float>
-      Task<float> task;
-      deserialize(buffer, offset, task);
-      data.payload = std::move(task);
+    case variant_index<PayloadType, Job<float>>(): { // Job<float>
+      Job<float> job;
+      deserialize(buffer, offset, job);
+      data.payload = std::move(job);
     } break;
     case variant_index<PayloadType, std::string>(): { // std::string
       std::string str;
@@ -175,4 +175,4 @@ public:
 
 }; // namespace BinarySerializer
 
-} // namespace tpipeline
+} // namespace tnn

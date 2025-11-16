@@ -1,271 +1,257 @@
 #pragma once
+
+#include "cpu/tensor_ops.hpp"
+#ifdef USE_CUDA
+#include "cuda/tensor_ops.hpp"
+#endif
 #include "tensor.hpp"
+
+namespace tnn {
+// im2col/col2im operations
+
+template <typename T>
+void im2col(const Tensor<T, NCHW> &input_tensor, device_ptr<T[]> &col_data, size_t kernel_h,
+            size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
+            size_t pad_w = 0) {
+  if (input_tensor.device_type() != col_data.getDeviceType()) {
+    throw std::runtime_error("im2col: Mismatched device types between input tensor and col_data");
+  }
+  if (input_tensor.is_on_cpu()) {
+    cpu::im2col(input_tensor, col_data.get(), kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  }
+#ifdef USE_CUDA
+  else if (input_tensor.is_on_gpu()) {
+    cuda::im2col(input_tensor, col_data.get(), kernel_h, kernel_w, stride_h, stride_w, pad_h,
+                 pad_w);
+  }
+#endif
+  else {
+    throw std::runtime_error("im2col: Unsupported device type");
+  }
+}
+
+template <typename T>
+void col2im(const device_ptr<T[]> &col_data, const device_ptr<T[]> &result_data, size_t batch_size,
+            size_t channels, size_t height, size_t width, size_t kernel_h, size_t kernel_w,
+            size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
+  if (col_data.getDeviceType() == DeviceType::CPU) {
+    cpu::col2im(col_data.get(), result_data.get(), batch_size, channels, height, width, kernel_h,
+                kernel_w, stride_h, stride_w, pad_h, pad_w);
+  }
+#ifdef USE_CUDA
+  else if (col_data.getDeviceType() == DeviceType::GPU) {
+    cuda::col2im(col_data.get(), result_data.get(), batch_size, channels, height, width, kernel_h,
+                 kernel_w, stride_h, stride_w, pad_h, pad_w);
+  }
+#endif
+  else {
+    throw std::runtime_error("col2im: Unsupported device type");
+  }
+}
+
+// Padding operations
 
 template <typename T, Layout L>
 Tensor<T, L> pad(const Tensor<T, L> &input, size_t pad_h, size_t pad_w, T value = T(0)) {
-  throw std::runtime_error("Unsupported tensor layout for padding");
+  if (input.is_on_cpu()) {
+    return cpu::pad(input, pad_h, pad_w, value);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::pad(input, pad_h, pad_w, value);
+  }
+#endif
+  else {
+    throw std::runtime_error("pad: Unsupported device type");
+  }
 }
 
 template <typename T>
 Tensor<T, NCHW> pad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w, T value = T(0)) {
-  const size_t batch_size_ = input.batch_size();
-  const size_t channels_ = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
-
-  Tensor<T, NCHW> result(batch_size_, channels_, height_ + 2 * pad_h, width_ + 2 * pad_w, nullptr);
-
-  const T *input_data = input.data();
-  T *result_data = result.data();
-
-  tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-    const size_t padded_height = height_ + 2 * pad_h;
-    const size_t padded_width = width_ + 2 * pad_w;
-    // fill top padding rows
-    for (size_t h = 0; h < pad_h; ++h) {
-      std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                    padded_width,
-                value);
-    }
-
-    // Copy middle rows with left and right padding
-    for (size_t h = 0; h < height_; ++h) {
-      const size_t new_h = h + pad_h;
-      // copy the row over
-      std::copy(&input_data[((n * channels_ + c) * height_ + h) * width_],
-                &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
-                &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
-
-      // set values on left and right
-      std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
-                value);
-
-      // right side
-      std::fill(
-          &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w +
-                       width_],
-          &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + padded_width],
-          value);
-    }
-
-    // fill bottom padding rows
-    for (size_t h = height_ + pad_h; h < padded_height; ++h) {
-      std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                    padded_width,
-                value);
-    }
-  });
-
-  return result;
+  if (input.is_on_cpu()) {
+    return cpu::pad(input, pad_h, pad_w, value);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::pad(input, pad_h, pad_w, value);
+  }
+#endif
+  else {
+    throw std::runtime_error("pad: Unsupported device type");
+  }
 }
 
 template <typename T, Layout L>
 Tensor<T, NCHW> unpad(const Tensor<T, L> &input, size_t pad_h, size_t pad_w) {
-  throw std::runtime_error("Unsupported tensor layout for unpadding");
+  if (input.is_on_cpu()) {
+    return cpu::unpad(input, pad_h, pad_w);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::unpad(input, pad_h, pad_w);
+  }
+#endif
+  else {
+    throw std::runtime_error("unpad: Unsupported device type");
+  }
 }
 
 template <typename T>
 Tensor<T, NCHW> unpad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w) {
-  const size_t batch_size_ = input.batch_size();
-  const size_t channels_ = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
-
-  if (height_ <= 2 * pad_h || width_ <= 2 * pad_w) {
-    throw std::invalid_argument("Padding size too large for unpadding");
+  if (input.is_on_cpu()) {
+    return cpu::unpad(input, pad_h, pad_w);
   }
-
-  Tensor<T, NCHW> result(batch_size_, channels_, height_ - 2 * pad_h, width_ - 2 * pad_w, nullptr);
-
-  const T *input_data = input.data();
-  T *result_data = result.data();
-
-  tthreads::parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-    for (size_t h = 0; h < height_ - 2 * pad_h; ++h) {
-      const size_t src_h = h + pad_h;
-      std::copy(
-          &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w],
-          &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w] +
-              (width_ - 2 * pad_w),
-          &result_data[((n * channels_ + c) * (height_ - 2 * pad_h) + h) * (width_ - 2 * pad_w)]);
-    }
-  });
-
-  return result;
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::unpad(input, pad_h, pad_w);
+  }
+#endif
+  else {
+    throw std::runtime_error("unpad: Unsupported device type");
+  }
 }
+
+// Crop operation
 
 template <typename T, Layout L>
 Tensor<T, L> crop(const Tensor<T, L> &input, const size_t start_h, const size_t start_w,
                   const size_t end_h, const size_t end_w) {
-  throw std::runtime_error("Unsupported tensor layout for cropping");
+  if (input.is_on_cpu()) {
+    return cpu::crop(input, start_h, start_w, end_h, end_w);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::crop(input, start_h, start_w, end_h, end_w);
+  }
+#endif
+  else {
+    throw std::runtime_error("crop: Unsupported device type");
+  }
 }
 
 template <typename T>
 Tensor<T, NCHW> crop(const Tensor<T, NCHW> &input, const size_t start_h, const size_t start_w,
                      const size_t end_h, const size_t end_w) {
-  if (end_h >= input.height() || end_w >= input.width() || start_h > end_h || start_w > end_w) {
-    throw std::invalid_argument("Invalid crop dimensions");
+  if (input.is_on_cpu()) {
+    return cpu::crop(input, start_h, start_w, end_h, end_w);
   }
-  const size_t new_height = end_h - start_h + 1;
-  const size_t new_width = end_w - start_w + 1;
-
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
-  Tensor<T, NCHW> result(batch_size, channels, new_height, new_width, nullptr);
-
-  T *input_data = input.data();
-  T *result_data = result.data();
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t c = 0; c < channels; ++c) {
-      for (size_t h = 0; h < new_height; ++h) {
-        std::copy(&input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w],
-                  &input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w] +
-                      new_width,
-                  &result_data[((n * channels + c) * new_height + h) * new_width]);
-      }
-    }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::crop(input, start_h, start_w, end_h, end_w);
   }
-  return result;
+#endif
+  else {
+    throw std::runtime_error("crop: Unsupported device type");
+  }
 }
 
-/**
- * @brief Slice the tensor along the batch dimension.
- * @param start_batch Starting batch index (inclusive)
- * @param end_batch Ending batch index (exclusive)
- * @return A new tensor containing the sliced batches
- */
+// Slicing operations
+
 template <typename T, Layout L>
 Tensor<T, L> slice_batch(const Tensor<T, L> &input, size_t start_batch, size_t end_batch) {
-  if (end_batch > input.batch_size() || start_batch > end_batch) {
-    throw std::invalid_argument("Invalid batch slice range");
+  if (input.is_on_cpu()) {
+    return cpu::slice_batch(input, start_batch, end_batch);
   }
-
-  size_t new_batch_size = end_batch - start_batch;
-  std::vector<size_t> new_shape(input.shape());
-  new_shape[0] = new_batch_size;
-  Tensor<T, L> result(new_shape);
-
-  const T *input_data = input.data();
-  const std::vector<size_t> strides = input.strides();
-  T *result_data = result.data();
-
-  std::copy(&input_data[start_batch * strides[0]], &input_data[end_batch * strides[0]],
-            result_data);
-  return result;
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::slice_batch(input, start_batch, end_batch);
+  }
+#endif
+  else {
+    throw std::runtime_error("slice_batch: Unsupported device type");
+  }
 }
 
-/*
- * @brief Slice the tensor along the channel dimension.
- */
 template <typename T, Layout L>
 Tensor<T, L> slice_channels(const Tensor<T, L> &input, size_t start_ch, size_t end_ch) {
-  throw std::runtime_error("Unsupported tensor layout for channel slicing");
+  if (input.is_on_cpu()) {
+    return cpu::slice_channels(input, start_ch, end_ch);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::slice_channels(input, start_ch, end_ch);
+  }
+#endif
+  else {
+    throw std::runtime_error("slice_channels: Unsupported device type");
+  }
 }
 
-/**
- * @brief Slice the tensor along the channel dimension.
- * @param start_ch Starting channel index (inclusive)
- * @param end_ch Ending channel index (inclusive)
- * @return A new tensor containing the sliced channels
- */
 template <typename T>
 Tensor<T, NCHW> slice_channels(const Tensor<T, NCHW> &input, size_t start_ch, size_t end_ch) {
-  if (end_ch >= input.channels() || start_ch > end_ch) {
-    throw std::invalid_argument("Invalid channel slice range");
+  if (input.is_on_cpu()) {
+    return cpu::slice_channels(input, start_ch, end_ch);
   }
-
-  size_t new_channels = end_ch - start_ch + 1;
-
-  Tensor<T, NCHW> result(input.batch_size(), new_channels, input.height(), input.width());
-
-  for (size_t n = 0; n < input.batch_size(); ++n) {
-    for (size_t c = 0; c < new_channels; ++c) {
-      for (size_t h = 0; h < input.height(); ++h) {
-        for (size_t w = 0; w < input.width(); ++w) {
-          result(n, c, h, w) = input(n, start_ch + c, h, w);
-        }
-      }
-    }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::slice_channels(input, start_ch, end_ch);
   }
-  return result;
+#endif
+  else {
+    throw std::runtime_error("slice_channels: Unsupported device type");
+  }
 }
+
+// Split operation
 
 template <typename T, Layout L>
 std::vector<Tensor<T, L>> split(const Tensor<T, L> &input, size_t num_splits) {
-  if (num_splits == 0 || num_splits > input.batch_size()) {
-    throw std::invalid_argument("Invalid number of splits");
+  if (input.is_on_cpu()) {
+    return cpu::split(input, num_splits);
   }
-
-  std::vector<Tensor<T, L>> splits;
-  size_t split_size = input.batch_size() / num_splits;
-
-  for (size_t i = 0; i < num_splits; ++i) {
-    size_t start = i * split_size;
-    size_t end = (i == num_splits - 1) ? input.batch_size() : start + split_size;
-
-    splits.emplace_back(slice_batch(input, start, end));
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::split(input, num_splits);
   }
-  return splits;
+#endif
+  else {
+    throw std::runtime_error("split: Unsupported device type");
+  }
 }
 
 template <typename T>
 std::vector<Tensor<T, NCHW>> split(const Tensor<T, NCHW> &input, size_t num_splits) {
-  if (num_splits == 0 || num_splits > input.batch_size()) {
-    throw std::invalid_argument("Invalid number of splits");
+  if (input.is_on_cpu()) {
+    return cpu::split(input, num_splits);
   }
-
-  std::vector<Tensor<T, NCHW>> splits;
-  size_t split_size = input.batch_size() / num_splits;
-
-  for (size_t i = 0; i < num_splits; ++i) {
-    size_t start = i * split_size;
-    size_t end = (i == num_splits - 1) ? input.batch_size() : start + split_size;
-
-    splits.emplace_back(slice_batch(input, start, end));
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    return cuda::split(input, num_splits);
   }
-  return splits;
+#endif
+  else {
+    throw std::runtime_error("split: Unsupported device type");
+  }
 }
 
+// Softmax operation
+
 template <typename T, Layout L> void apply_softmax(Tensor<T, L> &input) {
-  throw std::runtime_error("Unsupported tensor layout for softmax");
+  if (input.is_on_cpu()) {
+    cpu::apply_softmax(input);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    cuda::apply_softmax(input);
+  }
+#endif
+  else {
+    throw std::runtime_error("apply_softmax: Unsupported device type");
+  }
 }
 
 template <typename T> void apply_softmax(Tensor<T, NCHW> &input) {
-  auto shape = input.shape();
-  const size_t batch_size = shape[0];
-  const size_t num_classes = shape[1];
-  const size_t height = shape[2];
-  const size_t width = shape[3];
-
-  // Apply softmax across channels at each spatial location
-  for (size_t batch = 0; batch < batch_size; ++batch) {
-    for (size_t h = 0; h < height; ++h) {
-      for (size_t w = 0; w < width; ++w) {
-        // Find max value for numerical stability
-        T max_val = input(batch, 0, h, w);
-        for (size_t c = 1; c < num_classes; ++c) {
-          max_val = std::max(max_val, input(batch, c, h, w));
-        }
-
-        // Apply exp and sum
-        T sum = T(0);
-        for (size_t c = 0; c < num_classes; ++c) {
-          const T exp_val = std::exp(input(batch, c, h, w) - max_val);
-          input(batch, c, h, w) = exp_val;
-          sum += exp_val;
-        }
-
-        // Normalize with numerical stability protection
-        const T inv_sum = T(1) / std::max(sum, static_cast<T>(1e-8));
-        for (size_t c = 0; c < num_classes; ++c) {
-          input(batch, c, h, w) *= inv_sum;
-        }
-      }
-    }
+  if (input.is_on_cpu()) {
+    cpu::apply_softmax(input);
+  }
+#ifdef USE_CUDA
+  else if (input.is_on_gpu()) {
+    cuda::apply_softmax(input);
+  }
+#endif
+  else {
+    throw std::runtime_error("apply_softmax: Unsupported device type");
   }
 }
+
+} // namespace tnn

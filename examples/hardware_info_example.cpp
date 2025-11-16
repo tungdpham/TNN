@@ -7,11 +7,13 @@
 #include <sstream>
 #include <thread>
 
+using namespace tnn;
+
 int main() {
   try {
     std::cout << "=== TNN Hardware Information Test ===" << std::endl;
 
-    utils::HardwareInfo hardware_info;
+    HardwareInfo hardware_info;
 
     std::filesystem::create_directories("./logs");
     std::filesystem::create_directories("./temp");

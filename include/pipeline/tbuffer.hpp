@@ -15,7 +15,7 @@
 #include <stdexcept>
 #include <type_traits>
 
-namespace tpipeline {
+namespace tnn {
 
 class TBuffer {
 private:
@@ -309,4 +309,4 @@ private:
   }
 };
 
-} // namespace tpipeline
+} // namespace tnn

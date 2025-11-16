@@ -2,13 +2,11 @@
 
 #include "internal_compressor.hpp"
 #include "pipeline/tbuffer.hpp"
-#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
-namespace tpipeline {
+namespace tnn {
 static void internal_compress(const TBuffer &data, const std::string name) {
   if (name == "zstd") {
     ZstdCompressor::compress(data);
@@ -35,4 +33,4 @@ public:
 
   static TBuffer decompress(const TBuffer &data);
 };
-} // namespace tpipeline
+} // namespace tnn

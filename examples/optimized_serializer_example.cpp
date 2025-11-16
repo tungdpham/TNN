@@ -8,10 +8,10 @@
 #include <chrono>
 #include <iostream>
 
-using namespace tpipeline;
+using namespace tnn;
 
 int main() {
-  // Create a test message with a tensor task
+  // Create a test message with a tensor job
   std::vector<size_t> shape = {3, 224, 224}; // Example image tensor
   Tensor<float> test_tensor(shape);
 
@@ -21,8 +21,8 @@ int main() {
     data[i] = static_cast<float>(i % 256) / 255.0f;
   }
 
-  Task<float> task(TaskType::FORWARD, test_tensor, 42);
-  Message<float> original_message(CommandType::FORWARD_TASK, task);
+  Job<float> job(JobType::FORWARD, test_tensor, 42);
+  Message<float> original_message(CommandType::FORWARD_JOB, job);
   original_message.sender_id = "worker_1";
   original_message.recipient_id = "coordinator";
   original_message.sequence_number = 123;
@@ -60,21 +60,21 @@ int main() {
   correct &= (deserialized_message.sender_id == original_message.sender_id);
   correct &= (deserialized_message.recipient_id == original_message.recipient_id);
   correct &= (deserialized_message.sequence_number == original_message.sequence_number);
-  correct &= (deserialized_message.has_task() == original_message.has_task());
+  correct &= (deserialized_message.has_job() == original_message.has_job());
 
-  if (deserialized_message.has_task()) {
-    const auto &orig_task = original_message.get_task();
-    const auto &deser_task = deserialized_message.get_task();
+  if (deserialized_message.has_job()) {
+    const auto &orig_job = original_message.get_job();
+    const auto &deser_job = deserialized_message.get_job();
 
-    correct &= (orig_task.type == deser_task.type);
-    correct &= (orig_task.micro_batch_id == deser_task.micro_batch_id);
-    correct &= (orig_task.data.shape() == deser_task.data.shape());
-    correct &= (orig_task.data.size() == deser_task.data.size());
+    correct &= (orig_job.type == deser_job.type);
+    correct &= (orig_job.micro_batch_id == deser_job.micro_batch_id);
+    correct &= (orig_job.data.shape() == deser_job.data.shape());
+    correct &= (orig_job.data.size() == deser_job.data.size());
 
     // Check tensor data
-    const float *orig_data = orig_task.data.data();
-    const float *deser_data = deser_task.data.data();
-    for (size_t i = 0; i < orig_task.data.size() && correct; ++i) {
+    const float *orig_data = orig_job.data.data();
+    const float *deser_data = deser_job.data.data();
+    for (size_t i = 0; i < orig_job.data.size() && correct; ++i) {
       correct &= (std::abs(orig_data[i] - deser_data[i]) < 1e-6f);
     }
   }

@@ -1,32 +1,20 @@
 #include "data_loading/wifi_data_loader.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-#include "nn/train.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/env.hpp"
-#include "utils/misc.hpp"
-#include "utils/ops.hpp"
 
 #include <algorithm>
-#include <atomic>
 #include <chrono>
 #include <cmath>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <numeric>
 #include <omp.h>
-#include <random>
-#include <sstream>
-#include <string_view>
 #include <vector>
 
 using namespace tnn;
-using namespace data_loading;
-using namespace ::utils;
 
 namespace ips_constants {
 constexpr float EPSILON = 1e-15f;
@@ -271,19 +259,19 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-void train_ips_model(tnn::Sequential<float> &model, WiFiDataLoader &train_loader,
+void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
                      WiFiDataLoader &test_loader, int epochs = 50, int batch_size = 64,
                      float learning_rate = 0.001f) {
 
-  tnn::Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
+  Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
 
-  auto classification_loss = tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
+  auto classification_loss = LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
 
   const bool is_regression = train_loader.is_regression();
-  const std::string task_type = is_regression ? "Coordinate Prediction" : "Classification";
+  const std::string job_type = is_regression ? "Coordinate Prediction" : "Classification";
 
   std::cout << "Starting IPS model training..." << std::endl;
-  std::cout << "Task: " << task_type << std::endl;
+  std::cout << "Job: " << job_type << std::endl;
   std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
             << ", Learning rate: " << learning_rate << std::endl;
   std::cout << "Features: " << train_loader.num_features()
@@ -524,7 +512,7 @@ int main() {
     const size_t output_size = train_loader.num_outputs();
     const std::string output_activation = is_regression ? "linear" : "linear";
 
-    auto model = tnn::SequentialBuilder<float>("ips_classifier")
+    auto model = SequentialBuilder<float>("ips_classifier")
                      .input({input_features, 1, 1})
                      .dense(192, "linear", true, "hidden1")
                      .batchnorm(1e-5f, 0.1f, true, "batchnorm1")
@@ -548,8 +536,8 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
-    model.set_optimizer(std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
-    model.set_loss_function(tnn::LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
+    model.set_optimizer(std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
+    model.set_loss_function(LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
     std::cout << "\nModel Architecture Summary:" << std::endl;
 
     std::cout << "\nStarting IPS model training..." << std::endl;

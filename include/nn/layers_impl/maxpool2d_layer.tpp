@@ -4,12 +4,13 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#pragma once
 #include "nn/layers_impl/maxpool2d_layer.hpp"
 
-#include <limits>
 #include <stdexcept>
 
-#include "threading/thread_handler.hpp"
+#include "nn/layers_impl/cpu/maxpool_ops.hpp"
+#include "nn/layers_impl/cuda/maxpool_ops.hpp"
 
 namespace tnn {
 
@@ -50,16 +51,13 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   const size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
   const size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
 
-  Tensor<T> output(batch_size, channels, output_h, output_w, nullptr);
+  Tensor<T> output({batch_size, channels, output_h, output_w});
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
   std::vector<size_t> mask_indices(total_outputs);
 
-  const T *padded_data = padded_input_ptr->data();
-  T *output_data = output.data();
-
-  compute_max_pool_forward(padded_data, output_data, batch_size, channels, padded_h, padded_w,
-                           output_h, output_w, mask_indices);
+  compute_max_pool_forward(padded_input_ptr->data_ptr(), output.data_ptr(), batch_size, channels,
+                           padded_h, padded_w, output_h, output_w, mask_indices);
 
   micro_batch_mask_indices_[micro_batch_id] = std::move(mask_indices);
   micro_batch_inputs_[micro_batch_id] = padded_input_ptr->clone();
@@ -91,11 +89,8 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
 
   Tensor<T> grad_padded_input(cached_padded_input.shape());
 
-  const T *gradient_data = gradient.data();
-  T *grad_padded_data = grad_padded_input.data();
-
-  compute_max_pool_backward(gradient_data, grad_padded_data, batch_size, channels, output_h,
-                            output_w, mask_indices);
+  compute_max_pool_backward(gradient.data_ptr(), grad_padded_input.data_ptr(), batch_size, channels,
+                            output_h, output_w, mask_indices);
 
   if (pad_h_ > 0 || pad_w_ > 0) {
     return unpad(grad_padded_input, pad_h_, pad_w_);
@@ -105,55 +100,49 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::compute_max_pool_forward(const T *input_data, T *output_data,
-                                                 size_t batch_size, size_t channels, size_t input_h,
-                                                 size_t input_w, size_t output_h, size_t output_w,
+void MaxPool2DLayer<T>::compute_max_pool_forward(const device_ptr<T[]> &input_data,
+                                                 device_ptr<T[]> &output_data, size_t batch_size,
+                                                 size_t channels, size_t input_h, size_t input_w,
+                                                 size_t output_h, size_t output_w,
                                                  std::vector<size_t> &mask_indices) const {
-  const T MIN_VALUE = std::numeric_limits<T>::lowest();
+  if (input_data.getDeviceType() != output_data.getDeviceType()) {
+    throw std::runtime_error("Input and output tensors must be on the same device");
+  }
 
-  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    for (size_t out_h = 0; out_h < output_h; ++out_h) {
-      for (size_t out_w = 0; out_w < output_w; ++out_w) {
-        T max_val = MIN_VALUE;
-        size_t max_idx = 0;
-        for (size_t ph = 0; ph < pool_h_; ++ph) {
-          for (size_t pw = 0; pw < pool_w_; ++pw) {
-            const size_t h_idx = out_h * stride_h_ + ph;
-            const size_t w_idx = out_w * stride_w_ + pw;
-
-            const size_t target_padded_idx =
-                ((n * channels + c) * input_h + h_idx) * input_w + w_idx;
-            T val = input_data[target_padded_idx];
-            if (val > max_val) {
-              max_val = val;
-              max_idx = target_padded_idx;
-            }
-          }
-        }
-
-        const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
-        output_data[output_idx] = max_val;
-        mask_indices[output_idx] = max_idx;
-      }
-    }
-  });
+  if (input_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_max_pool_forward(input_data.get(), output_data.get(), batch_size, channels,
+                                  input_h, input_w, output_h, output_w, pool_h_, pool_w_, stride_h_,
+                                  stride_w_, mask_indices);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_max_pool_forward(input_data.get(), output_data.get(), batch_size, channels,
+                                   input_h, input_w, output_h, output_w, pool_h_, pool_w_,
+                                   stride_h_, stride_w_, mask_indices);
+  }
+#endif
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::compute_max_pool_backward(const T *gradient_data, T *grad_input_data,
+void MaxPool2DLayer<T>::compute_max_pool_backward(const device_ptr<T[]> &gradient_data,
+                                                  device_ptr<T[]> &grad_input_data,
                                                   size_t batch_size, size_t channels,
                                                   size_t output_h, size_t output_w,
                                                   const std::vector<size_t> &mask_indices) const {
-  tthreads::parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    for (size_t out_h = 0; out_h < output_h; ++out_h) {
-      for (size_t out_w = 0; out_w < output_w; ++out_w) {
-        const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
-        const T grad_val = gradient_data[output_idx];
-        const size_t input_idx = mask_indices[output_idx];
-        grad_input_data[input_idx] += grad_val;
-      }
-    }
-  });
+  if (gradient_data.getDeviceType() != grad_input_data.getDeviceType()) {
+    throw std::runtime_error("Gradient and input gradient tensors must be on the same device");
+  }
+
+  if (gradient_data.getDeviceType() == DeviceType::CPU) {
+    cpu::compute_max_pool_backward(gradient_data.get(), grad_input_data.get(), batch_size, channels,
+                                   output_h, output_w, mask_indices);
+  }
+#ifdef USE_CUDA
+  else {
+    cuda::compute_max_pool_backward(gradient_data.get(), grad_input_data.get(), batch_size,
+                                    channels, output_h, output_w, mask_indices);
+  }
+#endif
 }
 
 template <typename T> std::string MaxPool2DLayer<T>::type() const { return "maxpool2d"; }
@@ -237,14 +226,14 @@ uint64_t MaxPool2DLayer<T>::backward_flops(const std::vector<size_t> &input_shap
 }
 
 template <typename T>
-uint64_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
   // Return relative complexity for scheduling/profiling - using FLOP count as proxy
   return static_cast<uint64_t>(
       std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
 }
 
 template <typename T>
-uint64_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) {
+uint64_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   // Return relative complexity for scheduling/profiling - using FLOP count as proxy
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));

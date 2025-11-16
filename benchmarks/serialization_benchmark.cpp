@@ -4,18 +4,20 @@
 #include <cstdint>
 #include <iostream>
 
+using namespace tnn;
+
 signed main() {
-  Tensor<float> tensor(16, 16, 1024, 1024);
+  Tensor<float> tensor({16, 16, 1024, 1024});
   tensor.fill_random_normal(0.0f, 1.0f);
   [[maybe_unused]] float *original_data = tensor.data();
   auto naive_serialize_start = std::chrono::high_resolution_clock::now();
-  tpipeline::TBuffer serialized;
-  tpipeline::BinarySerializer::serialize(tensor, serialized);
+  TBuffer serialized;
+  BinarySerializer::serialize(tensor, serialized);
   auto naive_serialize_end = std::chrono::high_resolution_clock::now();
   size_t offset = 0;
   auto naive_deserialize_start = std::chrono::high_resolution_clock::now();
   Tensor<float> deserialized;
-  tpipeline::BinarySerializer::deserialize(serialized, offset, deserialized);
+  BinarySerializer::deserialize(serialized, offset, deserialized);
   auto naive_deserialize_end = std::chrono::high_resolution_clock::now();
   [[maybe_unused]] float *deserialized_data = deserialized.data();
   for (size_t i = 0; i < tensor.size(); ++i) {

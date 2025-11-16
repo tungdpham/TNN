@@ -3,7 +3,7 @@
 #include "augmentation.hpp"
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Cutout augmentation (random erasing)
@@ -55,4 +55,4 @@ private:
   int cutout_size_;
 };
 
-} // namespace data_augmentation
+} // namespace tnn

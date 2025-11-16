@@ -12,7 +12,7 @@
 #include <thread>
 #include <vector>
 
-namespace utils {
+namespace tnn {
 
 /**
  * @brief CPU Core Types for thread affinity
@@ -185,4 +185,4 @@ private:
   bool saved_affinity_ = false;
 };
 
-} // namespace utils
+} // namespace tnn

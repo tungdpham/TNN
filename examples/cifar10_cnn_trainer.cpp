@@ -1,29 +1,16 @@
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
-#include "tensor/tensor.hpp"
 #include "utils/env.hpp"
-#include "utils/ops.hpp"
-
-#include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <omp.h>
-#include <random>
-#include <sstream>
 #include <vector>
 
 using namespace tnn;
-using namespace data_augmentation;
-using namespace data_loading;
-using namespace ::utils;
 
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
@@ -96,7 +83,7 @@ int main() {
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
 
-    auto model = tnn::SequentialBuilder<float>("cifar10_cnn_classifier_v1")
+    auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                      .input({3, 32, 32})
                      .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
@@ -113,12 +100,12 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<tnn::SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = std::make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
     // auto loss_function =
-    // tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
-    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
+    // LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);

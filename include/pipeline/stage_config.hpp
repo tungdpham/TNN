@@ -4,7 +4,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 
-namespace tpipeline {
+namespace tnn {
 struct StageConfig {
   std::string stage_id;
   nlohmann::json model_config;
@@ -31,4 +31,4 @@ struct StageConfig {
   }
 };
 
-} // namespace tpipeline
+} // namespace tnn

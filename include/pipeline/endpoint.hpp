@@ -9,9 +9,8 @@
 #include "nlohmann/json.hpp"
 #include <string>
 #include <unordered_map>
-#include <variant>
 
-namespace tpipeline {
+namespace tnn {
 
 class Communicator;
 
@@ -95,4 +94,4 @@ public:
   }
 };
 
-} // namespace tpipeline
+} // namespace tnn

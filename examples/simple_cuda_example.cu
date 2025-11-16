@@ -6,9 +6,11 @@
 
 #ifdef USE_CUDA
 #include "cuda/error_handler.hpp"
+#include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include <cuda_runtime.h>
 
+using namespace tnn;
 // Simple vector addition kernel
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -133,18 +135,18 @@ class SimpleCUDABenchmark {
 private:
   int device_id_;
   cudaStream_t stream_;
-  const tdevice::Device *device_; // Reference to our device management system
+  const Device *device_; // Reference to our device management system
 
 public:
   SimpleCUDABenchmark(int device_id = 0) : device_id_(device_id), device_(nullptr) {
     // Initialize device manager and get the device
-    tdevice::DeviceManager &manager = tdevice::DeviceManager::getInstance();
+    DeviceManager &manager = DeviceManager::getInstance();
 
     // Try to find a GPU device with the specified CUDA device ID
     std::vector<int> device_ids = manager.getAvailableDeviceIDs();
     for (int id : device_ids) {
-      const tdevice::Device &dev = manager.getDevice(id);
-      if (dev.getDeviceType() == tdevice::DeviceType::GPU) {
+      const Device &dev = manager.getDevice(id);
+      if (dev.getDeviceType() == DeviceType::GPU) {
         // For simplicity, we'll use the first available GPU
         // In a real implementation, you might want to match the CUDA device ID
         device_ = &dev;
@@ -552,23 +554,22 @@ int main() {
   // Initialize the device manager first
   std::cout << "Initializing device manager..." << std::endl;
   try {
-    tdevice::initializeDefaultDevices();
+    initializeDefaultDevices();
   } catch (const std::exception &e) {
     std::cerr << "Failed to initialize device manager: " << e.what() << std::endl;
     return 1;
   }
 
-  tdevice::DeviceManager &manager = tdevice::DeviceManager::getInstance();
+  DeviceManager &manager = DeviceManager::getInstance();
   std::vector<int> device_ids = manager.getAvailableDeviceIDs();
 
   std::cout << "Found " << device_ids.size() << " device(s) in device manager" << std::endl;
 
   // List all devices
   for (int id : device_ids) {
-    const tdevice::Device &device = manager.getDevice(id);
+    const Device &device = manager.getDevice(id);
     std::cout << "  Device " << id << ": " << device.getName()
-              << " (Type: " << (device.getDeviceType() == tdevice::DeviceType::CPU ? "CPU" : "GPU")
-              << ")"
+              << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
               << " - Total Memory: " << device.getTotalMemory() / (1024 * 1024) << " MB"
               << std::endl;
   }
@@ -576,8 +577,8 @@ int main() {
   // Find GPU devices and test them
   bool found_gpu = false;
   for (int id : device_ids) {
-    const tdevice::Device &device = manager.getDevice(id);
-    if (device.getDeviceType() == tdevice::DeviceType::GPU) {
+    const Device &device = manager.getDevice(id);
+    if (device.getDeviceType() == DeviceType::GPU) {
       std::cout << "\n" << std::string(60, '=') << std::endl;
       std::cout << "Testing GPU Device " << id << " (" << device.getName() << ")" << std::endl;
       std::cout << std::string(60, '=') << std::endl;

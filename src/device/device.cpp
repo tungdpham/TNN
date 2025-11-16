@@ -1,9 +1,7 @@
 #include "device/device.hpp"
 #include "device/context.hpp"
 
-#include <stdexcept>
-
-namespace tdevice {
+namespace tnn {
 Device::Device(DeviceType type, int id, std::unique_ptr<Context> context)
     : type_(type), id_(id), context_(std::move(context)) {}
 
@@ -44,6 +42,12 @@ void *Device::allocateMemory(size_t size) const { return context_->allocateMemor
 
 void Device::deallocateMemory(void *ptr) const { context_->deallocateMemory(ptr); }
 
+void *Device::allocateAlignedMemory(size_t size, size_t alignment) const {
+  return context_->allocateAlignedMemory(size, alignment);
+}
+
+void Device::deallocateAlignedMemory(void *ptr) const { context_->deallocateAlignedMemory(ptr); }
+
 void Device::copyToDevice(void *dest, const void *src, size_t size) const {
   context_->copyToDevice(dest, src, size);
 }
@@ -51,4 +55,4 @@ void Device::copyToDevice(void *dest, const void *src, size_t size) const {
 void Device::copyToHost(void *dest, const void *src, size_t size) const {
   context_->copyToHost(dest, src, size);
 }
-} // namespace tdevice
+} // namespace tnn

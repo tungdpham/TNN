@@ -9,7 +9,6 @@
 #include "../tensor/tensor.hpp"
 #include <any>
 #include <cmath>
-#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -68,7 +67,7 @@ public:
       initialized_ = true;
     }
 
-    tthreads::parallel_for<size_t>(0, params.size(), [&](size_t i) {
+    parallel_for<size_t>(0, params.size(), [&](size_t i) {
       if (momentum_ > 0.0f) {
 
         velocities_[i] *= momentum_;
@@ -134,7 +133,7 @@ public:
     const T bias_correction2 = static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_));
     const T step_size = this->learning_rate_ / bias_correction1;
 
-    tthreads::parallel_for<size_t>(0, params.size(), [&](size_t i) {
+    parallel_for<size_t>(0, params.size(), [&](size_t i) {
       m_[i] *= beta1_;
       m_[i] += (*grads[i]) * one_minus_beta1;
 
@@ -142,9 +141,9 @@ public:
       v_[i] *= beta2_;
       v_[i] += grad_sq * one_minus_beta2;
 
-      T *param_data = params[i]->data();
-      const T *m_data = m_[i].data();
-      const T *v_data = v_[i].data();
+      T *param_data = params[i]->data_ptr().get();
+      const T *m_data = m_[i].data_ptr().get();
+      const T *v_data = v_[i].data_ptr().get();
 
       for (size_t j = 0; j < params[i]->size(); ++j) {
         param_data[j] -=

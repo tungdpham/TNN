@@ -14,9 +14,6 @@
 #include <string>
 #include <unordered_map>
 
-#include "tensor/tensor.hpp"
-#include "threading/thread_handler.hpp"
-
 #include "activations_impl/base_activation.hpp"
 #include "activations_impl/elu.hpp"
 #include "activations_impl/leaky_relu.hpp"

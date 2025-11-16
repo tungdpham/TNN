@@ -1,28 +1,17 @@
-#include <algorithm>
-#include <atomic>
-#include <chrono>
 #include <cmath>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
 #include <memory>
-#include <numeric>
-#include <random>
-#include <sstream>
-#include <string_view>
 #include <vector>
 
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/mnist_data_loader.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
-#include "tensor/tensor.hpp"
 #include "utils/env.hpp"
-#include "utils/misc.hpp"
-#include "utils/ops.hpp"
+
+using namespace tnn;
 
 namespace mnist_constants {
 
@@ -44,20 +33,20 @@ int main() {
 
     // Load environment variables from .env file
     std::cout << "Loading environment variables..." << std::endl;
-    if (!::utils::load_env_file("./.env")) {
+    if (!load_env_file("./.env")) {
       std::cout << "No .env file found, using default training parameters." << std::endl;
     }
 
     // Get training parameters from environment or use defaults
-    const int epochs = ::utils::get_env<int>("EPOCHS", mnist_constants::EPOCHS);
-    const size_t batch_size = ::utils::get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
-    const float lr_initial = ::utils::get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
+    const int epochs = get_env<int>("EPOCHS", mnist_constants::EPOCHS);
+    const size_t batch_size = get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
+    const float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
     const float lr_decay_factor =
-        ::utils::get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
+        get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
     const size_t lr_decay_interval =
-        ::utils::get_env<size_t>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
+        get_env<size_t>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
     const int progress_print_interval =
-        ::utils::get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
+        get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
 
     TrainingConfig train_config{epochs,
                                 batch_size,
@@ -69,7 +58,7 @@ int main() {
 
     train_config.print_config();
 
-    data_loading::MNISTDataLoader<float> train_loader, test_loader;
+    MNISTDataLoader<float> train_loader, test_loader;
 
     if (!train_loader.load_data("./data/mnist/train.csv")) {
       std::cerr << "Failed to load training data!" << std::endl;
@@ -87,22 +76,20 @@ int main() {
 
     std::cout << "\nBuilding CNN model architecture" << std::endl;
 
-    auto aug_strategy = data_augmentation::AugmentationBuilder<float>()
-                            .contrast(0.3f, 0.15f)
-                            .gaussian_noise(0.3f, 0.05f)
-                            .build();
+    auto aug_strategy =
+        AugmentationBuilder<float>().contrast(0.3f, 0.15f).gaussian_noise(0.3f, 0.05f).build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    auto model = tnn::SequentialBuilder<float>("mnist_cnn_model")
+    auto model = SequentialBuilder<float>("mnist_cnn_model")
                      .input({1, ::mnist_constants::IMAGE_HEIGHT, ::mnist_constants::IMAGE_WIDTH})
-                     .conv2d(16, 5, 5, 1, 1, 0, 0, true, "conv1")
+                     .conv2d(8, 3, 3, 1, 1, 0, 0, true, "conv1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
                      .activation("relu", "relu1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                     .conv2d(32, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
+                     .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
                      .batchnorm(1e-5f, 0.1f, true, "bn2")
                      .activation("relu", "relu2")
-                     .conv2d(128, 5, 5, 1, 1, 0, 0, true, "conv3")
+                     .conv2d(48, 3, 3, 1, 1, 0, 0, true, "conv3")
                      .batchnorm(1e-5f, 0.1f, true, "bn3")
                      .activation("relu", "relu3")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
@@ -112,10 +99,11 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    // auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
+    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     model.print_config();

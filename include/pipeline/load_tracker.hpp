@@ -6,14 +6,7 @@
  */
 #pragma once
 
-#include "tbuffer.hpp"
-#include "utils/hardware_info.hpp"
-#include <iostream>
-#include <memory>
-#include <thread>
-#include <vector>
-
-namespace tpipeline {
+namespace tnn {
 struct LoadTracker {
   /**
    * Performance metrics to send to coordinator
@@ -28,4 +21,4 @@ struct LoadTracker {
   float max_memory_usage_ = -1.0f;    // Maximum memory usage in MB, -1.0 if unavailable
 };
 
-} // namespace tpipeline
+} // namespace tnn

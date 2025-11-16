@@ -7,15 +7,13 @@
 #pragma once
 
 #include <cstddef>
-#include <functional>
 #include <stdexcept>
-#include <type_traits>
 
+namespace tnn {
 enum Layout { NCHW, NHWC, NCDHW, NDHWC };
 
 template <Layout L> struct LayoutTrait {
-  inline void assign_shape(size_t *shape, size_t n, size_t c, size_t h,
-                           size_t w) {
+  inline void assign_shape(size_t *shape, size_t n, size_t c, size_t h, size_t w) {
     // Default implementation for unsupported layouts
     throw std::invalid_argument("Unsupported layout for assign_shape");
   }
@@ -135,3 +133,5 @@ template <> struct LayoutTrait<NDHWC> {
   inline size_t height() const { return shape[2]; }
   inline size_t width() const { return shape[3]; }
 };
+
+} // namespace tnn

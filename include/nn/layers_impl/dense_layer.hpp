@@ -6,8 +6,9 @@
  */
 #pragma once
 
-#include "../activations.hpp"
-#include "../optimizers.hpp"
+#include "nn/activations.hpp"
+#include "nn/optimizers.hpp"
+
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <memory>
@@ -31,23 +32,26 @@ private:
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
 
-  void compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
-                             const size_t batch_size, const size_t input_features,
-                             const size_t output_features) const;
+  void compute_dense_forward(const device_ptr<T[]> &input_data, const device_ptr<T[]> &weight_data,
+                             device_ptr<T[]> &output_data, const size_t batch_size,
+                             const size_t input_features, const size_t output_features) const;
 
-  void compute_weight_gradients(const T *input_data, const T *gradient_data, T *weight_grad_data,
-                                const size_t batch_size, const size_t input_features,
-                                const size_t output_features) const;
+  void compute_weight_gradients(const device_ptr<T[]> &input_data,
+                                const device_ptr<T[]> &gradient_data,
+                                device_ptr<T[]> &weight_grad_data, const size_t batch_size,
+                                const size_t input_features, const size_t output_features) const;
 
-  void compute_input_gradients(const T *gradient_data, const T *weight_data, T *grad_input_data,
+  void compute_input_gradients(const device_ptr<T[]> &gradient_data,
+                               const device_ptr<T[]> &weight_data, device_ptr<T[]> &grad_input_data,
                                const size_t batch_size, const size_t input_features,
                                const size_t output_features) const;
 
-  void compute_bias_gradients(const T *current_grad_data, T *bias_gradient_data,
-                              const size_t batch_size, const size_t output_features) const;
+  void compute_bias_gradients(const device_ptr<T[]> &current_grad_data,
+                              const device_ptr<T[]> &bias_gradient_data, const size_t batch_size,
+                              const size_t output_features) const;
 
-  void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size,
-                       const size_t output_features) const;
+  void add_bias_vector(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
+                       const size_t batch_size, const size_t output_features) const;
 
 public:
   DenseLayer(size_t input_features, size_t output_features,
@@ -57,8 +61,8 @@ public:
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) override;
+  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

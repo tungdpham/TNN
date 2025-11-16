@@ -1,27 +1,16 @@
 #include "data_loading/cifar10_data_loader.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
-#include "tensor/tensor.hpp"
 #include "utils/env.hpp"
-#include "utils/ops.hpp"
 
-#include <algorithm>
-#include <chrono>
 #include <cmath>
 #include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <random>
-#include <sstream>
 #include <vector>
 
 using namespace tnn;
-using namespace data_loading;
-using namespace data_augmentation;
-using namespace ::utils;
 
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
@@ -139,12 +128,12 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     // auto loss_function =
-    // tnn::LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
-    auto loss_function = tnn::LossFactory<float>::create_softmax_crossentropy();
+    // LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
+    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     // Load pre-trained weights if available

@@ -16,7 +16,7 @@ The sequential builder provides an intuitive way to define your model.
 
 ### Basic Usage Pattern
 ```cpp
-auto model = tnn::SequentialBuilder<float>("model_name")
+auto model = SequentialBuilder<float>("model_name")
     .input({channels, height, width})  // Set input shape first
     .conv2d(out_channels, kernel_h, kernel_w, ...)  // Auto-infers input channels
     .maxpool2d(pool_h, pool_w, ...)
@@ -35,7 +35,7 @@ NOTE: For distributed usage, do not invoke on coordinator side, it will use a lo
 ### Manual Model Creation
 ```cpp
 // Create an empty sequential model
-tnn::Sequential<float> model("my_model_name");
+Sequential<float> model("my_model_name");
 
 // Add layers manually
 model.add(std::make_unique<DenseLayer<float>>(784, 128, "relu"));
@@ -113,7 +113,7 @@ size_t num_layers = model.size();
 ### Setting Optimizer
 ```cpp
 // Create and set optimizer
-auto optimizer = std::make_unique<tnn::Adam<float>>(
+auto optimizer = std::make_unique<Adam<float>>(
     learning_rate,    // e.g., 0.001f
     beta1,           // e.g., 0.9f (momentum term)
     beta2,           // e.g., 0.999f (RMSprop term)
@@ -125,7 +125,7 @@ model.set_optimizer(std::move(optimizer));
 ### Setting Loss Function
 ```cpp
 // Create and set loss function
-auto loss = tnn::LossFactory<float>::create_crossentropy(epsilon); // e.g., 1e-15f
+auto loss = LossFactory<float>::create_crossentropy(epsilon); // e.g., 1e-15f
 model.set_loss_function(std::move(loss));
 ```
 
@@ -178,10 +178,10 @@ model.save_config("config.json");
 ### Loading Models
 ```cpp
 // Load complete model
-auto loaded_model = tnn::Sequential<float>::from_file("path/to/model");
+auto loaded_model = Sequential<float>::from_file("path/to/model");
 
 // Load from configuration
-auto config_model = tnn::Sequential<float>::load_from_config_file("config.json");
+auto config_model = Sequential<float>::load_from_config_file("config.json");
 ```
 
 ## Performance Monitoring (Optional)
@@ -227,7 +227,7 @@ model.optimizer()->set_learning_rate(new_lr);
 #include "nn/loss.hpp"
 
 // Build model with automatic shape inference
-auto model = tnn::SequentialBuilder<float>("mnist_classifier")
+auto model = SequentialBuilder<float>("mnist_classifier")
     .input({1, 28, 28})                                 // 1 channel, 28x28 image
     .conv2d(32, 5, 5, 1, 1, 0, 0, true, "conv2d_1")     // 32 filters, 5x5 kernel, 1x1 stride, 0x0 padding
     .activation("relu", "relu_1")                       // ReLU activation, manual name
@@ -242,10 +242,10 @@ auto model = tnn::SequentialBuilder<float>("mnist_classifier")
     .build();                                           // returns a sequential class.
 
 // Configure training
-auto optimizer = std::make_unique<tnn::Adam<float>>(0.001f, 0.9f, 0.999f, 1e-8f);
+auto optimizer = std::make_unique<Adam<float>>(0.001f, 0.9f, 0.999f, 1e-8f);
 model.set_optimizer(std::move(optimizer));
 
-auto loss = tnn::LossFactory<float>::create_crossentropy(1e-15f);
+auto loss = LossFactory<float>::create_crossentropy(1e-15f);
 model.set_loss_function(std::move(loss));
 
 // Enable profiling (optional)

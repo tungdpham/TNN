@@ -1,26 +1,15 @@
-#include <algorithm>
-#include <chrono>
 #include <cmath>
-#include <fstream>
-#include <iomanip>
 #include <iostream>
-#include <random>
-#include <sstream>
 #include <vector>
 
 #include "data_loading/cifar100_data_loader.hpp"
-#include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
-#include "tensor/tensor.hpp"
 #include "utils/env.hpp"
-#include "utils/ops.hpp"
 
 using namespace tnn;
-using namespace data_loading;
-using namespace ::utils;
 
 namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;
@@ -61,7 +50,7 @@ int main() {
 
     train_config.print_config();
 
-    data_loading::CIFAR100DataLoader<float> train_loader, test_loader;
+    CIFAR100DataLoader<float> train_loader, test_loader;
 
     if (!train_loader.load_data("./data/cifar-100-binary/train.bin")) {
       return -1;
@@ -77,7 +66,7 @@ int main() {
 
     std::cout << "\nBuilding CNN model architecture for CIFAR-100..." << std::endl;
 
-    auto model = tnn::SequentialBuilder<float>("cifar100_cnn_classifier")
+    auto model = SequentialBuilder<float>("cifar100_cnn_classifier")
                      .input({3, 32, 32})
                      .conv2d(32, 3, 3, 1, 1, 0, 0, true, "conv1")
                      .activation("relu", "relu1")
@@ -100,10 +89,10 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<tnn::Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = tnn::LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
+    auto loss_function = LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);

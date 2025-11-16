@@ -6,7 +6,7 @@
 #include <stdexcept>
 #include <vector>
 
-namespace utils {
+namespace tnn {
 
 template <typename EnumType> constexpr std::vector<EnumType> get_enum_vector() {
   static_assert(std::is_enum_v<EnumType>, "Template parameter must be an enum type");
@@ -38,4 +38,4 @@ template <typename Func> void benchmark(const std::string &name, Func &&func, in
   std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
-} // namespace utils
+} // namespace tnn

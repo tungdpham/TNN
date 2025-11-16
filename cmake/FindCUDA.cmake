@@ -1,7 +1,14 @@
-enable_language(CUDA)
+# Check if CUDA language is already enabled
+get_property(languages GLOBAL PROPERTY ENABLED_LANGUAGES)
+if(NOT "CUDA" IN_LIST languages)
+    enable_language(CUDA)
+endif()
+
 find_package(CUDAToolkit REQUIRED)
 add_compile_definitions(USE_CUDA)
+
 set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Auto-detect GPU architecture
 function(detect_gpu_arch)
@@ -80,6 +87,16 @@ else()
     string(REPLACE "sm_" "" CUDA_ARCH_NUMBER ${CUDA_ARCH})
 endif()
 
-set(CMAKE_CUDA_FLAGS "-arch=${CUDA_ARCH} --compiler-options -fPIC -Wno-deprecated-gpu-targets")
-set(CMAKE_CUDA_FLAGS_RELEASE "-O3")
-set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g")
+set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA target architectures")
+set(CUDA_ARCH_NUMBER ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA architecture number")
+
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
+set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
+
+set(CMAKE_CUDA_FLAGS "--compiler-options -fPIC" CACHE STRING "CUDA compile flags")
+set(CMAKE_CUDA_FLAGS_RELEASE "-O3" CACHE STRING "CUDA release flags")
+set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g" CACHE STRING "CUDA debug flags")
+
+message(STATUS "Set CMAKE_CUDA_ARCHITECTURES to: ${CMAKE_CUDA_ARCHITECTURES}")
+message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")

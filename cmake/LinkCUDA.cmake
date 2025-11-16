@@ -11,6 +11,6 @@ function(link_cuda visibility target_name)
           CUDA_ARCHITECTURES "${TARGET_CUDA_ARCH}"
           CUDA_STANDARD 17
       )
-      target_link_libraries(${target_name} ${visibility} CUDA::cudart)
+      target_link_libraries(${target_name} ${visibility} CUDA::cudart CUDA::cublas)
   endif()
 endfunction()

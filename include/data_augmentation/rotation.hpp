@@ -4,7 +4,7 @@
 #include <cmath>
 #include <random>
 
-namespace data_augmentation {
+namespace tnn {
 
 /**
  * Rotation augmentation
@@ -53,7 +53,7 @@ private:
     const float center_x = width / 2.0f;
     const float center_y = height / 2.0f;
 
-    Tensor<T> rotated(1, channels, height, width);
+    Tensor<T> rotated({1, channels, height, width});
     rotated.fill(static_cast<T>(0));
 
     for (size_t c = 0; c < channels; ++c) {
@@ -94,4 +94,4 @@ private:
   }
 };
 
-} // namespace data_augmentation
+} // namespace tnn

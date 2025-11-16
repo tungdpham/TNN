@@ -10,7 +10,7 @@
 #include "data_loading/data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 
-namespace data_loading {
+namespace tnn {
 template class BaseDataLoader<float>;
 template class BaseDataLoader<double>;
 
@@ -23,4 +23,4 @@ template class CIFAR10DataLoader<double>;
 template class CIFAR100DataLoader<float>;
 template class CIFAR100DataLoader<double>;
 
-} // namespace data_loading
+} // namespace tnn

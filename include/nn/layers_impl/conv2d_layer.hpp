@@ -6,17 +6,14 @@
  */
 #pragma once
 
+#include "device/device_ptr.hpp"
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
+
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
-
-#include "../activations.hpp"
-#include "../optimizers.hpp"
-#include "device/device_ptr.hpp"
-#include "matrix/matrix.hpp"
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -39,31 +36,33 @@ private:
 
   mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
-  mutable std::unordered_map<size_t, tdevice::device_ptr<T[]>> micro_batch_col_buffers_;
+  mutable std::unordered_map<size_t, device_ptr<T[]>> micro_batch_col_buffers_;
 
   // Reusable temporary buffers to avoid allocation overhead
-  mutable tdevice::device_ptr<T[]> temp_output_buffer_;
-  mutable tdevice::device_ptr<T[]> temp_gradient_buffer_;
-  mutable tdevice::device_ptr<T[]> temp_col_grad_matrix_buffer_;
+  mutable device_ptr<T[]> temp_output_buffer_;
+  mutable device_ptr<T[]> temp_gradient_buffer_;
+  mutable device_ptr<T[]> temp_col_grad_matrix_buffer_;
 
-  void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
-                            const size_t output_size, const size_t kernel_size,
-                            const size_t out_channels) const;
+  void compute_conv_forward(const device_ptr<T[]> &col_data, const device_ptr<T[]> &weight_data,
+                            device_ptr<T[]> &output_data, const size_t output_size,
+                            const size_t kernel_size, const size_t out_channels) const;
 
-  void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weight_grad_data,
-                                const size_t output_size, const size_t kernel_size,
-                                const size_t out_channels) const;
+  void compute_weight_gradients(const device_ptr<T[]> &col_data,
+                                const device_ptr<T[]> &gradient_data,
+                                device_ptr<T[]> &weight_grad_data, const size_t output_size,
+                                const size_t kernel_size, const size_t out_channels) const;
 
-  void compute_input_gradients(const T *gradient_data, const T *weight_data, T *col_grad_data,
+  void compute_input_gradients(const device_ptr<T[]> &gradient_data,
+                               const device_ptr<T[]> &weight_data, device_ptr<T[]> &col_grad_data,
                                const size_t output_size, const size_t kernel_size,
                                const size_t out_channels) const;
 
-  void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const size_t batch_size,
-                              const size_t output_h, const size_t output_w,
+  void compute_bias_gradients(const device_ptr<T[]> &gradient_data, device_ptr<T[]> &bias_grad_data,
+                              const size_t batch_size, const size_t output_h, const size_t output_w,
                               const size_t out_channels) const;
 
-  void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
-                          const size_t output_h, const size_t output_w,
+  void add_bias_to_output(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
+                          const size_t batch_size, const size_t output_h, const size_t output_w,
                           const size_t out_channels) const;
 
 public:
@@ -74,8 +73,8 @@ public:
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
   Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) override;
+  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

@@ -10,7 +10,7 @@
 #include <tbb/concurrent_queue.h>
 #include <tbb/concurrent_unordered_map.h>
 
-namespace tpipeline {
+namespace tnn {
 
 class ConcurrentMessageMap {
 private:
@@ -85,4 +85,4 @@ public:
   }
 };
 
-} // namespace tpipeline
+} // namespace tnn

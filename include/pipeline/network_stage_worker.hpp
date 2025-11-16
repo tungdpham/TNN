@@ -6,27 +6,21 @@
  */
 #pragma once
 
-#include "asio.hpp"
-#include "network_serialization.hpp"
-#include "nn/sequential.hpp"
 #include "pipeline_stage.hpp"
 #include "tcp_communicator.hpp"
 #include "utils/hardware_info.hpp"
 #include "utils/thread_affinity.hpp"
-#include <atomic>
-#include <chrono>
 #include <csignal>
-#include <future>
 #include <iostream>
 #include <memory>
 
-namespace tpipeline {
+namespace tnn {
 
 /**
  * @brief Network-based pipeline stage worker
  *
  * Standalone worker process that listens for stage configurations
- * from a coordinator and processes distributed pipeline tasks.
+ * from a coordinator and processes distributed pipeline jobs.
  */
 template <typename T = float> class NetworkStageWorker : public PipelineStage {
 public:
@@ -44,7 +38,7 @@ public:
     // Initialize hardware info for affinity
     if (use_ecore_affinity_) {
       hw_info_.initialize();
-      thread_affinity_ = std::make_unique<utils::ThreadAffinity>(hw_info_);
+      thread_affinity_ = std::make_unique<ThreadAffinity>(hw_info_);
 
       if (!thread_affinity_->has_efficiency_cores()) {
         std::cout << "Warning: E-core affinity requested but no E-cores detected. "
@@ -73,7 +67,7 @@ public:
 
     if (enable && !thread_affinity_) {
       hw_info_.initialize();
-      thread_affinity_ = std::make_unique<utils::ThreadAffinity>(hw_info_);
+      thread_affinity_ = std::make_unique<ThreadAffinity>(hw_info_);
     }
   }
 
@@ -81,7 +75,7 @@ public:
    * @brief Get hardware information
    * @return Reference to hardware info object
    */
-  const utils::HardwareInfo &get_hardware_info() const { return hw_info_; }
+  const HardwareInfo &get_hardware_info() const { return hw_info_; }
 
   /**
    * @brief Print affinity information for debugging
@@ -113,7 +107,7 @@ private:
   int listen_port_;
   bool use_ecore_affinity_;
   int max_ecore_threads_;
-  utils::HardwareInfo hw_info_;
-  std::unique_ptr<utils::ThreadAffinity> thread_affinity_;
+  HardwareInfo hw_info_;
+  std::unique_ptr<ThreadAffinity> thread_affinity_;
 };
-} // namespace tpipeline
+} // namespace tnn

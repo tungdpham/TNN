@@ -9,7 +9,7 @@
 #include "omp.h"
 #endif
 
-namespace tthreads {
+namespace tnn {
 
 struct ThreadingConfig {
   unsigned int num_threads = 1;
@@ -46,4 +46,4 @@ private:
 #endif
 };
 
-} // namespace tthreads
+} // namespace tnn
