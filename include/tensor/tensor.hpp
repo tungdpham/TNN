@@ -385,6 +385,22 @@ public:
     throw std::runtime_error("Unsupported device type for to_gpu()");
   }
 
+  Tensor<T, L> to_device(const Device *target_device) const {
+    if (device_ == target_device) {
+      return clone();
+    }
+
+    if (device_type() == DeviceType::CPU && target_device->getDeviceType() == DeviceType::GPU) {
+      return to_gpu(target_device->getID());
+    }
+
+    if (device_type() == DeviceType::GPU && target_device->getDeviceType() == DeviceType::CPU) {
+      return to_cpu();
+    }
+
+    throw std::runtime_error("Unsupported device type for to_device()");
+  }
+
   Tensor<T, L> clone() const {
     return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_, device_);
   }

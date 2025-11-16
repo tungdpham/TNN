@@ -24,6 +24,7 @@ set(TEST_FILES
     device_manager_test.cpp
     cuda_kernels_test.cpp
     gpu_tensor_test.cpp
+    gpu_tensor_ops_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
@@ -66,6 +67,7 @@ add_custom_target(run_tests
     DEPENDS tensor_test 
     device_manager_test
     gpu_tensor_test
+    gpu_tensor_ops_test
     ${CUDA_TEST_TARGET}
     COMMENT "Running all unit tests"
 )

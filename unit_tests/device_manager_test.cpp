@@ -1,6 +1,7 @@
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include <gtest/gtest.h>
+#include <string>
 #include <vector>
 
 using namespace tnn;
@@ -23,13 +24,13 @@ TEST_F(DeviceManagerTest, InitializeDefaultDevices) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Should have at least CPU device (ID 0)
-  EXPECT_TRUE(manager.hasDevice(0));
+  EXPECT_TRUE(manager.hasDevice("CPU:0"));
 
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1); // At least CPU device
 
   // Verify CPU device exists and is accessible
-  const Device &cpu_device = manager.getDevice(0);
+  const Device &cpu_device = manager.getDevice("CPU:0");
   EXPECT_EQ(cpu_device.getDeviceType(), DeviceType::CPU);
   EXPECT_EQ(cpu_device.getID(), 0);
 }
@@ -41,13 +42,13 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Should have at least CPU device
-  EXPECT_TRUE(manager.hasDevice(0));
+  EXPECT_TRUE(manager.hasDevice("CPU0"));
 
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
-  // Check that device ID 0 is CPU
-  const Device &cpu_device = manager.getDevice(0);
+  // Check that device "CPU0" is CPU
+  const Device &cpu_device = manager.getDevice("CPU0");
   EXPECT_EQ(cpu_device.getDeviceType(), DeviceType::CPU);
 }
 
@@ -55,8 +56,8 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
 TEST_F(DeviceManagerTest, CPUDeviceAllocation) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  ASSERT_TRUE(manager.hasDevice(0));
-  const Device &cpu_device = manager.getDevice(0);
+  ASSERT_TRUE(manager.hasDevice("CPU0"));
+  const Device &cpu_device = manager.getDevice("CPU0");
 
   // Test basic allocation
   size_t size = 1024;
@@ -77,9 +78,9 @@ TEST_F(DeviceManagerTest, CPUDeviceAllocation) {
 TEST_F(DeviceManagerTest, MultipleDeviceAllocations) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
-  for (int device_id : device_ids) {
+  for (const std::string &device_id : device_ids) {
     const Device &device = manager.getDevice(device_id);
 
     // Test allocation on each device
@@ -89,9 +90,9 @@ TEST_F(DeviceManagerTest, MultipleDeviceAllocations) {
 
     // For CPU devices, we can test memory access
     if (device.getDeviceType() == DeviceType::CPU) {
-      memset(ptr, static_cast<int>(device_id & 0xFF), size);
+      memset(ptr, static_cast<int>(device.getID() & 0xFF), size);
       char *char_ptr = static_cast<char *>(ptr);
-      EXPECT_EQ(char_ptr[0], static_cast<char>(device_id & 0xFF));
+      EXPECT_EQ(char_ptr[0], static_cast<char>(device.getID() & 0xFF));
     }
 
     EXPECT_NO_THROW(device.deallocateMemory(ptr));
@@ -103,16 +104,16 @@ TEST_F(DeviceManagerTest, DeviceManagerUtilities) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Test getAvailableDeviceIDs
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
   // Test hasDevice
-  for (int device_id : device_ids) {
+  for (const std::string &device_id : device_ids) {
     EXPECT_TRUE(manager.hasDevice(device_id));
   }
 
   // Test with non-existent device
-  EXPECT_FALSE(manager.hasDevice(9999));
+  EXPECT_FALSE(manager.hasDevice("GPU9999"));
 }
 
 // Test device removal
@@ -120,18 +121,18 @@ TEST_F(DeviceManagerTest, DeviceRemoval) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Get initial device count
-  std::vector<int> initial_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> initial_ids = manager.getAvailableDeviceIDs();
   size_t initial_count = initial_ids.size();
 
   if (initial_count > 1) {
     // Remove a device (not CPU)
-    int device_to_remove = initial_ids[1];
+    std::string device_to_remove = initial_ids[1];
     manager.removeDevice(device_to_remove);
 
     // Verify it's removed
     EXPECT_FALSE(manager.hasDevice(device_to_remove));
 
-    std::vector<int> remaining_ids = manager.getAvailableDeviceIDs();
+    std::vector<std::string> remaining_ids = manager.getAvailableDeviceIDs();
     EXPECT_EQ(remaining_ids.size(), initial_count - 1);
   }
 }
@@ -141,10 +142,10 @@ TEST_F(DeviceManagerTest, ErrorConditions) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Test getting non-existent device
-  EXPECT_THROW(manager.getDevice(9999), std::runtime_error);
+  EXPECT_THROW(manager.getDevice("GPU9999"), std::runtime_error);
 
   // Test removing non-existent device (should not throw)
-  EXPECT_NO_THROW(manager.removeDevice(9999));
+  EXPECT_NO_THROW(manager.removeDevice("GPU9999"));
 }
 
 // Test clear devices
@@ -152,18 +153,18 @@ TEST_F(DeviceManagerTest, ClearDevices) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Ensure we have devices
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GT(device_ids.size(), 0);
 
   // Clear all devices
   manager.clearDevices();
 
   // Verify no devices remain
-  std::vector<int> remaining_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> remaining_ids = manager.getAvailableDeviceIDs();
   EXPECT_EQ(remaining_ids.size(), 0);
 
   // Verify hasDevice returns false for previously existing devices
-  for (int device_id : device_ids) {
+  for (const std::string &device_id : device_ids) {
     EXPECT_FALSE(manager.hasDevice(device_id));
   }
 }
@@ -173,12 +174,12 @@ TEST_F(DeviceManagerTest, ClearDevices) {
 TEST_F(DeviceManagerTest, CUDADeviceDiscovery) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
-  // Look for GPU devices (ID > 0)
+  // Look for GPU devices (starting with "GPU")
   bool found_gpu = false;
-  for (int device_id : device_ids) {
-    if (device_id > 0) {
+  for (const std::string &device_id : device_ids) {
+    if (device_id.find("GPU") == 0) {
       const Device &device = manager.getDevice(device_id);
       if (device.getDeviceType() == DeviceType::GPU) {
         found_gpu = true;
@@ -206,9 +207,9 @@ TEST_F(DeviceManagerTest, CUDADeviceDiscovery) {
 TEST_F(DeviceManagerTest, DeviceMemoryInfo) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
-  for (int device_id : device_ids) {
+  for (const std::string &device_id : device_ids) {
     const Device &device = manager.getDevice(device_id);
 
     // Test memory info methods

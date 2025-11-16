@@ -1,6 +1,7 @@
 #pragma once
 
 #include "device.hpp"
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -18,17 +19,17 @@ public:
 
   void discoverDevices();
   void addDevice(Device &&device);
-  void removeDevice(int id);
+  void removeDevice(std::string id);
   void clearDevices();
-  const Device &getDevice(int id) const;
-  std::vector<int> getAvailableDeviceIDs() const;
-  bool hasDevice(int id) const;
-  void setDefaultDevice(int id);
+  const Device &getDevice(std::string id) const;
+  std::vector<std::string> getAvailableDeviceIDs() const;
+  bool hasDevice(std::string id) const;
+  void setDefaultDevice(std::string id);
   void setDefaultDevice(const DeviceType &type);
 
 private:
-  std::unordered_map<int, Device> devices_;
-  int default_device_id_;
+  std::unordered_map<std::string, Device> devices_;
+  std::string default_device_id_;
 };
 
 void initializeDefaultDevices();

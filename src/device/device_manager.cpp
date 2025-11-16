@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
 #endif
@@ -42,9 +43,9 @@ void DeviceManager::discoverDevices() {
         // Get device properties for logging
         cudaDeviceProp prop;
         cudaGetDeviceProperties(&prop, i);
-        std::cout << "Discovered CUDA device with ID: " << device_index << " (CUDA Device " << i
-                  << ": " << prop.name << ")" << std::endl;
-        Device gpu_device(DeviceType::GPU, device_index++, std::make_unique<CUDAContext>(i));
+        std::cout << "Discovered CUDA device with ID: " << i << " (CUDA Device " << i << ": "
+                  << prop.name << ")" << std::endl;
+        Device gpu_device(DeviceType::GPU, i, std::make_unique<CUDAContext>(i));
         addDevice(std::move(gpu_device));
       } catch (const std::exception &e) {
         std::cerr << "Failed to create CUDA device " << i << ": " << e.what() << std::endl;
@@ -62,15 +63,16 @@ void DeviceManager::discoverDevices() {
 DeviceManager::~DeviceManager() = default;
 
 void DeviceManager::addDevice(Device &&device) {
+  std::string device_type = (device.getDeviceType() == DeviceType::CPU) ? "CPU" : "GPU";
   int id = device.getID();
-  devices_.emplace(id, std::move(device));
+  devices_.emplace(device_type + std::to_string(id), std::move(device));
 }
 
-void DeviceManager::removeDevice(int id) { devices_.erase(id); }
+void DeviceManager::removeDevice(std::string id) { devices_.erase(id); }
 
 void DeviceManager::clearDevices() { devices_.clear(); }
 
-const Device &DeviceManager::getDevice(int id) const {
+const Device &DeviceManager::getDevice(std::string id) const {
   auto it = devices_.find(id);
   if (it != devices_.end()) {
     return it->second;
@@ -78,8 +80,8 @@ const Device &DeviceManager::getDevice(int id) const {
   throw std::runtime_error("Device with the given ID not found");
 }
 
-std::vector<int> DeviceManager::getAvailableDeviceIDs() const {
-  std::vector<int> ids;
+std::vector<std::string> DeviceManager::getAvailableDeviceIDs() const {
+  std::vector<std::string> ids;
   ids.reserve(devices_.size());
   for (const auto &pair : devices_) {
     ids.push_back(pair.first);
@@ -87,9 +89,9 @@ std::vector<int> DeviceManager::getAvailableDeviceIDs() const {
   return ids;
 }
 
-bool DeviceManager::hasDevice(int id) const { return devices_.find(id) != devices_.end(); }
+bool DeviceManager::hasDevice(std::string id) const { return devices_.find(id) != devices_.end(); }
 
-void DeviceManager::setDefaultDevice(int id) {
+void DeviceManager::setDefaultDevice(std::string id) {
   if (hasDevice(id)) {
     default_device_id_ = id;
   } else {
@@ -116,7 +118,7 @@ void initializeDefaultDevices() {
 const Device &getGPU(size_t gpu_index) {
   DeviceManager &manager = DeviceManager::getInstance();
   size_t current_gpu = 0;
-  for (int id : manager.getAvailableDeviceIDs()) {
+  for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);
     if (device.getDeviceType() == DeviceType::GPU) {
       if (current_gpu == gpu_index) {
@@ -130,7 +132,7 @@ const Device &getGPU(size_t gpu_index) {
 
 const Device &getCPU() {
   DeviceManager &manager = DeviceManager::getInstance();
-  for (int id : manager.getAvailableDeviceIDs()) {
+  for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);
     if (device.getDeviceType() == DeviceType::CPU) {
       return device;

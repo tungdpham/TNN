@@ -79,7 +79,7 @@ Tensor<T, NCHW> pad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w, T 
   const size_t padded_height = height + 2 * pad_h;
   const size_t padded_width = width + 2 * pad_w;
 
-  Tensor<T, NCHW> result({batch_size, channels, padded_height, padded_width});
+  Tensor<T, NCHW> result({batch_size, channels, padded_height, padded_width}, input.device());
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();
@@ -109,7 +109,7 @@ Tensor<T, NCHW> unpad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w) 
   const size_t height = padded_height - 2 * pad_h;
   const size_t width = padded_width - 2 * pad_w;
 
-  Tensor<T, NCHW> result({batch_size, channels, height, width});
+  Tensor<T, NCHW> result({batch_size, channels, height, width}, input.device());
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();
@@ -141,7 +141,7 @@ Tensor<T, NCHW> crop(const Tensor<T, NCHW> &input, const size_t start_h, const s
   const size_t new_height = end_h - start_h + 1;
   const size_t new_width = end_w - start_w + 1;
 
-  Tensor<T, NCHW> result({batch_size, channels, new_height, new_width});
+  Tensor<T, NCHW> result({batch_size, channels, new_height, new_width}, input.device());
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();
@@ -162,7 +162,7 @@ Tensor<T, L> slice_batch(const Tensor<T, L> &input, size_t start_batch, size_t e
   size_t new_batch_size = end_batch - start_batch;
   std::vector<size_t> new_shape(input.shape());
   new_shape[0] = new_batch_size;
-  Tensor<T, L> result(new_shape);
+  Tensor<T, L> result(new_shape, input.device());
 
   const T *input_data = input.data_ptr().get();
   const std::vector<size_t> strides = input.strides();
@@ -191,7 +191,7 @@ Tensor<T, NCHW> slice_channels(const Tensor<T, NCHW> &input, size_t start_ch, si
   const size_t width = input.width();
   const size_t new_channels = end_ch - start_ch + 1;
 
-  Tensor<T, NCHW> result({batch_size, new_channels, height, width});
+  Tensor<T, NCHW> result({batch_size, new_channels, height, width}, input.device());
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();

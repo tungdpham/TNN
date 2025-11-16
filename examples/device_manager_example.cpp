@@ -1,5 +1,6 @@
 #include "device/device_manager.hpp"
 #include <iostream>
+#include <string>
 #include <vector>
 
 using namespace tnn;
@@ -16,10 +17,10 @@ int main() {
     DeviceManager &manager = DeviceManager::getInstance();
 
     // List all available devices
-    std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
     std::cout << "\nFound " << device_ids.size() << " device(s):" << std::endl;
 
-    for (int device_id : device_ids) {
+    for (const std::string &device_id : device_ids) {
       const Device &device = manager.getDevice(device_id);
       std::cout << "  Device " << device_id << ": " << device.getName()
                 << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
@@ -61,8 +62,8 @@ int main() {
 
     // Test allocation on GPU device (if available)
     bool found_gpu = false;
-    for (int device_id : device_ids) {
-      if (device_id > 0) {
+    for (const std::string &device_id : device_ids) {
+      if (device_id > "0") { // Assuming GPU devices have IDs greater than 0
         const Device &device = manager.getDevice(device_id);
         if (device.getDeviceType() == DeviceType::GPU) {
           std::cout << "\nTesting allocation on GPU device " << device_id << "..." << std::endl;

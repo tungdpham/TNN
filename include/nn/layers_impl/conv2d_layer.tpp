@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #pragma once
+#include "device/device.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 
 #include <chrono>
@@ -59,6 +60,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
+  const Tensor<T> &current = (input.device() == device_) ? input : input.to_device(device_);
+
   micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(),
                                                input.width()};
 
@@ -85,7 +88,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   temp_output_buffer_.ensure(output_buffer_size);
 
   auto im2col_start = std::chrono::high_resolution_clock::now();
-  im2col(input, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_, stride_h_,
+  im2col(current, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_, stride_h_,
          stride_w_, pad_h_, pad_w_);
   auto im2col_end = std::chrono::high_resolution_clock::now();
   if (this->enable_profiling_) {
@@ -128,6 +131,9 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
                              std::to_string(micro_batch_id));
   }
 
+  const Tensor<T> &current_gradient =
+      (gradient.device() == device_) ? gradient : gradient.to_device(device_);
+
   const auto &input_shape = it_input_shape->second;
 
   const size_t batch_size = input_shape[0];
@@ -144,15 +150,15 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   temp_gradient_buffer_.ensure(gradient_buffer_size);
   temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
 
-  ops::nchw_to_cnhw(gradient.data_ptr(), temp_gradient_buffer_, batch_size, out_channels_, output_h,
-                    output_w);
+  ops::nchw_to_cnhw(current_gradient.data_ptr(), temp_gradient_buffer_, batch_size, out_channels_,
+                    output_h, output_w);
 
   compute_weight_gradients(it_col_buffer->second, temp_gradient_buffer_,
                            weight_gradients_.data_ptr(), output_size, kernel_size, out_channels_);
 
   if (use_bias_) {
-    compute_bias_gradients(gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size, output_h,
-                           output_w, out_channels_);
+    compute_bias_gradients(current_gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size,
+                           output_h, output_w, out_channels_);
   }
 
   compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(), temp_col_grad_matrix_buffer_,

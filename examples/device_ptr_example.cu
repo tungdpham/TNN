@@ -50,15 +50,15 @@ int main() {
     initializeDefaultDevices();
     DeviceManager &manager = DeviceManager::getInstance();
 
-    int gpu_device_index = -1;
-    for (int id : manager.getAvailableDeviceIDs()) {
+    std::string gpu_device_index = "";
+    for (const std::string &id : manager.getAvailableDeviceIDs()) {
       if (manager.getDevice(id).getDeviceType() == DeviceType::GPU) {
         gpu_device_index = id;
         break;
       }
     }
 
-    if (gpu_device_index == -1) {
+    if (gpu_device_index.empty()) {
       throw std::runtime_error("No GPU device found. This example requires a GPU device.");
     }
 

@@ -16,11 +16,11 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     // Find GPU device
     has_gpu_ = false;
-    for (int id : device_ids) {
+    for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.getDeviceType() == DeviceType::GPU) {
         gpu_device_ = &device;
@@ -620,10 +620,10 @@ protected:
 
   void SetUp() override {
     DeviceManager &manager = DeviceManager::getInstance();
-    std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_gpu_ = false;
-    for (int id : device_ids) {
+    for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.getDeviceType() == DeviceType::GPU) {
         gpu_device_ = &device;
@@ -687,11 +687,11 @@ TEST(GPUTensorFloatingPointTest, FloatingPointComparisons) {
   initializeDefaultDevices();
 
   DeviceManager &manager = DeviceManager::getInstance();
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   bool has_gpu = false;
   const Device *gpu_device = nullptr;
-  for (int id : device_ids) {
+  for (const std::string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     if (device.getDeviceType() == DeviceType::GPU) {
       gpu_device = &device;

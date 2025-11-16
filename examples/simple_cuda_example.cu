@@ -143,8 +143,8 @@ public:
     DeviceManager &manager = DeviceManager::getInstance();
 
     // Try to find a GPU device with the specified CUDA device ID
-    std::vector<int> device_ids = manager.getAvailableDeviceIDs();
-    for (int id : device_ids) {
+    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+    for (const std::string &id : device_ids) {
       const Device &dev = manager.getDevice(id);
       if (dev.getDeviceType() == DeviceType::GPU) {
         // For simplicity, we'll use the first available GPU
@@ -561,12 +561,12 @@ int main() {
   }
 
   DeviceManager &manager = DeviceManager::getInstance();
-  std::vector<int> device_ids = manager.getAvailableDeviceIDs();
+  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
   std::cout << "Found " << device_ids.size() << " device(s) in device manager" << std::endl;
 
   // List all devices
-  for (int id : device_ids) {
+  for (const std::string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     std::cout << "  Device " << id << ": " << device.getName()
               << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
@@ -576,7 +576,7 @@ int main() {
 
   // Find GPU devices and test them
   bool found_gpu = false;
-  for (int id : device_ids) {
+  for (const std::string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     if (device.getDeviceType() == DeviceType::GPU) {
       std::cout << "\n" << std::string(60, '=') << std::endl;
