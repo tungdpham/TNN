@@ -1,11 +1,8 @@
 #include "pipeline/network_stage_worker.hpp"
+#include "threading/thread_wrapper.hpp"
 #include <cstdlib>
 #include <iostream>
 #include <string>
-#ifdef USE_MKL
-#include <mkl.h>
-#endif
-#include "threading/thread_wrapper.hpp"
 
 using namespace tnn;
 

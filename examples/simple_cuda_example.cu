@@ -1,10 +1,10 @@
+#ifdef USE_CUDA
 #include <chrono>
 #include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <vector>
 
-#ifdef USE_CUDA
 #include "cuda/error_handler.hpp"
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
@@ -533,12 +533,9 @@ public:
   }
 };
 
-#endif // USE_CUDA
-
 int main() {
   cout << "=== Simple CUDA Performance Test with Device Manager ===" << endl;
 
-#ifdef USE_CUDA
   // Initialize the device manager first
   cout << "Initializing device manager..." << endl;
   try {
@@ -601,11 +598,7 @@ int main() {
   }
 
   cout << "\n=== All CUDA performance tests with Device Manager completed ===" << endl;
-
-#else
-  cout << "CUDA support not compiled. Please rebuild with -DENABLE_CUDA=ON" << endl;
-  return 1;
-#endif
-
   return 0;
 }
+
+#endif // USE_CUDA

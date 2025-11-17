@@ -143,7 +143,7 @@ void DenseLayer<T>::compute_dense_forward(const device_ptr<T[]> &input_data,
                                           const size_t input_features,
                                           const size_t output_features) const {
   gemm<T>(input_data, weight_data, output_data, batch_size, output_features, input_features, false,
-          true);
+          true, T(1.0), T(0.0));
 }
 
 template <typename T>
@@ -153,7 +153,7 @@ void DenseLayer<T>::compute_weight_gradients(const device_ptr<T[]> &input_data,
                                              const size_t batch_size, const size_t input_features,
                                              const size_t output_features) const {
   gemm<T>(gradient_data, input_data, weight_grad_data, output_features, input_features, batch_size,
-          true, false);
+          true, false, T(1.0), T(1.0));
 }
 
 template <typename T>
@@ -161,9 +161,8 @@ void DenseLayer<T>::compute_input_gradients(const device_ptr<T[]> &gradient_data
                                             const device_ptr<T[]> &weight_data,
                                             device_ptr<T[]> &grad_input_data, size_t batch_size,
                                             size_t input_features, size_t output_features) const {
-  ops::set_scalar(grad_input_data, T(0), batch_size * input_features);
   gemm<T>(gradient_data, weight_data, grad_input_data, batch_size, input_features, output_features,
-          false, false);
+          false, false, T(1.0), T(0.0));
 }
 
 template <typename T>

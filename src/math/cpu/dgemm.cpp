@@ -1,5 +1,7 @@
 #include "math/cpu/dgemm.hpp"
 #include "threading/thread_handler.hpp"
+#include <algorithm> // For std::min
+#include <cstddef>
 #include <cstring>
 
 namespace tnn {
@@ -13,7 +15,8 @@ inline bool is_aligned_32(const void *ptr) { return (reinterpret_cast<uintptr_t>
 inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, const size_t M,
                                  const size_t N, const size_t K, const size_t i, const size_t j,
                                  const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max) {
+                                 const size_t k_max, const double alpha) {
+  __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
     size_t jj = j;
@@ -34,14 +37,14 @@ inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, co
         c_vec_2 = _mm256_fmadd_pd(a_vec_2, b_vec, c_vec_2);
         c_vec_3 = _mm256_fmadd_pd(a_vec_3, b_vec, c_vec_3);
       }
-      _mm256_storeu_pd(&C[(ii + 0) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 0) * N + jj]), c_vec_0));
-      _mm256_storeu_pd(&C[(ii + 1) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 1) * N + jj]), c_vec_1));
-      _mm256_storeu_pd(&C[(ii + 2) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 2) * N + jj]), c_vec_2));
-      _mm256_storeu_pd(&C[(ii + 3) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 3) * N + jj]), c_vec_3));
+      __m256d c_old_0 = _mm256_loadu_pd(&C[(ii + 0) * N + jj]);
+      __m256d c_old_1 = _mm256_loadu_pd(&C[(ii + 1) * N + jj]);
+      __m256d c_old_2 = _mm256_loadu_pd(&C[(ii + 2) * N + jj]);
+      __m256d c_old_3 = _mm256_loadu_pd(&C[(ii + 3) * N + jj]);
+      _mm256_storeu_pd(&C[(ii + 0) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_0, c_old_0));
+      _mm256_storeu_pd(&C[(ii + 1) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_1, c_old_1));
+      _mm256_storeu_pd(&C[(ii + 2) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_2, c_old_2));
+      _mm256_storeu_pd(&C[(ii + 3) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_3, c_old_3));
     }
     for (; jj < j_max; ++jj) {
       double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -52,10 +55,10 @@ inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, co
         sum2 += A[(ii + 2) * K + kk] * b_val;
         sum3 += A[(ii + 3) * K + kk] * b_val;
       }
-      C[(ii + 0) * N + jj] += sum0;
-      C[(ii + 1) * N + jj] += sum1;
-      C[(ii + 2) * N + jj] += sum2;
-      C[(ii + 3) * N + jj] += sum3;
+      C[(ii + 0) * N + jj] += alpha * sum0;
+      C[(ii + 1) * N + jj] += alpha * sum1;
+      C[(ii + 2) * N + jj] += alpha * sum2;
+      C[(ii + 3) * N + jj] += alpha * sum3;
     }
   }
   for (; ii < i_max; ++ii) {
@@ -67,14 +70,15 @@ inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, co
         __m256d b_vec = _mm256_loadu_pd(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
       }
-      _mm256_storeu_pd(&C[ii * N + jj], _mm256_add_pd(_mm256_loadu_pd(&C[ii * N + jj]), c_vec));
+      __m256d c_old = _mm256_loadu_pd(&C[ii * N + jj]);
+      _mm256_storeu_pd(&C[ii * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec, c_old));
     }
     for (; jj < j_max; ++jj) {
       double sum = 0.0;
       for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[ii * K + kk] * B[kk * N + jj];
       }
-      C[ii * N + jj] += sum;
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
@@ -82,8 +86,9 @@ inline void dgemm_kernel_avx2_nn(const double *A, const double *B, double *C, co
 inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, double *C,
                                          const size_t M, const size_t N, const size_t K,
                                          const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max,
-                                         const size_t k_max) {
+                                         const size_t i_max, const size_t j_max, const size_t k_max,
+                                         const double alpha) {
+  __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
     size_t jj = j;
@@ -104,14 +109,14 @@ inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, doubl
         c_vec_2 = _mm256_fmadd_pd(a_vec_2, b_vec, c_vec_2);
         c_vec_3 = _mm256_fmadd_pd(a_vec_3, b_vec, c_vec_3);
       }
-      _mm256_store_pd(&C[(ii + 0) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 0) * N + jj]), c_vec_0));
-      _mm256_store_pd(&C[(ii + 1) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 1) * N + jj]), c_vec_1));
-      _mm256_store_pd(&C[(ii + 2) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 2) * N + jj]), c_vec_2));
-      _mm256_store_pd(&C[(ii + 3) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 3) * N + jj]), c_vec_3));
+      __m256d c_old_0 = _mm256_load_pd(&C[(ii + 0) * N + jj]);
+      __m256d c_old_1 = _mm256_load_pd(&C[(ii + 1) * N + jj]);
+      __m256d c_old_2 = _mm256_load_pd(&C[(ii + 2) * N + jj]);
+      __m256d c_old_3 = _mm256_load_pd(&C[(ii + 3) * N + jj]);
+      _mm256_store_pd(&C[(ii + 0) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_0, c_old_0));
+      _mm256_store_pd(&C[(ii + 1) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_1, c_old_1));
+      _mm256_store_pd(&C[(ii + 2) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_2, c_old_2));
+      _mm256_store_pd(&C[(ii + 3) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_3, c_old_3));
     }
     for (; jj < j_max; ++jj) {
       double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -122,10 +127,10 @@ inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, doubl
         sum2 += A[(ii + 2) * K + kk] * b_val;
         sum3 += A[(ii + 3) * K + kk] * b_val;
       }
-      C[(ii + 0) * N + jj] += sum0;
-      C[(ii + 1) * N + jj] += sum1;
-      C[(ii + 2) * N + jj] += sum2;
-      C[(ii + 3) * N + jj] += sum3;
+      C[(ii + 0) * N + jj] += alpha * sum0;
+      C[(ii + 1) * N + jj] += alpha * sum1;
+      C[(ii + 2) * N + jj] += alpha * sum2;
+      C[(ii + 3) * N + jj] += alpha * sum3;
     }
   }
   for (; ii < i_max; ++ii) {
@@ -137,14 +142,15 @@ inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, doubl
         __m256d b_vec = _mm256_load_pd(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
       }
-      _mm256_store_pd(&C[ii * N + jj], _mm256_add_pd(_mm256_load_pd(&C[ii * N + jj]), c_vec));
+      __m256d c_old = _mm256_load_pd(&C[ii * N + jj]);
+      _mm256_store_pd(&C[ii * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec, c_old));
     }
     for (; jj < j_max; ++jj) {
       double sum = 0.0;
       for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[ii * K + kk] * B[kk * N + jj];
       }
-      C[ii * N + jj] += sum;
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
@@ -152,7 +158,7 @@ inline void dgemm_kernel_avx2_nn_aligned(const double *A, const double *B, doubl
 inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, const size_t M,
                                  const size_t N, const size_t K, const size_t i, const size_t j,
                                  const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max) {
+                                 const size_t k_max, const double alpha) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
@@ -196,17 +202,10 @@ inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, co
         partial_sum3 += a_val * B[(jj + 3) * K + kk];
       }
 
-      if (k == 0) {
-        C[ii * N + jj + 0] = partial_sum0;
-        C[ii * N + jj + 1] = partial_sum1;
-        C[ii * N + jj + 2] = partial_sum2;
-        C[ii * N + jj + 3] = partial_sum3;
-      } else {
-        C[ii * N + jj + 0] += partial_sum0;
-        C[ii * N + jj + 1] += partial_sum1;
-        C[ii * N + jj + 2] += partial_sum2;
-        C[ii * N + jj + 3] += partial_sum3;
-      }
+      C[ii * N + jj + 0] += alpha * partial_sum0;
+      C[ii * N + jj + 1] += alpha * partial_sum1;
+      C[ii * N + jj + 2] += alpha * partial_sum2;
+      C[ii * N + jj + 3] += alpha * partial_sum3;
     }
 
     for (; jj < j_max; ++jj) {
@@ -228,11 +227,7 @@ inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, co
         sum += A[ii * K + kk] * B[jj * K + kk];
       }
 
-      if (k == 0) {
-        C[ii * N + jj] = sum;
-      } else {
-        C[ii * N + jj] += sum;
-      }
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
@@ -240,8 +235,8 @@ inline void dgemm_kernel_avx2_nt(const double *A, const double *B, double *C, co
 inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, double *C,
                                          const size_t M, const size_t N, const size_t K,
                                          const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max,
-                                         const size_t k_max) {
+                                         const size_t i_max, const size_t j_max, const size_t k_max,
+                                         const double alpha) {
   for (size_t ii = i; ii < i_max; ++ii) {
     size_t jj = j;
     for (; jj + 3 < j_max; jj += 4) {
@@ -285,17 +280,10 @@ inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, doubl
         partial_sum3 += a_val * B[(jj + 3) * K + kk];
       }
 
-      if (k == 0) {
-        C[ii * N + jj + 0] = partial_sum0;
-        C[ii * N + jj + 1] = partial_sum1;
-        C[ii * N + jj + 2] = partial_sum2;
-        C[ii * N + jj + 3] = partial_sum3;
-      } else {
-        C[ii * N + jj + 0] += partial_sum0;
-        C[ii * N + jj + 1] += partial_sum1;
-        C[ii * N + jj + 2] += partial_sum2;
-        C[ii * N + jj + 3] += partial_sum3;
-      }
+      C[ii * N + jj + 0] += alpha * partial_sum0;
+      C[ii * N + jj + 1] += alpha * partial_sum1;
+      C[ii * N + jj + 2] += alpha * partial_sum2;
+      C[ii * N + jj + 3] += alpha * partial_sum3;
     }
 
     for (; jj < j_max; ++jj) {
@@ -317,11 +305,7 @@ inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, doubl
         sum += A[ii * K + kk] * B[jj * K + kk];
       }
 
-      if (k == 0) {
-        C[ii * N + jj] = sum;
-      } else {
-        C[ii * N + jj] += sum;
-      }
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
@@ -329,7 +313,8 @@ inline void dgemm_kernel_avx2_nt_aligned(const double *A, const double *B, doubl
 inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, const size_t M,
                                  const size_t N, const size_t K, const size_t i, const size_t j,
                                  const size_t k, const size_t i_max, const size_t j_max,
-                                 const size_t k_max) {
+                                 const size_t k_max, const double alpha) {
+  __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
     size_t jj = j;
@@ -351,14 +336,14 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
         c_vec_3 = _mm256_fmadd_pd(a_vec_3, b_vec, c_vec_3);
       }
 
-      _mm256_storeu_pd(&C[(ii + 0) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 0) * N + jj]), c_vec_0));
-      _mm256_storeu_pd(&C[(ii + 1) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 1) * N + jj]), c_vec_1));
-      _mm256_storeu_pd(&C[(ii + 2) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 2) * N + jj]), c_vec_2));
-      _mm256_storeu_pd(&C[(ii + 3) * N + jj],
-                       _mm256_add_pd(_mm256_loadu_pd(&C[(ii + 3) * N + jj]), c_vec_3));
+      __m256d c_old_0 = _mm256_loadu_pd(&C[(ii + 0) * N + jj]);
+      __m256d c_old_1 = _mm256_loadu_pd(&C[(ii + 1) * N + jj]);
+      __m256d c_old_2 = _mm256_loadu_pd(&C[(ii + 2) * N + jj]);
+      __m256d c_old_3 = _mm256_loadu_pd(&C[(ii + 3) * N + jj]);
+      _mm256_storeu_pd(&C[(ii + 0) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_0, c_old_0));
+      _mm256_storeu_pd(&C[(ii + 1) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_1, c_old_1));
+      _mm256_storeu_pd(&C[(ii + 2) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_2, c_old_2));
+      _mm256_storeu_pd(&C[(ii + 3) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_3, c_old_3));
     }
     for (; jj < j_max; ++jj) {
       double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -369,10 +354,10 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
         sum2 += A[kk * M + (ii + 2)] * b_val;
         sum3 += A[kk * M + (ii + 3)] * b_val;
       }
-      C[(ii + 0) * N + jj] += sum0;
-      C[(ii + 1) * N + jj] += sum1;
-      C[(ii + 2) * N + jj] += sum2;
-      C[(ii + 3) * N + jj] += sum3;
+      C[(ii + 0) * N + jj] += alpha * sum0;
+      C[(ii + 1) * N + jj] += alpha * sum1;
+      C[(ii + 2) * N + jj] += alpha * sum2;
+      C[(ii + 3) * N + jj] += alpha * sum3;
     }
   }
 
@@ -385,7 +370,8 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
         __m256d b_vec = _mm256_loadu_pd(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
       }
-      _mm256_storeu_pd(&C[ii * N + jj], _mm256_add_pd(_mm256_loadu_pd(&C[ii * N + jj]), c_vec));
+      __m256d c_old = _mm256_loadu_pd(&C[ii * N + jj]);
+      _mm256_storeu_pd(&C[ii * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec, c_old));
     }
 
     for (; jj < j_max; ++jj) {
@@ -393,7 +379,7 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
       for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[kk * M + ii] * B[kk * N + jj];
       }
-      C[ii * N + jj] += sum;
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
@@ -401,8 +387,9 @@ inline void dgemm_kernel_avx2_tn(const double *A, const double *B, double *C, co
 inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, double *C,
                                          const size_t M, const size_t N, const size_t K,
                                          const size_t i, const size_t j, const size_t k,
-                                         const size_t i_max, const size_t j_max,
-                                         const size_t k_max) {
+                                         const size_t i_max, const size_t j_max, const size_t k_max,
+                                         const double alpha) {
+  __m256d alpha_vec = _mm256_broadcast_sd(&alpha);
   size_t ii = i;
   for (; ii + 3 < i_max; ii += 4) {
     size_t jj = j;
@@ -423,14 +410,14 @@ inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, doubl
         c_vec_2 = _mm256_fmadd_pd(a_vec_2, b_vec, c_vec_2);
         c_vec_3 = _mm256_fmadd_pd(a_vec_3, b_vec, c_vec_3);
       }
-      _mm256_store_pd(&C[(ii + 0) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 0) * N + jj]), c_vec_0));
-      _mm256_store_pd(&C[(ii + 1) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 1) * N + jj]), c_vec_1));
-      _mm256_store_pd(&C[(ii + 2) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 2) * N + jj]), c_vec_2));
-      _mm256_store_pd(&C[(ii + 3) * N + jj],
-                      _mm256_add_pd(_mm256_load_pd(&C[(ii + 3) * N + jj]), c_vec_3));
+      __m256d c_old_0 = _mm256_load_pd(&C[(ii + 0) * N + jj]);
+      __m256d c_old_1 = _mm256_load_pd(&C[(ii + 1) * N + jj]);
+      __m256d c_old_2 = _mm256_load_pd(&C[(ii + 2) * N + jj]);
+      __m256d c_old_3 = _mm256_load_pd(&C[(ii + 3) * N + jj]);
+      _mm256_store_pd(&C[(ii + 0) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_0, c_old_0));
+      _mm256_store_pd(&C[(ii + 1) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_1, c_old_1));
+      _mm256_store_pd(&C[(ii + 2) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_2, c_old_2));
+      _mm256_store_pd(&C[(ii + 3) * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec_3, c_old_3));
     }
     for (; jj < j_max; ++jj) {
       double sum0 = 0.0, sum1 = 0.0, sum2 = 0.0, sum3 = 0.0;
@@ -441,10 +428,10 @@ inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, doubl
         sum2 += A[kk * M + (ii + 2)] * b_val;
         sum3 += A[kk * M + (ii + 3)] * b_val;
       }
-      C[(ii + 0) * N + jj] += sum0;
-      C[(ii + 1) * N + jj] += sum1;
-      C[(ii + 2) * N + jj] += sum2;
-      C[(ii + 3) * N + jj] += sum3;
+      C[(ii + 0) * N + jj] += alpha * sum0;
+      C[(ii + 1) * N + jj] += alpha * sum1;
+      C[(ii + 2) * N + jj] += alpha * sum2;
+      C[(ii + 3) * N + jj] += alpha * sum3;
     }
   }
   for (; ii < i_max; ++ii) {
@@ -456,21 +443,30 @@ inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, doubl
         __m256d b_vec = _mm256_load_pd(&B[kk * N + jj]);
         c_vec = _mm256_fmadd_pd(a_vec, b_vec, c_vec);
       }
-      _mm256_store_pd(&C[ii * N + jj], _mm256_add_pd(_mm256_load_pd(&C[ii * N + jj]), c_vec));
+      __m256d c_old = _mm256_load_pd(&C[ii * N + jj]);
+      _mm256_store_pd(&C[ii * N + jj], _mm256_fmadd_pd(alpha_vec, c_vec, c_old));
     }
     for (; jj < j_max; ++jj) {
       double sum = 0.0;
       for (size_t kk = k; kk < k_max; ++kk) {
         sum += A[kk * M + ii] * B[kk * N + jj];
       }
-      C[ii * N + jj] += sum;
+      C[ii * N + jj] += alpha * sum;
     }
   }
 }
 #endif
 
 void dgemm(const double *A, const double *B, double *C, const size_t M, const size_t N,
-           const size_t K, const bool trans_A, const bool trans_B) {
+           const size_t K, const bool trans_A, const bool trans_B, const double alpha,
+           const double beta) {
+
+  if (beta == 0.0) {
+    parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] = 0.0; });
+  } else if (beta != 1.0) {
+    parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] *= beta; });
+  }
+
 #ifdef __AVX2__
   bool all_aligned = is_aligned_32(A) && is_aligned_32(B) && is_aligned_32(C);
 
@@ -491,7 +487,8 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_nn_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_nn_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end,
+                                       alpha);
         }
       });
     } else {
@@ -502,7 +499,7 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_nn(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_nn(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end, alpha);
         }
       });
     }
@@ -522,7 +519,8 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_nt_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_nt_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end,
+                                       alpha);
         }
       });
     } else {
@@ -533,7 +531,7 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_nt(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_nt(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end, alpha);
         }
       });
     }
@@ -553,7 +551,8 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_tn_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_tn_aligned(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end,
+                                       alpha);
         }
       });
     } else {
@@ -564,31 +563,38 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
         size_t j_end = std::min(j_start + N_BLOCK_SIZE, N);
         for (size_t k = 0; k < K; k += K_BLOCK_SIZE) {
           size_t k_end = std::min(k + K_BLOCK_SIZE, K);
-          dgemm_kernel_avx2_tn(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end);
+          dgemm_kernel_avx2_tn(A, B, C, M, N, K, i_start, j_start, k, i_end, j_end, k_end, alpha);
         }
       });
     }
   } else {
-    // trans_A && trans_B - not commonly used, fallback to scalar
     for (size_t i = 0; i < M; ++i) {
       for (size_t j = 0; j < N; ++j) {
         double sum = 0.0;
         for (size_t k = 0; k < K; ++k) {
           sum += A[k * M + i] * B[j * K + k];
         }
-        C[i * N + j] = sum;
+        C[i * N + j] += alpha * sum;
       }
     }
   }
 #else
   const size_t BLOCK_SIZE = 32;
 
+  if (beta == 0.0) {
+    memset(C, 0, M * N * sizeof(double));
+  } else if (beta != 1.0) {
+    for (size_t i = 0; i < M * N; ++i) {
+      C[i] *= beta;
+    }
+  }
+
   for (size_t i = 0; i < M; i += BLOCK_SIZE) {
     for (size_t j = 0; j < N; j += BLOCK_SIZE) {
       for (size_t k = 0; k < K; k += BLOCK_SIZE) {
         size_t i_max = std::min(i + BLOCK_SIZE, M);
         size_t j_max = std::min(j + BLOCK_SIZE, N);
-        size_t k_max = std::min(k + BLOCK_SIZE, K);
+        size_t k_max = std::min(k + K_BLOCK_SIZE, K);
 
         for (size_t ii = i; ii < i_max; ++ii) {
           for (size_t jj = j; jj < j_max; ++jj) {
@@ -598,7 +604,7 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
               size_t b_idx = trans_B ? jj * K + kk : kk * N + jj;
               sum += A[a_idx] * B[b_idx];
             }
-            C[ii * N + jj] += sum;
+            C[ii * N + jj] += alpha * sum;
           }
         }
       }

@@ -1,3 +1,4 @@
+#ifdef USE_CUDA
 #include "device/device_manager.hpp"
 #include "device/device_ptr.hpp"
 #include "ops/cpu/kernels.hpp"
@@ -328,3 +329,5 @@ int main() {
 
   return 0;
 }
+
+#endif

@@ -2,8 +2,9 @@
 #include "matrix/matrix.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
+#ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
-
+#endif
 #include <chrono>
 #include <iostream>
 #include <numeric>
@@ -11,7 +12,6 @@
 
 using namespace tnn;
 using namespace cpu;
-using namespace tnn;
 
 constexpr size_t N = 64;
 constexpr size_t C = 128;
@@ -74,19 +74,19 @@ int main() {
 
     benchmark(
         "SGEMM (NN)",
-        [&]() { sgemm(a.data(), b.data(), c1.data(), N, C, C * H * W, false, false); }, 3);
+        [&]() { cpu::sgemm(a.data(), b.data(), c1.data(), N, C, C * H * W, false, false); }, 3);
 
     benchmark(
-        "SGEMM (NT)", [&]() { sgemm(a.data(), b.data(), c2.data(), N, C, C * H * W, false, true); },
-        3);
+        "SGEMM (NT)",
+        [&]() { cpu::sgemm(a.data(), b.data(), c2.data(), N, C, C * H * W, false, true); }, 3);
 
     benchmark(
-        "SGEMM (TN)", [&]() { sgemm(a.data(), b.data(), c3.data(), N, C, C * H * W, true, false); },
-        3);
+        "SGEMM (TN)",
+        [&]() { cpu::sgemm(a.data(), b.data(), c3.data(), N, C, C * H * W, true, false); }, 3);
 
     benchmark(
-        "SGEMM (TT)", [&]() { sgemm(a.data(), b.data(), c4.data(), N, C, C * H * W, true, true); },
-        3);
+        "SGEMM (TT)",
+        [&]() { cpu::sgemm(a.data(), b.data(), c4.data(), N, C, C * H * W, true, true); }, 3);
 #ifdef USE_MKL
     std::cout << "\n=== MKL Benchmarks ===" << std::endl;
     mkl_set_num_threads(8);

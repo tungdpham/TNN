@@ -17,17 +17,17 @@ namespace tnn {
 
 template <typename T>
 void gemm(const device_ptr<T[]> &A, const device_ptr<T[]> &B, const device_ptr<T[]> &C,
-          const size_t M, const size_t N, const size_t K, const bool trans_A = false,
-          const bool trans_B = false) {
+          const size_t M, const size_t N, const size_t K, const bool trans_A, const bool trans_B,
+          const T alpha, const T beta) {
   if (A.getDeviceType() != B.getDeviceType() || A.getDeviceType() != C.getDeviceType()) {
     throw std::runtime_error("All device pointers must be on the same device type for gemm.");
   }
   if (A.getDeviceType() == DeviceType::CPU) {
-    cpu::gemm<T>(A.get(), B.get(), C.get(), M, N, K, trans_A, trans_B);
+    cpu::gemm<T>(A.get(), B.get(), C.get(), M, N, K, trans_A, trans_B, alpha, beta);
   }
 #ifdef USE_CUDA
   else if (A.getDeviceType() == DeviceType::GPU) {
-    cuda::gemm<T>(A.get(), B.get(), C.get(), M, N, K, static_cast<T>(1.0), trans_A, trans_B);
+    cuda::gemm<T>(A.get(), B.get(), C.get(), M, N, K, alpha, trans_A, trans_B);
   }
 #endif
   else {

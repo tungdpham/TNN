@@ -23,8 +23,8 @@ void compute_conv_forward(const T *col_data, const T *weight_data, T *output_dat
   mkl::conv_forward_gemm(weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
                          static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
 #else
-  ops::cpu::set_scalar(output_data, T(0), out_channels * output_size);
-  gemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size);
+  gemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size, false, false,
+       T(1.0), T(0.0));
 #endif
 }
 
