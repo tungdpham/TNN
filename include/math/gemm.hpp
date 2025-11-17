@@ -27,7 +27,7 @@ void gemm(const device_ptr<T[]> &A, const device_ptr<T[]> &B, const device_ptr<T
   }
 #ifdef USE_CUDA
   else if (A.getDeviceType() == DeviceType::GPU) {
-    cuda::gemm<T>(A.get(), B.get(), C.get(), M, N, K, alpha, trans_A, trans_B);
+    cuda::gemm<T>(A.get(), B.get(), C.get(), M, N, K, trans_A, trans_B, alpha, beta);
   }
 #endif
   else {

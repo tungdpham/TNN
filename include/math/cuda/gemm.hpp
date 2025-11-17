@@ -30,7 +30,7 @@ namespace cuda {
  */
 template <typename T>
 void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
-          const T alpha = 1.0, const bool trans_A = false, const bool trans_B = false);
+          const bool trans_A, const bool trans_B, const T alpha, const T beta);
 
 } // namespace cuda
 

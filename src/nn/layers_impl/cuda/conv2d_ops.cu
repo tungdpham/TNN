@@ -55,8 +55,8 @@ template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
                           const size_t out_channels) {
-  cuda::gemm<T>(weight_data, col_data, output_data, out_channels, output_size, kernel_size, T(0.0),
-                false, false);
+  cuda::gemm<T>(weight_data, col_data, output_data, out_channels, output_size, kernel_size, false,
+                false, T(1.0), T(0.0));
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -66,7 +66,7 @@ void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weig
                               const size_t output_size, const size_t kernel_size,
                               const size_t out_channels) {
   cuda::gemm<T>(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
-                T(0.0), false, true);
+                false, true, T(1.0), T(1.0));
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -76,7 +76,7 @@ void compute_input_gradients(const T *gradient_data, const T *weight_data, T *co
                              const size_t output_size, const size_t kernel_size,
                              const size_t out_channels) {
   cuda::gemm<T>(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
-                T(1.0), true, false);
+                true, false, T(1.0), T(0.0));
 }
 
 template <typename T>

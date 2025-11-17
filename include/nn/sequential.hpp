@@ -1228,8 +1228,8 @@ public:
     return *this;
   }
 
-  SequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
-                               size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+  SequentialBuilder &maxpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1,
+                               size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                                const std::string &name = "") {
     layer_builder_.maxpool2d(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                              name.empty() ? "maxpool2d_" + std::to_string(model_.layer_size())
@@ -1237,8 +1237,8 @@ public:
     return *this;
   }
 
-  SequentialBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
-                               size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+  SequentialBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1,
+                               size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                                const std::string &name = "") {
     layer_builder_.avgpool2d(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                              name.empty() ? "avgpool2d_" + std::to_string(model_.layer_size())

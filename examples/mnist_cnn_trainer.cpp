@@ -84,6 +84,7 @@ int main() {
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
                      .activation("relu", "relu1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
+                     //  .avgpool2d(3, 3, 3, 3, 0, 0, "pool1")
                      .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
                      .batchnorm(1e-5f, 0.1f, true, "bn2")
                      .activation("relu", "relu2")

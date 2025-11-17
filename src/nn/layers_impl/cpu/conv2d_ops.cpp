@@ -51,9 +51,8 @@ void compute_input_gradients(const T *gradient_data, const T *weight_data, T *co
                             static_cast<MKL_INT>(out_channels), static_cast<MKL_INT>(kernel_size),
                             static_cast<MKL_INT>(output_size));
 #else
-  ops::cpu::set_scalar(col_grad_data, T(0), kernel_size * output_size);
   gemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels, true,
-       false, T(1.0), T(1.0));
+       false, T(1.0), T(0.0));
 #endif
 }
 
@@ -67,8 +66,8 @@ void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const siz
   parallel_for<size_t>(0, out_channels, [&](size_t oc) {
     T grad_sum = T(0);
     for (size_t n = 0; n < batch_size; ++n) {
-      std::accumulate(gradient_data + n * N_stride + oc * C_stride,
-                      gradient_data + n * N_stride + (oc + 1) * C_stride, grad_sum);
+      grad_sum = std::accumulate(gradient_data + n * N_stride + oc * C_stride,
+                                 gradient_data + n * N_stride + (oc + 1) * C_stride, grad_sum);
     }
     bias_grad_data[oc] += grad_sum;
   });
