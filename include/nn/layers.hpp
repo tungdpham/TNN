@@ -24,6 +24,7 @@ template <typename T> class DenseLayer;
 template <typename T> class ActivationLayer;
 template <typename T> class Conv2DLayer;
 template <typename T> class MaxPool2DLayer;
+template <typename T> class AvgPool2DLayer;
 template <typename T> class DropoutLayer;
 template <typename T> class FlattenLayer;
 template <typename T> class BatchNormLayer;
@@ -32,6 +33,7 @@ template <typename T> class BatchNormLayer;
 
 // Wrapper to include all layer implementations
 #include "layers_impl/activation_layer.hpp"
+#include "layers_impl/avgpool2d_layer.hpp"
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
 #include "layers_impl/conv2d_layer.hpp"
@@ -79,6 +81,14 @@ std::unique_ptr<Layer<T>> maxpool2d_layer(size_t pool_h, size_t pool_w, size_t s
                                           size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
                                           const std::string &name = "maxpool2d") {
   return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                             name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> avgpool2d_layer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
+                                          size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+                                          const std::string &name = "avgpool2d") {
+  return std::make_unique<AvgPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                              name);
 }
 
@@ -178,6 +188,18 @@ public:
       size_t pad_w = config.get<size_t>("pad_w", 0);
 
       return std::make_unique<MaxPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                                                 config.name);
+    });
+
+    register_layer("avgpool2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t pool_h = config.get<size_t>("pool_h");
+      size_t pool_w = config.get<size_t>("pool_w");
+      size_t stride_h = config.get<size_t>("stride_h", 0);
+      size_t stride_w = config.get<size_t>("stride_w", 0);
+      size_t pad_h = config.get<size_t>("pad_h", 0);
+      size_t pad_w = config.get<size_t>("pad_w", 0);
+
+      return std::make_unique<AvgPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                                  config.name);
     });
 
@@ -326,6 +348,15 @@ public:
     auto layer =
         maxpool2d_layer<T>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                            name.empty() ? "maxpool2d_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
+                          size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "") {
+    auto layer =
+        avgpool2d_layer<T>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                           name.empty() ? "avgpool2d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }

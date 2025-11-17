@@ -1237,6 +1237,15 @@ public:
     return *this;
   }
 
+  SequentialBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0,
+                               size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+                               const std::string &name = "") {
+    layer_builder_.avgpool2d(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
+                             name.empty() ? "avgpool2d_" + std::to_string(model_.layer_size())
+                                          : name);
+    return *this;
+  }
+
   SequentialBuilder &dropout(T dropout_rate, const std::string &name = "") {
     layer_builder_.dropout(dropout_rate,
                            name.empty() ? "dropout_" + std::to_string(model_.layer_size()) : name);
