@@ -15,6 +15,8 @@
 
 using namespace tnn;
 
+#ifdef USE_CUDA
+
 // Test fixture for GPU tensor operations
 class GPUTensorOpsTest : public ::testing::Test {
 protected:
@@ -802,3 +804,5 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+#endif // USE_CUDA

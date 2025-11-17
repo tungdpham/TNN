@@ -15,6 +15,7 @@
 
 using namespace tnn;
 
+#ifdef USE_CUDA
 // Test fixture for CUDA conv2d operations
 class CUDAConv2dOpsTest : public ::testing::Test {
 protected:
@@ -527,3 +528,5 @@ int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
+
+#endif // USE_CUDA
