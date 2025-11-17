@@ -92,4 +92,124 @@ Sequential<float> create_cifar10_trainer_v2() {
   return model;
 }
 
+Sequential<float> create_resnet18_cifar10() {
+  auto model = SequentialBuilder<float>("ResNet-18-CIFAR10")
+                   .input({3, 32, 32})
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   // Layer 1: 64 channels
+                   .basic_residual_block(64, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
+                   // Layer 2: 128 channels with stride 2
+                   .basic_residual_block(64, 128, 2, "layer2_block1")
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   // Layer 3: 256 channels with stride 2
+                   .basic_residual_block(128, 256, 2, "layer3_block1")
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   // Layer 4: 512 channels with stride 2
+                   .basic_residual_block(256, 512, 2, "layer4_block1")
+                   .basic_residual_block(512, 512, 1, "layer4_block2")
+                   // Global average pooling and classifier
+                   .flatten("flatten")
+                   .dense(10, "linear", true, "fc")
+                   .build();
+  return model;
+}
+
+Sequential<float> create_resnet50_cifar10() {
+  auto model = SequentialBuilder<float>("ResNet-50-CIFAR10")
+                   .input({3, 32, 32})
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   // Layer 1: 64 channels, 3 bottleneck blocks
+                   .bottleneck_residual_block(64, 64, 256, 1, "layer1_block1")
+                   .bottleneck_residual_block(256, 64, 256, 1, "layer1_block2")
+                   .bottleneck_residual_block(256, 64, 256, 1, "layer1_block3")
+                   // Layer 2: 128 channels, 4 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(256, 128, 512, 2, "layer2_block1")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block2")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block3")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block4")
+                   // Layer 3: 256 channels, 6 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6")
+                   // Layer 4: 512 channels, 3 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1")
+                   .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
+                   .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
+                   // Global average pooling and classifier
+                   .flatten("flatten")
+                   .dense(10, "linear", true, "fc")
+                   .build();
+  return model;
+}
+
+Sequential<float> create_resnet18_imagenet() {
+  auto model = SequentialBuilder<float>("ResNet-18-ImageNet")
+                   .input({3, 224, 224})
+                   .conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   .maxpool2d(3, 3, 2, 2, 1, 1, "maxpool")
+                   // Layer 1: 64 channels
+                   .basic_residual_block(64, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
+                   // Layer 2: 128 channels with stride 2
+                   .basic_residual_block(64, 128, 2, "layer2_block1")
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   // Layer 3: 256 channels with stride 2
+                   .basic_residual_block(128, 256, 2, "layer3_block1")
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   // Layer 4: 512 channels with stride 2
+                   .basic_residual_block(256, 512, 2, "layer4_block1")
+                   .basic_residual_block(512, 512, 1, "layer4_block2")
+                   // Global average pooling and classifier
+                   .avgpool2d(7, 7, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(1000, "linear", true, "fc")
+                   .build();
+  return model;
+}
+
+Sequential<float> create_resnet50_imagenet() {
+  auto model = SequentialBuilder<float>("ResNet-50-ImageNet")
+                   .input({3, 224, 224})
+                   .conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   .maxpool2d(3, 3, 2, 2, 1, 1, "maxpool")
+                   // Layer 1: 64 channels, 3 bottleneck blocks
+                   .bottleneck_residual_block(64, 64, 256, 1, "layer1_block1")
+                   .bottleneck_residual_block(256, 64, 256, 1, "layer1_block2")
+                   .bottleneck_residual_block(256, 64, 256, 1, "layer1_block3")
+                   // Layer 2: 128 channels, 4 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(256, 128, 512, 2, "layer2_block1")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block2")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block3")
+                   .bottleneck_residual_block(512, 128, 512, 1, "layer2_block4")
+                   // Layer 3: 256 channels, 6 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(512, 256, 1024, 2, "layer3_block1")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block2")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block3")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block4")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block5")
+                   .bottleneck_residual_block(1024, 256, 1024, 1, "layer3_block6")
+                   // Layer 4: 512 channels, 3 bottleneck blocks with stride 2
+                   .bottleneck_residual_block(1024, 512, 2048, 2, "layer4_block1")
+                   .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
+                   .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
+                   // Global average pooling and classifier
+                   .avgpool2d(7, 7, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(1000, "linear", true, "fc")
+                   .build();
+  return model;
+}
+
 } // namespace tnn
