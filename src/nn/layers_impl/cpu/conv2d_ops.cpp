@@ -19,41 +19,24 @@ template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
                           const size_t out_channels) {
-#ifdef USE_MKL
-  mkl::conv_forward_gemm(weight_data, col_data, output_data, static_cast<MKL_INT>(out_channels),
-                         static_cast<MKL_INT>(kernel_size), static_cast<MKL_INT>(output_size));
-#else
   gemm(weight_data, col_data, output_data, out_channels, output_size, kernel_size, false, false,
        T(1.0), T(0.0));
-#endif
 }
 
 template <typename T>
 void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weight_grad_data,
                               const size_t output_size, const size_t kernel_size,
                               const size_t out_channels) {
-#ifdef USE_MKL
-  mkl::conv_weight_grad_gemm(gradient_data, col_data, weight_grad_data,
-                             static_cast<MKL_INT>(out_channels), static_cast<MKL_INT>(kernel_size),
-                             static_cast<MKL_INT>(output_size));
-#else
   gemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size, false,
        true, T(1.0), T(1.0));
-#endif
 }
 
 template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *col_grad_data,
                              const size_t output_size, const size_t kernel_size,
                              const size_t out_channels) {
-#ifdef USE_MKL
-  mkl::conv_input_grad_gemm(weight_data, gradient_data, col_grad_data,
-                            static_cast<MKL_INT>(out_channels), static_cast<MKL_INT>(kernel_size),
-                            static_cast<MKL_INT>(output_size));
-#else
   gemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels, true,
        false, T(1.0), T(0.0));
-#endif
 }
 
 template <typename T>
