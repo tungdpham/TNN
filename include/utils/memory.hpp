@@ -10,15 +10,15 @@ namespace tnn {
 inline long get_memory_usage_kb() {
   std::ifstream file("/proc/" + std::to_string(getpid()) + "/status");
   std::string line;
-  long vmsize = 0;
+  long vmrss = 0;
   while (std::getline(file, line)) {
-    if (line.rfind("VmSize:", 0) == 0) { // Check if the line starts with "VmSize:"
-      std::string value_str = line.substr(8, line.size() - 8 - 3); // Extract the value
-      vmsize = std::stoi(value_str);                               // Convert to integer
+    if (line.rfind("VmRSS:", 0) == 0) { // Check if the line starts with "VmRSS:"
+      std::string value_str = line.substr(7, line.size() - 7 - 3); // Extract the value
+      vmrss = std::stoi(value_str);                                // Convert to integer
       break;
     }
   }
-  return vmsize;
+  return vmrss;
 }
 
 } // namespace tnn
