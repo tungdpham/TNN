@@ -16,6 +16,7 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
 #ifdef USE_CUDA
 // CUDA kernel to add two arrays
@@ -44,14 +45,14 @@ void vectorAdd(const device_ptr<float[]> &a, const device_ptr<float[]> &b,
 
 int main() {
   try {
-    std::cout << "=== Device Pointer Array Addition Example ===" << std::endl;
+    cout << "=== Device Pointer Array Addition Example ===" << endl;
 
     // Initialize devices
     initializeDefaultDevices();
     DeviceManager &manager = DeviceManager::getInstance();
 
-    std::string gpu_device_index = "";
-    for (const std::string &id : manager.getAvailableDeviceIDs()) {
+    string gpu_device_index = "";
+    for (const string &id : manager.getAvailableDeviceIDs()) {
       if (manager.getDevice(id).getDeviceType() == DeviceType::GPU) {
         gpu_device_index = id;
         break;
@@ -59,26 +60,26 @@ int main() {
     }
 
     if (gpu_device_index.empty()) {
-      throw std::runtime_error("No GPU device found. This example requires a GPU device.");
+      throw runtime_error("No GPU device found. This example requires a GPU device.");
     }
 
-    std::cout << "Using device: " << manager.getDevice(gpu_device_index).getName() << std::endl;
+    cout << "Using device: " << manager.getDevice(gpu_device_index).getName() << endl;
 
     Device *device = &const_cast<Device &>(manager.getDevice(gpu_device_index));
 
     // Array size for demonstration
     const int n = 1000000;
-    std::cout << "Creating arrays of size: " << n << std::endl;
+    cout << "Creating arrays of size: " << n << endl;
 
     // Create device arrays using device_ptr
     auto a_ptr = make_array_ptr<float[]>(device, n);
     auto b_ptr = make_array_ptr<float[]>(device, n);
     auto result_ptr = make_array_ptr<float[]>(device, n);
 
-    std::cout << "Arrays created successfully" << std::endl;
+    cout << "Arrays created successfully" << endl;
 
     // Create host arrays for initialization and verification
-    std::vector<float> h_a(n), h_b(n), h_result(n);
+    vector<float> h_a(n), h_b(n), h_result(n);
 
     // Initialize host arrays
     for (int i = 0; i < n; i++) {
@@ -86,51 +87,51 @@ int main() {
       h_b[i] = static_cast<float>(i * 2);
     }
 
-    std::cout << "Host arrays initialized" << std::endl;
+    cout << "Host arrays initialized" << endl;
 
 #ifdef USE_CUDA
     // Copy data from host to device
     CUDA_CHECK(cudaMemcpy(a_ptr.get(), h_a.data(), n * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(b_ptr.get(), h_b.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
-    std::cout << "Data copied to device" << std::endl;
+    cout << "Data copied to device" << endl;
 
     // Perform vector addition using our kernel
     vectorAdd(a_ptr, b_ptr, result_ptr, n);
 
-    std::cout << "Vector addition completed on GPU" << std::endl;
+    cout << "Vector addition completed on GPU" << endl;
 
     // Copy result back to host
     CUDA_CHECK(
         cudaMemcpy(h_result.data(), result_ptr.get(), n * sizeof(float), cudaMemcpyDeviceToHost));
 
-    std::cout << "Result copied back to host" << std::endl;
+    cout << "Result copied back to host" << endl;
 
     // Verify results
     bool success = true;
-    for (int i = 0; i < std::min(10, n); i++) {
+    for (int i = 0; i < min(10, n); i++) {
       float expected = h_a[i] + h_b[i];
-      if (std::abs(h_result[i] - expected) > 1e-5) {
-        std::cout << "Verification failed at index " << i << ": expected " << expected << ", got "
-                  << h_result[i] << std::endl;
+      if (abs(h_result[i] - expected) > 1e-5) {
+        cout << "Verification failed at index " << i << ": expected " << expected << ", got "
+             << h_result[i] << endl;
         success = false;
         break;
       }
     }
 
     if (success) {
-      std::cout << "Vector addition verification successful!" << std::endl;
-      std::cout << "Sample results:" << std::endl;
+      cout << "Vector addition verification successful!" << endl;
+      cout << "Sample results:" << endl;
       for (int i = 0; i < 5; i++) {
-        std::cout << "  " << h_a[i] << " + " << h_b[i] << " = " << h_result[i] << std::endl;
+        cout << "  " << h_a[i] << " + " << h_b[i] << " = " << h_result[i] << endl;
       }
     }
 #else
-    std::cout << "CUDA not available - skipping kernel execution" << std::endl;
+    cout << "CUDA not available - skipping kernel execution" << endl;
 #endif
 
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error: " << e.what() << endl;
     return 1;
   }
 

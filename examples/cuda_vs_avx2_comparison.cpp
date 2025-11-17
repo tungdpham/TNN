@@ -14,15 +14,15 @@
 #include <cuda_runtime.h>
 
 using namespace tnn;
+using namespace std;
 
-template <typename Func> double timeFunction(Func &&func, const std::string &name) {
-  auto start = std::chrono::high_resolution_clock::now();
+template <typename Func> double timeFunction(Func &&func, const string &name) {
+  auto start = chrono::high_resolution_clock::now();
   func();
-  auto end = std::chrono::high_resolution_clock::now();
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto end = chrono::high_resolution_clock::now();
+  auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
   double timeMs = duration.count() / 1000.0;
-  std::cout << name << " took: " << std::fixed << std::setprecision(3) << timeMs << " ms"
-            << std::endl;
+  cout << name << " took: " << fixed << setprecision(3) << timeMs << " ms" << endl;
   return timeMs;
 }
 
@@ -74,14 +74,14 @@ void avx2_sqrt_multithreaded(const float *a, float *c, size_t size) {
 // Function to measure memory bandwidth
 double measureMemoryBandwidth(size_t size_mb = 1024) {
   size_t size = size_mb * 1024 * 1024 / sizeof(float);
-  std::vector<float> src(size, 1.0f);
-  std::vector<float> dst(size);
+  vector<float> src(size, 1.0f);
+  vector<float> dst(size);
 
-  auto start = std::chrono::high_resolution_clock::now();
-  std::memcpy(dst.data(), src.data(), size * sizeof(float));
-  auto end = std::chrono::high_resolution_clock::now();
+  auto start = chrono::high_resolution_clock::now();
+  memcpy(dst.data(), src.data(), size * sizeof(float));
+  auto end = chrono::high_resolution_clock::now();
 
-  auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+  auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
   double timeSeconds = duration.count() / 1e6;
   double bandwidthGBps = (size * sizeof(float) * 2) / (timeSeconds * 1e9); // Read + Write
 
@@ -94,21 +94,21 @@ int main() {
   // Test parameters
   const size_t SIZE = 100000000; // Start with smaller size for more detailed analysis
   const int ITERATIONS = 5;
-  const int num_cpu_threads = std::thread::hardware_concurrency();
+  const int num_cpu_threads = thread::hardware_concurrency();
 
-  std::cout << "Available CPU threads: " << num_cpu_threads << std::endl;
+  cout << "Available CPU threads: " << num_cpu_threads << endl;
 
   // Measure memory bandwidth
   double memBandwidth = measureMemoryBandwidth();
-  std::cout << "System memory bandwidth: " << std::fixed << std::setprecision(1) << memBandwidth
-            << " GB/s" << std::endl;
+  cout << "System memory bandwidth: " << fixed << setprecision(1) << memBandwidth << " GB/s"
+       << endl;
 
   // Get devices
   const Device &cpuDevice = getCPU();
   const Device &gpuDevice = getGPU(0);
 
-  std::cout << "Using CPU device: " << cpuDevice.getName() << std::endl;
-  std::cout << "Using GPU device: " << gpuDevice.getName() << std::endl;
+  cout << "Using CPU device: " << cpuDevice.getName() << endl;
+  cout << "Using GPU device: " << gpuDevice.getName() << endl;
 
   // Timing variables
   double avx2SingleTime = 0.0;
@@ -132,16 +132,16 @@ int main() {
     cpu_b.get()[i] = static_cast<float>((i + 1) * 0.002f);
   }
 
-  std::cout << "Test size: " << SIZE << " elements (" << (SIZE * sizeof(float) / 1024 / 1024)
-            << " MB per array)" << std::endl;
-  std::cout << "Total memory for 3 arrays: " << (SIZE * sizeof(float) * 3 / 1024 / 1024) << " MB"
-            << std::endl;
-  std::cout << "Iterations: " << ITERATIONS << std::endl << std::endl;
+  cout << "Test size: " << SIZE << " elements (" << (SIZE * sizeof(float) / 1024 / 1024)
+       << " MB per array)" << endl;
+  cout << "Total memory for 3 arrays: " << (SIZE * sizeof(float) * 3 / 1024 / 1024) << " MB"
+       << endl;
+  cout << "Iterations: " << ITERATIONS << endl << endl;
 
   gpuDevice.copyToDevice(gpu_a.get(), cpu_a.get(), SIZE * sizeof(float));
   gpuDevice.copyToDevice(gpu_b.get(), cpu_b.get(), SIZE * sizeof(float));
 
-  std::cout << "=== CUDA Tests (with memory transfer overhead) ===" << std::endl;
+  cout << "=== CUDA Tests (with memory transfer overhead) ===" << endl;
 
   // CUDA Addition (including memory transfers)
   cudaTime = timeFunction(
@@ -156,7 +156,7 @@ int main() {
       },
       "CUDA Addition (with memory transfer)");
 
-  std::cout << std::endl << "=== CUDA Tests (compute only) ===" << std::endl;
+  cout << endl << "=== CUDA Tests (compute only) ===" << endl;
 
   // CUDA Addition (compute only)
   double cudaComputeTime = timeFunction(
@@ -200,7 +200,7 @@ int main() {
 
   threadWrapper.execute([&]() {
 #ifdef __AVX2__
-    std::cout << std::endl << "=== AVX2 Tests (Single-threaded) ===" << std::endl;
+    cout << endl << "=== AVX2 Tests (Single-threaded) ===" << endl;
 
     // AVX2 Addition (single-threaded)
     avx2SingleTime = timeFunction(
@@ -236,7 +236,7 @@ int main() {
         },
         "AVX2 Square Root (single-threaded)");
 
-    std::cout << std::endl << "=== AVX2 Tests (Multi-threaded) ===" << std::endl;
+    cout << endl << "=== AVX2 Tests (Multi-threaded) ===" << endl;
 
     // AVX2 Addition (multi-threaded)
     avx2MultiTime = timeFunction(
@@ -275,55 +275,54 @@ int main() {
   });
 
   // Performance analysis
-  std::cout << std::endl << "=== Performance Analysis ===" << std::endl;
+  cout << endl << "=== Performance Analysis ===" << endl;
 
   // Calculate theoretical memory bandwidth usage
   double dataPerIteration = SIZE * sizeof(float) * 3; // Read A, Read B, Write C
   double totalData = dataPerIteration * ITERATIONS;
   double totalDataGB = totalData / (1024.0 * 1024.0 * 1024.0);
 
-  std::cout << "Data per iteration: " << (dataPerIteration / 1024 / 1024) << " MB" << std::endl;
-  std::cout << "Total data transferred: " << std::fixed << std::setprecision(2) << totalDataGB
-            << " GB" << std::endl;
+  cout << "Data per iteration: " << (dataPerIteration / 1024 / 1024) << " MB" << endl;
+  cout << "Total data transferred: " << fixed << setprecision(2) << totalDataGB << " GB" << endl;
 
 #ifdef __AVX2__
   if (avx2SingleTime > 0) {
     double avx2SingleBandwidth = totalDataGB / (avx2SingleTime / 1000.0);
-    std::cout << "AVX2 single-threaded effective bandwidth: " << std::fixed << std::setprecision(1)
-              << avx2SingleBandwidth << " GB/s" << std::endl;
+    cout << "AVX2 single-threaded effective bandwidth: " << fixed << setprecision(1)
+         << avx2SingleBandwidth << " GB/s" << endl;
   }
 
   if (avx2MultiTime > 0) {
     double avx2MultiBandwidth = totalDataGB / (avx2MultiTime / 1000.0);
-    std::cout << "AVX2 multi-threaded effective bandwidth: " << std::fixed << std::setprecision(1)
-              << avx2MultiBandwidth << " GB/s" << std::endl;
+    cout << "AVX2 multi-threaded effective bandwidth: " << fixed << setprecision(1)
+         << avx2MultiBandwidth << " GB/s" << endl;
   }
 #endif
 
   if (cudaComputeTime > 0) {
     double cudaComputeBandwidth = totalDataGB / (cudaComputeTime / 1000.0);
-    std::cout << "CUDA compute-only effective bandwidth: " << std::fixed << std::setprecision(1)
-              << cudaComputeBandwidth << " GB/s" << std::endl;
+    cout << "CUDA compute-only effective bandwidth: " << fixed << setprecision(1)
+         << cudaComputeBandwidth << " GB/s" << endl;
   }
 
-  std::cout << std::endl << "=== Speedup Comparison ===" << std::endl;
+  cout << endl << "=== Speedup Comparison ===" << endl;
 #ifdef __AVX2__
   if (cudaComputeTime > 0 && avx2SingleTime > 0) {
     double speedupVsSingle = avx2SingleTime / cudaComputeTime;
-    std::cout << "CUDA vs AVX2 single-threaded speedup: " << std::fixed << std::setprecision(2)
-              << speedupVsSingle << "x" << std::endl;
+    cout << "CUDA vs AVX2 single-threaded speedup: " << fixed << setprecision(2) << speedupVsSingle
+         << "x" << endl;
   }
 
   if (cudaComputeTime > 0 && avx2MultiTime > 0) {
     double speedupVsMulti = avx2MultiTime / cudaComputeTime;
-    std::cout << "CUDA vs AVX2 multi-threaded speedup: " << std::fixed << std::setprecision(2)
-              << speedupVsMulti << "x" << std::endl;
+    cout << "CUDA vs AVX2 multi-threaded speedup: " << fixed << setprecision(2) << speedupVsMulti
+         << "x" << endl;
   }
 
   if (avx2SingleTime > 0 && avx2MultiTime > 0) {
     double multithreadSpeedup = avx2SingleTime / avx2MultiTime;
-    std::cout << "AVX2 multi-threaded vs single-threaded speedup: " << std::fixed
-              << std::setprecision(2) << multithreadSpeedup << "x" << std::endl;
+    cout << "AVX2 multi-threaded vs single-threaded speedup: " << fixed << setprecision(2)
+         << multithreadSpeedup << "x" << endl;
   }
 #endif
 

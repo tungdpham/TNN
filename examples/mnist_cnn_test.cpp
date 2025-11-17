@@ -7,15 +7,16 @@
 #include <string>
 
 using namespace tnn;
+using namespace std;
 
 void run_test() {
 
   Sequential<float> model;
   try {
     model = Sequential<float>::from_file("model_snapshots/mnist_cnn_model");
-    std::cout << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
-  } catch (const std::exception &e) {
-    std::cerr << "Error loading model: " << e.what() << std::endl;
+    cout << "Model loaded successfully from model_snapshots/mnist_cnn_model\n";
+  } catch (const exception &e) {
+    cerr << "Error loading model: " << e.what() << endl;
     return;
   }
 
@@ -40,15 +41,14 @@ void run_test() {
   }
 
   double accuracy = (double)correct_predictions / loader.size();
-  std::cout << "Test Accuracy: " << std::fixed << std::setprecision(4) << accuracy * 100 << "%"
-            << std::endl;
+  cout << "Test Accuracy: " << fixed << setprecision(4) << accuracy * 100 << "%" << endl;
 }
 
 int main() {
   try {
     run_test();
-  } catch (const std::exception &e) {
-    std::cerr << "An error occurred during testing: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "An error occurred during testing: " << e.what() << endl;
     return 1;
   }
   return 0;

@@ -11,6 +11,7 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
 namespace cifar10_constants {
 constexpr float EPSILON = 1e-15f;
@@ -25,9 +26,9 @@ constexpr float LR_INITIAL = 0.005f;
 int main() {
   try {
     // Load environment variables from .env file
-    std::cout << "Loading environment variables..." << std::endl;
+    cout << "Loading environment variables..." << endl;
     if (!load_env_file("./.env")) {
-      std::cout << "No .env file found, using default training parameters." << std::endl;
+      cout << "No .env file found, using default training parameters." << endl;
     }
 
     // Get training parameters from environment or use defaults
@@ -53,9 +54,9 @@ int main() {
 
     CIFAR10DataLoader<float> train_loader, test_loader;
 
-    std::vector<std::string> train_files;
+    vector<string> train_files;
     for (int i = 1; i <= 5; ++i) {
-      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + std::to_string(i) + ".bin");
+      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + to_string(i) + ".bin");
     }
 
     if (!train_loader.load_multiple_files(train_files)) {
@@ -66,11 +67,10 @@ int main() {
       return -1;
     }
 
-    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
-              << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
+    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
+    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
 
-    std::cout << "\nConfiguring data augmentation for training..." << std::endl;
+    cout << "\nConfiguring data augmentation for training..." << endl;
 
     auto aug_strategy = AugmentationBuilder<float>()
                             .horizontal_flip(0.25f)
@@ -81,7 +81,7 @@ int main() {
                             .build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    std::cout << "\nBuilding CNN model architecture for CIFAR-10..." << std::endl;
+    cout << "\nBuilding CNN model architecture for CIFAR-10..." << endl;
 
     auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                      .input({3, 32, 32})
@@ -100,7 +100,7 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
     // auto loss_function =
@@ -110,12 +110,12 @@ int main() {
 
     model.enable_profiling(true);
 
-    std::cout << "\nStarting CIFAR-10 CNN training..." << std::endl;
+    cout << "\nStarting CIFAR-10 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, train_config);
 
-    std::cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << std::endl;
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+    cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
+  } catch (const exception &e) {
+    cerr << "Error: " << e.what() << endl;
     return -1;
   }
 

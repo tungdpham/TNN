@@ -15,6 +15,7 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
 namespace ips_constants {
 constexpr float EPSILON = 1e-15f;
@@ -41,7 +42,7 @@ public:
 
     for (size_t i = 0; i < batch_size; ++i) {
 
-      std::vector<float> pred_coords(output_size), target_coords(output_size);
+      vector<float> pred_coords(output_size), target_coords(output_size);
 
       for (size_t j = 0; j < output_size; ++j) {
         pred_coords[j] = predictions(i, j, 0, 0);
@@ -54,7 +55,7 @@ public:
       }
 
       float distance_sq = 0.0f;
-      for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
+      for (size_t j = 0; j < min(size_t(2), output_size); ++j) {
         const float diff = pred_coords[j] - target_coords[j];
         distance_sq += diff * diff;
       }
@@ -85,7 +86,7 @@ public:
 
     for (size_t i = 0; i < batch_size; ++i) {
 
-      std::vector<float> pred_coords(output_size), target_coords(output_size);
+      vector<float> pred_coords(output_size), target_coords(output_size);
 
       for (size_t j = 0; j < output_size; ++j) {
         pred_coords[j] = predictions(i, j, 0, 0);
@@ -97,7 +98,7 @@ public:
         target_coords = data_loader.denormalize_targets(target_coords);
       }
 
-      for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
+      for (size_t j = 0; j < min(size_t(2), output_size); ++j) {
         const float real_diff = pred_coords[j] - target_coords[j];
 
         gradient(i, j, 0, 0) = scale * real_diff * target_stds[j];
@@ -123,7 +124,7 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions, const Ten
 #endif
   for (size_t i = 0; i < batch_size; ++i) {
 
-    std::vector<float> pred_coords(output_size), target_coords(output_size);
+    vector<float> pred_coords(output_size), target_coords(output_size);
 
     for (size_t j = 0; j < output_size; ++j) {
       pred_coords[j] = predictions(i, j, 0, 0);
@@ -136,11 +137,11 @@ float calculate_positioning_accuracy(const Tensor<float> &predictions, const Ten
     }
 
     float distance = 0.0f;
-    for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
+    for (size_t j = 0; j < min(size_t(2), output_size); ++j) {
       const float diff = pred_coords[j] - target_coords[j];
       distance += diff * diff;
     }
-    distance = std::sqrt(distance);
+    distance = sqrt(distance);
 
     if (distance <= threshold_meters) {
       accurate_predictions++;
@@ -162,35 +163,32 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
   double total_error = 0.0;
 
   if (debug && batch_size > 0) {
-    std::cout << "\nDEBUG: First 3 samples:" << std::endl;
-    for (size_t i = 0; i < std::min(size_t(3), batch_size); ++i) {
-      std::vector<float> pred_coords(output_size), target_coords(output_size);
+    cout << "\nDEBUG: First 3 samples:" << endl;
+    for (size_t i = 0; i < min(size_t(3), batch_size); ++i) {
+      vector<float> pred_coords(output_size), target_coords(output_size);
 
       for (size_t j = 0; j < output_size; ++j) {
         pred_coords[j] = predictions(i, j, 0, 0);
         target_coords[j] = targets(i, j, 0, 0);
       }
 
-      std::cout << "Sample " << i << ":" << std::endl;
-      std::cout << "  Raw pred: (" << pred_coords[0] << ", " << pred_coords[1] << ")" << std::endl;
-      std::cout << "  Raw target: (" << target_coords[0] << ", " << target_coords[1] << ")"
-                << std::endl;
+      cout << "Sample " << i << ":" << endl;
+      cout << "  Raw pred: (" << pred_coords[0] << ", " << pred_coords[1] << ")" << endl;
+      cout << "  Raw target: (" << target_coords[0] << ", " << target_coords[1] << ")" << endl;
 
       if (data_loader.is_normalized()) {
         auto denorm_pred = data_loader.denormalize_targets(pred_coords);
         auto denorm_target = data_loader.denormalize_targets(target_coords);
-        std::cout << "  Denorm pred: (" << denorm_pred[0] << ", " << denorm_pred[1] << ")"
-                  << std::endl;
-        std::cout << "  Denorm target: (" << denorm_target[0] << ", " << denorm_target[1] << ")"
-                  << std::endl;
+        cout << "  Denorm pred: (" << denorm_pred[0] << ", " << denorm_pred[1] << ")" << endl;
+        cout << "  Denorm target: (" << denorm_target[0] << ", " << denorm_target[1] << ")" << endl;
 
         float distance = 0.0f;
-        for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
+        for (size_t j = 0; j < min(size_t(2), output_size); ++j) {
           const float diff = denorm_pred[j] - denorm_target[j];
           distance += diff * diff;
         }
-        distance = std::sqrt(distance);
-        std::cout << "  Distance: " << distance << "m" << std::endl;
+        distance = sqrt(distance);
+        cout << "  Distance: " << distance << "m" << endl;
       }
     }
   }
@@ -199,7 +197,7 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
 #endif
   for (size_t i = 0; i < batch_size; ++i) {
 
-    std::vector<float> pred_coords(output_size), target_coords(output_size);
+    vector<float> pred_coords(output_size), target_coords(output_size);
 
     for (size_t j = 0; j < output_size; ++j) {
       pred_coords[j] = predictions(i, j, 0, 0);
@@ -212,11 +210,11 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
     }
 
     float distance = 0.0f;
-    for (size_t j = 0; j < std::min(size_t(2), output_size); ++j) {
+    for (size_t j = 0; j < min(size_t(2), output_size); ++j) {
       const float diff = pred_coords[j] - target_coords[j];
       distance += diff * diff;
     }
-    distance = std::sqrt(distance);
+    distance = sqrt(distance);
 
     total_error += distance;
   }
@@ -268,30 +266,30 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
   auto classification_loss = LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
 
   const bool is_regression = train_loader.is_regression();
-  const std::string job_type = is_regression ? "Coordinate Prediction" : "Classification";
+  const string job_type = is_regression ? "Coordinate Prediction" : "Classification";
 
-  std::cout << "Starting IPS model training..." << std::endl;
-  std::cout << "Job: " << job_type << std::endl;
-  std::cout << "Epochs: " << epochs << ", Batch size: " << batch_size
-            << ", Learning rate: " << learning_rate << std::endl;
-  std::cout << "Features: " << train_loader.num_features()
-            << ", Outputs: " << train_loader.num_outputs() << std::endl;
-  std::cout << std::string(80, '=') << std::endl;
+  cout << "Starting IPS model training..." << endl;
+  cout << "Job: " << job_type << endl;
+  cout << "Epochs: " << epochs << ", Batch size: " << batch_size
+       << ", Learning rate: " << learning_rate << endl;
+  cout << "Features: " << train_loader.num_features() << ", Outputs: " << train_loader.num_outputs()
+       << endl;
+  cout << string(80, '=') << endl;
 
-  std::cout << "\nPreparing training batches..." << std::endl;
+  cout << "\nPreparing training batches..." << endl;
   train_loader.prepare_batches(batch_size);
 
-  std::cout << "Preparing validation batches..." << std::endl;
+  cout << "Preparing validation batches..." << endl;
   test_loader.prepare_batches(batch_size);
 
-  std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
-  std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
-  std::cout << std::string(80, '=') << std::endl;
+  cout << "Training batches: " << train_loader.num_batches() << endl;
+  cout << "Validation batches: " << test_loader.num_batches() << endl;
+  cout << string(80, '=') << endl;
 
   Tensor<float> batch_features, batch_targets, predictions;
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
-    const auto epoch_start = std::chrono::high_resolution_clock::now();
+    const auto epoch_start = chrono::high_resolution_clock::now();
 
     model.set_training(true);
     train_loader.shuffle();
@@ -303,7 +301,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
     double total_positioning_error = 0.0;
     int num_batches = 0;
 
-    std::cout << "Epoch " << epoch + 1 << "/" << epochs << std::endl;
+    cout << "Epoch " << epoch + 1 << "/" << epochs << endl;
 
     while (train_loader.get_next_batch(batch_features, batch_targets)) {
       ++num_batches;
@@ -338,15 +336,14 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
       model.update_parameters();
 
       if (num_batches % ips_constants::PROGRESS_PRINT_INTERVAL == 0) {
-        std::cout << "Batch " << num_batches << " - Loss: " << std::fixed << std::setprecision(4)
-                  << loss;
+        cout << "Batch " << num_batches << " - Loss: " << fixed << setprecision(4) << loss;
         if (is_regression) {
-          std::cout << "m², Accuracy (<5m): " << std::setprecision(4) << accuracy * 100.0f << "%"
-                    << ", Avg Error: " << std::setprecision(4) << positioning_error << "m";
+          cout << "m², Accuracy (<5m): " << setprecision(4) << accuracy * 100.0f << "%"
+               << ", Avg Error: " << setprecision(4) << positioning_error << "m";
         } else {
-          std::cout << ", Accuracy: " << std::setprecision(4) << accuracy * 100.0f << "%";
+          cout << ", Accuracy: " << setprecision(4) << accuracy * 100.0f << "%";
         }
-        std::cout << std::endl;
+        cout << endl;
       }
     }
 
@@ -371,7 +368,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
         val_accuracy += calculate_positioning_accuracy(predictions, batch_targets, test_loader);
 
         if (val_batches == 0) {
-          std::cout << "\nDEBUG: First validation batch analysis:" << std::endl;
+          cout << "\nDEBUG: First validation batch analysis:" << endl;
           val_positioning_error +=
               calculate_average_positioning_error(predictions, batch_targets, test_loader, true);
         } else {
@@ -391,39 +388,34 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
     const float avg_val_positioning_error =
         is_regression ? static_cast<float>(val_positioning_error / val_batches) : 0.0f;
 
-    const auto epoch_end = std::chrono::high_resolution_clock::now();
-    const auto epoch_duration =
-        std::chrono::duration_cast<std::chrono::seconds>(epoch_end - epoch_start);
+    const auto epoch_end = chrono::high_resolution_clock::now();
+    const auto epoch_duration = chrono::duration_cast<chrono::seconds>(epoch_end - epoch_start);
 
-    std::cout << std::string(80, '-') << std::endl;
-    std::cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in "
-              << epoch_duration.count() << "s" << std::endl;
+    cout << string(80, '-') << endl;
+    cout << "Epoch " << epoch + 1 << "/" << epochs << " completed in " << epoch_duration.count()
+         << "s" << endl;
 
     if (is_regression) {
-      std::cout << "Training   - Distance Loss: " << std::fixed << std::setprecision(2)
-                << avg_train_loss << "m², Accuracy (<5m): " << std::setprecision(2)
-                << avg_train_accuracy * 100.0f << "%, Avg Error: " << std::setprecision(2)
-                << avg_train_positioning_error << "m" << std::endl;
-      std::cout << "Validation - Distance Loss: " << std::fixed << std::setprecision(2)
-                << avg_val_loss << "m², Accuracy (<5m): " << std::setprecision(2)
-                << avg_val_accuracy * 100.0f << "%, Avg Error: " << std::setprecision(2)
-                << avg_val_positioning_error << "m" << std::endl;
+      cout << "Training   - Distance Loss: " << fixed << setprecision(2) << avg_train_loss
+           << "m², Accuracy (<5m): " << setprecision(2) << avg_train_accuracy * 100.0f
+           << "%, Avg Error: " << setprecision(2) << avg_train_positioning_error << "m" << endl;
+      cout << "Validation - Distance Loss: " << fixed << setprecision(2) << avg_val_loss
+           << "m², Accuracy (<5m): " << setprecision(2) << avg_val_accuracy * 100.0f
+           << "%, Avg Error: " << setprecision(2) << avg_val_positioning_error << "m" << endl;
     } else {
-      std::cout << "Training   - CE Loss: " << std::fixed << std::setprecision(6) << avg_train_loss
-                << ", Accuracy: " << std::setprecision(2) << avg_train_accuracy * 100.0f << "%"
-                << std::endl;
-      std::cout << "Validation - CE Loss: " << std::fixed << std::setprecision(6) << avg_val_loss
-                << ", Accuracy: " << std::setprecision(2) << avg_val_accuracy * 100.0f << "%"
-                << std::endl;
+      cout << "Training   - CE Loss: " << fixed << setprecision(6) << avg_train_loss
+           << ", Accuracy: " << setprecision(2) << avg_train_accuracy * 100.0f << "%" << endl;
+      cout << "Validation - CE Loss: " << fixed << setprecision(6) << avg_val_loss
+           << ", Accuracy: " << setprecision(2) << avg_val_accuracy * 100.0f << "%" << endl;
     }
-    std::cout << std::string(80, '=') << std::endl;
+    cout << string(80, '=') << endl;
 
     if ((epoch + 1) % ips_constants::LR_DECAY_INTERVAL == 0) {
       const float current_lr = optimizer.get_learning_rate();
       const float new_lr = current_lr * ips_constants::LR_DECAY_FACTOR;
       optimizer.set_learning_rate(new_lr);
-      std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(8) << current_lr
-                << " → " << new_lr << std::endl;
+      cout << "Learning rate decayed: " << fixed << setprecision(8) << current_lr << " → " << new_lr
+           << endl;
     }
   }
 }
@@ -431,9 +423,9 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
 int main() {
   try {
     // Load environment variables from .env file
-    std::cout << "Loading environment variables..." << std::endl;
+    cout << "Loading environment variables..." << endl;
     if (!load_env_file("./.env")) {
-      std::cout << "No .env file found, using default training parameters." << std::endl;
+      cout << "No .env file found, using default training parameters." << endl;
     }
 
     // Get training parameters from environment or use defaults
@@ -444,46 +436,46 @@ int main() {
     const int lr_decay_interval =
         get_env<int>("LR_DECAY_INTERVAL", ips_constants::LR_DECAY_INTERVAL);
 
-    std::cout << "Indoor Positioning System (IPS) Neural Network Training" << std::endl;
-    std::cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << std::endl;
-    std::cout << std::string(70, '=') << std::endl;
-    std::cout << "Training Parameters:" << std::endl;
-    std::cout << "  Max Epochs: " << max_epochs << std::endl;
-    std::cout << "  Batch Size: " << batch_size << std::endl;
-    std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
-    std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
-    std::cout << "  LR Decay Interval: " << lr_decay_interval << std::endl;
-    std::cout << std::string(70, '=') << std::endl;
+    cout << "Indoor Positioning System (IPS) Neural Network Training" << endl;
+    cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << endl;
+    cout << string(70, '=') << endl;
+    cout << "Training Parameters:" << endl;
+    cout << "  Max Epochs: " << max_epochs << endl;
+    cout << "  Batch Size: " << batch_size << endl;
+    cout << "  Initial Learning Rate: " << lr_initial << endl;
+    cout << "  LR Decay Factor: " << lr_decay_factor << endl;
+    cout << "  LR Decay Interval: " << lr_decay_interval << endl;
+    cout << string(70, '=') << endl;
     bool is_regression = true;
     WiFiDataLoader train_loader(is_regression), test_loader(is_regression);
 
-    std::string train_file = "./data/uji/TrainingData.csv";
-    std::string test_file = "./data/uji/ValidationData.csv";
+    string train_file = "./data/uji/TrainingData.csv";
+    string test_file = "./data/uji/ValidationData.csv";
 
-    std::cout << "\nLoading training data from: " << train_file << std::endl;
+    cout << "\nLoading training data from: " << train_file << endl;
 
     if (!train_loader.load_data(train_file, 0, 520, 520, 522, true)) {
-      std::cerr << "Failed to load training data!" << std::endl;
-      std::cerr << "Please ensure the data file exists and adjust column "
-                   "indices if needed."
-                << std::endl;
+      cerr << "Failed to load training data!" << endl;
+      cerr << "Please ensure the data file exists and adjust column "
+              "indices if needed."
+           << endl;
       return -1;
     }
 
-    std::cout << "Loading test data from: " << test_file << std::endl;
+    cout << "Loading test data from: " << test_file << endl;
 
     if (!test_loader.load_data(test_file, 0, 520, 520, 522, true)) {
-      std::cerr << "Failed to load test data!" << std::endl;
-      std::cerr << "Please ensure the data file exists and adjust column "
-                   "indices if needed."
-                << std::endl;
+      cerr << "Failed to load test data!" << endl;
+      cerr << "Please ensure the data file exists and adjust column "
+              "indices if needed."
+           << endl;
       return -1;
     }
 
     train_loader.print_statistics();
     test_loader.print_statistics();
 
-    std::cout << "\nNormalizing training data..." << std::endl;
+    cout << "\nNormalizing training data..." << endl;
     train_loader.normalize_data();
 
     auto feature_means = train_loader.get_feature_means();
@@ -491,26 +483,26 @@ int main() {
     auto target_means = train_loader.get_target_means();
     auto target_stds = train_loader.get_target_stds();
 
-    std::cout << "Normalizing test data using training statistics..." << std::endl;
+    cout << "Normalizing test data using training statistics..." << endl;
     test_loader.apply_normalization(feature_means, feature_stds, target_means, target_stds);
 
-    std::cout << "\nNormalization Statistics:" << std::endl;
-    std::cout << "Target means: ";
-    for (size_t i = 0; i < std::min(target_means.size(), size_t(2)); ++i) {
-      std::cout << target_means[i] << " ";
+    cout << "\nNormalization Statistics:" << endl;
+    cout << "Target means: ";
+    for (size_t i = 0; i < min(target_means.size(), size_t(2)); ++i) {
+      cout << target_means[i] << " ";
     }
-    std::cout << std::endl;
-    std::cout << "Target stds: ";
-    for (size_t i = 0; i < std::min(target_stds.size(), size_t(2)); ++i) {
-      std::cout << target_stds[i] << " ";
+    cout << endl;
+    cout << "Target stds: ";
+    for (size_t i = 0; i < min(target_stds.size(), size_t(2)); ++i) {
+      cout << target_stds[i] << " ";
     }
-    std::cout << std::endl;
+    cout << endl;
 
-    std::cout << "\nBuilding IPS model architecture..." << std::endl;
+    cout << "\nBuilding IPS model architecture..." << endl;
 
     const size_t input_features = train_loader.num_features();
     const size_t output_size = train_loader.num_outputs();
-    const std::string output_activation = is_regression ? "linear" : "linear";
+    const string output_activation = is_regression ? "linear" : "linear";
 
     auto model = SequentialBuilder<float>("ips_classifier")
                      .input({input_features, 1, 1})
@@ -536,29 +528,28 @@ int main() {
                      .dense(output_size, output_activation, true, "output")
                      .build();
 
-    model.set_optimizer(std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
+    model.set_optimizer(make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
     model.set_loss_function(LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
-    std::cout << "\nModel Architecture Summary:" << std::endl;
+    cout << "\nModel Architecture Summary:" << endl;
 
-    std::cout << "\nStarting IPS model training..." << std::endl;
+    cout << "\nStarting IPS model training..." << endl;
     train_ips_model(model, train_loader, test_loader, max_epochs, batch_size, lr_initial);
 
-    std::cout << "\nIPS model training completed successfully!" << std::endl;
+    cout << "\nIPS model training completed successfully!" << endl;
 
     try {
-      const std::string model_name =
-          is_regression ? "ips_regression_model" : "ips_classification_model";
+      const string model_name = is_regression ? "ips_regression_model" : "ips_classification_model";
       model.save_to_file("model_snapshots/" + model_name);
-      std::cout << "Model saved to: model_snapshots/" << model_name << std::endl;
-    } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
+      cout << "Model saved to: model_snapshots/" << model_name << endl;
+    } catch (const exception &save_error) {
+      cerr << "Warning: Failed to save model: " << save_error.what() << endl;
     }
 
-  } catch (const std::exception &e) {
-    std::cerr << "Error during training: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error during training: " << e.what() << endl;
     return -1;
   } catch (...) {
-    std::cerr << "Unknown error occurred during training!" << std::endl;
+    cerr << "Unknown error occurred during training!" << endl;
     return -1;
   }
 

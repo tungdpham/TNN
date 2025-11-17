@@ -11,6 +11,8 @@
 #include <cuda_runtime.h>
 
 using namespace tnn;
+using namespace std;
+
 // Simple vector addition kernel
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -143,8 +145,8 @@ public:
     DeviceManager &manager = DeviceManager::getInstance();
 
     // Try to find a GPU device with the specified CUDA device ID
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
-    for (const std::string &id : device_ids) {
+    vector<string> device_ids = manager.getAvailableDeviceIDs();
+    for (const string &id : device_ids) {
       const Device &dev = manager.getDevice(id);
       if (dev.getDeviceType() == DeviceType::GPU) {
         // For simplicity, we'll use the first available GPU
@@ -155,14 +157,13 @@ public:
     }
 
     if (!device_) {
-      throw std::runtime_error("No GPU device found in device manager");
+      throw runtime_error("No GPU device found in device manager");
     }
 
     CUDA_CHECK(cudaSetDevice(device_id_));
     CUDA_CHECK(cudaStreamCreate(&stream_));
 
-    std::cout << "Using device: " << device_->getName() << " (ID: " << device_->getID() << ")"
-              << std::endl;
+    cout << "Using device: " << device_->getName() << " (ID: " << device_->getID() << ")" << endl;
   }
 
   ~SimpleCUDABenchmark() { cudaStreamDestroy(stream_); }
@@ -171,33 +172,32 @@ public:
     cudaDeviceProp prop;
     CUDA_CHECK(cudaGetDeviceProperties(&prop, device_id_));
 
-    std::cout << "=== GPU Device Information ===" << std::endl;
-    std::cout << "Device Name: " << prop.name << std::endl;
-    std::cout << "Compute Capability: " << prop.major << "." << prop.minor << std::endl;
-    std::cout << "Global Memory: " << prop.totalGlobalMem / (1024 * 1024) << " MB" << std::endl;
-    std::cout << "Shared Memory per Block: " << prop.sharedMemPerBlock / 1024 << " KB" << std::endl;
-    std::cout << "Max Threads per Block: " << prop.maxThreadsPerBlock << std::endl;
-    std::cout << "Multiprocessors: " << prop.multiProcessorCount << std::endl;
-    std::cout << "Warp Size: " << prop.warpSize << std::endl;
-    std::cout << "Memory Clock Rate: " << prop.memoryClockRate / 1000 << " MHz" << std::endl;
-    std::cout << "Memory Bus Width: " << prop.memoryBusWidth << " bits" << std::endl;
-    std::cout << std::endl;
+    cout << "=== GPU Device Information ===" << endl;
+    cout << "Device Name: " << prop.name << endl;
+    cout << "Compute Capability: " << prop.major << "." << prop.minor << endl;
+    cout << "Global Memory: " << prop.totalGlobalMem / (1024 * 1024) << " MB" << endl;
+    cout << "Shared Memory per Block: " << prop.sharedMemPerBlock / 1024 << " KB" << endl;
+    cout << "Max Threads per Block: " << prop.maxThreadsPerBlock << endl;
+    cout << "Multiprocessors: " << prop.multiProcessorCount << endl;
+    cout << "Warp Size: " << prop.warpSize << endl;
+    cout << "Memory Clock Rate: " << prop.memoryClockRate / 1000 << " MHz" << endl;
+    cout << "Memory Bus Width: " << prop.memoryBusWidth << " bits" << endl;
+    cout << endl;
   }
 
   void benchmarkVectorOperations(int size, int iterations = 1000) {
-    std::cout << "=== Vector Operations Benchmark (Using Device Manager) ===" << std::endl;
-    std::cout << "Vector size: " << size << " elements" << std::endl;
-    std::cout << "Device: " << device_->getName() << std::endl;
-    std::cout << "Device Memory - Total: " << device_->getTotalMemory() / (1024 * 1024) << " MB, "
-              << "Available: " << device_->getAvailableMemory() / (1024 * 1024) << " MB"
-              << std::endl;
+    cout << "=== Vector Operations Benchmark (Using Device Manager) ===" << endl;
+    cout << "Vector size: " << size << " elements" << endl;
+    cout << "Device: " << device_->getName() << endl;
+    cout << "Device Memory - Total: " << device_->getTotalMemory() / (1024 * 1024) << " MB, "
+         << "Available: " << device_->getAvailableMemory() / (1024 * 1024) << " MB" << endl;
 
     size_t bytes = size * sizeof(float);
 
     // Allocate host memory
-    std::vector<float> h_a(size, 1.5f);
-    std::vector<float> h_b(size, 2.5f);
-    std::vector<float> h_c(size);
+    vector<float> h_a(size, 1.5f);
+    vector<float> h_b(size, 2.5f);
+    vector<float> h_c(size);
 
     // Allocate device memory using our device manager
     float *d_a, *d_b, *d_c;
@@ -206,9 +206,9 @@ public:
       d_b = static_cast<float *>(device_->allocateMemory(bytes));
       d_c = static_cast<float *>(device_->allocateMemory(bytes));
 
-      std::cout << "Successfully allocated device memory using DeviceManager" << std::endl;
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to allocate memory using DeviceManager: " << e.what() << std::endl;
+      cout << "Successfully allocated device memory using DeviceManager" << endl;
+    } catch (const exception &e) {
+      cerr << "Failed to allocate memory using DeviceManager: " << e.what() << endl;
       return;
     }
 
@@ -216,9 +216,9 @@ public:
     try {
       device_->copyToDevice(d_a, h_a.data(), bytes);
       device_->copyToDevice(d_b, h_b.data(), bytes);
-      std::cout << "Successfully copied data to device using DeviceManager" << std::endl;
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to copy data to device: " << e.what() << std::endl;
+      cout << "Successfully copied data to device using DeviceManager" << endl;
+    } catch (const exception &e) {
+      cerr << "Failed to copy data to device: " << e.what() << endl;
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
       device_->deallocateMemory(d_c);
@@ -230,83 +230,79 @@ public:
     int gridSize = (size + blockSize - 1) / blockSize;
 
     // Benchmark vector addition
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       vectorAdd<<<gridSize, blockSize, 0, stream_>>>(d_a, d_b, d_c, size);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = chrono::high_resolution_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
     double bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s
 
-    std::cout << "Vector Addition:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Bandwidth: " << std::fixed << std::setprecision(2) << bandwidth << " GB/s"
-              << std::endl;
+    cout << "Vector Addition:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
     // Benchmark vector multiplication
-    start = std::chrono::high_resolution_clock::now();
+    start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       vectorMul<<<gridSize, blockSize, 0, stream_>>>(d_a, d_b, d_c, size);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    end = std::chrono::high_resolution_clock::now();
+    end = chrono::high_resolution_clock::now();
 
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    duration = chrono::duration_cast<chrono::microseconds>(end - start);
     time_ms = duration.count() / 1000.0;
     bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s
 
-    std::cout << "Vector Multiplication:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Bandwidth: " << std::fixed << std::setprecision(2) << bandwidth << " GB/s"
-              << std::endl;
+    cout << "Vector Multiplication:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
     // Verify results using our device manager
     try {
       device_->copyToHost(h_c.data(), d_c, bytes);
-      std::cout << "Successfully copied results back to host using DeviceManager" << std::endl;
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to copy results back to host: " << e.what() << std::endl;
+      cout << "Successfully copied results back to host using DeviceManager" << endl;
+    } catch (const exception &e) {
+      cerr << "Failed to copy results back to host: " << e.what() << endl;
     }
 
     bool correct = true;
-    for (int i = 0; i < std::min(10, size); i++) {
-      if (std::abs(h_c[i] - (h_a[i] * h_b[i])) > 1e-5) {
+    for (int i = 0; i < min(10, size); i++) {
+      if (abs(h_c[i] - (h_a[i] * h_b[i])) > 1e-5) {
         correct = false;
         break;
       }
     }
-    std::cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << std::endl;
+    cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << endl;
 
     // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
       device_->deallocateMemory(d_c);
-      std::cout << "Successfully deallocated device memory using DeviceManager" << std::endl;
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to deallocate memory: " << e.what() << std::endl;
+      cout << "Successfully deallocated device memory using DeviceManager" << endl;
+    } catch (const exception &e) {
+      cerr << "Failed to deallocate memory: " << e.what() << endl;
     }
-    std::cout << std::endl;
+    cout << endl;
   }
 
   void benchmarkMathOperations(int size, int iterations = 100) {
-    std::cout << "=== Mathematical Operations Benchmark (Using Device Manager) ===" << std::endl;
-    std::cout << "Array size: " << size << " elements" << std::endl;
-    std::cout << "Device: " << device_->getName() << std::endl;
+    cout << "=== Mathematical Operations Benchmark (Using Device Manager) ===" << endl;
+    cout << "Array size: " << size << " elements" << endl;
+    cout << "Device: " << device_->getName() << endl;
 
     size_t bytes = size * sizeof(float);
 
     // Allocate and initialize host memory
-    std::vector<float> h_input(size);
+    vector<float> h_input(size);
     for (int i = 0; i < size; i++) {
       h_input[i] = static_cast<float>(i % 1000) / 1000.0f;
     }
@@ -316,16 +312,16 @@ public:
     try {
       d_input = static_cast<float *>(device_->allocateMemory(bytes));
       d_output = static_cast<float *>(device_->allocateMemory(bytes));
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to allocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to allocate memory: " << e.what() << endl;
       return;
     }
 
     // Copy data to device using our device manager
     try {
       device_->copyToDevice(d_input, h_input.data(), bytes);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to copy data to device: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to copy data to device: " << e.what() << endl;
       device_->deallocateMemory(d_input);
       device_->deallocateMemory(d_output);
       return;
@@ -336,46 +332,44 @@ public:
     int gridSize = (size + blockSize - 1) / blockSize;
 
     // Benchmark mathematical operations
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       mathOps<<<gridSize, blockSize, 0, stream_>>>(d_input, d_output, size);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = chrono::high_resolution_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
     double throughput = (size * iterations) / (duration.count() * 1e-3); // ops/second
 
-    std::cout << "Mathematical Operations:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Throughput: " << std::fixed << std::setprecision(2) << throughput / 1e9
-              << " GOp/s" << std::endl;
+    cout << "Mathematical Operations:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Throughput: " << fixed << setprecision(2) << throughput / 1e9 << " GOp/s" << endl;
 
     // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_input);
       device_->deallocateMemory(d_output);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to deallocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to deallocate memory: " << e.what() << endl;
     }
-    std::cout << std::endl;
+    cout << endl;
   }
 
   void benchmarkMatrixMultiplication(int n, int iterations = 5) {
-    std::cout << "=== Matrix Multiplication Benchmark (Using Device Manager) ===" << std::endl;
-    std::cout << "Matrix size: " << n << "x" << n << std::endl;
-    std::cout << "Device: " << device_->getName() << std::endl;
+    cout << "=== Matrix Multiplication Benchmark (Using Device Manager) ===" << endl;
+    cout << "Matrix size: " << n << "x" << n << endl;
+    cout << "Device: " << device_->getName() << endl;
 
     size_t bytes = n * n * sizeof(float);
 
     // Allocate host memory
-    std::vector<float> h_a(n * n, 1.0f);
-    std::vector<float> h_b(n * n, 2.0f);
-    std::vector<float> h_c(n * n);
+    vector<float> h_a(n * n, 1.0f);
+    vector<float> h_b(n * n, 2.0f);
+    vector<float> h_c(n * n);
 
     // Allocate device memory using our device manager
     float *d_a, *d_b, *d_c;
@@ -383,8 +377,8 @@ public:
       d_a = static_cast<float *>(device_->allocateMemory(bytes));
       d_b = static_cast<float *>(device_->allocateMemory(bytes));
       d_c = static_cast<float *>(device_->allocateMemory(bytes));
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to allocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to allocate memory: " << e.what() << endl;
       return;
     }
 
@@ -392,8 +386,8 @@ public:
     try {
       device_->copyToDevice(d_a, h_a.data(), bytes);
       device_->copyToDevice(d_b, h_b.data(), bytes);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to copy data to device: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to copy data to device: " << e.what() << endl;
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
       device_->deallocateMemory(d_c);
@@ -404,76 +398,72 @@ public:
     dim3 blockDim(16, 16);
     dim3 gridDim((n + blockDim.x - 1) / blockDim.x, (n + blockDim.y - 1) / blockDim.y);
 
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       matrixMul<<<gridDim, blockDim, 0, stream_>>>(d_a, d_b, d_c, n);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = chrono::high_resolution_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
     double gflops = (2.0 * n * n * n * iterations) / (duration.count() * 1e-3);
 
-    std::cout << "Naive Implementation:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Performance: " << std::fixed << std::setprecision(2) << gflops << " GFLOP/s"
-              << std::endl;
+    cout << "Naive Implementation:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Performance: " << fixed << setprecision(2) << gflops << " GFLOP/s" << endl;
 
     // Test shared memory implementation
-    start = std::chrono::high_resolution_clock::now();
+    start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       matrixMulShared<<<gridDim, blockDim, 0, stream_>>>(d_a, d_b, d_c, n);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    end = std::chrono::high_resolution_clock::now();
+    end = chrono::high_resolution_clock::now();
 
-    duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    duration = chrono::duration_cast<chrono::microseconds>(end - start);
     time_ms = duration.count() / 1000.0;
     gflops = (2.0 * n * n * n * iterations) / (duration.count() * 1e-3);
 
-    std::cout << "Shared Memory Implementation:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Performance: " << std::fixed << std::setprecision(2) << gflops << " GFLOP/s"
-              << std::endl;
+    cout << "Shared Memory Implementation:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Performance: " << fixed << setprecision(2) << gflops << " GFLOP/s" << endl;
 
     // Verify results using our device manager
     try {
       device_->copyToHost(h_c.data(), d_c, bytes);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to copy results back to host: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to copy results back to host: " << e.what() << endl;
     }
 
     bool correct = true;
-    for (int i = 0; i < std::min(10, n * n); i++) {
-      if (std::abs(h_c[i] - (2.0f * n)) > 1e-3) {
+    for (int i = 0; i < min(10, n * n); i++) {
+      if (abs(h_c[i] - (2.0f * n)) > 1e-3) {
         correct = false;
         break;
       }
     }
-    std::cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << std::endl;
+    cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << endl;
 
     // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
       device_->deallocateMemory(d_c);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to deallocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to deallocate memory: " << e.what() << endl;
     }
-    std::cout << std::endl;
+    cout << endl;
   }
 
   void benchmarkMemoryBandwidth(int size, int iterations = 100) {
-    std::cout << "=== Memory Bandwidth Benchmark (Using Device Manager) ===" << std::endl;
-    std::cout << "Array size: " << size << " elements" << std::endl;
-    std::cout << "Device: " << device_->getName() << std::endl;
+    cout << "=== Memory Bandwidth Benchmark (Using Device Manager) ===" << endl;
+    cout << "Array size: " << size << " elements" << endl;
+    cout << "Device: " << device_->getName() << endl;
 
     size_t bytes = size * sizeof(float);
 
@@ -482,8 +472,8 @@ public:
     try {
       d_input = static_cast<float *>(device_->allocateMemory(bytes));
       d_output = static_cast<float *>(device_->allocateMemory(bytes));
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to allocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to allocate memory: " << e.what() << endl;
       return;
     }
 
@@ -496,41 +486,39 @@ public:
     int gridSize = (size + blockSize - 1) / blockSize;
 
     // Benchmark memory copy
-    auto start = std::chrono::high_resolution_clock::now();
+    auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       memcopy<<<gridSize, blockSize, 0, stream_>>>(d_input, d_output, size);
     }
     CUDA_CHECK(cudaStreamSynchronize(stream_));
-    auto end = std::chrono::high_resolution_clock::now();
+    auto end = chrono::high_resolution_clock::now();
 
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
     double bandwidth =
         (2.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s (read + write)
 
-    std::cout << "Kernel Memory Copy:" << std::endl;
-    std::cout << "  Total time: " << std::fixed << std::setprecision(2) << time_ms << " ms"
-              << std::endl;
-    std::cout << "  Avg per kernel: " << std::fixed << std::setprecision(3) << time_ms / iterations
-              << " ms" << std::endl;
-    std::cout << "  Bandwidth: " << std::fixed << std::setprecision(2) << bandwidth << " GB/s"
-              << std::endl;
+    cout << "Kernel Memory Copy:" << endl;
+    cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
+    cout << "  Avg per kernel: " << fixed << setprecision(3) << time_ms / iterations << " ms"
+         << endl;
+    cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
     // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_input);
       device_->deallocateMemory(d_output);
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to deallocate memory: " << e.what() << std::endl;
+    } catch (const exception &e) {
+      cerr << "Failed to deallocate memory: " << e.what() << endl;
     }
-    std::cout << std::endl;
+    cout << endl;
   }
 
   void runAllBenchmarks() {
     printDeviceInfo();
 
     // Test different vector sizes
-    std::vector<int> vector_sizes = {1024, 1024 * 1024, 16 * 1024 * 1024};
+    vector<int> vector_sizes = {1024, 1024 * 1024, 16 * 1024 * 1024};
     for (int size : vector_sizes) {
       benchmarkVectorOperations(size);
       benchmarkMathOperations(size);
@@ -538,7 +526,7 @@ public:
     }
 
     // Test different matrix sizes
-    std::vector<int> matrix_sizes = {64, 128, 256, 512};
+    vector<int> matrix_sizes = {64, 128, 256, 512};
     for (int size : matrix_sizes) {
       benchmarkMatrixMultiplication(size);
     }
@@ -548,40 +536,39 @@ public:
 #endif // USE_CUDA
 
 int main() {
-  std::cout << "=== Simple CUDA Performance Test with Device Manager ===" << std::endl;
+  cout << "=== Simple CUDA Performance Test with Device Manager ===" << endl;
 
 #ifdef USE_CUDA
   // Initialize the device manager first
-  std::cout << "Initializing device manager..." << std::endl;
+  cout << "Initializing device manager..." << endl;
   try {
     initializeDefaultDevices();
-  } catch (const std::exception &e) {
-    std::cerr << "Failed to initialize device manager: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Failed to initialize device manager: " << e.what() << endl;
     return 1;
   }
 
   DeviceManager &manager = DeviceManager::getInstance();
-  std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
+  vector<string> device_ids = manager.getAvailableDeviceIDs();
 
-  std::cout << "Found " << device_ids.size() << " device(s) in device manager" << std::endl;
+  cout << "Found " << device_ids.size() << " device(s) in device manager" << endl;
 
   // List all devices
-  for (const std::string &id : device_ids) {
+  for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
-    std::cout << "  Device " << id << ": " << device.getName()
-              << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
-              << " - Total Memory: " << device.getTotalMemory() / (1024 * 1024) << " MB"
-              << std::endl;
+    cout << "  Device " << id << ": " << device.getName()
+         << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
+         << " - Total Memory: " << device.getTotalMemory() / (1024 * 1024) << " MB" << endl;
   }
 
   // Find GPU devices and test them
   bool found_gpu = false;
-  for (const std::string &id : device_ids) {
+  for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     if (device.getDeviceType() == DeviceType::GPU) {
-      std::cout << "\n" << std::string(60, '=') << std::endl;
-      std::cout << "Testing GPU Device " << id << " (" << device.getName() << ")" << std::endl;
-      std::cout << std::string(60, '=') << std::endl;
+      cout << "\n" << string(60, '=') << endl;
+      cout << "Testing GPU Device " << id << " (" << device.getName() << ")" << endl;
+      cout << string(60, '=') << endl;
 
       try {
         // Note: We're still using CUDA device ID 0 for the actual CUDA context
@@ -589,35 +576,34 @@ int main() {
         SimpleCUDABenchmark benchmark(0);
         benchmark.runAllBenchmarks();
         found_gpu = true;
-      } catch (const std::exception &e) {
-        std::cerr << "Error testing device " << id << ": " << e.what() << std::endl;
+      } catch (const exception &e) {
+        cerr << "Error testing device " << id << ": " << e.what() << endl;
       }
       break; // Test only the first GPU for now
     }
   }
 
   if (!found_gpu) {
-    std::cout << "No GPU devices found in device manager." << std::endl;
+    cout << "No GPU devices found in device manager." << endl;
 
     // Fallback to direct CUDA detection
     int deviceCount;
     cudaError_t err = cudaGetDeviceCount(&deviceCount);
     if (err != cudaSuccess || deviceCount == 0) {
-      std::cout << "No CUDA devices found or CUDA not available." << std::endl;
+      cout << "No CUDA devices found or CUDA not available." << endl;
       return 0;
     }
 
-    std::cout << "Found " << deviceCount << " CUDA device(s) directly, but not in device manager"
-              << std::endl;
-    std::cout << "This suggests the device manager initialization might need debugging."
-              << std::endl;
+    cout << "Found " << deviceCount << " CUDA device(s) directly, but not in device manager"
+         << endl;
+    cout << "This suggests the device manager initialization might need debugging." << endl;
     return 1;
   }
 
-  std::cout << "\n=== All CUDA performance tests with Device Manager completed ===" << std::endl;
+  cout << "\n=== All CUDA performance tests with Device Manager completed ===" << endl;
 
 #else
-  std::cout << "CUDA support not compiled. Please rebuild with -DENABLE_CUDA=ON" << std::endl;
+  cout << "CUDA support not compiled. Please rebuild with -DENABLE_CUDA=ON" << endl;
   return 1;
 #endif
 

@@ -4,79 +4,80 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
 int main() {
   try {
-    std::cout << "=== Device Manager Example ===" << std::endl;
+    cout << "=== Device Manager Example ===" << endl;
 
     // Initialize default devices
-    std::cout << "\nInitializing devices..." << std::endl;
+    cout << "\nInitializing devices..." << endl;
     initializeDefaultDevices();
 
     // Get device manager instance
     DeviceManager &manager = DeviceManager::getInstance();
 
     // List all available devices
-    std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
-    std::cout << "\nFound " << device_ids.size() << " device(s):" << std::endl;
+    vector<string> device_ids = manager.getAvailableDeviceIDs();
+    cout << "\nFound " << device_ids.size() << " device(s):" << endl;
 
-    for (const std::string &device_id : device_ids) {
+    for (const string &device_id : device_ids) {
       const Device &device = manager.getDevice(device_id);
-      std::cout << "  Device " << device_id << ": " << device.getName()
-                << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
-                << std::endl;
+      cout << "  Device " << device_id << ": " << device.getName()
+           << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
+           << endl;
 
       // Show memory information
       size_t total_mem = device.getTotalMemory();
       size_t avail_mem = device.getAvailableMemory();
-      std::cout << "    Memory - Total: " << total_mem / (1024 * 1024) << " MB, "
-                << "Available: " << avail_mem / (1024 * 1024) << " MB" << std::endl;
+      cout << "    Memory - Total: " << total_mem / (1024 * 1024) << " MB, "
+           << "Available: " << avail_mem / (1024 * 1024) << " MB" << endl;
     }
 
     // Test allocation on CPU device (ID 0)
     if (manager.hasDevice(0)) {
-      std::cout << "\nTesting allocation on CPU device..." << std::endl;
+      cout << "\nTesting allocation on CPU device..." << endl;
       const Device &cpu_device = manager.getDevice(0);
 
       size_t test_size = 1024 * 1024; // 1 MB
       void *ptr = cpu_device.allocateMemory(test_size);
 
       if (ptr != nullptr) {
-        std::cout << "  Successfully allocated " << test_size << " bytes" << std::endl;
+        cout << "  Successfully allocated " << test_size << " bytes" << endl;
 
         // Test memory access (CPU only)
         memset(ptr, 0xAA, test_size);
         char *char_ptr = static_cast<char *>(ptr);
         if (char_ptr[0] == (char)0xAA && char_ptr[test_size - 1] == (char)0xAA) {
-          std::cout << "  Memory access test passed" << std::endl;
+          cout << "  Memory access test passed" << endl;
         } else {
-          std::cout << "  Memory access test failed" << std::endl;
+          cout << "  Memory access test failed" << endl;
         }
 
         cpu_device.deallocateMemory(ptr);
-        std::cout << "  Successfully deallocated memory" << std::endl;
+        cout << "  Successfully deallocated memory" << endl;
       } else {
-        std::cout << "  Failed to allocate memory" << std::endl;
+        cout << "  Failed to allocate memory" << endl;
       }
     }
 
     // Test allocation on GPU device (if available)
     bool found_gpu = false;
-    for (const std::string &device_id : device_ids) {
+    for (const string &device_id : device_ids) {
       if (device_id > "0") { // Assuming GPU devices have IDs greater than 0
         const Device &device = manager.getDevice(device_id);
         if (device.getDeviceType() == DeviceType::GPU) {
-          std::cout << "\nTesting allocation on GPU device " << device_id << "..." << std::endl;
+          cout << "\nTesting allocation on GPU device " << device_id << "..." << endl;
 
           size_t test_size = 1024 * 1024 * 1024; // 1 GB
           void *ptr = device.allocateMemory(test_size);
 
           if (ptr != nullptr) {
-            std::cout << "  Successfully allocated " << test_size << " bytes on GPU" << std::endl;
+            cout << "  Successfully allocated " << test_size << " bytes on GPU" << endl;
             device.deallocateMemory(ptr);
-            std::cout << "  Successfully deallocated GPU memory" << std::endl;
+            cout << "  Successfully deallocated GPU memory" << endl;
           } else {
-            std::cout << "  Failed to allocate GPU memory" << std::endl;
+            cout << "  Failed to allocate GPU memory" << endl;
           }
           found_gpu = true;
           break;
@@ -85,13 +86,13 @@ int main() {
     }
 
     if (!found_gpu) {
-      std::cout << "\nNo GPU devices available for testing" << std::endl;
+      cout << "\nNo GPU devices available for testing" << endl;
     }
 
-    std::cout << "\n=== Example completed successfully ===" << std::endl;
+    cout << "\n=== Example completed successfully ===" << endl;
 
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error: " << e.what() << endl;
     return 1;
   }
 

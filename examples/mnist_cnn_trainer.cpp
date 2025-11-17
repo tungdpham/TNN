@@ -12,6 +12,7 @@
 #include "utils/env.hpp"
 
 using namespace tnn;
+using namespace std;
 
 namespace mnist_constants {
 
@@ -26,13 +27,13 @@ constexpr float LR_INITIAL = 0.01f;
 } // namespace mnist_constants
 
 int main() {
-  std::cin.tie(nullptr);
+  cin.tie(nullptr);
   try {
 
     // Load environment variables from .env file
-    std::cout << "Loading environment variables..." << std::endl;
+    cout << "Loading environment variables..." << endl;
     if (!load_env_file("./.env")) {
-      std::cout << "No .env file found, using default training parameters." << std::endl;
+      cout << "No .env file found, using default training parameters." << endl;
     }
 
     // Get training parameters from environment or use defaults
@@ -59,20 +60,19 @@ int main() {
     MNISTDataLoader<float> train_loader, test_loader;
 
     if (!train_loader.load_data("./data/mnist/train.csv")) {
-      std::cerr << "Failed to load training data!" << std::endl;
+      cerr << "Failed to load training data!" << endl;
       return -1;
     }
 
     if (!test_loader.load_data("./data/mnist/test.csv")) {
-      std::cerr << "Failed to load test data!" << std::endl;
+      cerr << "Failed to load test data!" << endl;
       return -1;
     }
 
-    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
-              << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
+    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
+    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
 
-    std::cout << "\nBuilding CNN model architecture" << std::endl;
+    cout << "\nBuilding CNN model architecture" << endl;
 
     auto aug_strategy =
         AugmentationBuilder<float>().contrast(0.3f, 0.15f).gaussian_noise(0.3f, 0.05f).build();
@@ -97,8 +97,8 @@ int main() {
 
     model.initialize();
 
-    // auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
-    auto optimizer = std::make_unique<SGD<float>>(lr_initial, 0.9f);
+    // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
@@ -106,11 +106,11 @@ int main() {
 
     model.print_config();
     train_classification_model(model, train_loader, test_loader, train_config);
-  } catch (const std::exception &e) {
-    std::cerr << "Error during training: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error during training: " << e.what() << endl;
     return -1;
   } catch (...) {
-    std::cerr << "Unknown error occurred during training!" << std::endl;
+    cerr << "Unknown error occurred during training!" << endl;
     return -1;
   }
 

@@ -19,6 +19,7 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
 namespace resnet_constants {
 constexpr float EPSILON = 1e-15f;
@@ -110,9 +111,9 @@ Sequential<float> build_custom_resnet() {
 int main() {
   try {
     // Load environment variables from .env file
-    std::cout << "Loading environment variables..." << std::endl;
+    cout << "Loading environment variables..." << endl;
     if (!load_env_file("./.env")) {
-      std::cout << "No .env file found, using default training parameters." << std::endl;
+      cout << "No .env file found, using default training parameters." << endl;
     }
 
     // Get training parameters from environment or use defaults
@@ -139,27 +140,26 @@ int main() {
     // Load CIFAR-10 dataset
     CIFAR10DataLoader<float> train_loader, test_loader;
 
-    std::vector<std::string> train_files;
+    vector<string> train_files;
     for (int i = 1; i <= 5; ++i) {
-      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + std::to_string(i) + ".bin");
+      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + to_string(i) + ".bin");
     }
 
     if (!train_loader.load_multiple_files(train_files)) {
-      std::cerr << "Failed to load training data!" << std::endl;
+      cerr << "Failed to load training data!" << endl;
       return -1;
     }
 
     if (!test_loader.load_multiple_files({"./data/cifar-10-batches-bin/test_batch.bin"})) {
-      std::cerr << "Failed to load test data!" << std::endl;
+      cerr << "Failed to load test data!" << endl;
       return -1;
     }
 
-    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
-              << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
+    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
+    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
 
     // Configure data augmentation for training
-    std::cout << "\nConfiguring data augmentation for training..." << std::endl;
+    cout << "\nConfiguring data augmentation for training..." << endl;
     auto aug_strategy = AugmentationBuilder<float>()
                             .horizontal_flip(0.25f)
                             .rotation(0.4f, 10.0f)
@@ -170,15 +170,15 @@ int main() {
     train_loader.set_augmentation(std::move(aug_strategy));
 
     // Build ResNet model
-    std::cout << "\nBuilding ResNet model architecture for CIFAR-10..." << std::endl;
+    cout << "\nBuilding ResNet model architecture for CIFAR-10..." << endl;
     auto model = build_resnet18(); // Use smaller ResNet - ResNet-18 is too deep
 
     model.print_summary({1, 3, 32, 32});
     model.initialize();
 
     // Set optimizer and loss function
-    // auto optimizer = std::make_unique<SGD<float>>(lr_initial, 0.9f);
-    auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
+    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
@@ -187,13 +187,13 @@ int main() {
     model.enable_profiling(true);
 
     // Train the model
-    std::cout << "\nStarting ResNet training on CIFAR-10..." << std::endl;
+    cout << "\nStarting ResNet training on CIFAR-10..." << endl;
     train_classification_model(model, train_loader, test_loader, train_config);
 
-    std::cout << "\nResNet CIFAR-10 training completed successfully!" << std::endl;
+    cout << "\nResNet CIFAR-10 training completed successfully!" << endl;
 
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error: " << e.what() << endl;
     return -1;
   }
 

@@ -10,6 +10,7 @@
 #include "utils/env.hpp"
 
 using namespace tnn;
+using namespace std;
 
 namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;
@@ -24,9 +25,9 @@ constexpr float LR_INITIAL = 0.001f;
 int main() {
   try {
     // Load environment variables from .env file
-    std::cout << "Loading environment variables..." << std::endl;
+    cout << "Loading environment variables..." << endl;
     if (!load_env_file("./.env")) {
-      std::cout << "No .env file found, using default training parameters." << std::endl;
+      cout << "No .env file found, using default training parameters." << endl;
     }
 
     // Get training parameters from environment or use defaults
@@ -60,11 +61,10 @@ int main() {
       return -1;
     }
 
-    std::cout << "Successfully loaded training data: " << train_loader.size() << " samples"
-              << std::endl;
-    std::cout << "Successfully loaded test data: " << test_loader.size() << " samples" << std::endl;
+    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
+    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
 
-    std::cout << "\nBuilding CNN model architecture for CIFAR-100..." << std::endl;
+    cout << "\nBuilding CNN model architecture for CIFAR-100..." << endl;
 
     auto model = SequentialBuilder<float>("cifar100_cnn_classifier")
                      .input({3, 32, 32})
@@ -89,7 +89,7 @@ int main() {
 
     model.initialize();
 
-    auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
@@ -97,21 +97,21 @@ int main() {
 
     model.enable_profiling(true);
 
-    std::cout << "\nStarting CIFAR-100 CNN training..." << std::endl;
+    cout << "\nStarting CIFAR-100 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, train_config);
 
-    std::cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
-                 "successfully!"
-              << std::endl;
+    cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
+            "successfully!"
+         << endl;
 
     try {
       model.save_to_file("model_snapshots/cifar100_cnn_model");
-      std::cout << "Model saved to: model_snapshots/cifar100_cnn_model" << std::endl;
-    } catch (const std::exception &save_error) {
-      std::cerr << "Warning: Failed to save model: " << save_error.what() << std::endl;
+      cout << "Model saved to: model_snapshots/cifar100_cnn_model" << endl;
+    } catch (const exception &save_error) {
+      cerr << "Warning: Failed to save model: " << save_error.what() << endl;
     }
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << std::endl;
+  } catch (const exception &e) {
+    cerr << "Error: " << e.what() << endl;
     return -1;
   }
 
