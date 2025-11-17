@@ -49,7 +49,7 @@ private:
 
 public:
   template <typename Func, typename... Args>
-  explicit CPUTask(Func &&func, const Device *device, Args &&...args) : device_(device) {
+  explicit CPUTask(const Device *device, Func &&func, Args &&...args) : device_(device) {
     auto bound_work = [f = std::forward<Func>(func),
                        args_tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
       std::apply(f, std::move(args_tuple));
@@ -102,7 +102,7 @@ private:
 
 public:
   template <typename Func, typename... Args>
-  explicit CUDATask(Func &&func, const Device *device, Args &&...args) : device_(device) {
+  explicit CUDATask(const Device *device, Func &&func, Args &&...args) : device_(device) {
     cudaStreamCreate(&stream_);
     cudaEventCreate(&event_);
 

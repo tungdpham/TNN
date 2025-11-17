@@ -16,14 +16,14 @@ namespace tnn {
 namespace ops {
 
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_cpu_task(Func &&func, const Device *device, Args &&...args) {
-  return std::make_unique<CPUTask>(std::forward<Func>(func), device, std::forward<Args>(args)...);
+std::unique_ptr<Task> create_cpu_task(const Device *device, Func &&func, Args &&...args) {
+  return std::make_unique<CPUTask>(device, std::forward<Func>(func), std::forward<Args>(args)...);
 }
 
 #ifdef USE_CUDA
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_gpu_task(Func &&func, const Device *device, Args &&...args) {
-  return std::make_unique<CUDATask>(std::forward<Func>(func), device, std::forward<Args>(args)...);
+std::unique_ptr<Task> create_gpu_task(const Device *device, Func &&func, Args &&...args) {
+  return std::make_unique<CUDATask>(device, std::forward<Func>(func), std::forward<Args>(args)...);
 }
 #endif
 
@@ -40,11 +40,11 @@ std::unique_ptr<Task> add(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::add<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::add<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_add<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_add<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -66,11 +66,11 @@ std::unique_ptr<Task> sub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::sub<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::sub<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_sub<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_sub<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -92,11 +92,11 @@ std::unique_ptr<Task> mul(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::mul<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::mul<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_mul<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_mul<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -118,11 +118,11 @@ std::unique_ptr<Task> div(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::div<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::div<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_div<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_div<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -144,11 +144,11 @@ std::unique_ptr<Task> fmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::fmadd<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::fmadd<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_fmadd<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_fmadd<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -170,11 +170,11 @@ std::unique_ptr<Task> fmsub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::fmsub<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::fmsub<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_fmsub<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_fmsub<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -196,11 +196,11 @@ std::unique_ptr<Task> fnmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b,
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::fnmadd<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::fnmadd<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_fnmadd<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_fnmadd<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -222,11 +222,11 @@ std::unique_ptr<Task> add_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::add_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_cpu_task(device, cpu::add_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_add_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_add_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #endif
   else {
@@ -249,11 +249,11 @@ std::unique_ptr<Task> mul_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::mul_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_cpu_task(device, cpu::mul_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_mul_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_mul_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #endif
   else {
@@ -275,11 +275,11 @@ std::unique_ptr<Task> div_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::div_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_cpu_task(device, cpu::div_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_div_scalar<T>, device, a.get(), scalar, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_div_scalar<T>, a.get(), scalar, c.get(), size);
   }
 #endif
   else {
@@ -296,11 +296,11 @@ template <typename T> std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T sca
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::set_scalar<T>, device, c.get(), scalar, size);
+    return create_cpu_task(device, cpu::set_scalar<T>, c.get(), scalar, size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_set_scalar<T>, device, c.get(), scalar, size);
+    return create_gpu_task(device, cuda::cuda_set_scalar<T>, c.get(), scalar, size);
   }
 #endif
   else {
@@ -321,11 +321,11 @@ std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::sqrt<T>, device, a.get(), c.get(), size);
+    return create_cpu_task(device, cpu::sqrt<T>, a.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_sqrt<T>, device, a.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_sqrt<T>, a.get(), c.get(), size);
   }
 #endif
   else {
@@ -346,11 +346,11 @@ inline std::unique_ptr<Task> rsqrt(const device_ptr<float[]> &a, device_ptr<floa
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::rsqrt<float>, device, a.get(), c.get(), size);
+    return create_cpu_task(device, cpu::rsqrt<float>, a.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_rsqrt, device, a.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_rsqrt, a.get(), c.get(), size);
   }
 #endif
   else {
@@ -371,11 +371,11 @@ inline std::unique_ptr<Task> rcp(const device_ptr<float[]> &a, device_ptr<float[
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::rcp<float>, device, a.get(), c.get(), size);
+    return create_cpu_task(device, cpu::rcp<float>, a.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_rcp, device, a.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_rcp, a.get(), c.get(), size);
   }
 #endif
   else {
@@ -396,11 +396,11 @@ std::unique_ptr<Task> abs(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t s
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::abs<T>, device, a.get(), c.get(), size);
+    return create_cpu_task(device, cpu::abs<T>, a.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_abs<T>, device, a.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_abs<T>, a.get(), c.get(), size);
   }
 #endif
   else {
@@ -422,11 +422,11 @@ std::unique_ptr<Task> min(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::min<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::min<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_min<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_min<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -448,11 +448,11 @@ std::unique_ptr<Task> max(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::max<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::max<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_max<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_max<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -474,11 +474,11 @@ std::unique_ptr<Task> scalar_max(const device_ptr<T[]> &a, T scalar, device_ptr<
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::scalar_max<T>, device, a.get(), scalar, c.get(), size);
+    return create_cpu_task(device, cpu::scalar_max<T>, a.get(), scalar, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_scalar_max<T>, device, a.get(), scalar, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_scalar_max<T>, a.get(), scalar, c.get(), size);
   }
 #endif
   else {
@@ -500,11 +500,11 @@ std::unique_ptr<Task> clamp(const device_ptr<T[]> &a, T min_val, T max_val, devi
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::clamp<T>, device, a.get(), min_val, max_val, c.get(), size);
+    return create_cpu_task(device, cpu::clamp<T>, a.get(), min_val, max_val, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_clamp<T>, device, a.get(), min_val, max_val, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_clamp<T>, a.get(), min_val, max_val, c.get(), size);
   }
 #endif
   else {
@@ -526,11 +526,11 @@ std::unique_ptr<Task> equal(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::equal<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::equal<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_equal<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_equal<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -552,11 +552,11 @@ std::unique_ptr<Task> greater(const device_ptr<T[]> &a, const device_ptr<T[]> &b
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::greater<T>, device, a.get(), b.get(), c.get(), size);
+    return create_cpu_task(device, cpu::greater<T>, a.get(), b.get(), c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_greater<T>, device, a.get(), b.get(), c.get(), size);
+    return create_gpu_task(device, cuda::cuda_greater<T>, a.get(), b.get(), c.get(), size);
   }
 #endif
   else {
@@ -582,11 +582,11 @@ std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::copy<T>, device, a.get() + a_offset, c.get() + c_offset, size);
+    return create_cpu_task(device, cpu::copy<T>, a.get() + a_offset, c.get() + c_offset, size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_copy<T>, device, a.get() + a_offset, c.get() + c_offset,
+    return create_gpu_task(device, cuda::cuda_copy<T>, a.get() + a_offset, c.get() + c_offset,
                            size);
   }
 #endif
@@ -604,11 +604,11 @@ template <typename T> std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::zero<T>, device, c.get(), size);
+    return create_cpu_task(device, cpu::zero<T>, c.get(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_zero<T>, device, c.get(), size);
+    return create_gpu_task(device, cuda::cuda_zero<T>, c.get(), size);
   }
 #endif
   else {
@@ -714,12 +714,12 @@ std::unique_ptr<Task> sub_mul_scalar(const device_ptr<T[]> &a, T sub_scalar, T m
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::sub_mul_scalar<T>, device, a.get(), sub_scalar, mul_scalar, c.get(),
+    return create_cpu_task(device, cpu::sub_mul_scalar<T>, a.get(), sub_scalar, mul_scalar, c.get(),
                            size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_sub_mul_scalar<T>, device, a.get(), sub_scalar, mul_scalar,
+    return create_gpu_task(device, cuda::cuda_sub_mul_scalar<T>, a.get(), sub_scalar, mul_scalar,
                            c.get(), size);
   }
 #endif
@@ -742,12 +742,12 @@ std::unique_ptr<Task> mul_add_scalar(const device_ptr<T[]> &a, T mul_scalar, T a
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::mul_add_scalar<T>, device, a.get(), mul_scalar, add_scalar, c.get(),
+    return create_cpu_task(device, cpu::mul_add_scalar<T>, a.get(), mul_scalar, add_scalar, c.get(),
                            size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_mul_add_scalar<T>, device, a.get(), mul_scalar, add_scalar,
+    return create_gpu_task(device, cuda::cuda_mul_add_scalar<T>, a.get(), mul_scalar, add_scalar,
                            c.get(), size);
   }
 #endif
@@ -767,12 +767,12 @@ std::unique_ptr<Task> fill_random_uniform(device_ptr<T[]> &data, size_t size, T 
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::fill_random_uniform<T>, device, data.get(), size, min_val, max_val,
+    return create_cpu_task(device, cpu::fill_random_uniform<T>, data.get(), size, min_val, max_val,
                            seed);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_fill_random_uniform<T>, device, data.get(), size, min_val,
+    return create_gpu_task(device, cuda::cuda_fill_random_uniform<T>, data.get(), size, min_val,
                            max_val, seed);
   }
 #endif
@@ -792,12 +792,12 @@ std::unique_ptr<Task> fill_random_normal(device_ptr<T[]> &data, size_t size, T m
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::fill_random_normal<T>, device, data.get(), size, mean, stddev,
+    return create_cpu_task(device, cpu::fill_random_normal<T>, data.get(), size, mean, stddev,
                            seed);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_fill_random_normal<T>, device, data.get(), size, mean, stddev,
+    return create_gpu_task(device, cuda::cuda_fill_random_normal<T>, data.get(), size, mean, stddev,
                            seed);
   }
 #endif
@@ -821,11 +821,11 @@ std::unique_ptr<Task> transpose_2d(const device_ptr<T[]> &input, device_ptr<T[]>
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::transpose_2d<T>, device, input.get(), output.get(), rows, cols);
+    return create_cpu_task(device, cpu::transpose_2d<T>, input.get(), output.get(), rows, cols);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_transpose_2d<T>, device, input.get(), output.get(), rows,
+    return create_gpu_task(device, cuda::cuda_transpose_2d<T>, input.get(), output.get(), rows,
                            cols);
   }
 #endif
@@ -849,11 +849,11 @@ std::unique_ptr<Task> nchw_to_cnhw(const device_ptr<T[]> &input, device_ptr<T[]>
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::nchw_to_cnhw<T>, device, input.get(), output.get(), n, c, h, w);
+    return create_cpu_task(device, cpu::nchw_to_cnhw<T>, input.get(), output.get(), n, c, h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_nchw_to_cnhw<T>, device, input.get(), output.get(), n, c, h,
+    return create_gpu_task(device, cuda::cuda_nchw_to_cnhw<T>, input.get(), output.get(), n, c, h,
                            w);
   }
 #endif
@@ -875,11 +875,11 @@ std::unique_ptr<Task> cnhw_to_nchw(const device_ptr<T[]> &input, device_ptr<T[]>
   auto device_type = device->getDeviceType();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(cpu::cnhw_to_nchw<T>, device, input.get(), output.get(), n, c, h, w);
+    return create_cpu_task(device, cpu::cnhw_to_nchw<T>, input.get(), output.get(), n, c, h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(cuda::cuda_cnhw_to_nchw<T>, device, input.get(), output.get(), n, c, h,
+    return create_gpu_task(device, cuda::cuda_cnhw_to_nchw<T>, input.get(), output.get(), n, c, h,
                            w);
   }
 #endif
