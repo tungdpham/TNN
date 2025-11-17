@@ -11,7 +11,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace batchnorm {
 template <typename T>
 void compute_channel_mean(const T *input_data, T *mean_data, size_t batch_size, size_t channels,
                           size_t spatial_size) {
@@ -152,5 +152,6 @@ template void compute_affine_gradients_optimized<double>(const double *gradient_
                                                          size_t batch_size, size_t channels,
                                                          size_t spatial_size);
 
+} // namespace batchnorm
 } // namespace cpu
 } // namespace tnn

@@ -184,13 +184,13 @@ void Conv2DLayer<T>::compute_conv_forward(const device_ptr<T[]> &col_data,
   }
 
   if (col_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(), output_size,
-                              kernel_size, out_channels);
+    cpu::conv2d::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(),
+                                      output_size, kernel_size, out_channels);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(), output_size,
-                               kernel_size, out_channels);
+    cuda::conv2d::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(),
+                                       output_size, kernel_size, out_channels);
   }
 #endif
   auto conv_end = std::chrono::high_resolution_clock::now();
@@ -213,13 +213,15 @@ void Conv2DLayer<T>::compute_weight_gradients(const device_ptr<T[]> &col_data,
   }
 
   if (col_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_weight_gradients(col_data.get(), gradient_data.get(), weight_grad_data.get(),
-                                  output_size, kernel_size, out_channels);
+    cpu::conv2d::compute_weight_gradients(col_data.get(), gradient_data.get(),
+                                          weight_grad_data.get(), output_size, kernel_size,
+                                          out_channels);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_weight_gradients(col_data.get(), gradient_data.get(), weight_grad_data.get(),
-                                   output_size, kernel_size, out_channels);
+    cuda::conv2d::compute_weight_gradients(col_data.get(), gradient_data.get(),
+                                           weight_grad_data.get(), output_size, kernel_size,
+                                           out_channels);
   }
 #endif
   auto wg_end = std::chrono::high_resolution_clock::now();
@@ -242,13 +244,15 @@ void Conv2DLayer<T>::compute_input_gradients(const device_ptr<T[]> &gradient_dat
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_input_gradients(gradient_data.get(), weight_data.get(), col_grad_data.get(),
-                                 output_size, kernel_size, out_channels);
+    cpu::conv2d::compute_input_gradients(gradient_data.get(), weight_data.get(),
+                                         col_grad_data.get(), output_size, kernel_size,
+                                         out_channels);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_input_gradients(gradient_data.get(), weight_data.get(), col_grad_data.get(),
-                                  output_size, kernel_size, out_channels);
+    cuda::conv2d::compute_input_gradients(gradient_data.get(), weight_data.get(),
+                                          col_grad_data.get(), output_size, kernel_size,
+                                          out_channels);
   }
 #endif
   auto ig_end = std::chrono::high_resolution_clock::now();
@@ -269,13 +273,13 @@ void Conv2DLayer<T>::compute_bias_gradients(const device_ptr<T[]> &gradient_data
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size, output_h,
-                                output_w, out_channels);
+    cpu::conv2d::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size,
+                                        output_h, output_w, out_channels);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size, output_h,
-                                 output_w, out_channels);
+    cuda::conv2d::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size,
+                                         output_h, output_w, out_channels);
   }
 #endif
 }
@@ -290,13 +294,13 @@ void Conv2DLayer<T>::add_bias_to_output(device_ptr<T[]> &output_data,
   }
 
   if (output_data.getDeviceType() == DeviceType::CPU) {
-    cpu::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h, output_w,
-                            out_channels);
+    cpu::conv2d::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h,
+                                    output_w, out_channels);
   }
 #ifdef USE_CUDA
   else {
-    cuda::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h, output_w,
-                             out_channels);
+    cuda::conv2d::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h,
+                                     output_w, out_channels);
   }
 #endif
 }

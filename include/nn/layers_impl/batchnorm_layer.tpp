@@ -317,13 +317,13 @@ void BatchNormLayer<T>::compute_channel_mean(const device_ptr<T[]> &input_data,
   }
 
   if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
-                              spatial_size);
+    cpu::batchnorm::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
+                                         spatial_size);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
-                               spatial_size);
+    cuda::batchnorm::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
+                                          spatial_size);
   }
 #endif
 }
@@ -339,13 +339,13 @@ void BatchNormLayer<T>::compute_channel_variance(const device_ptr<T[]> &input_da
   }
 
   if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(), batch_size,
-                                  channels, spatial_size);
+    cpu::batchnorm::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(),
+                                             batch_size, channels, spatial_size);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(), batch_size,
-                                   channels, spatial_size);
+    cuda::batchnorm::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(),
+                                              batch_size, channels, spatial_size);
   }
 #endif
 }
@@ -370,14 +370,14 @@ void BatchNormLayer<T>::normalize_and_scale_optimized(
   }
 
   if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::normalize_and_scale_optimized(
+    cpu::batchnorm::normalize_and_scale_optimized(
         input_data.get(), mean_data.get(), std_data.get(), affine ? gamma_data.get() : nullptr,
         affine ? beta_data.get() : nullptr, output_data.get(), normalized_data.get(), batch_size,
         channels, spatial_size, affine);
   }
 #ifdef USE_CUDA
   else {
-    cuda::normalize_and_scale_optimized(
+    cuda::batchnorm::normalize_and_scale_optimized(
         input_data.get(), mean_data.get(), std_data.get(), affine ? gamma_data.get() : nullptr,
         affine ? beta_data.get() : nullptr, output_data.get(), normalized_data.get(), batch_size,
         channels, spatial_size, affine);
@@ -399,15 +399,15 @@ void BatchNormLayer<T>::compute_affine_gradients_optimized(const device_ptr<T[]>
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
-                                            gamma_grad.get(), beta_grad.get(), batch_size, channels,
-                                            spatial_size);
+    cpu::batchnorm::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
+                                                       gamma_grad.get(), beta_grad.get(),
+                                                       batch_size, channels, spatial_size);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
-                                             gamma_grad.get(), beta_grad.get(), batch_size,
-                                             channels, spatial_size);
+    cuda::batchnorm::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
+                                                        gamma_grad.get(), beta_grad.get(),
+                                                        batch_size, channels, spatial_size);
   }
 #endif
 }

@@ -12,7 +12,7 @@ namespace cpu {
 
 template <typename T>
 void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
-          const bool trans_A, const bool trans_B, const T alpha = T(1.0), const T beta = T(1.0)) {
+          const bool trans_A, const bool trans_B, const T alpha, const T beta) {
 #ifdef USE_MKL
   char transa = trans_A ? 'T' : 'N';
   char transb = trans_B ? 'T' : 'N';

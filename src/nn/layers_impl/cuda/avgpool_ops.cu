@@ -10,7 +10,7 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace avgpool {
 template <typename T>
 __global__ void compute_avg_pool_forward_kernel(const T *input_data, T *output_data,
                                                 size_t batch_size, size_t channels, size_t input_h,
@@ -43,7 +43,8 @@ __global__ void compute_avg_pool_forward_kernel(const T *input_data, T *output_d
   }
 
   output_data[idx] = sum * pool_size_inv;
-}
+} // namespace avgpooltemplate<typenameT>__global__void
+  // compute_avg_pool_forward_kernel(constT*input_data,T*output_data,size_tbatch_size,size_tchannels,size_tinput_h,size_tinput_w,size_toutput_h,size_toutput_w,size_tpool_h,size_tpool_w,size_tstride_h,size_tstride_w,Tpool_size_inv)
 
 template <typename T>
 __global__ void compute_avg_pool_backward_kernel(const T *gradient_data, T *grad_input_data,
@@ -136,6 +137,6 @@ template void compute_avg_pool_backward<double>(const double *gradient_data,
                                                 size_t channels, size_t input_h, size_t input_w,
                                                 size_t output_h, size_t output_w, size_t pool_h,
                                                 size_t pool_w, size_t stride_h, size_t stride_w);
-
+} // namespace avgpool
 } // namespace cuda
 } // namespace tnn

@@ -4,6 +4,7 @@
 
 namespace tnn {
 namespace cuda {
+namespace conv2d {
 template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
@@ -26,5 +27,6 @@ void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const siz
 template <typename T>
 void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
                         const size_t output_h, const size_t output_w, const size_t out_channels);
+} // namespace conv2d
 } // namespace cuda
 } // namespace tnn

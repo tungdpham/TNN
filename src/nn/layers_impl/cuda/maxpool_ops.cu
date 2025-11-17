@@ -11,7 +11,7 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace maxpool {
 template <typename T>
 __global__ void compute_max_pool_forward_kernel(const T *input_data, T *output_data,
                                                 size_t batch_size, size_t channels, size_t input_h,
@@ -144,5 +144,6 @@ template void compute_max_pool_backward<double>(const double *gradient_data,
                                                 size_t channels, size_t output_h, size_t output_w,
                                                 const std::vector<size_t> &mask_indices);
 
+} // namespace maxpool
 } // namespace cuda
 } // namespace tnn

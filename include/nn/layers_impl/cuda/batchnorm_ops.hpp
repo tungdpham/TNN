@@ -4,6 +4,7 @@
 
 namespace tnn {
 namespace cuda {
+namespace batchnorm {
 template <typename T>
 void compute_channel_mean(const T *input_data, T *mean_data, size_t batch_size, size_t channels,
                           size_t spatial_size);
@@ -23,5 +24,6 @@ void compute_affine_gradients_optimized(const T *gradient_data, const T *normali
                                         T *gamma_grad, T *beta_grad, size_t batch_size,
                                         size_t channels, size_t spatial_size);
 
+} // namespace batchnorm
 } // namespace cuda
 } // namespace tnn

@@ -14,7 +14,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace conv2d {
 template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
@@ -38,7 +38,7 @@ void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weig
                              static_cast<MKL_INT>(output_size));
 #else
   gemm(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size, false,
-       true);
+       true, T(1.0), T(1.0));
 #endif
 }
 
@@ -53,7 +53,7 @@ void compute_input_gradients(const T *gradient_data, const T *weight_data, T *co
 #else
   ops::cpu::set_scalar(col_grad_data, T(0), kernel_size * output_size);
   gemm(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels, true,
-       false);
+       false, T(1.0), T(1.0));
 #endif
 }
 
@@ -105,5 +105,6 @@ template void add_bias_to_output<float>(float *output_data, const float *bias_da
                                         const size_t batch_size, const size_t output_h,
                                         const size_t output_w, const size_t out_channels);
 
+} // namespace conv2d
 } // namespace cpu
 } // namespace tnn

@@ -14,7 +14,7 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace conv2d {
 template <typename T>
 __global__ void add_bias_kernel(T *output_data, const T *bias_data, size_t batch_size,
                                 size_t output_h, size_t output_w, size_t out_channels) {
@@ -24,7 +24,6 @@ __global__ void add_bias_kernel(T *output_data, const T *bias_data, size_t batch
   if (idx >= total_size)
     return;
 
-  int n = idx / (out_channels * output_h * output_w);
   int remaining = idx % (out_channels * output_h * output_w);
   int c = remaining / (output_h * output_w);
 
@@ -129,5 +128,6 @@ template void add_bias_to_output<float>(float *output_data, const float *bias_da
                                         const size_t batch_size, const size_t output_h,
                                         const size_t output_w, const size_t out_channels);
 
+} // namespace conv2d
 } // namespace cuda
 } // namespace tnn

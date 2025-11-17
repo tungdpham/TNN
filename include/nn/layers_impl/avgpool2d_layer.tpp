@@ -101,15 +101,15 @@ void AvgPool2DLayer<T>::compute_avg_pool_forward(const device_ptr<T[]> &input_da
   }
 
   if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_avg_pool_forward<T>(input_data.get(), output_data.get(), batch_size, channels,
-                                     input_h, input_w, output_h, output_w, pool_h_, pool_w_,
-                                     stride_h_, stride_w_);
+    cpu::avgpool::compute_avg_pool_forward<T>(input_data.get(), output_data.get(), batch_size,
+                                              channels, input_h, input_w, output_h, output_w,
+                                              pool_h_, pool_w_, stride_h_, stride_w_);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_avg_pool_forward<T>(input_data.get(), output_data.get(), batch_size, channels,
-                                      input_h, input_w, output_h, output_w, pool_h_, pool_w_,
-                                      stride_h_, stride_w_);
+    cuda::avgpool::compute_avg_pool_forward<T>(input_data.get(), output_data.get(), batch_size,
+                                               channels, input_h, input_w, output_h, output_w,
+                                               pool_h_, pool_w_, stride_h_, stride_w_);
   }
 #endif
 }
@@ -125,15 +125,15 @@ void AvgPool2DLayer<T>::compute_avg_pool_backward(const device_ptr<T[]> &gradien
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::compute_avg_pool_backward<T>(gradient_data.get(), grad_input_data.get(), batch_size,
-                                      channels, input_h, input_w, output_h, output_w, pool_h_,
-                                      pool_w_, stride_h_, stride_w_);
+    cpu::avgpool::compute_avg_pool_backward<T>(gradient_data.get(), grad_input_data.get(),
+                                               batch_size, channels, input_h, input_w, output_h,
+                                               output_w, pool_h_, pool_w_, stride_h_, stride_w_);
   }
 #ifdef USE_CUDA
   else {
-    cuda::compute_avg_pool_backward<T>(gradient_data.get(), grad_input_data.get(), batch_size,
-                                       channels, input_h, input_w, output_h, output_w, pool_h_,
-                                       pool_w_, stride_h_, stride_w_);
+    cuda::avgpool::compute_avg_pool_backward<T>(gradient_data.get(), grad_input_data.get(),
+                                                batch_size, channels, input_h, input_w, output_h,
+                                                output_w, pool_h_, pool_w_, stride_h_, stride_w_);
   }
 #endif
 }

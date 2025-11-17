@@ -12,7 +12,7 @@
 
 namespace tnn {
 namespace cpu {
-
+namespace maxpool {
 template <typename T>
 void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_size,
                               size_t channels, size_t input_h, size_t input_w, size_t output_h,
@@ -85,5 +85,6 @@ template void compute_max_pool_backward<double>(const double *gradient_data,
                                                 size_t channels, size_t output_h, size_t output_w,
                                                 const std::vector<size_t> &mask_indices);
 
+} // namespace maxpool
 } // namespace cpu
 } // namespace tnn

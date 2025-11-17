@@ -11,7 +11,7 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace dense {
 // Helper function to get cuBLAS handle (this should be managed globally)
 static cublasHandle_t get_cublas_handle() {
   static cublasHandle_t handle = nullptr;
@@ -184,6 +184,6 @@ template void add_bias_vector<float>(float *output_data, const float *bias_data,
                                      const size_t batch_size, const size_t output_features);
 template void add_bias_vector<double>(double *output_data, const double *bias_data,
                                       const size_t batch_size, const size_t output_features);
-
+} // namespace dense
 } // namespace cuda
 } // namespace tnn
