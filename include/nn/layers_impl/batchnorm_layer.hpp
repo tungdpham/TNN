@@ -66,6 +66,34 @@ private:
   void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
                                  size_t &height, size_t &width, size_t &spatial_size);
 
+  // Device-agnostic wrapper functions
+  void compute_batch_std_wrapper(const device_ptr<T[]> &batch_var_data,
+                                 device_ptr<T[]> &batch_std_data, size_t channels, T epsilon);
+  void update_running_stats_wrapper(device_ptr<T[]> &running_mean_data,
+                                    device_ptr<T[]> &running_var_data,
+                                    const device_ptr<T[]> &batch_mean_data,
+                                    const device_ptr<T[]> &batch_var_data, size_t channels,
+                                    T momentum);
+  void compute_inference_output_wrapper(
+      const device_ptr<T[]> &input_data, const device_ptr<T[]> &running_mean_data,
+      const device_ptr<T[]> &running_var_data, const device_ptr<T[]> &gamma_data,
+      const device_ptr<T[]> &beta_data, device_ptr<T[]> &output_data, size_t batch_size,
+      size_t channels, size_t spatial_size, T epsilon, bool affine);
+  void compute_grad_normalized_wrapper(const device_ptr<T[]> &gradient_data,
+                                       const device_ptr<T[]> &gamma_data,
+                                       device_ptr<T[]> &grad_normalized_data, size_t batch_size,
+                                       size_t channels, size_t spatial_size, bool affine);
+  void compute_backward_sums_wrapper(const device_ptr<T[]> &grad_normalized_data,
+                                     const device_ptr<T[]> &normalized_data,
+                                     device_ptr<T[]> &sum_grad_normalized_data,
+                                     device_ptr<T[]> &sum_grad_norm_times_norm_data,
+                                     size_t batch_size, size_t channels, size_t spatial_size);
+  void compute_input_gradients_batchnorm_wrapper(
+      const device_ptr<T[]> &grad_normalized_data, const device_ptr<T[]> &normalized_data,
+      const device_ptr<T[]> &std_data, const device_ptr<T[]> &sum_grad_normalized_data,
+      const device_ptr<T[]> &sum_grad_norm_times_norm_data, device_ptr<T[]> &grad_input_data,
+      size_t batch_size, size_t channels, size_t spatial_size, size_t total_elements);
+
 public:
   explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
                           bool affine = true, const std::string &name = "batchnorm");
