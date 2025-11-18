@@ -42,13 +42,13 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Should have at least CPU device
-  EXPECT_TRUE(manager.hasDevice("CPU0"));
+  EXPECT_TRUE(manager.hasDevice("CPU:0"));
 
   std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
   EXPECT_GE(device_ids.size(), 1);
 
-  // Check that device "CPU0" is CPU
-  const Device &cpu_device = manager.getDevice("CPU0");
+  // Check that device "CPU:0" is CPU
+  const Device &cpu_device = manager.getDevice("CPU:0");
   EXPECT_EQ(cpu_device.getDeviceType(), DeviceType::CPU);
 }
 
@@ -56,8 +56,8 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
 TEST_F(DeviceManagerTest, CPUDeviceAllocation) {
   DeviceManager &manager = DeviceManager::getInstance();
 
-  ASSERT_TRUE(manager.hasDevice("CPU0"));
-  const Device &cpu_device = manager.getDevice("CPU0");
+  ASSERT_TRUE(manager.hasDevice("CPU:0"));
+  const Device &cpu_device = manager.getDevice("CPU:0");
 
   // Test basic allocation
   size_t size = 1024;
@@ -113,7 +113,7 @@ TEST_F(DeviceManagerTest, DeviceManagerUtilities) {
   }
 
   // Test with non-existent device
-  EXPECT_FALSE(manager.hasDevice("GPU9999"));
+  EXPECT_FALSE(manager.hasDevice("GPU:9999"));
 }
 
 // Test device removal
@@ -142,10 +142,10 @@ TEST_F(DeviceManagerTest, ErrorConditions) {
   DeviceManager &manager = DeviceManager::getInstance();
 
   // Test getting non-existent device
-  EXPECT_THROW(manager.getDevice("GPU9999"), std::runtime_error);
+  EXPECT_THROW(manager.getDevice("GPU:9999"), std::runtime_error);
 
   // Test removing non-existent device (should not throw)
-  EXPECT_NO_THROW(manager.removeDevice("GPU9999"));
+  EXPECT_NO_THROW(manager.removeDevice("GPU:9999"));
 }
 
 // Test clear devices

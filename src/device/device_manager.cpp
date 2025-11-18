@@ -65,7 +65,7 @@ DeviceManager::~DeviceManager() = default;
 void DeviceManager::addDevice(Device &&device) {
   std::string device_type = (device.getDeviceType() == DeviceType::CPU) ? "CPU" : "GPU";
   int id = device.getID();
-  devices_.emplace(device_type + std::to_string(id), std::move(device));
+  devices_.emplace(device_type + ":" + std::to_string(id), std::move(device));
 }
 
 void DeviceManager::removeDevice(std::string id) { devices_.erase(id); }
