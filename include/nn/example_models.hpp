@@ -111,6 +111,7 @@ Sequential<float> create_resnet18_cifar10() {
                    .basic_residual_block(256, 512, 2, "layer4_block1")
                    .basic_residual_block(512, 512, 1, "layer4_block2")
                    // Global average pooling and classifier
+                   .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
                    .flatten("flatten")
                    .dense(10, "linear", true, "fc")
                    .build();

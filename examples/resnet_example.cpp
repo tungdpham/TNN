@@ -8,6 +8,7 @@
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "nn/blocks.hpp"
+#include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -30,83 +31,6 @@ constexpr int LR_DECAY_INTERVAL = 5;
 constexpr float LR_DECAY_FACTOR = 0.85f;
 constexpr float LR_INITIAL = 0.0005f;
 } // namespace resnet_constants
-
-/**
- * @brief Build ResNet-18 architecture adapted for CIFAR-10 (32x32 images)
- */
-Sequential<float> build_resnet18() {
-  SequentialBuilder<float> builder("ResNet-18-CIFAR10");
-  builder
-      .input({3, 32, 32})
-      // Initial conv layer - adjusted for smaller input size
-      .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
-      .batchnorm(1e-5, 0.1, true, "bn1")
-      .activation("relu")
-      .basic_residual_block(64, 64, 1, "layer1_block1")
-      .basic_residual_block(64, 64, 1, "layer1_block2")
-      .basic_residual_block(64, 128, 2, "layer2_block1")
-      .basic_residual_block(128, 128, 1, "layer2_block2")
-      .basic_residual_block(128, 256, 2, "layer3_block1")
-      .basic_residual_block(256, 256, 1, "layer3_block2")
-      .basic_residual_block(256, 512, 2, "layer4_block1")
-      .basic_residual_block(512, 512, 1, "layer4_block2");
-
-  // Classifier - 10 classes for CIFAR-10
-  builder.flatten("flatten").dense(10, "none", true, "fc");
-
-  return builder.build();
-}
-
-/**
- * @brief Build a smaller ResNet for CIFAR-10 (32x32 images)
- */
-Sequential<float> build_small_resnet() {
-  SequentialBuilder<float> builder("Small-ResNet-CIFAR10");
-  builder.input({3, 32, 32})
-      .conv2d(16, 3, 3, 1, 1, 1, 1, true, "conv1")
-      .batchnorm()
-      .activation("relu")
-      .basic_residual_block(16, 32, 2, "res_block1")
-      .basic_residual_block(32, 64, 2, "res_block2")
-      .basic_residual_block(64, 64, 1, "res_block3");
-
-  builder.flatten().dense(10, "none", true, "fc");
-
-  return builder.build();
-}
-
-/**
- * @brief Demonstrate custom residual block construction
- */
-Sequential<float> build_custom_resnet() {
-  SequentialBuilder<float> builder("Custom-ResNet");
-  builder.input({3, 64, 64})
-      .conv2d(32, 3, 3, 1, 1, 1, 1, true, "conv1")
-      .batchnorm()
-      .activation("relu");
-
-  auto current_shape = builder.get_current_shape();
-  auto main_path = LayerBuilder<float>()
-                       .input({32, current_shape[1], current_shape[2]})
-                       .conv2d(32, 3, 3, 1, 1, 1, 1, false)
-                       .batchnorm()
-                       .activation("relu")
-                       .conv2d(64, 3, 3, 2, 2, 1, 1, false)
-                       .batchnorm()
-                       .build();
-
-  auto shortcut = LayerBuilder<float>()
-                      .input({32, current_shape[1], current_shape[2]})
-                      .conv2d(64, 1, 1, 2, 2, 0, 0, false, "proj_shortcut")
-                      .build();
-
-  builder.residual(std::move(main_path), std::move(shortcut[0]), "relu", "custom_residual_1")
-      .basic_residual_block(64, 64, 1, "res_block2")
-      .flatten()
-      .dense(10, "none", true, "fc");
-
-  return builder.build();
-}
 
 int main() {
   try {
@@ -171,7 +95,7 @@ int main() {
 
     // Build ResNet model
     cout << "\nBuilding ResNet model architecture for CIFAR-10..." << endl;
-    auto model = build_resnet18(); // Use smaller ResNet - ResNet-18 is too deep
+    auto model = create_resnet18_cifar10(); // Use smaller ResNet - ResNet-18 is too deep
 
     model.print_summary({1, 3, 32, 32});
     model.initialize();

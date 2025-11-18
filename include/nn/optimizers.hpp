@@ -131,15 +131,12 @@ public:
     const T step_size = this->learning_rate_ / bias_correction1;
 
     parallel_for<size_t>(0, params.size(), [&](size_t i) {
-      std::cout << "Updating parameter " << i << std::endl;
       m_[i] *= beta1_;
       m_[i] += (*grads[i]) * one_minus_beta1;
-      std::cout << "m updated." << std::endl;
 
       Tensor<T> grad_sq = (*grads[i]) * (*grads[i]);
       v_[i] *= beta2_;
       v_[i] += grad_sq * one_minus_beta2;
-      std::cout << "v updated." << std::endl;
 
       T *param_data = params[i]->data_ptr().get();
       const T *m_data = m_[i].data_ptr().get();
@@ -148,7 +145,6 @@ public:
         param_data[j] -=
             step_size * m_data[j] / (std::sqrt(v_data[j] / bias_correction2) + epsilon_);
       }
-      std::cout << "Parameter " << i << " updated." << std::endl;
     });
   }
 
