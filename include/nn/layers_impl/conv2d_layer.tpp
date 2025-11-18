@@ -109,7 +109,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
                        out_channels_);
   }
 
-  return output.to_cpu();
+  return output;
 }
 
 template <typename T>
@@ -167,7 +167,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
          input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
-  return grad_input.to_cpu();
+  return grad_input;
 }
 
 template <typename T>
