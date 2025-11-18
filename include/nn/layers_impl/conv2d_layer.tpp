@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 #pragma once
-#include "device/device.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 
 #include <chrono>

@@ -29,7 +29,7 @@ constexpr int EPOCHS = 10;
 constexpr size_t BATCH_SIZE = 32;
 constexpr int LR_DECAY_INTERVAL = 5;
 constexpr float LR_DECAY_FACTOR = 0.85f;
-constexpr float LR_INITIAL = 0.0005f;
+constexpr float LR_INITIAL = 0.01f;
 } // namespace resnet_constants
 
 int main() {
@@ -90,6 +90,7 @@ int main() {
                             .brightness(0.3f, 0.15f)
                             .contrast(0.3f, 0.15f)
                             .gaussian_noise(0.3f, 0.05f)
+                            .random_crop(0.4f, 4)
                             .build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
@@ -101,8 +102,8 @@ int main() {
     model.initialize();
 
     // Set optimizer and loss function
-    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
+    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();

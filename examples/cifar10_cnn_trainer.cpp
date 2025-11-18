@@ -78,6 +78,7 @@ int main() {
                             .brightness(0.3f, 0.15f)
                             .contrast(0.3f, 0.15f)
                             .gaussian_noise(0.3f, 0.05f)
+                            .random_crop(0.4f, 4)
                             .build();
     train_loader.set_augmentation(std::move(aug_strategy));
 

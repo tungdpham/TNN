@@ -385,29 +385,6 @@ public:
       throw std::runtime_error("Input shape must be set before building block. "
                                "Use .input() method.");
     }
-    try {
-      std::vector<size_t> shape_with_batch = {1};
-      shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
-
-      std::vector<size_t> output_shape = get_current_shape();
-      std::cout << "Block built successfully. Input shape (without batch): (";
-      for (size_t i = 0; i < input_shape_.size(); ++i) {
-        if (i > 0)
-          std::cout << ", ";
-        std::cout << input_shape_[i];
-      }
-      std::cout << ") -> Output shape (without batch): (";
-
-      for (size_t i = 1; i < output_shape.size(); ++i) {
-        if (i > 1)
-          std::cout << ", ";
-        std::cout << output_shape[i];
-      }
-      std::cout << ")" << std::endl;
-    } catch (const std::exception &e) {
-      throw std::runtime_error("Shape inference failed during build: " + std::string(e.what()));
-    }
-
     return std::move(layers_);
   }
 

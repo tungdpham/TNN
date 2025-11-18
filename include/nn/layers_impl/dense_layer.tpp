@@ -22,20 +22,7 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
                           std::unique_ptr<ActivationFunction<T>> activation, bool use_bias,
                           const std::string &name)
     : ParameterizedLayer<T>(name), input_features_(input_features),
-      output_features_(output_features), use_bias_(use_bias), activation_(std::move(activation)) {
-  weights_ = Tensor<T>({output_features, input_features, 1, 1});
-  weight_gradients_ = Tensor<T>({output_features, input_features, 1, 1});
-
-  if (use_bias_) {
-    bias_ = Tensor<T>({output_features, 1, 1, 1});
-    bias_gradients_ = Tensor<T>({output_features, 1, 1, 1});
-  }
-
-  T fan_in = static_cast<T>(input_features);
-  T fan_out = static_cast<T>(output_features);
-  T std_dev = std::sqrt(T(2.0) / (fan_in + fan_out));
-  weights_.fill_random_normal(T(0), std_dev);
-}
+      output_features_(output_features), use_bias_(use_bias), activation_(std::move(activation)) {}
 
 template <typename T> void DenseLayer<T>::initialize_params() {
   weights_ = Tensor<T>({output_features_, input_features_, 1, 1});

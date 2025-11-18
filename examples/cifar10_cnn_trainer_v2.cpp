@@ -78,6 +78,7 @@ int main() {
                             .brightness(0.3f, 0.15f)
                             .contrast(0.3f, 0.15f)
                             .gaussian_noise(0.3f, 0.05f)
+                            .random_crop(0.4f, 4)
                             .build();
     cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(aug_strategy));
@@ -115,7 +116,7 @@ int main() {
                      .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv8")
                      .batchnorm(1e-5f, 0.1f, true, "bn9")
                      .activation("relu", "relu8")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv9")
+                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv9")
                      .batchnorm(1e-5f, 0.1f, true, "bn10")
                      .activation("relu", "relu9")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
@@ -136,16 +137,16 @@ int main() {
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
-    // Load pre-trained weights if available
-    const string pretrained_weights_file = "./model_snapshots/" + model.name() + ".bin";
-    if (ifstream(pretrained_weights_file)) {
-      cout << "\nLoading pre-trained model weights from " << pretrained_weights_file << " ..."
-           << endl;
-      model.load_weights_file(pretrained_weights_file);
-      cout << "Successfully loaded pre-trained model weights." << endl;
-    } else {
-      cout << "\nNo pre-trained weights file found. Training model from scratch." << endl;
-    }
+    // // Load pre-trained weights if available
+    // const string pretrained_weights_file = "./model_snapshots/" + model.name() + ".bin";
+    // if (ifstream(pretrained_weights_file)) {
+    //   cout << "\nLoading pre-trained model weights from " << pretrained_weights_file << " ..."
+    //        << endl;
+    //   model.load_weights_file(pretrained_weights_file);
+    //   cout << "Successfully loaded pre-trained model weights." << endl;
+    // } else {
+    //   cout << "\nNo pre-trained weights file found. Training model from scratch." << endl;
+    // }
 
     model.enable_profiling(true);
 
