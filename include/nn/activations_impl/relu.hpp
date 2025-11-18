@@ -10,11 +10,8 @@
 
 namespace tnn {
 template <typename T = float> class ReLU : public ActivationFunction<T> {
-private:
-  T negative_slope_;
-
 public:
-  explicit ReLU(T negative_slope = T(0));
+  explicit ReLU();
 
   void apply(Tensor<T> &tensor) const override;
 

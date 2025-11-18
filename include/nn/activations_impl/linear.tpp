@@ -4,15 +4,13 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-
+#pragma once
 #include "nn/activations_impl/base_activation.hpp"
 #include "nn/activations_impl/linear.hpp"
 #include "tensor/tensor.hpp"
-#include "threading/thread_handler.hpp"
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace tnn {
 template <typename T> void Linear<T>::apply(Tensor<T> &tensor) const { (void)tensor; }
