@@ -27,19 +27,19 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
       pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {
-  device_ = &getCPU();
-  temp_output_buffer_ = make_array_ptr<T[]>(device_, 0);
-  temp_gradient_buffer_ = make_array_ptr<T[]>(device_, 0);
-  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(device_, 0);
+  this->device_ = &getCPU();
+  temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+  temp_gradient_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(this->device_, 0);
 }
 
 template <typename T> void Conv2DLayer<T>::initialize_params() {
-  weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, device_);
-  weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, device_);
+  weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
+  weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
 
   if (use_bias_) {
-    bias_ = Tensor<T>({out_channels_, 1, 1, 1}, device_);
-    bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, device_);
+    bias_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
+    bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
   }
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
@@ -59,7 +59,8 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  const Tensor<T> &current = (input.device() == device_) ? input : input.to_device(device_);
+  const Tensor<T> &current =
+      (input.device() == this->device_) ? input : input.to_device(this->device_);
 
   micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(),
                                                input.width()};
@@ -78,7 +79,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   // Ensure per-microbatch col buffer is allocated
   auto col_buffer_it = micro_batch_col_buffers_.find(micro_batch_id);
   if (col_buffer_it == micro_batch_col_buffers_.end()) {
-    micro_batch_col_buffers_[micro_batch_id] = make_array_ptr<T[]>(device_, col_matrix_size);
+    micro_batch_col_buffers_[micro_batch_id] = make_array_ptr<T[]>(this->device_, col_matrix_size);
   } else {
     col_buffer_it->second.ensure(col_matrix_size);
   }
@@ -96,7 +97,7 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
     this->perf_timers_["im2col"] += im2col_duration;
   }
 
-  Tensor<T> output({batch_size, out_channels_, output_h, output_w}, device_);
+  Tensor<T> output({batch_size, out_channels_, output_h, output_w}, this->device_);
 
   compute_conv_forward(micro_batch_col_buffers_[micro_batch_id], weights_.data_ptr(),
                        temp_output_buffer_, output_size, kernel_size, out_channels_);
@@ -131,7 +132,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   }
 
   const Tensor<T> &current_gradient =
-      (gradient.device() == device_) ? gradient : gradient.to_device(device_);
+      (gradient.device() == this->device_) ? gradient : gradient.to_device(this->device_);
 
   const auto &input_shape = it_input_shape->second;
 
@@ -163,7 +164,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(), temp_col_grad_matrix_buffer_,
                           output_size, kernel_size, out_channels_);
 
-  Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, device_);
+  Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
   col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
          input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 

@@ -90,6 +90,7 @@ protected:
   bool is_training_ = true;
   bool enable_profiling_ = false;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
+  const Device *device_;
   std::string name_;
 };
 

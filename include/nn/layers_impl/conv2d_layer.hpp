@@ -34,8 +34,6 @@ private:
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
 
-  const Device *device_;
-
   mutable std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<size_t, device_ptr<T[]>> micro_batch_col_buffers_;
