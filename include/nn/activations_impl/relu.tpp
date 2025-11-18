@@ -37,15 +37,20 @@ template <typename T>
 void ReLU<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
   assert(input.shape() == upstream_gradient.shape() &&
          "Shapes must match for in-place gradient computation");
-
-  const T *input_data = input.data();
-  T *grad_data = upstream_gradient.data();
-  const size_t size = input.size();
-
-  parallel_for<size_t>(0, size, [&](size_t i) {
-    T local_grad = input_data[i] > T(0) ? T(1) : T(0);
-    grad_data[i] *= local_grad;
-  });
+  if (input.device() != upstream_gradient.device()) {
+    throw std::runtime_error("Input and upstream gradient must be on the same device for RELU");
+  }
+  if (input.device_type() == DeviceType::CPU) {
+    ops::create_cpu_task(input.device(), cpu::relu_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size());
+  } else {
+#ifdef USE_CUDA
+    ops::create_gpu_task(input.device(), cuda::relu_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size());
+#else
+    throw std::runtime_error("CUDA support is not enabled.");
+#endif
+  }
 }
 
 template <typename T> std::string ReLU<T>::name() const { return "relu"; }

@@ -5,40 +5,51 @@
  * project root for the full license text.
  */
 #pragma once
-#include "nn/activations_impl/base_activation.hpp"
 #include "nn/activations_impl/tanh.hpp"
+#include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
-#include "threading/thread_handler.hpp"
-#include <cmath>
-#include <memory>
-#include <stdexcept>
-#include <string>
+#include <cassert>
+
+#include "cpu/tanh_kernels.hpp"
+#ifdef USE_CUDA
+#include "cuda/tanh_kernels.hpp"
+#endif
 
 namespace tnn {
 
 template <typename T> void Tanh<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
-  size_t size = tensor.size();
+  const size_t size = tensor.size();
 
-  parallel_for<size_t>(0, size, [&](size_t i) { data[i] = std::tanh(data[i]); });
+  if (tensor.device_type() == DeviceType::CPU) {
+    ops::create_cpu_task(tensor.device(), cpu::tanh<T>, data, data, size);
+  } else {
+#ifdef USE_CUDA
+    ops::create_gpu_task(tensor.device(), cuda::tanh<T>, data, data, size);
+#else
+    throw std::runtime_error("CUDA support is not enabled.");
+#endif
+  }
 }
 
 template <typename T>
 void Tanh<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
-  if (upstream_gradient.shape() != input.shape()) {
-    throw std::invalid_argument("Upstream gradient must have the same "
-                                "shape as pre-activation values");
+  assert(input.shape() == upstream_gradient.shape() &&
+         "Shapes must match for in-place gradient computation");
+  if (input.device() != upstream_gradient.device()) {
+    throw std::runtime_error("Input and upstream gradient must be on the same device for Tanh");
   }
-
-  const T *input_data = input.data();
-  T *grad_data = upstream_gradient.data();
-  size_t size = input.size();
-
-  parallel_for<size_t>(0, size, [&](size_t i) {
-    T tanh_val = std::tanh(input_data[i]);
-    T local_grad = T(1) - tanh_val * tanh_val;
-    grad_data[i] *= local_grad;
-  });
+  if (input.device_type() == DeviceType::CPU) {
+    ops::create_cpu_task(input.device(), cpu::tanh_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size());
+  } else {
+#ifdef USE_CUDA
+    ops::create_gpu_task(input.device(), cuda::tanh_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size());
+#else
+    throw std::runtime_error("CUDA support is not enabled.");
+#endif
+  }
 }
 
 template <typename T> std::string Tanh<T>::name() const { return "tanh"; }

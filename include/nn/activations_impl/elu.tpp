@@ -5,9 +5,15 @@
  * project root for the full license text.
  */
 #pragma once
-#include "nn/activations_impl/base_activation.hpp"
 #include "nn/activations_impl/elu.hpp"
-#include "threading/thread_handler.hpp"
+#include "ops/ops.hpp"
+#include "tensor/tensor.hpp"
+#include <cassert>
+
+#include "cpu/elu_kernels.hpp"
+#ifdef USE_CUDA
+#include "cuda/elu_kernels.hpp"
+#endif
 
 namespace tnn {
 template <typename T> ELU<T>::ELU(T alpha) : alpha_(alpha) {}
@@ -16,26 +22,35 @@ template <typename T> void ELU<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
-  parallel_for<size_t>(0, size, [&](size_t i) {
-    data[i] = data[i] > T(0) ? data[i] : alpha_ * (std::exp(data[i]) - T(1));
-  });
+  if (tensor.device_type() == DeviceType::CPU) {
+    ops::create_cpu_task(tensor.device(), cpu::elu<T>, data, data, size, alpha_);
+  } else {
+#ifdef USE_CUDA
+    ops::create_gpu_task(tensor.device(), cuda::elu<T>, data, data, size, alpha_);
+#else
+    throw std::runtime_error("CUDA support is not enabled.");
+#endif
+  }
 }
 
 template <typename T>
 void ELU<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
-  if (upstream_gradient.shape() != input.shape()) {
-    throw std::invalid_argument("Upstream gradient must have the same "
-                                "shape as pre-activation values");
+  assert(input.shape() == upstream_gradient.shape() &&
+         "Shapes must match for in-place gradient computation");
+  if (input.device() != upstream_gradient.device()) {
+    throw std::runtime_error("Input and upstream gradient must be on the same device for ELU");
   }
-
-  const T *input_data = input.data();
-  T *grad_data = upstream_gradient.data();
-  size_t size = input.size();
-
-  parallel_for<size_t>(0, size, [&](size_t i) {
-    T local_grad = input_data[i] > T(0) ? T(1) : alpha_ * std::exp(input_data[i]);
-    grad_data[i] *= local_grad;
-  });
+  if (input.device_type() == DeviceType::CPU) {
+    ops::create_cpu_task(input.device(), cpu::elu_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size(), alpha_);
+  } else {
+#ifdef USE_CUDA
+    ops::create_gpu_task(input.device(), cuda::elu_gradient<T>, input.data(),
+                         upstream_gradient.data(), input.size(), alpha_);
+#else
+    throw std::runtime_error("CUDA support is not enabled.");
+#endif
+  }
 }
 
 template <typename T> std::string ELU<T>::name() const { return "elu"; }
