@@ -12,7 +12,7 @@
 namespace tnn {
 namespace cuda {
 namespace dense {
-// Helper function to get cuBLAS handle (this should be managed globally)
+
 static cublasHandle_t get_cublas_handle() {
   static cublasHandle_t handle = nullptr;
   if (!handle) {
@@ -24,7 +24,6 @@ static cublasHandle_t get_cublas_handle() {
 template <typename T>
 void cublas_gemm(const T *A, const T *B, T *C, int m, int n, int k, bool transA, bool transB);
 
-// Specialization for float
 template <>
 void cublas_gemm<float>(const float *A, const float *B, float *C, int m, int n, int k, bool transA,
                         bool transB) {
@@ -34,11 +33,9 @@ void cublas_gemm<float>(const float *A, const float *B, float *C, int m, int n, 
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  // Note: cuBLAS uses column-major, so we need to swap A and B
   cublasSgemm(handle, opB, opA, n, m, k, &alpha, B, transB ? k : n, A, transA ? m : k, &beta, C, n);
 }
 
-// Specialization for double
 template <>
 void cublas_gemm<double>(const double *A, const double *B, double *C, int m, int n, int k,
                          bool transA, bool transB) {
@@ -48,7 +45,6 @@ void cublas_gemm<double>(const double *A, const double *B, double *C, int m, int
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  // Note: cuBLAS uses column-major, so we need to swap A and B
   cublasDgemm(handle, opB, opA, n, m, k, &alpha, B, transB ? k : n, A, transA ? m : k, &beta, C, n);
 }
 
@@ -91,7 +87,7 @@ template <typename T>
 void compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
                            const size_t batch_size, const size_t input_features,
                            const size_t output_features) {
-  // Use cuBLAS for GEMM: output = input * weight^T
+
   cublas_gemm(input_data, weight_data, output_data, static_cast<int>(batch_size),
               static_cast<int>(output_features), static_cast<int>(input_features), false, true);
 }
@@ -100,7 +96,7 @@ template <typename T>
 void compute_weight_gradients(const T *input_data, const T *gradient_data, T *weight_grad_data,
                               const size_t batch_size, const size_t input_features,
                               const size_t output_features) {
-  // Use cuBLAS for GEMM: weight_grad = gradient^T * input
+
   cublas_gemm(gradient_data, input_data, weight_grad_data, static_cast<int>(output_features),
               static_cast<int>(input_features), static_cast<int>(batch_size), true, false);
 }
@@ -109,14 +105,13 @@ template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *grad_input_data,
                              const size_t batch_size, const size_t input_features,
                              const size_t output_features) {
-  // Zero out the gradient input first
+
   int total_size = batch_size * input_features;
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
 
   set_zero_kernel<<<num_blocks, threads_per_block>>>(grad_input_data, total_size);
 
-  // Use cuBLAS for GEMM: grad_input = gradient * weight
   cublas_gemm(gradient_data, weight_data, grad_input_data, static_cast<int>(batch_size),
               static_cast<int>(input_features), static_cast<int>(output_features), false, false);
 }
@@ -129,7 +124,6 @@ void compute_bias_gradients(const T *current_grad_data, const T *bias_gradient_d
 
   compute_bias_gradients_kernel<<<num_blocks, threads_per_block>>>(
       current_grad_data, const_cast<T *>(bias_gradient_data), batch_size, output_features);
-  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -141,10 +135,8 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
 
   add_bias_kernel<<<num_blocks, threads_per_block>>>(output_data, bias_data, batch_size,
                                                      output_features);
-  cudaDeviceSynchronize();
 }
 
-// Explicit template instantiations
 template void compute_dense_forward<float>(const float *input_data, const float *weight_data,
                                            float *output_data, const size_t batch_size,
                                            const size_t input_features,

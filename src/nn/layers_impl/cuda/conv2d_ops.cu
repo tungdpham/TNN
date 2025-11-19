@@ -90,7 +90,6 @@ void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const siz
       gradient_data, bias_grad_data, batch_size, output_h, output_w, out_channels);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -104,7 +103,6 @@ void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_s
                                                      output_w, out_channels);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-  cudaDeviceSynchronize();
 }
 
 // Explicit template instantiations
