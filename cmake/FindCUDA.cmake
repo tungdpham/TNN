@@ -78,14 +78,27 @@ int main() {
 endfunction()
 
 # Allow manual override via command line: -DCUDA_ARCH=sm_86
+# You can also limit max architecture: -DCUDA_ARCH_MAX=89
+set(CUDA_ARCH_MAX "89" CACHE STRING "Maximum CUDA architecture number to target")
 if(NOT DEFINED CUDA_ARCH)
     detect_gpu_arch()
     set(CUDA_ARCH ${DETECTED_CUDA_ARCH})
     set(CUDA_ARCH_NUMBER ${DETECTED_CUDA_ARCH_NUMBER})
+    
+    # Apply maximum architecture limit if specified
+    if(DEFINED CUDA_ARCH_MAX)
+        if(CUDA_ARCH_NUMBER GREATER ${CUDA_ARCH_MAX})
+            message(STATUS "GPU architecture ${CUDA_ARCH_NUMBER} exceeds maximum allowed (${CUDA_ARCH_MAX}). Limiting to sm_${CUDA_ARCH_MAX}")
+            set(CUDA_ARCH_NUMBER ${CUDA_ARCH_MAX})
+            set(CUDA_ARCH "sm_${CUDA_ARCH_MAX}")
+        endif()
+    endif()
 else()
     message(STATUS "Using manually specified CUDA architecture: ${CUDA_ARCH}")
     string(REPLACE "sm_" "" CUDA_ARCH_NUMBER ${CUDA_ARCH})
 endif()
+
+if(CUDA_ARCH_NUMBER)
 
 set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA target architectures" FORCE)
 set(CUDA_ARCH_NUMBER ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA architecture number" FORCE)
@@ -100,3 +113,5 @@ set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g" CACHE STRING "CUDA debug flags")
 
 message(STATUS "Set CMAKE_CUDA_ARCHITECTURES to: ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")
+
+endif()
