@@ -130,6 +130,44 @@ template void compute_channel_variance<double>(const double *input_data, const d
                                                double *var_data, size_t batch_size, size_t channels,
                                                size_t spatial_size);
 
+template <typename T>
+void compute_mean_variance_fused(const T *input_data, T *mean_data, T *var_data, size_t batch_size,
+                                 size_t channels, size_t spatial_size) {
+  const size_t total_elements = batch_size * spatial_size;
+  const size_t channel_stride = channels * spatial_size;
+
+  parallel_for<size_t>(0, channels, [&](size_t c) {
+    // Welford's online algorithm for numerically stable mean and variance
+    T mean = T(0);
+    T m2 = T(0);
+    size_t count = 0;
+    const size_t c_offset = c * spatial_size;
+
+    for (size_t n = 0; n < batch_size; ++n) {
+      const T *batch_channel_ptr = input_data + n * channel_stride + c_offset;
+
+      for (size_t i = 0; i < spatial_size; ++i) {
+        count++;
+        const T val = batch_channel_ptr[i];
+        const T delta = val - mean;
+        mean += delta / static_cast<T>(count);
+        const T delta2 = val - mean;
+        m2 += delta * delta2;
+      }
+    }
+
+    mean_data[c] = mean;
+    var_data[c] = m2 / static_cast<T>(total_elements);
+  });
+}
+
+template void compute_mean_variance_fused<float>(const float *input_data, float *mean_data,
+                                                 float *var_data, size_t batch_size,
+                                                 size_t channels, size_t spatial_size);
+template void compute_mean_variance_fused<double>(const double *input_data, double *mean_data,
+                                                  double *var_data, size_t batch_size,
+                                                  size_t channels, size_t spatial_size);
+
 template void normalize_and_scale_optimized<float>(const float *input_data, const float *mean_data,
                                                    const float *std_data, const float *gamma_data,
                                                    const float *beta_data, float *output_data,
@@ -331,6 +369,88 @@ template void compute_input_gradients_batchnorm<double>(
     const double *sum_grad_normalized_data, const double *sum_grad_norm_times_norm_data,
     double *grad_input_data, size_t batch_size, size_t channels, size_t spatial_size,
     size_t total_elements);
+
+template <typename T>
+void compute_batchnorm_backward_fused(const T *gradient_data, const T *normalized_data,
+                                      const T *std_data, const T *gamma_data, T *grad_input_data,
+                                      T *gamma_grad, T *beta_grad, size_t batch_size,
+                                      size_t channels, size_t spatial_size, bool affine) {
+  const size_t channel_stride = channels * spatial_size;
+  const size_t total_elements = batch_size * spatial_size;
+  const T inv_total = T(1) / static_cast<T>(total_elements);
+
+  // Temporary buffers for per-channel sums
+  std::vector<T> sum_grad_normalized(channels, T(0));
+  std::vector<T> sum_grad_norm_times_norm(channels, T(0));
+
+  // Single parallel pass: compute affine gradients and backward sums together
+  parallel_for<size_t>(0, channels, [&](size_t c) {
+    T sum_grad_norm = T(0);
+    T sum_grad_norm_x_norm = T(0);
+    T gamma_sum = T(0);
+    T beta_sum = T(0);
+    const size_t c_offset = c * spatial_size;
+    const T gamma_val = affine ? gamma_data[c] : T(1);
+
+    for (size_t n = 0; n < batch_size; ++n) {
+      const size_t base_idx = n * channel_stride + c_offset;
+      const T *grad_ptr = gradient_data + base_idx;
+      const T *norm_ptr = normalized_data + base_idx;
+
+      for (size_t i = 0; i < spatial_size; ++i) {
+        const T grad_val = grad_ptr[i];
+        const T norm_val = norm_ptr[i];
+        const T grad_norm_val = grad_val * gamma_val;
+
+        sum_grad_norm += grad_norm_val;
+        sum_grad_norm_x_norm += grad_norm_val * norm_val;
+
+        if (affine) {
+          gamma_sum += grad_val * norm_val;
+          beta_sum += grad_val;
+        }
+      }
+    }
+
+    sum_grad_normalized[c] = sum_grad_norm;
+    sum_grad_norm_times_norm[c] = sum_grad_norm_x_norm;
+
+    if (affine) {
+      gamma_grad[c] += gamma_sum;
+      beta_grad[c] += beta_sum;
+    }
+  });
+
+  // Second pass: compute input gradients
+  parallel_for_2d<size_t>(batch_size, channels, [&](size_t n, size_t c) {
+    const T std_val_c = std_data[c];
+    const T inv_std = T(1) / std_val_c;
+    const T sum_grad_norm = sum_grad_normalized[c];
+    const T sum_grad_norm_x_norm = sum_grad_norm_times_norm[c];
+    const T gamma_val = affine ? gamma_data[c] : T(1);
+
+    const size_t base_idx = n * channel_stride + c * spatial_size;
+    const T *grad_ptr = gradient_data + base_idx;
+    const T *norm_ptr = normalized_data + base_idx;
+    T *grad_input_ptr = grad_input_data + base_idx;
+
+    for (size_t i = 0; i < spatial_size; ++i) {
+      const T grad_norm_val = grad_ptr[i] * gamma_val;
+      grad_input_ptr[i] = inv_std * inv_total *
+                          (static_cast<T>(total_elements) * grad_norm_val - sum_grad_norm -
+                           norm_ptr[i] * sum_grad_norm_x_norm);
+    }
+  });
+}
+
+template void compute_batchnorm_backward_fused<float>(
+    const float *gradient_data, const float *normalized_data, const float *std_data,
+    const float *gamma_data, float *grad_input_data, float *gamma_grad, float *beta_grad,
+    size_t batch_size, size_t channels, size_t spatial_size, bool affine);
+template void compute_batchnorm_backward_fused<double>(
+    const double *gradient_data, const double *normalized_data, const double *std_data,
+    const double *gamma_data, double *grad_input_data, double *gamma_grad, double *beta_grad,
+    size_t batch_size, size_t channels, size_t spatial_size, bool affine);
 
 } // namespace batchnorm
 } // namespace cpu

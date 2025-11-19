@@ -75,11 +75,8 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
     Tensor<T> batch_var({channels, 1, 1, 1}, this->device_);
     Tensor<T> batch_std({channels, 1, 1, 1}, this->device_);
 
-    compute_channel_mean(input.data_ptr(), batch_mean.data_ptr(), batch_size, channels,
-                         spatial_size);
-
-    compute_channel_variance(input.data_ptr(), batch_mean.data_ptr(), batch_var.data_ptr(),
-                             batch_size, channels, spatial_size);
+    // Use fused mean+variance computation
+    compute_mean_variance_fused(input, batch_mean, batch_var, batch_size, channels, spatial_size);
 
     compute_batch_std(batch_var, batch_std, channels);
 
@@ -134,36 +131,13 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t height = input.height();
   const size_t width = input.width();
   const size_t spatial_size = height * width;
-  const size_t total_elements = batch_size * spatial_size;
 
   Tensor<T> grad_input(input.shape(), this->device_);
 
-  if (affine_) {
-    compute_affine_gradients_optimized(current_gradient.data_ptr(), normalized.data_ptr(),
-                                       gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
-                                       batch_size, channels, spatial_size);
-  }
-
-  Tensor<T> grad_normalized(input.shape(), this->device_);
-
+  // Use fused backward kernel that combines all operations
   Tensor<T> dummy_gamma(this->device_);
-  compute_grad_normalized_wrapper(
-      current_gradient.data_ptr(), affine_ ? gamma_.data_ptr() : dummy_gamma.data_ptr(),
-      grad_normalized.data_ptr(), batch_size, channels, spatial_size, affine_);
-
-  Tensor<T> sum_grad_normalized({channels, 1, 1, 1}, this->device_);
-  Tensor<T> sum_grad_normalized_times_normalized({channels, 1, 1, 1}, this->device_);
-
-  // Compute backward sums using wrapper function
-  compute_backward_sums_wrapper(
-      grad_normalized.data_ptr(), normalized.data_ptr(), sum_grad_normalized.data_ptr(),
-      sum_grad_normalized_times_normalized.data_ptr(), batch_size, channels, spatial_size);
-
-  // Compute input gradients using wrapper function
-  compute_input_gradients_batchnorm_wrapper(
-      grad_normalized.data_ptr(), normalized.data_ptr(), std_val.data_ptr(),
-      sum_grad_normalized.data_ptr(), sum_grad_normalized_times_normalized.data_ptr(),
-      grad_input.data_ptr(), batch_size, channels, spatial_size, total_elements);
+  compute_batchnorm_backward_fused(current_gradient, normalized, std_val, dummy_gamma, grad_input,
+                                   batch_size, channels, spatial_size);
 
   return grad_input;
 }
@@ -251,44 +225,50 @@ void BatchNormLayer<T>::extract_tensor_dimensions(const Tensor<T> &input, size_t
   width = input.width();
   spatial_size = height * width;
 }
-template <typename T>
-void BatchNormLayer<T>::compute_channel_mean(const device_ptr<T[]> &input_data,
-                                             device_ptr<T[]> &mean_data, size_t batch_size,
-                                             size_t channels, size_t spatial_size) {
-  if (input_data.getDeviceType() != mean_data.getDeviceType()) {
-    throw std::runtime_error("Input and mean tensors must be on the same device");
-  }
 
-  if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
-                                         spatial_size);
+template <typename T>
+void BatchNormLayer<T>::compute_mean_variance_fused(const Tensor<T> &input, Tensor<T> &batch_mean,
+                                                    Tensor<T> &batch_var, size_t batch_size,
+                                                    size_t channels, size_t spatial_size) {
+  if (input.data_ptr().getDeviceType() == DeviceType::CPU) {
+    cpu::batchnorm::compute_mean_variance_fused(input.data_ptr().get(), batch_mean.data_ptr().get(),
+                                                batch_var.data_ptr().get(), batch_size, channels,
+                                                spatial_size);
   }
 #ifdef USE_CUDA
   else {
-    cuda::batchnorm::compute_channel_mean(input_data.get(), mean_data.get(), batch_size, channels,
-                                          spatial_size);
+    cuda::batchnorm::compute_mean_variance_fused(
+        input.data_ptr().get(), batch_mean.data_ptr().get(), batch_var.data_ptr().get(), batch_size,
+        channels, spatial_size);
   }
 #endif
 }
 
 template <typename T>
-void BatchNormLayer<T>::compute_channel_variance(const device_ptr<T[]> &input_data,
-                                                 const device_ptr<T[]> &mean_data,
-                                                 device_ptr<T[]> &var_data, size_t batch_size,
-                                                 size_t channels, size_t spatial_size) {
-  if (input_data.getDeviceType() != mean_data.getDeviceType() ||
-      mean_data.getDeviceType() != var_data.getDeviceType()) {
-    throw std::runtime_error("All tensors must be on the same device for channel variance");
-  }
-
-  if (input_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(),
-                                             batch_size, channels, spatial_size);
+void BatchNormLayer<T>::compute_batchnorm_backward_fused(const Tensor<T> &gradient,
+                                                         const Tensor<T> &normalized,
+                                                         const Tensor<T> &std_val,
+                                                         Tensor<T> &dummy_gamma,
+                                                         Tensor<T> &grad_input, size_t batch_size,
+                                                         size_t channels, size_t spatial_size) {
+  if (gradient.data_ptr().getDeviceType() == DeviceType::CPU) {
+    cpu::batchnorm::compute_batchnorm_backward_fused(
+        gradient.data_ptr().get(), normalized.data_ptr().get(), std_val.data_ptr().get(),
+        affine_ ? gamma_.data_ptr().get() : dummy_gamma.data_ptr().get(),
+        grad_input.data_ptr().get(),
+        affine_ ? gamma_gradients_.data_ptr().get() : dummy_gamma.data_ptr().get(),
+        affine_ ? beta_gradients_.data_ptr().get() : dummy_gamma.data_ptr().get(), batch_size,
+        channels, spatial_size, affine_);
   }
 #ifdef USE_CUDA
   else {
-    cuda::batchnorm::compute_channel_variance(input_data.get(), mean_data.get(), var_data.get(),
-                                              batch_size, channels, spatial_size);
+    cuda::batchnorm::compute_batchnorm_backward_fused(
+        gradient.data_ptr().get(), normalized.data_ptr().get(), std_val.data_ptr().get(),
+        affine_ ? gamma_.data_ptr().get() : dummy_gamma.data_ptr().get(),
+        grad_input.data_ptr().get(),
+        affine_ ? gamma_gradients_.data_ptr().get() : dummy_gamma.data_ptr().get(),
+        affine_ ? beta_gradients_.data_ptr().get() : dummy_gamma.data_ptr().get(), batch_size,
+        channels, spatial_size, affine_);
   }
 #endif
 }
@@ -324,33 +304,6 @@ void BatchNormLayer<T>::normalize_and_scale_optimized(
         input_data.get(), mean_data.get(), std_data.get(), affine ? gamma_data.get() : nullptr,
         affine ? beta_data.get() : nullptr, output_data.get(), normalized_data.get(), batch_size,
         channels, spatial_size, affine);
-  }
-#endif
-}
-
-template <typename T>
-void BatchNormLayer<T>::compute_affine_gradients_optimized(const device_ptr<T[]> &gradient_data,
-                                                           const device_ptr<T[]> &normalized_data,
-                                                           device_ptr<T[]> &gamma_grad,
-                                                           device_ptr<T[]> &beta_grad,
-                                                           size_t batch_size, size_t channels,
-                                                           size_t spatial_size) {
-  if (gradient_data.getDeviceType() != normalized_data.getDeviceType() ||
-      normalized_data.getDeviceType() != gamma_grad.getDeviceType() ||
-      gamma_grad.getDeviceType() != beta_grad.getDeviceType()) {
-    throw std::runtime_error("All tensors must be on the same device for affine gradients");
-  }
-
-  if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
-                                                       gamma_grad.get(), beta_grad.get(),
-                                                       batch_size, channels, spatial_size);
-  }
-#ifdef USE_CUDA
-  else {
-    cuda::batchnorm::compute_affine_gradients_optimized(gradient_data.get(), normalized_data.get(),
-                                                        gamma_grad.get(), beta_grad.get(),
-                                                        batch_size, channels, spatial_size);
   }
 #endif
 }
@@ -430,89 +383,6 @@ void BatchNormLayer<T>::compute_inference_output_wrapper(
         input_data.get(), running_mean_data.get(), running_var_data.get(),
         affine ? gamma_data.get() : nullptr, affine ? beta_data.get() : nullptr, output_data.get(),
         batch_size, channels, spatial_size, epsilon, affine);
-  }
-#endif
-}
-
-template <typename T>
-void BatchNormLayer<T>::compute_grad_normalized_wrapper(const device_ptr<T[]> &gradient_data,
-                                                        const device_ptr<T[]> &gamma_data,
-                                                        device_ptr<T[]> &grad_normalized_data,
-                                                        size_t batch_size, size_t channels,
-                                                        size_t spatial_size, bool affine) {
-  if (gradient_data.getDeviceType() != grad_normalized_data.getDeviceType()) {
-    throw std::runtime_error("Gradient tensors must be on the same device");
-  }
-
-  if (affine && gamma_data.getDeviceType() != gradient_data.getDeviceType()) {
-    throw std::runtime_error("Gamma must be on the same device as gradient");
-  }
-
-  if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_grad_normalized(
-        gradient_data.get(), affine ? gamma_data.get() : nullptr, grad_normalized_data.get(),
-        batch_size, channels, spatial_size, affine);
-  }
-#ifdef USE_CUDA
-  else {
-    cuda::batchnorm::compute_grad_normalized(
-        gradient_data.get(), affine ? gamma_data.get() : nullptr, grad_normalized_data.get(),
-        batch_size, channels, spatial_size, affine);
-  }
-#endif
-}
-
-template <typename T>
-void BatchNormLayer<T>::compute_backward_sums_wrapper(
-    const device_ptr<T[]> &grad_normalized_data, const device_ptr<T[]> &normalized_data,
-    device_ptr<T[]> &sum_grad_normalized_data, device_ptr<T[]> &sum_grad_norm_times_norm_data,
-    size_t batch_size, size_t channels, size_t spatial_size) {
-  if (grad_normalized_data.getDeviceType() != normalized_data.getDeviceType() ||
-      normalized_data.getDeviceType() != sum_grad_normalized_data.getDeviceType() ||
-      sum_grad_normalized_data.getDeviceType() != sum_grad_norm_times_norm_data.getDeviceType()) {
-    throw std::runtime_error("All tensors must be on the same device for backward sums");
-  }
-
-  if (grad_normalized_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_backward_sums(
-        grad_normalized_data.get(), normalized_data.get(), sum_grad_normalized_data.get(),
-        sum_grad_norm_times_norm_data.get(), batch_size, channels, spatial_size);
-  }
-#ifdef USE_CUDA
-  else {
-    cuda::batchnorm::compute_backward_sums(
-        grad_normalized_data.get(), normalized_data.get(), sum_grad_normalized_data.get(),
-        sum_grad_norm_times_norm_data.get(), batch_size, channels, spatial_size);
-  }
-#endif
-}
-
-template <typename T>
-void BatchNormLayer<T>::compute_input_gradients_batchnorm_wrapper(
-    const device_ptr<T[]> &grad_normalized_data, const device_ptr<T[]> &normalized_data,
-    const device_ptr<T[]> &std_data, const device_ptr<T[]> &sum_grad_normalized_data,
-    const device_ptr<T[]> &sum_grad_norm_times_norm_data, device_ptr<T[]> &grad_input_data,
-    size_t batch_size, size_t channels, size_t spatial_size, size_t total_elements) {
-  if (grad_normalized_data.getDeviceType() != normalized_data.getDeviceType() ||
-      normalized_data.getDeviceType() != std_data.getDeviceType() ||
-      std_data.getDeviceType() != sum_grad_normalized_data.getDeviceType() ||
-      sum_grad_normalized_data.getDeviceType() != sum_grad_norm_times_norm_data.getDeviceType() ||
-      sum_grad_norm_times_norm_data.getDeviceType() != grad_input_data.getDeviceType()) {
-    throw std::runtime_error("All tensors must be on the same device for input gradients");
-  }
-
-  if (grad_normalized_data.getDeviceType() == DeviceType::CPU) {
-    cpu::batchnorm::compute_input_gradients_batchnorm(
-        grad_normalized_data.get(), normalized_data.get(), std_data.get(),
-        sum_grad_normalized_data.get(), sum_grad_norm_times_norm_data.get(), grad_input_data.get(),
-        batch_size, channels, spatial_size, total_elements);
-  }
-#ifdef USE_CUDA
-  else {
-    cuda::batchnorm::compute_input_gradients_batchnorm(
-        grad_normalized_data.get(), normalized_data.get(), std_data.get(),
-        sum_grad_normalized_data.get(), sum_grad_norm_times_norm_data.get(), grad_input_data.get(),
-        batch_size, channels, spatial_size, total_elements);
   }
 #endif
 }

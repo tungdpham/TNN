@@ -38,13 +38,6 @@ private:
   std::unordered_map<size_t, Tensor<T>> micro_batch_normalized_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_std_;
 
-  void compute_channel_mean(const device_ptr<T[]> &input_data, device_ptr<T[]> &mean_data,
-                            size_t batch_size, size_t channels, size_t spatial_size);
-
-  void compute_channel_variance(const device_ptr<T[]> &input_data, const device_ptr<T[]> &mean_data,
-                                device_ptr<T[]> &var_data, size_t batch_size, size_t channels,
-                                size_t spatial_size);
-
   void normalize_and_scale_optimized(const device_ptr<T[]> &input_data,
                                      const device_ptr<T[]> &mean_data,
                                      const device_ptr<T[]> &std_data,
@@ -53,11 +46,6 @@ private:
                                      device_ptr<T[]> &normalized_data, size_t batch_size,
                                      size_t channels, size_t spatial_size, bool affine);
 
-  void compute_affine_gradients_optimized(const device_ptr<T[]> &gradient_data,
-                                          const device_ptr<T[]> &normalized_data,
-                                          device_ptr<T[]> &gamma_grad, device_ptr<T[]> &beta_grad,
-                                          size_t batch_size, size_t channels, size_t spatial_size);
-
   void compute_batch_std(const Tensor<T> &batch_var, Tensor<T> &batch_std, size_t channels);
   void update_running_stats(const Tensor<T> &batch_mean, const Tensor<T> &batch_var,
                             size_t channels);
@@ -65,6 +53,15 @@ private:
                                 size_t channels, size_t spatial_size);
   void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
                                  size_t &height, size_t &width, size_t &spatial_size);
+
+  // Device-specific helper functions
+  void compute_mean_variance_fused(const Tensor<T> &input, Tensor<T> &batch_mean,
+                                   Tensor<T> &batch_var, size_t batch_size, size_t channels,
+                                   size_t spatial_size);
+  void compute_batchnorm_backward_fused(const Tensor<T> &gradient, const Tensor<T> &normalized,
+                                        const Tensor<T> &std_val, Tensor<T> &dummy_gamma,
+                                        Tensor<T> &grad_input, size_t batch_size, size_t channels,
+                                        size_t spatial_size);
 
   // Device-agnostic wrapper functions
   void compute_batch_std_wrapper(const device_ptr<T[]> &batch_var_data,
@@ -79,20 +76,6 @@ private:
       const device_ptr<T[]> &running_var_data, const device_ptr<T[]> &gamma_data,
       const device_ptr<T[]> &beta_data, device_ptr<T[]> &output_data, size_t batch_size,
       size_t channels, size_t spatial_size, T epsilon, bool affine);
-  void compute_grad_normalized_wrapper(const device_ptr<T[]> &gradient_data,
-                                       const device_ptr<T[]> &gamma_data,
-                                       device_ptr<T[]> &grad_normalized_data, size_t batch_size,
-                                       size_t channels, size_t spatial_size, bool affine);
-  void compute_backward_sums_wrapper(const device_ptr<T[]> &grad_normalized_data,
-                                     const device_ptr<T[]> &normalized_data,
-                                     device_ptr<T[]> &sum_grad_normalized_data,
-                                     device_ptr<T[]> &sum_grad_norm_times_norm_data,
-                                     size_t batch_size, size_t channels, size_t spatial_size);
-  void compute_input_gradients_batchnorm_wrapper(
-      const device_ptr<T[]> &grad_normalized_data, const device_ptr<T[]> &normalized_data,
-      const device_ptr<T[]> &std_data, const device_ptr<T[]> &sum_grad_normalized_data,
-      const device_ptr<T[]> &sum_grad_norm_times_norm_data, device_ptr<T[]> &grad_input_data,
-      size_t batch_size, size_t channels, size_t spatial_size, size_t total_elements);
 
 public:
   explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),

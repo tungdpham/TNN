@@ -76,42 +76,36 @@ __global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_si
                                    size_t output_h, size_t output_w) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  size_t total_elements = batch_size * channels * height * width;
+  size_t col_height = channels * kernel_h * kernel_w;
+  size_t total_elements = batch_size * col_height * output_h * output_w;
 
   if (idx < total_elements) {
-    // Decode the linear index to (n, c, h, w)
-    size_t w = idx % width;
-    size_t temp = idx / width;
-    size_t h = temp % height;
-    temp = temp / height;
-    size_t c = temp % channels;
-    size_t n = temp / channels;
+    // Decode the linear index to col_data position (n, c_kh_kw, h_out, w_out)
+    size_t w_out = idx % output_w;
+    size_t temp = idx / output_w;
+    size_t h_out = temp % output_h;
+    temp = temp / output_h;
+    size_t c_kh_kw = temp % col_height;
+    size_t n = temp / col_height;
 
-    T sum = 0;
+    // Decode c_kh_kw to (c, kh, kw)
+    size_t kw = c_kh_kw % kernel_w;
+    size_t temp2 = c_kh_kw / kernel_w;
+    size_t kh = temp2 % kernel_h;
+    size_t c = temp2 / kernel_h;
 
-    // Iterate over all kernel positions that could contribute to this output position
-    for (size_t kh = 0; kh < kernel_h; ++kh) {
-      for (size_t kw = 0; kw < kernel_w; ++kw) {
-        // Calculate which output position this kernel window maps to
-        int h_pad = h + pad_h - kh;
-        int w_pad = w + pad_w - kw;
+    // Calculate corresponding position in output
+    int h_in = (int)h_out * (int)stride_h - (int)pad_h + (int)kh;
+    int w_in = (int)w_out * (int)stride_w - (int)pad_w + (int)kw;
 
-        // Check if this position is valid for the kernel
-        if (h_pad % stride_h == 0 && w_pad % stride_w == 0) {
-          int h_out = h_pad / stride_h;
-          int w_out = w_pad / stride_w;
-
-          if (h_out >= 0 && h_out < output_h && w_out >= 0 && w_out < output_w) {
-            size_t c_kh_kw = (c * kernel_h + kh) * kernel_w + kw;
-            size_t col_idx = c_kh_kw * (batch_size * output_h * output_w) +
-                             n * (output_h * output_w) + h_out * output_w + w_out;
-            sum += col_data[col_idx];
-          }
-        }
-      }
+    // Only write if within valid output bounds
+    if (h_in >= 0 && (size_t)h_in < height && w_in >= 0 && (size_t)w_in < width) {
+      size_t output_idx = ((n * channels + c) * height + (size_t)h_in) * width + (size_t)w_in;
+      size_t col_idx = c_kh_kw * (batch_size * output_h * output_w) + n * (output_h * output_w) +
+                       h_out * output_w + w_out;
+      const T value = col_data[col_idx];
+      atomicAdd(&output[output_idx], value);
     }
-
-    output[idx] = sum;
   }
 }
 
@@ -119,7 +113,14 @@ template <typename T>
 void cuda_col2im(const T *col_data, T *output, size_t batch_size, size_t channels, size_t height,
                  size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                  size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
-  int num_blocks = get_num_blocks(batch_size * channels * height * width);
+  // Initialize output to zero since we use atomicAdd
+  size_t output_size = batch_size * channels * height * width;
+  cudaMemset(output, 0, output_size * sizeof(T));
+
+  size_t col_height = channels * kernel_h * kernel_w;
+  size_t total_elements = batch_size * col_height * output_h * output_w;
+  int num_blocks = get_num_blocks(total_elements);
+
   cuda_col2im_kernel<T><<<num_blocks, BLOCK_SIZE>>>(col_data, output, batch_size, channels, height,
                                                     width, kernel_h, kernel_w, stride_h, stride_w,
                                                     pad_h, pad_w, output_h, output_w);
