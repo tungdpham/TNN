@@ -34,7 +34,6 @@ void im2col(const Tensor<T, NCHW> &input_tensor, T *col_data, size_t kernel_h, s
 
   cuda_im2col(input_data, col_data, batch_size, channels, height, width, kernel_h, kernel_w,
               stride_h, stride_w, pad_h, pad_w, output_h, output_w);
-  synchronize();
   checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
@@ -50,7 +49,6 @@ void col2im_padded(const T *col_data, T *result_data, size_t batch_size, size_t 
 
   cuda_col2im(col_data, result_data, batch_size, channels, height, width, kernel_h, kernel_w,
               stride_h, stride_w, pad_h, pad_w, output_h, output_w);
-  synchronize();
   checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
@@ -86,7 +84,6 @@ Tensor<T, NCHW> pad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w, T 
 
   cuda_pad(input_data, result_data, batch_size, channels, height, width, pad_h, pad_w, value);
 
-  synchronize();
   return result;
 }
 
@@ -115,7 +112,6 @@ Tensor<T, NCHW> unpad(const Tensor<T, NCHW> &input, size_t pad_h, size_t pad_w) 
   T *result_data = result.data_ptr().get();
 
   cuda_unpad(input_data, result_data, batch_size, channels, height, width, pad_h, pad_w);
-  synchronize();
 
   return result;
 }
@@ -148,7 +144,6 @@ Tensor<T, NCHW> crop(const Tensor<T, NCHW> &input, const size_t start_h, const s
 
   cuda_crop(input_data, result_data, batch_size, channels, height, width, start_h, start_w,
             new_height, new_width);
-  synchronize();
   return result;
 }
 
@@ -170,7 +165,6 @@ Tensor<T, L> slice_batch(const Tensor<T, L> &input, size_t start_batch, size_t e
 
   size_t copy_size = (end_batch - start_batch) * strides[0];
   cuda::cuda_copy(&input_data[start_batch * strides[0]], result_data, copy_size, 0);
-  cuda::synchronize();
   return result;
 }
 
@@ -205,7 +199,6 @@ Tensor<T, NCHW> slice_channels(const Tensor<T, NCHW> &input, size_t start_ch, si
     cuda_copy(&input_data[src_offset], &result_data[dst_offset], copy_size, 0);
   }
 
-  cuda::synchronize();
   return result;
 }
 
@@ -260,7 +253,6 @@ template <typename T> void apply_softmax(Tensor<T, NCHW> &input) {
   T *data = input.data_ptr().get();
 
   cuda_softmax(data, batch_size, num_classes, height, width);
-  synchronize();
 }
 
 // Explicit template instantiations for float

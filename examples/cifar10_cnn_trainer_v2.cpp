@@ -126,7 +126,7 @@ int main() {
                      .dense(10, "linear", true, "fc1")
                      //  .activation("softmax", "softmax_output")
                      .build();
-
+    model.set_device("GPU:0");
     model.initialize();
 
     auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);

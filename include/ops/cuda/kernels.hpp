@@ -59,6 +59,9 @@ template <typename T>
 void cuda_add_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream);
 
 template <typename T>
+void cuda_sub_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream);
+
+template <typename T>
 void cuda_mul_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream);
 
 template <typename T>

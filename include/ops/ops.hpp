@@ -235,6 +235,32 @@ std::unique_ptr<Task> add_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
 }
 
 template <typename T>
+std::unique_ptr<Task> sub_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
+                                 size_t size) {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("sub_scalar: Device pointer has no associated device");
+  }
+  if (a.getDevice() != c.getDevice()) {
+    throw std::runtime_error("sub_scalar: All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(device, cpu::sub_scalar<T>, a.get(), scalar, c.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(device, cuda::cuda_sub_scalar<T>, a.get(), scalar, c.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
 std::unique_ptr<Task> mul_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<T[]> &c,
                                  size_t size) {
   if (!a.getDevice() || !c.getDevice()) {

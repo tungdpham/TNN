@@ -65,10 +65,67 @@ void cuda_im2col(const T *input, T *col_data, size_t batch_size, size_t channels
   cuda_im2col_kernel<T><<<num_blocks, BLOCK_SIZE>>>(input, col_data, batch_size, channels, height,
                                                     width, kernel_h, kernel_w, stride_h, stride_w,
                                                     pad_h, pad_w, output_h, output_w);
-  // Check for kernel launch errors
-  CUDA_CHECK(cudaGetLastError());
+  // Removed synchronous error check for performance - errors will be caught at sync points
 }
 
+// Optimized col2im kernel: parallelizes over output pixels instead of col elements
+template <typename T>
+__global__ void cuda_col2im_kernel_optimized(const T *col_data, T *output, size_t batch_size,
+                                             size_t channels, size_t height, size_t width,
+                                             size_t kernel_h, size_t kernel_w, size_t stride_h,
+                                             size_t stride_w, size_t pad_h, size_t pad_w,
+                                             size_t output_h, size_t output_w) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_elements = batch_size * channels * height * width;
+
+  if (idx < total_elements) {
+    // Decode to (n, c, h_in, w_in) in output space
+    size_t w_in = idx % width;
+    size_t temp = idx / width;
+    size_t h_in = temp % height;
+    temp = temp / height;
+    size_t c = temp % channels;
+    size_t n = temp / channels;
+
+    T sum = T(0);
+    const size_t spatial_out = output_h * output_w;
+    const size_t batch_spatial = batch_size * spatial_out;
+
+    // Iterate over all kernel positions that can contribute to this output pixel
+    for (size_t kh = 0; kh < kernel_h; ++kh) {
+      int h_out_base = (int)h_in + (int)pad_h - (int)kh;
+
+      // Early exit if not divisible by stride
+      if (h_out_base < 0 || (h_out_base % (int)stride_h) != 0)
+        continue;
+
+      size_t h_out = (size_t)h_out_base / stride_h;
+      if (h_out >= output_h)
+        continue;
+
+      for (size_t kw = 0; kw < kernel_w; ++kw) {
+        int w_out_base = (int)w_in + (int)pad_w - (int)kw;
+
+        // Early exit if not divisible by stride
+        if (w_out_base < 0 || (w_out_base % (int)stride_w) != 0)
+          continue;
+
+        size_t w_out = (size_t)w_out_base / stride_w;
+        if (w_out >= output_w)
+          continue;
+
+        // Calculate col_data index with fewer operations
+        size_t c_kh_kw = (c * kernel_h + kh) * kernel_w + kw;
+        size_t col_idx = c_kh_kw * batch_spatial + n * spatial_out + h_out * output_w + w_out;
+        sum += col_data[col_idx];
+      }
+    }
+
+    output[idx] = sum;
+  }
+}
+
+// Fallback kernel for backward compatibility
 template <typename T>
 __global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_size, size_t channels,
                                    size_t height, size_t width, size_t kernel_h, size_t kernel_w,
@@ -113,19 +170,15 @@ template <typename T>
 void cuda_col2im(const T *col_data, T *output, size_t batch_size, size_t channels, size_t height,
                  size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                  size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
-  // Initialize output to zero since we use atomicAdd
+  // Use optimized kernel that parallelizes over output pixels (eliminates atomics)
+  // No need for cudaMemset - kernel writes all output elements
   size_t output_size = batch_size * channels * height * width;
-  cudaMemset(output, 0, output_size * sizeof(T));
+  int num_blocks = get_num_blocks(output_size);
 
-  size_t col_height = channels * kernel_h * kernel_w;
-  size_t total_elements = batch_size * col_height * output_h * output_w;
-  int num_blocks = get_num_blocks(total_elements);
-
-  cuda_col2im_kernel<T><<<num_blocks, BLOCK_SIZE>>>(col_data, output, batch_size, channels, height,
-                                                    width, kernel_h, kernel_w, stride_h, stride_w,
-                                                    pad_h, pad_w, output_h, output_w);
-  // Check for kernel launch errors
-  CUDA_CHECK(cudaGetLastError());
+  cuda_col2im_kernel_optimized<T>
+      <<<num_blocks, BLOCK_SIZE>>>(col_data, output, batch_size, channels, height, width, kernel_h,
+                                   kernel_w, stride_h, stride_w, pad_h, pad_w, output_h, output_w);
+  // Removed synchronous error check for performance - errors will be caught at sync points
 }
 
 // Padding/Unpadding CUDA Kernels

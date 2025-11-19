@@ -98,6 +98,13 @@ template <typename T> __global__ void add_scalar_kernel(const T *a, T scalar, T 
   }
 }
 
+template <typename T> __global__ void sub_scalar_kernel(const T *a, T scalar, T *c, size_t size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    c[idx] = a[idx] - scalar;
+  }
+}
+
 template <typename T> __global__ void mul_scalar_kernel(const T *a, T scalar, T *c, size_t size) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -515,6 +522,13 @@ void cuda_add_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 }
 
 template <typename T>
+void cuda_sub_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  int num_blocks = get_num_blocks(size);
+  sub_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
+  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
+}
+
+template <typename T>
 void cuda_mul_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
   int num_blocks = get_num_blocks(size);
   mul_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
@@ -785,6 +799,8 @@ template void cuda_fnmadd<double>(const double *, const double *, double *, size
 
 template void cuda_add_scalar<float>(const float *, float, float *, size_t, cudaStream_t);
 template void cuda_add_scalar<double>(const double *, double, double *, size_t, cudaStream_t);
+template void cuda_sub_scalar<float>(const float *, float, float *, size_t, cudaStream_t);
+template void cuda_sub_scalar<double>(const double *, double, double *, size_t, cudaStream_t);
 template void cuda_mul_scalar<float>(const float *, float, float *, size_t, cudaStream_t);
 template void cuda_mul_scalar<double>(const double *, double, double *, size_t, cudaStream_t);
 template void cuda_div_scalar<float>(const float *, float, float *, size_t, cudaStream_t);

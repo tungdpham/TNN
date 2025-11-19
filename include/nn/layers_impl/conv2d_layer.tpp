@@ -149,23 +149,43 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   temp_gradient_buffer_.ensure(gradient_buffer_size);
   temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
 
+  auto layout_start = std::chrono::high_resolution_clock::now();
   ops::nchw_to_cnhw(current_gradient.data_ptr(), temp_gradient_buffer_, batch_size, out_channels_,
                     output_h, output_w);
+  auto layout_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float layout_duration =
+        std::chrono::duration<float, std::milli>(layout_end - layout_start).count();
+    this->perf_timers_["layout_transform"] += layout_duration;
+  }
 
   compute_weight_gradients(it_col_buffer->second, temp_gradient_buffer_,
                            weight_gradients_.data_ptr(), output_size, kernel_size, out_channels_);
 
   if (use_bias_) {
+    auto bias_start = std::chrono::high_resolution_clock::now();
     compute_bias_gradients(current_gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size,
                            output_h, output_w, out_channels_);
+    auto bias_end = std::chrono::high_resolution_clock::now();
+    if (this->enable_profiling_) {
+      float bias_duration = std::chrono::duration<float, std::milli>(bias_end - bias_start).count();
+      this->perf_timers_["bias_gradients"] += bias_duration;
+    }
   }
 
   compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(), temp_col_grad_matrix_buffer_,
                           output_size, kernel_size, out_channels_);
 
   Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
+  auto col2im_start = std::chrono::high_resolution_clock::now();
   col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
          input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+  auto col2im_end = std::chrono::high_resolution_clock::now();
+  if (this->enable_profiling_) {
+    float col2im_duration =
+        std::chrono::duration<float, std::milli>(col2im_end - col2im_start).count();
+    this->perf_timers_["col2im"] += col2im_duration;
+  }
 
   return grad_input;
 }

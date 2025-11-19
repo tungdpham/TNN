@@ -31,6 +31,8 @@ inline void avx2_aligned_fnmadd(const double *a, const double *b, double *c, siz
 // Scalar Operations (Double)
 inline void avx2_unaligned_add_scalar(const double *a, double scalar, double *c, size_t size);
 inline void avx2_aligned_add_scalar(const double *a, double scalar, double *c, size_t size);
+inline void avx2_unaligned_sub_scalar(const double *a, double scalar, double *c, size_t size);
+inline void avx2_aligned_sub_scalar(const double *a, double scalar, double *c, size_t size);
 inline void avx2_unaligned_mul_scalar(const double *a, double scalar, double *c, size_t size);
 inline void avx2_aligned_mul_scalar(const double *a, double scalar, double *c, size_t size);
 inline void avx2_unaligned_div_scalar(const double *a, const double scalar, double *c, size_t size);
@@ -94,6 +96,7 @@ void fmsub(const double *a, const double *b, double *c, size_t size);
 void fnmadd(const double *a, const double *b, double *c, size_t size);
 
 void add_scalar(const double *a, double scalar, double *c, size_t size);
+void sub_scalar(const double *a, double scalar, double *c, size_t size);
 void mul_scalar(const double *a, double scalar, double *c, size_t size);
 void div_scalar(const double *a, double scalar, double *c, size_t size);
 void set_scalar(double *c, double scalar, size_t size);

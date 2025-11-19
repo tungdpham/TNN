@@ -382,7 +382,6 @@ public:
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
           // std::cout << "Forwarding through layer " << i << " (" << layers_[i]->name() << ")\n";
-          // current_output = layers_[i]->forward(current_output, micro_batch_id);
           layers_[i]->forward_inplace(current_output, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
@@ -444,8 +443,7 @@ public:
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
-
-          // current_grad = layers_[i]->backward(current_grad, micro_batch_id);
+          // std::cout << "Backwarding through layer " << i << " (" << layers_[i]->name() << ")\n";
           layers_[i]->backward_inplace(current_grad, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();

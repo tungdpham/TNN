@@ -111,6 +111,18 @@ template <typename T> void add_scalar(const T *a, T scalar, T *c, size_t size) {
   }
 }
 
+template <typename T> void sub_scalar(const T *a, T scalar, T *c, size_t size) {
+  if constexpr (std::is_same_v<T, float>) {
+    fp::sub_scalar(a, scalar, c, size);
+  } else if constexpr (std::is_same_v<T, double>) {
+    dp::sub_scalar(a, scalar, c, size);
+  } else {
+    for (size_t i = 0; i < size; ++i) {
+      c[i] = a[i] - scalar;
+    }
+  }
+}
+
 template <typename T> void mul_scalar(const T *a, T scalar, T *c, size_t size) {
   if constexpr (std::is_same_v<T, float>) {
     fp::mul_scalar(a, scalar, c, size);

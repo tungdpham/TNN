@@ -235,6 +235,32 @@ inline void avx2_aligned_add_scalar(const float *a, float scalar, float *c, size
   }
 }
 
+inline void avx2_unaligned_sub_scalar(const float *a, float scalar, float *c, size_t size) {
+  __m256 vec_scalar = _mm256_set1_ps(scalar);
+  size_t vec_size = (size / 8) * 8;
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_loadu_ps(&a[i]);
+    __m256 vec_c = _mm256_sub_ps(vec_a, vec_scalar);
+    _mm256_storeu_ps(&c[i], vec_c);
+  }
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = a[i] - scalar;
+  }
+}
+
+inline void avx2_aligned_sub_scalar(const float *a, float scalar, float *c, size_t size) {
+  __m256 vec_scalar = _mm256_set1_ps(scalar);
+  size_t vec_size = (size / 8) * 8;
+  for (size_t i = 0; i < vec_size; i += 8) {
+    __m256 vec_a = _mm256_load_ps(&a[i]);
+    __m256 vec_c = _mm256_sub_ps(vec_a, vec_scalar);
+    _mm256_store_ps(&c[i], vec_c);
+  }
+  for (size_t i = vec_size; i < size; ++i) {
+    c[i] = a[i] - scalar;
+  }
+}
+
 inline void avx2_unaligned_mul_scalar(const float *a, float scalar, float *c, size_t size) {
   __m256 vec_scalar = _mm256_set1_ps(scalar);
   size_t vec_size = (size / 8) * 8;
@@ -970,6 +996,20 @@ void add_scalar(const float *a, float scalar, float *c, size_t size) {
 #else
   for (size_t i = 0; i < size; ++i) {
     c[i] = a[i] + scalar;
+  }
+#endif
+}
+
+void sub_scalar(const float *a, float scalar, float *c, size_t size) {
+#ifdef __AVX2__
+  if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {
+    avx2_aligned_sub_scalar(a, scalar, c, size);
+  } else {
+    avx2_unaligned_sub_scalar(a, scalar, c, size);
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    c[i] = a[i] - scalar;
   }
 #endif
 }

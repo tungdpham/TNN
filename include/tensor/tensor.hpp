@@ -233,6 +233,24 @@ public:
     return result;
   }
 
+  Tensor<T, L> operator+(T scalar) const {
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec, device_);
+
+    ops::add_scalar(data_, scalar, result.data_, data_size_)->sync();
+
+    return result;
+  }
+
+  Tensor<T, L> operator-(T scalar) const {
+    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
+    Tensor<T, L> result(shape_vec, device_);
+
+    ops::sub_scalar(data_, scalar, result.data_, data_size_)->sync();
+
+    return result;
+  }
+
   Tensor<T, L> operator*(T scalar) const {
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
@@ -282,6 +300,16 @@ public:
 
     ops::mul(data_, other.data_, data_, data_size_)->sync();
 
+    return *this;
+  }
+
+  Tensor<T, L> &operator+=(T scalar) {
+    ops::add_scalar(data_, scalar, data_, data_size_)->sync();
+    return *this;
+  }
+
+  Tensor<T, L> &operator-=(T scalar) {
+    ops::sub_scalar(data_, scalar, data_, data_size_)->sync();
     return *this;
   }
 
