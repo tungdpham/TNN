@@ -26,7 +26,7 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, std::vector<size_t>> micro_batch_mask_indices_;
+  std::unordered_map<size_t, device_ptr<size_t[]>> micro_batch_mask_indices_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
 
   mutable size_t input_stride_n_, input_stride_c_, input_stride_h_, input_stride_w_;
@@ -35,12 +35,12 @@ private:
   void compute_max_pool_forward(const device_ptr<T[]> &input_data, device_ptr<T[]> &output_data,
                                 size_t batch_size, size_t channels, size_t input_h, size_t input_w,
                                 size_t output_h, size_t output_w,
-                                std::vector<size_t> &mask_indices) const;
+                                device_ptr<size_t[]> &mask_indices) const;
 
   void compute_max_pool_backward(const device_ptr<T[]> &gradient_data,
                                  device_ptr<T[]> &grad_input_data, size_t batch_size,
                                  size_t channels, size_t output_h, size_t output_w,
-                                 const std::vector<size_t> &mask_indices) const;
+                                 const device_ptr<size_t[]> &mask_indices) const;
 
 public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,

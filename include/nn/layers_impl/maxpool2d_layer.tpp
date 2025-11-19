@@ -57,7 +57,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   Tensor<T> output({batch_size, channels, output_h, output_w}, this->device_);
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
-  std::vector<size_t> mask_indices(total_outputs);
+  device_ptr<size_t[]> mask_indices = make_array_ptr<size_t[]>(this->device_, total_outputs);
 
   compute_max_pool_forward(padded_input_ptr->data_ptr(), output.data_ptr(), batch_size, channels,
                            padded_h, padded_w, output_h, output_w, mask_indices);
@@ -86,7 +86,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
       gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
 
   const Tensor<T> &cached_padded_input = it_input->second;
-  const std::vector<size_t> &mask_indices = it_mask->second;
+  const device_ptr<size_t[]> &mask_indices = it_mask->second;
 
   const size_t batch_size = cached_padded_input.batch_size();
   const size_t channels = cached_padded_input.channels();
@@ -110,7 +110,7 @@ void MaxPool2DLayer<T>::compute_max_pool_forward(const device_ptr<T[]> &input_da
                                                  device_ptr<T[]> &output_data, size_t batch_size,
                                                  size_t channels, size_t input_h, size_t input_w,
                                                  size_t output_h, size_t output_w,
-                                                 std::vector<size_t> &mask_indices) const {
+                                                 device_ptr<size_t[]> &mask_indices) const {
   if (input_data.getDeviceType() != output_data.getDeviceType()) {
     throw std::runtime_error("Input and output tensors must be on the same device");
   }
@@ -134,7 +134,7 @@ void MaxPool2DLayer<T>::compute_max_pool_backward(const device_ptr<T[]> &gradien
                                                   device_ptr<T[]> &grad_input_data,
                                                   size_t batch_size, size_t channels,
                                                   size_t output_h, size_t output_w,
-                                                  const std::vector<size_t> &mask_indices) const {
+                                                  const device_ptr<size_t[]> &mask_indices) const {
   if (gradient_data.getDeviceType() != grad_input_data.getDeviceType()) {
     throw std::runtime_error("Gradient and input gradient tensors must be on the same device");
   }

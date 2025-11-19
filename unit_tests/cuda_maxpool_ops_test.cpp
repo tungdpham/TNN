@@ -60,14 +60,32 @@ protected:
     }
   }
 
-  // Helper function to compare mask indices
-  void compareMasks(const std::vector<size_t> &expected, const std::vector<size_t> &actual) {
-    ASSERT_EQ(expected.size(), actual.size())
-        << "Mask sizes don't match: expected " << expected.size() << ", got " << actual.size();
+  // Helper function to compare mask indices from device_ptrs
+  void compareMasks(const device_ptr<size_t[]> &expected, const device_ptr<size_t[]> &actual,
+                    size_t size) {
+    ASSERT_EQ(expected.getCount(), actual.getCount())
+        << "Mask sizes don't match: expected " << expected.getCount() << ", got "
+        << actual.getCount();
 
-    for (size_t i = 0; i < expected.size(); ++i) {
-      EXPECT_EQ(expected[i], actual[i]) << "Mask mismatch at index " << i << ": expected "
-                                        << expected[i] << ", got " << actual[i];
+    // Copy masks to host for comparison
+    std::vector<size_t> expected_host(size);
+    std::vector<size_t> actual_host(size);
+
+    if (expected.getDeviceType() == DeviceType::CPU) {
+      std::memcpy(expected_host.data(), expected.get(), size * sizeof(size_t));
+    } else {
+      expected.getDevice()->copyToHost(expected_host.data(), expected.get(), size * sizeof(size_t));
+    }
+
+    if (actual.getDeviceType() == DeviceType::CPU) {
+      std::memcpy(actual_host.data(), actual.get(), size * sizeof(size_t));
+    } else {
+      actual.getDevice()->copyToHost(actual_host.data(), actual.get(), size * sizeof(size_t));
+    }
+
+    for (size_t i = 0; i < size; ++i) {
+      EXPECT_EQ(expected_host[i], actual_host[i]) << "Mask mismatch at index " << i << ": expected "
+                                                  << expected_host[i] << ", got " << actual_host[i];
     }
   }
 
@@ -94,9 +112,12 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
   // CPU version
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> cpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), cpu_output.data(), batch_size, channels,
                                          input_h, input_w, output_h, output_w, pool_h, pool_w,
                                          stride_h, stride_w, cpu_mask);
@@ -108,7 +129,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
 
   gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
 
-  std::vector<size_t> gpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
   cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_output.get(), batch_size, channels,
                                           input_h, input_w, output_h, output_w, pool_h, pool_w,
                                           stride_h, stride_w, gpu_mask);
@@ -118,7 +139,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
                           (batch_size * channels * output_h * output_w) * sizeof(float));
 
   compareArrays(cpu_output, gpu_output_cpu);
-  compareMasks(cpu_mask, gpu_mask);
+  compareMasks(cpu_mask, gpu_mask, mask_size);
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
@@ -138,9 +159,12 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
     input_data[i] = static_cast<float>((i % 100) + 1) * 0.1f;
   }
 
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
   // CPU version
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> cpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), cpu_output.data(), batch_size, channels,
                                          input_h, input_w, output_h, output_w, pool_h, pool_w,
                                          stride_h, stride_w, cpu_mask);
@@ -152,7 +176,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
 
   gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
 
-  std::vector<size_t> gpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
   cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_output.get(), batch_size, channels,
                                           input_h, input_w, output_h, output_w, pool_h, pool_w,
                                           stride_h, stride_w, gpu_mask);
@@ -162,7 +186,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
                           (batch_size * channels * output_h * output_w) * sizeof(float));
 
   compareArrays(cpu_output, gpu_output_cpu);
-  compareMasks(cpu_mask, gpu_mask);
+  compareMasks(cpu_mask, gpu_mask, mask_size);
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
@@ -182,9 +206,12 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
     input_data[i] = static_cast<float>((i * 7) % 100) * 0.1f; // Create varied pattern
   }
 
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
   // CPU version
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> cpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), cpu_output.data(), batch_size, channels,
                                          input_h, input_w, output_h, output_w, pool_h, pool_w,
                                          stride_h, stride_w, cpu_mask);
@@ -196,7 +223,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
 
   gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
 
-  std::vector<size_t> gpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
   cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_output.get(), batch_size, channels,
                                           input_h, input_w, output_h, output_w, pool_h, pool_w,
                                           stride_h, stride_w, gpu_mask);
@@ -206,7 +233,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
                           (batch_size * channels * output_h * output_w) * sizeof(float));
 
   compareArrays(cpu_output, gpu_output_cpu);
-  compareMasks(cpu_mask, gpu_mask);
+  compareMasks(cpu_mask, gpu_mask, mask_size);
 }
 
 TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
@@ -226,9 +253,12 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
   // CPU version
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> cpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), cpu_output.data(), batch_size, channels,
                                          input_h, input_w, output_h, output_w, pool_h, pool_w,
                                          stride_h, stride_w, cpu_mask);
@@ -240,7 +270,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
 
   gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
 
-  std::vector<size_t> gpu_mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
   cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_output.get(), batch_size, channels,
                                           input_h, input_w, output_h, output_w, pool_h, pool_w,
                                           stride_h, stride_w, gpu_mask);
@@ -250,7 +280,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
                           (batch_size * channels * output_h * output_w) * sizeof(float));
 
   compareArrays(cpu_output, gpu_output_cpu);
-  compareMasks(cpu_mask, gpu_mask);
+  compareMasks(cpu_mask, gpu_mask, mask_size);
 }
 
 // ==================== compute_max_pool_backward Tests ====================
@@ -272,12 +302,15 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  // First do forward pass to get mask
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
+  // First do forward pass to get mask on CPU
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), forward_output.data(), batch_size,
                                          channels, input_h, input_w, output_h, output_w, pool_h,
-                                         pool_w, stride_h, stride_w, mask);
+                                         pool_w, stride_h, stride_w, cpu_mask);
 
   // Create gradient for backward pass
   std::vector<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -288,9 +321,19 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   // CPU version
   std::vector<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   cpu::maxpool::compute_max_pool_backward(gradient_data.data(), cpu_grad_input.data(), batch_size,
-                                          channels, output_h, output_w, mask);
+                                          channels, output_h, output_w, cpu_mask);
 
-  // GPU version
+  // GPU version - need to do forward pass on GPU to get GPU mask
+  device_ptr<float[]> gpu_input = make_array_ptr<float[]>(gpu_device_, input_data.size());
+  device_ptr<float[]> gpu_forward_output = make_array_ptr<float[]>(gpu_device_, mask_size);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
+
+  gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
+
+  cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_forward_output.get(), batch_size,
+                                          channels, input_h, input_w, output_h, output_w, pool_h,
+                                          pool_w, stride_h, stride_w, gpu_mask);
+
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, gradient_data.size());
   device_ptr<float[]> gpu_grad_input =
       make_array_ptr<float[]>(gpu_device_, batch_size * channels * input_h * input_w);
@@ -303,7 +346,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
                             zero_grad.size() * sizeof(float));
 
   cuda::maxpool::compute_max_pool_backward(gpu_gradient.get(), gpu_grad_input.get(), batch_size,
-                                           channels, output_h, output_w, mask);
+                                           channels, output_h, output_w, gpu_mask);
 
   std::vector<float> gpu_grad_input_cpu(batch_size * channels * input_h * input_w);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),
@@ -329,12 +372,15 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
     input_data[i] = static_cast<float>((i % 100) + 1) * 0.1f;
   }
 
-  // First do forward pass to get mask
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
+  // First do forward pass to get mask on CPU
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), forward_output.data(), batch_size,
                                          channels, input_h, input_w, output_h, output_w, pool_h,
-                                         pool_w, stride_h, stride_w, mask);
+                                         pool_w, stride_h, stride_w, cpu_mask);
 
   // Create gradient for backward pass
   std::vector<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -345,9 +391,19 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   // CPU version
   std::vector<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   cpu::maxpool::compute_max_pool_backward(gradient_data.data(), cpu_grad_input.data(), batch_size,
-                                          channels, output_h, output_w, mask);
+                                          channels, output_h, output_w, cpu_mask);
 
-  // GPU version
+  // GPU version - need to do forward pass on GPU to get GPU mask
+  device_ptr<float[]> gpu_input = make_array_ptr<float[]>(gpu_device_, input_data.size());
+  device_ptr<float[]> gpu_forward_output = make_array_ptr<float[]>(gpu_device_, mask_size);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
+
+  gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
+
+  cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_forward_output.get(), batch_size,
+                                          channels, input_h, input_w, output_h, output_w, pool_h,
+                                          pool_w, stride_h, stride_w, gpu_mask);
+
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, gradient_data.size());
   device_ptr<float[]> gpu_grad_input =
       make_array_ptr<float[]>(gpu_device_, batch_size * channels * input_h * input_w);
@@ -360,7 +416,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
                             zero_grad.size() * sizeof(float));
 
   cuda::maxpool::compute_max_pool_backward(gpu_gradient.get(), gpu_grad_input.get(), batch_size,
-                                           channels, output_h, output_w, mask);
+                                           channels, output_h, output_w, gpu_mask);
 
   std::vector<float> gpu_grad_input_cpu(batch_size * channels * input_h * input_w);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),
@@ -386,12 +442,15 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
     input_data[i] = static_cast<float>((i * 7) % 100) * 0.1f;
   }
 
-  // First do forward pass to get mask
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
+  // First do forward pass to get mask on CPU
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), forward_output.data(), batch_size,
                                          channels, input_h, input_w, output_h, output_w, pool_h,
-                                         pool_w, stride_h, stride_w, mask);
+                                         pool_w, stride_h, stride_w, cpu_mask);
 
   // Create gradient for backward pass
   std::vector<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -402,9 +461,19 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   // CPU version
   std::vector<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   cpu::maxpool::compute_max_pool_backward(gradient_data.data(), cpu_grad_input.data(), batch_size,
-                                          channels, output_h, output_w, mask);
+                                          channels, output_h, output_w, cpu_mask);
 
-  // GPU version
+  // GPU version - need to do forward pass on GPU to get GPU mask
+  device_ptr<float[]> gpu_input = make_array_ptr<float[]>(gpu_device_, input_data.size());
+  device_ptr<float[]> gpu_forward_output = make_array_ptr<float[]>(gpu_device_, mask_size);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
+
+  gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
+
+  cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_forward_output.get(), batch_size,
+                                          channels, input_h, input_w, output_h, output_w, pool_h,
+                                          pool_w, stride_h, stride_w, gpu_mask);
+
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, gradient_data.size());
   device_ptr<float[]> gpu_grad_input =
       make_array_ptr<float[]>(gpu_device_, batch_size * channels * input_h * input_w);
@@ -417,7 +486,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
                             zero_grad.size() * sizeof(float));
 
   cuda::maxpool::compute_max_pool_backward(gpu_gradient.get(), gpu_grad_input.get(), batch_size,
-                                           channels, output_h, output_w, mask);
+                                           channels, output_h, output_w, gpu_mask);
 
   std::vector<float> gpu_grad_input_cpu(batch_size * channels * input_h * input_w);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),
@@ -443,12 +512,15 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  // First do forward pass to get mask
+  const Device &cpu_device = getCPU();
+  const size_t mask_size = batch_size * channels * output_h * output_w;
+
+  // First do forward pass to get mask on CPU
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
-  std::vector<size_t> mask(batch_size * channels * output_h * output_w);
+  device_ptr<size_t[]> cpu_mask = make_array_ptr<size_t[]>(&cpu_device, mask_size);
   cpu::maxpool::compute_max_pool_forward(input_data.data(), forward_output.data(), batch_size,
                                          channels, input_h, input_w, output_h, output_w, pool_h,
-                                         pool_w, stride_h, stride_w, mask);
+                                         pool_w, stride_h, stride_w, cpu_mask);
 
   // Create gradient for backward pass
   std::vector<float> gradient_data(batch_size * channels * output_h * output_w);
@@ -459,9 +531,19 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   // CPU version
   std::vector<float> cpu_grad_input(batch_size * channels * input_h * input_w, 0.0f);
   cpu::maxpool::compute_max_pool_backward(gradient_data.data(), cpu_grad_input.data(), batch_size,
-                                          channels, output_h, output_w, mask);
+                                          channels, output_h, output_w, cpu_mask);
 
-  // GPU version
+  // GPU version - need to do forward pass on GPU to get GPU mask
+  device_ptr<float[]> gpu_input = make_array_ptr<float[]>(gpu_device_, input_data.size());
+  device_ptr<float[]> gpu_forward_output = make_array_ptr<float[]>(gpu_device_, mask_size);
+  device_ptr<size_t[]> gpu_mask = make_array_ptr<size_t[]>(gpu_device_, mask_size);
+
+  gpu_device_->copyToDevice(gpu_input.get(), input_data.data(), input_data.size() * sizeof(float));
+
+  cuda::maxpool::compute_max_pool_forward(gpu_input.get(), gpu_forward_output.get(), batch_size,
+                                          channels, input_h, input_w, output_h, output_w, pool_h,
+                                          pool_w, stride_h, stride_w, gpu_mask);
+
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, gradient_data.size());
   device_ptr<float[]> gpu_grad_input =
       make_array_ptr<float[]>(gpu_device_, batch_size * channels * input_h * input_w);
@@ -474,7 +556,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
                             zero_grad.size() * sizeof(float));
 
   cuda::maxpool::compute_max_pool_backward(gpu_gradient.get(), gpu_grad_input.get(), batch_size,
-                                           channels, output_h, output_w, mask);
+                                           channels, output_h, output_w, gpu_mask);
 
   std::vector<float> gpu_grad_input_cpu(batch_size * channels * input_h * input_w);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),

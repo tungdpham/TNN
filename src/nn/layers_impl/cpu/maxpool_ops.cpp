@@ -17,7 +17,7 @@ template <typename T>
 void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_size,
                               size_t channels, size_t input_h, size_t input_w, size_t output_h,
                               size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                              size_t stride_w, std::vector<size_t> &mask_indices) {
+                              size_t stride_w, device_ptr<size_t[]> &mask_indices) {
   const T MIN_VALUE = std::numeric_limits<T>::lowest();
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -42,7 +42,7 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
 
         const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
         output_data[output_idx] = max_val;
-        mask_indices[output_idx] = max_idx;
+        mask_indices.get()[output_idx] = max_idx;
       }
     }
   });
@@ -51,13 +51,13 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
 template <typename T>
 void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                                size_t channels, size_t output_h, size_t output_w,
-                               const std::vector<size_t> &mask_indices) {
+                               const device_ptr<size_t[]> &mask_indices) {
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
         const size_t output_idx = ((n * channels + c) * output_h + out_h) * output_w + out_w;
         const T grad_val = gradient_data[output_idx];
-        const size_t input_idx = mask_indices[output_idx];
+        const size_t input_idx = mask_indices.get()[output_idx];
         grad_input_data[input_idx] += grad_val;
       }
     }
@@ -69,21 +69,21 @@ template void compute_max_pool_forward<float>(const float *input_data, float *ou
                                               size_t batch_size, size_t channels, size_t input_h,
                                               size_t input_w, size_t output_h, size_t output_w,
                                               size_t pool_h, size_t pool_w, size_t stride_h,
-                                              size_t stride_w, std::vector<size_t> &mask_indices);
+                                              size_t stride_w, device_ptr<size_t[]> &mask_indices);
 template void compute_max_pool_forward<double>(const double *input_data, double *output_data,
                                                size_t batch_size, size_t channels, size_t input_h,
                                                size_t input_w, size_t output_h, size_t output_w,
                                                size_t pool_h, size_t pool_w, size_t stride_h,
-                                               size_t stride_w, std::vector<size_t> &mask_indices);
+                                               size_t stride_w, device_ptr<size_t[]> &mask_indices);
 
 template void compute_max_pool_backward<float>(const float *gradient_data, float *grad_input_data,
                                                size_t batch_size, size_t channels, size_t output_h,
                                                size_t output_w,
-                                               const std::vector<size_t> &mask_indices);
+                                               const device_ptr<size_t[]> &mask_indices);
 template void compute_max_pool_backward<double>(const double *gradient_data,
                                                 double *grad_input_data, size_t batch_size,
                                                 size_t channels, size_t output_h, size_t output_w,
-                                                const std::vector<size_t> &mask_indices);
+                                                const device_ptr<size_t[]> &mask_indices);
 
 } // namespace maxpool
 } // namespace cpu
