@@ -32,17 +32,20 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 template <typename T>
 Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
 
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
+  const Tensor<T> &current =
+      input.device() == this->device_ ? input : input.to_device(this->device_);
+
+  const size_t batch_size = current.batch_size();
+  const size_t channels = current.channels();
 
   const Tensor<T> *padded_input_ptr;
   std::unique_ptr<Tensor<T>> padded_input_storage;
 
   if (pad_h_ > 0 || pad_w_ > 0) {
-    padded_input_storage = std::make_unique<Tensor<T>>(pad(input, pad_h_, pad_w_, T(0)));
+    padded_input_storage = std::make_unique<Tensor<T>>(pad(current, pad_h_, pad_w_, T(0)));
     padded_input_ptr = padded_input_storage.get();
   } else {
-    padded_input_ptr = &input;
+    padded_input_ptr = &current;
   }
 
   const size_t padded_h = padded_input_ptr->height();
@@ -51,7 +54,7 @@ Tensor<T> MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_
   const size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
   const size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
 
-  Tensor<T> output({batch_size, channels, output_h, output_w});
+  Tensor<T> output({batch_size, channels, output_h, output_w}, this->device_);
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
   std::vector<size_t> mask_indices(total_outputs);
@@ -79,6 +82,9 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
                              std::to_string(micro_batch_id));
   }
 
+  const Tensor<T> &current_gradient =
+      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+
   const Tensor<T> &cached_padded_input = it_input->second;
   const std::vector<size_t> &mask_indices = it_mask->second;
 
@@ -87,10 +93,10 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t output_h = gradient.height();
   const size_t output_w = gradient.width();
 
-  Tensor<T> grad_padded_input(cached_padded_input.shape());
+  Tensor<T> grad_padded_input(cached_padded_input.shape(), this->device_);
 
-  compute_max_pool_backward(gradient.data_ptr(), grad_padded_input.data_ptr(), batch_size, channels,
-                            output_h, output_w, mask_indices);
+  compute_max_pool_backward(current_gradient.data_ptr(), grad_padded_input.data_ptr(), batch_size,
+                            channels, output_h, output_w, mask_indices);
 
   if (pad_h_ > 0 || pad_w_ > 0) {
     return unpad(grad_padded_input, pad_h_, pad_w_);

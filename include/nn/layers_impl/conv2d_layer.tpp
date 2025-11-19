@@ -26,12 +26,7 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
                             size_t pad_w, bool use_bias, const std::string &name)
     : ParameterizedLayer<T>(name), in_channels_(in_channels), out_channels_(out_channels),
       kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {
-  this->device_ = &getCPU();
-  temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-  temp_gradient_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-}
+      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {}
 
 template <typename T> void Conv2DLayer<T>::initialize_params() {
   weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
@@ -41,6 +36,10 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
     bias_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
     bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
   }
+
+  temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+  temp_gradient_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(this->device_, 0);
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
   T fan_out = static_cast<T>(out_channels_ * kernel_h_ * kernel_w_);

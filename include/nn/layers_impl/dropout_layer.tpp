@@ -27,18 +27,21 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
     return input;
   }
 
-  Tensor<T> mask(input.shape());
-  Tensor<T> output = input;
+  const Tensor<T> &current =
+      input.device() == this->device_ ? input : input.to_device(this->device_);
+
+  Tensor<T> mask(current.shape(), this->device_);
+  Tensor<T> output = current;
 
   std::uniform_real_distribution<T> distribution(T(0), T(1));
 
   T scale = T(1) / (T(1) - dropout_rate_);
 
-  parallel_for_2d(input.batch_size(), input.channels(), [&](size_t n, size_t c) {
+  parallel_for_2d(current.batch_size(), current.channels(), [&](size_t n, size_t c) {
     thread_local std::mt19937 local_generator(std::random_device{}());
     thread_local std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-    for (size_t h = 0; h < input.height(); ++h) {
-      for (size_t w = 0; w < input.width(); ++w) {
+    for (size_t h = 0; h < current.height(); ++h) {
+      for (size_t w = 0; w < current.width(); ++w) {
         if (local_distribution(local_generator) < dropout_rate_) {
           mask(n, c, h, w) = T(0);
           output(n, c, h, w) = T(0);
@@ -60,6 +63,9 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batc
     return gradient;
   }
 
+  const Tensor<T> &current_gradient =
+      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+
   auto it_mask = micro_batch_masks_.find(micro_batch_id);
   if (it_mask == micro_batch_masks_.end()) {
     throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
@@ -67,15 +73,16 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batc
   }
   const Tensor<T> &mask = it_mask->second;
 
-  Tensor<T> grad_input = gradient;
+  Tensor<T> grad_input = current_gradient;
 
-  parallel_for_2d(gradient.batch_size(), gradient.channels(), [&](size_t n, size_t c) {
-    for (size_t h = 0; h < gradient.height(); ++h) {
-      for (size_t w = 0; w < gradient.width(); ++w) {
-        grad_input(n, c, h, w) *= mask(n, c, h, w);
-      }
-    }
-  });
+  parallel_for_2d(current_gradient.batch_size(), current_gradient.channels(),
+                  [&](size_t n, size_t c) {
+                    for (size_t h = 0; h < current_gradient.height(); ++h) {
+                      for (size_t w = 0; w < current_gradient.width(); ++w) {
+                        grad_input(n, c, h, w) *= mask(n, c, h, w);
+                      }
+                    }
+                  });
 
   return grad_input;
 }

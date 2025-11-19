@@ -96,6 +96,7 @@ int main() {
                      .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
                      .build();
 
+    model.set_device("GPU:0");
     model.initialize();
 
     // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);

@@ -25,11 +25,11 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
       output_features_(output_features), use_bias_(use_bias), activation_(std::move(activation)) {}
 
 template <typename T> void DenseLayer<T>::initialize_params() {
-  weights_ = Tensor<T>({output_features_, input_features_, 1, 1});
-  weight_gradients_ = Tensor<T>({output_features_, input_features_, 1, 1});
+  weights_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
+  weight_gradients_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
   if (use_bias_) {
-    bias_ = Tensor<T>({output_features_, 1, 1, 1});
-    bias_gradients_ = Tensor<T>({output_features_, 1, 1, 1});
+    bias_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
+    bias_gradients_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
   }
   T fan_in = static_cast<T>(input_features_);
   T fan_out = static_cast<T>(output_features_);
@@ -53,9 +53,12 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) 
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  Tensor<T> output({batch_size, output_features_, size_t(1), size_t(1)});
+  const Tensor<T> &current =
+      input.device() == this->device_ ? input : input.to_device(this->device_);
 
-  compute_dense_forward(input.data_ptr(), weights_.data_ptr(), output.data_ptr(), batch_size,
+  Tensor<T> output({batch_size, output_features_, size_t(1), size_t(1)}, this->device_);
+
+  compute_dense_forward(current.data_ptr(), weights_.data_ptr(), output.data_ptr(), batch_size,
                         input_features_, output_features_);
 
   if (use_bias_) {
@@ -98,9 +101,10 @@ Tensor<T> DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_
 
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
-  Tensor<T> grad_input(last_input.shape());
+  Tensor<T> grad_input(last_input.shape(), this->device_);
 
-  Tensor<T> current_grad = gradient.clone();
+  Tensor<T> current_grad =
+      gradient.device() == this->device_ ? gradient.clone() : gradient.to_device(this->device_);
 
   if (activation_) {
     activation_->compute_gradient_inplace(it_pre_act->second, current_grad);

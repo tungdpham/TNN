@@ -27,20 +27,19 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
   }
 
   if (affine_) {
-    gamma_ = Tensor<T>({num_features_, 1, 1, 1});
-    beta_ = Tensor<T>({num_features_, 1, 1, 1});
-    gamma_gradients_ = Tensor<T>({num_features_, 1, 1, 1});
-    beta_gradients_ = Tensor<T>({num_features_, 1, 1, 1});
+    gamma_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
+    beta_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
+    gamma_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
+    beta_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
 
     gamma_.fill(T(1));
     beta_.fill(T(0));
   }
 
-  running_mean_ = Tensor<T>({num_features_, 1, 1, 1});
-  running_var_ = Tensor<T>({num_features_, 1, 1, 1});
-  running_mean_gradients_ = Tensor<T>({num_features_, 1, 1, 1}); // Dummy gradients
-  running_var_gradients_ = Tensor<T>({num_features_, 1, 1, 1});  // Dummy gradients
-
+  running_mean_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
+  running_var_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
+  running_mean_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_); // Dummy gradients
+  running_var_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);  // Dummy gradients
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
   running_mean_gradients_.fill(T(0)); // Initialize dummy gradients to zero
@@ -51,54 +50,9 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 
 template <typename T>
 Tensor<T> BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
-  if (input.channels() != num_features_) {
-    throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
-  }
-
-  micro_batch_inputs_[micro_batch_id] = input.clone();
-
-  size_t batch_size, channels, height, width, spatial_size;
-  extract_tensor_dimensions(input, batch_size, channels, height, width, spatial_size);
-
-  Tensor<T> output(input.shape());
-
-  if (this->is_training_) {
-    Tensor<T> batch_mean({channels, 1, 1, 1});
-    Tensor<T> batch_var({channels, 1, 1, 1});
-    Tensor<T> batch_std({channels, 1, 1, 1});
-
-    compute_channel_mean(input.data_ptr(), batch_mean.data_ptr(), batch_size, channels,
-                         spatial_size);
-
-    compute_channel_variance(input.data_ptr(), batch_mean.data_ptr(), batch_var.data_ptr(),
-                             batch_size, channels, spatial_size);
-
-    compute_batch_std(batch_var, batch_std, channels);
-
-    Tensor<T> normalized(input.shape());
-
-    if (affine_) {
-      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
-                                    gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
-                                    normalized.data_ptr(), batch_size, channels, spatial_size,
-                                    affine_);
-    } else {
-      device_ptr<T[]> null_ptr = nullptr;
-      normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
-                                    null_ptr, null_ptr, output.data_ptr(), normalized.data_ptr(),
-                                    batch_size, channels, spatial_size, affine_);
-    }
-
-    update_running_stats(batch_mean, batch_var, channels);
-
-    micro_batch_std_[micro_batch_id] = std::move(batch_std);
-    micro_batch_normalized_[micro_batch_id] = std::move(normalized);
-
-  } else {
-    compute_inference_output(input, output, batch_size, channels, spatial_size);
-  }
-
-  return output;
+  Tensor<T> input_copy = input.clone();
+  forward_inplace(input_copy, micro_batch_id);
+  return input_copy;
 }
 
 template <typename T>
@@ -107,15 +61,19 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
+  if (input.device() != this->device_) {
+    input = input.to_device(this->device_);
+  }
+
   size_t batch_size, channels, height, width, spatial_size;
   extract_tensor_dimensions(input, batch_size, channels, height, width, spatial_size);
 
-  Tensor<T> output(input.shape());
+  Tensor<T> output(input.shape(), this->device_);
 
   if (this->is_training_) {
-    Tensor<T> batch_mean({channels, 1, 1, 1});
-    Tensor<T> batch_var({channels, 1, 1, 1});
-    Tensor<T> batch_std({channels, 1, 1, 1});
+    Tensor<T> batch_mean({channels, 1, 1, 1}, this->device_);
+    Tensor<T> batch_var({channels, 1, 1, 1}, this->device_);
+    Tensor<T> batch_std({channels, 1, 1, 1}, this->device_);
 
     compute_channel_mean(input.data_ptr(), batch_mean.data_ptr(), batch_size, channels,
                          spatial_size);
@@ -125,7 +83,7 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
 
     compute_batch_std(batch_var, batch_std, channels);
 
-    Tensor<T> normalized(input.shape());
+    Tensor<T> normalized(input.shape(), this->device_);
 
     if (affine_) {
       normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
@@ -164,6 +122,9 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
                              std::to_string(micro_batch_id));
   }
 
+  const Tensor<T> &current_gradient =
+      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+
   const Tensor<T> &input = it_input->second;
   const Tensor<T> &normalized = it_normalized->second;
   const Tensor<T> &std_val = it_std->second;
@@ -175,24 +136,23 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t spatial_size = height * width;
   const size_t total_elements = batch_size * spatial_size;
 
-  Tensor<T> grad_input(input.shape());
+  Tensor<T> grad_input(input.shape(), this->device_);
 
   if (affine_) {
-    compute_affine_gradients_optimized(gradient.data_ptr(), normalized.data_ptr(),
+    compute_affine_gradients_optimized(current_gradient.data_ptr(), normalized.data_ptr(),
                                        gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
                                        batch_size, channels, spatial_size);
   }
 
-  Tensor<T> grad_normalized(input.shape());
+  Tensor<T> grad_normalized(input.shape(), this->device_);
 
-  // Compute grad_normalized using wrapper function
-  Tensor<T> dummy_gamma; // Empty tensor for non-affine case
+  Tensor<T> dummy_gamma(this->device_);
   compute_grad_normalized_wrapper(
-      gradient.data_ptr(), affine_ ? gamma_.data_ptr() : dummy_gamma.data_ptr(),
+      current_gradient.data_ptr(), affine_ ? gamma_.data_ptr() : dummy_gamma.data_ptr(),
       grad_normalized.data_ptr(), batch_size, channels, spatial_size, affine_);
 
-  Tensor<T> sum_grad_normalized({channels, 1, 1, 1});
-  Tensor<T> sum_grad_normalized_times_normalized({channels, 1, 1, 1});
+  Tensor<T> sum_grad_normalized({channels, 1, 1, 1}, this->device_);
+  Tensor<T> sum_grad_normalized_times_normalized({channels, 1, 1, 1}, this->device_);
 
   // Compute backward sums using wrapper function
   compute_backward_sums_wrapper(

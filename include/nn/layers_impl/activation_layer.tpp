@@ -19,29 +19,39 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 
 template <typename T>
 Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
-  micro_batch_inputs_[micro_batch_id] = input.clone();
-  Tensor<T> output = input.clone();
+  const Tensor<T> &current =
+      input.device() == this->device_ ? input : input.to_device(this->device_);
+  micro_batch_inputs_[micro_batch_id] = current.clone();
+  Tensor<T> output = current.clone();
   activation_->apply(output);
   return output;
 }
 
 template <typename T>
 Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+  const Tensor<T> &current_gradient =
+      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
-  Tensor<T> grad = activation_->compute_gradient(last_input, &gradient);
+  Tensor<T> grad = activation_->compute_gradient(last_input, &current_gradient);
   return grad;
 }
 
 template <typename T>
 void ActivationLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id) {
+  if (input.device() != this->device_) {
+    input = input.to_device(this->device_);
+  }
   micro_batch_inputs_[micro_batch_id] = input.clone();
   activation_->apply(input);
 }
 
 template <typename T>
 void ActivationLayer<T>::backward_inplace(Tensor<T> &gradient, size_t micro_batch_id) {
+  if (gradient.device() != this->device_) {
+    gradient = gradient.to_device(this->device_);
+  }
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;

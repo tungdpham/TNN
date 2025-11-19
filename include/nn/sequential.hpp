@@ -7,6 +7,7 @@
 #pragma once
 
 #include "blocks.hpp"
+#include "device/device_manager.hpp"
 #include "layers.hpp"
 #include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
@@ -354,6 +355,17 @@ public:
   }
 
   /**
+   * @brief Set device for all layers in the model.
+   * @param device_id The target device ID (string).
+   */
+  void set_device(const std::string &device_id) {
+    const Device *target_device = &DeviceManager::getInstance().getDevice(device_id);
+    for (auto &layer : layers_) {
+      layer->set_device(target_device);
+    }
+  }
+
+  /**
    * @brief Performs a forward pass through the model.
    * @param input The input tensor.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
@@ -369,7 +381,7 @@ public:
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
-
+          // std::cout << "Forwarding through layer " << i << " (" << layers_[i]->name() << ")\n";
           // current_output = layers_[i]->forward(current_output, micro_batch_id);
           layers_[i]->forward_inplace(current_output, micro_batch_id);
 
@@ -397,7 +409,7 @@ public:
       }
     }
 
-    return current_output;
+    return current_output.to_cpu();
   }
 
   /**
@@ -563,7 +575,8 @@ public:
   }
 
   /**
-   * @brief Returns the relative forward complexity (in FLOPs) for each layer given an input shape.
+   * @brief Returns the relative forward complexity (in FLOPs) for each layer given an input
+   * shape.
    * @param input_shape The shape of the input tensor as a vector of sizes.
    */
   std::vector<uint64_t> forward_complexity(const std::vector<size_t> &input_shape) const {
