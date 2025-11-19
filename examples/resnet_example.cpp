@@ -29,7 +29,7 @@ constexpr int EPOCHS = 10;
 constexpr size_t BATCH_SIZE = 32;
 constexpr int LR_DECAY_INTERVAL = 5;
 constexpr float LR_DECAY_FACTOR = 0.85f;
-constexpr float LR_INITIAL = 0.01f;
+constexpr float LR_INITIAL = 0.001f;
 } // namespace resnet_constants
 
 int main() {
@@ -79,9 +79,6 @@ int main() {
       return -1;
     }
 
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
-
     // Configure data augmentation for training
     cout << "\nConfiguring data augmentation for training..." << endl;
     auto aug_strategy = AugmentationBuilder<float>()
@@ -99,6 +96,8 @@ int main() {
     auto model = create_resnet18_cifar10(); // Use smaller ResNet - ResNet-18 is too deep
 
     model.print_summary({1, 3, 32, 32});
+
+    model.set_device("GPU:0");
     model.initialize();
 
     // Set optimizer and loss function

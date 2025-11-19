@@ -137,17 +137,6 @@ int main() {
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
-    // // Load pre-trained weights if available
-    // const string pretrained_weights_file = "./model_snapshots/" + model.name() + ".bin";
-    // if (ifstream(pretrained_weights_file)) {
-    //   cout << "\nLoading pre-trained model weights from " << pretrained_weights_file << " ..."
-    //        << endl;
-    //   model.load_weights_file(pretrained_weights_file);
-    //   cout << "Successfully loaded pre-trained model weights." << endl;
-    // } else {
-    //   cout << "\nNo pre-trained weights file found. Training model from scratch." << endl;
-    // }
-
     model.enable_profiling(true);
 
     cout << "\nStarting CIFAR-10 CNN training..." << endl;

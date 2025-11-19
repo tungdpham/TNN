@@ -71,7 +71,7 @@ public:
   virtual void set_training(bool training) { is_training_ = training; }
   virtual bool is_training() const { return is_training_; }
 
-  void set_device(const Device *device) { device_ = device; }
+  virtual void set_device(const Device *device) { device_ = device; }
   const Device *get_device() const { return device_; }
 
   virtual std::vector<size_t>

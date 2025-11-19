@@ -28,7 +28,6 @@ private:
   std::unique_ptr<Layer<T>> shortcut_;
   std::unique_ptr<ActivationFunction<T>> final_activation_;
 
-  Tensor<T> input_cache_;
   Tensor<T> main_output_cache_;
   Tensor<T> shortcut_output_cache_;
   Tensor<T> pre_activation_cache_;
@@ -87,10 +86,11 @@ public:
   }
 
   Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override {
-    input_cache_ = input.clone();
+    const Tensor<T> &current_input =
+        input.device() == this->device_ ? input : input.to_device(this->get_device());
 
     // Main path: F(x)
-    Tensor<T> current = input.clone();
+    Tensor<T> current = current_input.clone();
     for (auto &layer : main_path_) {
       layer->forward_inplace(current, micro_batch_id);
     }
@@ -98,9 +98,9 @@ public:
 
     // Shortcut path: x or projection(x)
     if (shortcut_) {
-      shortcut_output_cache_ = shortcut_->forward(input, micro_batch_id);
+      shortcut_output_cache_ = shortcut_->forward(current_input, micro_batch_id);
     } else {
-      shortcut_output_cache_ = input.clone();
+      shortcut_output_cache_ = current_input.clone();
     }
 
     // Residual connection: F(x) + x
@@ -186,6 +186,16 @@ public:
     }
     if (shortcut_) {
       shortcut_->set_training(training);
+    }
+  }
+
+  void set_device(const Device *device) override {
+    Layer<T>::set_device(device);
+    for (auto &layer : main_path_) {
+      layer->set_device(device);
+    }
+    if (shortcut_) {
+      shortcut_->set_device(device);
     }
   }
 
