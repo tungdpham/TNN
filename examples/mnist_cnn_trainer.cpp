@@ -37,14 +37,13 @@ int main() {
     }
 
     // Get training parameters from environment or use defaults
-    const int epochs = get_env<int>("EPOCHS", mnist_constants::EPOCHS);
-    const size_t batch_size = get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
-    const float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
-    const float lr_decay_factor =
-        get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
-    const size_t lr_decay_interval =
+    int epochs = get_env<int>("EPOCHS", mnist_constants::EPOCHS);
+    size_t batch_size = get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
+    float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
+    float lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
+    size_t lr_decay_interval =
         get_env<size_t>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
-    const int progress_print_interval =
+    int progress_print_interval =
         get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
 
     TrainingConfig train_config{epochs,
@@ -84,7 +83,6 @@ int main() {
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
                      .activation("relu", "relu1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                     //  .avgpool2d(3, 3, 3, 3, 0, 0, "pool1")
                      .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
                      .batchnorm(1e-5f, 0.1f, true, "bn2")
                      .activation("relu", "relu2")
@@ -96,7 +94,7 @@ int main() {
                      .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
                      .build();
 
-    model.set_device("GPU:0");
+    model.set_device("CPU:0");
     model.initialize();
 
     // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);

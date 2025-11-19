@@ -34,6 +34,8 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 
     gamma_.fill(T(1));
     beta_.fill(T(0));
+    gamma_gradients_.fill(T(0));
+    beta_gradients_.fill(T(0));
   }
 
   running_mean_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
@@ -42,8 +44,8 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
   running_var_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);  // Dummy gradients
   running_mean_.fill(T(0));
   running_var_.fill(T(1));
-  running_mean_gradients_.fill(T(0)); // Initialize dummy gradients to zero
-  running_var_gradients_.fill(T(0));  // Initialize dummy gradients to zero
+  running_mean_gradients_.fill(T(0));
+  running_var_gradients_.fill(T(0));
 
   this->initialized_ = true;
 }
@@ -69,11 +71,15 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
   extract_tensor_dimensions(input, batch_size, channels, height, width, spatial_size);
 
   Tensor<T> output(input.shape(), this->device_);
+  output.fill(T(0));
 
   if (this->is_training_) {
     Tensor<T> batch_mean({channels, 1, 1, 1}, this->device_);
     Tensor<T> batch_var({channels, 1, 1, 1}, this->device_);
     Tensor<T> batch_std({channels, 1, 1, 1}, this->device_);
+    // batch_mean.fill(T(0));
+    // batch_var.fill(T(0));
+    // batch_std.fill(T(0));
 
     // Use fused mean+variance computation
     compute_mean_variance_fused(input, batch_mean, batch_var, batch_size, channels, spatial_size);
@@ -81,6 +87,7 @@ void BatchNormLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id)
     compute_batch_std(batch_var, batch_std, channels);
 
     Tensor<T> normalized(input.shape(), this->device_);
+    normalized.fill(T(0));
 
     if (affine_) {
       normalize_and_scale_optimized(input.data_ptr(), batch_mean.data_ptr(), batch_std.data_ptr(),
@@ -133,9 +140,11 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t spatial_size = height * width;
 
   Tensor<T> grad_input(input.shape(), this->device_);
+  grad_input.fill(T(0));
 
   // Use fused backward kernel that combines all operations
   Tensor<T> dummy_gamma(this->device_);
+  dummy_gamma.fill(T(0));
   compute_batchnorm_backward_fused(current_gradient, normalized, std_val, dummy_gamma, grad_input,
                                    batch_size, channels, spatial_size);
 
@@ -145,11 +154,11 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
 template <typename T>
 void BatchNormLayer<T>::compute_batch_std(const Tensor<T> &batch_var, Tensor<T> &batch_std,
                                           size_t channels) {
-  if (batch_var.data_ptr().getDeviceType() != batch_std.data_ptr().getDeviceType()) {
+  if (batch_var.device_type() != batch_std.device_type()) {
     throw std::runtime_error("Batch variance and std tensors must be on the same device");
   }
 
-  if (batch_var.data_ptr().getDeviceType() == DeviceType::CPU) {
+  if (batch_var.device_type() == DeviceType::CPU) {
     cpu::batchnorm::compute_batch_std(batch_var.data_ptr().get(), batch_std.data_ptr().get(),
                                       channels, epsilon_);
   }
@@ -164,13 +173,13 @@ void BatchNormLayer<T>::compute_batch_std(const Tensor<T> &batch_var, Tensor<T> 
 template <typename T>
 void BatchNormLayer<T>::update_running_stats(const Tensor<T> &batch_mean,
                                              const Tensor<T> &batch_var, size_t channels) {
-  if (running_mean_.data_ptr().getDeviceType() != running_var_.data_ptr().getDeviceType() ||
-      running_mean_.data_ptr().getDeviceType() != batch_mean.data_ptr().getDeviceType() ||
-      batch_mean.data_ptr().getDeviceType() != batch_var.data_ptr().getDeviceType()) {
+  if (running_mean_.device_type() != running_var_.device_type() ||
+      running_mean_.device_type() != batch_mean.device_type() ||
+      batch_mean.device_type() != batch_var.device_type()) {
     throw std::runtime_error("All tensors must be on the same device for update_running_stats");
   }
 
-  if (running_mean_.data_ptr().getDeviceType() == DeviceType::CPU) {
+  if (running_mean_.device_type() == DeviceType::CPU) {
     cpu::batchnorm::update_running_stats(running_mean_.data_ptr().get(),
                                          running_var_.data_ptr().get(), batch_mean.data_ptr().get(),
                                          batch_var.data_ptr().get(), channels, momentum_);
@@ -188,18 +197,18 @@ template <typename T>
 void BatchNormLayer<T>::compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
                                                  size_t batch_size, size_t channels,
                                                  size_t spatial_size) {
-  if (input.data_ptr().getDeviceType() != output.data_ptr().getDeviceType() ||
-      input.data_ptr().getDeviceType() != running_mean_.data_ptr().getDeviceType() ||
-      running_mean_.data_ptr().getDeviceType() != running_var_.data_ptr().getDeviceType()) {
+  if (input.device_type() != output.device_type() ||
+      input.device_type() != running_mean_.device_type() ||
+      running_mean_.device_type() != running_var_.device_type()) {
     throw std::runtime_error("All tensors must be on the same device for inference output");
   }
 
-  if (affine_ && (input.data_ptr().getDeviceType() != gamma_.data_ptr().getDeviceType() ||
-                  gamma_.data_ptr().getDeviceType() != beta_.data_ptr().getDeviceType())) {
+  if (affine_ && (input.device_type() != gamma_.device_type() ||
+                  gamma_.device_type() != beta_.device_type())) {
     throw std::runtime_error("Gamma and beta must be on the same device as input");
   }
 
-  if (input.data_ptr().getDeviceType() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     cpu::batchnorm::compute_inference_output(
         input.data_ptr().get(), running_mean_.data_ptr().get(), running_var_.data_ptr().get(),
         affine_ ? gamma_.data_ptr().get() : nullptr, affine_ ? beta_.data_ptr().get() : nullptr,
@@ -230,7 +239,7 @@ template <typename T>
 void BatchNormLayer<T>::compute_mean_variance_fused(const Tensor<T> &input, Tensor<T> &batch_mean,
                                                     Tensor<T> &batch_var, size_t batch_size,
                                                     size_t channels, size_t spatial_size) {
-  if (input.data_ptr().getDeviceType() == DeviceType::CPU) {
+  if (input.device_type() == DeviceType::CPU) {
     cpu::batchnorm::compute_mean_variance_fused(input.data_ptr().get(), batch_mean.data_ptr().get(),
                                                 batch_var.data_ptr().get(), batch_size, channels,
                                                 spatial_size);
@@ -251,7 +260,7 @@ void BatchNormLayer<T>::compute_batchnorm_backward_fused(const Tensor<T> &gradie
                                                          Tensor<T> &dummy_gamma,
                                                          Tensor<T> &grad_input, size_t batch_size,
                                                          size_t channels, size_t spatial_size) {
-  if (gradient.data_ptr().getDeviceType() == DeviceType::CPU) {
+  if (gradient.device_type() == DeviceType::CPU) {
     cpu::batchnorm::compute_batchnorm_backward_fused(
         gradient.data_ptr().get(), normalized.data_ptr().get(), std_val.data_ptr().get(),
         affine_ ? gamma_.data_ptr().get() : dummy_gamma.data_ptr().get(),

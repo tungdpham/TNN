@@ -86,7 +86,7 @@ public:
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
-    ops::set_scalar(data_, T(0), data_size_)->sync();
+    // ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
   Tensor(std::initializer_list<size_t> shape_list, const device_ptr<T[]> &data,
@@ -108,7 +108,7 @@ public:
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
-    ops::set_scalar(data_, T(0), data_size_)->sync();
+    // ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
   Tensor(std::vector<size_t> shape, const device_ptr<T[]> &data, const Device *dt = &getCPU())

@@ -27,9 +27,13 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features,
 template <typename T> void DenseLayer<T>::initialize_params() {
   weights_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
   weight_gradients_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
+  weights_.fill(T(0));
+  weight_gradients_.fill(T(0));
   if (use_bias_) {
     bias_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
     bias_gradients_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
+    bias_.fill(T(0));
+    bias_gradients_.fill(T(0));
   }
   T fan_in = static_cast<T>(input_features_);
   T fan_out = static_cast<T>(output_features_);
@@ -42,7 +46,6 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) 
   if (!this->initialized_) {
     throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
   }
-  micro_batch_inputs_[micro_batch_id] = input.clone();
 
   const size_t batch_size = input.batch_size();
   const size_t total_input_features = input.channels() * input.height() * input.width();
@@ -55,6 +58,8 @@ Tensor<T> DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) 
 
   const Tensor<T> &current =
       input.device() == this->device_ ? input : input.to_device(this->device_);
+
+  micro_batch_inputs_[micro_batch_id] = current.clone();
 
   Tensor<T> output({batch_size, output_features_, size_t(1), size_t(1)}, this->device_);
 

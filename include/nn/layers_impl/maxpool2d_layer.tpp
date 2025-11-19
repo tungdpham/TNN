@@ -94,6 +94,7 @@ Tensor<T> MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   const size_t output_w = gradient.width();
 
   Tensor<T> grad_padded_input(cached_padded_input.shape(), this->device_);
+  grad_padded_input.fill(T(0));
 
   compute_max_pool_backward(current_gradient.data_ptr(), grad_padded_input.data_ptr(), batch_size,
                             channels, output_h, output_w, mask_indices);

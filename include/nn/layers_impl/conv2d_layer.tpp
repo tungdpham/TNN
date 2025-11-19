@@ -31,10 +31,13 @@ Conv2DLayer<T>::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kern
 template <typename T> void Conv2DLayer<T>::initialize_params() {
   weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
   weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
-
+  weights_.fill(T(0));
+  weight_gradients_.fill(T(0));
   if (use_bias_) {
     bias_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
     bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
+    bias_.fill(T(0));
+    bias_gradients_.fill(T(0));
   }
 
   temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
@@ -177,6 +180,7 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
                           output_size, kernel_size, out_channels_);
 
   Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
+  grad_input.fill(T(0));
   auto col2im_start = std::chrono::high_resolution_clock::now();
   col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
          input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
