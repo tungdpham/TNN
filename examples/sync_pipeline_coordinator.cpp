@@ -169,8 +169,7 @@ int main() {
     vector<Job<float>> backward_jobs;
     for (auto &job : forward_jobs) {
       loss += loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
-      avg_accuracy +=
-          compute_class_accuracy<float>(job.data, micro_batch_labels[job.micro_batch_id]);
+      avg_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
 
       Tensor<float> gradient =
           loss_function->compute_gradient(job.data, micro_batch_labels[job.micro_batch_id]);
@@ -261,8 +260,7 @@ int main() {
 
     for (auto &job : forward_jobs) {
       val_loss += loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
-      val_accuracy +=
-          compute_class_accuracy<float>(job.data, micro_batch_labels[job.micro_batch_id]);
+      val_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
     }
     ++val_batches;
   }

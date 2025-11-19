@@ -76,6 +76,7 @@ endif()
 # Utilities library
 file(GLOB_RECURSE TNN_UTILS_SOURCES 
     "utils/*.cpp"
+    "utils/*.cu"
 )
 add_library(tnn_utils STATIC ${TNN_UTILS_SOURCES})
 target_include_directories(tnn_utils PUBLIC 
@@ -117,6 +118,9 @@ if(NOT MSVC)
     endif()
 else()
     target_link_libraries(tnn_utils PUBLIC pdh)
+endif()
+if(ENABLE_CUDA)
+    target_link_libraries(tnn_utils PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
 # Data loading library

@@ -1,77 +1,43 @@
 #pragma once
 
 #include "tensor/tensor.hpp"
+#include "utils/accuracy_impl/cpu/accuracy.hpp"
+#ifdef USE_CUDA
+#include "utils/accuracy_impl/cuda/accuracy.hpp"
+#endif
 
 namespace tnn {
-template <typename T>
-float compute_class_accuracy(const Tensor<float> &predictions, const Tensor<float> &targets) {
+
+inline float compute_class_accuracy(const Tensor<float> &predictions,
+                                    const Tensor<float> &targets) {
   const size_t batch_size = predictions.shape()[0];
   const size_t num_classes = predictions.shape()[1];
 
-  int total_correct = 0;
-
-  for (size_t i = 0; i < batch_size; ++i) {
-
-    int pred_class = 0;
-    float max_pred = predictions(i, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      const float pred_val = predictions(i, j, 0, 0);
-      if (pred_val > max_pred) {
-        max_pred = pred_val;
-        pred_class = static_cast<int>(j);
-      }
-    }
-
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (targets(i, j, 0, 0) > 0.5f) {
-        true_class = static_cast<int>(j);
-        break;
-      }
-    }
-
-    if (pred_class == true_class && true_class != -1) {
-      total_correct++;
-    }
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::accuracy::compute_class_accuracy(predictions.data(), targets.data(), batch_size,
+                                                 num_classes);
   }
-
-  return static_cast<float>(total_correct) / static_cast<float>(batch_size);
+#ifdef USE_CUDA
+  return cuda::accuracy::compute_class_accuracy(predictions.data(), targets.data(), batch_size,
+                                                num_classes);
+#endif
+  throw std::runtime_error("Unsupported device type for compute_class_accuracy.");
 }
 
-template <typename T>
-float compute_class_corrects(Tensor<float> &predictions, Tensor<float> &targets,
-                             float threshold = 0.5f) {
+inline float compute_class_corrects(const Tensor<float> &predictions, const Tensor<float> &targets,
+                                    float threshold = 0.5f) {
   const size_t batch_size = predictions.shape()[0];
   const size_t num_classes = predictions.shape()[1];
 
-  int total_correct = 0;
-
-  for (size_t i = 0; i < batch_size; ++i) {
-
-    int pred_class = 0;
-    float max_pred = predictions(i, 0, 0, 0);
-    for (size_t j = 1; j < num_classes; ++j) {
-      const float pred_val = predictions(i, j, 0, 0);
-      if (pred_val > max_pred) {
-        max_pred = pred_val;
-        pred_class = static_cast<int>(j);
-      }
-    }
-
-    int true_class = -1;
-    for (size_t j = 0; j < num_classes; ++j) {
-      if (targets(i, j, 0, 0) > threshold) {
-        true_class = static_cast<int>(j);
-        break;
-      }
-    }
-
-    if (pred_class == true_class && true_class != -1) {
-      total_correct++;
-    }
+  if (predictions.device_type() == DeviceType::CPU) {
+    return cpu::accuracy::compute_class_corrects(predictions.data(), targets.data(), batch_size,
+                                                 num_classes, threshold);
   }
-
-  return static_cast<float>(total_correct);
+#ifdef USE_CUDA
+  return cuda::accuracy::compute_class_corrects(predictions.data(), targets.data(), batch_size,
+                                                num_classes, threshold);
+#endif
+  throw std::runtime_error("Unsupported device type for compute_class_corrects.");
 }
 
 } // namespace tnn

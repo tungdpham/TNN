@@ -53,8 +53,7 @@ int main() {
                                 lr_decay_interval,
                                 progress_print_interval,
                                 DEFAULT_NUM_THREADS,
-                                ProfilerType::NORMAL,
-                                true};
+                                ProfilerType::NORMAL};
 
     train_config.print_config();
 

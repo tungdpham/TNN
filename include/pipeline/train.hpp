@@ -103,8 +103,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
 
     for (auto &job : forward_jobs) {
       val_loss += coordinator.compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
-      val_correct +=
-          compute_class_corrects<float>(job.data, micro_batch_labels[job.micro_batch_id]);
+      val_correct += compute_class_corrects(job.data, micro_batch_labels[job.micro_batch_id]);
     }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
