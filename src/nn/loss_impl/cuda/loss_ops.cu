@@ -13,16 +13,6 @@
 namespace tnn {
 namespace cuda {
 namespace loss {
-
-// Helper function to get cuBLAS handle
-static cublasHandle_t get_cublas_handle() {
-  static cublasHandle_t handle = nullptr;
-  if (!handle) {
-    cublasCreate(&handle);
-  }
-  return handle;
-}
-
 // CrossEntropy Loss Kernels
 template <typename T>
 __global__ void crossentropy_loss_kernel(const T *predictions, const T *targets, T *loss_values,
@@ -114,22 +104,26 @@ template <typename T>
 __global__ void softmax_crossentropy_gradient_kernel(const T *logits, const T *targets, T *gradient,
                                                      const size_t batch_size,
                                                      const size_t num_classes, T inv_batch_size) {
-  int batch_idx = blockIdx.x;
-  int class_idx = threadIdx.x;
-
-  if (batch_idx >= batch_size || class_idx >= num_classes)
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx >= batch_size * num_classes)
     return;
 
+  int batch_idx = idx / num_classes;
+  int class_idx = idx % num_classes;
+
+  // Find max logit for numerical stability
   T max_logit = logits[batch_idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
     max_logit = fmax(max_logit, logits[batch_idx * num_classes + j]);
   }
 
+  // Compute sum of exp for softmax denominator
   T sum_exp = T(0);
   for (size_t j = 0; j < num_classes; ++j) {
     sum_exp += exp(logits[batch_idx * num_classes + j] - max_logit);
   }
 
+  // Compute softmax probability and gradient
   T softmax_prob = exp(logits[batch_idx * num_classes + class_idx] - max_logit) / sum_exp;
   gradient[batch_idx * num_classes + class_idx] =
       (softmax_prob - targets[batch_idx * num_classes + class_idx]) * inv_batch_size;
@@ -212,24 +206,36 @@ __global__ void huber_gradient_kernel(const T *predictions, const T *targets, T 
   }
 }
 
-// Sum reduction kernel for loss aggregation
+// Sum reduction kernel for loss aggregation with improved numerical stability
 template <typename T>
 __global__ void sum_reduce_kernel(const T *values, T *result, const size_t size) {
   extern __shared__ char shared_mem[];
   T *shared_data = (T *)shared_mem;
 
+  int tid = threadIdx.x;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  shared_data[threadIdx.x] = (idx < size) ? values[idx] : T(0);
+
+  // Load data into shared memory using double precision for accumulation
+  double local_sum = (idx < size) ? static_cast<double>(values[idx]) : 0.0;
+
+  // Grid-stride loop to handle cases where size > grid_size * block_size
+  for (int i = idx + blockDim.x * gridDim.x; i < size; i += blockDim.x * gridDim.x) {
+    local_sum += static_cast<double>(values[i]);
+  }
+
+  shared_data[tid] = static_cast<T>(local_sum);
   __syncthreads();
 
+  // Perform reduction in shared memory
   for (int s = blockDim.x / 2; s > 0; s >>= 1) {
-    if (threadIdx.x < s) {
-      shared_data[threadIdx.x] += shared_data[threadIdx.x + s];
+    if (tid < s) {
+      shared_data[tid] += shared_data[tid + s];
     }
     __syncthreads();
   }
 
-  if (threadIdx.x == 0) {
+  // Write result for this block to global memory
+  if (tid == 0) {
     atomicAdd(result, shared_data[0]);
   }
 }
@@ -313,18 +319,12 @@ void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T 
                                            const size_t batch_size, const size_t num_classes) {
   T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
+  size_t total_size = batch_size * num_classes;
   int threads_per_block = 256;
-  int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
+  int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
 
-  if (num_classes <= 256) {
-    softmax_crossentropy_gradient_kernel<T><<<num_blocks, num_classes>>>(
-        logits, targets, gradient, batch_size, num_classes, inv_batch_size);
-  } else {
-    size_t total_size = batch_size * num_classes;
-    int grid_size = (total_size + threads_per_block - 1) / threads_per_block;
-    softmax_crossentropy_gradient_kernel<T><<<grid_size, threads_per_block>>>(
-        logits, targets, gradient, batch_size, num_classes, inv_batch_size);
-  }
+  softmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block>>>(
+      logits, targets, gradient, batch_size, num_classes, inv_batch_size);
 }
 
 template <typename T>
