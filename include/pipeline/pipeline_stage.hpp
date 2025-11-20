@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "device/device_type.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
@@ -90,26 +91,20 @@ public:
   std::string name() const { return name_; }
 
 protected:
-  virtual void process_message(const Message &message) {
+  virtual void process_message(Message &message) {
     switch (message.header.command_type) {
     case CommandType::FORWARD_JOB: {
-      const Job<float> forward_job = message.get<Job<float>>();
-      Tensor<float> output_data =
-          this->model_->forward(forward_job.data, forward_job.micro_batch_id);
-      Job<float> output_job(std::move(output_data), forward_job.micro_batch_id);
-
-      Message output_message("next_stage", CommandType::FORWARD_JOB, output_job);
+      Job<float> forward_job = message.get<Job<float>>();
+      this->model_->forward(forward_job.data, forward_job.micro_batch_id); // apply in-place
+      Message output_message("next_stage", CommandType::FORWARD_JOB, forward_job);
       output_message.header.sender_id = name_;
 
       communicator_->send_message(output_message);
     } break;
     case CommandType::BACKWARD_JOB: {
-      const Job<float> backward_job = message.get<Job<float>>();
-      Tensor<float> output_data =
-          this->model_->backward(backward_job.data, backward_job.micro_batch_id);
-      Job<float> output_job(std::move(output_data), backward_job.micro_batch_id);
-
-      Message output_message("prev_stage", CommandType::BACKWARD_JOB, output_job);
+      Job<float> backward_job = message.get<Job<float>>();
+      this->model_->backward(backward_job.data, backward_job.micro_batch_id);
+      Message output_message("prev_stage", CommandType::BACKWARD_JOB, backward_job);
       output_message.header.sender_id = name_;
 
       communicator_->send_message(output_message);
@@ -248,6 +243,8 @@ protected:
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
       this->model_ = std::make_unique<Sequential<float>>(
           Sequential<float>::load_from_config(config.model_config));
+
+      this->model_->set_device(DeviceType::GPU);
 
       this->model_->initialize();
 

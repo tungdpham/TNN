@@ -35,9 +35,9 @@ void run_test() {
 
   Tensor<float> batch_data, batch_labels;
   while (loader.get_batch(batch_size, batch_data, batch_labels)) {
-    Tensor<float> predictions = model.forward(batch_data);
+    model.forward(batch_data);
 
-    correct_predictions += compute_class_corrects(predictions, batch_labels);
+    correct_predictions += compute_class_corrects(batch_data, batch_labels);
   }
 
   double accuracy = (double)correct_predictions / loader.size();

@@ -306,7 +306,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
     while (train_loader.get_next_batch(batch_features, batch_targets)) {
       ++num_batches;
 
-      predictions = model.forward(batch_features);
+      model.forward(batch_features);
 
       float loss, accuracy, positioning_error = 0.0f;
       Tensor<float> loss_gradient;
@@ -361,7 +361,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
     int val_batches = 0;
 
     while (test_loader.get_next_batch(batch_features, batch_targets)) {
-      predictions = model.forward(batch_features);
+      model.forward(batch_features);
 
       if (is_regression) {
         val_loss += DistanceLoss::compute_loss(predictions, batch_targets, test_loader);

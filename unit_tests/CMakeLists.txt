@@ -28,6 +28,7 @@ set(TEST_FILES
     cuda_conv2d_ops_test.cpp
     cuda_dense_ops_test.cpp
     cuda_maxpool_ops_test.cpp
+    cuda_loss_funcs_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
@@ -74,6 +75,7 @@ add_custom_target(run_tests
     cuda_conv2d_ops_test
     cuda_dense_ops_test
     cuda_maxpool_ops_test
+    cuda_loss_funcs_test
     ${CUDA_TEST_TARGET}
     COMMENT "Running all unit tests"
 )

@@ -382,19 +382,16 @@ public:
    * @param input The input tensor.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
+  void forward(Tensor<T> &input, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
-
-    Tensor<T> current_output = input;
 
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
-          // std::cout << "Forwarding through layer " << i << " (" << layers_[i]->name() << ")\n";
-          layers_[i]->forward_inplace(current_output, micro_batch_id);
+          layers_[i]->forward_inplace(input, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration =
@@ -411,19 +408,13 @@ public:
             forward_times_microseconds_[layer_name] += duration.count();
           }
         } else {
-          layers_[i]->forward_inplace(current_output, micro_batch_id);
+          layers_[i]->forward_inplace(input, micro_batch_id);
         }
 
       } catch (const std::exception &e) {
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
                                  layers_[i]->name() + "): " + e.what());
       }
-    }
-
-    if (current_output.device_type() != DeviceType::CPU) {
-      return current_output;
-    } else {
-      return current_output.to_cpu();
     }
   }
 
@@ -448,19 +439,16 @@ public:
    * @param gradient The gradient tensor from the subsequent layer or loss function.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
+  void backward(Tensor<T> &gradient, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
-
-    Tensor<T> current_grad = gradient;
 
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
-          layers_[i]->backward_inplace(current_grad, micro_batch_id);
-
+          layers_[i]->backward_inplace(gradient, micro_batch_id);
           auto end_time = std::chrono::high_resolution_clock::now();
           auto duration =
               std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -476,15 +464,13 @@ public:
             backward_times_microseconds_[layer_name] += duration.count();
           }
         } else {
-          layers_[i]->backward_inplace(current_grad, micro_batch_id);
+          layers_[i]->backward_inplace(gradient, micro_batch_id);
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in backward pass of layer " + std::to_string(i) + " (" +
                                  layers_[i]->type() + "): " + e.what());
       }
     }
-
-    return current_grad;
   }
 
   /**

@@ -85,7 +85,7 @@ struct ClassResult {
 
 ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &train_loader,
                               const TrainingConfig &config = TrainingConfig()) {
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
   std::cout << "Starting training epoch..." << std::endl;
   model.set_training(true);
   train_loader.shuffle();
@@ -99,19 +99,19 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
 
-    predictions = model.forward(batch_data);
+    model.forward(batch_data);
 
-    const Device *pre_device = predictions.device();
+    const Device *pre_device = batch_data.device();
     const Tensor<float> device_batch_labels = batch_labels.to_device(pre_device);
 
-    const float loss = model.loss_function()->compute_loss(predictions, device_batch_labels);
-    const float accuracy = compute_class_accuracy(predictions, device_batch_labels);
+    float loss = model.loss_function()->compute_loss(batch_data, device_batch_labels);
+    float accuracy = compute_class_accuracy(batch_data, device_batch_labels);
 
     total_loss += loss;
     total_accuracy += accuracy;
 
-    const Tensor<float> loss_gradient =
-        model.loss_function()->compute_gradient(predictions, device_batch_labels);
+    Tensor<float> loss_gradient =
+        model.loss_function()->compute_gradient(batch_data, device_batch_labels);
     model.backward(loss_gradient);
 
     model.update_parameters();
@@ -139,7 +139,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
 }
 
 ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
 
   model.set_training(false);
   test_loader.reset();
@@ -150,12 +150,12 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
   int val_batches = 0;
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    predictions = model.forward(batch_data);
+    model.forward(batch_data);
 
-    const Device *pre_device = predictions.device();
+    const Device *pre_device = batch_data.device();
     const Tensor<float> device_batch_labels = batch_labels.to_device(pre_device);
-    val_loss += model.loss_function()->compute_loss(predictions, device_batch_labels);
-    val_accuracy += compute_class_accuracy(predictions, device_batch_labels);
+    val_loss += model.loss_function()->compute_loss(batch_data, device_batch_labels);
+    val_accuracy += compute_class_accuracy(batch_data, device_batch_labels);
     ++val_batches;
   }
 
@@ -169,7 +169,7 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
                                 ImageDataLoader<float> &test_loader,
                                 const TrainingConfig &config = TrainingConfig()) {
 
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
 
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
@@ -275,7 +275,7 @@ struct RegResult {
 
 RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> &train_loader,
                           const TrainingConfig &config = TrainingConfig()) {
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
   std::cout << "Starting training epoch..." << std::endl;
   model.set_training(true);
   train_loader.shuffle();
@@ -288,14 +288,13 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
 
-    predictions = model.forward(batch_data);
+    model.forward(batch_data);
 
-    // const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
+    const float loss = model.loss_function()->compute_loss(batch_data, batch_labels);
 
-    // total_loss += loss;
+    total_loss += loss;
 
-    const Tensor<float> loss_gradient =
-        model.loss_function()->compute_gradient(predictions, batch_labels);
+    Tensor<float> loss_gradient = model.loss_function()->compute_gradient(batch_data, batch_labels);
     model.backward(loss_gradient);
 
     model.update_parameters();
@@ -321,7 +320,7 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
 }
 
 RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<float> &test_loader) {
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
 
   model.set_training(false);
   test_loader.reset();
@@ -331,9 +330,9 @@ RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<floa
   int val_batches = 0;
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    predictions = model.forward(batch_data);
+    model.forward(batch_data);
 
-    val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
+    val_loss += model.loss_function()->compute_loss(batch_data, batch_labels);
     ++val_batches;
   }
 
@@ -346,7 +345,7 @@ void train_regression_model(Sequential<float> &model, RegressionDataLoader<float
                             RegressionDataLoader<float> &test_loader,
                             const TrainingConfig &config = TrainingConfig()) {
 
-  Tensor<float> batch_data, batch_labels, predictions;
+  Tensor<float> batch_data, batch_labels;
 
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
