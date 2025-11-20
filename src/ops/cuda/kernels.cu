@@ -8,6 +8,7 @@
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 
+#include <iostream>
 namespace tnn {
 namespace cuda {
 
@@ -467,6 +468,8 @@ __global__ void cnhw_to_nchw_kernel(const T *input, T *output, size_t n, size_t 
 
 template <typename T>
 void cuda_add(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   add_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -474,6 +477,8 @@ void cuda_add(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_sub(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   sub_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -481,6 +486,8 @@ void cuda_sub(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_mul(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   mul_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -488,6 +495,8 @@ void cuda_mul(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_div(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   div_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -495,6 +504,8 @@ void cuda_div(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_fmadd(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   fmadd_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -502,6 +513,8 @@ void cuda_fmadd(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) 
 
 template <typename T>
 void cuda_fmsub(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   fmsub_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -509,6 +522,8 @@ void cuda_fmsub(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) 
 
 template <typename T>
 void cuda_fnmadd(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   fnmadd_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -516,6 +531,8 @@ void cuda_fnmadd(const T *a, const T *b, T *c, size_t size, cudaStream_t stream)
 
 template <typename T>
 void cuda_add_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   add_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -523,6 +540,8 @@ void cuda_add_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 
 template <typename T>
 void cuda_sub_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   sub_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -530,6 +549,8 @@ void cuda_sub_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 
 template <typename T>
 void cuda_mul_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   mul_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -537,36 +558,48 @@ void cuda_mul_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 
 template <typename T>
 void cuda_div_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   div_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   set_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(c, scalar, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_sqrt(const T *a, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   sqrt_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 void cuda_rsqrt(const float *a, float *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   rsqrt_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 void cuda_rcp(const float *a, float *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   rcp_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_abs(const T *a, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   abs_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -574,6 +607,8 @@ template <typename T> void cuda_abs(const T *a, T *c, size_t size, cudaStream_t 
 
 template <typename T>
 void cuda_min(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   min_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -581,6 +616,8 @@ void cuda_min(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_max(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   max_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -588,6 +625,8 @@ void cuda_max(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
 
 template <typename T>
 void cuda_scalar_max(const T *a, T scalar, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   scalar_max_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -595,6 +634,8 @@ void cuda_scalar_max(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 
 template <typename T>
 void cuda_clamp(const T *a, T min_val, T max_val, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   clamp_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, min_val, max_val, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -602,6 +643,8 @@ void cuda_clamp(const T *a, T min_val, T max_val, T *c, size_t size, cudaStream_
 
 template <typename T>
 void cuda_equal(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   equal_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -609,24 +652,30 @@ void cuda_equal(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) 
 
 template <typename T>
 void cuda_greater(const T *a, const T *b, T *c, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   greater_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
-
+  if (size <= 0)
+    return;
   cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyDeviceToDevice, stream);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_zero(T *c, size_t size, cudaStream_t stream) {
-
+  if (size <= 0)
+    return;
   cudaMemsetAsync(c, 0, size * sizeof(T), stream);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
 template <typename T> T cuda_sum(const T *a, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return (T)0.0;
   int num_blocks = get_num_blocks(size);
 
   T *d_temp_result;
@@ -658,6 +707,8 @@ template <typename T> T cuda_sum(const T *a, size_t size, cudaStream_t stream) {
 }
 
 template <typename T> T cuda_dot_product(const T *a, const T *b, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return (T)0.0;
   int num_blocks = get_num_blocks(size);
 
   T *d_temp_result;
@@ -693,6 +744,8 @@ template <typename T> T cuda_norm_squared(const T *a, size_t size, cudaStream_t 
 
 template <typename T>
 T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return (T)0.0;
   int num_blocks = get_num_blocks(size);
 
   T *d_temp_result;
@@ -725,6 +778,8 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
 template <typename T>
 void cuda_sub_mul_scalar(const T *a, T sub_scalar, T mul_scalar, T *c, size_t size,
                          cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   sub_mul_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, sub_scalar, mul_scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -733,6 +788,8 @@ void cuda_sub_mul_scalar(const T *a, T sub_scalar, T mul_scalar, T *c, size_t si
 template <typename T>
 void cuda_mul_add_scalar(const T *a, T mul_scalar, T add_scalar, T *c, size_t size,
                          cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   mul_add_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(a, mul_scalar, add_scalar, c, size);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -741,6 +798,8 @@ void cuda_mul_add_scalar(const T *a, T mul_scalar, T add_scalar, T *c, size_t si
 template <typename T>
 void cuda_fill_random_uniform(T *data, size_t size, T min_val, T max_val, unsigned long long seed,
                               cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   fill_random_uniform_kernel<T>
       <<<num_blocks, BLOCK_SIZE, 0, stream>>>(data, size, min_val, max_val, seed);
@@ -750,6 +809,8 @@ void cuda_fill_random_uniform(T *data, size_t size, T min_val, T max_val, unsign
 template <typename T>
 void cuda_fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned long long seed,
                              cudaStream_t stream) {
+  if (size <= 0)
+    return;
   int num_blocks = get_num_blocks(size);
   fill_random_normal_kernel<T>
       <<<num_blocks, BLOCK_SIZE, 0, stream>>>(data, size, mean, stddev, seed);
@@ -758,6 +819,8 @@ void cuda_fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned lo
 
 template <typename T>
 void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cudaStream_t stream) {
+  if (rows <= 0 || cols <= 0)
+    return;
   dim3 block(16, 16);
   dim3 grid((cols + block.x - 1) / block.x, (rows + block.y - 1) / block.y);
   transpose_2d_kernel<<<grid, block, 0, stream>>>(input, output, rows, cols);
@@ -767,6 +830,8 @@ void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cuda
 template <typename T>
 void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
                        cudaStream_t stream) {
+  if (n <= 0 || c <= 0 || h <= 0 || w <= 0)
+    return;
   size_t total_size = n * c * h * w;
   int num_blocks = get_num_blocks(total_size);
   nchw_to_cnhw_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, output, n, c, h, w);
@@ -776,6 +841,8 @@ void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, 
 template <typename T>
 void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
                        cudaStream_t stream) {
+  if (n <= 0 || c <= 0 || h <= 0 || w <= 0)
+    return;
   size_t total_size = n * c * h * w;
   int num_blocks = get_num_blocks(total_size);
   cnhw_to_nchw_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, output, n, c, h, w);

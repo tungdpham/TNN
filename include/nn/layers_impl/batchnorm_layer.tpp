@@ -142,9 +142,7 @@ Tensor<T> BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_ba
   Tensor<T> grad_input(input.shape(), this->device_);
   grad_input.fill(T(0));
 
-  // Use fused backward kernel that combines all operations
   Tensor<T> dummy_gamma(this->device_);
-  dummy_gamma.fill(T(0));
   compute_batchnorm_backward_fused(current_gradient, normalized, std_val, dummy_gamma, grad_input,
                                    batch_size, channels, spatial_size);
 
