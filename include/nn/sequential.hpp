@@ -8,6 +8,7 @@
 
 #include "blocks.hpp"
 #include "device/device_manager.hpp"
+#include "device/device_type.hpp"
 #include "layers.hpp"
 #include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
@@ -354,15 +355,26 @@ public:
               << std::string(70, '=') << "\n\n";
   }
 
+  void set_device(const Device *device) {
+    for (auto &layer : layers_) {
+      layer->set_device(device);
+    }
+  }
+
   /**
    * @brief Set device for all layers in the model.
    * @param device_id The target device ID (string).
    */
   void set_device(const std::string &device_id) {
     const Device *target_device = &DeviceManager::getInstance().getDevice(device_id);
-    for (auto &layer : layers_) {
-      layer->set_device(target_device);
-    }
+    set_device(target_device);
+  }
+
+  /**
+   */
+  void set_device(DeviceType device_type) {
+    const Device *target_device = &DeviceManager::getInstance().getDevice(device_type);
+    set_device(target_device);
   }
 
   /**
@@ -443,7 +455,6 @@ public:
       try {
         if (enable_profiling_) {
           auto start_time = std::chrono::high_resolution_clock::now();
-          // std::cout << "Backwarding through layer " << i << " (" << layers_[i]->name() << ")\n";
           layers_[i]->backward_inplace(current_grad, micro_batch_id);
 
           auto end_time = std::chrono::high_resolution_clock::now();

@@ -13,15 +13,7 @@
 using namespace tnn;
 using namespace std;
 
-namespace cifar10_constants {
-constexpr float EPSILON = 1e-15f;
-constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 3;
-constexpr size_t BATCH_SIZE = 32;
-constexpr int LR_DECAY_INTERVAL = 10;
-constexpr float LR_DECAY_FACTOR = 0.85f;
 constexpr float LR_INITIAL = 0.005f;
-} // namespace cifar10_constants
 
 int main() {
   try {
@@ -31,24 +23,13 @@ int main() {
       cout << "No .env file found, using default training parameters." << endl;
     }
 
-    // Get training parameters from environment or use defaults
-    const int epochs = get_env<int>("EPOCHS", cifar10_constants::EPOCHS);
-    const size_t batch_size = get_env<size_t>("BATCH_SIZE", cifar10_constants::BATCH_SIZE);
-    const float lr_initial = get_env<float>("LR_INITIAL", cifar10_constants::LR_INITIAL);
-    const float lr_decay_factor =
-        get_env<float>("LR_DECAY_FACTOR", cifar10_constants::LR_DECAY_FACTOR);
-    const size_t lr_decay_interval =
-        get_env<size_t>("LR_DECAY_INTERVAL", cifar10_constants::LR_DECAY_INTERVAL);
-    const int progress_print_interval =
-        get_env<int>("PROGRESS_PRINT_INTERVAL", cifar10_constants::PROGRESS_PRINT_INTERVAL);
+    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
-    TrainingConfig train_config{epochs,
-                                batch_size,
-                                lr_decay_factor,
-                                lr_decay_interval,
-                                progress_print_interval,
-                                DEFAULT_NUM_THREADS,
-                                ProfilerType::NORMAL};
+    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+
+    TrainingConfig train_config;
+    train_config.load_from_env();
 
     train_config.print_config();
 
@@ -98,6 +79,7 @@ int main() {
                      .dense(10, "linear", true, "fc1")
                      .build();
 
+    model.set_device(device_type);
     model.initialize();
 
     auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);

@@ -1,4 +1,5 @@
 #include "data_loading/mnist_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "pipeline/distributed_coordinator.hpp"
@@ -14,36 +15,12 @@
 using namespace tnn;
 using namespace std;
 
-namespace mnist_constants {
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
 constexpr int BATCH_SIZE = 64;
 constexpr int NUM_MICROBATCHES = 1;
 constexpr int NUM_EPOCHS = 1;
 constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
-} // namespace mnist_constants
-
-Sequential<float> create_demo_model() {
-  auto model = SequentialBuilder<float>("optimized_mnist_cnn_classifier")
-                   .input({1, 28, 28})
-                   .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
-                   .activation("relu", "relu1")
-                   .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                   .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
-                   .activation("relu", "relu2")
-                   .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
-                   .flatten("flatten")
-                   .dense(10, "linear", true, "fc1")
-                   .activation("softmax", "softmax_output")
-                   .build();
-
-  auto optimizer = make_unique<Adam<float>>(mnist_constants::LR_INITIAL, 0.9f, 0.999f, 1e-8f);
-  model.set_optimizer(std::move(optimizer));
-
-  auto loss_function = LossFactory<float>::create_crossentropy(mnist_constants::EPSILON);
-  model.set_loss_function(std::move(loss_function));
-  return model;
-}
 
 int main() {
   // Load environment variables from .env file
@@ -53,16 +30,15 @@ int main() {
   }
 
   // Get training parameters from environment or use defaults
-  const int epochs = get_env<int>("EPOCHS", mnist_constants::NUM_EPOCHS);
-  const int batch_size = get_env<int>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
-  const float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
-  const int num_microbatches = get_env<int>("NUM_MICROBATCHES", mnist_constants::NUM_MICROBATCHES);
-  const int progress_print_interval =
-      get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
+  int epochs = get_env<int>("EPOCHS", NUM_EPOCHS);
+  int batch_size = get_env<int>("BATCH_SIZE", BATCH_SIZE);
+  float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+  int num_microbatches = get_env<int>("NUM_MICROBATCHES", NUM_MICROBATCHES);
+  int progress_print_interval = get_env<int>("PROGRESS_PRINT_INTERVAL", PROGRESS_PRINT_INTERVAL);
 
-  auto model = create_demo_model();
+  auto model = create_mnist_trainer();
 
-  model.print_config();
+  ;
 
   cout << "Training Parameters:" << endl;
   cout << "  Epochs: " << epochs << endl;
@@ -84,7 +60,7 @@ int main() {
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 
   cout << "\nDeploying stages to remote endpoints..." << endl;
-  for (const auto &ep : endpoints) {
+  for (auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
   }
 
@@ -93,7 +69,6 @@ int main() {
     return 1;
   }
 
-  cout << "\nStarting distributed pipeline..." << endl;
   coordinator.start();
 
   MNISTDataLoader<float> train_loader, test_loader;
@@ -160,7 +135,7 @@ int main() {
     vector<Message> all_messages = coordinator.dequeue_all_messages(CommandType::FORWARD_JOB);
 
     vector<Job<float>> forward_jobs;
-    for (const auto &message : all_messages) {
+    for (auto &message : all_messages) {
       if (message.header.command_type == CommandType::FORWARD_JOB) {
         forward_jobs.push_back(message.get<Job<float>>());
       }
@@ -188,7 +163,7 @@ int main() {
 
     auto backward_start = chrono::high_resolution_clock::now();
 
-    for (const auto &job : backward_jobs) {
+    for (auto &job : backward_jobs) {
       coordinator.backward(job.data, job.micro_batch_id);
     }
 
@@ -252,7 +227,7 @@ int main() {
     }
 
     vector<Job<float>> forward_jobs;
-    for (const auto &message : all_messages) {
+    for (auto &message : all_messages) {
       if (message.header.command_type == CommandType::FORWARD_JOB) {
         forward_jobs.push_back(message.get<Job<float>>());
       }
@@ -268,6 +243,6 @@ int main() {
   cout << "\nValidation completed!" << endl;
   cout << "Average Validation Loss: " << (val_loss / val_batches)
        << ", Average Validation Accuracy: "
-       << (val_accuracy / val_batches / mnist_constants::NUM_MICROBATCHES) * 100.0f << "%" << endl;
+       << (val_accuracy / val_batches / NUM_MICROBATCHES) * 100.0f << "%" << endl;
   return 0;
 }

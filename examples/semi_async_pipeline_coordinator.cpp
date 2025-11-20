@@ -16,27 +16,10 @@
 #include <vector>
 
 using namespace tnn;
+using namespace std;
 
-namespace semi_async_constants {
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 64;
-constexpr int NUM_MICROBATCHES = 2;
-constexpr int NUM_EPOCHS = 1;
-constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
-} // namespace semi_async_constants
-
-TrainingConfig get_training_config() {
-  TrainingConfig config;
-  config.epochs = semi_async_constants::NUM_EPOCHS;
-  config.batch_size = semi_async_constants::BATCH_SIZE;
-  config.lr_decay_factor = 0.9f;
-  config.lr_decay_interval = 5; // in epochs
-  config.num_threads = 8;       // Typical number of P-Cores on laptop CPUs
-  config.profiler_type = ProfilerType::NONE;
-  config.progress_print_interval = semi_async_constants::PROGRESS_PRINT_INTERVAL;
-  return config;
-}
 
 int main() {
   if (!load_env_file("./.env")) {
@@ -47,13 +30,17 @@ int main() {
 
   auto model = create_cifar10_trainer_v1();
 
-  auto optimizer = std::make_unique<Adam<float>>(semi_async_constants::LR_INITIAL, 0.9f, 0.999f,
-                                                 semi_async_constants::EPSILON);
-  model.set_optimizer(std::move(optimizer));
-
   // auto model = create_cifar10_trainer_v2();
+  string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
-  model.print_config();
+  float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+
+  TrainingConfig train_config;
+  train_config.load_from_env();
+  train_config.print_config();
+
+  auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
+  model.set_optimizer(std::move(optimizer));
 
   Endpoint coordinator_endpoint =
       Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
@@ -111,7 +98,7 @@ int main() {
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
   thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {
-    train_model(coordinator, train_loader, test_loader, get_training_config());
+    train_model(coordinator, train_loader, test_loader);
   });
 
   coordinator.stop();

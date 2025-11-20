@@ -22,6 +22,7 @@ public:
   void removeDevice(std::string id);
   void clearDevices();
   const Device &getDevice(std::string id) const;
+  const Device &getDevice(DeviceType type) const;
   std::vector<std::string> getAvailableDeviceIDs() const;
   bool hasDevice(std::string id) const;
   void setDefaultDevice(std::string id);

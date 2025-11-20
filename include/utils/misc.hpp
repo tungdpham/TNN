@@ -1,9 +1,8 @@
 #pragma once
 
-#include <algorithm>
 #include <chrono>
 #include <iostream>
-#include <stdexcept>
+#include <numeric>
 #include <vector>
 
 namespace tnn {

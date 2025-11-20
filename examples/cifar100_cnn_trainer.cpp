@@ -12,7 +12,6 @@
 using namespace tnn;
 using namespace std;
 
-namespace cifar100_constants {
 constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 50;
 constexpr int EPOCHS = 50;
@@ -20,7 +19,6 @@ constexpr size_t BATCH_SIZE = 64;
 constexpr int LR_DECAY_INTERVAL = 15;
 constexpr float LR_DECAY_FACTOR = 0.5f;
 constexpr float LR_INITIAL = 0.001f;
-} // namespace cifar100_constants
 
 int main() {
   try {
@@ -30,24 +28,13 @@ int main() {
       cout << "No .env file found, using default training parameters." << endl;
     }
 
-    // Get training parameters from environment or use defaults
-    const int epochs = get_env<int>("EPOCHS", cifar100_constants::EPOCHS);
-    const size_t batch_size = get_env<size_t>("BATCH_SIZE", cifar100_constants::BATCH_SIZE);
-    const float lr_initial = get_env<float>("LR_INITIAL", cifar100_constants::LR_INITIAL);
-    const float lr_decay_factor =
-        get_env<float>("LR_DECAY_FACTOR", cifar100_constants::LR_DECAY_FACTOR);
-    const size_t lr_decay_interval =
-        get_env<size_t>("LR_DECAY_INTERVAL", cifar100_constants::LR_DECAY_INTERVAL);
-    const int progress_print_interval =
-        get_env<int>("PROGRESS_PRINT_INTERVAL", cifar100_constants::PROGRESS_PRINT_INTERVAL);
+    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
-    TrainingConfig train_config{epochs,
-                                batch_size,
-                                lr_decay_factor,
-                                lr_decay_interval,
-                                progress_print_interval,
-                                DEFAULT_NUM_THREADS,
-                                ProfilerType::NORMAL};
+    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+
+    TrainingConfig train_config;
+    train_config.load_from_env();
 
     train_config.print_config();
 
@@ -86,13 +73,13 @@ int main() {
                      .dense(100, "linear", true, "output")
                      .activation("softmax", "softmax_output")
                      .build();
-
+    model.set_device(device_type);
     model.initialize();
 
     auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = LossFactory<float>::create_crossentropy(cifar100_constants::EPSILON);
+    auto loss_function = LossFactory<float>::create_crossentropy(::EPSILON);
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
@@ -107,10 +94,10 @@ int main() {
     try {
       model.save_to_file("model_snapshots/cifar100_cnn_model");
       cout << "Model saved to: model_snapshots/cifar100_cnn_model" << endl;
-    } catch (const exception &save_error) {
+    } catch (exception &save_error) {
       cerr << "Warning: Failed to save model: " << save_error.what() << endl;
     }
-  } catch (const exception &e) {
+  } catch (exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;
   }

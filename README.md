@@ -38,6 +38,9 @@ chmod +x ./build.sh
 # Enable Intel MKL
 ./build.sh --mkl
 
+# Enable CUDA
+./build.sh --cuda
+
 # Verbose build output
 ./build.sh --verbose
 ```
@@ -66,6 +69,7 @@ cmake --build . -j$(nproc)
 | `Enable_MKL` | OFF | ENABLE Intel Math Kernel Library |
 | `ENABLE_TBB` | ON | Enable Intel Threading Building Blocks |
 | `ENABLE_DEBUG` | OFF | Enable debug build with AddressSanitizer |
+| `ENABLE_CUDA` | OFF | Enable CUDA support for GPUs |
 
 ## Prepraring Data
 Download the dataset needed before running the examples.

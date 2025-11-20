@@ -21,6 +21,8 @@
 #include <mkl.h>
 #endif
 
+#include "utils/env.hpp"
+
 namespace tnn {
 #ifdef USE_TBB
 void tbb_cleanup() {
@@ -29,9 +31,14 @@ void tbb_cleanup() {
 }
 #endif
 
-constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
-
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
+
+constexpr int DEFAULT_EPOCH = 10;
+constexpr size_t DEFAULT_BATCH_SIZE = 32;
+constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
+constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5; // in epochs
+constexpr int DEFAULT_PRINT_INTERVAL = 100;
+constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
   int epochs = 10;
@@ -58,6 +65,16 @@ struct TrainingConfig {
               << std::endl;
     std::cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No")
               << std::endl;
+  }
+
+  void load_from_env() {
+    // Get training parameters from environment or use defaults
+    epochs = get_env<int>("EPOCHS", DEFAULT_EPOCH);
+    batch_size = get_env<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
+    lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", DEFAULT_LR_DECAY_FACTOR);
+    lr_decay_interval = get_env<size_t>("LR_DECAY_INTERVAL", DEFAULT_LR_DECAY_INTERVAL);
+    progress_print_interval = get_env<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
+    num_threads = get_env<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
   }
 };
 

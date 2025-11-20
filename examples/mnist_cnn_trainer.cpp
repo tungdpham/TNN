@@ -14,17 +14,7 @@
 using namespace tnn;
 using namespace std;
 
-namespace mnist_constants {
-
-constexpr float EPSILON = 1e-15f;
-constexpr int PROGRESS_PRINT_INTERVAL = 100;
-constexpr int EPOCHS = 5;
-constexpr size_t BATCH_SIZE = 64;
-constexpr int LR_DECAY_INTERVAL = 2;
-constexpr float LR_DECAY_FACTOR = 0.8f;
 constexpr float LR_INITIAL = 0.01f;
-
-} // namespace mnist_constants
 
 int main() {
   cin.tie(nullptr);
@@ -36,23 +26,15 @@ int main() {
       cout << "No .env file found, using default training parameters." << endl;
     }
 
-    // Get training parameters from environment or use defaults
-    int epochs = get_env<int>("EPOCHS", mnist_constants::EPOCHS);
-    size_t batch_size = get_env<size_t>("BATCH_SIZE", mnist_constants::BATCH_SIZE);
-    float lr_initial = get_env<float>("LR_INITIAL", mnist_constants::LR_INITIAL);
-    float lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", mnist_constants::LR_DECAY_FACTOR);
-    size_t lr_decay_interval =
-        get_env<size_t>("LR_DECAY_INTERVAL", mnist_constants::LR_DECAY_INTERVAL);
-    int progress_print_interval =
-        get_env<int>("PROGRESS_PRINT_INTERVAL", mnist_constants::PROGRESS_PRINT_INTERVAL);
+    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
-    TrainingConfig train_config{epochs,
-                                batch_size,
-                                lr_decay_factor,
-                                lr_decay_interval,
-                                progress_print_interval,
-                                DEFAULT_NUM_THREADS,
-                                ProfilerType::NORMAL};
+    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+
+    cout << "Using device type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+
+    TrainingConfig train_config;
+    train_config.load_from_env();
 
     train_config.print_config();
 
@@ -78,23 +60,23 @@ int main() {
     train_loader.set_augmentation(std::move(aug_strategy));
 
     auto model = SequentialBuilder<float>("mnist_cnn_model")
-                     .input({1, ::mnist_constants::IMAGE_HEIGHT, ::mnist_constants::IMAGE_WIDTH})
+                     .input({1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH})
                      .conv2d(8, 3, 3, 1, 1, 0, 0, true, "conv1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .activation("relu", "relu1")
+                     //  .activation("relu", "relu1")
                      .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
                      .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn2")
+                     //  .batchnorm(1e-5f, 0.1f, true, "bn2")
                      .activation("relu", "relu2")
                      .conv2d(48, 3, 3, 1, 1, 0, 0, true, "conv3")
-                     .batchnorm(1e-5f, 0.1f, true, "bn3")
+                     //  .batchnorm(1e-5f, 0.1f, true, "bn3")
                      .activation("relu", "relu3")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .flatten("flatten")
-                     .dense(::mnist_constants::NUM_CLASSES, "linear", true, "output")
+                     .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
                      .build();
 
-    model.set_device("CPU:0");
+    model.set_device(device_type);
     model.initialize();
 
     // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
@@ -104,7 +86,6 @@ int main() {
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
-    model.print_config();
     train_classification_model(model, train_loader, test_loader, train_config);
   } catch (const exception &e) {
     cerr << "Error during training: " << e.what() << endl;
