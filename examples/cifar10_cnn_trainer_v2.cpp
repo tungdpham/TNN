@@ -102,7 +102,6 @@ int main() {
                      .dense(512, "linear", true, "fc0")
                      .activation("relu", "relu10")
                      .dense(10, "linear", true, "fc1")
-                     //  .activation("softmax", "softmax_output")
                      .build();
     model.set_device(device_type);
     model.initialize();

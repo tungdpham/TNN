@@ -181,12 +181,6 @@ public:
 
   void clear() { size_ = 0; }
 
-  void write_value(const int &value) { write_value<int32_t>(static_cast<int32_t>(value)); }
-
-  void write_value(const long &value) { write_value<int64_t>(static_cast<int64_t>(value)); }
-
-  void write_value(const size_t &value) { write_value<uint64_t>(static_cast<uint64_t>(value)); }
-
   template <typename T> void write_value(const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");

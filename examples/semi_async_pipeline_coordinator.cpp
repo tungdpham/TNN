@@ -28,9 +28,8 @@ int main() {
 
   // auto model = create_mnist_trainer();
 
-  auto model = create_cifar10_trainer_v1();
+  auto model = create_cifar10_trainer_v2();
 
-  // auto model = create_cifar10_trainer_v2();
   string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
   float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
@@ -97,8 +96,8 @@ int main() {
 
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
-  thread_wrapper.execute([&coordinator, &train_loader, &test_loader]() {
-    train_model(coordinator, train_loader, test_loader);
+  thread_wrapper.execute([&coordinator, &train_loader, &test_loader, &train_config]() {
+    train_model(coordinator, train_loader, test_loader, train_config);
   });
 
   coordinator.stop();

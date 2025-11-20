@@ -420,7 +420,11 @@ public:
       }
     }
 
-    return current_output.to_cpu();
+    if (current_output.device_type() != DeviceType::CPU) {
+      return current_output;
+    } else {
+      return current_output.to_cpu();
+    }
   }
 
   /**
