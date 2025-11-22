@@ -34,29 +34,49 @@ template <typename T>
 __global__ void compute_bias_gradients_kernel(const T *gradient_data, T *bias_grad_data,
                                               size_t batch_size, size_t output_h, size_t output_w,
                                               size_t out_channels) {
-  int c = blockIdx.x * blockDim.x + threadIdx.x;
+  const size_t spatial_size = output_h * output_w;
+  const size_t channel_stride = spatial_size;
+  const size_t batch_stride = out_channels * spatial_size;
+
+  int c = blockIdx.x;
   if (c >= out_channels)
     return;
 
-  const size_t N_stride = out_channels * output_h * output_w;
-  const size_t C_stride = output_h * output_w;
+  extern __shared__ char shared_mem[];
+  T *shared_data = reinterpret_cast<T *>(shared_mem);
 
-  T grad_sum = T(0);
-  for (size_t n = 0; n < batch_size; ++n) {
-    for (size_t i = 0; i < C_stride; ++i) {
-      grad_sum += gradient_data[n * N_stride + c * C_stride + i];
-    }
+  T sum = T(0);
+
+  int tid = threadIdx.x;
+  int total_elements = batch_size * spatial_size;
+
+  for (int idx = tid; idx < total_elements; idx += blockDim.x) {
+    int n = idx / spatial_size;
+    int spatial_idx = idx % spatial_size;
+    sum += gradient_data[n * batch_stride + c * channel_stride + spatial_idx];
   }
 
-  atomicAdd(&bias_grad_data[c], grad_sum);
+  shared_data[tid] = sum;
+  __syncthreads();
+
+  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+      shared_data[tid] += shared_data[tid + s];
+    }
+    __syncthreads();
+  }
+
+  if (tid == 0) {
+    bias_grad_data[c] = shared_data[0];
+  }
 }
 
 template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
-                          const size_t out_channels) {
+                          const size_t out_channels, cudaStream_t stream) {
   cuda::gemm<T>(weight_data, col_data, output_data, out_channels, output_size, kernel_size, false,
-                false, T(1.0), T(0.0));
+                false, T(1.0), T(0.0), stream);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -64,9 +84,9 @@ void compute_conv_forward(const T *col_data, const T *weight_data, T *output_dat
 template <typename T>
 void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weight_grad_data,
                               const size_t output_size, const size_t kernel_size,
-                              const size_t out_channels) {
+                              const size_t out_channels, cudaStream_t stream) {
   cuda::gemm<T>(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
-                false, true, T(1.0), T(1.0));
+                false, true, T(1.0), T(1.0), stream);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -74,19 +94,20 @@ void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weig
 template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *col_grad_data,
                              const size_t output_size, const size_t kernel_size,
-                             const size_t out_channels) {
+                             const size_t out_channels, cudaStream_t stream) {
   cuda::gemm<T>(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
-                true, false, T(1.0), T(0.0));
+                true, false, T(1.0), T(0.0), stream);
 }
 
 template <typename T>
 void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const size_t batch_size,
-                            const size_t output_h, const size_t output_w,
-                            const size_t out_channels) {
+                            const size_t output_h, const size_t output_w, const size_t out_channels,
+                            cudaStream_t stream) {
   int threads_per_block = 256;
-  int num_blocks = (out_channels + threads_per_block - 1) / threads_per_block;
+  int num_blocks = out_channels;
+  size_t shared_mem_size = threads_per_block * sizeof(T);
 
-  compute_bias_gradients_kernel<<<num_blocks, threads_per_block>>>(
+  compute_bias_gradients_kernel<<<num_blocks, threads_per_block, shared_mem_size, stream>>>(
       gradient_data, bias_grad_data, batch_size, output_h, output_w, out_channels);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -94,37 +115,42 @@ void compute_bias_gradients(const T *gradient_data, T *bias_grad_data, const siz
 
 template <typename T>
 void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_size,
-                        const size_t output_h, const size_t output_w, const size_t out_channels) {
+                        const size_t output_h, const size_t output_w, const size_t out_channels,
+                        cudaStream_t stream) {
   int total_size = batch_size * out_channels * output_h * output_w;
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
 
-  add_bias_kernel<<<num_blocks, threads_per_block>>>(output_data, bias_data, batch_size, output_h,
-                                                     output_w, out_channels);
+  add_bias_kernel<<<num_blocks, threads_per_block, 0, stream>>>(output_data, bias_data, batch_size,
+                                                                output_h, output_w, out_channels);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
-// Explicit template instantiations
 template void compute_conv_forward<float>(const float *col_data, const float *weight_data,
                                           float *output_data, const size_t output_size,
-                                          const size_t kernel_size, const size_t out_channels);
+                                          const size_t kernel_size, const size_t out_channels,
+                                          cudaStream_t stream);
 
 template void compute_weight_gradients<float>(const float *col_data, const float *gradient_data,
                                               float *weight_grad_data, const size_t output_size,
-                                              const size_t kernel_size, const size_t out_channels);
+                                              const size_t kernel_size, const size_t out_channels,
+                                              cudaStream_t stream);
 
 template void compute_input_gradients<float>(const float *gradient_data, const float *weight_data,
                                              float *col_grad_data, const size_t output_size,
-                                             const size_t kernel_size, const size_t out_channels);
+                                             const size_t kernel_size, const size_t out_channels,
+                                             cudaStream_t stream);
 
 template void compute_bias_gradients<float>(const float *gradient_data, float *bias_grad_data,
                                             const size_t batch_size, const size_t output_h,
-                                            const size_t output_w, const size_t out_channels);
+                                            const size_t output_w, const size_t out_channels,
+                                            cudaStream_t stream);
 
 template void add_bias_to_output<float>(float *output_data, const float *bias_data,
                                         const size_t batch_size, const size_t output_h,
-                                        const size_t output_w, const size_t out_channels);
+                                        const size_t output_w, const size_t out_channels,
+                                        cudaStream_t stream);
 
 } // namespace conv2d
 } // namespace cuda

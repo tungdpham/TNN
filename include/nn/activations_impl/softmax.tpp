@@ -24,12 +24,10 @@ template <typename T> void Softmax<T>::apply(Tensor<T> &tensor) const {
   const size_t width = tensor.width();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(tensor.device(), cpu::softmax<T>, data, data, batch_size, channels, height,
-                         width);
+    create_cpu_task("default", cpu::softmax<T>, data, data, batch_size, channels, height, width);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(tensor.device(), cuda::softmax<T>, data, data, batch_size, channels,
-                         height, width);
+    create_gpu_task("default", cuda::softmax<T>, data, data, batch_size, channels, height, width);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -51,12 +49,12 @@ void Softmax<T>::compute_gradient_inplace(const Tensor<T> &input,
   const size_t width = input.width();
 
   if (input.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(input.device(), cpu::softmax_gradient<T>, input.data(),
-                         upstream_gradient.data(), batch_size, channels, height, width);
+    create_cpu_task("default", cpu::softmax_gradient<T>, input.data(), upstream_gradient.data(),
+                    batch_size, channels, height, width);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(input.device(), cuda::softmax_gradient<T>, input.data(),
-                         upstream_gradient.data(), batch_size, channels, height, width);
+    create_gpu_task("default", cuda::softmax_gradient<T>, input.data(), upstream_gradient.data(),
+                    batch_size, channels, height, width);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

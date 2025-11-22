@@ -45,17 +45,9 @@ template <typename T> class BatchNormLayer;
 namespace tnn {
 template <typename T = float>
 std::unique_ptr<Layer<T>> dense_layer(size_t input_features, size_t output_features,
-                                      const std::string &activation = "none", bool use_bias = true,
-                                      const std::string &name = "dense") {
-  std::unique_ptr<ActivationFunction<T>> act = nullptr;
-  if (activation != "none" && activation != "linear") {
-    auto factory = ActivationFactory<T>();
-    factory.register_defaults();
-    act = factory.create(activation);
-  }
+                                      bool use_bias = true, const std::string &name = "dense") {
 
-  return std::make_unique<DenseLayer<T>>(input_features, output_features, std::move(act), use_bias,
-                                         name);
+  return std::make_unique<DenseLayer<T>>(input_features, output_features, use_bias, name);
 }
 
 template <typename T = float>
@@ -139,17 +131,9 @@ public:
       size_t input_features = config.get<size_t>("input_features");
       size_t output_features = config.get<size_t>("output_features");
       bool use_bias = config.get<bool>("use_bias", true);
-      std::string activation_name = config.get<std::string>("activation", "none");
 
-      std::unique_ptr<ActivationFunction<T>> activation = nullptr;
-      if (activation_name != "none") {
-        auto factory = ActivationFactory<T>();
-        factory.register_defaults();
-        activation = factory.create(activation_name);
-      }
-
-      return std::make_unique<DenseLayer<T>>(input_features, output_features, std::move(activation),
-                                             use_bias, config.name);
+      return std::make_unique<DenseLayer<T>>(input_features, output_features, use_bias,
+                                             config.name);
     });
 
     register_layer("conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -278,12 +262,11 @@ public:
     return *this;
   }
 
-  LayerBuilder &dense(size_t output_features, const std::string &activation = "none",
-                      bool use_bias = true, const std::string &name = "") {
+  LayerBuilder &dense(size_t output_features, bool use_bias = true, const std::string &name = "") {
 
     size_t input_features = get_feature_count();
 
-    auto layer = dense_layer<T>(input_features, output_features, activation, use_bias,
+    auto layer = dense_layer<T>(input_features, output_features, use_bias,
                                 name.empty() ? "dense_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;

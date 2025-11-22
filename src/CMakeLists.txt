@@ -62,6 +62,7 @@ endif()
 # Tensor library
 file(GLOB_RECURSE TNN_TENSOR_SOURCES 
     "tensor/*.cpp"
+    "tensor/*.cu"
 )
 add_library(tnn_tensor STATIC ${TNN_TENSOR_SOURCES})
 target_include_directories(tnn_tensor PUBLIC 
@@ -71,6 +72,9 @@ target_include_directories(tnn_tensor PUBLIC
 target_link_libraries(tnn_tensor PUBLIC tnn_matrix tnn_ops tnn_device)
 if(NOT MSVC)
     target_link_libraries(tnn_tensor PUBLIC m)
+endif()
+if(ENABLE_CUDA)
+    target_link_libraries(tnn_tensor PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
 # Utilities library

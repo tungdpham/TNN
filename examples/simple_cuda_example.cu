@@ -13,7 +13,6 @@
 using namespace tnn;
 using namespace std;
 
-// Simple vector addition kernel
 __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -21,7 +20,6 @@ __global__ void vectorAdd(const float *a, const float *b, float *c, int n) {
   }
 }
 
-// Vector multiplication kernel
 __global__ void vectorMul(const float *a, const float *b, float *c, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -29,7 +27,6 @@ __global__ void vectorMul(const float *a, const float *b, float *c, int n) {
   }
 }
 
-// Vector scaling kernel
 __global__ void vectorScale(const float *a, float *b, float scale, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -37,18 +34,16 @@ __global__ void vectorScale(const float *a, float *b, float scale, int n) {
   }
 }
 
-// Mathematical operations kernel
 __global__ void mathOps(const float *input, float *output, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
     float x = input[idx];
-    // Perform intensive mathematical operations
+
     x = sinf(x) + cosf(x) + expf(x * 0.1f) + logf(fabsf(x) + 1.0f);
     output[idx] = x;
   }
 }
 
-// Simple matrix multiplication kernel (naive)
 __global__ void matrixMul(const float *a, const float *b, float *c, int n) {
   int row = blockIdx.y * blockDim.y + threadIdx.y;
   int col = blockIdx.x * blockDim.x + threadIdx.x;
@@ -62,7 +57,6 @@ __global__ void matrixMul(const float *a, const float *b, float *c, int n) {
   }
 }
 
-// Optimized matrix multiplication with shared memory
 __global__ void matrixMulShared(const float *a, const float *b, float *c, int n) {
   const int TILE_SIZE = 16;
   __shared__ float As[TILE_SIZE][TILE_SIZE];
@@ -74,7 +68,7 @@ __global__ void matrixMulShared(const float *a, const float *b, float *c, int n)
   float sum = 0.0f;
 
   for (int t = 0; t < (n + TILE_SIZE - 1) / TILE_SIZE; t++) {
-    // Load tiles into shared memory
+
     if (row < n && t * TILE_SIZE + threadIdx.x < n) {
       As[threadIdx.y][threadIdx.x] = a[row * n + t * TILE_SIZE + threadIdx.x];
     } else {
@@ -89,7 +83,6 @@ __global__ void matrixMulShared(const float *a, const float *b, float *c, int n)
 
     __syncthreads();
 
-    // Compute partial dot product
     for (int k = 0; k < TILE_SIZE; k++) {
       sum += As[threadIdx.y][k] * Bs[k][threadIdx.x];
     }
@@ -102,7 +95,6 @@ __global__ void matrixMulShared(const float *a, const float *b, float *c, int n)
   }
 }
 
-// Memory copy kernel for bandwidth testing
 __global__ void memcopy(const float *input, float *output, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -110,7 +102,6 @@ __global__ void memcopy(const float *input, float *output, int n) {
   }
 }
 
-// Reduction kernel
 __global__ void reduce(const float *input, float *output, int n) {
   extern __shared__ float sdata[];
 
@@ -120,7 +111,6 @@ __global__ void reduce(const float *input, float *output, int n) {
   sdata[tid] = (idx < n) ? input[idx] : 0.0f;
   __syncthreads();
 
-  // Perform reduction in shared memory
   for (int s = blockDim.x / 2; s > 0; s >>= 1) {
     if (tid < s) {
       sdata[tid] += sdata[tid + s];
@@ -137,20 +127,18 @@ class SimpleCUDABenchmark {
 private:
   int device_id_;
   cudaStream_t stream_;
-  const Device *device_; // Reference to our device management system
+  const Device *device_;
 
 public:
   SimpleCUDABenchmark(int device_id = 0) : device_id_(device_id), device_(nullptr) {
-    // Initialize device manager and get the device
+
     DeviceManager &manager = DeviceManager::getInstance();
 
-    // Try to find a GPU device with the specified CUDA device ID
     vector<string> device_ids = manager.getAvailableDeviceIDs();
     for (const string &id : device_ids) {
       const Device &dev = manager.getDevice(id);
       if (dev.getDeviceType() == DeviceType::GPU) {
-        // For simplicity, we'll use the first available GPU
-        // In a real implementation, you might want to match the CUDA device ID
+
         device_ = &dev;
         break;
       }
@@ -194,12 +182,10 @@ public:
 
     size_t bytes = size * sizeof(float);
 
-    // Allocate host memory
     vector<float> h_a(size, 1.5f);
     vector<float> h_b(size, 2.5f);
     vector<float> h_c(size);
 
-    // Allocate device memory using our device manager
     float *d_a, *d_b, *d_c;
     try {
       d_a = static_cast<float *>(device_->allocateMemory(bytes));
@@ -212,7 +198,6 @@ public:
       return;
     }
 
-    // Copy data to device using our device manager
     try {
       device_->copyToDevice(d_a, h_a.data(), bytes);
       device_->copyToDevice(d_b, h_b.data(), bytes);
@@ -225,11 +210,9 @@ public:
       return;
     }
 
-    // Kernel launch parameters
     int blockSize = 256;
     int gridSize = (size + blockSize - 1) / blockSize;
 
-    // Benchmark vector addition
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       vectorAdd<<<gridSize, blockSize, 0, stream_>>>(d_a, d_b, d_c, size);
@@ -239,7 +222,7 @@ public:
 
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
-    double bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s
+    double bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3);
 
     cout << "Vector Addition:" << endl;
     cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
@@ -247,7 +230,6 @@ public:
          << endl;
     cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
-    // Benchmark vector multiplication
     start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       vectorMul<<<gridSize, blockSize, 0, stream_>>>(d_a, d_b, d_c, size);
@@ -257,7 +239,7 @@ public:
 
     duration = chrono::duration_cast<chrono::microseconds>(end - start);
     time_ms = duration.count() / 1000.0;
-    bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s
+    bandwidth = (3.0 * bytes * iterations) / (duration.count() * 1e-3);
 
     cout << "Vector Multiplication:" << endl;
     cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
@@ -265,7 +247,6 @@ public:
          << endl;
     cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
-    // Verify results using our device manager
     try {
       device_->copyToHost(h_c.data(), d_c, bytes);
       cout << "Successfully copied results back to host using DeviceManager" << endl;
@@ -282,7 +263,6 @@ public:
     }
     cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << endl;
 
-    // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
@@ -301,13 +281,11 @@ public:
 
     size_t bytes = size * sizeof(float);
 
-    // Allocate and initialize host memory
     vector<float> h_input(size);
     for (int i = 0; i < size; i++) {
       h_input[i] = static_cast<float>(i % 1000) / 1000.0f;
     }
 
-    // Allocate device memory using our device manager
     float *d_input, *d_output;
     try {
       d_input = static_cast<float *>(device_->allocateMemory(bytes));
@@ -317,7 +295,6 @@ public:
       return;
     }
 
-    // Copy data to device using our device manager
     try {
       device_->copyToDevice(d_input, h_input.data(), bytes);
     } catch (const exception &e) {
@@ -327,11 +304,9 @@ public:
       return;
     }
 
-    // Kernel launch parameters
     int blockSize = 256;
     int gridSize = (size + blockSize - 1) / blockSize;
 
-    // Benchmark mathematical operations
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       mathOps<<<gridSize, blockSize, 0, stream_>>>(d_input, d_output, size);
@@ -341,7 +316,7 @@ public:
 
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
-    double throughput = (size * iterations) / (duration.count() * 1e-3); // ops/second
+    double throughput = (size * iterations) / (duration.count() * 1e-3);
 
     cout << "Mathematical Operations:" << endl;
     cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
@@ -349,7 +324,6 @@ public:
          << endl;
     cout << "  Throughput: " << fixed << setprecision(2) << throughput / 1e9 << " GOp/s" << endl;
 
-    // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_input);
       device_->deallocateMemory(d_output);
@@ -366,12 +340,10 @@ public:
 
     size_t bytes = n * n * sizeof(float);
 
-    // Allocate host memory
     vector<float> h_a(n * n, 1.0f);
     vector<float> h_b(n * n, 2.0f);
     vector<float> h_c(n * n);
 
-    // Allocate device memory using our device manager
     float *d_a, *d_b, *d_c;
     try {
       d_a = static_cast<float *>(device_->allocateMemory(bytes));
@@ -382,7 +354,6 @@ public:
       return;
     }
 
-    // Copy data to device using our device manager
     try {
       device_->copyToDevice(d_a, h_a.data(), bytes);
       device_->copyToDevice(d_b, h_b.data(), bytes);
@@ -394,7 +365,6 @@ public:
       return;
     }
 
-    // Test naive implementation
     dim3 blockDim(16, 16);
     dim3 gridDim((n + blockDim.x - 1) / blockDim.x, (n + blockDim.y - 1) / blockDim.y);
 
@@ -415,7 +385,6 @@ public:
          << endl;
     cout << "  Performance: " << fixed << setprecision(2) << gflops << " GFLOP/s" << endl;
 
-    // Test shared memory implementation
     start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       matrixMulShared<<<gridDim, blockDim, 0, stream_>>>(d_a, d_b, d_c, n);
@@ -433,7 +402,6 @@ public:
          << endl;
     cout << "  Performance: " << fixed << setprecision(2) << gflops << " GFLOP/s" << endl;
 
-    // Verify results using our device manager
     try {
       device_->copyToHost(h_c.data(), d_c, bytes);
     } catch (const exception &e) {
@@ -449,7 +417,6 @@ public:
     }
     cout << "Results: " << (correct ? "CORRECT" : "INCORRECT") << endl;
 
-    // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_a);
       device_->deallocateMemory(d_b);
@@ -467,7 +434,6 @@ public:
 
     size_t bytes = size * sizeof(float);
 
-    // Allocate device memory using our device manager
     float *d_input, *d_output;
     try {
       d_input = static_cast<float *>(device_->allocateMemory(bytes));
@@ -477,15 +443,11 @@ public:
       return;
     }
 
-    // Initialize device memory (we'll use CUDA directly for memset since it's not in our Device
-    // interface)
     CUDA_CHECK(cudaMemset(d_input, 0x42, bytes));
 
-    // Kernel launch parameters
     int blockSize = 256;
     int gridSize = (size + blockSize - 1) / blockSize;
 
-    // Benchmark memory copy
     auto start = chrono::high_resolution_clock::now();
     for (int i = 0; i < iterations; i++) {
       memcopy<<<gridSize, blockSize, 0, stream_>>>(d_input, d_output, size);
@@ -495,8 +457,7 @@ public:
 
     auto duration = chrono::duration_cast<chrono::microseconds>(end - start);
     double time_ms = duration.count() / 1000.0;
-    double bandwidth =
-        (2.0 * bytes * iterations) / (duration.count() * 1e-3); // GB/s (read + write)
+    double bandwidth = (2.0 * bytes * iterations) / (duration.count() * 1e-3);
 
     cout << "Kernel Memory Copy:" << endl;
     cout << "  Total time: " << fixed << setprecision(2) << time_ms << " ms" << endl;
@@ -504,7 +465,6 @@ public:
          << endl;
     cout << "  Bandwidth: " << fixed << setprecision(2) << bandwidth << " GB/s" << endl;
 
-    // Cleanup using our device manager
     try {
       device_->deallocateMemory(d_input);
       device_->deallocateMemory(d_output);
@@ -517,7 +477,6 @@ public:
   void runAllBenchmarks() {
     printDeviceInfo();
 
-    // Test different vector sizes
     vector<int> vector_sizes = {1024, 1024 * 1024, 16 * 1024 * 1024};
     for (int size : vector_sizes) {
       benchmarkVectorOperations(size);
@@ -525,7 +484,6 @@ public:
       benchmarkMemoryBandwidth(size);
     }
 
-    // Test different matrix sizes
     vector<int> matrix_sizes = {64, 128, 256, 512};
     for (int size : matrix_sizes) {
       benchmarkMatrixMultiplication(size);
@@ -536,7 +494,6 @@ public:
 int main() {
   cout << "=== Simple CUDA Performance Test with Device Manager ===" << endl;
 
-  // Initialize the device manager first
   cout << "Initializing device manager..." << endl;
   try {
     initializeDefaultDevices();
@@ -550,7 +507,6 @@ int main() {
 
   cout << "Found " << device_ids.size() << " device(s) in device manager" << endl;
 
-  // List all devices
   for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     cout << "  Device " << id << ": " << device.getName()
@@ -558,7 +514,6 @@ int main() {
          << " - Total Memory: " << device.getTotalMemory() / (1024 * 1024) << " MB" << endl;
   }
 
-  // Find GPU devices and test them
   bool found_gpu = false;
   for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
@@ -568,22 +523,20 @@ int main() {
       cout << string(60, '=') << endl;
 
       try {
-        // Note: We're still using CUDA device ID 0 for the actual CUDA context
-        // In a more sophisticated implementation, you'd map device manager IDs to CUDA device IDs
+
         SimpleCUDABenchmark benchmark(0);
         benchmark.runAllBenchmarks();
         found_gpu = true;
       } catch (const exception &e) {
         cerr << "Error testing device " << id << ": " << e.what() << endl;
       }
-      break; // Test only the first GPU for now
+      break;
     }
   }
 
   if (!found_gpu) {
     cout << "No GPU devices found in device manager." << endl;
 
-    // Fallback to direct CUDA detection
     int deviceCount;
     cudaError_t err = cudaGetDeviceCount(&deviceCount);
     if (err != cudaSuccess || deviceCount == 0) {
@@ -601,4 +554,4 @@ int main() {
   return 0;
 }
 
-#endif // USE_CUDA
+#endif

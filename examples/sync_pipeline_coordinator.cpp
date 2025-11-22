@@ -112,9 +112,17 @@ int main() {
     float loss = 0.0f, avg_accuracy = 0.0f;
     auto split_start = chrono::high_resolution_clock::now();
 
-    vector<Tensor<float>> micro_batches = split(batch_data, num_microbatches);
+    vector<Tensor<float>> micro_batches(
+        num_microbatches,
+        Tensor<float>({batch_data.batch_size() / num_microbatches, batch_data.channels(),
+                       batch_data.height(), batch_data.width()}));
+    split(batch_data, micro_batches, num_microbatches);
 
-    vector<Tensor<float>> micro_batch_labels = split(batch_labels, num_microbatches);
+    vector<Tensor<float>> micro_batch_labels(
+        num_microbatches,
+        Tensor<float>({batch_labels.batch_size() / num_microbatches, batch_labels.channels(),
+                       batch_labels.height(), batch_labels.width()}));
+    split(batch_labels, micro_batch_labels, num_microbatches);
     auto split_end = chrono::high_resolution_clock::now();
     auto split_duration = chrono::duration_cast<chrono::microseconds>(split_end - split_start);
 
@@ -208,10 +216,12 @@ int main() {
   double val_accuracy = 0.0;
   int val_batches = 0;
   while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
+    vector<Tensor<float>> micro_batches;
+    split(batch_data, micro_batches, num_microbatches);
 
-    vector<Tensor<float>> micro_batches = split(batch_data, num_microbatches);
+    vector<Tensor<float>> micro_batch_labels;
 
-    vector<Tensor<float>> micro_batch_labels = split(batch_labels, num_microbatches);
+    split(batch_labels, micro_batch_labels, num_microbatches);
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);

@@ -19,7 +19,7 @@ using namespace tnn;
 using namespace std;
 
 #ifdef USE_CUDA
-// CUDA kernel to add two arrays
+
 __global__ void vectorAddKernel(const float *a, const float *b, float *result, int n) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < n) {
@@ -27,7 +27,6 @@ __global__ void vectorAddKernel(const float *a, const float *b, float *result, i
   }
 }
 
-// Helper function to launch the kernel with device_ptr
 void vectorAdd(const device_ptr<float[]> &a, const device_ptr<float[]> &b,
                device_ptr<float[]> &result, int n) {
   const int blockSize = 256;
@@ -35,10 +34,8 @@ void vectorAdd(const device_ptr<float[]> &a, const device_ptr<float[]> &b,
 
   vectorAddKernel<<<gridSize, blockSize>>>(a.get(), b.get(), result.get(), n);
 
-  // Check for kernel launch errors
   CUDA_CHECK(cudaGetLastError());
 
-  // Wait for kernel to complete
   CUDA_CHECK(cudaDeviceSynchronize());
 }
 #endif
@@ -47,7 +44,6 @@ int main() {
   try {
     cout << "=== Device Pointer Array Addition Example ===" << endl;
 
-    // Initialize devices
     initializeDefaultDevices();
     DeviceManager &manager = DeviceManager::getInstance();
 
@@ -67,21 +63,17 @@ int main() {
 
     Device *device = &const_cast<Device &>(manager.getDevice(gpu_device_index));
 
-    // Array size for demonstration
     const int n = 1000000;
     cout << "Creating arrays of size: " << n << endl;
 
-    // Create device arrays using device_ptr
     auto a_ptr = make_array_ptr<float[]>(device, n);
     auto b_ptr = make_array_ptr<float[]>(device, n);
     auto result_ptr = make_array_ptr<float[]>(device, n);
 
     cout << "Arrays created successfully" << endl;
 
-    // Create host arrays for initialization and verification
     vector<float> h_a(n), h_b(n), h_result(n);
 
-    // Initialize host arrays
     for (int i = 0; i < n; i++) {
       h_a[i] = static_cast<float>(i);
       h_b[i] = static_cast<float>(i * 2);
@@ -90,24 +82,21 @@ int main() {
     cout << "Host arrays initialized" << endl;
 
 #ifdef USE_CUDA
-    // Copy data from host to device
+
     CUDA_CHECK(cudaMemcpy(a_ptr.get(), h_a.data(), n * sizeof(float), cudaMemcpyHostToDevice));
     CUDA_CHECK(cudaMemcpy(b_ptr.get(), h_b.data(), n * sizeof(float), cudaMemcpyHostToDevice));
 
     cout << "Data copied to device" << endl;
 
-    // Perform vector addition using our kernel
     vectorAdd(a_ptr, b_ptr, result_ptr, n);
 
     cout << "Vector addition completed on GPU" << endl;
 
-    // Copy result back to host
     CUDA_CHECK(
         cudaMemcpy(h_result.data(), result_ptr.get(), n * sizeof(float), cudaMemcpyDeviceToHost));
 
     cout << "Result copied back to host" << endl;
 
-    // Verify results
     bool success = true;
     for (int i = 0; i < min(10, n); i++) {
       float expected = h_a[i] + h_b[i];

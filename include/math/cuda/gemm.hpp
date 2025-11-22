@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
@@ -30,7 +31,7 @@ namespace cuda {
  */
 template <typename T>
 void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
-          const bool trans_A, const bool trans_B, const T alpha, const T beta);
+          const bool trans_A, const bool trans_B, const T alpha, const T beta, cudaStream_t stream);
 
 } // namespace cuda
 

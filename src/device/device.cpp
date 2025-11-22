@@ -55,4 +55,9 @@ void Device::copyToDevice(void *dest, const void *src, size_t size) const {
 void Device::copyToHost(void *dest, const void *src, size_t size) const {
   context_->copyToHost(dest, src, size);
 }
+
+void Device::createFlow(const std::string &flow_id) const { context_->createFlow(flow_id); }
+
+Flow *Device::getFlow(const std::string &flow_id) const { return context_->getFlow(flow_id); }
+
 } // namespace tnn

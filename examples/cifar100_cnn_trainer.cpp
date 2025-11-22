@@ -68,9 +68,9 @@ int main() {
                      .activation("relu", "relu4")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .flatten("flatten")
-                     .dense(512, "relu", true, "fc1")
+                     .dense(512, true, "fc1")
                      .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .dense(100, "linear", true, "output")
+                     .dense(100, true, "output")
                      .activation("softmax", "softmax_output")
                      .build();
     model.set_device(device_type);

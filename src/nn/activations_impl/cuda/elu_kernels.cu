@@ -69,4 +69,4 @@ void elu_gradient<double>(const double *input, double *grad_output, size_t size,
 } // namespace cuda
 } // namespace tnn
 
-#endif // USE_CUDA
+#endif

@@ -6,7 +6,6 @@
  */
 #pragma once
 #include "nn/activations_impl/relu.hpp"
-#include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
 #include <cassert>
 
@@ -23,10 +22,10 @@ template <typename T> void ReLU<T>::apply(Tensor<T> &tensor) const {
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(tensor.device(), cpu::relu<T>, data, data, size);
+    create_cpu_task("default", cpu::relu<T>, data, data, size);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(tensor.device(), cuda::relu<T>, data, data, size);
+    create_gpu_task("default", cuda::relu<T>, data, data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -41,12 +40,12 @@ void ReLU<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstre
     throw std::runtime_error("Input and upstream gradient must be on the same device for RELU");
   }
   if (input.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(input.device(), cpu::relu_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size());
+    create_cpu_task("default", cpu::relu_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size());
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(input.device(), cuda::relu_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size());
+    create_gpu_task("default", cuda::relu_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

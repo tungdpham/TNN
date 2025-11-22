@@ -76,7 +76,7 @@ int main() {
                      .activation("relu", "relu2")
                      .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                      .flatten("flatten")
-                     .dense(10, "linear", true, "fc1")
+                     .dense(10, true, "fc1")
                      .build();
 
     model.set_device(device_type);

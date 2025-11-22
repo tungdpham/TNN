@@ -78,7 +78,7 @@ class OptimizedMNISTCNN(nn.Module):
         # .conv2d(48, 5, 5, 1, 1, 0, 0, "elu", true, "conv3")
         # .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
         # .flatten("flatten")
-        # .dense(10, "linear", true, "output")
+        # .dense(10, true, "output")
         
         self.conv1 = nn.Conv2d(1, 8, kernel_size=5, stride=1, padding=0, bias=True)
         self.pool1 = nn.MaxPool2d(kernel_size=3, stride=3, padding=0)

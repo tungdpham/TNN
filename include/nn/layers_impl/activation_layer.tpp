@@ -6,6 +6,7 @@
  */
 #pragma once
 #include "nn/layers_impl/activation_layer.hpp"
+#include "ops/ops.hpp"
 namespace tnn {
 
 template <typename T>
@@ -18,44 +19,27 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 }
 
 template <typename T>
-Tensor<T> ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+const Tensor<T> &ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   const Tensor<T> &current =
       input.device() == this->device_ ? input : input.to_device(this->device_);
   micro_batch_inputs_[micro_batch_id] = current.clone();
-  Tensor<T> output = current.clone();
+  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current.shape());
+  ops::copy(current.data_ptr(), output.data_ptr(), current.size());
   activation_->apply(output);
   return output;
 }
 
 template <typename T>
-Tensor<T> ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+const Tensor<T> &ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   const Tensor<T> &current_gradient =
       gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
-  Tensor<T> grad = activation_->compute_gradient(last_input, &current_gradient);
+  Tensor<T> &grad = this->get_gradient_buffer(micro_batch_id, last_input.shape());
+  ops::copy(current_gradient.data_ptr(), grad.data_ptr(), current_gradient.size());
+  activation_->compute_gradient_inplace(last_input, grad);
   return grad;
-}
-
-template <typename T>
-void ActivationLayer<T>::forward_inplace(Tensor<T> &input, size_t micro_batch_id) {
-  if (input.device() != this->device_) {
-    input = input.to_device(this->device_);
-  }
-  micro_batch_inputs_[micro_batch_id] = input.clone();
-  activation_->apply(input);
-}
-
-template <typename T>
-void ActivationLayer<T>::backward_inplace(Tensor<T> &gradient, size_t micro_batch_id) {
-  if (gradient.device() != this->device_) {
-    gradient = gradient.to_device(this->device_);
-  }
-  auto it = micro_batch_inputs_.find(micro_batch_id);
-  assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
-  const Tensor<T> &last_input = it->second;
-  activation_->compute_gradient_inplace(last_input, gradient);
 }
 
 template <typename T> std::string ActivationLayer<T>::type() const { return "activation"; }

@@ -2,9 +2,11 @@
 
 #include "device.hpp"
 #include "device_manager.hpp"
+
 #include <cstddef>
 #include <stdexcept>
 #include <type_traits>
+
 namespace tnn {
 
 template <typename T> class device_ptr {
@@ -144,7 +146,9 @@ public:
     return temp;
   }
 
-  T *get() const { return ptr_; }
+  T *get() { return ptr_; }
+  const T *get() const { return ptr_; }
+
   const Device *getDevice() const { return device_; }
 
   DeviceType getDeviceType() const {

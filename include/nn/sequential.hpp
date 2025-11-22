@@ -28,6 +28,10 @@
 #include <string>
 #include <vector>
 
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+#endif
+
 namespace tnn {
 struct Partition {
   size_t start_layer;
@@ -382,40 +386,38 @@ public:
    * @param input The input tensor.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  void forward(Tensor<T> &input, size_t micro_batch_id = 0) {
+  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
-
+    const Device *input_device = input.device();
+    const Tensor<T> *current = &input;
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
-        if (enable_profiling_) {
-          auto start_time = std::chrono::high_resolution_clock::now();
-          layers_[i]->forward_inplace(input, micro_batch_id);
+        // just profile since it's not expensive
+        auto start_time = std::chrono::high_resolution_clock::now();
+        current = &layers_[i]->forward(*current, micro_batch_id);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
-          auto end_time = std::chrono::high_resolution_clock::now();
-          auto duration =
-              std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
-
-          std::string layer_name = layers_[i]->type();
-          auto config = layers_[i]->get_config();
-          if (!config.name.empty()) {
-            layer_name = config.name;
-          }
-
-          {
-            std::lock_guard<std::mutex> lock(forward_times_mutex_);
-            forward_times_microseconds_[layer_name] += duration.count();
-          }
-        } else {
-          layers_[i]->forward_inplace(input, micro_batch_id);
+        std::string layer_name = layers_[i]->type();
+        auto config = layers_[i]->get_config();
+        if (!config.name.empty()) {
+          layer_name = config.name;
         }
 
+        {
+          std::lock_guard<std::mutex> lock(forward_times_mutex_);
+          forward_times_microseconds_[layer_name] += duration.count();
+        }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
                                  layers_[i]->name() + "): " + e.what());
       }
     }
+
+    return current->to_device(input_device);
   }
 
   /**
@@ -439,38 +441,38 @@ public:
    * @param gradient The gradient tensor from the subsequent layer or loss function.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  void backward(Tensor<T> &gradient, size_t micro_batch_id = 0) {
+  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
 
+    const Tensor<T> *current_gradient = &gradient;
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
-        if (enable_profiling_) {
-          auto start_time = std::chrono::high_resolution_clock::now();
-          layers_[i]->backward_inplace(gradient, micro_batch_id);
-          auto end_time = std::chrono::high_resolution_clock::now();
-          auto duration =
-              std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        auto start_time = std::chrono::high_resolution_clock::now();
+        current_gradient = &layers_[i]->backward(*current_gradient, micro_batch_id);
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration =
+            std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
-          std::string layer_name = layers_[i]->type();
-          auto config = layers_[i]->get_config();
-          if (!config.name.empty()) {
-            layer_name = config.name;
-          }
-
-          {
-            std::lock_guard<std::mutex> lock(backward_times_mutex_);
-            backward_times_microseconds_[layer_name] += duration.count();
-          }
-        } else {
-          layers_[i]->backward_inplace(gradient, micro_batch_id);
+        std::string layer_name = layers_[i]->type();
+        auto config = layers_[i]->get_config();
+        if (!config.name.empty()) {
+          layer_name = config.name;
         }
+
+        {
+          std::lock_guard<std::mutex> lock(backward_times_mutex_);
+          backward_times_microseconds_[layer_name] += duration.count();
+        }
+
       } catch (const std::exception &e) {
         throw std::runtime_error("Error in backward pass of layer " + std::to_string(i) + " (" +
                                  layers_[i]->type() + "): " + e.what());
       }
     }
+
+    return current_gradient->to_device(gradient.device());
   }
 
   /**
@@ -839,7 +841,6 @@ public:
       throw std::runtime_error("No optimizer set for model");
     }
     optimizer_->update(params, grads);
-    clear_gradients();
   }
 
   void clear_gradients() const {
@@ -1210,9 +1211,9 @@ public:
     return *this;
   }
 
-  SequentialBuilder &dense(size_t output_features, const std::string &activation = "none",
-                           bool use_bias = true, const std::string &name = "") {
-    layer_builder_.dense(output_features, activation, use_bias,
+  SequentialBuilder &dense(size_t output_features, bool use_bias = true,
+                           const std::string &name = "") {
+    layer_builder_.dense(output_features, use_bias,
                          name.empty() ? "dense_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }

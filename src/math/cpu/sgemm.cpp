@@ -492,7 +492,8 @@ void sgemm(const float *A, const float *B, float *C, const size_t M, const size_
   }
 
 #ifdef __AVX2__
-  bool all_aligned = is_aligned_32(A) && is_aligned_32(B) && is_aligned_32(C);
+  bool all_aligned = is_aligned_32(A) && is_aligned_32(B) && is_aligned_32(C) && (N % 8 == 0) &&
+                     (M % 8 == 0) && (K % 8 == 0);
 
   size_t M_BLOCK_SIZE, N_BLOCK_SIZE, K_BLOCK_SIZE;
 

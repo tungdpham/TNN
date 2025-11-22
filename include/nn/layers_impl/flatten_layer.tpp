@@ -6,6 +6,7 @@
  */
 #pragma once
 #include "nn/layers_impl/flatten_layer.hpp"
+#include "ops/ops.hpp"
 
 #include <stdexcept>
 
@@ -15,19 +16,25 @@ template <typename T>
 FlattenLayer<T>::FlattenLayer(const std::string &name) : StatelessLayer<T>(name) {}
 
 template <typename T>
-Tensor<T> FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
-  size_t batch_size = input.batch_size();
-  size_t features = input.channels() * input.height() * input.width();
+  const Tensor<T> &current =
+      input.device() == this->device_ ? input : input.to_device(this->device_);
 
-  Tensor<T> output = input.reshape(std::vector<size_t>{batch_size, features, 1, 1});
+  size_t batch_size = current.batch_size();
+  size_t features = current.channels() * current.height() * current.width();
+
+  Tensor<T> &output =
+      this->get_output_buffer(micro_batch_id, std::vector<size_t>{batch_size, features, 1, 1});
+
+  ops::copy(current.data_ptr(), output.data_ptr(), current.size());
 
   return output;
 }
 
 template <typename T>
-Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+const Tensor<T> &FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
@@ -35,7 +42,12 @@ Tensor<T> FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batc
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  Tensor<T> grad_input = gradient.reshape(original_shape);
+  const Tensor<T> &current_grad =
+      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+
+  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, original_shape);
+
+  ops::copy(current_grad.data_ptr(), grad_input.data_ptr(), current_grad.size());
 
   return grad_input;
 }

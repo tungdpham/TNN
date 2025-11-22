@@ -1,14 +1,17 @@
 #pragma once
 
-#include "device/device.hpp"
+#include "device/device_manager.hpp"
+#include "flow.hpp"
 
 #include <atomic>
 #include <functional>
 #include <iostream>
+#include <mutex>
 #include <system_error>
 #include <thread>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
@@ -41,17 +44,15 @@ protected:
 };
 
 class CPUTask : public Task {
-  friend class TaskHandler;
-
 private:
   std::function<void()> work_function_;
-  const Device *device_;
+  CPUFlow *flow_;
 
 public:
   template <typename Func, typename... Args>
-  explicit CPUTask(const Device *device, Func &&func, Args &&...args) : device_(device) {
+  explicit CPUTask(CPUFlow *flow, Func &&func, Args &&...args) : flow_(flow) {
     auto bound_work = [f = std::forward<Func>(func),
-                       args_tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+                       args_tuple = std::tuple<Args...>(std::forward<Args>(args)...)]() mutable {
       std::apply(f, std::move(args_tuple));
     };
 
@@ -92,26 +93,42 @@ inline tnn::ErrorStatus cuda_error_to_status(cudaError_t err) {
 }
 
 class CUDATask : public Task {
-  friend class TaskHandler;
-
 private:
-  cudaStream_t stream_ = nullptr;
+  CUDAFlow *flow_;
   cudaEvent_t event_ = nullptr;
-  const Device *device_;
   std::function<void()> launch_function_;
+
+  static inline std::vector<cudaEvent_t> event_pool_;
+  static inline std::mutex pool_mutex_;
+
+  static cudaEvent_t get_event() {
+    std::lock_guard<std::mutex> lock(pool_mutex_);
+    if (event_pool_.empty()) {
+      cudaEvent_t e;
+      cudaEventCreateWithFlags(&e, cudaEventDisableTiming);
+      return e;
+    }
+    cudaEvent_t e = event_pool_.back();
+    event_pool_.pop_back();
+    return e;
+  }
+
+  static void release_event(cudaEvent_t e) {
+    std::lock_guard<std::mutex> lock(pool_mutex_);
+    event_pool_.push_back(e);
+  }
 
 public:
   template <typename Func, typename... Args>
-  explicit CUDATask(const Device *device, Func &&func, Args &&...args) : device_(device) {
-    cudaStreamCreate(&stream_);
-    cudaEventCreate(&event_);
+  explicit CUDATask(CUDAFlow *flow, Func &&func, Args &&...args) : flow_(flow) {
+    // event_ = get_event();
+
+    cudaStream_t stream = flow_->get_stream();
 
     // Automatically append cudaStream_t as the last parameter
-    // This eliminates the need for lambda wrapping in user code
     auto launch_func = [f = std::forward<Func>(func),
-                        args_tuple = std::make_tuple(std::forward<Args>(args)...),
-                        stream = stream_]() mutable {
-      // Concatenate user args with stream parameter and apply to function
+                        args_tuple = std::tuple<Args...>(std::forward<Args>(args)...),
+                        stream]() mutable {
       std::apply(f, std::tuple_cat(std::move(args_tuple), std::make_tuple(stream)));
     };
 
@@ -121,7 +138,7 @@ public:
 
   void execute() override {
     launch_function_();
-    cudaEventRecord(event_, stream_);
+    // cudaEventRecord(event_, flow_->get_stream());
   }
 
   ErrorStatus sync() override {
@@ -129,7 +146,8 @@ public:
       return status_;
     }
 
-    cudaError_t err = cudaEventSynchronize(event_);
+    // cudaError_t err = cudaStreamWaitEvent(flow_->get_stream(), event_, 0);
+    cudaError_t err = cudaStreamSynchronize(flow_->get_stream());
     ErrorStatus status = cuda_error_to_status(err);
     set_ready_state(status);
 
@@ -137,10 +155,17 @@ public:
   }
 
   ~CUDATask() override {
-    if (stream_)
-      cudaStreamDestroy(stream_);
-    if (event_)
-      cudaEventDestroy(event_);
+    auto err = sync();
+    if (err != ErrorStatus{}) {
+      std::cerr << "Error in CUDATask sync in destructor: " << err.message() << std::endl;
+      std::cerr << "You might want to capture task and call sync() explicitly to handle errors."
+                << std::endl;
+    }
+
+    if (event_) {
+      release_event(event_);
+      event_ = nullptr;
+    }
   }
 
   CUDATask(const CUDATask &) = delete;
@@ -149,4 +174,39 @@ public:
   CUDATask &operator=(CUDATask &&) = delete;
 };
 #endif
+
+template <typename Func, typename... Args>
+std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&...args) {
+  auto CPUDevice = &getCPU();
+  CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice->getFlow(flow_id));
+  if (!flow) {
+    throw std::runtime_error("Failed to get CPU flow with ID: " + flow_id);
+  }
+  return std::make_unique<CPUTask>(flow, std::forward<Func>(func), std::forward<Args>(args)...);
+}
+
+#ifdef USE_CUDA
+template <typename Func, typename... Args>
+std::unique_ptr<Task> create_gpu_task(std::string flow_id, Func &&func, Args &&...args) {
+  auto GPUDevice = &getGPU();
+  CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice->getFlow(flow_id));
+  if (!flow) {
+    throw std::runtime_error("Failed to get CUDA flow with ID: " + flow_id);
+  }
+  return std::make_unique<CUDATask>(flow, std::forward<Func>(func), std::forward<Args>(args)...);
+}
+#endif
+
+inline void task_sync_all(const std::initializer_list<Task *> &tasks) {
+  for (const auto &task : tasks) {
+    if (task) {
+      auto errorStatus = task->sync();
+      if (errorStatus != ErrorStatus{}) {
+        throw std::runtime_error("Task synchronization failed with error: " +
+                                 errorStatus.message());
+      }
+    }
+  }
+}
+
 } // namespace tnn

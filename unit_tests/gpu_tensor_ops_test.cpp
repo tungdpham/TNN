@@ -89,11 +89,13 @@ TEST_F(GPUTensorOpsTest, PadBasic) {
   }
 
   // Pad using CPU implementation
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 1, 1, 0.0f);
+  Tensor<float, NCHW> cpu_padded({1, 1, 5, 5});
+  cpu::pad(cpu_tensor, cpu_padded, 1, 1, 0.0f);
 
   // Transfer to GPU and pad
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 1, 1, 0.0f);
+  Tensor<float, NCHW> gpu_padded({1, 1, 5, 5}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 1, 1, 0.0f);
 
   // Compare results
   compareTensors(cpu_padded, gpu_padded);
@@ -104,10 +106,12 @@ TEST_F(GPUTensorOpsTest, PadMultiChannel) {
   Tensor<float, NCHW> cpu_tensor({2, 3, 4, 4});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 2, 2, -1.0f);
+  Tensor<float, NCHW> cpu_padded({2, 3, 8, 8});
+  cpu::pad(cpu_tensor, cpu_padded, 2, 2, -1.0f);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 2, 2, -1.0f);
+  Tensor<float, NCHW> gpu_padded({2, 3, 8, 8}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 2, 2, -1.0f);
 
   compareTensors(cpu_padded, gpu_padded);
 }
@@ -116,10 +120,12 @@ TEST_F(GPUTensorOpsTest, PadAsymmetric) {
   Tensor<float, NCHW> cpu_tensor({1, 2, 5, 7});
   cpu_tensor.fill_random_uniform(5.0f);
 
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 3, 1, 2.5f);
+  Tensor<float, NCHW> cpu_padded({1, 2, 11, 9});
+  cpu::pad(cpu_tensor, cpu_padded, 3, 1, 2.5f);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 3, 1, 2.5f);
+  Tensor<float, NCHW> gpu_padded({1, 2, 11, 9}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 3, 1, 2.5f);
 
   compareTensors(cpu_padded, gpu_padded);
 }
@@ -130,10 +136,12 @@ TEST_F(GPUTensorOpsTest, UnpadBasic) {
   Tensor<float, NCHW> cpu_tensor({1, 1, 5, 5});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  Tensor<float, NCHW> cpu_unpadded = cpu::unpad(cpu_tensor, 1, 1);
+  Tensor<float, NCHW> cpu_unpadded({1, 1, 3, 3});
+  cpu::unpad(cpu_tensor, cpu_unpadded, 1, 1);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_unpadded = cuda::unpad(gpu_tensor, 1, 1);
+  Tensor<float, NCHW> gpu_unpadded({1, 1, 3, 3}, gpu_device_);
+  cuda::unpad(gpu_tensor, gpu_unpadded, 1, 1);
 
   compareTensors(cpu_unpadded, gpu_unpadded);
 }
@@ -142,10 +150,12 @@ TEST_F(GPUTensorOpsTest, UnpadMultiChannel) {
   Tensor<float, NCHW> cpu_tensor({2, 3, 8, 8});
   cpu_tensor.fill_random_uniform(15.0f);
 
-  Tensor<float, NCHW> cpu_unpadded = cpu::unpad(cpu_tensor, 2, 2);
+  Tensor<float, NCHW> cpu_unpadded({2, 3, 4, 4});
+  cpu::unpad(cpu_tensor, cpu_unpadded, 2, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_unpadded = cuda::unpad(gpu_tensor, 2, 2);
+  Tensor<float, NCHW> gpu_unpadded({2, 3, 4, 4}, gpu_device_);
+  cuda::unpad(gpu_tensor, gpu_unpadded, 2, 2);
 
   compareTensors(cpu_unpadded, gpu_unpadded);
 }
@@ -156,13 +166,17 @@ TEST_F(GPUTensorOpsTest, PadUnpadRoundTrip) {
   cpu_original.fill_random_uniform(8.0f);
 
   // CPU version
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_original, 2, 2, 0.0f);
-  Tensor<float, NCHW> cpu_restored = cpu::unpad(cpu_padded, 2, 2);
+  Tensor<float, NCHW> cpu_padded({1, 2, 8, 8});
+  cpu::pad(cpu_original, cpu_padded, 2, 2, 0.0f);
+  Tensor<float, NCHW> cpu_restored({1, 2, 4, 4});
+  cpu::unpad(cpu_padded, cpu_restored, 2, 2);
 
   // GPU version
   Tensor<float, NCHW> gpu_original = cpu_original.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_original, 2, 2, 0.0f);
-  Tensor<float, NCHW> gpu_restored = cuda::unpad(gpu_padded, 2, 2);
+  Tensor<float, NCHW> gpu_padded({1, 2, 8, 8}, gpu_device_);
+  cuda::pad(gpu_original, gpu_padded, 2, 2, 0.0f);
+  Tensor<float, NCHW> gpu_restored({1, 2, 4, 4}, gpu_device_);
+  cuda::unpad(gpu_padded, gpu_restored, 2, 2);
 
   compareTensors(cpu_original, cpu_restored);
   compareTensors(cpu_original, gpu_restored);
@@ -177,10 +191,12 @@ TEST_F(GPUTensorOpsTest, CropBasic) {
     cpu_tensor.data()[i] = static_cast<float>(i);
   }
 
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_tensor, 1, 1, 3, 3);
+  Tensor<float, NCHW> cpu_cropped({1, 1, 3, 3});
+  cpu::crop(cpu_tensor, cpu_cropped, 1, 1, 3, 3);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_tensor, 1, 1, 3, 3);
+  Tensor<float, NCHW> gpu_cropped({1, 1, 3, 3}, gpu_device_);
+  cuda::crop(gpu_tensor, gpu_cropped, 1, 1, 3, 3);
 
   compareTensors(cpu_cropped, gpu_cropped);
 }
@@ -189,10 +205,12 @@ TEST_F(GPUTensorOpsTest, CropMultiChannel) {
   Tensor<float, NCHW> cpu_tensor({2, 3, 10, 10});
   cpu_tensor.fill_random_uniform(20.0f);
 
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_tensor, 2, 3, 7, 8);
+  Tensor<float, NCHW> cpu_cropped({2, 3, 6, 6});
+  cpu::crop(cpu_tensor, cpu_cropped, 2, 3, 7, 8);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_tensor, 2, 3, 7, 8);
+  Tensor<float, NCHW> gpu_cropped({2, 3, 6, 6}, gpu_device_);
+  cuda::crop(gpu_tensor, gpu_cropped, 2, 3, 7, 8);
 
   compareTensors(cpu_cropped, gpu_cropped);
 }
@@ -202,10 +220,12 @@ TEST_F(GPUTensorOpsTest, CropCorner) {
   cpu_tensor.fill_random_uniform(12.0f);
 
   // Crop top-left corner
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_tensor, 0, 0, 3, 3);
+  Tensor<float, NCHW> cpu_cropped({1, 2, 4, 4});
+  cpu::crop(cpu_tensor, cpu_cropped, 0, 0, 3, 3);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_tensor, 0, 0, 3, 3);
+  Tensor<float, NCHW> gpu_cropped({1, 2, 4, 4}, gpu_device_);
+  cuda::crop(gpu_tensor, gpu_cropped, 0, 0, 3, 3);
 
   compareTensors(cpu_cropped, gpu_cropped);
 }
@@ -215,10 +235,12 @@ TEST_F(GPUTensorOpsTest, CropBottomRight) {
   cpu_tensor.fill_random_uniform(10.0f);
 
   // Crop bottom-right area
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_tensor, 3, 3, 5, 5);
+  Tensor<float, NCHW> cpu_cropped({1, 1, 3, 3});
+  cpu::crop(cpu_tensor, cpu_cropped, 3, 3, 5, 5);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_tensor, 3, 3, 5, 5);
+  Tensor<float, NCHW> gpu_cropped({1, 1, 3, 3}, gpu_device_);
+  cuda::crop(gpu_tensor, gpu_cropped, 3, 3, 5, 5);
 
   compareTensors(cpu_cropped, gpu_cropped);
 }
@@ -229,10 +251,12 @@ TEST_F(GPUTensorOpsTest, SliceBatchBasic) {
   Tensor<float, NCHW> cpu_tensor({4, 2, 3, 3});
   cpu_tensor.fill_random_uniform(15.0f);
 
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_batch(cpu_tensor, 1, 3);
+  Tensor<float, NCHW> cpu_sliced({2, 2, 3, 3});
+  cpu::slice_batch(cpu_tensor, cpu_sliced, 1, 3);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_batch(gpu_tensor, 1, 3);
+  Tensor<float, NCHW> gpu_sliced({2, 2, 3, 3}, gpu_device_);
+  cuda::slice_batch(gpu_tensor, gpu_sliced, 1, 3);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -242,10 +266,12 @@ TEST_F(GPUTensorOpsTest, SliceBatchSingle) {
   cpu_tensor.fill_random_uniform(10.0f);
 
   // Extract single batch
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_batch(cpu_tensor, 2, 3);
+  Tensor<float, NCHW> cpu_sliced({1, 3, 4, 4});
+  cpu::slice_batch(cpu_tensor, cpu_sliced, 2, 3);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_batch(gpu_tensor, 2, 3);
+  Tensor<float, NCHW> gpu_sliced({1, 3, 4, 4}, gpu_device_);
+  cuda::slice_batch(gpu_tensor, gpu_sliced, 2, 3);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -254,10 +280,12 @@ TEST_F(GPUTensorOpsTest, SliceBatchFirstBatch) {
   Tensor<float, NCHW> cpu_tensor({3, 2, 5, 5});
   cpu_tensor.fill_random_uniform(8.0f);
 
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_batch(cpu_tensor, 0, 1);
+  Tensor<float, NCHW> cpu_sliced({1, 2, 5, 5});
+  cpu::slice_batch(cpu_tensor, cpu_sliced, 0, 1);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_batch(gpu_tensor, 0, 1);
+  Tensor<float, NCHW> gpu_sliced({1, 2, 5, 5}, gpu_device_);
+  cuda::slice_batch(gpu_tensor, gpu_sliced, 0, 1);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -268,10 +296,12 @@ TEST_F(GPUTensorOpsTest, SliceChannelsBasic) {
   Tensor<float, NCHW> cpu_tensor({2, 8, 4, 4});
   cpu_tensor.fill_random_uniform(12.0f);
 
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_channels(cpu_tensor, 2, 5);
+  Tensor<float, NCHW> cpu_sliced({2, 4, 4, 4});
+  cpu::slice_channels(cpu_tensor, cpu_sliced, 2, 5);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_channels(gpu_tensor, 2, 5);
+  Tensor<float, NCHW> gpu_sliced({2, 4, 4, 4}, gpu_device_);
+  cuda::slice_channels(gpu_tensor, gpu_sliced, 2, 5);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -281,10 +311,12 @@ TEST_F(GPUTensorOpsTest, SliceChannelsSingle) {
   cpu_tensor.fill_random_uniform(15.0f);
 
   // Extract single channel
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_channels(cpu_tensor, 5, 5);
+  Tensor<float, NCHW> cpu_sliced({1, 1, 6, 6});
+  cpu::slice_channels(cpu_tensor, cpu_sliced, 5, 5);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_channels(gpu_tensor, 5, 5);
+  Tensor<float, NCHW> gpu_sliced({1, 1, 6, 6}, gpu_device_);
+  cuda::slice_channels(gpu_tensor, gpu_sliced, 5, 5);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -293,10 +325,12 @@ TEST_F(GPUTensorOpsTest, SliceChannelsFirstThree) {
   Tensor<float, NCHW> cpu_tensor({2, 6, 3, 3});
   cpu_tensor.fill_random_uniform(9.0f);
 
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_channels(cpu_tensor, 0, 2);
+  Tensor<float, NCHW> cpu_sliced({2, 3, 3, 3});
+  cpu::slice_channels(cpu_tensor, cpu_sliced, 0, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_channels(gpu_tensor, 0, 2);
+  Tensor<float, NCHW> gpu_sliced({2, 3, 3, 3}, gpu_device_);
+  cuda::slice_channels(gpu_tensor, gpu_sliced, 0, 2);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -307,10 +341,14 @@ TEST_F(GPUTensorOpsTest, SplitBasic) {
   Tensor<float, NCHW> cpu_tensor({4, 2, 3, 3});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits = cpu::split(cpu_tensor, 2);
+  std::vector<Tensor<float, NCHW>> cpu_splits = {Tensor<float, NCHW>({2, 2, 3, 3}),
+                                                 Tensor<float, NCHW>({2, 2, 3, 3})};
+  cpu::split(cpu_tensor, cpu_splits, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = cuda::split(gpu_tensor, 2);
+  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_),
+                                                 Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_)};
+  cuda::split(gpu_tensor, gpu_splits, 2);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
@@ -323,10 +361,17 @@ TEST_F(GPUTensorOpsTest, SplitMultiple) {
   Tensor<float, NCHW> cpu_tensor({8, 3, 4, 4});
   cpu_tensor.fill_random_uniform(15.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits = cpu::split(cpu_tensor, 4);
+  std::vector<Tensor<float, NCHW>> cpu_splits = {
+      Tensor<float, NCHW>({2, 3, 4, 4}), Tensor<float, NCHW>({2, 3, 4, 4}),
+      Tensor<float, NCHW>({2, 3, 4, 4}), Tensor<float, NCHW>({2, 3, 4, 4})};
+  cpu::split(cpu_tensor, cpu_splits, 4);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = cuda::split(gpu_tensor, 4);
+  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
+                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
+                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
+                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_)};
+  cuda::split(gpu_tensor, gpu_splits, 4);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
@@ -339,10 +384,20 @@ TEST_F(GPUTensorOpsTest, SplitSingleBatch) {
   Tensor<float, NCHW> cpu_tensor({6, 2, 5, 5});
   cpu_tensor.fill_random_uniform(12.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits = cpu::split(cpu_tensor, 6);
+  std::vector<Tensor<float, NCHW>> cpu_splits = {
+      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5}),
+      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5}),
+      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5})};
+  cpu::split(cpu_tensor, cpu_splits, 6);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = cuda::split(gpu_tensor, 6);
+  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
+                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
+                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
+                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
+                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
+                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_)};
+  cuda::split(gpu_tensor, gpu_splits, 6);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
@@ -718,15 +773,21 @@ TEST_F(GPUTensorOpsTest, CombinedPadCropSlice) {
   cpu_original.fill_random_uniform(15.0f);
 
   // CPU: pad -> crop -> slice
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_original, 2, 2, 0.0f);
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_padded, 3, 3, 8, 8);
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_batch(cpu_cropped, 1, 3);
+  Tensor<float, NCHW> cpu_padded({4, 3, 12, 12});
+  cpu::pad(cpu_original, cpu_padded, 2, 2, 0.0f);
+  Tensor<float, NCHW> cpu_cropped({4, 3, 6, 6});
+  cpu::crop(cpu_padded, cpu_cropped, 3, 3, 8, 8);
+  Tensor<float, NCHW> cpu_sliced({2, 3, 6, 6});
+  cpu::slice_batch(cpu_cropped, cpu_sliced, 1, 3);
 
   // GPU: pad -> crop -> slice
   Tensor<float, NCHW> gpu_original = cpu_original.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_original, 2, 2, 0.0f);
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_padded, 3, 3, 8, 8);
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_batch(gpu_cropped, 1, 3);
+  Tensor<float, NCHW> gpu_padded({4, 3, 12, 12}, gpu_device_);
+  cuda::pad(gpu_original, gpu_padded, 2, 2, 0.0f);
+  Tensor<float, NCHW> gpu_cropped({4, 3, 6, 6}, gpu_device_);
+  cuda::crop(gpu_padded, gpu_cropped, 3, 3, 8, 8);
+  Tensor<float, NCHW> gpu_sliced({2, 3, 6, 6}, gpu_device_);
+  cuda::slice_batch(gpu_cropped, gpu_sliced, 1, 3);
 
   compareTensors(cpu_sliced, gpu_sliced);
 }
@@ -737,19 +798,25 @@ TEST_F(GPUTensorOpsTest, LargeTensorOperations) {
   cpu_tensor.fill_random_uniform(20.0f);
 
   // Test padding
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 2, 2, 0.0f);
+  Tensor<float, NCHW> cpu_padded({8, 16, 36, 36});
+  cpu::pad(cpu_tensor, cpu_padded, 2, 2, 0.0f);
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 2, 2, 0.0f);
+  Tensor<float, NCHW> gpu_padded({8, 16, 36, 36}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 2, 2, 0.0f);
   compareTensors(cpu_padded, gpu_padded);
 
   // Test cropping
-  Tensor<float, NCHW> cpu_cropped = cpu::crop(cpu_tensor, 5, 5, 26, 26);
-  Tensor<float, NCHW> gpu_cropped = cuda::crop(gpu_tensor, 5, 5, 26, 26);
+  Tensor<float, NCHW> cpu_cropped({8, 16, 22, 22});
+  cpu::crop(cpu_tensor, cpu_cropped, 5, 5, 26, 26);
+  Tensor<float, NCHW> gpu_cropped({8, 16, 22, 22}, gpu_device_);
+  cuda::crop(gpu_tensor, gpu_cropped, 5, 5, 26, 26);
   compareTensors(cpu_cropped, gpu_cropped);
 
   // Test slicing
-  Tensor<float, NCHW> cpu_sliced = cpu::slice_batch(cpu_tensor, 2, 6);
-  Tensor<float, NCHW> gpu_sliced = cuda::slice_batch(gpu_tensor, 2, 6);
+  Tensor<float, NCHW> cpu_sliced({4, 16, 32, 32});
+  cpu::slice_batch(cpu_tensor, cpu_sliced, 2, 6);
+  Tensor<float, NCHW> gpu_sliced({4, 16, 32, 32}, gpu_device_);
+  cuda::slice_batch(gpu_tensor, gpu_sliced, 2, 6);
   compareTensors(cpu_sliced, gpu_sliced);
 }
 
@@ -760,9 +827,11 @@ TEST_F(GPUTensorOpsTest, MinimalTensor) {
   Tensor<float, NCHW> cpu_tensor({1, 1, 1, 1});
   cpu_tensor(0, 0, 0, 0) = 42.0f;
 
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 1, 1, 0.0f);
+  Tensor<float, NCHW> cpu_padded({1, 1, 3, 3});
+  cpu::pad(cpu_tensor, cpu_padded, 1, 1, 0.0f);
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 1, 1, 0.0f);
+  Tensor<float, NCHW> gpu_padded({1, 1, 3, 3}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 1, 1, 0.0f);
 
   compareTensors(cpu_padded, gpu_padded);
 }
@@ -771,9 +840,11 @@ TEST_F(GPUTensorOpsTest, SinglePixelPadding) {
   Tensor<float, NCHW> cpu_tensor({1, 1, 3, 3});
   cpu_tensor.fill_random_uniform(5.0f);
 
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 1, 1, -1.0f);
+  Tensor<float, NCHW> cpu_padded({1, 1, 5, 5});
+  cpu::pad(cpu_tensor, cpu_padded, 1, 1, -1.0f);
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 1, 1, -1.0f);
+  Tensor<float, NCHW> gpu_padded({1, 1, 5, 5}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 1, 1, -1.0f);
 
   compareTensors(cpu_padded, gpu_padded);
 }
@@ -783,9 +854,11 @@ TEST_F(GPUTensorOpsTest, AsymmetricDimensions) {
   Tensor<float, NCHW> cpu_tensor({1, 1, 20, 3});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  Tensor<float, NCHW> cpu_padded = cpu::pad(cpu_tensor, 2, 5, 1.0f);
+  Tensor<float, NCHW> cpu_padded({1, 1, 24, 13});
+  cpu::pad(cpu_tensor, cpu_padded, 2, 5, 1.0f);
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  Tensor<float, NCHW> gpu_padded = cuda::pad(gpu_tensor, 2, 5, 1.0f);
+  Tensor<float, NCHW> gpu_padded({1, 1, 24, 13}, gpu_device_);
+  cuda::pad(gpu_tensor, gpu_padded, 2, 5, 1.0f);
 
   compareTensors(cpu_padded, gpu_padded);
 
@@ -793,9 +866,11 @@ TEST_F(GPUTensorOpsTest, AsymmetricDimensions) {
   Tensor<float, NCHW> cpu_tensor2({1, 1, 3, 20});
   cpu_tensor2.fill_random_uniform(10.0f);
 
-  Tensor<float, NCHW> cpu_padded2 = cpu::pad(cpu_tensor2, 5, 2, -2.0f);
+  Tensor<float, NCHW> cpu_padded2({1, 1, 13, 24});
+  cpu::pad(cpu_tensor2, cpu_padded2, 5, 2, -2.0f);
   Tensor<float, NCHW> gpu_tensor2 = cpu_tensor2.to_gpu();
-  Tensor<float, NCHW> gpu_padded2 = cuda::pad(gpu_tensor2, 5, 2, -2.0f);
+  Tensor<float, NCHW> gpu_padded2({1, 1, 13, 24}, gpu_device_);
+  cuda::pad(gpu_tensor2, gpu_padded2, 5, 2, -2.0f);
 
   compareTensors(cpu_padded2, gpu_padded2);
 }

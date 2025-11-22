@@ -75,4 +75,4 @@ void leaky_relu_gradient<double>(const double *input, double *grad_output, size_
 } // namespace cuda
 } // namespace tnn
 
-#endif // USE_CUDA
+#endif

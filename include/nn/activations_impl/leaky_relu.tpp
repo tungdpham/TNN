@@ -23,10 +23,10 @@ template <typename T> void LeakyReLU<T>::apply(Tensor<T> &tensor) const {
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(tensor.device(), cpu::leaky_relu<T>, data, data, size, negative_slope_);
+    create_cpu_task("default", cpu::leaky_relu<T>, data, data, size, negative_slope_);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(tensor.device(), cuda::leaky_relu<T>, data, data, size, negative_slope_);
+    create_gpu_task("default", cuda::leaky_relu<T>, data, data, size, negative_slope_);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -43,12 +43,12 @@ void LeakyReLU<T>::compute_gradient_inplace(const Tensor<T> &input,
         "Input and upstream gradient must be on the same device for LeakyReLU");
   }
   if (input.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(input.device(), cpu::leaky_relu_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size(), negative_slope_);
+    create_cpu_task("default", cpu::leaky_relu_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size(), negative_slope_);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(input.device(), cuda::leaky_relu_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size(), negative_slope_);
+    create_gpu_task("default", cuda::leaky_relu_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size(), negative_slope_);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

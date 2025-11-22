@@ -7,6 +7,7 @@
 
 #include "device/device_manager.hpp"
 #include "device/device_ptr.hpp"
+#include "device/task.hpp"
 #include "nn/layers_impl/cpu/dense_ops.hpp"
 #include "nn/layers_impl/cuda/dense_ops.hpp"
 #include <gmock/gmock.h>
@@ -96,8 +97,10 @@ TEST_F(CUDADenseOpsTest, DenseForwardBasic) {
   gpu_device_->copyToDevice(gpu_weight.get(), weight_data.data(),
                             weight_data.size() * sizeof(float));
 
-  cuda::dense::compute_dense_forward(gpu_input.get(), gpu_weight.get(), gpu_output.get(),
-                                     batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_dense_forward_gpu", cuda::dense::compute_dense_forward<float>, gpu_input.get(),
+      gpu_weight.get(), gpu_output.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_output_cpu(batch_size * output_features);
   gpu_device_->copyToHost(gpu_output_cpu.data(), gpu_output.get(),
@@ -136,8 +139,10 @@ TEST_F(CUDADenseOpsTest, DenseForwardLargeBatch) {
   gpu_device_->copyToDevice(gpu_weight.get(), weight_data.data(),
                             weight_data.size() * sizeof(float));
 
-  cuda::dense::compute_dense_forward(gpu_input.get(), gpu_weight.get(), gpu_output.get(),
-                                     batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_dense_forward_gpu", cuda::dense::compute_dense_forward<float>, gpu_input.get(),
+      gpu_weight.get(), gpu_output.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_output_cpu(batch_size * output_features);
   gpu_device_->copyToHost(gpu_output_cpu.data(), gpu_output.get(),
@@ -176,8 +181,10 @@ TEST_F(CUDADenseOpsTest, DenseForwardSingleSample) {
   gpu_device_->copyToDevice(gpu_weight.get(), weight_data.data(),
                             weight_data.size() * sizeof(float));
 
-  cuda::dense::compute_dense_forward(gpu_input.get(), gpu_weight.get(), gpu_output.get(),
-                                     batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_dense_forward_gpu", cuda::dense::compute_dense_forward<float>, gpu_input.get(),
+      gpu_weight.get(), gpu_output.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_output_cpu(batch_size * output_features);
   gpu_device_->copyToHost(gpu_output_cpu.data(), gpu_output.get(),
@@ -223,8 +230,10 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
   gpu_device_->copyToDevice(gpu_weight_grad.get(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  cuda::dense::compute_weight_gradients(gpu_input.get(), gpu_gradient.get(), gpu_weight_grad.get(),
-                                        batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_weight_grad_gpu", cuda::dense::compute_weight_gradients<float>, gpu_input.get(),
+      gpu_gradient.get(), gpu_weight_grad.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
   gpu_device_->copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get(),
@@ -268,8 +277,10 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
   gpu_device_->copyToDevice(gpu_weight_grad.get(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  cuda::dense::compute_weight_gradients(gpu_input.get(), gpu_gradient.get(), gpu_weight_grad.get(),
-                                        batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_weight_grad_gpu", cuda::dense::compute_weight_gradients<float>, gpu_input.get(),
+      gpu_gradient.get(), gpu_weight_grad.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
   gpu_device_->copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get(),
@@ -316,8 +327,10 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
   gpu_device_->copyToDevice(gpu_grad_input.get(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  cuda::dense::compute_input_gradients(gpu_gradient.get(), gpu_weight.get(), gpu_grad_input.get(),
-                                       batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_input_grad_gpu", cuda::dense::compute_input_gradients<float>, gpu_gradient.get(),
+      gpu_weight.get(), gpu_grad_input.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),
@@ -362,8 +375,10 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
   gpu_device_->copyToDevice(gpu_grad_input.get(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  cuda::dense::compute_input_gradients(gpu_gradient.get(), gpu_weight.get(), gpu_grad_input.get(),
-                                       batch_size, input_features, output_features);
+  auto gpu_task = create_gpu_task(
+      "test_input_grad_gpu", cuda::dense::compute_input_gradients<float>, gpu_gradient.get(),
+      gpu_weight.get(), gpu_grad_input.get(), batch_size, input_features, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
   gpu_device_->copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get(),
@@ -399,8 +414,10 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
   gpu_device_->copyToDevice(gpu_bias_grad.get(), zero_bias_grad.data(),
                             zero_bias_grad.size() * sizeof(float));
 
-  cuda::dense::compute_bias_gradients(gpu_gradient.get(), gpu_bias_grad.get(), batch_size,
-                                      output_features);
+  auto gpu_task =
+      create_gpu_task("test_bias_grad_gpu", cuda::dense::compute_bias_gradients<float>,
+                      gpu_gradient.get(), gpu_bias_grad.get(), batch_size, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_bias_grad_cpu(output_features);
   gpu_device_->copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get(),
@@ -434,8 +451,10 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
   gpu_device_->copyToDevice(gpu_bias_grad.get(), zero_bias_grad.data(),
                             zero_bias_grad.size() * sizeof(float));
 
-  cuda::dense::compute_bias_gradients(gpu_gradient.get(), gpu_bias_grad.get(), batch_size,
-                                      output_features);
+  auto gpu_task =
+      create_gpu_task("test_bias_grad_gpu", cuda::dense::compute_bias_gradients<float>,
+                      gpu_gradient.get(), gpu_bias_grad.get(), batch_size, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_bias_grad_cpu(output_features);
   gpu_device_->copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get(),
@@ -472,7 +491,9 @@ TEST_F(CUDADenseOpsTest, AddBiasBasic) {
                             output_data.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_bias.get(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  cuda::dense::add_bias_vector(gpu_output.get(), gpu_bias.get(), batch_size, output_features);
+  auto gpu_task = create_gpu_task("test_add_bias_gpu", cuda::dense::add_bias_vector<float>,
+                                  gpu_output.get(), gpu_bias.get(), batch_size, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_output_cpu(batch_size * output_features);
   gpu_device_->copyToHost(gpu_output_cpu.data(), gpu_output.get(),
@@ -507,7 +528,9 @@ TEST_F(CUDADenseOpsTest, AddBiasLarge) {
                             output_data.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_bias.get(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  cuda::dense::add_bias_vector(gpu_output.get(), gpu_bias.get(), batch_size, output_features);
+  auto gpu_task = create_gpu_task("test_add_bias_gpu", cuda::dense::add_bias_vector<float>,
+                                  gpu_output.get(), gpu_bias.get(), batch_size, output_features);
+  gpu_task->sync();
 
   std::vector<float> gpu_output_cpu(batch_size * output_features);
   gpu_device_->copyToHost(gpu_output_cpu.data(), gpu_output.get(),

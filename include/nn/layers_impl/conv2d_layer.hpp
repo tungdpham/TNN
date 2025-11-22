@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/device_ptr.hpp"
+#include "device/task.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 
@@ -38,40 +39,61 @@ private:
   mutable std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
   mutable std::unordered_map<size_t, device_ptr<T[]>> micro_batch_col_buffers_;
 
+  std::unique_ptr<Task> im2col_task_;
+  std::unique_ptr<Task> forward_task_;
+  std::unique_ptr<Task> cnhw_to_nchw_task_;
+  std::unique_ptr<Task> add_bias_task_;
+
+  std::unique_ptr<Task> nchw_to_cnhw_task_;
+  std::unique_ptr<Task> weight_grad_task_;
+  std::unique_ptr<Task> input_grad_task_;
+  std::unique_ptr<Task> col2im_task_;
+  std::unique_ptr<Task> bias_grad_task_;
+
   // Reusable temporary buffers to avoid allocation overhead
   mutable device_ptr<T[]> temp_output_buffer_;
   mutable device_ptr<T[]> temp_gradient_buffer_;
   mutable device_ptr<T[]> temp_col_grad_matrix_buffer_;
 
-  void compute_conv_forward(const device_ptr<T[]> &col_data, const device_ptr<T[]> &weight_data,
-                            device_ptr<T[]> &output_data, const size_t output_size,
-                            const size_t kernel_size, const size_t out_channels) const;
+  std::unique_ptr<Task> compute_conv_forward(const device_ptr<T[]> &col_data,
+                                             const device_ptr<T[]> &weight_data,
+                                             device_ptr<T[]> &output_data, const size_t output_size,
+                                             const size_t kernel_size, const size_t out_channels,
+                                             const std::string &flow_id) const;
 
-  void compute_weight_gradients(const device_ptr<T[]> &col_data,
-                                const device_ptr<T[]> &gradient_data,
-                                device_ptr<T[]> &weight_grad_data, const size_t output_size,
-                                const size_t kernel_size, const size_t out_channels) const;
+  std::unique_ptr<Task> compute_weight_gradients(const device_ptr<T[]> &col_data,
+                                                 const device_ptr<T[]> &gradient_data,
+                                                 device_ptr<T[]> &weight_grad_data,
+                                                 const size_t output_size, const size_t kernel_size,
+                                                 const size_t out_channels,
+                                                 const std::string &flow_id) const;
 
-  void compute_input_gradients(const device_ptr<T[]> &gradient_data,
-                               const device_ptr<T[]> &weight_data, device_ptr<T[]> &col_grad_data,
-                               const size_t output_size, const size_t kernel_size,
-                               const size_t out_channels) const;
+  std::unique_ptr<Task> compute_input_gradients(const device_ptr<T[]> &gradient_data,
+                                                const device_ptr<T[]> &weight_data,
+                                                device_ptr<T[]> &col_grad_data,
+                                                const size_t output_size, const size_t kernel_size,
+                                                const size_t out_channels,
+                                                const std::string &flow_id) const;
 
-  void compute_bias_gradients(const device_ptr<T[]> &gradient_data, device_ptr<T[]> &bias_grad_data,
-                              const size_t batch_size, const size_t output_h, const size_t output_w,
-                              const size_t out_channels) const;
+  std::unique_ptr<Task> compute_bias_gradients(const device_ptr<T[]> &gradient_data,
+                                               device_ptr<T[]> &bias_grad_data,
+                                               const size_t batch_size, const size_t output_h,
+                                               const size_t output_w, const size_t out_channels,
+                                               const std::string &flow_id) const;
 
-  void add_bias_to_output(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
-                          const size_t batch_size, const size_t output_h, const size_t output_w,
-                          const size_t out_channels) const;
+  std::unique_ptr<Task> add_bias_to_output(device_ptr<T[]> &output_data,
+                                           const device_ptr<T[]> &bias_data,
+                                           const size_t batch_size, const size_t output_h,
+                                           const size_t output_w, const size_t out_channels,
+                                           const std::string &flow_id) const;
 
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
               size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
               bool use_bias = true, const std::string &name = "conv2d");
 
-  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
+  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
