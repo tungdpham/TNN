@@ -46,6 +46,7 @@ private:
   std::string name_;
   std::unique_ptr<Optimizer<T>> optimizer_ = nullptr;
   std::unique_ptr<Loss<T>> loss_ = nullptr;
+  const Device *device_ = nullptr;
   bool is_training_;
 
   bool enable_profiling_ = false;
@@ -359,7 +360,10 @@ public:
               << std::string(70, '=') << "\n\n";
   }
 
+  const Device *get_device() const { return device_; }
+
   void set_device(const Device *device) {
+    device_ = device;
     for (auto &layer : layers_) {
       layer->set_device(device);
     }

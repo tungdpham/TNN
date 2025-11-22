@@ -62,8 +62,9 @@ const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_ba
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  const Tensor<T> &current =
-      (input.device() == this->device_) ? input : input.to_device(this->device_);
+  // const Tensor<T> &current =
+  //     (input.device() == this->device_) ? input : input.to_device(this->device_);
+  const Tensor<T> *current = &input;
 
   micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(),
                                                input.width()};
@@ -90,7 +91,7 @@ const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_ba
   size_t output_buffer_size = out_channels_ * output_size;
   temp_output_buffer_.ensure(output_buffer_size);
 
-  im2col_task_ = im2col(current, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_,
+  im2col_task_ = im2col(*current, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_,
                         stride_h_, stride_w_, pad_h_, pad_w_, "default");
 
   Tensor<T> &output =
@@ -116,6 +117,7 @@ const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_ba
 
 template <typename T>
 const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+  auto backward_internal_start = std::chrono::high_resolution_clock::now();
   if (!this->initialized_) {
     throw std::runtime_error("Conv2DLayer must be initialized before backward pass.");
   }
@@ -132,8 +134,9 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
                              std::to_string(micro_batch_id));
   }
 
-  const Tensor<T> &current_gradient =
-      (gradient.device() == this->device_) ? gradient : gradient.to_device(this->device_);
+  // const Tensor<T> current_gradient =
+  //     (gradient.device() == this->device_) ? gradient : gradient.to_device(this->device_);
+  const Tensor<T> *current_gradient = &gradient;
 
   const auto &input_shape = it_input_shape->second;
 
@@ -155,7 +158,7 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
   temp_gradient_buffer_.ensure(gradient_buffer_size);
   temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
 
-  nchw_to_cnhw_task_ = ops::nchw_to_cnhw(current_gradient.data_ptr(), temp_gradient_buffer_,
+  nchw_to_cnhw_task_ = ops::nchw_to_cnhw(current_gradient->data_ptr(), temp_gradient_buffer_,
                                          batch_size, out_channels_, output_h, output_w, "default");
 
   auto err = nchw_to_cnhw_task_->sync();
@@ -177,13 +180,17 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
 
   if (use_bias_) {
     bias_grad_task_ =
-        compute_bias_gradients(current_gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size,
+        compute_bias_gradients(current_gradient->data_ptr(), bias_gradients_.data_ptr(), batch_size,
                                output_h, output_w, out_channels_, "default");
   }
 
   task_sync_all(
       {weight_grad_task_.get(), input_grad_task_.get(), col2im_task_.get(), bias_grad_task_.get()});
 
+  auto backward_internal_end = std::chrono::high_resolution_clock::now();
+  std::chrono::duration<double, std::milli> backward_internal_duration =
+      backward_internal_end - backward_internal_start;
+  this->perf_timers_["backward_internal"] = backward_internal_duration.count();
   return grad_input;
 }
 
@@ -369,9 +376,9 @@ template <typename T> void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<
 }
 
 template <typename T> void Conv2DLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0));
+  weight_gradients_.fill(T(0))->sync();
   if (use_bias_) {
-    bias_gradients_.fill(T(0));
+    bias_gradients_.fill(T(0))->sync();
   }
 }
 

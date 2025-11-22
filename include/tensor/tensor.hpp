@@ -133,6 +133,7 @@ public:
       ops::copy(other.data_, data_, data_size_)->sync();
     }
   }
+  // Tensor(const Tensor &other) = delete;
 
   Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
     layout_trait_ = other.layout_trait_;

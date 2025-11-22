@@ -287,13 +287,13 @@ public:
       std::vector<Message> FORWARD_JOBs =
           this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
-      for (const auto &forward_msg : FORWARD_JOBs) {
+      for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job<float>>()) {
           ++processed_microbatches_;
 
-          const Job<float> &job = forward_msg.get<Job<float>>();
-          Tensor<float> predictions = job.data;
-          Tensor<float> targets = microbatch_labels[job.micro_batch_id];
+          Job<float> &job = forward_msg.get<Job<float>>();
+          Tensor<float> &predictions = job.data;
+          Tensor<float> &targets = microbatch_labels[job.micro_batch_id];
           float loss = loss_function_->compute_loss(predictions, targets);
           total_loss += loss;
           Tensor<float> gradient = loss_function_->compute_gradient(predictions, targets);
@@ -347,7 +347,7 @@ public:
     std::map<std::string, LoadTracker> load_trackers;
 
     // Collect load trackers by stage id
-    for (const auto &load_msg : load_messages) {
+    for (auto &load_msg : load_messages) {
       if (load_msg.has_type<LoadTracker>()) {
         try {
           LoadTracker tracker = load_msg.get<LoadTracker>();

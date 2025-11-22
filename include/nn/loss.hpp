@@ -185,7 +185,7 @@ public:
   }
 
   Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
-    Tensor<T> gradient = predictions;
+    Tensor<T> gradient = predictions.clone();
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 
@@ -235,7 +235,7 @@ public:
   }
 
   Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
-    Tensor<T> gradient = predictions;
+    Tensor<T> gradient = predictions.clone();
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 
@@ -285,7 +285,7 @@ public:
   }
 
   Tensor<T> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets) override {
-    Tensor<T> gradient = predictions;
+    Tensor<T> gradient = predictions.clone();
     const size_t batch_size = predictions.shape()[0];
     const size_t output_size = predictions.shape()[1];
 

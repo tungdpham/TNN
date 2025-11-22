@@ -105,7 +105,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
     }
 
     std::vector<Job<float>> forward_jobs;
-    for (const auto &message : all_messages) {
+    for (auto &message : all_messages) {
       if (message.header.command_type == CommandType::FORWARD_JOB) {
         forward_jobs.push_back(message.get<Job<float>>());
       }

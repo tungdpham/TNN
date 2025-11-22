@@ -227,7 +227,7 @@ protected:
     }
   }
 
-  void handle_configuration(const Message &message) {
+  void handle_configuration(Message &message) {
     if (!message.has_type<std::string>()) {
       std::cout << "Configuration message missing text data" << '\n';
       return;

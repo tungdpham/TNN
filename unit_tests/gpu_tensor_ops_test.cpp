@@ -57,8 +57,8 @@ protected:
         << "Tensors have different shapes. Expected: " << expected.shape_str()
         << ", Actual: " << actual.shape_str();
 
-    Tensor<T, NCHW> expected_cpu = expected.is_on_cpu() ? expected : expected.to_cpu();
-    Tensor<T, NCHW> actual_cpu = actual.is_on_cpu() ? actual : actual.to_cpu();
+    Tensor<T, NCHW> expected_cpu = expected.is_on_cpu() ? expected.clone() : expected.to_cpu();
+    Tensor<T, NCHW> actual_cpu = actual.is_on_cpu() ? actual.clone() : actual.to_cpu();
 
     for (size_t n = 0; n < expected_cpu.batch_size(); ++n) {
       for (size_t c = 0; c < expected_cpu.channels(); ++c) {
@@ -341,13 +341,13 @@ TEST_F(GPUTensorOpsTest, SplitBasic) {
   Tensor<float, NCHW> cpu_tensor({4, 2, 3, 3});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits = {Tensor<float, NCHW>({2, 2, 3, 3}),
-                                                 Tensor<float, NCHW>({2, 2, 3, 3})};
+  std::vector<Tensor<float, NCHW>> cpu_splits{Tensor<float, NCHW>({2, 2, 3, 3}),
+                                              Tensor<float, NCHW>({2, 2, 3, 3})};
   cpu::split(cpu_tensor, cpu_splits, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_),
-                                                 Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_)};
+  std::vector<Tensor<float, NCHW>> gpu_splits{Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_),
+                                              Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_)};
   cuda::split(gpu_tensor, gpu_splits, 2);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());

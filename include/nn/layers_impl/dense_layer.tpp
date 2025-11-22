@@ -56,15 +56,16 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  const Tensor<T> &current =
-      input.device() == this->device_ ? input : input.to_device(this->device_);
+  // const Tensor<T> &current =
+  //     input.device() == this->device_ ? input : input.to_device(this->device_);
+  const Tensor<T> *current = &input;
 
-  micro_batch_inputs_[micro_batch_id] = current.clone();
+  micro_batch_inputs_[micro_batch_id] = current->clone();
 
   Tensor<T> &output =
       this->get_output_buffer(micro_batch_id, {batch_size, output_features_, size_t(1), size_t(1)});
 
-  forward_task_ = compute_dense_forward(current.data_ptr(), weights_.data_ptr(), output.data_ptr(),
+  forward_task_ = compute_dense_forward(current->data_ptr(), weights_.data_ptr(), output.data_ptr(),
                                         batch_size, input_features_, output_features_, "default");
 
   if (use_bias_) {
@@ -98,20 +99,21 @@ const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro
 
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, last_input.shape());
 
-  Tensor<T> current_grad =
-      gradient.device() == this->device_ ? gradient.clone() : gradient.to_device(this->device_);
+  // Tensor<T> &current_grad =
+  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+  const Tensor<T> *current_grad = &gradient;
 
-  weight_grad_task_ = compute_weight_gradients(last_input.data_ptr(), current_grad.data_ptr(),
+  weight_grad_task_ = compute_weight_gradients(last_input.data_ptr(), current_grad->data_ptr(),
                                                weight_gradients_.data_ptr(), batch_size,
                                                input_features_, output_features_, "default");
 
   if (use_bias_) {
-    bias_grad_task_ = compute_bias_gradients(current_grad.data_ptr(), bias_gradients_.data_ptr(),
+    bias_grad_task_ = compute_bias_gradients(current_grad->data_ptr(), bias_gradients_.data_ptr(),
                                              batch_size, output_features_, "default");
   }
 
   input_grad_task_ =
-      compute_input_gradients(current_grad.data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
+      compute_input_gradients(current_grad->data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
                               batch_size, input_features_, output_features_, "default");
 
   task_sync_all({weight_grad_task_.get(), input_grad_task_.get(), bias_grad_task_.get()});
@@ -293,9 +295,9 @@ template <typename T> void DenseLayer<T>::collect_gradients(std::vector<Tensor<T
 }
 
 template <typename T> void DenseLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0));
+  weight_gradients_.fill(T(0))->sync();
   if (use_bias_) {
-    bias_gradients_.fill(T(0));
+    bias_gradients_.fill(T(0))->sync();
   }
 }
 

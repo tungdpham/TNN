@@ -420,7 +420,7 @@ TEST_F(GPUTensorTest, CopyConstructor) {
   Tensor<float, NCHW> original({1, 1, 2, 2}, gpu_device_);
   original.fill(42.0f);
 
-  Tensor<float, NCHW> copy(original);
+  Tensor<float, NCHW> copy = original.clone();
 
   EXPECT_EQ(copy.size(), original.size());
   EXPECT_TRUE(copy.same_shape(original));

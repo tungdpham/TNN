@@ -8,6 +8,7 @@
 
 #include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
+#include "device/device_type.hpp"
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
@@ -103,16 +104,15 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   double total_loss = 0.0;
   double total_accuracy = 0.0;
   int num_batches = 0;
+  const Device *model_device = model.get_device();
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
 
-    Tensor<float> predictions = model.forward(batch_data);
+    Tensor<float> predictions = model.forward(batch_data.to_device(model_device));
 
-    const Device *pre_device = predictions.device();
-    const Tensor<float> device_batch_labels = batch_labels.to_device(pre_device);
-
+    const Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
     float loss = model.loss_function()->compute_loss(predictions, device_batch_labels);
     float accuracy = compute_class_accuracy(predictions, device_batch_labels);
 
@@ -159,12 +159,12 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
+  const Device *model_device = model.get_device();
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    Tensor<float> predictions = model.forward(batch_data);
+    Tensor<float> predictions = model.forward(batch_data.to_device(model_device));
 
-    const Device *pre_device = predictions.device();
-    const Tensor<float> device_batch_labels = batch_labels.to_device(pre_device);
+    const Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
     val_loss += model.loss_function()->compute_loss(predictions, device_batch_labels);
     val_accuracy += compute_class_accuracy(predictions, device_batch_labels);
     ++val_batches;

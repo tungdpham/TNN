@@ -58,20 +58,21 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
-  const Tensor<T> &current =
-      input.device() == this->device_ ? input : input.to_device(this->device_);
+  // const Tensor<T> &current =
+  //     input.device() == this->device_ ? input : input.to_device(this->device_);
+  const Tensor<T> *current = &input;
 
   size_t batch_size, channels, height, width, spatial_size;
-  extract_tensor_dimensions(current, batch_size, channels, height, width, spatial_size);
+  extract_tensor_dimensions(*current, batch_size, channels, height, width, spatial_size);
 
-  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current.shape());
+  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
   output.fill(T(0));
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
-    micro_batch_normalized_[micro_batch_id] = make_array_ptr<T[]>(this->device_, current.size());
+    micro_batch_normalized_[micro_batch_id] = make_array_ptr<T[]>(this->device_, current->size());
   } else {
-    micro_batch_normalized_[micro_batch_id].ensure(current.size());
+    micro_batch_normalized_[micro_batch_id].ensure(current->size());
   }
 
   auto it_batch_mean_fixed = batch_mean_fixed_.find(micro_batch_id);
@@ -130,8 +131,9 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
                              std::to_string(micro_batch_id));
   }
 
-  const Tensor<T> &current_gradient =
-      gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+  // const Tensor<T> &current_gradient =
+  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
+  const Tensor<T> *current_gradient = &gradient;
 
   const Tensor<T> &input = it_input->second;
 
@@ -154,7 +156,7 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
     }
 
     auto bwd_task = create_gpu_task(
-        "default", cuda::batchnorm::run_backward_fused<T>, current_gradient.data_ptr().get(),
+        "default", cuda::batchnorm::run_backward_fused<T>, current_gradient->data_ptr().get(),
         micro_batch_normalized_[micro_batch_id].get(), it_inv_std->second.get(),
         affine_ ? gamma_.data_ptr().get() : nullptr,
         affine_ ? gamma_gradients_.data_ptr().get() : nullptr,
@@ -171,7 +173,7 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
     }
 
     auto bwd_task = create_cpu_task(
-        "default", cpu::batchnorm::run_backward_fused<T>, current_gradient.data_ptr().get(),
+        "default", cpu::batchnorm::run_backward_fused<T>, current_gradient->data_ptr().get(),
         micro_batch_normalized_[micro_batch_id].get(), it_inv_std->second.get(),
         affine_ ? gamma_.data_ptr().get() : nullptr,
         affine_ ? gamma_gradients_.data_ptr().get() : nullptr,

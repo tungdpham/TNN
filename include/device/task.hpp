@@ -69,10 +69,9 @@ public:
   }
 
   ErrorStatus sync() override {
-    while (!ready()) {
-      std::cout << status_ << " " << is_ready_.load(std::memory_order_acquire) << std::endl;
-      std::this_thread::yield();
-    }
+    // while (!ready()) {
+    //   std::this_thread::yield();
+    // }
     return this->status_;
   }
 

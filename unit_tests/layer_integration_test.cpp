@@ -68,10 +68,11 @@ protected:
 
     // Move both to CPU for comparison
     Tensor<float> expected_cpu = expected.device()->getDeviceType() == DeviceType::CPU
-                                     ? expected
+                                     ? expected.clone()
                                      : expected.to_device(&getCPU());
-    Tensor<float> actual_cpu =
-        actual.device()->getDeviceType() == DeviceType::CPU ? actual : actual.to_device(&getCPU());
+    Tensor<float> actual_cpu = actual.device()->getDeviceType() == DeviceType::CPU
+                                   ? actual.clone()
+                                   : actual.to_device(&getCPU());
 
     size_t total_elements = expected_cpu.size();
     const float *expected_data = expected_cpu.data();
@@ -139,10 +140,10 @@ TEST_F(LayerIntegrationTest, Conv2DLayerForwardBasic) {
   input.fill_random_uniform(2.0f); // Range [-1, 1]
 
   // Forward pass on CPU
-  Tensor<float> cpu_output = cpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
 
   // Forward pass on GPU (input will be copied to GPU inside layer)
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   // Compare outputs
   compareTensors(cpu_output, gpu_output, 1e-3f, "Conv2DLayer Forward:");
@@ -183,18 +184,18 @@ TEST_F(LayerIntegrationTest, Conv2DLayerBackwardBasic) {
   Tensor<float> input({batch_size, in_channels, input_h, input_w}, cpu_device_);
   input.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   // Create gradient tensor for backward pass
   Tensor<float> grad_output({batch_size, out_channels, input_h, input_w}, cpu_device_);
   grad_output.fill_random_uniform(2.0f);
 
   // Backward pass on CPU
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
 
   // Backward pass on GPU
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
 
   // Compare input gradients
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "Conv2DLayer Backward Input Gradient:");
@@ -242,8 +243,8 @@ TEST_F(LayerIntegrationTest, Conv2DLayerStridedConvolution) {
   Tensor<float> input({batch_size, in_channels, input_h, input_w}, cpu_device_);
   input.fill_random_uniform(1.0f);
 
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "Conv2DLayer Strided Forward:");
 
@@ -251,9 +252,8 @@ TEST_F(LayerIntegrationTest, Conv2DLayerStridedConvolution) {
   Tensor<float> grad_output(cpu_output.shape(), cpu_device_);
   grad_output.fill_random_uniform(1.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
-
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "Conv2DLayer Strided Backward:");
   compareTensors(*cpu_layer.gradients()[0], *gpu_layer.gradients()[0], 1e-2f,
                  "Conv2DLayer Strided Weight Gradient:");
@@ -287,8 +287,8 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   input.fill_random_uniform(2.0f);
 
   // Forward pass
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Forward:");
 }
@@ -318,15 +318,15 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   Tensor<float> input({batch_size, input_features, 1, 1}, cpu_device_);
   input.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   // Backward pass
   Tensor<float> grad_output({batch_size, output_features, 1, 1}, cpu_device_);
   grad_output.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
 
   // Compare gradients
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Backward Input Gradient:");
@@ -361,8 +361,8 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   Tensor<float> input({batch_size, input_features, 1, 1}, cpu_device_);
   input.fill_random_uniform(1.0f);
 
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Large Forward:");
 
@@ -370,9 +370,8 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   Tensor<float> grad_output({batch_size, output_features, 1, 1}, cpu_device_);
   grad_output.fill_random_uniform(1.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
-
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Large Backward:");
 }
 
@@ -405,8 +404,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerForwardBasic) {
   input.fill_random_uniform(10.0f);
 
   // Forward pass
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "MaxPool2DLayer Forward:");
 }
@@ -438,15 +437,15 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerBackwardBasic) {
   input.fill_random_uniform(20.0f);
 
   // Forward pass
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   // Backward pass
   Tensor<float> grad_output(cpu_output.shape(), cpu_device_);
   grad_output.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "MaxPool2DLayer Backward:");
 }
@@ -480,8 +479,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerWithPadding) {
   input.fill_random_uniform(10.0f);
 
   // Forward pass
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "MaxPool2DLayer Padded Forward:");
 
@@ -489,8 +488,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerWithPadding) {
   Tensor<float> grad_output(cpu_output.shape(), cpu_device_);
   grad_output.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "MaxPool2DLayer Padded Backward:");
 }
@@ -524,8 +523,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerNonSquare) {
   input.fill_random_uniform(16.0f);
 
   // Forward pass
-  Tensor<float> cpu_output = cpu_layer.forward(input);
-  Tensor<float> gpu_output = gpu_layer.forward(input);
+  Tensor<float> cpu_output = cpu_layer.forward(input).clone();
+  Tensor<float> gpu_output = gpu_layer.forward(input).clone();
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "MaxPool2DLayer Non-square Forward:");
 
@@ -533,8 +532,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerNonSquare) {
   Tensor<float> grad_output(cpu_output.shape(), cpu_device_);
   grad_output.fill_random_uniform(2.0f);
 
-  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output);
-  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output);
+  Tensor<float> cpu_grad_input = cpu_layer.backward(grad_output).clone();
+  Tensor<float> gpu_grad_input = gpu_layer.backward(grad_output).clone();
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "MaxPool2DLayer Non-square Backward:");
 }
@@ -575,12 +574,12 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   input.fill_random_uniform(2.0f);
 
   // Forward pass - CPU
-  Tensor<float> cpu_conv_out = cpu_conv.forward(input);
-  Tensor<float> cpu_pool_out = cpu_pool.forward(cpu_conv_out);
+  Tensor<float> cpu_conv_out = cpu_conv.forward(input).clone();
+  Tensor<float> cpu_pool_out = cpu_pool.forward(cpu_conv_out).clone();
 
   // Forward pass - GPU
-  Tensor<float> gpu_conv_out = gpu_conv.forward(input);
-  Tensor<float> gpu_pool_out = gpu_pool.forward(gpu_conv_out);
+  Tensor<float> gpu_conv_out = gpu_conv.forward(input).clone();
+  Tensor<float> gpu_pool_out = gpu_pool.forward(gpu_conv_out).clone();
 
   compareTensors(cpu_pool_out, gpu_pool_out, 1e-3f, "Conv2D-MaxPool Pipeline Forward:");
 
@@ -589,12 +588,12 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   grad_output.fill_random_uniform(2.0f);
 
   // CPU backward
-  Tensor<float> cpu_grad_pool = cpu_pool.backward(grad_output);
-  Tensor<float> cpu_grad_conv = cpu_conv.backward(cpu_grad_pool);
+  Tensor<float> cpu_grad_pool = cpu_pool.backward(grad_output).clone();
+  Tensor<float> cpu_grad_conv = cpu_conv.backward(cpu_grad_pool).clone();
 
   // GPU backward
-  Tensor<float> gpu_grad_pool = gpu_pool.backward(grad_output);
-  Tensor<float> gpu_grad_conv = gpu_conv.backward(gpu_grad_pool);
+  Tensor<float> gpu_grad_pool = gpu_pool.backward(grad_output).clone();
+  Tensor<float> gpu_grad_conv = gpu_conv.backward(gpu_grad_pool).clone();
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-MaxPool Pipeline Backward:");
 }
@@ -638,15 +637,15 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   input.fill_random_uniform(2.0f);
 
   // Forward - CPU
-  Tensor<float> cpu_conv_out = cpu_conv.forward(input);
+  Tensor<float> cpu_conv_out = cpu_conv.forward(input).clone();
   // Reshape for dense layer
   Tensor<float> cpu_conv_flat = cpu_conv_out.reshape({batch_size, flattened_size, 1, 1});
-  Tensor<float> cpu_dense_out = cpu_dense.forward(cpu_conv_flat);
+  Tensor<float> cpu_dense_out = cpu_dense.forward(cpu_conv_flat).clone();
 
   // Forward - GPU
-  Tensor<float> gpu_conv_out = gpu_conv.forward(input);
+  Tensor<float> gpu_conv_out = gpu_conv.forward(input).clone();
   Tensor<float> gpu_conv_flat = gpu_conv_out.reshape({batch_size, flattened_size, 1, 1});
-  Tensor<float> gpu_dense_out = gpu_dense.forward(gpu_conv_flat);
+  Tensor<float> gpu_dense_out = gpu_dense.forward(gpu_conv_flat).clone();
 
   compareTensors(cpu_dense_out, gpu_dense_out, 1e-3f, "Conv2D-Dense Pipeline Forward:");
 
@@ -655,14 +654,14 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   grad_output.fill_random_uniform(2.0f);
 
   // CPU backward
-  Tensor<float> cpu_grad_dense = cpu_dense.backward(grad_output);
+  Tensor<float> cpu_grad_dense = cpu_dense.backward(grad_output).clone();
   Tensor<float> cpu_grad_dense_reshape = cpu_grad_dense.reshape(cpu_conv_out.shape());
-  Tensor<float> cpu_grad_conv = cpu_conv.backward(cpu_grad_dense_reshape);
+  Tensor<float> cpu_grad_conv = cpu_conv.backward(cpu_grad_dense_reshape).clone();
 
   // GPU backward
-  Tensor<float> gpu_grad_dense = gpu_dense.backward(grad_output);
+  Tensor<float> gpu_grad_dense = gpu_dense.backward(grad_output).clone();
   Tensor<float> gpu_grad_dense_reshape = gpu_grad_dense.reshape(gpu_conv_out.shape());
-  Tensor<float> gpu_grad_conv = gpu_conv.backward(gpu_grad_dense_reshape);
+  Tensor<float> gpu_grad_conv = gpu_conv.backward(gpu_grad_dense_reshape).clone();
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-Dense Pipeline Backward:");
 }

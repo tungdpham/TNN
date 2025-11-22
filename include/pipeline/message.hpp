@@ -122,9 +122,7 @@ struct Message {
     return std::holds_alternative<PayloadType>(data.payload);
   }
 
-  template <typename PayloadType> const PayloadType &get() const {
-    return std::get<PayloadType>(data.payload);
-  }
+  template <typename PayloadType> PayloadType &get() { return std::get<PayloadType>(data.payload); }
 
   template <typename PayloadType> void set(const PayloadType &new_payload) {
     data.payload = new_payload;

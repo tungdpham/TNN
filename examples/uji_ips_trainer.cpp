@@ -69,7 +69,7 @@ public:
   static Tensor<float> compute_gradient(const Tensor<float> &predictions,
                                         const Tensor<float> &targets,
                                         const WiFiDataLoader &data_loader) {
-    Tensor<float> gradient = predictions;
+    Tensor<float> gradient = predictions.clone();
     gradient.fill(0.0f);
 
     const size_t batch_size = predictions.shape()[0];
