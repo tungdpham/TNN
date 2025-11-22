@@ -1,8 +1,10 @@
 #include "device/cuda/cuda_context.hpp"
+#include "device/flow.hpp"
 
 #ifdef USE_CUDA
 
 #include <cuda_runtime.h>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -78,7 +80,26 @@ void *CUDAContext::allocateAlignedMemory(size_t size, size_t alignment) {
   (void)alignment; // Unused parameter
   return allocateMemory(size);
 }
+
 void CUDAContext::deallocateAlignedMemory(void *ptr) { deallocateMemory(ptr); }
+
+void CUDAContext::createFlow(const std::string &flow_id) {
+  if (flows_.find(flow_id) == flows_.end()) {
+    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
+  }
+}
+
+Flow *CUDAContext::getFlow(const std::string &flow_id) {
+  auto it = flows_.find(flow_id);
+  if (it == flows_.end()) {
+    std::cerr << "WARN: Creating new CUDAFlow with ID: " << flow_id
+              << ". Are we using the right flow?" << std::endl;
+    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
+    return flows_[flow_id].get();
+  } else {
+    return it->second.get();
+  }
+}
 
 } // namespace tnn
 

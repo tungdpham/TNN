@@ -40,16 +40,8 @@ public:
 
   virtual void initialize() {};
 
-  virtual Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
-  virtual Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
-
-  virtual void forward_inplace(Tensor<T> &input, size_t micro_batch_id = 0) {
-    input = forward(input, micro_batch_id);
-  }
-
-  virtual void backward_inplace(Tensor<T> &gradient, size_t micro_batch_id = 0) {
-    gradient = backward(gradient, micro_batch_id);
-  }
+  virtual const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
+  virtual const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
@@ -94,8 +86,39 @@ protected:
   bool is_training_ = true;
   bool enable_profiling_ = false;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
+  // buffers for storing intermediate results per micro-batch
+  std::unordered_map<size_t, Tensor<T>> output_buffers_;
+  std::unordered_map<size_t, Tensor<T>> gradient_buffers_;
   const Device *device_;
   std::string name_;
+
+  Tensor<T> &get_output_buffer(size_t micro_batch_id, const std::vector<size_t> &shape) {
+    auto it = output_buffers_.find(micro_batch_id);
+    if (it == output_buffers_.end()) {
+      output_buffers_.emplace(micro_batch_id, Tensor<T>(shape, this->device_));
+      return output_buffers_[micro_batch_id];
+    } else {
+      auto &buf = it->second;
+      if (buf.shape() != shape) {
+        buf.resize(shape);
+      }
+      return buf;
+    }
+  }
+
+  Tensor<T> &get_gradient_buffer(size_t micro_batch_id, const std::vector<size_t> &shape) {
+    auto it = gradient_buffers_.find(micro_batch_id);
+    if (it == gradient_buffers_.end()) {
+      gradient_buffers_.emplace(micro_batch_id, Tensor<T>(shape, this->device_));
+      return gradient_buffers_[micro_batch_id];
+    } else {
+      auto &buf = it->second;
+      if (buf.shape() != shape) {
+        buf.resize(shape);
+      }
+      return buf;
+    }
+  }
 };
 
 } // namespace tnn

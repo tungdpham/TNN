@@ -20,7 +20,6 @@ __global__ void softmax_kernel(const float *input, float *output, size_t batch_s
     size_t n = idx / spatial_size;
     size_t spatial_idx = idx % spatial_size;
 
-    // Find max value for numerical stability
     float max_val = input[n * batch_stride + spatial_idx];
     for (size_t c = 1; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -30,7 +29,6 @@ __global__ void softmax_kernel(const float *input, float *output, size_t batch_s
       }
     }
 
-    // Compute exp and sum
     float sum_exp = 0.0f;
     for (size_t c = 0; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -39,7 +37,6 @@ __global__ void softmax_kernel(const float *input, float *output, size_t batch_s
       sum_exp += exp_val;
     }
 
-    // Normalize
     for (size_t c = 0; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
       output[data_idx] /= sum_exp;
@@ -61,14 +58,12 @@ __global__ void softmax_gradient_kernel(const float *softmax_values, float *grad
     size_t n = idx / spatial_size;
     size_t spatial_idx = idx % spatial_size;
 
-    // Compute dot product
     float dot_product = 0.0f;
     for (size_t j = 0; j < channels; ++j) {
       size_t data_idx = n * batch_stride + j * channel_stride + spatial_idx;
       dot_product += softmax_values[data_idx] * grad_output[data_idx];
     }
 
-    // Update gradient
     for (size_t i = 0; i < channels; ++i) {
       size_t data_idx = n * batch_stride + i * channel_stride + spatial_idx;
       float s_i = softmax_values[data_idx];
@@ -91,7 +86,6 @@ __global__ void softmax_kernel_double(const double *input, double *output, size_
     size_t n = idx / spatial_size;
     size_t spatial_idx = idx % spatial_size;
 
-    // Find max value for numerical stability
     double max_val = input[n * batch_stride + spatial_idx];
     for (size_t c = 1; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -101,7 +95,6 @@ __global__ void softmax_kernel_double(const double *input, double *output, size_
       }
     }
 
-    // Compute exp and sum
     double sum_exp = 0.0;
     for (size_t c = 0; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -110,7 +103,6 @@ __global__ void softmax_kernel_double(const double *input, double *output, size_
       sum_exp += exp_val;
     }
 
-    // Normalize
     for (size_t c = 0; c < channels; ++c) {
       size_t data_idx = n * batch_stride + c * channel_stride + spatial_idx;
       output[data_idx] /= sum_exp;
@@ -132,14 +124,12 @@ __global__ void softmax_gradient_kernel_double(const double *softmax_values, dou
     size_t n = idx / spatial_size;
     size_t spatial_idx = idx % spatial_size;
 
-    // Compute dot product
     double dot_product = 0.0;
     for (size_t j = 0; j < channels; ++j) {
       size_t data_idx = n * batch_stride + j * channel_stride + spatial_idx;
       dot_product += softmax_values[data_idx] * grad_output[data_idx];
     }
 
-    // Update gradient
     for (size_t i = 0; i < channels; ++i) {
       size_t data_idx = n * batch_stride + i * channel_stride + spatial_idx;
       double s_i = softmax_values[data_idx];
@@ -164,20 +154,16 @@ void softmax_gradient<float>(const float *input, float *grad_output, size_t batc
   const size_t total_size = batch_size * channels * height * width;
   const size_t total_spatial = batch_size * height * width;
 
-  // Allocate temporary memory for softmax values
   float *softmax_values;
   cudaMallocAsync(&softmax_values, total_size * sizeof(float), stream);
 
-  // Compute softmax first
   const int numBlocks = (total_spatial + BLOCK_SIZE - 1) / BLOCK_SIZE;
   softmax_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, softmax_values, batch_size, channels,
                                                        height, width);
 
-  // Compute gradient
   softmax_gradient_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(
       softmax_values, grad_output, batch_size, channels, height, width);
 
-  // Free temporary memory
   cudaFreeAsync(softmax_values, stream);
 }
 
@@ -196,24 +182,20 @@ void softmax_gradient<double>(const double *input, double *grad_output, size_t b
   const size_t total_size = batch_size * channels * height * width;
   const size_t total_spatial = batch_size * height * width;
 
-  // Allocate temporary memory for softmax values
   double *softmax_values;
   cudaMallocAsync(&softmax_values, total_size * sizeof(double), stream);
 
-  // Compute softmax first
   const int numBlocks = (total_spatial + BLOCK_SIZE - 1) / BLOCK_SIZE;
   softmax_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, softmax_values, batch_size,
                                                               channels, height, width);
 
-  // Compute gradient
   softmax_gradient_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(
       softmax_values, grad_output, batch_size, channels, height, width);
 
-  // Free temporary memory
   cudaFreeAsync(softmax_values, stream);
 }
 
 } // namespace cuda
 } // namespace tnn
 
-#endif // USE_CUDA
+#endif

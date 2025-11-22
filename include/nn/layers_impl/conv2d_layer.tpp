@@ -5,18 +5,19 @@
  * project root for the full license text.
  */
 #pragma once
+#include "device/device_type.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 
-#include <chrono>
-#include <cmath>
-#include <cstring>
-#include <iostream>
-#include <stdexcept>
-
-#include "device/device_manager.hpp"
+#include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_ops.hpp"
 #include "nn/layers_impl/cuda/conv2d_ops.hpp"
 #include "tensor/tensor_ops.hpp"
+#include <cmath>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 namespace tnn {
 
@@ -51,7 +52,7 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
 }
 
 template <typename T>
-Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (!this->initialized_) {
     throw std::runtime_error("Conv2DLayer must be initialized before forward pass.");
   }
@@ -89,34 +90,32 @@ Tensor<T> Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id)
   size_t output_buffer_size = out_channels_ * output_size;
   temp_output_buffer_.ensure(output_buffer_size);
 
-  auto im2col_start = std::chrono::high_resolution_clock::now();
-  im2col(current, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_, stride_h_,
-         stride_w_, pad_h_, pad_w_);
-  auto im2col_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float im2col_duration =
-        std::chrono::duration<float, std::milli>(im2col_end - im2col_start).count();
-    this->perf_timers_["im2col"] += im2col_duration;
-  }
+  im2col_task_ = im2col(current, micro_batch_col_buffers_[micro_batch_id], kernel_h_, kernel_w_,
+                        stride_h_, stride_w_, pad_h_, pad_w_, "default");
 
-  Tensor<T> output({batch_size, out_channels_, output_h, output_w}, this->device_);
+  Tensor<T> &output =
+      this->get_output_buffer(micro_batch_id, {batch_size, out_channels_, output_h, output_w});
 
-  compute_conv_forward(micro_batch_col_buffers_[micro_batch_id], weights_.data_ptr(),
-                       temp_output_buffer_, output_size, kernel_size, out_channels_);
+  forward_task_ =
+      compute_conv_forward(micro_batch_col_buffers_[micro_batch_id], weights_.data_ptr(),
+                           temp_output_buffer_, output_size, kernel_size, out_channels_, "default");
 
-  ops::cnhw_to_nchw(temp_output_buffer_, output.data_ptr(), batch_size, out_channels_, output_h,
-                    output_w);
+  cnhw_to_nchw_task_ = ops::cnhw_to_nchw(temp_output_buffer_, output.data_ptr(), batch_size,
+                                         out_channels_, output_h, output_w);
 
   if (use_bias_) {
-    add_bias_to_output(output.data_ptr(), bias_.data_ptr(), batch_size, output_h, output_w,
-                       out_channels_);
+    add_bias_task_ = add_bias_to_output(output.data_ptr(), bias_.data_ptr(), batch_size, output_h,
+                                        output_w, out_channels_, "default");
   }
+
+  task_sync_all(
+      {im2col_task_.get(), forward_task_.get(), cnhw_to_nchw_task_.get(), add_bias_task_.get()});
 
   return output;
 }
 
 template <typename T>
-Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   if (!this->initialized_) {
     throw std::runtime_error("Conv2DLayer must be initialized before backward pass.");
   }
@@ -144,6 +143,10 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   const size_t output_h = gradient.height();
   const size_t output_w = gradient.width();
 
+  // Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
+  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input_shape);
+  grad_input.fill(T(0));
+
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
   size_t col_grad_matrix_size = kernel_size * output_size;
@@ -152,180 +155,166 @@ Tensor<T> Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch
   temp_gradient_buffer_.ensure(gradient_buffer_size);
   temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
 
-  auto layout_start = std::chrono::high_resolution_clock::now();
-  ops::nchw_to_cnhw(current_gradient.data_ptr(), temp_gradient_buffer_, batch_size, out_channels_,
-                    output_h, output_w);
-  auto layout_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float layout_duration =
-        std::chrono::duration<float, std::milli>(layout_end - layout_start).count();
-    this->perf_timers_["layout_transform"] += layout_duration;
+  nchw_to_cnhw_task_ = ops::nchw_to_cnhw(current_gradient.data_ptr(), temp_gradient_buffer_,
+                                         batch_size, out_channels_, output_h, output_w, "default");
+
+  auto err = nchw_to_cnhw_task_->sync();
+  if (err != ErrorStatus{}) {
+    throw std::runtime_error("Error in nchw_to_cnhw_task_ sync: " + err.message());
   }
 
-  compute_weight_gradients(it_col_buffer->second, temp_gradient_buffer_,
-                           weight_gradients_.data_ptr(), output_size, kernel_size, out_channels_);
+  weight_grad_task_ = compute_weight_gradients(it_col_buffer->second, temp_gradient_buffer_,
+                                               weight_gradients_.data_ptr(), output_size,
+                                               kernel_size, out_channels_, "default");
+
+  input_grad_task_ = compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(),
+                                             temp_col_grad_matrix_buffer_, output_size, kernel_size,
+                                             out_channels_, "default");
+
+  col2im_task_ =
+      col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
+             input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_, "default");
 
   if (use_bias_) {
-    auto bias_start = std::chrono::high_resolution_clock::now();
-    compute_bias_gradients(current_gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size,
-                           output_h, output_w, out_channels_);
-    auto bias_end = std::chrono::high_resolution_clock::now();
-    if (this->enable_profiling_) {
-      float bias_duration = std::chrono::duration<float, std::milli>(bias_end - bias_start).count();
-      this->perf_timers_["bias_gradients"] += bias_duration;
-    }
+    bias_grad_task_ =
+        compute_bias_gradients(current_gradient.data_ptr(), bias_gradients_.data_ptr(), batch_size,
+                               output_h, output_w, out_channels_, "default");
   }
 
-  compute_input_gradients(temp_gradient_buffer_, weights_.data_ptr(), temp_col_grad_matrix_buffer_,
-                          output_size, kernel_size, out_channels_);
-
-  Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
-  grad_input.fill(T(0));
-  auto col2im_start = std::chrono::high_resolution_clock::now();
-  col2im(temp_col_grad_matrix_buffer_, grad_input.data_ptr(), batch_size, in_channels_, input_h,
-         input_w, kernel_h_, kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
-  auto col2im_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float col2im_duration =
-        std::chrono::duration<float, std::milli>(col2im_end - col2im_start).count();
-    this->perf_timers_["col2im"] += col2im_duration;
-  }
+  task_sync_all(
+      {weight_grad_task_.get(), input_grad_task_.get(), col2im_task_.get(), bias_grad_task_.get()});
 
   return grad_input;
 }
 
 template <typename T>
-void Conv2DLayer<T>::compute_conv_forward(const device_ptr<T[]> &col_data,
-                                          const device_ptr<T[]> &weight_data,
-                                          device_ptr<T[]> &output_data, const size_t output_size,
-                                          const size_t kernel_size,
-                                          const size_t out_channels) const {
-  auto conv_start = std::chrono::high_resolution_clock::now();
+std::unique_ptr<Task> Conv2DLayer<T>::compute_conv_forward(
+    const device_ptr<T[]> &col_data, const device_ptr<T[]> &weight_data,
+    device_ptr<T[]> &output_data, const size_t output_size, const size_t kernel_size,
+    const size_t out_channels, const std::string &flow_id) const {
   if (col_data.getDeviceType() != weight_data.getDeviceType() ||
       weight_data.getDeviceType() != output_data.getDeviceType()) {
     throw std::runtime_error("All tensors must be on the same device for conv forward");
   }
 
   if (col_data.getDeviceType() == DeviceType::CPU) {
-    cpu::conv2d::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(),
-                                      output_size, kernel_size, out_channels);
+    return create_cpu_task(flow_id, cpu::conv2d::compute_conv_forward<T>, col_data.get(),
+                           weight_data.get(), output_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #ifdef USE_CUDA
-  else {
-    cuda::conv2d::compute_conv_forward(col_data.get(), weight_data.get(), output_data.get(),
-                                       output_size, kernel_size, out_channels);
+  else if (col_data.getDeviceType() == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::conv2d::compute_conv_forward<T>, col_data.get(),
+                           weight_data.get(), output_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #endif
-  auto conv_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float conv_duration = std::chrono::duration<float, std::milli>(conv_end - conv_start).count();
-    this->perf_timers_["conv_forward"] += conv_duration;
+  else {
+    throw std::runtime_error("Unsupported device type for conv forward");
   }
 }
 
 template <typename T>
-void Conv2DLayer<T>::compute_weight_gradients(const device_ptr<T[]> &col_data,
-                                              const device_ptr<T[]> &gradient_data,
-                                              device_ptr<T[]> &weight_grad_data,
-                                              const size_t output_size, const size_t kernel_size,
-                                              const size_t out_channels) const {
-  auto wg_start = std::chrono::high_resolution_clock::now();
+std::unique_ptr<Task> Conv2DLayer<T>::compute_weight_gradients(
+    const device_ptr<T[]> &col_data, const device_ptr<T[]> &gradient_data,
+    device_ptr<T[]> &weight_grad_data, const size_t output_size, const size_t kernel_size,
+    const size_t out_channels, const std::string &flow_id) const {
   if (col_data.getDeviceType() != gradient_data.getDeviceType() ||
       gradient_data.getDeviceType() != weight_grad_data.getDeviceType()) {
     throw std::runtime_error("All tensors must be on the same device for conv weight gradients");
   }
 
   if (col_data.getDeviceType() == DeviceType::CPU) {
-    cpu::conv2d::compute_weight_gradients(col_data.get(), gradient_data.get(),
-                                          weight_grad_data.get(), output_size, kernel_size,
-                                          out_channels);
+    return create_cpu_task(flow_id, cpu::conv2d::compute_weight_gradients<T>, col_data.get(),
+                           gradient_data.get(), weight_grad_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #ifdef USE_CUDA
-  else {
-    cuda::conv2d::compute_weight_gradients(col_data.get(), gradient_data.get(),
-                                           weight_grad_data.get(), output_size, kernel_size,
-                                           out_channels);
+  else if (col_data.getDeviceType() == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::conv2d::compute_weight_gradients<T>, col_data.get(),
+                           gradient_data.get(), weight_grad_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #endif
-  auto wg_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float wg_duration = std::chrono::duration<float, std::milli>(wg_end - wg_start).count();
-    this->perf_timers_["weight_gradients"] += wg_duration;
+  else {
+    throw std::runtime_error("Unsupported device type for conv weight gradients");
   }
 }
 
 template <typename T>
-void Conv2DLayer<T>::compute_input_gradients(const device_ptr<T[]> &gradient_data,
-                                             const device_ptr<T[]> &weight_data,
-                                             device_ptr<T[]> &col_grad_data,
-                                             const size_t output_size, const size_t kernel_size,
-                                             const size_t out_channels) const {
-  auto ig_start = std::chrono::high_resolution_clock::now();
+std::unique_ptr<Task> Conv2DLayer<T>::compute_input_gradients(
+    const device_ptr<T[]> &gradient_data, const device_ptr<T[]> &weight_data,
+    device_ptr<T[]> &col_grad_data, const size_t output_size, const size_t kernel_size,
+    const size_t out_channels, const std::string &flow_id) const {
   if (gradient_data.getDeviceType() != weight_data.getDeviceType() ||
       weight_data.getDeviceType() != col_grad_data.getDeviceType()) {
     throw std::runtime_error("All tensors must be on the same device for conv input gradients");
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::conv2d::compute_input_gradients(gradient_data.get(), weight_data.get(),
-                                         col_grad_data.get(), output_size, kernel_size,
-                                         out_channels);
+    return create_cpu_task(flow_id, cpu::conv2d::compute_input_gradients<T>, gradient_data.get(),
+                           weight_data.get(), col_grad_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #ifdef USE_CUDA
-  else {
-    cuda::conv2d::compute_input_gradients(gradient_data.get(), weight_data.get(),
-                                          col_grad_data.get(), output_size, kernel_size,
-                                          out_channels);
+  else if (gradient_data.getDeviceType() == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::conv2d::compute_input_gradients<T>, gradient_data.get(),
+                           weight_data.get(), col_grad_data.get(), output_size, kernel_size,
+                           out_channels);
   }
 #endif
-  auto ig_end = std::chrono::high_resolution_clock::now();
-  if (this->enable_profiling_) {
-    float ig_duration = std::chrono::duration<float, std::milli>(ig_end - ig_start).count();
-    this->perf_timers_["input_gradients"] += ig_duration;
+  else {
+    throw std::runtime_error("Unsupported device type for conv input gradients");
   }
 }
 
 template <typename T>
-void Conv2DLayer<T>::compute_bias_gradients(const device_ptr<T[]> &gradient_data,
-                                            device_ptr<T[]> &bias_grad_data,
-                                            const size_t batch_size, const size_t output_h,
-                                            const size_t output_w,
-                                            const size_t out_channels) const {
+std::unique_ptr<Task> Conv2DLayer<T>::compute_bias_gradients(
+    const device_ptr<T[]> &gradient_data, device_ptr<T[]> &bias_grad_data, const size_t batch_size,
+    const size_t output_h, const size_t output_w, const size_t out_channels,
+    const std::string &flow_id) const {
   if (gradient_data.getDeviceType() != bias_grad_data.getDeviceType()) {
     throw std::runtime_error("Gradient and bias gradient tensors must be on the same device");
   }
 
   if (gradient_data.getDeviceType() == DeviceType::CPU) {
-    cpu::conv2d::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size,
-                                        output_h, output_w, out_channels);
+    return create_cpu_task(flow_id, cpu::conv2d::compute_bias_gradients<T>, gradient_data.get(),
+                           bias_grad_data.get(), batch_size, output_h, output_w, out_channels);
   }
 #ifdef USE_CUDA
-  else {
-    cuda::conv2d::compute_bias_gradients(gradient_data.get(), bias_grad_data.get(), batch_size,
-                                         output_h, output_w, out_channels);
+  else if (gradient_data.getDeviceType() == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::conv2d::compute_bias_gradients<T>, gradient_data.get(),
+                           bias_grad_data.get(), batch_size, output_h, output_w, out_channels);
   }
 #endif
+  else {
+    throw std::runtime_error("Unsupported device type for conv bias gradients");
+  }
 }
 
 template <typename T>
-void Conv2DLayer<T>::add_bias_to_output(device_ptr<T[]> &output_data,
-                                        const device_ptr<T[]> &bias_data, const size_t batch_size,
-                                        const size_t output_h, const size_t output_w,
-                                        const size_t out_channels) const {
+std::unique_ptr<Task>
+Conv2DLayer<T>::add_bias_to_output(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
+                                   const size_t batch_size, const size_t output_h,
+                                   const size_t output_w, const size_t out_channels,
+                                   const std::string &flow_id) const {
   if (output_data.getDeviceType() != bias_data.getDeviceType()) {
     throw std::runtime_error("Output and bias tensors must be on the same device");
   }
 
   if (output_data.getDeviceType() == DeviceType::CPU) {
-    cpu::conv2d::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h,
-                                    output_w, out_channels);
+    return create_cpu_task(flow_id, cpu::conv2d::add_bias_to_output<T>, output_data.get(),
+                           bias_data.get(), batch_size, output_h, output_w, out_channels);
   }
 #ifdef USE_CUDA
-  else {
-    cuda::conv2d::add_bias_to_output(output_data.get(), bias_data.get(), batch_size, output_h,
-                                     output_w, out_channels);
+  else if (output_data.getDeviceType() == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::conv2d::add_bias_to_output<T>, output_data.get(),
+                           bias_data.get(), batch_size, output_h, output_w, out_channels);
   }
 #endif
+  else {
+    throw std::runtime_error("Unsupported device type for conv add bias to output");
+  }
 }
 
 template <typename T> std::string Conv2DLayer<T>::type() const { return "conv2d"; }

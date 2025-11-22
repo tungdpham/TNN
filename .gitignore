@@ -76,7 +76,6 @@ install_manifest.txt
 
 # temp files
 /temp/
-/profile.json
 *.data
 *.data.old
 
@@ -95,3 +94,7 @@ __pycache__/
 
 # cache files
 .cache/
+
+# profiling artifacts
+/profile.json
+*.nsys-rep

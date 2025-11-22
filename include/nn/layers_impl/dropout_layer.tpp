@@ -22,7 +22,7 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
 }
 
 template <typename T>
-Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   if (!this->is_training_) {
     return input;
   }
@@ -31,7 +31,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
       input.device() == this->device_ ? input : input.to_device(this->device_);
 
   Tensor<T> mask(current.shape(), this->device_);
-  Tensor<T> output = current;
+  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current.shape());
 
   std::uniform_real_distribution<T> distribution(T(0), T(1));
 
@@ -47,7 +47,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
           output(n, c, h, w) = T(0);
         } else {
           mask(n, c, h, w) = scale;
-          output(n, c, h, w) *= scale;
+          output(n, c, h, w) = current(n, c, h, w) * scale;
         }
       }
     }
@@ -58,7 +58,7 @@ Tensor<T> DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id
 }
 
 template <typename T>
-Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
   if (!this->is_training_) {
     return gradient;
   }
@@ -73,13 +73,13 @@ Tensor<T> DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batc
   }
   const Tensor<T> &mask = it_mask->second;
 
-  Tensor<T> grad_input = current_gradient;
+  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, current_gradient.shape());
 
   parallel_for_2d(current_gradient.batch_size(), current_gradient.channels(),
                   [&](size_t n, size_t c) {
                     for (size_t h = 0; h < current_gradient.height(); ++h) {
                       for (size_t w = 0; w < current_gradient.width(); ++w) {
-                        grad_input(n, c, h, w) *= mask(n, c, h, w);
+                        grad_input(n, c, h, w) = current_gradient(n, c, h, w) * mask(n, c, h, w);
                       }
                     }
                   });

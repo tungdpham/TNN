@@ -31,11 +31,18 @@ FetchContent_Declare(
     GIT_TAG v1.14.0
 )
 
+# stb - single-file public domain libraries (stb_image for image loading)
+FetchContent_Declare(
+    stb
+    GIT_REPOSITORY https://github.com/nothings/stb.git
+    GIT_TAG master
+)
+
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 # Make the dependencies available
-FetchContent_MakeAvailable(asio nlohmann_json zstd googletest)
+FetchContent_MakeAvailable(asio nlohmann_json zstd googletest stb)
 
 # Add global compile definitions for ASIO
 add_compile_definitions(ASIO_STANDALONE)

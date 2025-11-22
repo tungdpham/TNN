@@ -6,9 +6,7 @@
  */
 #pragma once
 
-#include "nn/activations.hpp"
-#include "nn/optimizers.hpp"
-
+#include "device/task.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <memory>
@@ -23,43 +21,57 @@ private:
   size_t input_features_;
   size_t output_features_;
   bool use_bias_;
-  std::unique_ptr<ActivationFunction<T>> activation_;
   Tensor<T> weights_;
   Tensor<T> bias_;
   Tensor<T> weight_gradients_;
   Tensor<T> bias_gradients_;
 
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
 
-  void compute_dense_forward(const device_ptr<T[]> &input_data, const device_ptr<T[]> &weight_data,
-                             device_ptr<T[]> &output_data, const size_t batch_size,
-                             const size_t input_features, const size_t output_features) const;
+  std::unique_ptr<Task> forward_task_;
+  std::unique_ptr<Task> add_bias_task_;
+  std::unique_ptr<Task> activation_task_;
 
-  void compute_weight_gradients(const device_ptr<T[]> &input_data,
-                                const device_ptr<T[]> &gradient_data,
-                                device_ptr<T[]> &weight_grad_data, const size_t batch_size,
-                                const size_t input_features, const size_t output_features) const;
+  std::unique_ptr<Task> weight_grad_task_;
+  std::unique_ptr<Task> input_grad_task_;
+  std::unique_ptr<Task> bias_grad_task_;
 
-  void compute_input_gradients(const device_ptr<T[]> &gradient_data,
-                               const device_ptr<T[]> &weight_data, device_ptr<T[]> &grad_input_data,
-                               const size_t batch_size, const size_t input_features,
-                               const size_t output_features) const;
+  std::unique_ptr<Task> compute_dense_forward(const device_ptr<T[]> &input_data,
+                                              const device_ptr<T[]> &weight_data,
+                                              device_ptr<T[]> &output_data, const size_t batch_size,
+                                              const size_t input_features,
+                                              const size_t output_features,
+                                              const std::string &flow_id) const;
 
-  void compute_bias_gradients(const device_ptr<T[]> &current_grad_data,
-                              const device_ptr<T[]> &bias_gradient_data, const size_t batch_size,
-                              const size_t output_features) const;
+  std::unique_ptr<Task>
+  compute_weight_gradients(const device_ptr<T[]> &input_data, const device_ptr<T[]> &gradient_data,
+                           device_ptr<T[]> &weight_grad_data, const size_t batch_size,
+                           const size_t input_features, const size_t output_features,
+                           const std::string &flow_id) const;
 
-  void add_bias_vector(device_ptr<T[]> &output_data, const device_ptr<T[]> &bias_data,
-                       const size_t batch_size, const size_t output_features) const;
+  std::unique_ptr<Task>
+  compute_input_gradients(const device_ptr<T[]> &gradient_data, const device_ptr<T[]> &weight_data,
+                          device_ptr<T[]> &grad_input_data, const size_t batch_size,
+                          const size_t input_features, const size_t output_features,
+                          const std::string &flow_id) const;
+
+  std::unique_ptr<Task> compute_bias_gradients(const device_ptr<T[]> &current_grad_data,
+                                               device_ptr<T[]> &bias_gradient_data,
+                                               const size_t batch_size,
+                                               const size_t output_features,
+                                               const std::string &flow_id) const;
+
+  std::unique_ptr<Task> add_bias_vector(device_ptr<T[]> &output_data,
+                                        const device_ptr<T[]> &bias_data, const size_t batch_size,
+                                        const size_t output_features,
+                                        const std::string &flow_id) const;
 
 public:
-  DenseLayer(size_t input_features, size_t output_features,
-             std::unique_ptr<ActivationFunction<T>> activation = nullptr, bool use_bias = true,
+  DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
              const std::string &name = "dense");
 
-  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
+  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;

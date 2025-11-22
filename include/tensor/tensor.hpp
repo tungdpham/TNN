@@ -7,15 +7,18 @@
 #pragma once
 
 #include "device/device_ptr.hpp"
+#include "device/task.hpp"
 #include "layout_trait.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <memory>
 #include <numeric>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 #include <type_traits>
 #include <vector>
 #ifdef _WIN32
@@ -86,7 +89,6 @@ public:
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
-    // ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
   Tensor(std::initializer_list<size_t> shape_list, const device_ptr<T[]> &data,
@@ -108,7 +110,6 @@ public:
     layout_trait_.compute_strides();
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
-    // ops::set_scalar(data_, T(0), data_size_)->sync();
   }
 
   Tensor(std::vector<size_t> shape, const device_ptr<T[]> &data, const Device *dt = &getCPU())
@@ -433,7 +434,7 @@ public:
     return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_, device_);
   }
 
-  void fill(T value) { ops::set_scalar(data_, value, data_size_)->sync(); }
+  std::unique_ptr<Task> fill(T value) { return ops::set_scalar(data_, value, data_size_); }
 
   void fill_random_uniform(T range) {
     // Generate seed from current time and pointer address for uniqueness
@@ -449,6 +450,22 @@ public:
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get()));
     ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
+  }
+
+  void resize(const std::vector<size_t> &new_shape) {
+    assert(new_shape.size() == dims_ && "New shape size must match tensor dims size");
+    if (new_shape == std::vector<size_t>(shape_, shape_ + dims_)) {
+      return;
+    }
+    size_t new_size =
+        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
+    if (new_size != data_size_) {
+      data_.reset();
+      allocate_data(new_size);
+      data_size_ = new_size;
+    }
+    std::copy(new_shape.begin(), new_shape.end(), shape_);
+    layout_trait_.compute_strides();
   }
 
   Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
@@ -488,7 +505,15 @@ public:
     return sum_sq_diff / static_cast<T>(data_size_);
   }
 
-  void print_data() const { throw new std::runtime_error("print_data not implemented yet"); }
+  void print_data() const {
+    Tensor<T, L> cpu_tensor = to_cpu();
+    size_t total_elements = cpu_tensor.size();
+    std::cout << "Tensor data (shape " << cpu_tensor.shape_str() << "):\n";
+    for (size_t i = 0; i < total_elements; ++i) {
+      std::cout << cpu_tensor.data_.get()[i] << " ";
+    }
+    std::cout << std::endl;
+  }
 
   void save(std::ofstream &out) const {
     if (!out.is_open()) {

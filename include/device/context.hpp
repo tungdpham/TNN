@@ -1,5 +1,6 @@
 #pragma once
 
+#include "flow.hpp"
 #include <cstddef>
 #include <cstdlib>
 
@@ -17,5 +18,7 @@ public:
   virtual void deallocateAlignedMemory(void *ptr) = 0;
   virtual void copyToDevice(void *dest, const void *src, size_t size) = 0;
   virtual void copyToHost(void *dest, const void *src, size_t size) = 0;
+  virtual void createFlow(const std::string &flow_id) = 0;
+  virtual Flow *getFlow(const std::string &flow_id) = 0;
 };
 } // namespace tnn

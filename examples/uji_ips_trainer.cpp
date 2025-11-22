@@ -502,30 +502,29 @@ int main() {
 
     const size_t input_features = train_loader.num_features();
     const size_t output_size = train_loader.num_outputs();
-    const string output_activation = is_regression ? "linear" : "linear";
 
     auto model = SequentialBuilder<float>("ips_classifier")
                      .input({input_features, 1, 1})
-                     .dense(192, "linear", true, "hidden1")
+                     .dense(192, true, "hidden1")
                      .batchnorm(1e-5f, 0.1f, true, "batchnorm1")
                      .activation("relu", "hidden1_relu")
                      .dropout(0.25f, "dropout1")
 
-                     .dense(64, "linear", true, "hidden2")
+                     .dense(64, true, "hidden2")
                      .batchnorm(1e-5f, 0.1f, true, "batchnorm2")
                      .activation("relu", "hidden2_relu")
 
-                     .dense(32, "linear", true, "hidden3")
+                     .dense(32, true, "hidden3")
                      .batchnorm(1e-5f, 0.1f, true, "batchnorm3")
                      .activation("relu", "hidden3_relu")
 
                      .dropout(0.25f, "dropout3")
 
-                     .dense(16, "linear", true, "hidden4")
+                     .dense(16, true, "hidden4")
                      .batchnorm(1e-5f, 0.1f, true, "batchnorm4")
                      .activation("relu", "hidden4_relu")
 
-                     .dense(output_size, output_activation, true, "output")
+                     .dense(output_size, true, "output")
                      .build();
 
     model.set_optimizer(make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));

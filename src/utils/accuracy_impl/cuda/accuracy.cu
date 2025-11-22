@@ -19,7 +19,6 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
   if (idx >= batch_size)
     return;
 
-  // Find predicted class
   int pred_class = 0;
   float max_pred = predictions[idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
@@ -30,7 +29,6 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
     }
   }
 
-  // Find true class
   int true_class = -1;
   for (size_t j = 0; j < num_classes; ++j) {
     if (targets[idx * num_classes + j] > 0.5f) {
@@ -39,7 +37,6 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
     }
   }
 
-  // Increment counter if correct
   if (pred_class == true_class && true_class != -1) {
     atomicAdd(correct_count, 1);
   }
@@ -52,7 +49,6 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
   if (idx >= batch_size)
     return;
 
-  // Find predicted class
   int pred_class = 0;
   float max_pred = predictions[idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
@@ -63,7 +59,6 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
     }
   }
 
-  // Find true class
   int true_class = -1;
   for (size_t j = 0; j < num_classes; ++j) {
     if (targets[idx * num_classes + j] > threshold) {
@@ -72,7 +67,6 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
     }
   }
 
-  // Increment counter if correct
   if (pred_class == true_class && true_class != -1) {
     atomicAdd(correct_count, 1);
   }

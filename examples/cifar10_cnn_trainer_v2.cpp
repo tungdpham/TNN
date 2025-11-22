@@ -6,7 +6,6 @@
 #include "utils/env.hpp"
 
 #include <cmath>
-#include <fstream>
 #include <iostream>
 #include <vector>
 
@@ -99,9 +98,9 @@ int main() {
                      .activation("relu", "relu9")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
                      .flatten("flatten")
-                     .dense(512, "linear", true, "fc0")
+                     .dense(512, true, "fc0")
                      .activation("relu", "relu10")
-                     .dense(10, "linear", true, "fc1")
+                     .dense(10, true, "fc1")
                      .build();
     model.set_device(device_type);
     model.initialize();

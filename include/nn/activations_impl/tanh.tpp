@@ -22,10 +22,10 @@ template <typename T> void Tanh<T>::apply(Tensor<T> &tensor) const {
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(tensor.device(), cpu::tanh<T>, data, data, size);
+    create_cpu_task("default", cpu::tanh<T>, data, data, size);
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(tensor.device(), cuda::tanh<T>, data, data, size);
+    create_gpu_task("default", cuda::tanh<T>, data, data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -40,12 +40,12 @@ void Tanh<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstre
     throw std::runtime_error("Input and upstream gradient must be on the same device for Tanh");
   }
   if (input.device_type() == DeviceType::CPU) {
-    ops::create_cpu_task(input.device(), cpu::tanh_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size());
+    create_cpu_task("default", cpu::tanh_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size());
   } else {
 #ifdef USE_CUDA
-    ops::create_gpu_task(input.device(), cuda::tanh_gradient<T>, input.data(),
-                         upstream_gradient.data(), input.size());
+    create_gpu_task("default", cuda::tanh_gradient<T>, input.data(), upstream_gradient.data(),
+                    input.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

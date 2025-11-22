@@ -39,7 +39,7 @@ Sequential<float> model("my_model_name");
 
 // Add layers manually
 model.add(std::make_unique<DenseLayer<float>>(784, 128, "relu"));
-model.add(std::make_unique<DenseLayer<float>>(128, 10, "linear"));
+model.add(std::make_unique<DenseLayer<float>>(128, 10));
 ```
 
 ### Layer Management
@@ -74,7 +74,7 @@ size_t num_layers = model.size();
 - `kernel_h/w`: Kernel dimensions
 - `stride_h/w`: Stride values (default: 1)
 - `pad_h/w`: Padding values (default: 0)
-- `activation`: Activation function ("relu", "elu", "linear", etc.)
+- `activation`: Activation function ("relu", "elu", etc.)
 - `use_bias`: Whether to use bias terms (default: true)
 - `name`: Layer name (optional, auto-generated if empty)
 
@@ -238,7 +238,7 @@ auto model = SequentialBuilder<float>("mnist_classifier")
     .flatten()                                          // Flatten for dense layers
     .dense(128, "relu")                                 // 128 output features with relu activation
     .dropout(0.5)                                       // 50% dropout 
-    .dense(10, "linear")                                // 10 output features, linear activation
+    .dense(10)                                // 10 output features, linear activation
     .build();                                           // returns a sequential class.
 
 // Configure training

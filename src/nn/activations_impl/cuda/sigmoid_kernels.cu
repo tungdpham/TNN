@@ -69,4 +69,4 @@ void sigmoid_gradient<double>(const double *input, double *grad_output, size_t s
 } // namespace cuda
 } // namespace tnn
 
-#endif // USE_CUDA
+#endif

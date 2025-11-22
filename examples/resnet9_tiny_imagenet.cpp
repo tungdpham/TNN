@@ -6,8 +6,6 @@
  */
 
 #include "data_augmentation/augmentation.hpp"
-#include "data_loading/cifar100_data_loader.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "device/device_type.hpp"
 #include "nn/example_models.hpp"
@@ -23,7 +21,7 @@
 using namespace tnn;
 using namespace std;
 
-constexpr float LR_INITIAL = 0.001f;
+constexpr float LR_INITIAL = 0.01f; // Higher initial LR for smaller model
 
 int main() {
   try {
@@ -66,28 +64,23 @@ int main() {
       return 1;
     }
 
-    // Configure data augmentation for training
+    // Configure data augmentation for training (lighter augmentation)
     cout << "\nConfiguring data augmentation for training..." << endl;
-    auto aug_strategy = AugmentationBuilder<float>()
-                            // .horizontal_flip(0.25f)
-                            // .rotation(0.4f, 10.0f)
-                            .brightness(0.3f, 0.15f)
-                            .contrast(0.3f, 0.15f)
-                            .gaussian_noise(0.3f, 0.05f)
-                            .random_crop(0.4f, 4)
-                            .build();
+    auto aug_strategy =
+        AugmentationBuilder<float>().horizontal_flip(0.5f).random_crop(0.3f, 4).build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    auto model = create_resnet18_cifar10();
+    // Use ResNet-9 instead of ResNet-18 for faster training
+    auto model = create_resnet9_tiny_imagenet();
 
-    model.print_summary({64, 3, 32, 32});
+    model.print_summary({64, 3, 64, 64});
 
     model.set_device(device_type);
     model.initialize();
 
     // Set optimizer and loss function
-    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();
@@ -96,10 +89,10 @@ int main() {
     model.enable_profiling(true);
 
     // Train the model
-    cout << "\nStarting ResNet training on Tiny ImageNet..." << endl;
+    cout << "\nStarting ResNet-9 training on Tiny ImageNet..." << endl;
     train_classification_model(model, train_loader, val_loader, train_config);
 
-    cout << "\nResNet Tiny ImageNet training completed successfully!" << endl;
+    cout << "\nResNet-9 Tiny ImageNet training completed successfully!" << endl;
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;

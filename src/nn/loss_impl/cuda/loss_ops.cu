@@ -13,7 +13,7 @@
 namespace tnn {
 namespace cuda {
 namespace loss {
-// CrossEntropy Loss Kernels
+
 template <typename T>
 __global__ void crossentropy_loss_kernel(const T *predictions, const T *targets, T *loss_values,
                                          const size_t batch_size, const size_t num_classes,
@@ -69,7 +69,6 @@ __global__ void crossentropy_gradient_kernel(const T *predictions, const T *targ
   gradient[idx] = (predictions[idx] - targets[idx]) * inv_batch_size;
 }
 
-// Softmax CrossEntropy Loss Kernels
 template <typename T>
 __global__ void softmax_crossentropy_loss_kernel(const T *logits, const T *targets, T *loss_values,
                                                  const size_t batch_size,
@@ -111,25 +110,21 @@ __global__ void softmax_crossentropy_gradient_kernel(const T *logits, const T *t
   int batch_idx = idx / num_classes;
   int class_idx = idx % num_classes;
 
-  // Find max logit for numerical stability
   T max_logit = logits[batch_idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
     max_logit = fmax(max_logit, logits[batch_idx * num_classes + j]);
   }
 
-  // Compute sum of exp for softmax denominator
   T sum_exp = T(0);
   for (size_t j = 0; j < num_classes; ++j) {
     sum_exp += exp(logits[batch_idx * num_classes + j] - max_logit);
   }
 
-  // Compute softmax probability and gradient
   T softmax_prob = exp(logits[batch_idx * num_classes + class_idx] - max_logit) / sum_exp;
   gradient[batch_idx * num_classes + class_idx] =
       (softmax_prob - targets[batch_idx * num_classes + class_idx]) * inv_batch_size;
 }
 
-// MSE Loss Kernels
 template <typename T>
 __global__ void mse_loss_kernel(const T *predictions, const T *targets, T *loss_values,
                                 const size_t total_size) {
@@ -151,7 +146,6 @@ __global__ void mse_gradient_kernel(const T *predictions, const T *targets, T *g
   gradient[idx] = (predictions[idx] - targets[idx]) * scale;
 }
 
-// MAE Loss Kernels
 template <typename T>
 __global__ void mae_loss_kernel(const T *predictions, const T *targets, T *loss_values,
                                 const size_t total_size) {
@@ -173,7 +167,6 @@ __global__ void mae_gradient_kernel(const T *predictions, const T *targets, T *g
   gradient[idx] = (diff > T(0) ? scale : -scale);
 }
 
-// Huber Loss Kernels
 template <typename T>
 __global__ void huber_loss_kernel(const T *predictions, const T *targets, T *loss_values,
                                   const size_t total_size, T delta) {
@@ -206,27 +199,22 @@ __global__ void huber_gradient_kernel(const T *predictions, const T *targets, T 
   }
 }
 
-// Sum reduction kernel for loss aggregation with improved numerical stability
 template <typename T>
-__global__ void sum_reduce_kernel(const T *values, T *result, const size_t size) {
+__global__ void sum_reduce_kernel_stage1(const T *values, T *block_results, const size_t size) {
   extern __shared__ char shared_mem[];
   T *shared_data = (T *)shared_mem;
 
   int tid = threadIdx.x;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  // Load data into shared memory using double precision for accumulation
-  double local_sum = (idx < size) ? static_cast<double>(values[idx]) : 0.0;
-
-  // Grid-stride loop to handle cases where size > grid_size * block_size
-  for (int i = idx + blockDim.x * gridDim.x; i < size; i += blockDim.x * gridDim.x) {
-    local_sum += static_cast<double>(values[i]);
+  T local_sum = T(0);
+  for (int i = idx; i < size; i += blockDim.x * gridDim.x) {
+    local_sum += values[i];
   }
 
-  shared_data[tid] = static_cast<T>(local_sum);
+  shared_data[tid] = local_sum;
   __syncthreads();
 
-  // Perform reduction in shared memory
   for (int s = blockDim.x / 2; s > 0; s >>= 1) {
     if (tid < s) {
       shared_data[tid] += shared_data[tid + s];
@@ -234,13 +222,39 @@ __global__ void sum_reduce_kernel(const T *values, T *result, const size_t size)
     __syncthreads();
   }
 
-  // Write result for this block to global memory
   if (tid == 0) {
-    atomicAdd(result, shared_data[0]);
+    block_results[blockIdx.x] = shared_data[0];
   }
 }
 
-// Implementation functions
+template <typename T>
+__global__ void sum_reduce_kernel_stage2(const T *block_results, T *result,
+                                         const size_t num_blocks) {
+  extern __shared__ char shared_mem[];
+  T *shared_data = (T *)shared_mem;
+
+  int tid = threadIdx.x;
+
+  T local_sum = T(0);
+  for (int i = tid; i < num_blocks; i += blockDim.x) {
+    local_sum += block_results[i];
+  }
+
+  shared_data[tid] = local_sum;
+  __syncthreads();
+
+  for (int s = blockDim.x / 2; s > 0; s >>= 1) {
+    if (tid < s) {
+      shared_data[tid] += shared_data[tid + s];
+    }
+    __syncthreads();
+  }
+
+  if (tid == 0) {
+    *result = shared_data[0];
+  }
+}
+
 template <typename T>
 T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t batch_size,
                             const size_t num_classes, T epsilon) {
@@ -253,19 +267,26 @@ T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t
   crossentropy_loss_kernel<T><<<num_blocks, threads_per_block>>>(
       predictions, targets, d_loss_values, batch_size, num_classes, epsilon);
 
+  int block_size = 256;
+  int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
+
+  T *d_block_results;
+  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+      d_loss_values, d_block_results, batch_size);
+
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
-  T h_total_loss = T(0);
-  cudaMemcpy(d_total_loss, &h_total_loss, sizeof(T), cudaMemcpyHostToDevice);
 
-  int block_size = 256;
-  int grid_size = (batch_size + block_size - 1) / block_size;
-  sum_reduce_kernel<T>
-      <<<grid_size, block_size, block_size * sizeof(T)>>>(d_loss_values, d_total_loss, batch_size);
+  sum_reduce_kernel_stage2<T>
+      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
 
+  T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
   cudaFree(d_loss_values);
+  cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
   return h_total_loss / batch_size;
@@ -282,6 +303,8 @@ void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gr
 
   crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block>>>(
       predictions, targets, gradient, batch_size, num_classes, inv_batch_size);
+
+  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -289,6 +312,7 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
                                     const size_t num_classes) {
   T *d_loss_values;
   cudaMalloc(&d_loss_values, batch_size * sizeof(T));
+  cudaMemset(d_loss_values, 0, batch_size * sizeof(T));
 
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
@@ -296,19 +320,28 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
   softmax_crossentropy_loss_kernel<T>
       <<<num_blocks, threads_per_block>>>(logits, targets, d_loss_values, batch_size, num_classes);
 
+  int block_size = 256;
+  int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
+
+  T *d_block_results;
+  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+  cudaMemset(d_block_results, 0, grid_size * sizeof(T));
+
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+      d_loss_values, d_block_results, batch_size);
+
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
-  T h_total_loss = T(0);
-  cudaMemcpy(d_total_loss, &h_total_loss, sizeof(T), cudaMemcpyHostToDevice);
+  cudaMemset(d_total_loss, 0, sizeof(T));
 
-  int block_size = 256;
-  int grid_size = (batch_size + block_size - 1) / block_size;
-  sum_reduce_kernel<T>
-      <<<grid_size, block_size, block_size * sizeof(T)>>>(d_loss_values, d_total_loss, batch_size);
+  sum_reduce_kernel_stage2<T>
+      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
 
+  T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
   cudaFree(d_loss_values);
+  cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
   return h_total_loss / batch_size;
@@ -325,6 +358,8 @@ void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T 
 
   softmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block>>>(
       logits, targets, gradient, batch_size, num_classes, inv_batch_size);
+
+  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -340,19 +375,26 @@ T compute_mse_loss(const T *predictions, const T *targets, const size_t batch_si
   mse_loss_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, d_loss_values, total_size);
 
+  int block_size = 256;
+  int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
+
+  T *d_block_results;
+  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+      d_loss_values, d_block_results, total_size);
+
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
-  T h_total_loss = T(0);
-  cudaMemcpy(d_total_loss, &h_total_loss, sizeof(T), cudaMemcpyHostToDevice);
 
-  int block_size = 256;
-  int grid_size = (total_size + block_size - 1) / block_size;
-  sum_reduce_kernel<T>
-      <<<grid_size, block_size, block_size * sizeof(T)>>>(d_loss_values, d_total_loss, total_size);
+  sum_reduce_kernel_stage2<T>
+      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
 
+  T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
   cudaFree(d_loss_values);
+  cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
   return h_total_loss / total_size;
@@ -369,6 +411,8 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
 
   mse_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, scale);
+
+  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -384,19 +428,26 @@ T compute_mae_loss(const T *predictions, const T *targets, const size_t batch_si
   mae_loss_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, d_loss_values, total_size);
 
+  int block_size = 256;
+  int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
+
+  T *d_block_results;
+  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+      d_loss_values, d_block_results, total_size);
+
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
-  T h_total_loss = T(0);
-  cudaMemcpy(d_total_loss, &h_total_loss, sizeof(T), cudaMemcpyHostToDevice);
 
-  int block_size = 256;
-  int grid_size = (total_size + block_size - 1) / block_size;
-  sum_reduce_kernel<T>
-      <<<grid_size, block_size, block_size * sizeof(T)>>>(d_loss_values, d_total_loss, total_size);
+  sum_reduce_kernel_stage2<T>
+      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
 
+  T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
   cudaFree(d_loss_values);
+  cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
   return h_total_loss / total_size;
@@ -413,6 +464,8 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
 
   mae_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, scale);
+
+  cudaDeviceSynchronize();
 }
 
 template <typename T>
@@ -428,19 +481,26 @@ T compute_huber_loss(const T *predictions, const T *targets, const size_t batch_
   huber_loss_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, d_loss_values, total_size, delta);
 
+  int block_size = 256;
+  int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
+
+  T *d_block_results;
+  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+      d_loss_values, d_block_results, total_size);
+
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
-  T h_total_loss = T(0);
-  cudaMemcpy(d_total_loss, &h_total_loss, sizeof(T), cudaMemcpyHostToDevice);
 
-  int block_size = 256;
-  int grid_size = (total_size + block_size - 1) / block_size;
-  sum_reduce_kernel<T>
-      <<<grid_size, block_size, block_size * sizeof(T)>>>(d_loss_values, d_total_loss, total_size);
+  sum_reduce_kernel_stage2<T>
+      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
 
+  T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
   cudaFree(d_loss_values);
+  cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
   return h_total_loss / total_size;
@@ -457,9 +517,10 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
 
   huber_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, delta, scale);
+
+  cudaDeviceSynchronize();
 }
 
-// Explicit template instantiations
 template float compute_crossentropy_loss<float>(const float *predictions, const float *targets,
                                                 const size_t batch_size, const size_t num_classes,
                                                 float epsilon);

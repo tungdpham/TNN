@@ -97,7 +97,7 @@ data/
 Alternatively, you change the path to data in the examples' code.
 
 # Running the examples
-There are two different ways to run the examples
+There are two different ways to run the examples. For detailed instructions on how to run them see README in examples directory.
 
 ## Directly running them
 There are several preconfigured trainers for MNIST, CIFAR10, CIFAR100, and UJI IPS datasets. You should see them in bin/ after building successfully. 

@@ -73,7 +73,7 @@ int main() {
                      .activation("relu", "relu3")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
                      .flatten("flatten")
-                     .dense(mnist_constants::NUM_CLASSES, "linear", true, "output")
+                     .dense(mnist_constants::NUM_CLASSES, true, "output")
                      .build();
 
     model.set_device(device_type);
