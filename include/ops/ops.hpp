@@ -324,6 +324,32 @@ std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T scalar, size_t size,
 }
 
 template <typename T>
+std::unique_ptr<Task> axpy(T alpha, const device_ptr<T[]> &x, device_ptr<T[]> &y, size_t size,
+                           const std::string &flow_id = "default") {
+  if (!x.getDevice() || !y.getDevice()) {
+    throw std::runtime_error("axpy: Device pointer has no associated device");
+  }
+  if (x.getDevice() != y.getDevice()) {
+    throw std::runtime_error("axpy: All device pointers must be on the same device");
+  }
+
+  auto device = x.getDevice();
+  auto device_type = device->getDeviceType();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(flow_id, cpu::axpy<T>, alpha, x.get(), y.get(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_gpu_task(flow_id, cuda::cuda_axpy<T>, alpha, x.get(), y.get(), size);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename T>
 std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size,
                            const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {

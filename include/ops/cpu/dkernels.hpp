@@ -101,6 +101,9 @@ void mul_scalar(const double *a, double scalar, double *c, size_t size);
 void div_scalar(const double *a, double scalar, double *c, size_t size);
 void set_scalar(double *c, double scalar, size_t size);
 
+// BLAS-like Operations
+void axpy(double alpha, const double *x, double *y, size_t size);
+
 void sqrt(const double *a, double *c, size_t size);
 void abs(const double *a, double *c, size_t size);
 void min(const double *a, const double *b, double *c, size_t size);

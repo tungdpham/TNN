@@ -69,6 +69,8 @@ void cuda_div_scalar(const T *a, T scalar, T *c, size_t size, cudaStream_t strea
 
 template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStream_t stream);
 
+template <typename T> void cuda_axpy(T alpha, const T *x, T *y, size_t size, cudaStream_t stream);
+
 template <typename T> void cuda_sqrt(const T *a, T *c, size_t size, cudaStream_t stream);
 
 void cuda_rsqrt(const float *a, float *c, size_t size, cudaStream_t stream);

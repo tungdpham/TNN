@@ -106,6 +106,9 @@ void mul_scalar(const float *a, float scalar, float *c, size_t size);
 void div_scalar(const float *a, float scalar, float *c, size_t size);
 void set_scalar(float *c, float scalar, size_t size);
 
+// BLAS-like Operations
+void axpy(float alpha, const float *x, float *y, size_t size);
+
 void sqrt(const float *a, float *c, size_t size);
 void rsqrt(const float *a, float *c, size_t size);
 void rcp(const float *a, float *c, size_t size);

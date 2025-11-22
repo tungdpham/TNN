@@ -1056,6 +1056,30 @@ void set_scalar(float *c, float scalar, size_t size) {
 #endif
 }
 
+// BLAS-like Operations
+void axpy(float alpha, const float *x, float *y, size_t size) {
+#ifdef __AVX2__
+  const size_t simd_width = 8;
+  const size_t simd_end = size - (size % simd_width);
+  __m256 alpha_vec = _mm256_set1_ps(alpha);
+
+  for (size_t i = 0; i < simd_end; i += simd_width) {
+    __m256 x_vec = _mm256_loadu_ps(&x[i]);
+    __m256 y_vec = _mm256_loadu_ps(&y[i]);
+    y_vec = _mm256_fmadd_ps(alpha_vec, x_vec, y_vec);
+    _mm256_storeu_ps(&y[i], y_vec);
+  }
+
+  for (size_t i = simd_end; i < size; ++i) {
+    y[i] += alpha * x[i];
+  }
+#else
+  for (size_t i = 0; i < size; ++i) {
+    y[i] += alpha * x[i];
+  }
+#endif
+}
+
 void sqrt(const float *a, float *c, size_t size) {
 #ifdef __AVX2__
   if (reinterpret_cast<uintptr_t>(a) % 32 == 0 && reinterpret_cast<uintptr_t>(c) % 32 == 0) {

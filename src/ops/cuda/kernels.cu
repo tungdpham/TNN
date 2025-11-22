@@ -127,6 +127,13 @@ template <typename T> __global__ void set_scalar_kernel(T *c, T scalar, size_t s
   }
 }
 
+template <typename T> __global__ void axpy_kernel(T alpha, const T *x, T *y, size_t size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    y[idx] += alpha * x[idx];
+  }
+}
+
 template <> __global__ void sqrt_kernel<float>(const float *a, float *c, size_t size) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -573,6 +580,14 @@ template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStre
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
 
+template <typename T> void cuda_axpy(T alpha, const T *x, T *y, size_t size, cudaStream_t stream) {
+  if (size <= 0)
+    return;
+  int num_blocks = get_num_blocks(size);
+  axpy_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(alpha, x, y, size);
+  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
+}
+
 template <typename T> void cuda_sqrt(const T *a, T *c, size_t size, cudaStream_t stream) {
   if (size <= 0)
     return;
@@ -874,6 +889,9 @@ template void cuda_div_scalar<float>(const float *, float, float *, size_t, cuda
 template void cuda_div_scalar<double>(const double *, double, double *, size_t, cudaStream_t);
 template void cuda_set_scalar<float>(float *, float, size_t, cudaStream_t);
 template void cuda_set_scalar<double>(double *, double, size_t, cudaStream_t);
+
+template void cuda_axpy<float>(float, const float *, float *, size_t, cudaStream_t);
+template void cuda_axpy<double>(double, const double *, double *, size_t, cudaStream_t);
 
 template void cuda_sqrt<float>(const float *, float *, size_t, cudaStream_t);
 template void cuda_sqrt<double>(const double *, double *, size_t, cudaStream_t);

@@ -69,6 +69,7 @@ public:
       initialized_ = true;
     }
 
+#ifndef USE_CUDA
     parallel_for<size_t>(0, params.size(), [&](size_t i) {
       if (momentum_ > 0.0f) {
         velocities_[i] *= momentum_;
@@ -80,6 +81,20 @@ public:
         (*params[i]) -= scaled_grad;
       }
     });
+#else
+    for (size_t i = 0; i < params.size(); ++i) {
+      if (momentum_ > 0.0f) {
+        ops::mul_scalar(velocities_[i].data_ptr(), momentum_, velocities_[i].data_ptr(),
+                        velocities_[i].size());
+        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
+        ops::axpy(-1.0f, scaled_grad.data_ptr(), velocities_[i].data_ptr(), velocities_[i].size());
+        ops::axpy(1.0f, velocities_[i].data_ptr(), (*params[i]).data_ptr(), params[i]->size());
+      } else {
+        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
+        ops::axpy(-1.0f, scaled_grad.data_ptr(), (*params[i]).data_ptr(), params[i]->size());
+      }
+    }
+#endif
   }
 
   std::string name() const override { return "SGD"; }

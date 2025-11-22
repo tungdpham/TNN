@@ -159,6 +159,19 @@ template <typename T> void set_scalar(T *c, T scalar, size_t size) {
   }
 }
 
+// BLAS-like Operations
+template <typename T> void axpy(T alpha, const T *x, T *y, size_t size) {
+  if constexpr (std::is_same_v<T, float>) {
+    fp::axpy(alpha, x, y, size);
+  } else if constexpr (std::is_same_v<T, double>) {
+    dp::axpy(alpha, x, y, size);
+  } else {
+    for (size_t i = 0; i < size; ++i) {
+      y[i] += alpha * x[i];
+    }
+  }
+}
+
 // Element-wise Functions
 template <typename T> void sqrt(const T *a, T *c, size_t size) {
   if constexpr (std::is_same_v<T, float>) {
