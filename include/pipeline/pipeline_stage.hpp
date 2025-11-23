@@ -35,8 +35,8 @@ public:
   virtual ~PipelineStage() { stop(); }
 
 protected:
-  PipelineStage()
-      : model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
+  PipelineStage(bool use_gpu)
+      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
         is_configured_(false) {
     if (!cpu_info_.initialize()) {
       std::cerr << "Failed to initialize CPU information" << std::endl;
@@ -95,7 +95,7 @@ protected:
     switch (message.header.command_type) {
     case CommandType::FORWARD_JOB: {
       Job<float> forward_job = message.get<Job<float>>();
-      this->model_->forward(forward_job.data, forward_job.micro_batch_id); // apply in-place
+      forward_job.data = this->model_->forward(forward_job.data, forward_job.micro_batch_id);
       Message output_message("next_stage", CommandType::FORWARD_JOB, forward_job);
       output_message.header.sender_id = name_;
 
@@ -103,7 +103,7 @@ protected:
     } break;
     case CommandType::BACKWARD_JOB: {
       Job<float> backward_job = message.get<Job<float>>();
-      this->model_->backward(backward_job.data, backward_job.micro_batch_id);
+      backward_job.data = this->model_->backward(backward_job.data, backward_job.micro_batch_id);
       Message output_message("prev_stage", CommandType::BACKWARD_JOB, backward_job);
       output_message.header.sender_id = name_;
 
@@ -244,7 +244,11 @@ protected:
       this->model_ = std::make_unique<Sequential<float>>(
           Sequential<float>::load_from_config(config.model_config));
 
-      this->model_->set_device(DeviceType::GPU);
+      if (use_gpu_) {
+        this->model_->set_device(DeviceType::GPU);
+      } else {
+        this->model_->set_device(DeviceType::CPU);
+      }
 
       this->model_->initialize();
 
@@ -275,6 +279,7 @@ protected:
     this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
   }
 
+  bool use_gpu_;
   std::unique_ptr<Sequential<float>> model_;
   std::shared_ptr<Communicator> communicator_;
   std::string name_;

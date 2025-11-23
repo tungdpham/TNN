@@ -1,80 +1,131 @@
 #include "pipeline/network_stage_worker.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <cstdlib>
+#include <cstring>
+#include <getopt.h>
 #include <iostream>
 #include <string>
+#include <unistd.h>
 
 using namespace tnn;
 
 constexpr int MAX_THREADS = 4;
 using namespace std;
 
-void print_usage(const char *program_name) {
-  cout << "Usage: " << program_name << " <listen_port> [options]" << endl;
-  cout << endl;
-  cout << "Options:" << endl;
-  cout << "  --ecore           Enable E-core affinity for energy efficiency" << endl;
-  cout << "  --max-ecores <N>  Maximum number of E-cores to use (default: all)" << endl;
-  cout << "  --show-cores      Display CPU core topology and exit" << endl;
-  cout << "  --help           Show this help message" << endl;
-  cout << endl;
-  cout << "Examples:" << endl;
-  cout << "  " << program_name << " 8001                    # Default mode" << endl;
-  cout << "  " << program_name << " 8001 --ecore            # Use E-cores for efficiency" << endl;
-  cout << "  " << program_name << " 8001 --ecore --max-ecores 2  # Use maximum 2 E-cores" << endl;
-  cout << "  " << program_name << " 8001 --show-cores       # Show CPU topology" << endl;
-}
-
-int main(int argc, char *argv[]) {
-  if (argc < 2) {
-    print_usage(argv[0]);
-    return 1;
-  }
-
-  // Parse command line arguments
+struct Config {
   int listen_port = 0;
   bool use_ecore_affinity = false;
   int max_ecore_threads = -1;
   bool show_cores_only = false;
+  bool use_gpu = false;
+};
 
-  for (int i = 1; i < argc; ++i) {
-    string arg = argv[i];
+void print_usage(const char *program_name) {
+  cout << "Usage: " << program_name << " [options] <listen_port>" << endl;
+  cout << endl;
+  cout << "Options:" << endl;
+  cout << "  --ecore            Enable E-core affinity for energy efficiency" << endl;
+  cout << "  --max-ecores <N>   Maximum number of E-cores to use (default: all)" << endl;
+  cout << "  --show-cores       Display CPU core topology and exit" << endl;
+  cout << "  --gpu              Enable GPU offloading for processing" << endl;
+  cout << "  -h, --help         Show this help message" << endl;
+  cout << endl;
+  cout << "Examples:" << endl;
+  cout << "  " << program_name << " 8001                      # Default mode" << endl;
+  cout << "  " << program_name << " --ecore 8001              # Use E-cores for efficiency" << endl;
+  cout << "  " << program_name << " --max-ecores 2 --ecore 8001  # Use max 2 E-cores" << endl;
+  cout << "  " << program_name << " --gpu 8001                # Enable GPU processing" << endl;
+  cout << "  " << program_name << " --show-cores              # Show CPU topology" << endl;
+}
 
-    if (arg == "--help") {
-      print_usage(argv[0]);
-      return 0;
-    } else if (arg == "--ecore") {
-      use_ecore_affinity = true;
-    } else if (arg == "--max-ecores") {
-      if (i + 1 < argc) {
-        max_ecore_threads = atoi(argv[++i]);
-        if (max_ecore_threads <= 0) {
-          cerr << "Invalid max-ecores value: " << argv[i] << endl;
-          return 1;
+bool parse_arguments(int argc, char *argv[], Config &cfg) {
+  int c;
+
+  static struct option long_options[] = {
+      {"ecore", no_argument, 0, 'e'},      {"max-ecores", required_argument, 0, 'm'},
+      {"show-cores", no_argument, 0, 's'}, {"gpu", no_argument, 0, 'g'},
+      {"help", no_argument, 0, 'h'},       {0, 0, 0, 0}};
+
+  optind = 1;
+
+  while ((c = getopt_long(argc, argv, "h", long_options, nullptr)) != -1) {
+    switch (c) {
+    case 'e':
+      cfg.use_ecore_affinity = true;
+      break;
+    case 'm':
+      try {
+        cfg.max_ecore_threads = stoi(optarg);
+        if (cfg.max_ecore_threads <= 0) {
+          cerr << "Invalid max-ecores value: " << optarg << endl;
+          return false;
         }
-      } else {
-        cerr << "--max-ecores requires a number argument" << endl;
-        return 1;
+      } catch (...) {
+        cerr << "--max-ecores requires a valid number argument" << endl;
+        return false;
       }
-    } else if (arg == "--show-cores") {
-      show_cores_only = true;
-    } else if (listen_port == 0) {
-      // First non-flag argument is the port
-      listen_port = atoi(arg.c_str());
-    } else {
-      cerr << "Unknown argument: " << arg << endl;
+      break;
+    case 's':
+      cfg.show_cores_only = true;
+      break;
+    case 'g':
+      cfg.use_gpu = true;
+      break;
+    case 'h':
       print_usage(argv[0]);
-      return 1;
+      return false;
+    case '?':
+      return false;
+    default:
+      return false;
     }
   }
 
-  if (listen_port <= 0 || listen_port > 65535) {
-    cerr << "Invalid port number: " << listen_port << endl;
+  if (!cfg.show_cores_only) {
+    if (optind < argc) {
+      try {
+        cfg.listen_port = stoi(argv[optind]);
+      } catch (...) {
+        cerr << "Invalid port argument: " << argv[optind] << endl;
+        print_usage(argv[0]);
+        return false;
+      }
+
+      if (optind + 1 < argc) {
+        cerr << "Too many arguments. Only the port number is expected after options." << endl;
+        print_usage(argv[0]);
+        return false;
+      }
+
+    } else {
+      cerr << "Missing required argument: <listen_port>" << endl;
+      print_usage(argv[0]);
+      return false;
+    }
+
+    if (cfg.listen_port <= 0 || cfg.listen_port > 65535) {
+      cerr << "Invalid port number: " << cfg.listen_port << endl;
+      return false;
+    }
+  } else {
+    if (optind < argc) {
+      cerr << "Unexpected argument '" << argv[optind] << "' provided with --show-cores." << endl;
+      print_usage(argv[0]);
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int main(int argc, char *argv[]) {
+  Config cfg;
+
+  if (!parse_arguments(argc, argv, cfg)) {
     return 1;
   }
 
-  // Show core topology if requested
-  if (show_cores_only) {
+  if (cfg.show_cores_only) {
     HardwareInfo hw_info;
     if (hw_info.initialize()) {
       ThreadAffinity affinity(hw_info);
@@ -87,18 +138,22 @@ int main(int argc, char *argv[]) {
   }
 
   cout << "Network Stage Worker Configuration" << endl;
-  cout << "Listen port: " << listen_port << endl;
-  cout << "E-core affinity: " << (use_ecore_affinity ? "Enabled" : "Disabled") << endl;
-  if (use_ecore_affinity) {
+  cout << "Listen port: " << cfg.listen_port << endl;
+  cout << "E-core affinity: " << (cfg.use_ecore_affinity ? "Enabled" : "Disabled") << endl;
+  if (cfg.use_ecore_affinity) {
     cout << "Max E-cores: "
-         << (max_ecore_threads == -1 ? "All available" : to_string(max_ecore_threads)) << endl;
+         << (cfg.max_ecore_threads == -1 ? "All available" : to_string(cfg.max_ecore_threads))
+         << endl;
   }
-  ThreadWrapper thread_wrapper(
-      {MAX_THREADS}); // wrapper to cleanly manage branching with different backends
+  cout << "GPU offloading: " << (cfg.use_gpu ? "Enabled" : "Disabled") << endl;
+
+  ThreadWrapper thread_wrapper({MAX_THREADS});
 
   thread_wrapper.execute([&]() {
-    NetworkStageWorker worker(listen_port, use_ecore_affinity, max_ecore_threads);
+    NetworkStageWorker worker(cfg.listen_port, cfg.use_gpu, cfg.use_ecore_affinity,
+                              cfg.max_ecore_threads);
     worker.start();
   });
+
   return 0;
 }

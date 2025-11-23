@@ -1,4 +1,4 @@
-#include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -31,23 +31,29 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    CIFAR10DataLoader<float> train_loader, test_loader;
+    // Create data loaders
+    TinyImageNetDataLoader<float> train_loader;
+    TinyImageNetDataLoader<float> val_loader;
 
-    vector<string> train_files;
-    for (int i = 1; i <= 5; ++i) {
-      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + to_string(i) + ".bin");
+    // Path to Tiny ImageNet dataset
+    std::string dataset_path = "data/tiny-imagenet-200";
+
+    // Load training data
+    std::cout << "\nLoading training data..." << std::endl;
+    if (!train_loader.load_data(dataset_path, true)) {
+      std::cerr << "Failed to load training data!" << std::endl;
+      return 1;
     }
 
-    if (!train_loader.load_multiple_files(train_files)) {
-      return -1;
-    }
-
-    if (!test_loader.load_multiple_files({"./data/cifar-10-batches-bin/test_batch.bin"})) {
-      return -1;
+    // Load validation data
+    std::cout << "\nLoading validation data..." << std::endl;
+    if (!val_loader.load_data(dataset_path, false)) {
+      std::cerr << "Failed to load validation data!" << std::endl;
+      return 1;
     }
 
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded validation data: " << test_loader.size() << " samples" << endl;
+    cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
     auto aug_strategy = AugmentationBuilder<float>()
                             .horizontal_flip(0.25f)
@@ -60,10 +66,10 @@ int main() {
     cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    cout << "\nBuilding CNN model architecture for CIFAR-10..." << endl;
+    cout << "\nBuilding CNN model architecture for Tiny ImageNet..." << endl;
 
-    auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v2")
-                     .input({3, 32, 32})
+    auto model = SequentialBuilder<float>("imagenet_cnn_classifier")
+                     .input({3, 64, 64})
                      .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv0")
                      .batchnorm(1e-5f, 0.1f, true, "bn0")
                      .activation("relu", "relu0")
@@ -100,7 +106,7 @@ int main() {
                      .flatten("flatten")
                      .dense(512, true, "fc0")
                      .activation("relu", "relu10")
-                     .dense(10, true, "fc1")
+                     .dense(200, true, "fc1")
                      .build();
 
     model.set_device(device_type);
@@ -116,10 +122,9 @@ int main() {
 
     model.enable_profiling(true);
 
-    cout << "\nStarting CIFAR-10 CNN training..." << endl;
-    train_classification_model(model, train_loader, test_loader, train_config);
+    cout << "\nStarting Tiny ImageNet CNN training..." << endl;
+    train_classification_model(model, train_loader, val_loader, train_config);
 
-    cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;

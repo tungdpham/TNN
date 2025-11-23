@@ -845,6 +845,7 @@ public:
       throw std::runtime_error("No optimizer set for model");
     }
     optimizer_->update(params, grads);
+    clear_gradients();
   }
 
   void clear_gradients() const {

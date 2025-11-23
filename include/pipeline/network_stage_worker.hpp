@@ -30,9 +30,9 @@ public:
    * @param use_ecore_affinity Whether to bind worker threads to E-cores for efficiency
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
    */
-  explicit NetworkStageWorker(int listen_port, bool use_ecore_affinity = false,
+  explicit NetworkStageWorker(int listen_port, bool use_gpu, bool use_ecore_affinity = false,
                               int max_ecore_threads = -1)
-      : PipelineStage(), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
+      : PipelineStage(use_gpu), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
         max_ecore_threads_(max_ecore_threads) {
 
     // Initialize hardware info for affinity

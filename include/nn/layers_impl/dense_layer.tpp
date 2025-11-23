@@ -15,6 +15,7 @@
 #include "cuda/dense_ops.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
+#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -63,7 +64,13 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     current = &device_input;
   }
 
-  micro_batch_inputs_[micro_batch_id] = current->clone();
+  auto it_input = micro_batch_inputs_.find(micro_batch_id);
+  if (it_input == micro_batch_inputs_.end()) {
+    micro_batch_inputs_[micro_batch_id] = current->clone();
+  } else {
+    micro_batch_inputs_[micro_batch_id].resize(current->shape());
+    ops::copy(input.data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
+  }
 
   Tensor<T> &output =
       this->get_output_buffer(micro_batch_id, {batch_size, output_features_, size_t(1), size_t(1)});

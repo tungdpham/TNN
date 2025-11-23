@@ -148,17 +148,18 @@ private:
     image_data.resize(tiny_imagenet_constants::NUM_CHANNELS *
                       tiny_imagenet_constants::IMAGE_HEIGHT * tiny_imagenet_constants::IMAGE_WIDTH);
 
-    parallel_for_2d(tiny_imagenet_constants::NUM_CHANNELS, tiny_imagenet_constants::IMAGE_HEIGHT,
-                    [&](size_t c, size_t h) {
-                      for (size_t w = 0; w < tiny_imagenet_constants::IMAGE_WIDTH; ++w) {
-                        size_t src_idx = (h * tiny_imagenet_constants::IMAGE_WIDTH + w) * 3 + c;
-                        size_t dst_idx = c * tiny_imagenet_constants::IMAGE_HEIGHT *
-                                             tiny_imagenet_constants::IMAGE_WIDTH +
-                                         h * tiny_imagenet_constants::IMAGE_WIDTH + w;
-                        image_data[dst_idx] = static_cast<T>(img[src_idx]) /
-                                              tiny_imagenet_constants::NORMALIZATION_FACTOR;
-                      }
-                    });
+    for (size_t c = 0; c < tiny_imagenet_constants::NUM_CHANNELS; ++c) {
+      for (size_t h = 0; h < tiny_imagenet_constants::IMAGE_HEIGHT; ++h) {
+        for (size_t w = 0; w < tiny_imagenet_constants::IMAGE_WIDTH; ++w) {
+          size_t src_idx = (h * tiny_imagenet_constants::IMAGE_WIDTH + w) * 3 + c;
+          size_t dst_idx =
+              c * tiny_imagenet_constants::IMAGE_HEIGHT * tiny_imagenet_constants::IMAGE_WIDTH +
+              h * tiny_imagenet_constants::IMAGE_WIDTH + w;
+          image_data[dst_idx] =
+              static_cast<T>(img[src_idx]) / tiny_imagenet_constants::NORMALIZATION_FACTOR;
+        }
+      }
+    }
 
     stbi_image_free(img);
     return true;
@@ -501,7 +502,8 @@ public:
     std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
               << std::endl;
 
-    parallel_for<size_t>(0, num_batches, [&](size_t batch_idx) {
+    // parallel_for<size_t>(0, num_batches, [&](size_t batch_idx) {
+    for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
       const size_t actual_batch_size = end_idx - start_idx;
@@ -548,7 +550,7 @@ public:
         std::cout << "Prepared " << (batch_idx + 1) << "/" << num_batches << " batches..."
                   << std::endl;
       }
-    });
+    }
 
     this->current_batch_index_ = 0;
     batches_prepared_ = true;

@@ -6,6 +6,7 @@ create_default(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_default(uji_ips_trainer uji_ips_trainer.cpp)
 create_default(resnet_example resnet_example.cpp)
 create_default(resnet9_tiny_imagenet resnet9_tiny_imagenet.cpp)
+create_default(tiny_imagenet_cnn_trainer tiny_imagenet_cnn_trainer.cpp)
 
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
