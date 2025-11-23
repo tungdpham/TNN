@@ -77,8 +77,8 @@ std::unique_ptr<Layer<T>> maxpool2d_layer(size_t pool_h, size_t pool_w, size_t s
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> avgpool2d_layer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
-                                          size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+std::unique_ptr<Layer<T>> avgpool2d_layer(size_t pool_h, size_t pool_w, size_t stride_h = 1,
+                                          size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                                           const std::string &name = "avgpool2d") {
   return std::make_unique<AvgPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                              name);
@@ -335,7 +335,7 @@ public:
     return *this;
   }
 
-  LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
+  LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                           size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "") {
     auto layer =
         avgpool2d_layer<T>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,

@@ -176,6 +176,64 @@ public:
   }
 };
 
+// Numerically stable LogSoftmax + CrossEntropy combined loss
+template <typename T = float> class LogSoftmaxCrossEntropyLoss : public Loss<T> {
+public:
+  LogSoftmaxCrossEntropyLoss() = default;
+
+  std::unique_ptr<Task> compute_loss(const Tensor<T> &logits, const Tensor<T> &targets,
+                                     T &loss) override {
+    const size_t batch_size = logits.shape()[0];
+    const size_t num_classes = logits.shape()[1];
+
+    if (logits.device_type() == DeviceType::CPU) {
+      return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
+                             logits.data(), targets.data(), loss, batch_size, num_classes);
+    }
+#ifdef USE_CUDA
+    else if (logits.device_type() == DeviceType::GPU) {
+      return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
+                             logits.data(), targets.data(), loss, batch_size, num_classes);
+    }
+#endif
+    throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
+  }
+
+  std::unique_ptr<Task> compute_gradient(const Tensor<T> &logits, const Tensor<T> &targets,
+                                         Tensor<T> &gradient) override {
+    gradient.resize(logits.shape());
+    const size_t batch_size = logits.shape()[0];
+    const size_t num_classes = logits.shape()[1];
+
+    if (logits.device_type() == DeviceType::CPU) {
+      return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
+                             logits.data(), targets.data(), gradient.data(), batch_size,
+                             num_classes);
+    }
+#ifdef USE_CUDA
+    else if (logits.device_type() == DeviceType::GPU) {
+      return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
+                             logits.data(), targets.data(), gradient.data(), batch_size,
+                             num_classes);
+    }
+#endif
+    throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
+  }
+
+  std::string name() const override { return "LogSoftmaxCrossEntropyLoss"; }
+
+  LossConfig get_config() const override {
+    LossConfig config;
+    config.type = "logsoftmax_crossentropy";
+    config.name = "LogSoftmaxCrossEntropyLoss";
+    return config;
+  }
+
+  std::unique_ptr<Loss<T>> clone() const override {
+    return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
+  }
+};
+
 template <typename T = float> class MSELoss : public Loss<T> {
 public:
   MSELoss() = default;
@@ -351,6 +409,9 @@ public:
     if (loss_type == "softmax_crossentropy" || loss_type == "softmax_ce") {
       return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
     }
+    if (loss_type == "logsoftmax_crossentropy" || loss_type == "logsoftmax_ce") {
+      return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
+    }
     if (loss_type == "mse" || loss_type == "mean_squared_error") {
       return std::make_unique<MSELoss<T>>();
     }
@@ -371,6 +432,9 @@ public:
     if (config.type == "softmax_crossentropy" || config.type == "softmax_ce") {
       return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
     }
+    if (config.type == "logsoftmax_crossentropy" || config.type == "logsoftmax_ce") {
+      return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
+    }
     if (config.type == "mse" || config.type == "mean_squared_error") {
       return std::make_unique<MSELoss<T>>();
     }
@@ -390,6 +454,10 @@ public:
 
   static std::unique_ptr<Loss<T>> create_softmax_crossentropy() {
     return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
+  }
+
+  static std::unique_ptr<Loss<T>> create_logsoftmax_crossentropy() {
+    return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
   }
 
   static std::unique_ptr<Loss<T>> create_mse() { return std::make_unique<MSELoss<T>>(); }

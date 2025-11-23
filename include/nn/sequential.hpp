@@ -51,6 +51,10 @@ private:
 
   bool enable_profiling_ = false;
 
+  // Activation capture for debugging
+  bool capture_activations_ = false;
+  mutable std::vector<Tensor<T>> captured_activations_;
+
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
   std::map<std::string, uint64_t> forward_times_microseconds_;
@@ -396,6 +400,10 @@ public:
     }
     const Device *input_device = input.device();
     const Tensor<T> *current = &input;
+    if (capture_activations_) {
+      captured_activations_.clear();
+      captured_activations_.push_back(input.clone());
+    }
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
         // just profile since it's not expensive
@@ -414,6 +422,9 @@ public:
         {
           std::lock_guard<std::mutex> lock(forward_times_mutex_);
           forward_times_microseconds_[layer_name] += duration.count();
+        }
+        if (capture_activations_) {
+          captured_activations_.push_back(current->clone());
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
@@ -924,7 +935,18 @@ public:
     return stages;
   }
 
-  const std::vector<std::unique_ptr<Layer<T>>> &get_layers() const { return layers_; }
+  const std::vector<Layer<T> *> &get_layers() const {
+    static std::vector<Layer<T> *> layer_ptrs;
+    layer_ptrs.clear();
+    for (const auto &layer : layers_) {
+      layer_ptrs.push_back(layer.get());
+    }
+    return layer_ptrs;
+  }
+
+  void set_capture_activations(bool enable) { capture_activations_ = enable; }
+  bool is_capture_activations_enabled() const { return capture_activations_; }
+  const std::vector<Tensor<T>> &get_captured_activations() const { return captured_activations_; }
 
   /**
    * @brief Returns the model configuration as a JSON object.
@@ -1276,7 +1298,7 @@ public:
   }
 
   SequentialBuilder &residual(std::vector<std::unique_ptr<Layer<T>>> main_path,
-                              std::unique_ptr<Layer<T>> shortcut = nullptr,
+                              std::vector<std::unique_ptr<Layer<T>>> shortcut,
                               const std::string &activation_name = "relu",
                               const std::string &name = "") {
     std::unique_ptr<ResidualBlock<T>> res_block = residual_block<T>(
@@ -1294,24 +1316,23 @@ public:
                                           size_t stride = 1,
                                           const std::string &name = "basic_residual_block") {
     auto current_shape = layer_builder_.get_current_shape();
-    auto input_shape = std::vector<size_t>{in_channels, current_shape[1], current_shape[2]};
+    auto input_shape = std::vector<size_t>{in_channels, current_shape[2], current_shape[3]};
     auto main_path = LayerBuilder<T>()
                          .input(input_shape)
                          .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm()
+                         .batchnorm(1e-3f, 0.1f, true, "bn0")
                          .activation("relu")
                          .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
-                         .batchnorm()
+                         .batchnorm(1e-3f, 0.1f, true, "bn0")
                          .build();
 
-    std::unique_ptr<Layer<T>> shortcut = nullptr;
+    std::vector<std::unique_ptr<Layer<T>>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
-      auto shortcut_layers = LayerBuilder<T>()
-                                 .input(input_shape)
-                                 .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
-                                 .batchnorm()
-                                 .build();
-      shortcut = conv2d_layer<T>(in_channels, out_channels, 1, 1, stride, stride, 0, 0, false);
+      shortcut = LayerBuilder<T>()
+                     .input(input_shape)
+                     .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .batchnorm(1e-3f, 0.1f, true, "bn0")
+                     .build();
     }
 
     auto res_block = residual_block<T>(
@@ -1330,25 +1351,29 @@ public:
                             size_t stride = 1,
                             const std::string &name = "bottleneck_residual_block") {
     auto current_shape = layer_builder_.get_current_shape();
-    auto input_shape = std::vector<size_t>{in_channels, current_shape[1], current_shape[2]};
+    auto input_shape = std::vector<size_t>{in_channels, current_shape[2], current_shape[3]};
     // Build main path using LayerBuilder
     auto main_path = LayerBuilder<T>()
                          .input(input_shape)
                          .conv2d(mid_channels, 1, 1, 1, 1, 0, 0, false)
-                         .batchnorm()
+                         .batchnorm(1e-3f, 0.1f, true, "bn0")
                          .activation("relu")
                          .conv2d(mid_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm()
+                         .batchnorm(1e-3f, 0.1f, true, "bn0")
                          .activation("relu")
                          // 1x1 conv to expand dimensions (no activation, added after residual)
                          .conv2d(out_channels, 1, 1, 1, 1, 0, 0, false)
-                         .batchnorm()
+                         .batchnorm(1e-3f, 0.1f, true, "bn0")
                          .build();
 
     // Build projection shortcut if dimensions change
-    std::unique_ptr<Layer<T>> shortcut = nullptr;
+    std::vector<std::unique_ptr<Layer<T>>> shortcut;
     if (stride != 1 || in_channels != out_channels) {
-      shortcut = conv2d_layer<T>(in_channels, out_channels, 1, 1, stride, stride, 0, 0, false);
+      shortcut = LayerBuilder<T>()
+                     .input(input_shape)
+                     .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .batchnorm(1e-3f, 0.1f, true, "bn0")
+                     .build();
     }
 
     auto res_block = residual_block<T>(std::move(main_path), std::move(shortcut), "relu", name);

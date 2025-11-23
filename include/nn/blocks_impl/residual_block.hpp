@@ -8,8 +8,10 @@
 
 #include "nn/activations.hpp"
 #include "nn/layers_impl/base_layer.hpp"
+#include "nn/layers_impl/parameterized_layer.hpp"
 #include "ops/ops.hpp"
 
+#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -24,10 +26,10 @@ namespace tnn {
  * Supports both identity shortcuts (when input/output dimensions match)
  * and projection shortcuts (1x1 conv when dimensions differ).
  */
-template <typename T = float> class ResidualBlock : public Layer<T> {
+template <typename T = float> class ResidualBlock : public ParameterizedLayer<T> {
 private:
   std::vector<std::unique_ptr<Layer<T>>> main_path_;
-  std::unique_ptr<Layer<T>> shortcut_;
+  std::vector<std::unique_ptr<Layer<T>>> shortcut_path_;
   std::unique_ptr<ActivationFunction<T>> final_activation_;
 
   std::unordered_map<size_t, Tensor<T>> main_output_cache_;
@@ -40,15 +42,15 @@ public:
   /**
    * @brief Constructs a residual block
    * @param main_path The main transformation path F(x) as a vector of layers
-   * @param shortcut Optional projection layer for dimension matching (nullptr for identity)
+   * @param shortcut_path Optional projection path for dimension matching (empty for identity)
    * @param final_activation Activation applied after addition (e.g., "relu")
    * @param name Layer name
    */
   ResidualBlock(std::vector<std::unique_ptr<Layer<T>>> main_path,
-                std::unique_ptr<Layer<T>> shortcut = nullptr,
+                std::vector<std::unique_ptr<Layer<T>>> shortcut_path,
                 const std::string &final_activation = "relu",
                 const std::string &name = "residual_block")
-      : main_path_(std::move(main_path)), shortcut_(std::move(shortcut)),
+      : main_path_(std::move(main_path)), shortcut_path_(std::move(shortcut_path)),
         activation_type_(final_activation) {
     this->name_ = name;
 
@@ -67,8 +69,8 @@ public:
       main_path_.push_back(layer->clone());
     }
 
-    if (other.shortcut_) {
-      shortcut_ = other.shortcut_->clone();
+    for (const auto &layer : other.shortcut_path_) {
+      shortcut_path_.push_back(layer->clone());
     }
 
     if (other.final_activation_) {
@@ -78,46 +80,49 @@ public:
     }
   }
 
-  void initialize() override {
+  void initialize_params() override {
     for (auto &layer : main_path_) {
       layer->initialize();
     }
-    if (shortcut_) {
-      shortcut_->initialize();
+    for (auto &layer : shortcut_path_) {
+      layer->initialize();
     }
   }
 
   const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override {
-    // const Tensor<T> &current_input =
-    //     input.device() == this->device_ ? input : input.to_device(this->get_device());
+    const Tensor<T> *current_input = &input;
+    Tensor<T> device_input;
+    if (input.device() != this->device_) {
+      device_input = input.to_device(this->get_device());
+      current_input = &device_input;
+    }
 
     // Main path: F(x)
-    const Tensor<T> *current = &input;
+    const Tensor<T> *main_path = current_input;
     for (auto &layer : main_path_) {
-      current = &layer->forward(*current, micro_batch_id);
+      main_path = &layer->forward(*main_path, micro_batch_id);
     }
     auto it_main = main_output_cache_.find(micro_batch_id);
     if (it_main == main_output_cache_.end()) {
-      main_output_cache_[micro_batch_id] = current->clone();
+      main_output_cache_[micro_batch_id] = main_path->clone();
     } else {
-      it_main->second.resize(current->shape());
-      ops::copy(current->data_ptr(), it_main->second.data_ptr(), current->size());
+      it_main->second.resize(main_path->shape());
+      ops::copy(main_path->data_ptr(), it_main->second.data_ptr(), main_path->size());
     }
 
     // Shortcut path: x or projection(x)
-    const Tensor<T> &shortcut_output =
-        shortcut_ ? shortcut_->forward(input, micro_batch_id) : input;
+    const Tensor<T> *shortcut_path = current_input;
+    if (!shortcut_path_.empty()) {
+      for (auto &layer : shortcut_path_) {
+        shortcut_path = &layer->forward(*shortcut_path, micro_batch_id);
+      }
+    }
     auto it_shortcut = shortcut_output_cache_.find(micro_batch_id);
     if (it_shortcut == shortcut_output_cache_.end()) {
-      shortcut_output_cache_[micro_batch_id] = shortcut_output.clone();
+      shortcut_output_cache_[micro_batch_id] = shortcut_path->clone();
     } else {
-      shortcut_output_cache_[micro_batch_id].resize(input.shape());
-      if (shortcut_) {
-        ops::copy(shortcut_output.data_ptr(), it_shortcut->second.data_ptr(),
-                  shortcut_output.size());
-      } else {
-        ops::copy(input.data_ptr(), it_shortcut->second.data_ptr(), input.size());
-      }
+      it_shortcut->second.resize(shortcut_path->shape());
+      ops::copy(shortcut_path->data_ptr(), it_shortcut->second.data_ptr(), shortcut_path->size());
     }
 
     // Residual connection: F(x) + x
@@ -132,7 +137,7 @@ public:
       pre_activation_cache_[micro_batch_id] = output.clone();
     } else {
       it_pre_act->second.resize(output.shape());
-      ops::copy(it_pre_act->second.data_ptr(), output.data_ptr(), output.size());
+      ops::copy(output.data_ptr(), it_pre_act->second.data_ptr(), output.size());
     }
 
     if (final_activation_) {
@@ -143,9 +148,12 @@ public:
   }
 
   const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override {
-    // const Tensor<T> &current_gradient =
-    //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->get_device());
     const Tensor<T> *current_gradient = &gradient;
+    Tensor<T> device_gradient;
+    if (gradient.device() != this->device_) {
+      device_gradient = gradient.to_device(this->device_);
+      current_gradient = &device_gradient;
+    }
 
     // Gradient through final activation
     Tensor<T> grad_after_activation;
@@ -154,8 +162,7 @@ public:
       final_activation_->compute_gradient_inplace(pre_activation_cache_[micro_batch_id],
                                                   grad_after_activation);
     }
-    // const Tensor<T> &grad_to_propagate =
-    //     final_activation_ ? grad_after_activation : current_gradient;
+
     const Tensor<T> *grad_to_propagate =
         final_activation_ ? &grad_after_activation : current_gradient;
 
@@ -166,11 +173,11 @@ public:
     }
 
     // Backward through shortcut
-    const Tensor<T> *grad_shortcut;
-    if (shortcut_) {
-      grad_shortcut = &shortcut_->backward(*grad_to_propagate, micro_batch_id);
-    } else {
-      grad_shortcut = grad_to_propagate;
+    const Tensor<T> *grad_shortcut = grad_to_propagate;
+    if (!shortcut_path_.empty()) {
+      for (int i = static_cast<int>(shortcut_path_.size()) - 1; i >= 0; --i) {
+        grad_shortcut = &shortcut_path_[i]->backward(*grad_shortcut, micro_batch_id);
+      }
     }
 
     // Sum gradients from both paths
@@ -180,34 +187,37 @@ public:
     return grad_input;
   }
 
-  std::vector<Tensor<T> *> parameters() override {
-    std::vector<Tensor<T> *> params;
+  void collect_parameters(std::vector<Tensor<T> *> &params) override {
     for (auto &layer : main_path_) {
       auto layer_params = layer->parameters();
       params.insert(params.end(), layer_params.begin(), layer_params.end());
     }
 
-    if (shortcut_) {
-      auto shortcut_params = shortcut_->parameters();
-      params.insert(params.end(), shortcut_params.begin(), shortcut_params.end());
+    for (auto &layer : shortcut_path_) {
+      auto layer_params = layer->parameters();
+      params.insert(params.end(), layer_params.begin(), layer_params.end());
     }
-
-    return params;
   }
 
-  std::vector<Tensor<T> *> gradients() override {
-    std::vector<Tensor<T> *> grads;
+  void collect_gradients(std::vector<Tensor<T> *> &grads) override {
     for (auto &layer : main_path_) {
       auto layer_grads = layer->gradients();
       grads.insert(grads.end(), layer_grads.begin(), layer_grads.end());
     }
 
-    if (shortcut_) {
-      auto shortcut_grads = shortcut_->gradients();
-      grads.insert(grads.end(), shortcut_grads.begin(), shortcut_grads.end());
+    for (auto &layer : shortcut_path_) {
+      auto layer_grads = layer->gradients();
+      grads.insert(grads.end(), layer_grads.begin(), layer_grads.end());
     }
+  }
 
-    return grads;
+  void clear_gradients() override {
+    for (auto &layer : main_path_) {
+      layer->clear_gradients();
+    }
+    for (auto &layer : shortcut_path_) {
+      layer->clear_gradients();
+    }
   }
 
   bool has_parameters() const override {
@@ -215,7 +225,11 @@ public:
       if (layer->has_parameters())
         return true;
     }
-    return (shortcut_ && shortcut_->has_parameters());
+    for (const auto &layer : shortcut_path_) {
+      if (layer->has_parameters())
+        return true;
+    }
+    return false;
   }
 
   void set_training(bool training) override {
@@ -223,8 +237,8 @@ public:
     for (auto &layer : main_path_) {
       layer->set_training(training);
     }
-    if (shortcut_) {
-      shortcut_->set_training(training);
+    for (auto &layer : shortcut_path_) {
+      layer->set_training(training);
     }
   }
 
@@ -233,8 +247,8 @@ public:
     for (auto &layer : main_path_) {
       layer->set_device(device);
     }
-    if (shortcut_) {
-      shortcut_->set_device(device);
+    for (auto &layer : shortcut_path_) {
+      layer->set_device(device);
     }
   }
 
@@ -255,13 +269,15 @@ public:
     }
 
     uint64_t shortcut_complexity = 0;
-    if (shortcut_) {
-      shortcut_complexity = shortcut_->forward_complexity(input_shape);
+    std::vector<size_t> shortcut_shape = input_shape;
+    for (const auto &layer : shortcut_path_) {
+      shortcut_complexity += layer->forward_complexity(shortcut_shape);
+      shortcut_shape = layer->compute_output_shape(shortcut_shape);
     }
 
-    // Add complexity for element-wise addition (approximately input_size operations)
+    // Add complexity for element-wise addition (use output shape after main path transformations)
     size_t add_complexity = 1;
-    for (size_t dim : input_shape) {
+    for (size_t dim : current_shape) {
       add_complexity *= dim;
     }
 
@@ -277,12 +293,15 @@ public:
     }
 
     uint64_t shortcut_complexity = 0;
-    if (shortcut_) {
-      shortcut_complexity = shortcut_->backward_complexity(input_shape);
+    std::vector<size_t> shortcut_shape = input_shape;
+    for (const auto &layer : shortcut_path_) {
+      shortcut_complexity += layer->backward_complexity(shortcut_shape);
+      shortcut_shape = layer->compute_output_shape(shortcut_shape);
     }
 
+    // Add complexity for gradient summation (use output shape after main path transformations)
     size_t add_complexity = 1;
-    for (size_t dim : input_shape) {
+    for (size_t dim : current_shape) {
       add_complexity *= dim;
     }
 
@@ -303,7 +322,7 @@ public:
     LayerConfig config;
     config.name = this->name_;
     config.parameters["activation"] = activation_type_;
-    config.parameters["has_projection"] = (shortcut_ != nullptr);
+    config.parameters["has_projection"] = (!shortcut_path_.empty());
     return config;
   }
 
@@ -312,12 +331,15 @@ public:
     for (const auto &layer : main_path_) {
       main_clone.push_back(layer->clone());
     }
-    auto shortcut_clone = shortcut_ ? shortcut_->clone() : nullptr;
+    std::vector<std::unique_ptr<Layer<T>>> shortcut_clone;
+    for (const auto &layer : shortcut_path_) {
+      shortcut_clone.push_back(layer->clone());
+    }
     return std::make_unique<ResidualBlock<T>>(std::move(main_clone), std::move(shortcut_clone),
                                               activation_type_, this->name_);
   }
 
   const std::vector<std::unique_ptr<Layer<T>>> &get_main_path() const { return main_path_; }
-  const Layer<T> *get_shortcut() const { return shortcut_.get(); }
+  const std::vector<std::unique_ptr<Layer<T>>> &get_shortcut_path() const { return shortcut_path_; }
 };
 } // namespace tnn

@@ -9,6 +9,8 @@
 #include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
+#include "device/task.hpp"
+#include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
@@ -106,7 +108,8 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   train_loader.reset();
 
   double total_loss = 0.0;
-  double total_accuracy = 0.0;
+  double total_corrects = 0.0;
+  int num_samples = 0;
   int num_batches = 0;
   const Device *model_device = model.get_device();
 
@@ -116,22 +119,26 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
+    num_samples += batch_data.shape()[0];
     device_batch_data = batch_data.to_device(model_device);
     Tensor<float> predictions = model.forward(device_batch_data);
-
     device_batch_labels = batch_labels.to_device(model_device);
+
     float loss;
-    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
-    float accuracy = compute_class_accuracy(predictions, device_batch_labels);
+    auto err = model.loss_function()->compute_loss(predictions, device_batch_labels, loss)->sync();
+    if (err != ErrorStatus{}) {
+      throw std::runtime_error("Error computing loss during training." + err.message());
+    }
+    int corrects = compute_class_corrects(predictions, device_batch_labels);
 
     total_loss += loss;
-    total_accuracy += accuracy;
+    total_corrects += corrects;
 
     model.clear_gradients();
 
     model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
-    model.backward(loss_gradient);
 
+    model.backward(loss_gradient);
     model.update_parameters();
 
     if (num_batches % config.progress_print_interval == 0) {
@@ -141,8 +148,8 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
         model.print_profiling_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
-                << std::setprecision(4) << loss << ", Batch's Accuracy: " << std::setprecision(2)
-                << accuracy * 100.0f << "%" << std::endl;
+                << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)
+                << (total_corrects * 100.0f / num_samples) << "%" << std::endl;
     }
     if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
       model.clear_profiling_data();
@@ -151,7 +158,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   std::cout << std::endl;
 
   const float avg_train_loss = static_cast<float>(total_loss / num_batches);
-  const float avg_train_accuracy = static_cast<float>(total_accuracy / num_batches);
+  const float avg_train_accuracy = static_cast<float>(total_corrects / num_samples);
 
   return {avg_train_loss, avg_train_accuracy};
 }
@@ -215,11 +222,8 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
   arena.execute([&] {
 #endif
     // auto [best_val_loss, best_val_accuracy] = validate_class_model(model, test_loader);
-    float best_val_accuracy = 0.0f, best_val_loss = std::numeric_limits<float>::max();
 
-    std::cout << "Initial validation - Loss: " << std::fixed << std::setprecision(4)
-              << best_val_loss << ", Accuracy: " << std::setprecision(2)
-              << best_val_accuracy * 100.0f << "%" << std::endl;
+    float best_val_accuracy = 0.0f;
 
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;

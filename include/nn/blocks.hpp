@@ -9,7 +9,7 @@ namespace tnn {
 
 template <typename T = float>
 std::unique_ptr<ResidualBlock<T>> residual_block(std::vector<std::unique_ptr<Layer<T>>> main_path,
-                                                 std::unique_ptr<Layer<T>> shortcut = nullptr,
+                                                 std::vector<std::unique_ptr<Layer<T>>> shortcut,
                                                  const std::string &activation_name = "relu",
                                                  const std::string &name = "") {
   return std::make_unique<ResidualBlock<T>>(

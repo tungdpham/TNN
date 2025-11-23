@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <memory>
 #include <numeric>
 #include <sstream>
@@ -505,6 +506,32 @@ public:
     ops::copy(other.data_, data_, batch_stride, src_offset, dest_offset)->sync();
   }
 
+  T min() const {
+    if (device_type() != DeviceType::CPU) {
+      throw std::runtime_error("Min operation is only supported on CPU tensors");
+    }
+    T min_value = data_.get()[0];
+    for (size_t i = 1; i < data_size_; ++i) {
+      if (data_.get()[i] < min_value) {
+        min_value = data_.get()[i];
+      }
+    }
+    return min_value;
+  }
+
+  T max() const {
+    if (device_type() != DeviceType::CPU) {
+      throw std::runtime_error("Max operation is only supported on CPU tensors");
+    }
+    T max_value = data_.get()[0];
+    for (size_t i = 1; i < data_size_; ++i) {
+      if (data_.get()[i] > max_value) {
+        max_value = data_.get()[i];
+      }
+    }
+    return max_value;
+  }
+
   T mean() const {
     T sum = ops::sum(data_, data_size_);
     return sum / static_cast<T>(data_size_);
@@ -520,8 +547,21 @@ public:
     Tensor<T, L> cpu_tensor = to_cpu();
     size_t total_elements = cpu_tensor.size();
     std::cout << "Tensor data (shape " << cpu_tensor.shape_str() << "):\n";
+    T *data = cpu_tensor.data_.get();
     for (size_t i = 0; i < total_elements; ++i) {
-      std::cout << cpu_tensor.data_.get()[i] << " ";
+      std::cout << std::setprecision(3) << data[i] << " ";
+    }
+    std::cout << std::endl;
+  }
+
+  void head(size_t n = 10) const {
+    Tensor<T, L> cpu_tensor = to_cpu();
+    size_t total_elements = cpu_tensor.size();
+    n = std::min(n, total_elements);
+    std::cout << "Tensor head (first " << n << " elements of shape " << cpu_tensor.shape_str()
+              << "):\n";
+    for (size_t i = 0; i < n; ++i) {
+      std::cout << std::setprecision(3) << cpu_tensor.data_.get()[i] << " ";
     }
     std::cout << std::endl;
   }
@@ -558,5 +598,23 @@ public:
     return tensor;
   }
 };
+
+template <typename T>
+void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_name = "") {
+  for (size_t i = 0; i < size; ++i) {
+    if (std::isnan(data[i]) || std::isinf(data[i])) {
+      std::cerr << "Tensor " << tensor_name << " contains NaN or Inf at index " << i << std::endl;
+      return;
+    }
+  }
+}
+
+template <typename T>
+void check_nan_and_inf(const Tensor<T> &tensor, const std::string &tensor_name = "") {
+  Tensor<T> cpu_tensor = tensor.to_cpu();
+  size_t total_elements = cpu_tensor.size();
+  T *data = cpu_tensor.data_ptr().get();
+  check_nan_and_inf(data, total_elements, tensor_name);
+}
 
 } // namespace tnn

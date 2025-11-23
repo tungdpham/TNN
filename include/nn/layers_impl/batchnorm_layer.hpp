@@ -41,6 +41,10 @@ private:
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
   std::unordered_map<size_t, device_ptr<T[]>> batch_mean_fixed_;
 
+  // Temporary buffers for non-affine backward pass
+  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_dgamma_temp_;
+  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_dbeta_temp_;
+
   // Workspace buffers for backward pass (GPU optimization)
   std::unordered_map<size_t, device_ptr<T[]>> workspace_sum_grad_normalized_;
   std::unordered_map<size_t, device_ptr<T[]>> workspace_sum_grad_norm_times_norm_;
@@ -88,6 +92,10 @@ public:
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+
+  // Accessors for debugging running statistics (not trainable parameters)
+  const Tensor<T> &running_mean() const { return running_mean_; }
+  const Tensor<T> &running_var() const { return running_var_; }
 
 protected:
   void initialize_params() override;

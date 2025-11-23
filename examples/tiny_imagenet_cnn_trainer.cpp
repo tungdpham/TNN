@@ -1,4 +1,5 @@
 #include "data_loading/tiny_imagenet_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -12,7 +13,7 @@
 using namespace tnn;
 using namespace std;
 
-constexpr float LR_INITIAL = 0.001f;
+constexpr float LR_INITIAL = 0.0001f;
 
 int main() {
   try {
@@ -26,6 +27,8 @@ int main() {
 
     float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
     DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+
+    cout << "Using learning rate: " << lr_initial << endl;
 
     TrainingConfig train_config;
     train_config.load_from_env();
@@ -56,71 +59,32 @@ int main() {
     cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
     auto aug_strategy = AugmentationBuilder<float>()
-                            .horizontal_flip(0.25f)
-                            .rotation(0.3f, 10.0f)
-                            .brightness(0.3f, 0.15f)
-                            .contrast(0.3f, 0.15f)
-                            .gaussian_noise(0.3f, 0.05f)
-                            .random_crop(0.4f, 4)
+                            // .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                            // .horizontal_flip(0.2)
+                            // .rotation(0.2f, 5.0f)
+                            // .random_crop(0.25f, 4)
                             .build();
     cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(aug_strategy));
 
     cout << "\nBuilding CNN model architecture for Tiny ImageNet..." << endl;
 
-    auto model = SequentialBuilder<float>("imagenet_cnn_classifier")
-                     .input({3, 64, 64})
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv0")
-                     .batchnorm(1e-5f, 0.1f, true, "bn0")
-                     .activation("relu", "relu0")
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .activation("relu", "relu1")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
-                     .batchnorm(1e-5f, 0.1f, true, "bn2")
-                     .activation("relu", "relu2")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv3")
-                     .batchnorm(1e-5f, 0.1f, true, "bn3")
-                     .activation("relu", "relu3")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv4")
-                     .batchnorm(1e-5f, 0.1f, true, "bn5")
-                     .activation("relu", "relu5")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv5")
-                     .activation("relu", "relu6")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv6")
-                     .batchnorm(1e-5f, 0.1f, true, "bn6")
-                     .activation("relu", "relu6")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv7")
-                     .batchnorm(1e-5f, 0.1f, true, "bn8")
-                     .activation("relu", "relu7")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv8")
-                     .batchnorm(1e-5f, 0.1f, true, "bn9")
-                     .activation("relu", "relu8")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv9")
-                     .batchnorm(1e-5f, 0.1f, true, "bn10")
-                     .activation("relu", "relu9")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                     .flatten("flatten")
-                     .dense(512, true, "fc0")
-                     .activation("relu", "relu10")
-                     .dense(200, true, "fc1")
-                     .build();
+    auto model = create_resnet18_tiny_imagenet();
 
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    // Use slightly higher epsilon for better numerical stability
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
+    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
-    // auto loss_function =
-    // LossFactory<float>::create_crossentropy(cifar10_constants::EPSILON);
-    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+    auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
+    // Enable activation captures for early-batch debugging
+    model.set_capture_activations(true);
 
     cout << "\nStarting Tiny ImageNet CNN training..." << endl;
     train_classification_model(model, train_loader, val_loader, train_config);

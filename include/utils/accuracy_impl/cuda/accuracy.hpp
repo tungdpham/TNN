@@ -17,9 +17,8 @@ float compute_class_accuracy(const float *predictions, const float *targets,
                              const size_t batch_size, const size_t num_classes);
 
 // Compute class corrects
-float compute_class_corrects(const float *predictions, const float *targets,
-                             const size_t batch_size, const size_t num_classes,
-                             float threshold = 0.5f);
+int compute_class_corrects(const float *predictions, const float *targets, const size_t batch_size,
+                           const size_t num_classes, float threshold = 0.5f);
 
 } // namespace accuracy
 } // namespace cuda

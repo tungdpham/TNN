@@ -45,6 +45,7 @@ public:
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
+  virtual void clear_gradients() {}
 
   virtual uint64_t
   forward_complexity(const std::vector<size_t> &input_shape) const = 0; // relative complexity

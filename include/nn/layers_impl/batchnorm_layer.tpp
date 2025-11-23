@@ -67,9 +67,12 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
 
   size_t batch_size, channels, height, width, spatial_size;
   extract_tensor_dimensions(*current, batch_size, channels, height, width, spatial_size);
+  if (num_features_ != channels) {
+    throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
+  }
 
   Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
-  output.fill(T(0));
+  // output.fill(T(0));
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -93,14 +96,23 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
   }
 
   if (this->is_training_) {
-    // gamma and beta will just be nullptr if affine_ is false
-    run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
-                      micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(),
-                      running_var_.data_ptr(), gamma_.data_ptr(), beta_.data_ptr(),
-                      output.data_ptr(), micro_batch_normalized_[micro_batch_id], batch_size,
-                      channels, spatial_size, "default");
+    if (affine_) {
+      run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
+                        micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(),
+                        running_var_.data_ptr(), gamma_.data_ptr(), beta_.data_ptr(),
+                        output.data_ptr(), micro_batch_normalized_[micro_batch_id], batch_size,
+                        channels, spatial_size, "default");
+    } else {
+      device_ptr<T[]> nullptr_gamma(nullptr);
+      device_ptr<T[]> nullptr_beta(nullptr);
+      run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
+                        micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(),
+                        running_var_.data_ptr(), nullptr_gamma, nullptr_beta, output.data_ptr(),
+                        micro_batch_normalized_[micro_batch_id], batch_size, channels, spatial_size,
+                        "default");
+    }
   } else {
-    compute_inference_output(input, output, batch_size, channels, spatial_size, "default");
+    compute_inference_output(*current, output, batch_size, channels, spatial_size, "default");
   }
 
   micro_batch_inputs_[micro_batch_id] = current->clone();
@@ -141,9 +153,32 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
                              std::to_string(micro_batch_id));
   }
 
-  run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
-                     gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
-                     grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
+  // Allocate temporary buffers for gradient accumulation (needed even if non-affine)
+  auto it_dgamma = micro_batch_dgamma_temp_.find(micro_batch_id);
+  if (it_dgamma == micro_batch_dgamma_temp_.end()) {
+    micro_batch_dgamma_temp_[micro_batch_id] = make_array_ptr<T[]>(this->device_, num_features_);
+  } else {
+    micro_batch_dgamma_temp_[micro_batch_id].ensure(num_features_);
+  }
+
+  auto it_dbeta = micro_batch_dbeta_temp_.find(micro_batch_id);
+  if (it_dbeta == micro_batch_dbeta_temp_.end()) {
+    micro_batch_dbeta_temp_[micro_batch_id] = make_array_ptr<T[]>(this->device_, num_features_);
+  } else {
+    micro_batch_dbeta_temp_[micro_batch_id].ensure(num_features_);
+  }
+
+  if (affine_) {
+    run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
+                       gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
+                       grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
+  } else {
+    device_ptr<T[]> nullptr_gamma(nullptr);
+    run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
+                       nullptr_gamma, micro_batch_dgamma_temp_[micro_batch_id],
+                       micro_batch_dbeta_temp_[micro_batch_id], grad_input.data_ptr(), batch_size,
+                       channels, spatial_size, "default");
+  }
 
   micro_batch_gradients_[micro_batch_id] = grad_input.clone();
   return grad_input;
@@ -272,8 +307,6 @@ template <typename T> void BatchNormLayer<T>::collect_parameters(std::vector<Ten
     params.push_back(&gamma_);
     params.push_back(&beta_);
   }
-  params.push_back(&running_mean_);
-  params.push_back(&running_var_);
 }
 
 template <typename T> void BatchNormLayer<T>::collect_gradients(std::vector<Tensor<T> *> &grads) {
@@ -281,8 +314,6 @@ template <typename T> void BatchNormLayer<T>::collect_gradients(std::vector<Tens
     grads.push_back(&gamma_gradients_);
     grads.push_back(&beta_gradients_);
   }
-  grads.push_back(&running_mean_gradients_);
-  grads.push_back(&running_var_gradients_);
 }
 
 template <typename T>

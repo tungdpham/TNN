@@ -38,6 +38,7 @@ protected:
 #include "cutout.hpp"
 #include "gaussian_noise.hpp"
 #include "horizontal_flip.hpp"
+#include "normalization.hpp"
 #include "random_crop.hpp"
 #include "rotation.hpp"
 #include "vertical_flip.hpp"
@@ -153,6 +154,12 @@ public:
 
   AugmentationBuilder &cutout(float probability = 0.5f, int cutout_size = 8) {
     strategy_.add_augmentation(std::make_unique<CutoutAugmentation<T>>(probability, cutout_size));
+    return *this;
+  }
+
+  AugmentationBuilder &normalize(const std::array<T, 3> &mean = {0.485f, 0.456f, 0.406f},
+                                 const std::array<T, 3> &std = {0.229f, 0.224f, 0.225f}) {
+    strategy_.add_augmentation(std::make_unique<NormalizationAugmentation<T>>(mean, std));
     return *this;
   }
 
