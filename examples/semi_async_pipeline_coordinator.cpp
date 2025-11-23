@@ -2,6 +2,7 @@
 
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/mnist_data_loader.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
@@ -28,7 +29,7 @@ int main() {
 
   // auto model = create_mnist_trainer();
 
-  auto model = create_cifar10_trainer_v2();
+  auto model = create_cifar10_trainer_v1();
 
   string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 

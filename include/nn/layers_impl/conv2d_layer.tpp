@@ -73,9 +73,9 @@ const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_ba
   micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(),
                                                input.width()};
 
-  const size_t batch_size = input.batch_size();
-  const size_t input_h = input.height();
-  const size_t input_w = input.width();
+  const size_t batch_size = current->batch_size();
+  const size_t input_h = current->height();
+  const size_t input_w = current->width();
 
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
@@ -150,8 +150,8 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
-  const size_t output_h = gradient.height();
-  const size_t output_w = gradient.width();
+  const size_t output_h = current_gradient->height();
+  const size_t output_w = current_gradient->width();
 
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input_shape);
   grad_input.fill(T(0));

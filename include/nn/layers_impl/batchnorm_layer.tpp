@@ -94,7 +94,7 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
 
   if (this->is_training_) {
     // gamma and beta will just be nullptr if affine_ is false
-    run_forward_fused(input.data_ptr(), batch_mean_fixed_[micro_batch_id],
+    run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
                       micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(),
                       running_var_.data_ptr(), gamma_.data_ptr(), beta_.data_ptr(),
                       output.data_ptr(), micro_batch_normalized_[micro_batch_id], batch_size,
@@ -103,7 +103,7 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     compute_inference_output(input, output, batch_size, channels, spatial_size, "default");
   }
 
-  micro_batch_inputs_[micro_batch_id] = input.clone();
+  micro_batch_inputs_[micro_batch_id] = current->clone();
   return output;
 }
 

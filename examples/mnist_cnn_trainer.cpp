@@ -40,15 +40,7 @@ int main() {
 
     MNISTDataLoader<float> train_loader, test_loader;
 
-    if (!train_loader.load_data("./data/mnist/train.csv")) {
-      cerr << "Failed to load training data!" << endl;
-      return -1;
-    }
-
-    if (!test_loader.load_data("./data/mnist/test.csv")) {
-      cerr << "Failed to load test data!" << endl;
-      return -1;
-    }
+    create_mnist_data_loaders("./data", train_loader, test_loader);
 
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
     cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;

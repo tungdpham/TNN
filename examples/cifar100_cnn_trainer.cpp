@@ -40,18 +40,7 @@ int main() {
 
     CIFAR100DataLoader<float> train_loader, test_loader;
 
-    if (!train_loader.load_data("./data/cifar-100-binary/train.bin")) {
-      return -1;
-    }
-
-    if (!test_loader.load_data("./data/cifar-100-binary/test.bin")) {
-      return -1;
-    }
-
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
-
-    cout << "\nBuilding CNN model architecture for CIFAR-100..." << endl;
+    create_cifar100_dataloader("./data", train_loader, test_loader);
 
     auto model = SequentialBuilder<float>("cifar100_cnn_classifier")
                      .input({3, 32, 32})

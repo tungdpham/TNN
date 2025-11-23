@@ -110,8 +110,8 @@ const Tensor<T> &MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t channels = cached_padded_input.channels();
   const size_t padded_h = cached_padded_input.height();
   const size_t padded_w = cached_padded_input.width();
-  const size_t output_h = gradient.height();
-  const size_t output_w = gradient.width();
+  const size_t output_h = current_gradient->height();
+  const size_t output_w = current_gradient->width();
 
   auto it_grad_padded = micro_batch_grad_padded_inputs_.find(micro_batch_id);
   if (it_grad_padded == micro_batch_grad_padded_inputs_.end()) {

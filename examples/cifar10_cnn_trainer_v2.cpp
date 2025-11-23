@@ -33,21 +33,7 @@ int main() {
 
     CIFAR10DataLoader<float> train_loader, test_loader;
 
-    vector<string> train_files;
-    for (int i = 1; i <= 5; ++i) {
-      train_files.push_back("./data/cifar-10-batches-bin/data_batch_" + to_string(i) + ".bin");
-    }
-
-    if (!train_loader.load_multiple_files(train_files)) {
-      return -1;
-    }
-
-    if (!test_loader.load_multiple_files({"./data/cifar-10-batches-bin/test_batch.bin"})) {
-      return -1;
-    }
-
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded validation data: " << test_loader.size() << " samples" << endl;
+    create_cifar10_dataloader("./data", train_loader, test_loader);
 
     auto aug_strategy = AugmentationBuilder<float>()
                             .horizontal_flip(0.25f)

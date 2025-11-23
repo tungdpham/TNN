@@ -500,7 +500,7 @@ public:
 
     if (!join(CommandType::CONFIG_RECEIVED, this->num_stages_, 60)) {
       std::cerr << "Not all stages reported ready\n";
-      return false;
+      throw new std::runtime_error("Stage deployment failed");
     }
 
     is_deployed_ = true;
@@ -577,7 +577,7 @@ protected:
   std::unique_ptr<Partitioner<float>> partitioner_;
   Endpoint coordinator_endpoint_;
 
-  std::atomic<bool> is_deployed_;
+  std::atomic<bool> is_deployed_ = false;
 
   // Topology information
   std::vector<std::string> stage_names_;
