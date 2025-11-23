@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_CUDA
 #include <cstddef>
 #include <cuda_runtime.h>
 
@@ -39,3 +40,5 @@ void cuda_softmax(T *data, size_t batch_size, size_t num_classes, size_t height,
 
 } // namespace cuda
 } // namespace tnn
+
+#endif

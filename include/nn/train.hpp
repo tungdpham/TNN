@@ -42,6 +42,7 @@ constexpr int DEFAULT_PRINT_INTERVAL = 100;
 constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
+  // Trainer params
   int epochs = 10;
   size_t batch_size = 32;
   float lr_decay_factor = 0.9f;
@@ -50,6 +51,9 @@ struct TrainingConfig {
   uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
+
+  // Distributed params
+  size_t num_microbatches = 2;
 
   void print_config() const {
     std::cout << "Training Configuration:" << std::endl;
@@ -106,14 +110,18 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   int num_batches = 0;
   const Device *model_device = model.get_device();
 
+  Tensor<float> device_batch_data(model_device), device_batch_labels(model_device),
+      loss_gradient(model_device);
+
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
+    device_batch_data = batch_data.to_device(model_device);
+    Tensor<float> predictions = model.forward(device_batch_data);
 
-    Tensor<float> predictions = model.forward(batch_data.to_device(model_device));
-
-    const Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
-    float loss = model.loss_function()->compute_loss(predictions, device_batch_labels);
+    device_batch_labels = batch_labels.to_device(model_device);
+    float loss;
+    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
     float accuracy = compute_class_accuracy(predictions, device_batch_labels);
 
     total_loss += loss;
@@ -121,8 +129,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
 
     model.clear_gradients();
 
-    Tensor<float> loss_gradient =
-        model.loss_function()->compute_gradient(predictions, device_batch_labels);
+    model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
     model.backward(loss_gradient);
 
     model.update_parameters();
@@ -165,7 +172,9 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
     Tensor<float> predictions = model.forward(batch_data.to_device(model_device));
 
     const Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
-    val_loss += model.loss_function()->compute_loss(predictions, device_batch_labels);
+    float loss;
+    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
+    val_loss += loss;
     val_accuracy += compute_class_accuracy(predictions, device_batch_labels);
     ++val_batches;
   }
@@ -296,18 +305,21 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
   double total_loss = 0.0;
   int num_batches = 0;
 
+  const Device *model_device = model.get_device();
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
+    Tensor<float> device_batch_data = batch_data.to_device(model_device);
+    Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
 
-    Tensor<float> predictions = model.forward(batch_data);
+    Tensor<float> predictions = model.forward(device_batch_data);
 
-    const float loss = model.loss_function()->compute_loss(predictions, batch_labels);
-
+    float loss;
+    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
     total_loss += loss;
 
-    Tensor<float> loss_gradient =
-        model.loss_function()->compute_gradient(predictions, batch_labels);
+    Tensor<float> loss_gradient(model.get_device());
+    model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
     model.backward(loss_gradient);
 
     model.update_parameters();
@@ -317,9 +329,9 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
         model.print_layers_profiling_info();
         model.print_profiling_summary();
       }
-      // std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
-      //           << std::setprecision(4) << loss << ", Batch's Error: " << std::setprecision(2)
-      //           << std::endl;
+      std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
+                << std::setprecision(4) << loss << ", Batch's Error: " << std::setprecision(2)
+                << std::endl;
     }
     if (model.is_profiling_enabled()) {
       model.clear_profiling_data();
@@ -345,7 +357,9 @@ RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<floa
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
     Tensor<float> predictions = model.forward(batch_data);
 
-    val_loss += model.loss_function()->compute_loss(predictions, batch_labels);
+    float loss;
+    model.loss_function()->compute_loss(predictions, batch_labels, loss);
+    val_loss += loss;
     ++val_batches;
   }
 

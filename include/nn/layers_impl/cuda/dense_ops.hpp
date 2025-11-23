@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_CUDA
 #include <cstddef>
 #include <cuda_runtime.h>
 namespace tnn {
@@ -29,3 +30,5 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
 } // namespace dense
 } // namespace cuda
 } // namespace tnn
+
+#endif

@@ -51,7 +51,23 @@ private:
   std::unique_ptr<Task> compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
                                                  size_t batch_size, size_t channels,
                                                  size_t spatial_size,
-                                                 const std::string &flow_id = "batchnorm_infer");
+                                                 const std::string &flow_id = "default");
+
+  std::unique_ptr<Task>
+  run_forward_fused(const device_ptr<T[]> &input, device_ptr<T[]> &batch_mean_fixed,
+                    device_ptr<T[]> &batch_inv_std, device_ptr<T[]> &running_mean,
+                    device_ptr<T[]> &running_var, const device_ptr<T[]> &gamma,
+                    const device_ptr<T[]> &beta, device_ptr<T[]> &output,
+                    device_ptr<T[]> &norm_cache, size_t batch_size, size_t channels,
+                    size_t spatial_size, const std::string &flow_id = "default");
+
+  std::unique_ptr<Task> run_backward_fused(const device_ptr<T[]> &grad_output,
+                                           const device_ptr<T[]> &norm_input,
+                                           const device_ptr<T[]> &inv_std,
+                                           const device_ptr<T[]> &gamma, device_ptr<T[]> &d_gamma,
+                                           device_ptr<T[]> &d_beta, device_ptr<T[]> &grad_input,
+                                           size_t batch_size, size_t channels, size_t spatial_size,
+                                           const std::string &flow_id = "default");
 
 public:
   explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),

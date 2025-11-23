@@ -56,9 +56,12 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  // const Tensor<T> &current =
-  //     input.device() == this->device_ ? input : input.to_device(this->device_);
   const Tensor<T> *current = &input;
+  Tensor<T> device_input;
+  if (input.device() != this->device_) {
+    device_input = input.to_device(this->device_);
+    current = &device_input;
+  }
 
   micro_batch_inputs_[micro_batch_id] = current->clone();
 
@@ -99,9 +102,12 @@ const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro
 
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, last_input.shape());
 
-  // Tensor<T> &current_grad =
-  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   const Tensor<T> *current_grad = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_grad = &device_gradient;
+  }
 
   weight_grad_task_ = compute_weight_gradients(last_input.data_ptr(), current_grad->data_ptr(),
                                                weight_gradients_.data_ptr(), batch_size,

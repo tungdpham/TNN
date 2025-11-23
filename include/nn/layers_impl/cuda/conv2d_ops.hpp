@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_CUDA
 #include <cstddef>
 #include <cuda_runtime.h>
 
@@ -32,3 +33,4 @@ void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_s
 } // namespace conv2d
 } // namespace cuda
 } // namespace tnn
+#endif

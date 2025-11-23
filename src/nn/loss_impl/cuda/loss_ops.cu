@@ -256,15 +256,16 @@ __global__ void sum_reduce_kernel_stage2(const T *block_results, T *result,
 }
 
 template <typename T>
-T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t batch_size,
-                            const size_t num_classes, T epsilon) {
+void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
+                               const size_t batch_size, const size_t num_classes, T epsilon,
+                               cudaStream_t stream) {
   T *d_loss_values;
   cudaMalloc(&d_loss_values, batch_size * sizeof(T));
 
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
 
-  crossentropy_loss_kernel<T><<<num_blocks, threads_per_block>>>(
+  crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
       predictions, targets, d_loss_values, batch_size, num_classes, epsilon);
 
   int block_size = 256;
@@ -273,43 +274,46 @@ T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t
   T *d_block_results;
   cudaMalloc(&d_block_results, grid_size * sizeof(T));
 
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, batch_size);
 
   T *d_total_loss;
   cudaMalloc(&d_total_loss, sizeof(T));
 
   sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
+      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
 
   T h_total_loss;
-  cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
+  cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
+  cudaStreamSynchronize(stream);
 
   cudaFree(d_loss_values);
   cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
-  return h_total_loss / batch_size;
+  loss = h_total_loss / batch_size;
 }
 
 template <typename T>
 void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gradient,
-                                   const size_t batch_size, const size_t num_classes) {
+                                   const size_t batch_size, const size_t num_classes,
+                                   cudaStream_t stream) {
   T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
   size_t total_size = batch_size * num_classes;
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
 
-  crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block>>>(
+  crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
       predictions, targets, gradient, batch_size, num_classes, inv_batch_size);
 
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
 }
 
 template <typename T>
-T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const size_t batch_size,
-                                    const size_t num_classes) {
+void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
+                                       const size_t batch_size, const size_t num_classes,
+                                       cudaStream_t stream) {
   T *d_loss_values;
   cudaMalloc(&d_loss_values, batch_size * sizeof(T));
   cudaMemset(d_loss_values, 0, batch_size * sizeof(T));
@@ -317,8 +321,8 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
 
-  softmax_crossentropy_loss_kernel<T>
-      <<<num_blocks, threads_per_block>>>(logits, targets, d_loss_values, batch_size, num_classes);
+  softmax_crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
+      logits, targets, d_loss_values, batch_size, num_classes);
 
   int block_size = 256;
   int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
@@ -327,7 +331,7 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
   cudaMalloc(&d_block_results, grid_size * sizeof(T));
   cudaMemset(d_block_results, 0, grid_size * sizeof(T));
 
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, batch_size);
 
   T *d_total_loss;
@@ -335,36 +339,38 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
   cudaMemset(d_total_loss, 0, sizeof(T));
 
   sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
+      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
 
   T h_total_loss;
-  cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
+  cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
+  cudaStreamSynchronize(stream);
 
   cudaFree(d_loss_values);
   cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
-  return h_total_loss / batch_size;
+  loss = h_total_loss / batch_size;
 }
 
 template <typename T>
 void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
-                                           const size_t batch_size, const size_t num_classes) {
+                                           const size_t batch_size, const size_t num_classes,
+                                           cudaStream_t stream) {
   T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
   size_t total_size = batch_size * num_classes;
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
 
-  softmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block>>>(
+  softmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
       logits, targets, gradient, batch_size, num_classes, inv_batch_size);
 
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
 }
 
 template <typename T>
-T compute_mse_loss(const T *predictions, const T *targets, const size_t batch_size,
-                   const size_t output_size) {
+void compute_mse_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                      const size_t output_size, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
   cudaMalloc(&d_loss_values, total_size * sizeof(T));
@@ -397,12 +403,12 @@ T compute_mse_loss(const T *predictions, const T *targets, const size_t batch_si
   cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
-  return h_total_loss / total_size;
+  loss = h_total_loss / total_size;
 }
 
 template <typename T>
 void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
-                          const size_t batch_size, const size_t output_size) {
+                          const size_t batch_size, const size_t output_size, cudaStream_t stream) {
   T scale = static_cast<T>(2.0) / static_cast<T>(batch_size * output_size);
   size_t total_size = batch_size * output_size;
 
@@ -416,8 +422,8 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
 }
 
 template <typename T>
-T compute_mae_loss(const T *predictions, const T *targets, const size_t batch_size,
-                   const size_t output_size) {
+void compute_mae_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                      const size_t output_size, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
   cudaMalloc(&d_loss_values, total_size * sizeof(T));
@@ -450,12 +456,12 @@ T compute_mae_loss(const T *predictions, const T *targets, const size_t batch_si
   cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
-  return h_total_loss / total_size;
+  loss = h_total_loss / total_size;
 }
 
 template <typename T>
 void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
-                          const size_t batch_size, const size_t output_size) {
+                          const size_t batch_size, const size_t output_size, cudaStream_t stream) {
   T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
   size_t total_size = batch_size * output_size;
 
@@ -469,8 +475,8 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
 }
 
 template <typename T>
-T compute_huber_loss(const T *predictions, const T *targets, const size_t batch_size,
-                     const size_t output_size, T delta) {
+void compute_huber_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                        const size_t output_size, T delta, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
   cudaMalloc(&d_loss_values, total_size * sizeof(T));
@@ -503,12 +509,13 @@ T compute_huber_loss(const T *predictions, const T *targets, const size_t batch_
   cudaFree(d_block_results);
   cudaFree(d_total_loss);
 
-  return h_total_loss / total_size;
+  loss = h_total_loss / total_size;
 }
 
 template <typename T>
 void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
-                            const size_t batch_size, const size_t output_size, T delta) {
+                            const size_t batch_size, const size_t output_size, T delta,
+                            cudaStream_t stream) {
   T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
   size_t total_size = batch_size * output_size;
 
@@ -521,70 +528,82 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
   cudaDeviceSynchronize();
 }
 
-template float compute_crossentropy_loss<float>(const float *predictions, const float *targets,
-                                                const size_t batch_size, const size_t num_classes,
-                                                float epsilon);
-template double compute_crossentropy_loss<double>(const double *predictions, const double *targets,
-                                                  const size_t batch_size, const size_t num_classes,
-                                                  double epsilon);
+template void compute_crossentropy_loss<float>(const float *predictions, const float *targets,
+                                               float &loss, const size_t batch_size,
+                                               const size_t num_classes, float epsilon,
+                                               cudaStream_t stream);
+template void compute_crossentropy_loss<double>(const double *predictions, const double *targets,
+                                                double &loss, const size_t batch_size,
+                                                const size_t num_classes, double epsilon,
+                                                cudaStream_t stream);
 template void compute_crossentropy_gradient<float>(const float *predictions, const float *targets,
                                                    float *gradient, const size_t batch_size,
-                                                   const size_t num_classes);
+                                                   const size_t num_classes, cudaStream_t stream);
 template void compute_crossentropy_gradient<double>(const double *predictions,
                                                     const double *targets, double *gradient,
                                                     const size_t batch_size,
-                                                    const size_t num_classes);
+                                                    const size_t num_classes, cudaStream_t stream);
 
-template float compute_softmax_crossentropy_loss<float>(const float *logits, const float *targets,
-                                                        const size_t batch_size,
-                                                        const size_t num_classes);
-template double compute_softmax_crossentropy_loss<double>(const double *logits,
-                                                          const double *targets,
-                                                          const size_t batch_size,
-                                                          const size_t num_classes);
+template void compute_softmax_crossentropy_loss<float>(const float *logits, const float *targets,
+                                                       float &loss, const size_t batch_size,
+                                                       const size_t num_classes,
+                                                       cudaStream_t stream);
+template void compute_softmax_crossentropy_loss<double>(const double *logits, const double *targets,
+                                                        double &loss, const size_t batch_size,
+                                                        const size_t num_classes,
+                                                        cudaStream_t stream);
 template void compute_softmax_crossentropy_gradient<float>(const float *logits,
                                                            const float *targets, float *gradient,
                                                            const size_t batch_size,
-                                                           const size_t num_classes);
+                                                           const size_t num_classes,
+                                                           cudaStream_t stream);
 template void compute_softmax_crossentropy_gradient<double>(const double *logits,
                                                             const double *targets, double *gradient,
                                                             const size_t batch_size,
-                                                            const size_t num_classes);
+                                                            const size_t num_classes,
+                                                            cudaStream_t stream);
 
-template float compute_mse_loss<float>(const float *predictions, const float *targets,
-                                       const size_t batch_size, const size_t output_size);
-template double compute_mse_loss<double>(const double *predictions, const double *targets,
-                                         const size_t batch_size, const size_t output_size);
+template void compute_mse_loss<float>(const float *predictions, const float *targets, float &loss,
+                                      const size_t batch_size, const size_t output_size,
+                                      cudaStream_t stream);
+template void compute_mse_loss<double>(const double *predictions, const double *targets,
+                                       double &loss, const size_t batch_size,
+                                       const size_t output_size, cudaStream_t stream);
 template void compute_mse_gradient<float>(const float *predictions, const float *targets,
                                           float *gradient, const size_t batch_size,
-                                          const size_t output_size);
+                                          const size_t output_size, cudaStream_t stream);
 template void compute_mse_gradient<double>(const double *predictions, const double *targets,
                                            double *gradient, const size_t batch_size,
-                                           const size_t output_size);
+                                           const size_t output_size, cudaStream_t stream);
 
-template float compute_mae_loss<float>(const float *predictions, const float *targets,
-                                       const size_t batch_size, const size_t output_size);
-template double compute_mae_loss<double>(const double *predictions, const double *targets,
-                                         const size_t batch_size, const size_t output_size);
+template void compute_mae_loss<float>(const float *predictions, const float *targets, float &loss,
+                                      const size_t batch_size, const size_t output_size,
+                                      cudaStream_t stream);
+template void compute_mae_loss<double>(const double *predictions, const double *targets,
+                                       double &loss, const size_t batch_size,
+                                       const size_t output_size, cudaStream_t stream);
 template void compute_mae_gradient<float>(const float *predictions, const float *targets,
                                           float *gradient, const size_t batch_size,
-                                          const size_t output_size);
+                                          const size_t output_size, cudaStream_t stream);
 template void compute_mae_gradient<double>(const double *predictions, const double *targets,
                                            double *gradient, const size_t batch_size,
-                                           const size_t output_size);
+                                           const size_t output_size, cudaStream_t stream);
 
-template float compute_huber_loss<float>(const float *predictions, const float *targets,
-                                         const size_t batch_size, const size_t output_size,
-                                         float delta);
-template double compute_huber_loss<double>(const double *predictions, const double *targets,
-                                           const size_t batch_size, const size_t output_size,
-                                           double delta);
+template void compute_huber_loss<float>(const float *predictions, const float *targets, float &loss,
+                                        const size_t batch_size, const size_t output_size,
+                                        float delta, cudaStream_t stream);
+template void compute_huber_loss<double>(const double *predictions, const double *targets,
+                                         double &loss, const size_t batch_size,
+                                         const size_t output_size, double delta,
+                                         cudaStream_t stream);
 template void compute_huber_gradient<float>(const float *predictions, const float *targets,
                                             float *gradient, const size_t batch_size,
-                                            const size_t output_size, float delta);
+                                            const size_t output_size, float delta,
+                                            cudaStream_t stream);
 template void compute_huber_gradient<double>(const double *predictions, const double *targets,
                                              double *gradient, const size_t batch_size,
-                                             const size_t output_size, double delta);
+                                             const size_t output_size, double delta,
+                                             cudaStream_t stream);
 
 } // namespace loss
 } // namespace cuda

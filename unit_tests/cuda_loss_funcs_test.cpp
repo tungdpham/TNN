@@ -7,6 +7,7 @@
 
 #include "device/device_manager.hpp"
 #include "device/device_ptr.hpp"
+#include "device/task.hpp"
 #include "nn/loss_impl/cpu/loss_ops.hpp"
 #include "nn/loss_impl/cuda/loss_ops.hpp"
 #include <gmock/gmock.h>
@@ -91,9 +92,11 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
     targets[i * num_classes + target_class] = 1.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_crossentropy_loss(predictions.data(), targets.data(),
-                                                        batch_size, num_classes, epsilon);
+  float cpu_loss, gpu_loss;
+
+  auto loss_task =
+      create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
+                      targets.data(), cpu_loss, batch_size, num_classes, epsilon);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -103,8 +106,9 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_crossentropy_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                         batch_size, num_classes, epsilon);
+  auto gpu_loss_task = create_gpu_task("default", cuda::loss::compute_crossentropy_loss<float>,
+                                       gpu_predictions.get(), gpu_targets.get(), gpu_loss,
+                                       batch_size, num_classes, epsilon);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-4f);
 }
@@ -132,10 +136,10 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
     targets[i * num_classes + target_class] = 1.0f;
   }
 
-  // CPU version
   std::vector<float> cpu_gradient(batch_size * num_classes);
-  cpu::loss::compute_crossentropy_gradient(predictions.data(), targets.data(), cpu_gradient.data(),
-                                           batch_size, num_classes);
+
+  create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<float>, predictions.data(),
+                  targets.data(), cpu_gradient.data(), batch_size, num_classes);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -146,8 +150,9 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  cuda::loss::compute_crossentropy_gradient(gpu_predictions.get(), gpu_targets.get(),
-                                            gpu_gradient.get(), batch_size, num_classes);
+  create_gpu_task("default", cuda::loss::compute_crossentropy_gradient<float>,
+                  gpu_predictions.get(), gpu_targets.get(), gpu_gradient.get(), batch_size,
+                  num_classes);
 
   std::vector<float> gpu_gradient_cpu(batch_size * num_classes);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -180,11 +185,11 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
     targets[i * num_classes + target_class] = 1.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_crossentropy_loss(predictions.data(), targets.data(),
-                                                        batch_size, num_classes, epsilon);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
+                  targets.data(), cpu_loss, batch_size, num_classes, epsilon);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -192,8 +197,8 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_crossentropy_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                         batch_size, num_classes, epsilon);
+  create_gpu_task("default", cuda::loss::compute_crossentropy_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, num_classes, epsilon);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-3f);
 }
@@ -219,19 +224,21 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLossBasic) {
     targets[i * num_classes + target_class] = 1.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_softmax_crossentropy_loss(logits.data(), targets.data(),
-                                                                batch_size, num_classes);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  auto loss_task =
+      create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<float>, logits.data(),
+                      targets.data(), cpu_loss, batch_size, num_classes);
+
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
   gpu_device_->copyToDevice(gpu_logits.get(), logits.data(), logits.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_softmax_crossentropy_loss(
-      gpu_logits.get(), gpu_targets.get(), batch_size, num_classes);
+  auto gpu_loss_task =
+      create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<float>,
+                      gpu_logits.get(), gpu_targets.get(), gpu_loss, batch_size, num_classes);
 
   // Use relative tolerance for larger values
   float tolerance = std::max(1e-4f, std::abs(cpu_loss) * 1e-6f);
@@ -258,8 +265,8 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyGradientBasic) {
 
   // CPU version
   std::vector<float> cpu_gradient(batch_size * num_classes);
-  cpu::loss::compute_softmax_crossentropy_gradient(logits.data(), targets.data(),
-                                                   cpu_gradient.data(), batch_size, num_classes);
+  create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_gradient<float>, logits.data(),
+                  targets.data(), cpu_gradient.data(), batch_size, num_classes);
 
   // GPU version
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
@@ -269,8 +276,8 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyGradientBasic) {
   gpu_device_->copyToDevice(gpu_logits.get(), logits.data(), logits.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  cuda::loss::compute_softmax_crossentropy_gradient(gpu_logits.get(), gpu_targets.get(),
-                                                    gpu_gradient.get(), batch_size, num_classes);
+  create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_gradient<float>,
+                  gpu_logits.get(), gpu_targets.get(), gpu_gradient.get(), batch_size, num_classes);
 
   std::vector<float> gpu_gradient_cpu(batch_size * num_classes);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -297,9 +304,10 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLargeBatch) {
     targets[i * num_classes + target_class] = 1.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_softmax_crossentropy_loss(logits.data(), targets.data(),
-                                                                batch_size, num_classes);
+  float cpu_loss, gpu_loss;
+
+  create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<float>, logits.data(),
+                  targets.data(), cpu_loss, batch_size, num_classes);
 
   // GPU version
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
@@ -308,8 +316,8 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLargeBatch) {
   gpu_device_->copyToDevice(gpu_logits.get(), logits.data(), logits.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_softmax_crossentropy_loss(
-      gpu_logits.get(), gpu_targets.get(), batch_size, num_classes);
+  create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<float>, gpu_logits.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, num_classes);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-3f);
 }
@@ -328,11 +336,11 @@ TEST_F(CUDALossOpsTest, MSELossBasic) {
     targets[i] = static_cast<float>((i + 3) % 50) / 5.0f;
   }
 
-  // CPU version
-  float cpu_loss =
-      cpu::loss::compute_mse_loss(predictions.data(), targets.data(), batch_size, output_size);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
+                  cpu_loss, batch_size, output_size);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -340,8 +348,8 @@ TEST_F(CUDALossOpsTest, MSELossBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_mse_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mse_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f);
 }
@@ -360,8 +368,8 @@ TEST_F(CUDALossOpsTest, MSEGradientBasic) {
 
   // CPU version
   std::vector<float> cpu_gradient(batch_size * output_size);
-  cpu::loss::compute_mse_gradient(predictions.data(), targets.data(), cpu_gradient.data(),
-                                  batch_size, output_size);
+  create_cpu_task("default", cpu::loss::compute_mse_gradient<float>, predictions.data(),
+                  targets.data(), cpu_gradient.data(), batch_size, output_size);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -372,8 +380,8 @@ TEST_F(CUDALossOpsTest, MSEGradientBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  cuda::loss::compute_mse_gradient(gpu_predictions.get(), gpu_targets.get(), gpu_gradient.get(),
-                                   batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mse_gradient<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_gradient.get(), batch_size, output_size);
 
   std::vector<float> gpu_gradient_cpu(batch_size * output_size);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -394,9 +402,11 @@ TEST_F(CUDALossOpsTest, MSELargeBatch) {
     targets[i] = static_cast<float>((i + 17) % 100) / 10.0f;
   }
 
+  float cpu_loss, gpu_loss;
+
   // CPU version
-  float cpu_loss =
-      cpu::loss::compute_mse_loss(predictions.data(), targets.data(), batch_size, output_size);
+  create_cpu_task("default", cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
+                  cpu_loss, batch_size, output_size);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -406,8 +416,8 @@ TEST_F(CUDALossOpsTest, MSELargeBatch) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_mse_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mse_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-4f);
 }
@@ -426,11 +436,11 @@ TEST_F(CUDALossOpsTest, MAELossBasic) {
     targets[i] = static_cast<float>((i + 7) % 100) / 10.0f;
   }
 
-  // CPU version
-  float cpu_loss =
-      cpu::loss::compute_mae_loss(predictions.data(), targets.data(), batch_size, output_size);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
+                  cpu_loss, batch_size, output_size);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -438,8 +448,8 @@ TEST_F(CUDALossOpsTest, MAELossBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_mae_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mae_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f);
 }
@@ -456,12 +466,10 @@ TEST_F(CUDALossOpsTest, MAEGradientBasic) {
     targets[i] = static_cast<float>((i + 7) % 100) / 10.0f;
   }
 
-  // CPU version
   std::vector<float> cpu_gradient(batch_size * output_size);
-  cpu::loss::compute_mae_gradient(predictions.data(), targets.data(), cpu_gradient.data(),
-                                  batch_size, output_size);
+  create_cpu_task("default", cpu::loss::compute_mae_gradient<float>, predictions.data(),
+                  targets.data(), cpu_gradient.data(), batch_size, output_size);
 
-  // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, batch_size * output_size);
@@ -470,8 +478,8 @@ TEST_F(CUDALossOpsTest, MAEGradientBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  cuda::loss::compute_mae_gradient(gpu_predictions.get(), gpu_targets.get(), gpu_gradient.get(),
-                                   batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mae_gradient<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_gradient.get(), batch_size, output_size);
 
   std::vector<float> gpu_gradient_cpu(batch_size * output_size);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -492,11 +500,11 @@ TEST_F(CUDALossOpsTest, MAELargeBatch) {
     targets[i] = static_cast<float>((i + 23) % 100) / 10.0f;
   }
 
-  // CPU version
-  float cpu_loss =
-      cpu::loss::compute_mae_loss(predictions.data(), targets.data(), batch_size, output_size);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
+                  cpu_loss, batch_size, output_size);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -504,8 +512,8 @@ TEST_F(CUDALossOpsTest, MAELargeBatch) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_mae_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                batch_size, output_size);
+  create_gpu_task("default", cuda::loss::compute_mae_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f);
 }
@@ -525,11 +533,11 @@ TEST_F(CUDALossOpsTest, HuberLossBasic) {
     targets[i] = static_cast<float>((i + 11) % 100) / 10.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_huber_loss(predictions.data(), targets.data(), batch_size,
-                                                 output_size, delta);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+                  targets.data(), cpu_loss, batch_size, output_size, delta);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -537,8 +545,8 @@ TEST_F(CUDALossOpsTest, HuberLossBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_huber_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                  batch_size, output_size, delta);
+  create_gpu_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size, delta);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f);
 }
@@ -556,12 +564,10 @@ TEST_F(CUDALossOpsTest, HuberGradientBasic) {
     targets[i] = static_cast<float>((i + 11) % 100) / 10.0f;
   }
 
-  // CPU version
   std::vector<float> cpu_gradient(batch_size * output_size);
-  cpu::loss::compute_huber_gradient(predictions.data(), targets.data(), cpu_gradient.data(),
-                                    batch_size, output_size, delta);
+  create_cpu_task("default", cpu::loss::compute_huber_gradient<float>, predictions.data(),
+                  targets.data(), cpu_gradient.data(), batch_size, output_size, delta);
 
-  // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
   device_ptr<float[]> gpu_gradient = make_array_ptr<float[]>(gpu_device_, batch_size * output_size);
@@ -570,8 +576,8 @@ TEST_F(CUDALossOpsTest, HuberGradientBasic) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  cuda::loss::compute_huber_gradient(gpu_predictions.get(), gpu_targets.get(), gpu_gradient.get(),
-                                     batch_size, output_size, delta);
+  create_gpu_task("default", cuda::loss::compute_huber_gradient<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_gradient.get(), batch_size, output_size, delta);
 
   std::vector<float> gpu_gradient_cpu(batch_size * output_size);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -596,11 +602,10 @@ TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
   std::vector<float> deltas = {0.5f, 1.0f, 2.0f, 5.0f};
 
   for (float delta : deltas) {
-    // CPU version
-    float cpu_loss = cpu::loss::compute_huber_loss(predictions.data(), targets.data(), batch_size,
-                                                   output_size, delta);
+    float cpu_loss, gpu_loss;
+    create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+                    targets.data(), cpu_loss, batch_size, output_size, delta);
 
-    // GPU version
     device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
     device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -608,8 +613,8 @@ TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
                               predictions.size() * sizeof(float));
     gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-    float gpu_loss = cuda::loss::compute_huber_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                    batch_size, output_size, delta);
+    create_gpu_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get(),
+                    gpu_targets.get(), gpu_loss, batch_size, output_size, delta);
 
     EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f) << "Mismatch for delta = " << delta;
   }
@@ -628,11 +633,11 @@ TEST_F(CUDALossOpsTest, HuberLargeBatch) {
     targets[i] = static_cast<float>((i + 31) % 100) / 10.0f;
   }
 
-  // CPU version
-  float cpu_loss = cpu::loss::compute_huber_loss(predictions.data(), targets.data(), batch_size,
-                                                 output_size, delta);
+  float cpu_loss, gpu_loss;
 
-  // GPU version
+  create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+                  targets.data(), cpu_loss, batch_size, output_size, delta);
+
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
 
@@ -640,8 +645,8 @@ TEST_F(CUDALossOpsTest, HuberLargeBatch) {
                             predictions.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
-  float gpu_loss = cuda::loss::compute_huber_loss(gpu_predictions.get(), gpu_targets.get(),
-                                                  batch_size, output_size, delta);
+  create_gpu_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get(),
+                  gpu_targets.get(), gpu_loss, batch_size, output_size, delta);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-5f);
 }

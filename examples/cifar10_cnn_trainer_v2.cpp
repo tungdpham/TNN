@@ -1,4 +1,5 @@
 #include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -47,7 +48,7 @@ int main() {
     }
 
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
+    cout << "Successfully loaded validation data: " << test_loader.size() << " samples" << endl;
 
     auto aug_strategy = AugmentationBuilder<float>()
                             .horizontal_flip(0.25f)

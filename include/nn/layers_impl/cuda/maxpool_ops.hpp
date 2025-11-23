@@ -1,5 +1,6 @@
 #pragma once
 
+#ifdef USE_CUDA
 #include "device/device_ptr.hpp"
 #include <cstddef>
 #include <cuda_runtime.h>
@@ -21,3 +22,5 @@ void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_
 } // namespace maxpool
 } // namespace cuda
 } // namespace tnn
+
+#endif

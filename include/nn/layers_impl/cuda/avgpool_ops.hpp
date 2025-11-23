@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#ifdef USE_CUDA
 #include <cstddef>
 #include <cuda_runtime.h>
 
@@ -26,3 +27,5 @@ void compute_avg_pool_backward(const T *gradient_data, T *grad_input_data, size_
 } // namespace avgpool
 } // namespace cuda
 } // namespace tnn
+
+#endif
