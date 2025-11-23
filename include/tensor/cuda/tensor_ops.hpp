@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#ifdef USE_CUDA
 #include "tensor/tensor.hpp"
 #include <cstddef>
 
@@ -101,3 +102,5 @@ template <typename T> void apply_softmax(Tensor<T, NCHW> &input, cudaStream_t st
 } // namespace cuda
 
 } // namespace tnn
+
+#endif

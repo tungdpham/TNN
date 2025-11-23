@@ -34,9 +34,12 @@ AvgPool2DLayer<T>::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 template <typename T>
 const Tensor<T> &AvgPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
 
-  // const Tensor<T> &current =
-  //     input.device() == this->device_ ? input : input.to_device(this->device_);
   const Tensor<T> *current = &input;
+  Tensor<T> device_input;
+  if (input.device() != this->device_) {
+    device_input = input.to_device(this->device_);
+    current = &device_input;
+  }
 
   const size_t batch_size = current->batch_size();
   const size_t channels = current->channels();
@@ -74,9 +77,12 @@ const Tensor<T> &AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
                              std::to_string(micro_batch_id));
   }
 
-  // const Tensor<T> &current_gradient =
-  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   const Tensor<T> *current_gradient = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_gradient = &device_gradient;
+  }
 
   const Tensor<T> &cached_padded_input = it_input->second;
 

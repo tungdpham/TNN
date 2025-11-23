@@ -27,9 +27,12 @@ const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_b
     return input;
   }
 
-  // const Tensor<T> &current =
-  //     input.device() == this->device_ ? input : input.to_device(this->device_);
   const Tensor<T> *current = &input;
+  Tensor<T> device_input;
+  if (input.device() != this->device_) {
+    device_input = input.to_device(this->device_);
+    current = &device_input;
+  }
 
   Tensor<T> mask(current->shape(), this->device_);
   Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());

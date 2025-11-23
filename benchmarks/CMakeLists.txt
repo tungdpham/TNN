@@ -4,12 +4,15 @@ function(create_math_benchmark target_name source_file)
     # Link core TNN libraries
     target_link_libraries(${target_name} PRIVATE
         tnn_nn
-        tnn_cuda
         tnn_math 
         tnn_tensor 
         tnn_matrix 
         tnn_utils
     )
+
+    if(ENABLE_CUDA)
+        target_link_libraries(${target_name} PRIVATE tnn_cuda)
+    endif()
 endfunction()
 
 create_default(serialization_benchmark serialization_benchmark.cpp)

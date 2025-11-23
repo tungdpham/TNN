@@ -150,7 +150,9 @@ public:
     if (!loss_function_) {
       throw std::runtime_error("Loss function is not set in the coordinator");
     }
-    return loss_function_->compute_loss(predictions, targets);
+    float loss = 0.0f;
+    loss_function_->compute_loss(predictions, targets, loss);
+    return loss;
   }
 
   /**
@@ -161,7 +163,9 @@ public:
     if (!loss_function_) {
       throw std::runtime_error("Loss function is not set in the coordinator");
     }
-    return loss_function_->compute_gradient(predictions, targets);
+    Tensor<float> gradient;
+    loss_function_->compute_gradient(predictions, targets, gradient);
+    return gradient;
   }
 
   void update_parameters() {
@@ -294,9 +298,11 @@ public:
           Job<float> &job = forward_msg.get<Job<float>>();
           Tensor<float> &predictions = job.data;
           Tensor<float> &targets = microbatch_labels[job.micro_batch_id];
-          float loss = loss_function_->compute_loss(predictions, targets);
+          float loss = 0.0f;
+          loss_function_->compute_loss(predictions, targets, loss);
           total_loss += loss;
-          Tensor<float> gradient = loss_function_->compute_gradient(predictions, targets);
+          Tensor<float> gradient;
+          loss_function_->compute_gradient(predictions, targets, gradient);
           this->backward(gradient, job.micro_batch_id);
         }
       }

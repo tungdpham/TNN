@@ -320,9 +320,9 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
         loss_gradient = DistanceLoss::compute_gradient(predictions, batch_targets, train_loader);
       } else {
         apply_softmax(predictions);
-        loss = classification_loss->compute_loss(predictions, batch_targets);
+        classification_loss->compute_loss(predictions, batch_targets, loss);
         accuracy = calculate_classification_accuracy(predictions, batch_targets);
-        loss_gradient = classification_loss->compute_gradient(predictions, batch_targets);
+        classification_loss->compute_gradient(predictions, batch_targets, loss_gradient);
       }
 
       total_loss += loss;
@@ -377,7 +377,9 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
         }
       } else {
         apply_softmax(predictions);
-        val_loss += classification_loss->compute_loss(predictions, batch_targets);
+        float loss;
+        classification_loss->compute_loss(predictions, batch_targets, loss);
+        val_loss += loss;
         val_accuracy += calculate_classification_accuracy(predictions, batch_targets);
       }
       ++val_batches;

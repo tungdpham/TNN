@@ -19,8 +19,6 @@ template <typename T>
 const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
-  // const Tensor<T> &current =
-  //     input.device() == this->device_ ? input : input.to_device(this->device_);
   const Tensor<T> *current = &input;
 
   size_t batch_size = current->batch_size();
@@ -43,8 +41,6 @@ const Tensor<T> &FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t mic
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  // const Tensor<T> &current_grad =
-  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   const Tensor<T> *current_grad = &gradient;
 
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, original_shape);

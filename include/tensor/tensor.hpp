@@ -453,11 +453,21 @@ public:
     ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
   }
 
-  void resize(const std::vector<size_t> &new_shape) {
+  void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
     assert(new_shape.size() == dims_ && "New shape size must match tensor dims size");
+    if (new_device != nullptr && new_device != device_) {
+      // Change device
+      Tensor<T, L> new_tensor(new_shape, new_device);
+      size_t min_size = std::min(data_size_, std::accumulate(new_shape.begin(), new_shape.end(),
+                                                             size_t(1), std::multiplies<size_t>()));
+      ops::copy(data_, new_tensor.data_, min_size)->sync();
+      *this = std::move(new_tensor);
+      return;
+    }
     if (new_shape == std::vector<size_t>(shape_, shape_ + dims_)) {
       return;
     }
+
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size != data_size_) {

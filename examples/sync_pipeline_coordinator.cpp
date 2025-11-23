@@ -1,6 +1,7 @@
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
@@ -29,22 +30,11 @@ int main() {
     cout << "No .env file found, using system environment variables only." << endl;
   }
 
-  // Get training parameters from environment or use defaults
-  int epochs = get_env<int>("EPOCHS", NUM_EPOCHS);
-  int batch_size = get_env<int>("BATCH_SIZE", BATCH_SIZE);
-  float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
-  int num_microbatches = get_env<int>("NUM_MICROBATCHES", NUM_MICROBATCHES);
-  int progress_print_interval = get_env<int>("PROGRESS_PRINT_INTERVAL", PROGRESS_PRINT_INTERVAL);
+  TrainingConfig train_config;
+  train_config.load_from_env();
+  train_config.print_config();
 
   auto model = create_mnist_trainer();
-
-  ;
-
-  cout << "Training Parameters:" << endl;
-  cout << "  Epochs: " << epochs << endl;
-  cout << "  Batch Size: " << batch_size << endl;
-  cout << "  Initial Learning Rate: " << lr_initial << endl;
-  cout << "  Number of Microbatches: " << num_microbatches << endl;
 
   Endpoint coordinator_endpoint = Endpoint::network(
       get_env<string>("COORDINATOR_HOST", "localhost"), get_env<int>("COORDINATOR_PORT", 8000));
@@ -91,8 +81,8 @@ int main() {
 
   train_loader.shuffle();
 
-  train_loader.prepare_batches(batch_size);
-  test_loader.prepare_batches(batch_size);
+  train_loader.prepare_batches(train_config.batch_size);
+  test_loader.prepare_batches(train_config.batch_size);
 
   train_loader.reset();
   test_loader.reset();
@@ -113,16 +103,16 @@ int main() {
     auto split_start = chrono::high_resolution_clock::now();
 
     vector<Tensor<float>> micro_batches(
-        num_microbatches,
-        Tensor<float>({batch_data.batch_size() / num_microbatches, batch_data.channels(),
-                       batch_data.height(), batch_data.width()}));
-    split(batch_data, micro_batches, num_microbatches);
+        train_config.num_microbatches,
+        Tensor<float>({batch_data.batch_size() / train_config.num_microbatches,
+                       batch_data.channels(), batch_data.height(), batch_data.width()}));
+    split(batch_data, micro_batches, train_config.num_microbatches);
 
     vector<Tensor<float>> micro_batch_labels(
-        num_microbatches,
-        Tensor<float>({batch_labels.batch_size() / num_microbatches, batch_labels.channels(),
-                       batch_labels.height(), batch_labels.width()}));
-    split(batch_labels, micro_batch_labels, num_microbatches);
+        train_config.num_microbatches,
+        Tensor<float>({batch_labels.batch_size() / train_config.num_microbatches,
+                       batch_labels.channels(), batch_labels.height(), batch_labels.width()}));
+    split(batch_labels, micro_batch_labels, train_config.num_microbatches);
     auto split_end = chrono::high_resolution_clock::now();
     auto split_duration = chrono::duration_cast<chrono::microseconds>(split_end - split_start);
 
@@ -133,7 +123,7 @@ int main() {
     }
 
     // Wait for all forward jobs to complete with a timeout
-    coordinator.join(CommandType::FORWARD_JOB, num_microbatches, 60);
+    coordinator.join(CommandType::FORWARD_JOB, train_config.num_microbatches, 60);
 
     auto forward_end = chrono::high_resolution_clock::now();
     auto forward_duration =
@@ -151,19 +141,21 @@ int main() {
 
     vector<Job<float>> backward_jobs;
     for (auto &job : forward_jobs) {
-      loss += loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
+      float loss_val;
+      loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id], loss_val);
+      loss += loss_val;
       avg_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
 
-      Tensor<float> gradient =
-          loss_function->compute_gradient(job.data, micro_batch_labels[job.micro_batch_id]);
+      Tensor<float> gradient;
+      loss_function->compute_gradient(job.data, micro_batch_labels[job.micro_batch_id], gradient);
 
       Job<float> backward_job{gradient, job.micro_batch_id};
 
       backward_jobs.push_back(backward_job);
     }
 
-    loss /= num_microbatches;
-    avg_accuracy /= num_microbatches;
+    loss /= train_config.num_microbatches;
+    avg_accuracy /= train_config.num_microbatches;
 
     auto compute_loss_end = chrono::high_resolution_clock::now();
     auto compute_loss_duration =
@@ -175,7 +167,7 @@ int main() {
       coordinator.backward(job.data, job.micro_batch_id);
     }
 
-    coordinator.join(CommandType::BACKWARD_JOB, num_microbatches, 60);
+    coordinator.join(CommandType::BACKWARD_JOB, train_config.num_microbatches, 60);
 
     coordinator.dequeue_all_messages(CommandType::BACKWARD_JOB);
 
@@ -189,7 +181,7 @@ int main() {
     auto update_end = chrono::high_resolution_clock::now();
     auto update_duration = chrono::duration_cast<chrono::microseconds>(update_end - update_start);
 
-    if (batch_index % progress_print_interval == 0) {
+    if (batch_index % train_config.progress_print_interval == 0) {
       cout << "Get batch completed in " << get_next_batch_duration.count() << " microseconds"
            << endl;
       cout << "Split completed in " << split_duration.count() << " microseconds" << endl;
@@ -215,25 +207,24 @@ int main() {
   double val_loss = 0.0;
   double val_accuracy = 0.0;
   int val_batches = 0;
-  while (test_loader.get_batch(batch_size, batch_data, batch_labels)) {
+  while (test_loader.get_batch(train_config.batch_size, batch_data, batch_labels)) {
     vector<Tensor<float>> micro_batches;
-    split(batch_data, micro_batches, num_microbatches);
+    split(batch_data, micro_batches, train_config.num_microbatches);
 
     vector<Tensor<float>> micro_batch_labels;
 
-    split(batch_labels, micro_batch_labels, num_microbatches);
-
+    split(batch_labels, micro_batch_labels, train_config.num_microbatches);
     for (size_t i = 0; i < micro_batches.size(); ++i) {
       coordinator.forward(micro_batches[i], i);
     }
 
-    coordinator.join(CommandType::FORWARD_JOB, num_microbatches, 60);
+    coordinator.join(CommandType::FORWARD_JOB, train_config.num_microbatches, 60);
 
     vector<Message> all_messages = coordinator.dequeue_all_messages(CommandType::FORWARD_JOB);
 
-    if (all_messages.size() != static_cast<size_t>(num_microbatches)) {
+    if (all_messages.size() != static_cast<size_t>(train_config.num_microbatches)) {
       throw runtime_error("Unexpected number of messages: " + to_string(all_messages.size()) +
-                          ", expected: " + to_string(num_microbatches));
+                          ", expected: " + to_string(train_config.num_microbatches));
     }
 
     vector<Job<float>> forward_jobs;
@@ -244,7 +235,9 @@ int main() {
     }
 
     for (auto &job : forward_jobs) {
-      val_loss += loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
+      float loss_val;
+      loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id], loss_val);
+      val_loss += loss_val;
       val_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
     }
     ++val_batches;

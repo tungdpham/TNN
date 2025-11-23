@@ -6,7 +6,6 @@
  */
 #include "nn/loss_impl/cpu/loss_ops.hpp"
 
-#include "ops/ops.hpp"
 #include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <cmath>
@@ -17,8 +16,8 @@ namespace loss {
 
 // CrossEntropy Loss Implementation
 template <typename T>
-T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t batch_size,
-                            const size_t num_classes, T epsilon) {
+void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
+                               const size_t batch_size, const size_t num_classes, T epsilon) {
   double total_loss = 0.0;
 
   for (size_t i = 0; i < batch_size; ++i) {
@@ -32,7 +31,7 @@ T compute_crossentropy_loss(const T *predictions, const T *targets, const size_t
     }
   }
 
-  return static_cast<T>(total_loss / batch_size);
+  loss = static_cast<T>(total_loss / batch_size);
 }
 
 template <typename T>
@@ -47,8 +46,8 @@ void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gr
 
 // Softmax CrossEntropy Loss Implementation
 template <typename T>
-T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const size_t batch_size,
-                                    const size_t num_classes) {
+void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
+                                       const size_t batch_size, const size_t num_classes) {
   double total_loss = 0.0;
 
   for (size_t i = 0; i < batch_size; ++i) {
@@ -71,7 +70,7 @@ T compute_softmax_crossentropy_loss(const T *logits, const T *targets, const siz
     }
   }
 
-  return static_cast<T>(total_loss / batch_size);
+  loss = static_cast<T>(total_loss / batch_size);
 }
 
 template <typename T>
@@ -101,8 +100,8 @@ void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T 
 
 // MSE Loss Implementation
 template <typename T>
-T compute_mse_loss(const T *predictions, const T *targets, const size_t batch_size,
-                   const size_t output_size) {
+void compute_mse_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                      const size_t output_size) {
   double total_loss = 0.0;
   const size_t total_size = batch_size * output_size;
 
@@ -111,7 +110,7 @@ T compute_mse_loss(const T *predictions, const T *targets, const size_t batch_si
     total_loss += static_cast<double>(diff * diff);
   }
 
-  return static_cast<T>(total_loss / total_size);
+  loss = static_cast<T>(total_loss / total_size);
 }
 
 template <typename T>
@@ -127,8 +126,8 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
 
 // MAE Loss Implementation
 template <typename T>
-T compute_mae_loss(const T *predictions, const T *targets, const size_t batch_size,
-                   const size_t output_size) {
+void compute_mae_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                      const size_t output_size) {
   double total_loss = 0.0;
   const size_t total_size = batch_size * output_size;
 
@@ -136,7 +135,7 @@ T compute_mae_loss(const T *predictions, const T *targets, const size_t batch_si
     total_loss += std::abs(predictions[idx] - targets[idx]);
   }
 
-  return static_cast<T>(total_loss / total_size);
+  loss = static_cast<T>(total_loss / total_size);
 }
 
 template <typename T>
@@ -153,8 +152,8 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
 
 // Huber Loss Implementation
 template <typename T>
-T compute_huber_loss(const T *predictions, const T *targets, const size_t batch_size,
-                     const size_t output_size, T delta) {
+void compute_huber_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
+                        const size_t output_size, T delta) {
   double total_loss = 0.0;
   const size_t total_size = batch_size * output_size;
 
@@ -167,7 +166,7 @@ T compute_huber_loss(const T *predictions, const T *targets, const size_t batch_
     }
   }
 
-  return static_cast<T>(total_loss / total_size);
+  loss = static_cast<T>(total_loss / total_size);
 }
 
 template <typename T>
@@ -189,12 +188,12 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
 }
 
 // Explicit template instantiations
-template float compute_crossentropy_loss<float>(const float *predictions, const float *targets,
-                                                const size_t batch_size, const size_t num_classes,
-                                                float epsilon);
-template double compute_crossentropy_loss<double>(const double *predictions, const double *targets,
-                                                  const size_t batch_size, const size_t num_classes,
-                                                  double epsilon);
+template void compute_crossentropy_loss<float>(const float *predictions, const float *targets,
+                                               float &loss, const size_t batch_size,
+                                               const size_t num_classes, float epsilon);
+template void compute_crossentropy_loss<double>(const double *predictions, const double *targets,
+                                                double &loss, const size_t batch_size,
+                                                const size_t num_classes, double epsilon);
 template void compute_crossentropy_gradient<float>(const float *predictions, const float *targets,
                                                    float *gradient, const size_t batch_size,
                                                    const size_t num_classes);
@@ -203,13 +202,12 @@ template void compute_crossentropy_gradient<double>(const double *predictions,
                                                     const size_t batch_size,
                                                     const size_t num_classes);
 
-template float compute_softmax_crossentropy_loss<float>(const float *logits, const float *targets,
-                                                        const size_t batch_size,
+template void compute_softmax_crossentropy_loss<float>(const float *logits, const float *targets,
+                                                       float &loss, const size_t batch_size,
+                                                       const size_t num_classes);
+template void compute_softmax_crossentropy_loss<double>(const double *logits, const double *targets,
+                                                        double &loss, const size_t batch_size,
                                                         const size_t num_classes);
-template double compute_softmax_crossentropy_loss<double>(const double *logits,
-                                                          const double *targets,
-                                                          const size_t batch_size,
-                                                          const size_t num_classes);
 template void compute_softmax_crossentropy_gradient<float>(const float *logits,
                                                            const float *targets, float *gradient,
                                                            const size_t batch_size,
@@ -219,10 +217,11 @@ template void compute_softmax_crossentropy_gradient<double>(const double *logits
                                                             const size_t batch_size,
                                                             const size_t num_classes);
 
-template float compute_mse_loss<float>(const float *predictions, const float *targets,
-                                       const size_t batch_size, const size_t output_size);
-template double compute_mse_loss<double>(const double *predictions, const double *targets,
-                                         const size_t batch_size, const size_t output_size);
+template void compute_mse_loss<float>(const float *predictions, const float *targets, float &loss,
+                                      const size_t batch_size, const size_t output_size);
+template void compute_mse_loss<double>(const double *predictions, const double *targets,
+                                       double &loss, const size_t batch_size,
+                                       const size_t output_size);
 template void compute_mse_gradient<float>(const float *predictions, const float *targets,
                                           float *gradient, const size_t batch_size,
                                           const size_t output_size);
@@ -230,10 +229,11 @@ template void compute_mse_gradient<double>(const double *predictions, const doub
                                            double *gradient, const size_t batch_size,
                                            const size_t output_size);
 
-template float compute_mae_loss<float>(const float *predictions, const float *targets,
-                                       const size_t batch_size, const size_t output_size);
-template double compute_mae_loss<double>(const double *predictions, const double *targets,
-                                         const size_t batch_size, const size_t output_size);
+template void compute_mae_loss<float>(const float *predictions, const float *targets, float &loss,
+                                      const size_t batch_size, const size_t output_size);
+template void compute_mae_loss<double>(const double *predictions, const double *targets,
+                                       double &loss, const size_t batch_size,
+                                       const size_t output_size);
 template void compute_mae_gradient<float>(const float *predictions, const float *targets,
                                           float *gradient, const size_t batch_size,
                                           const size_t output_size);
@@ -241,12 +241,12 @@ template void compute_mae_gradient<double>(const double *predictions, const doub
                                            double *gradient, const size_t batch_size,
                                            const size_t output_size);
 
-template float compute_huber_loss<float>(const float *predictions, const float *targets,
-                                         const size_t batch_size, const size_t output_size,
-                                         float delta);
-template double compute_huber_loss<double>(const double *predictions, const double *targets,
-                                           const size_t batch_size, const size_t output_size,
-                                           double delta);
+template void compute_huber_loss<float>(const float *predictions, const float *targets, float &loss,
+                                        const size_t batch_size, const size_t output_size,
+                                        float delta);
+template void compute_huber_loss<double>(const double *predictions, const double *targets,
+                                         double &loss, const size_t batch_size,
+                                         const size_t output_size, double delta);
 template void compute_huber_gradient<float>(const float *predictions, const float *targets,
                                             float *gradient, const size_t batch_size,
                                             const size_t output_size, float delta);

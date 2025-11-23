@@ -34,6 +34,7 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
   weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
   weights_.fill(T(0));
   weight_gradients_.fill(T(0));
+
   if (use_bias_) {
     bias_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
     bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
@@ -62,9 +63,12 @@ const Tensor<T> &Conv2DLayer<T>::forward(const Tensor<T> &input, size_t micro_ba
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
-  // const Tensor<T> &current =
-  //     (input.device() == this->device_) ? input : input.to_device(this->device_);
   const Tensor<T> *current = &input;
+  Tensor<T> device_input;
+  if (input.device() != this->device_) {
+    device_input = input.to_device(this->device_);
+    current = &device_input;
+  }
 
   micro_batch_input_shapes_[micro_batch_id] = {input.batch_size(), input.channels(), input.height(),
                                                input.width()};
@@ -134,9 +138,12 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
                              std::to_string(micro_batch_id));
   }
 
-  // const Tensor<T> current_gradient =
-  //     (gradient.device() == this->device_) ? gradient : gradient.to_device(this->device_);
   const Tensor<T> *current_gradient = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_gradient = &device_gradient;
+  }
 
   const auto &input_shape = it_input_shape->second;
 
@@ -146,7 +153,6 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
   const size_t output_h = gradient.height();
   const size_t output_w = gradient.width();
 
-  // Tensor<T> grad_input({batch_size, in_channels_, input_h, input_w}, this->device_);
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input_shape);
   grad_input.fill(T(0));
 
