@@ -186,8 +186,8 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
 
     T g = (affine && gamma) ? gamma[c] : T(1);
     T istd = inv_std[c];
-    T sum_dy = d_beta[c];
-    T sum_dy_x_norm = d_gamma[c];
+    T sum_dy = affine ? d_beta[c] : T(0);
+    T sum_dy_x_norm = affine ? d_gamma[c] : T(0);
     T M = T(N * S);
 
     T dy = grad_output[idx];
@@ -250,9 +250,10 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
 
-  fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
-                                                             d_beta, N, C, S);
-
+  if (affine) {
+    fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
+                                                               d_beta, N, C, S);
+  }
   size_t total_elements = N * C * S;
   int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
   fused_backward_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(

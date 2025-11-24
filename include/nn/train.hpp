@@ -169,7 +169,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
 ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
-  model.set_training(false);
+  // model.set_training(false);
   test_loader.reset();
 
   std::cout << "Starting validation..." << std::endl;

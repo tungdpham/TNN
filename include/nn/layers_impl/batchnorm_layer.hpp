@@ -32,22 +32,11 @@ private:
 
   Tensor<T> running_mean_;
   Tensor<T> running_var_;
-  Tensor<T> running_mean_gradients_; // dummy gradient
-  Tensor<T> running_var_gradients_;  // dummy gradient
 
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_gradients_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_normalized_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
   std::unordered_map<size_t, device_ptr<T[]>> batch_mean_fixed_;
-
-  // Temporary buffers for non-affine backward pass
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_dgamma_temp_;
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_dbeta_temp_;
-
-  // Workspace buffers for backward pass (GPU optimization)
-  std::unordered_map<size_t, device_ptr<T[]>> workspace_sum_grad_normalized_;
-  std::unordered_map<size_t, device_ptr<T[]>> workspace_sum_grad_norm_times_norm_;
 
   void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
                                  size_t &height, size_t &width, size_t &spatial_size);
@@ -93,7 +82,6 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 
-  // Accessors for debugging running statistics (not trainable parameters)
   const Tensor<T> &running_mean() const { return running_mean_; }
   const Tensor<T> &running_var() const { return running_var_; }
 

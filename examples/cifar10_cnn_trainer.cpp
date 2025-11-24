@@ -1,5 +1,6 @@
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -49,24 +50,13 @@ int main() {
 
     cout << "\nBuilding CNN model architecture for CIFAR-10..." << endl;
 
-    auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
-                     .input({3, 32, 32})
-                     .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .activation("relu", "relu1")
-                     .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                     .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
-                     .batchnorm(1e-5f, 0.1f, true, "bn2")
-                     .activation("relu", "relu2")
-                     .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
-                     .flatten("flatten")
-                     .dense(10, true, "fc1")
-                     .build();
+    auto model = create_cifar10_trainer_v1();
 
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_softmax_crossentropy();

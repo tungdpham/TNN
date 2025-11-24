@@ -303,6 +303,11 @@ public:
           total_loss += loss;
           Tensor<float> gradient;
           loss_function_->compute_gradient(predictions, targets, gradient);
+          // Scale gradient by number of microbatches to approximate full-batch average
+          if (this->num_microbatches_ > 1) {
+            float scale = 1.0f / static_cast<float>(this->num_microbatches_);
+            gradient *= scale; // element-wise scaling
+          }
           this->backward(gradient, job.micro_batch_id);
         }
       }
@@ -317,7 +322,10 @@ public:
 
     this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
 
-    return total_loss;
+    // Return average loss across microbatches for consistency with single microbatch mode
+    return (this->num_microbatches_ > 0)
+               ? (total_loss / static_cast<float>(this->num_microbatches_))
+               : total_loss;
   }
 
   /**

@@ -135,36 +135,38 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   const size_t M = N * S;
   const T inv_M = T(1) / static_cast<T>(M);
 
-  // Pass 1: Compute gradient sums per channel
-  parallel_for<size_t>(0, C, [&](size_t c) {
-    T sum_dy = T(0);
-    T sum_dy_x_norm = T(0);
-    const size_t c_offset = c * S;
+  if (affine) {
+    // Pass 1: Compute gradient sums per channel
+    parallel_for<size_t>(0, C, [&](size_t c) {
+      T sum_dy = T(0);
+      T sum_dy_x_norm = T(0);
+      const size_t c_offset = c * S;
 
-    for (size_t n = 0; n < N; ++n) {
-      const size_t n_offset = n * channel_stride;
-      const size_t base_idx = n_offset + c_offset;
+      for (size_t n = 0; n < N; ++n) {
+        const size_t n_offset = n * channel_stride;
+        const size_t base_idx = n_offset + c_offset;
 
-      for (size_t s = 0; s < S; ++s) {
-        size_t idx = base_idx + s;
-        T dy = grad_output[idx];
-        T x_hat = norm_input[idx];
+        for (size_t s = 0; s < S; ++s) {
+          size_t idx = base_idx + s;
+          T dy = grad_output[idx];
+          T x_hat = norm_input[idx];
 
-        sum_dy += dy;
-        sum_dy_x_norm += dy * x_hat;
+          sum_dy += dy;
+          sum_dy_x_norm += dy * x_hat;
+        }
       }
-    }
 
-    d_gamma[c] += sum_dy_x_norm;
-    d_beta[c] += sum_dy;
-  });
+      d_gamma[c] += sum_dy_x_norm;
+      d_beta[c] += sum_dy;
+    });
+  }
 
   // Pass 2: Compute input gradients using the formula matching GPU
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const T g = (affine && gamma) ? gamma[c] : T(1);
     const T istd = inv_std[c];
-    const T sum_dy = d_beta[c];
-    const T sum_dy_x_norm = d_gamma[c];
+    const T sum_dy = affine ? d_beta[c] : T(0);
+    const T sum_dy_x_norm = affine ? d_gamma[c] : T(0);
 
     const size_t n_offset = n * channel_stride;
     const size_t c_offset = c * S;

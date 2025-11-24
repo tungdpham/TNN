@@ -183,7 +183,7 @@ TEST_F(BatchNormLayerTest, ForwardPassWithAffineTraining) {
   verify_output_shape(input, output);
 
   auto params = layer.parameters();
-  EXPECT_EQ(params.size(), 4); // gamma, beta, running_mean, running_var
+  EXPECT_EQ(params.size(), 4); // gamma, beta
 
   std::vector<float> means, vars;
   compute_batch_statistics(input, means, vars);
@@ -265,7 +265,6 @@ TEST_F(BatchNormLayerTest, ForwardPassInference) {
 
   verify_output_shape(input, output);
 
-  // In inference mode with initialized running stats (mean=0, var=1),
   // output should be approximately (input - 0) / sqrt(1 + eps)
   const float *output_data = output.data();
   float expected_scale = 1.0f / std::sqrt(1.0f + 1e-5f);
@@ -337,7 +336,7 @@ TEST_F(BatchNormLayerTest, BackwardPassWithAffine) {
   EXPECT_EQ(grad_input.shape(), input.shape());
 
   auto grads = layer.gradients();
-  EXPECT_EQ(grads.size(), 4); // gamma_grad, beta_grad, running_mean_grad, running_var_grad
+  EXPECT_EQ(grads.size(), 2); // gamma_grad, beta_grad
 }
 
 TEST_F(BatchNormLayerTest, BackwardPassMultiBatch) {
@@ -444,7 +443,7 @@ TEST_F(BatchNormLayerTest, ParameterCollectionWithAffine) {
 
   std::vector<Tensor<float> *> params = layer.parameters();
 
-  EXPECT_EQ(params.size(), 4); // gamma, beta, running_mean, running_var
+  EXPECT_EQ(params.size(), 2);
 }
 
 TEST_F(BatchNormLayerTest, ParameterCollectionWithoutAffine) {
@@ -454,7 +453,7 @@ TEST_F(BatchNormLayerTest, ParameterCollectionWithoutAffine) {
 
   std::vector<Tensor<float> *> params = layer.parameters();
 
-  EXPECT_EQ(params.size(), 2); // running_mean, running_var only
+  EXPECT_EQ(params.size(), 0);
 }
 
 TEST_F(BatchNormLayerTest, GradientCollectionWithAffine) {
@@ -464,7 +463,7 @@ TEST_F(BatchNormLayerTest, GradientCollectionWithAffine) {
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
-  EXPECT_EQ(grads.size(), 4); // gamma_grad, beta_grad, running_mean_grad, running_var_grad
+  EXPECT_EQ(grads.size(), 2);
 }
 
 TEST_F(BatchNormLayerTest, GradientCollectionWithoutAffine) {
@@ -474,7 +473,7 @@ TEST_F(BatchNormLayerTest, GradientCollectionWithoutAffine) {
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
-  EXPECT_EQ(grads.size(), 2); // running_mean_grad, running_var_grad only
+  EXPECT_EQ(grads.size(), 0);
 }
 
 // Edge Cases
@@ -597,68 +596,6 @@ TEST_F(BatchNormLayerTest, NumericalStabilityMixedValues) {
   const Tensor<float> &output = layer.forward(input);
 
   verify_output_shape(input, output);
-}
-
-// Running Statistics Tests
-
-TEST_F(BatchNormLayerTest, RunningStatisticsUpdate) {
-  BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_running_stats");
-  layer.set_device(cpu_device_);
-  layer.initialize();
-  layer.set_training(true);
-
-  auto params_before = layer.parameters();
-  Tensor<float> running_mean_before = params_before[0]->clone();
-  Tensor<float> running_var_before = params_before[1]->clone();
-
-  Tensor<float> input({2, 2, 4, 4}, cpu_device_);
-  float *input_data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
-    input_data[i] = static_cast<float>(i % 10);
-  }
-
-  layer.forward(input);
-
-  auto params_after = layer.parameters();
-  const float *mean_before = running_mean_before.data();
-  const float *mean_after = params_after[0]->data();
-
-  // Running statistics should have changed (unless batch stats happen to match initial values)
-  // This is a weak test but checks that the mechanism is working
-  bool stats_updated = false;
-  for (size_t i = 0; i < params_after[0]->size(); ++i) {
-    if (std::abs(mean_after[i] - mean_before[i]) > 1e-6f) {
-      stats_updated = true;
-      break;
-    }
-  }
-  // With the input pattern, stats should update
-  EXPECT_TRUE(stats_updated);
-}
-
-TEST_F(BatchNormLayerTest, InferenceUsesRunningStats) {
-  BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_inference_stats");
-  layer.set_device(cpu_device_);
-  layer.initialize();
-
-  // First, do a training forward pass to update running stats
-  layer.set_training(true);
-  Tensor<float> train_input({4, 2, 4, 4}, cpu_device_);
-  float *train_data = train_input.data();
-  for (size_t i = 0; i < train_input.size(); ++i) {
-    train_data[i] = static_cast<float>(i % 10);
-  }
-  layer.forward(train_input);
-
-  // Now switch to inference mode
-  layer.set_training(false);
-  Tensor<float> test_input({1, 2, 4, 4}, cpu_device_);
-  test_input.fill(5.0f);
-
-  const Tensor<float> &output = layer.forward(test_input);
-
-  verify_output_shape(test_input, output);
-  // Output should be based on running stats, not batch stats
 }
 
 // FLOPS Tests

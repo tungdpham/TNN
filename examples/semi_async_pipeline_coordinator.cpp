@@ -20,14 +20,15 @@ using namespace tnn;
 using namespace std;
 
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
-constexpr float EPSILON = 1e-15f;
+constexpr float EPSILON = 1e-7f;
 
 int main() {
   if (!load_env_file("./.env")) {
     std::cout << "No .env file found, using system environment variables only." << std::endl;
   }
 
-  auto model = create_cifar10_trainer_v1();
+  // auto model = create_cifar10_trainer_v1();
+  auto model = create_mnist_trainer();
 
   string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
@@ -63,7 +64,7 @@ int main() {
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();
 
-  auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+  auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
   coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
@@ -77,9 +78,13 @@ int main() {
 
   coordinator.start();
 
-  CIFAR10DataLoader<float> train_loader, test_loader;
+  // CIFAR10DataLoader<float> train_loader, test_loader;
 
-  create_cifar10_dataloader("./data", train_loader, test_loader);
+  // create_cifar10_dataloader("./data", train_loader, test_loader);
+
+  MNISTDataLoader<float> train_loader, test_loader;
+
+  create_mnist_data_loaders("./data", train_loader, test_loader);
 
   auto aug_strategy = AugmentationBuilder<float>()
                           .horizontal_flip(0.25f)
