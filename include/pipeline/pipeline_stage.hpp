@@ -250,6 +250,8 @@ protected:
         this->model_->set_device(DeviceType::CPU);
       }
 
+      this->model_->print_config();
+
       this->model_->initialize();
 
       this->model_->enable_profiling(true);

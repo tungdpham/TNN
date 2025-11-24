@@ -650,10 +650,10 @@ public:
 
 void create_tiny_image_loader(std::string data_path, TinyImageNetDataLoader<float> &train_loader,
                               TinyImageNetDataLoader<float> &val_loader) {
-  if (!train_loader.load_data(data_path + "/train", true)) {
+  if (!train_loader.load_data(data_path, true)) {
     throw std::runtime_error("Failed to load training data!");
   }
-  if (!val_loader.load_data(data_path + "/val", false)) {
+  if (!val_loader.load_data(data_path, false)) {
     throw std::runtime_error("Failed to load validation data!");
   }
 }

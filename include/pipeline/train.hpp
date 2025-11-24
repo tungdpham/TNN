@@ -133,6 +133,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
 
 void train_model(DistributedCoordinator &coordinator, BaseDataLoader<float> &train_loader,
                  BaseDataLoader<float> &test_loader, TrainingConfig config = TrainingConfig()) {
+  coordinator.set_num_microbatches(config.num_microbatches);
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
 

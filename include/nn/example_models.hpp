@@ -38,7 +38,7 @@ Sequential<float> create_cifar10_trainer_v1() {
                    .activation("relu", "relu1")
                    .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
                    .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
-                   .batchnorm(1e-5f, 0.1f, true, "bn2")
+                   //  .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                    .flatten("flatten")

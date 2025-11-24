@@ -8,7 +8,6 @@
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 
-#include <iostream>
 namespace tnn {
 namespace cuda {
 

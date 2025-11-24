@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -316,13 +317,76 @@ public:
     return backward_complexity(input_shape);
   }
 
-  std::string type() const override { return "ResidualBlock"; }
+  std::string type() const override { return "residual_block"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
     config.name = this->name_;
     config.parameters["activation"] = activation_type_;
     config.parameters["has_projection"] = (!shortcut_path_.empty());
+
+    // Serialize main_path layers
+    nlohmann::json main_array = nlohmann::json::array();
+    for (const auto &layer : main_path_) {
+      LayerConfig sub_cfg = layer->get_config();
+      nlohmann::json sub_json;
+      sub_json["type"] = layer->type();
+      sub_json["name"] = sub_cfg.name;
+      sub_json["parameters"] = nlohmann::json::object();
+      for (const auto &[k, v] : sub_cfg.parameters) {
+        try {
+          if (auto *int_ptr = std::any_cast<int>(&v)) {
+            sub_json["parameters"][k] = *int_ptr;
+          } else if (auto *size_ptr = std::any_cast<size_t>(&v)) {
+            sub_json["parameters"][k] = *size_ptr;
+          } else if (auto *float_ptr = std::any_cast<float>(&v)) {
+            sub_json["parameters"][k] = *float_ptr;
+          } else if (auto *double_ptr = std::any_cast<double>(&v)) {
+            sub_json["parameters"][k] = *double_ptr;
+          } else if (auto *bool_ptr = std::any_cast<bool>(&v)) {
+            sub_json["parameters"][k] = *bool_ptr;
+          } else if (auto *string_ptr = std::any_cast<std::string>(&v)) {
+            sub_json["parameters"][k] = *string_ptr;
+          }
+        } catch (const std::bad_any_cast &) {
+        }
+      }
+      main_array.push_back(sub_json);
+    }
+
+    // Serialize shortcut_path layers
+    nlohmann::json shortcut_array = nlohmann::json::array();
+    for (const auto &layer : shortcut_path_) {
+      LayerConfig sub_cfg = layer->get_config();
+      nlohmann::json sub_json;
+      sub_json["type"] = layer->type();
+      sub_json["name"] = sub_cfg.name;
+      sub_json["parameters"] = nlohmann::json::object();
+      for (const auto &[k, v] : sub_cfg.parameters) {
+        try {
+          if (auto *int_ptr = std::any_cast<int>(&v)) {
+            sub_json["parameters"][k] = *int_ptr;
+          } else if (auto *size_ptr = std::any_cast<size_t>(&v)) {
+            sub_json["parameters"][k] = *size_ptr;
+          } else if (auto *float_ptr = std::any_cast<float>(&v)) {
+            sub_json["parameters"][k] = *float_ptr;
+          } else if (auto *double_ptr = std::any_cast<double>(&v)) {
+            sub_json["parameters"][k] = *double_ptr;
+          } else if (auto *bool_ptr = std::any_cast<bool>(&v)) {
+            sub_json["parameters"][k] = *bool_ptr;
+          } else if (auto *string_ptr = std::any_cast<std::string>(&v)) {
+            sub_json["parameters"][k] = *string_ptr;
+          }
+        } catch (const std::bad_any_cast &) {
+        }
+      }
+      shortcut_array.push_back(sub_json);
+    }
+
+    // Store serialized arrays as strings in parameters map
+    config.parameters["main_path"] = main_array.dump();
+    config.parameters["shortcut_path"] = shortcut_array.dump();
+
     return config;
   }
 

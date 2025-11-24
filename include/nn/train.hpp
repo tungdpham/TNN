@@ -72,6 +72,7 @@ struct TrainingConfig {
               << std::endl;
     std::cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No")
               << std::endl;
+    std::cout << "  Number of Microbatches: " << num_microbatches << std::endl;
   }
 
   void load_from_env() {
@@ -91,6 +92,8 @@ struct TrainingConfig {
     }
     num_threads = get_env<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
     print_layer_profiling = get_env<bool>("PRINT_LAYER_PROFILING", false);
+
+    num_microbatches = get_env<size_t>("NUM_MICROBATCHES", 2);
   }
 };
 

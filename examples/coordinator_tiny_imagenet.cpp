@@ -3,6 +3,7 @@
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
+#include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
@@ -20,14 +21,14 @@ using namespace tnn;
 using namespace std;
 
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
-constexpr float EPSILON = 1e-15f;
+constexpr float EPSILON = 1e-7f;
 
 int main() {
   if (!load_env_file("./.env")) {
     std::cout << "No .env file found, using system environment variables only." << std::endl;
   }
 
-  auto model = create_cifar10_trainer_v1();
+  auto model = create_resnet18_tiny_imagenet();
 
   string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
@@ -63,7 +64,8 @@ int main() {
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();
 
-  auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+  auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
+
   coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
@@ -77,21 +79,28 @@ int main() {
 
   coordinator.start();
 
-  CIFAR10DataLoader<float> train_loader, test_loader;
+  TinyImageNetDataLoader<float> train_loader, test_loader;
+  std::string dataset_path = "data/tiny-imagenet-200";
 
-  create_cifar10_dataloader("./data", train_loader, test_loader);
+  create_tiny_image_loader(dataset_path, train_loader, test_loader);
 
-  auto aug_strategy = AugmentationBuilder<float>()
-                          .horizontal_flip(0.25f)
-                          .rotation(0.3f, 10.0f)
-                          .brightness(0.3f, 0.15f)
-                          .contrast(0.3f, 0.15f)
-                          .gaussian_noise(0.3f, 0.05f)
-                          .build();
-  std::cout << "Configuring data augmentation for training." << std::endl;
-  train_loader.set_augmentation(std::move(aug_strategy));
+  auto train_aug = AugmentationBuilder<float>()
+                       .horizontal_flip(0.25f)
+                       .rotation(0.3f, 10.0f)
+                       .brightness(0.3f, 0.15f)
+                       .contrast(0.3f, 0.15f)
+                       .gaussian_noise(0.3f, 0.05f)
+                       .random_crop(0.25, 4)
+                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                       .build();
+  std::cout << "Configuring data augmentation and normalization for training." << std::endl;
+  train_loader.set_augmentation(std::move(train_aug));
 
-  Tensor<float> batch_data, batch_labels;
+  auto test_aug = AugmentationBuilder<float>()
+                      .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                      .build();
+  std::cout << "Configuring data normalization for testing." << std::endl;
+  test_loader.set_augmentation(std::move(test_aug));
 
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
