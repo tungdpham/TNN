@@ -576,13 +576,11 @@ public:
       throw std::runtime_error("File is not open for writing");
     }
 
-    if (device_type() != DeviceType::CPU) {
-      throw std::runtime_error("Tensor must be on CPU to save to file");
-    }
+    Tensor<T> cpu_tensor = to_cpu();
 
     out.write(reinterpret_cast<const char *>(shape_), dims_ * sizeof(size_t));
 
-    out.write(reinterpret_cast<const char *>(data_.get()), data_size_ * sizeof(T));
+    out.write(reinterpret_cast<const char *>(cpu_tensor.data_.get()), data_size_ * sizeof(T));
   }
 
   static Tensor<T, L> load(std::ifstream &in) {
