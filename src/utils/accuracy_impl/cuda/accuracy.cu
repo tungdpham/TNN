@@ -91,8 +91,8 @@ float compute_class_accuracy(const float *predictions, const float *targets,
   return static_cast<float>(h_correct_count) / static_cast<float>(batch_size);
 }
 
-float compute_class_corrects(const float *predictions, const float *targets,
-                             const size_t batch_size, const size_t num_classes, float threshold) {
+int compute_class_corrects(const float *predictions, const float *targets, const size_t batch_size,
+                           const size_t num_classes, float threshold) {
   int *d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
   cudaMemset(d_correct_count, 0, sizeof(int));
@@ -107,7 +107,7 @@ float compute_class_corrects(const float *predictions, const float *targets,
   cudaMemcpy(&h_correct_count, d_correct_count, sizeof(int), cudaMemcpyDeviceToHost);
   cudaFree(d_correct_count);
 
-  return static_cast<float>(h_correct_count);
+  return h_correct_count;
 }
 
 } // namespace accuracy

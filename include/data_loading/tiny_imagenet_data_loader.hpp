@@ -112,11 +112,14 @@ private:
       std::istringstream iss(line);
       std::string wnid, name;
       if (iss >> wnid) {
-        // Get the rest of the line as the class name
-        std::getline(iss, name);
-        // Remove leading whitespace
-        name.erase(0, name.find_first_not_of(" \t"));
-        class_id_to_name_[wnid] = name;
+        // Only load names for the 200 classes we're actually using
+        if (class_id_to_index_.find(wnid) != class_id_to_index_.end()) {
+          // Get the rest of the line as the class name
+          std::getline(iss, name);
+          // Remove leading whitespace
+          name.erase(0, name.find_first_not_of(" \t"));
+          class_id_to_name_[wnid] = name;
+        }
       }
     }
 
@@ -502,7 +505,9 @@ public:
     std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
               << std::endl;
 
-    // parallel_for<size_t>(0, num_batches, [&](size_t batch_idx) {
+    // Generate a shuffled list of sample indices to improve within-batch label diversity
+    std::vector<size_t> shuffled_indices = this->generate_shuffled_indices(num_samples);
+
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
@@ -516,7 +521,7 @@ public:
       batch_labels.fill(static_cast<T>(0.0));
 
       for (size_t i = 0; i < actual_batch_size; ++i) {
-        const size_t sample_idx = start_idx + i;
+        const size_t sample_idx = shuffled_indices[start_idx + i];
         const auto &image_data = data_[sample_idx];
 
         // Copy image data
@@ -642,6 +647,16 @@ public:
     }
   }
 };
+
+void create_tiny_image_loader(std::string data_path, TinyImageNetDataLoader<float> &train_loader,
+                              TinyImageNetDataLoader<float> &val_loader) {
+  if (!train_loader.load_data(data_path, true)) {
+    throw std::runtime_error("Failed to load training data!");
+  }
+  if (!val_loader.load_data(data_path, false)) {
+    throw std::runtime_error("Failed to load validation data!");
+  }
+}
 
 using TinyImageNetDataLoaderFloat = TinyImageNetDataLoader<float>;
 using TinyImageNetDataLoaderDouble = TinyImageNetDataLoader<double>;

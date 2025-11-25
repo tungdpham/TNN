@@ -30,6 +30,16 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
+# Threading library
+file(GLOB_RECURSE TNN_THREADING_SOURCES 
+    "threading/*.cpp"
+)
+add_library(tnn_threading STATIC ${TNN_THREADING_SOURCES})
+target_include_directories(tnn_threading PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
 # Operations library
 file(GLOB_RECURSE TNN_OPS_SOURCES 
     "ops/*.cpp"
@@ -40,9 +50,9 @@ target_include_directories(tnn_ops PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(tnn_ops PUBLIC tnn_device)
+target_link_libraries(tnn_ops PUBLIC tnn_device tnn_threading)
 if(ENABLE_CUDA)
-    target_link_libraries(tnn_ops PUBLIC CUDA::cudart CUDA::cublas)
+    target_link_libraries(tnn_ops PUBLIC tnn_cuda CUDA::cudart CUDA::cublas)
 endif()
 
 # Matrix library
@@ -186,7 +196,7 @@ target_include_directories(tnn_nn PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_math tnn_device tnn_ops)
+target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading)
 target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)

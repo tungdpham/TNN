@@ -20,6 +20,11 @@ const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_b
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   const Tensor<T> *current = &input;
+  Tensor<T> device_input;
+  if (input.device() != this->device_) {
+    device_input = input.to_device(this->device_);
+    current = &device_input;
+  }
 
   size_t batch_size = current->batch_size();
   size_t features = current->channels() * current->height() * current->width();

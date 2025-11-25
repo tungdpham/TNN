@@ -103,6 +103,8 @@ const Tensor<T> &AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
     it_grad_padded->second.resize({batch_size, channels, padded_h, padded_w});
   }
 
+  micro_batch_grad_padded_inputs_[micro_batch_id].fill(T(0));
+
   compute_avg_pool_backward(current_gradient->data_ptr(),
                             micro_batch_grad_padded_inputs_[micro_batch_id].data_ptr(), batch_size,
                             channels, padded_h, padded_w, output_h, output_w, "default");

@@ -118,6 +118,10 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
       val_loss += coordinator.compute_loss(job.data, micro_batch_labels[job.micro_batch_id]);
       val_correct += compute_class_corrects(job.data, micro_batch_labels[job.micro_batch_id]);
     }
+    // Normalize loss by number of microbatches to match training loss semantics
+    if (coordinator.num_microbatches() > 0) {
+      val_loss /= static_cast<float>(coordinator.num_microbatches());
+    }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
     ++val_batches;
@@ -133,6 +137,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
 
 void train_model(DistributedCoordinator &coordinator, BaseDataLoader<float> &train_loader,
                  BaseDataLoader<float> &test_loader, TrainingConfig config = TrainingConfig()) {
+  coordinator.set_num_microbatches(config.num_microbatches);
   train_loader.prepare_batches(config.batch_size);
   test_loader.prepare_batches(config.batch_size);
 

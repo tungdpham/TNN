@@ -5,6 +5,7 @@
 
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/mnist_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -53,17 +54,12 @@ int main() {
 
     auto model = SequentialBuilder<float>("mnist_cnn_model")
                      .input({1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH})
-                     .conv2d(8, 3, 3, 1, 1, 0, 0, true, "conv1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn1")
+                     .conv2d(16, 3, 3, 1, 1, 1, 1, true, "conv1")
                      .activation("relu", "relu1")
-                     .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                     .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn2")
+                     .avgpool2d(2, 2, 2, 2, 0, 0, "avgpool2")
+                     .conv2d(48, 3, 3, 1, 1, 1, 1, true, "conv2")
                      .activation("relu", "relu2")
-                     .conv2d(48, 3, 3, 1, 1, 0, 0, true, "conv3")
-                     .batchnorm(1e-5f, 0.1f, true, "bn3")
-                     .activation("relu", "relu3")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
+                     .avgpool2d(2, 2, 2, 2, 0, 0, "avgpool4")
                      .flatten("flatten")
                      .dense(mnist_constants::NUM_CLASSES, true, "output")
                      .build();
@@ -71,11 +67,12 @@ int main() {
     model.set_device(device_type);
     model.initialize();
 
-    // auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
-    auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
-    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+    // auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+    auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
     model.set_loss_function(std::move(loss_function));
 
     train_classification_model(model, train_loader, test_loader, train_config);

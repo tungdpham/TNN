@@ -53,29 +53,46 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
 
   size_t count = N * S;
   T sum = T(0);
-  T sq_sum = T(0);
 
   size_t stride = C * S;
   size_t offset = c * S;
 
+  // First pass: compute mean
   for (size_t i = threadIdx.x; i < count; i += blockDim.x) {
     size_t n = i / S;
     size_t s = i % S;
     size_t idx = n * stride + offset + s;
-    T val = input[idx];
-    sum += val;
-    sq_sum += val * val;
+    sum += input[idx];
   }
 
   sum = blockReduceSum(sum);
-  sq_sum = blockReduceSum(sq_sum);
 
+  // Broadcast mean to all threads
+  __shared__ T shared_mean;
   if (threadIdx.x == 0) {
     T inv_N = T(1) / T(count);
     T mu = sum * inv_N;
-    T var = (sq_sum * inv_N) - (mu * mu);
-
+    shared_mean = mu;
     mean_out[c] = mu;
+  }
+  __syncthreads();
+  T mu = shared_mean;
+
+  // Second pass: compute variance using stable formula
+  T var_sum = T(0);
+  for (size_t i = threadIdx.x; i < count; i += blockDim.x) {
+    size_t n = i / S;
+    size_t s = i % S;
+    size_t idx = n * stride + offset + s;
+    T diff = input[idx] - mu;
+    var_sum += diff * diff;
+  }
+
+  var_sum = blockReduceSum(var_sum);
+
+  if (threadIdx.x == 0) {
+    T inv_N = T(1) / T(count);
+    T var = var_sum * inv_N;
 
     T inv_std = rsqrt(var + epsilon);
     inv_std_out[c] = inv_std;
@@ -149,8 +166,8 @@ __global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
 
   if (threadIdx.x == 0) {
 
-    d_gamma[c] = sum_dy_x_norm;
-    d_beta[c] = sum_dy;
+    d_gamma[c] += sum_dy_x_norm;
+    d_beta[c] += sum_dy;
   }
 }
 
@@ -167,10 +184,10 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
   if (idx < total_elements) {
     int c = (idx / S) % C;
 
-    T g = affine ? gamma[c] : T(1);
+    T g = (affine && gamma) ? gamma[c] : T(1);
     T istd = inv_std[c];
-    T sum_dy = d_beta[c];
-    T sum_dy_x_norm = d_gamma[c];
+    T sum_dy = affine ? d_beta[c] : T(0);
+    T sum_dy_x_norm = affine ? d_gamma[c] : T(0);
     T M = T(N * S);
 
     T dy = grad_output[idx];
@@ -233,9 +250,10 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
 
-  fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
-                                                             d_beta, N, C, S);
-
+  if (affine) {
+    fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
+                                                               d_beta, N, C, S);
+  }
   size_t total_elements = N * C * S;
   int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
   fused_backward_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(

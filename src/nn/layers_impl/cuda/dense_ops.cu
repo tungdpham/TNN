@@ -23,14 +23,13 @@ static cublasHandle_t get_cublas_handle() {
 
 template <typename T>
 void cublas_gemm(const T *A, const T *B, T *C, int m, int n, int k, bool transA, bool transB,
-                 cudaStream_t stream);
+                 T alpha, T beta, cudaStream_t stream);
 
 template <>
 void cublas_gemm<float>(const float *A, const float *B, float *C, int m, int n, int k, bool transA,
-                        bool transB, cudaStream_t stream) {
+                        bool transB, float alpha, float beta, cudaStream_t stream) {
   cublasHandle_t handle = get_cublas_handle();
   cublasSetStream(handle, stream);
-  const float alpha = 1.0f, beta = 0.0f;
 
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -40,10 +39,9 @@ void cublas_gemm<float>(const float *A, const float *B, float *C, int m, int n, 
 
 template <>
 void cublas_gemm<double>(const double *A, const double *B, double *C, int m, int n, int k,
-                         bool transA, bool transB, cudaStream_t stream) {
+                         bool transA, bool transB, double alpha, double beta, cudaStream_t stream) {
   cublasHandle_t handle = get_cublas_handle();
   cublasSetStream(handle, stream);
-  const double alpha = 1.0, beta = 0.0;
 
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
@@ -100,7 +98,7 @@ __global__ void compute_bias_gradients_kernel(const T *current_grad_data, T *bia
   }
 
   if (tid == 0) {
-    bias_gradient_data[out_f] = shared_data[0];
+    bias_gradient_data[out_f] += shared_data[0];
   }
 }
 
@@ -111,7 +109,7 @@ void compute_dense_forward(const T *input_data, const T *weight_data, T *output_
 
   cublas_gemm(input_data, weight_data, output_data, static_cast<int>(batch_size),
               static_cast<int>(output_features), static_cast<int>(input_features), false, true,
-              stream);
+              T(1.0f), T(0.0f), stream);
 }
 
 template <typename T>
@@ -120,7 +118,8 @@ void compute_weight_gradients(const T *input_data, const T *gradient_data, T *we
                               const size_t output_features, cudaStream_t stream) {
 
   cublas_gemm(gradient_data, input_data, weight_grad_data, static_cast<int>(output_features),
-              static_cast<int>(input_features), static_cast<int>(batch_size), true, false, stream);
+              static_cast<int>(input_features), static_cast<int>(batch_size), true, false, T(1.0f),
+              T(1.0f), stream);
 }
 
 template <typename T>
@@ -136,7 +135,7 @@ void compute_input_gradients(const T *gradient_data, const T *weight_data, T *gr
 
   cublas_gemm(gradient_data, weight_data, grad_input_data, static_cast<int>(batch_size),
               static_cast<int>(input_features), static_cast<int>(output_features), false, false,
-              stream);
+              T(1.0f), T(0.0f), stream);
 }
 
 template <typename T>

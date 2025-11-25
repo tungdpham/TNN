@@ -7,9 +7,14 @@
 #pragma once
 #include "nn/layers_impl/dropout_layer.hpp"
 
+#include <memory>
 #include <stdexcept>
 
-#include "threading/thread_handler.hpp"
+#include "cpu/dropout_ops.hpp"
+#include "device/task.hpp"
+#ifdef USE_CUDA
+#include "cuda/dropout_ops.hpp"
+#endif
 
 namespace tnn {
 
@@ -37,25 +42,11 @@ const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_b
   Tensor<T> mask(current->shape(), this->device_);
   Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
 
-  std::uniform_real_distribution<T> distribution(T(0), T(1));
-
-  T scale = T(1) / (T(1) - dropout_rate_);
-
-  parallel_for_2d(current->batch_size(), current->channels(), [&](size_t n, size_t c) {
-    thread_local std::mt19937 local_generator(std::random_device{}());
-    thread_local std::uniform_real_distribution<T> local_distribution(T(0), T(1));
-    for (size_t h = 0; h < current->height(); ++h) {
-      for (size_t w = 0; w < current->width(); ++w) {
-        if (local_distribution(local_generator) < dropout_rate_) {
-          mask(n, c, h, w) = T(0);
-          output(n, c, h, w) = T(0);
-        } else {
-          mask(n, c, h, w) = scale;
-          output(n, c, h, w) = (*current)(n, c, h, w) * scale;
-        }
-      }
-    }
-  });
+  auto forward_task = compute_dropout_forward(*current, output, mask);
+  auto err = forward_task->sync();
+  if (err != ErrorStatus{}) {
+    throw std::runtime_error("DropoutLayer forward computation failed");
+  }
 
   micro_batch_masks_[micro_batch_id] = mask.clone();
   return output;
@@ -67,9 +58,12 @@ const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t mic
     return gradient;
   }
 
-  // const Tensor<T> &current_gradient =
-  //     gradient.device() == this->device_ ? gradient : gradient.to_device(this->device_);
   const Tensor<T> *current_gradient = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_gradient = &device_gradient;
+  }
 
   auto it_mask = micro_batch_masks_.find(micro_batch_id);
   if (it_mask == micro_batch_masks_.end()) {
@@ -80,16 +74,31 @@ const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t mic
 
   Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, current_gradient->shape());
 
-  parallel_for_2d(current_gradient->batch_size(), current_gradient->channels(),
-                  [&](size_t n, size_t c) {
-                    for (size_t h = 0; h < current_gradient->height(); ++h) {
-                      for (size_t w = 0; w < current_gradient->width(); ++w) {
-                        grad_input(n, c, h, w) = (*current_gradient)(n, c, h, w) * mask(n, c, h, w);
-                      }
-                    }
-                  });
+  grad_input = (*current_gradient) * mask;
 
   return grad_input;
+}
+
+template <typename T>
+std::unique_ptr<Task> DropoutLayer<T>::compute_dropout_forward(const Tensor<T> &input,
+                                                               Tensor<T> &output, Tensor<T> &mask) {
+  size_t batch_size = input.batch_size();
+  size_t channels = input.channels();
+  size_t spatial_size = input.height() * input.width();
+
+  if (input.device_type() == DeviceType::CPU) {
+    return create_cpu_task("default", cpu::compute_dropout_forward<T>, input.data(), output.data(),
+                           mask.data(), batch_size, channels, spatial_size, dropout_rate_);
+  }
+#ifdef USE_CUDA
+  else if (input.device_type() == DeviceType::GPU) {
+    return create_gpu_task("default", cuda::compute_dropout_forward<T>, input.data(), output.data(),
+                           mask.data(), batch_size, channels, spatial_size, dropout_rate_);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type for compute_dropout_forward");
+  }
 }
 
 template <typename T> std::string DropoutLayer<T>::type() const { return "dropout"; }
@@ -159,6 +168,5 @@ uint64_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_s
 }
 
 template class DropoutLayer<float>;
-template class DropoutLayer<double>;
 
 } // namespace tnn

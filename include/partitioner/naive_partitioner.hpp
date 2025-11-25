@@ -10,7 +10,7 @@ public:
   NaivePartitioner() = default;
   ~NaivePartitioner() = default;
 
-  std::vector<Partition> get_partitions(const std::vector<std::unique_ptr<Layer<T>>> &layers_,
+  std::vector<Partition> get_partitions(const std::vector<Layer<T> *> &layers_,
                                         const size_t num_partitions) override {
     if (num_partitions < 1) {
       throw std::invalid_argument("Number of partitions must be at least 1");

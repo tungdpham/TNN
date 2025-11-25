@@ -42,8 +42,8 @@ float compute_class_accuracy(const float *predictions, const float *targets,
   return static_cast<float>(total_correct) / static_cast<float>(batch_size);
 }
 
-float compute_class_corrects(const float *predictions, const float *targets,
-                             const size_t batch_size, const size_t num_classes, float threshold) {
+int compute_class_corrects(const float *predictions, const float *targets, const size_t batch_size,
+                           const size_t num_classes, float threshold) {
   int total_correct = 0;
 
   for (size_t i = 0; i < batch_size; ++i) {
@@ -70,7 +70,7 @@ float compute_class_corrects(const float *predictions, const float *targets,
     }
   }
 
-  return static_cast<float>(total_correct);
+  return total_correct;
 }
 
 } // namespace accuracy

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <memory>
+#include <nlohmann/json.hpp>
 #include <string>
 
 #include "activations.hpp"
@@ -32,6 +33,7 @@ template <typename T> class BatchNormLayer;
 } // namespace tnn
 
 // Wrapper to include all layer implementations
+#include "blocks_impl/residual_block.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
 #include "layers_impl/base_layer.hpp"
@@ -77,8 +79,8 @@ std::unique_ptr<Layer<T>> maxpool2d_layer(size_t pool_h, size_t pool_w, size_t s
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> avgpool2d_layer(size_t pool_h, size_t pool_w, size_t stride_h = 0,
-                                          size_t stride_w = 0, size_t pad_h = 0, size_t pad_w = 0,
+std::unique_ptr<Layer<T>> avgpool2d_layer(size_t pool_h, size_t pool_w, size_t stride_h = 1,
+                                          size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                                           const std::string &name = "avgpool2d") {
   return std::make_unique<AvgPool2DLayer<T>>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                              name);
@@ -203,6 +205,66 @@ public:
 
     register_layer("flatten", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
       return std::make_unique<FlattenLayer<T>>(config.name);
+    });
+
+    register_layer("residual_block", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      std::string activation = config.get<std::string>("activation", "relu");
+      bool has_projection = config.get<bool>("has_projection", false);
+      std::string main_path_str = config.get<std::string>("main_path", std::string("[]"));
+      std::string shortcut_path_str = config.get<std::string>("shortcut_path", std::string("[]"));
+
+      nlohmann::json main_json = nlohmann::json::parse(main_path_str);
+      nlohmann::json shortcut_json = nlohmann::json::parse(shortcut_path_str);
+
+      LayerFactory<T> sub_factory;
+      sub_factory.register_defaults();
+
+      std::vector<std::unique_ptr<Layer<T>>> main_layers;
+      for (const auto &sub : main_json) {
+        LayerConfig sub_cfg;
+        sub_cfg.name = sub.value("name", "");
+        if (sub.contains("parameters")) {
+          for (const auto &[k, v] : sub["parameters"].items()) {
+            if (v.is_number_integer()) {
+              sub_cfg.parameters[k] = v.template get<size_t>();
+            } else if (v.is_number_float()) {
+              sub_cfg.parameters[k] = v.template get<float>();
+            } else if (v.is_boolean()) {
+              sub_cfg.parameters[k] = v.template get<bool>();
+            } else if (v.is_string()) {
+              sub_cfg.parameters[k] = v.template get<std::string>();
+            }
+          }
+        }
+        std::string sub_type = sub.value("type", "");
+        main_layers.push_back(sub_factory.create(sub_type, sub_cfg));
+      }
+
+      std::vector<std::unique_ptr<Layer<T>>> shortcut_layers;
+      if (has_projection) {
+        for (const auto &sub : shortcut_json) {
+          LayerConfig sub_cfg;
+          sub_cfg.name = sub.value("name", "");
+          if (sub.contains("parameters")) {
+            for (const auto &[k, v] : sub["parameters"].items()) {
+              if (v.is_number_integer()) {
+                sub_cfg.parameters[k] = v.template get<size_t>();
+              } else if (v.is_number_float()) {
+                sub_cfg.parameters[k] = v.template get<float>();
+              } else if (v.is_boolean()) {
+                sub_cfg.parameters[k] = v.template get<bool>();
+              } else if (v.is_string()) {
+                sub_cfg.parameters[k] = v.template get<std::string>();
+              }
+            }
+          }
+          std::string sub_type = sub.value("type", "");
+          shortcut_layers.push_back(sub_factory.create(sub_type, sub_cfg));
+        }
+      }
+
+      return std::make_unique<ResidualBlock<T>>(std::move(main_layers), std::move(shortcut_layers),
+                                                activation, config.name);
     });
   }
 
@@ -335,7 +397,7 @@ public:
     return *this;
   }
 
-  LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
+  LayerBuilder &avgpool2d(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                           size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "") {
     auto layer =
         avgpool2d_layer<T>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,

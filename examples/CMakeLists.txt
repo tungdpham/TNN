@@ -4,9 +4,8 @@ create_default(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
 create_default(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
 create_default(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_default(uji_ips_trainer uji_ips_trainer.cpp)
-create_default(resnet_example resnet_example.cpp)
-create_default(resnet9_tiny_imagenet resnet9_tiny_imagenet.cpp)
-create_default(tiny_imagenet_cnn_trainer tiny_imagenet_cnn_trainer.cpp)
+create_default(resnet18_tiny_imagenet resnet18_tiny_imagenet.cpp)
+create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
 
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
@@ -22,3 +21,7 @@ create_default(mnist_cnn_test mnist_cnn_test.cpp)
 create_default(network_worker network_worker.cpp)
 create_default(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
 create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
+create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
+
+# Microbatching test executable
+create_base_executable(microbatching_test microbatching_test.cpp)

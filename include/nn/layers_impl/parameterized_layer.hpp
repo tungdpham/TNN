@@ -22,7 +22,6 @@ public:
   std::vector<Tensor<T> *> parameters() override;
   std::vector<Tensor<T> *> gradients() override;
   bool has_parameters() const override { return true; }
-  virtual void clear_gradients() = 0;
 
 protected:
   virtual void initialize_params() = 0;

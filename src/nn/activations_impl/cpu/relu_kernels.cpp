@@ -6,13 +6,7 @@
 namespace tnn {
 namespace cpu {
 template <typename T> void relu(const T *input, T *output, size_t size) {
-  const size_t num_threads = get_num_threads();
-  const size_t block_size = size / num_threads;
-  parallel_for<size_t>(0, num_threads, [&](size_t i) {
-    size_t start = i * block_size;
-    size_t end = std::min(start + block_size, size);
-    ops::cpu::scalar_max(input + start, T(0), output + start, end - start);
-  });
+  parallel_for<size_t>(0, size, [&](size_t i) { output[i] = std::max(input[i], T(0)); });
 }
 
 template <typename T> void relu_gradient(const T *input, T *grad_output, size_t size) {

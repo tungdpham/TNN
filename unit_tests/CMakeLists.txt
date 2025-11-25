@@ -30,8 +30,16 @@ set(TEST_FILES
     cuda_maxpool_ops_test.cpp
     cuda_loss_funcs_test.cpp
     cuda_batchnorm_ops_test.cpp
-    layer_integration_test.cpp
+    layer_device_agnosticity_test.cpp
+    avgpool_layer_test.cpp
     layer_buffer_reuse_test.cpp
+    residual_block_test.cpp
+    sequential_residual_block_test.cpp
+    tiny_imagenet_loader_test.cpp
+    conv2d_layer_test.cpp
+    dense_layer_test.cpp
+    maxpool2d_layer_test.cpp
+    batchnorm_layer_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
@@ -80,7 +88,11 @@ add_custom_target(run_tests
     cuda_maxpool_ops_test
     cuda_loss_funcs_test
     cuda_batchnorm_ops_test
-    layer_integration_test
+    layer_device_agnosticity_test
+    avgpool_layer_test
+    layer_buffer_reuse_test
+    residual_block_test
+    sequential_residual_block_test
     ${CUDA_TEST_TARGET}
     COMMENT "Running all unit tests"
 )

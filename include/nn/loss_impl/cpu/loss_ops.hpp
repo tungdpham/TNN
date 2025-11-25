@@ -30,6 +30,15 @@ template <typename T>
 void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
                                            const size_t batch_size, const size_t num_classes);
 
+// LogSoftmax CrossEntropy Loss
+template <typename T>
+void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
+                                          const size_t batch_size, const size_t num_classes);
+
+template <typename T>
+void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
+                                              const size_t batch_size, const size_t num_classes);
+
 // MSE Loss
 template <typename T>
 void compute_mse_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,

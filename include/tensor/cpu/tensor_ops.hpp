@@ -607,6 +607,11 @@ void slice_batch(const Tensor<T, L> &input, Tensor<T, L> &result, size_t start_b
     throw std::invalid_argument("Invalid batch slice range");
   }
 
+  auto input_shape = input.shape();
+  std::vector<size_t> result_shape = input_shape;
+  result_shape[0] = end_batch - start_batch;
+  result.resize(result_shape, input.device());
+
   const T *input_data = input.data_ptr().get();
   const std::vector<size_t> strides = input.strides();
   T *result_data = result.data_ptr().get();
@@ -653,6 +658,8 @@ void split(const Tensor<T, L> &input, std::vector<Tensor<T, L>> &results, size_t
   if (num_splits == 0 || num_splits > input.batch_size()) {
     throw std::invalid_argument("Invalid number of splits");
   }
+
+  results.resize(num_splits);
 
   size_t split_size = input.batch_size() / num_splits;
 

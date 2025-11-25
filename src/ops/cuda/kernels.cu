@@ -8,11 +8,14 @@
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 
-#include <iostream>
 namespace tnn {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
+
+// Global RNG state cache for efficient random generation
+static curandStatePhilox4_32_10_t *g_rng_states = nullptr;
+static size_t g_rng_states_size = 0;
 
 inline int get_num_blocks(size_t size) { return (size + BLOCK_SIZE - 1) / BLOCK_SIZE; }
 
@@ -377,26 +380,50 @@ __global__ void sum_squared_diff_kernel(const T *a, T mean, T *result, size_t si
   }
 }
 
+// Optimized RNG initialization kernel using Philox generator
+__global__ void init_rng_kernel(curandStatePhilox4_32_10_t *states, size_t size,
+                                unsigned long long seed) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    curand_init(seed, idx, 0, &states[idx]);
+  }
+}
+
+// Optimized uniform random fill using persistent RNG states
 template <>
 __global__ void fill_random_uniform_kernel<float>(float *data, size_t size, float min_val,
                                                   float max_val, unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
-    curandState state;
+    curandStatePhilox4_32_10_t state;
     curand_init(seed, idx, 0, &state);
     float random_val = curand_uniform(&state);
     data[idx] = min_val + random_val * (max_val - min_val);
   }
 }
 
+// Optimized normal random fill using persistent RNG states and vectorized generation
 template <>
 __global__ void fill_random_normal_kernel<float>(float *data, size_t size, float mean, float stddev,
                                                  unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    curandState state;
-    curand_init(seed, idx, 0, &state);
-    data[idx] = mean + stddev * curand_normal(&state);
+  int stride = blockDim.x * gridDim.x;
+
+  curandStatePhilox4_32_10_t state;
+  curand_init(seed, idx, 0, &state);
+
+  // Process 4 elements at a time for better efficiency
+  for (int i = idx * 4; i < size; i += stride * 4) {
+    float4 randoms = curand_normal4(&state);
+
+    if (i < size)
+      data[i] = mean + stddev * randoms.x;
+    if (i + 1 < size)
+      data[i + 1] = mean + stddev * randoms.y;
+    if (i + 2 < size)
+      data[i + 2] = mean + stddev * randoms.z;
+    if (i + 3 < size)
+      data[i + 3] = mean + stddev * randoms.w;
   }
 }
 
@@ -405,21 +432,31 @@ __global__ void fill_random_uniform_kernel<double>(double *data, size_t size, do
                                                    double max_val, unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
-    curandState state;
+    curandStatePhilox4_32_10_t state;
     curand_init(seed, idx, 0, &state);
     double random_val = curand_uniform_double(&state);
     data[idx] = min_val + random_val * (max_val - min_val);
   }
 }
 
+// Optimized double precision normal random fill
 template <>
 __global__ void fill_random_normal_kernel<double>(double *data, size_t size, double mean,
                                                   double stddev, unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    curandState state;
-    curand_init(seed, idx, 0, &state);
-    data[idx] = mean + stddev * curand_normal_double(&state);
+  int stride = blockDim.x * gridDim.x;
+
+  curandStatePhilox4_32_10_t state;
+  curand_init(seed, idx, 0, &state);
+
+  // Process 2 elements at a time (double2 for doubles)
+  for (int i = idx * 2; i < size; i += stride * 2) {
+    double2 randoms = curand_normal2_double(&state);
+
+    if (i < size)
+      data[i] = mean + stddev * randoms.x;
+    if (i + 1 < size)
+      data[i + 1] = mean + stddev * randoms.y;
   }
 }
 
@@ -826,7 +863,12 @@ void cuda_fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned lo
                              cudaStream_t stream) {
   if (size <= 0)
     return;
-  int num_blocks = get_num_blocks(size);
+
+  // For normal distribution, use fewer threads since each processes multiple elements
+  int elements_per_thread = (std::is_same<T, float>::value) ? 4 : 2;
+  int num_threads = (size + elements_per_thread - 1) / elements_per_thread;
+  int num_blocks = (num_threads + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
   fill_random_normal_kernel<T>
       <<<num_blocks, BLOCK_SIZE, 0, stream>>>(data, size, mean, stddev, seed);
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
@@ -960,6 +1002,6 @@ template void cuda_cnhw_to_nchw<double>(const double *input, double *output, siz
                                         size_t h, size_t w, cudaStream_t stream);
 
 } // namespace cuda
+} // namespace tnn
 
 #endif
-}
