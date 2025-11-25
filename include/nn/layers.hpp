@@ -29,6 +29,7 @@ template <typename T> class AvgPool2DLayer;
 template <typename T> class DropoutLayer;
 template <typename T> class FlattenLayer;
 template <typename T> class BatchNormLayer;
+template <typename T> class GroupNormLayer;
 
 } // namespace tnn
 
@@ -42,6 +43,7 @@ template <typename T> class BatchNormLayer;
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/dropout_layer.hpp"
 #include "layers_impl/flatten_layer.hpp"
+#include "layers_impl/groupnorm_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
 
 namespace tnn {
@@ -96,6 +98,13 @@ std::unique_ptr<Layer<T>> batchnorm_layer(size_t num_features, T epsilon = T(1e-
                                           T momentum = T(0.1), bool affine = true,
                                           const std::string &name = "batchnorm") {
   return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> groupnorm_layer(size_t num_groups, size_t num_channels,
+                                          T epsilon = T(1e-5), bool affine = true,
+                                          const std::string &name = "groupnorm") {
+  return std::make_unique<GroupNormLayer<T>>(num_groups, num_channels, epsilon, affine, name);
 }
 
 template <typename T = float>
@@ -200,6 +209,15 @@ public:
       T momentum = config.get<T>("momentum", T(0.1));
       bool affine = config.get<bool>("affine", true);
       return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine,
+                                                 config.name);
+    });
+
+    register_layer("groupnorm", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t num_groups = config.get<size_t>("num_groups");
+      size_t num_channels = config.get<size_t>("num_channels");
+      T epsilon = config.get<T>("epsilon", T(1e-5));
+      bool affine = config.get<bool>("affine", true);
+      return std::make_unique<GroupNormLayer<T>>(num_groups, num_channels, epsilon, affine,
                                                  config.name);
     });
 
@@ -377,6 +395,33 @@ public:
     auto layer =
         batchnorm_layer<T>(num_features, epsilon, momentum, affine,
                            name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &groupnorm(T num_groups, T epsilon = T(1e-5), bool affine = true,
+                          const std::string &name = "") {
+    std::vector<size_t> current_shape = get_current_shape();
+
+    if (current_shape.size() < 2) {
+      throw std::runtime_error("GroupNorm requires at least 2D input (batch, features)");
+    }
+
+    size_t num_channels;
+    if (current_shape.size() == 2) {
+
+      num_channels = current_shape[1];
+    } else if (current_shape.size() >= 4) {
+
+      num_channels = current_shape[1];
+    } else {
+
+      num_channels = current_shape[1];
+    }
+
+    auto layer =
+        groupnorm_layer<T>(num_groups, num_channels, epsilon, affine,
+                           name.empty() ? "groupnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
