@@ -22,3 +22,6 @@ create_default(network_worker network_worker.cpp)
 create_default(sync_pipeline_coordinator sync_pipeline_coordinator.cpp)
 create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
 create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
+
+# Microbatching test executable
+create_base_executable(microbatching_test microbatching_test.cpp)

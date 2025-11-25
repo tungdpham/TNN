@@ -78,13 +78,9 @@ int main() {
 
   coordinator.start();
 
-  // CIFAR10DataLoader<float> train_loader, test_loader;
+  CIFAR10DataLoader<float> train_loader, test_loader;
 
-  // create_cifar10_dataloader("./data", train_loader, test_loader);
-
-  MNISTDataLoader<float> train_loader, test_loader;
-
-  create_mnist_data_loaders("./data", train_loader, test_loader);
+  create_cifar10_dataloader("./data", train_loader, test_loader);
 
   auto aug_strategy = AugmentationBuilder<float>()
                           .horizontal_flip(0.25f)

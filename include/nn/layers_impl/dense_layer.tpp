@@ -39,7 +39,11 @@ template <typename T> void DenseLayer<T>::initialize_params() {
   T fan_in = static_cast<T>(input_features_);
   T fan_out = static_cast<T>(output_features_);
   T std_dev = std::sqrt(static_cast<T>(2.0) / (fan_in + fan_out));
-  weights_.fill_random_normal(T(0), std_dev);
+  if (this->use_seed_) {
+    weights_.fill_random_normal(T(0), std_dev, this->srand_seed_);
+  } else {
+    weights_.fill_random_normal(T(0), std_dev);
+  }
 }
 
 template <typename T>
@@ -69,7 +73,7 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     micro_batch_inputs_[micro_batch_id] = current->clone();
   } else {
     micro_batch_inputs_[micro_batch_id].resize(current->shape());
-    ops::copy(input.data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
+    ops::copy(current->data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
   }
 
   Tensor<T> &output =

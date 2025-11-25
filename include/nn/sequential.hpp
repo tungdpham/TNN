@@ -51,10 +51,6 @@ private:
 
   bool enable_profiling_ = false;
 
-  // Activation capture for debugging
-  bool capture_activations_ = false;
-  mutable std::vector<Tensor<T>> captured_activations_;
-
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
   std::map<std::string, uint64_t> forward_times_microseconds_;
@@ -145,6 +141,12 @@ public:
       backward_times_microseconds_ = std::move(other.backward_times_microseconds_);
     }
     return *this;
+  }
+
+  void set_seed(unsigned long long seed) {
+    for (auto &layer : layers_) {
+      layer->set_seed(seed);
+    }
   }
 
   void initialize() {
@@ -400,10 +402,6 @@ public:
     }
     const Device *input_device = input.device();
     const Tensor<T> *current = &input;
-    if (capture_activations_) {
-      captured_activations_.clear();
-      captured_activations_.push_back(input.clone());
-    }
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
         // just profile since it's not expensive
@@ -422,9 +420,6 @@ public:
         {
           std::lock_guard<std::mutex> lock(forward_times_mutex_);
           forward_times_microseconds_[layer_name] += duration.count();
-        }
-        if (capture_activations_) {
-          captured_activations_.push_back(current->clone());
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
@@ -943,10 +938,6 @@ public:
     }
     return layer_ptrs;
   }
-
-  void set_capture_activations(bool enable) { capture_activations_ = enable; }
-  bool is_capture_activations_enabled() const { return capture_activations_; }
-  const std::vector<Tensor<T>> &get_captured_activations() const { return captured_activations_; }
 
   /**
    * @brief Returns the model configuration as a JSON object.

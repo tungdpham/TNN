@@ -40,11 +40,17 @@ public:
 
   virtual void initialize() {};
 
+  void set_seed(unsigned long long seed) {
+    use_seed_ = true;
+    srand_seed_ = seed;
+  }
+
   virtual const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
   virtual const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
+
   virtual void clear_gradients() {}
 
   virtual uint64_t
@@ -86,6 +92,8 @@ public:
 protected:
   bool is_training_ = true;
   bool enable_profiling_ = false;
+  bool use_seed_ = false;
+  unsigned long long srand_seed_ = 0;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
   // buffers for storing intermediate results per micro-batch
   std::unordered_map<size_t, Tensor<T>> output_buffers_;

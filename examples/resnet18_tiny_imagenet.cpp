@@ -58,14 +58,20 @@ int main() {
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
     cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
-    auto aug_strategy = AugmentationBuilder<float>()
-                            // .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
-                            // .horizontal_flip(0.2)
-                            // .rotation(0.2f, 5.0f)
-                            // .random_crop(0.25f, 4)
-                            .build();
+    auto train_aug = AugmentationBuilder<float>()
+                         .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                         .horizontal_flip(0.2)
+                         .rotation(0.2f, 5.0f)
+                         .random_crop(0.25f, 4)
+                         .build();
     cout << "Configuring data augmentation for training." << endl;
-    train_loader.set_augmentation(std::move(aug_strategy));
+    train_loader.set_augmentation(std::move(train_aug));
+
+    auto val_aug = AugmentationBuilder<float>()
+                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                       .build();
+    cout << "Configuring data normalization for validation." << endl;
+    val_loader.set_augmentation(std::move(val_aug));
 
     cout << "\nBuilding CNN model architecture for Tiny ImageNet..." << endl;
 
@@ -83,8 +89,6 @@ int main() {
     model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
-    // Enable activation captures for early-batch debugging
-    model.set_capture_activations(true);
 
     cout << "\nStarting Tiny ImageNet CNN training..." << endl;
     train_classification_model(model, train_loader, val_loader, train_config);

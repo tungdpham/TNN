@@ -312,7 +312,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     input_data[i] = 1.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  residual.forward(input);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   float *grad_data = gradient.data();

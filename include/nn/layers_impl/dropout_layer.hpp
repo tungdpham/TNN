@@ -23,6 +23,9 @@ private:
   std::unordered_map<size_t, Tensor<T>> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
+  std::unique_ptr<Task> compute_dropout_forward(const Tensor<T> &input, Tensor<T> &output,
+                                                Tensor<T> &mask);
+
 public:
   explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
 

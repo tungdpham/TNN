@@ -454,6 +454,10 @@ public:
     ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
   }
 
+  void fill_random_normal(T mean, T stddev, unsigned long long seed) {
+    ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
+  }
+
   void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
     assert(new_shape.size() == dims_ && "New shape size must match tensor dims size");
     if (new_device != nullptr && new_device != device_) {
