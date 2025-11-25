@@ -13,15 +13,19 @@
 #include <string>
 
 namespace tnn {
-template <typename T> void Linear<T>::apply(Tensor<T> &tensor) const { (void)tensor; }
+template <typename T> std::unique_ptr<Task> Linear<T>::apply(Tensor<T> &tensor) const {
+  (void)tensor;
+  return nullptr;
+}
 
 template <typename T>
-void Linear<T>::compute_gradient_inplace(const Tensor<T> &input,
-                                         Tensor<T> &upstream_gradient) const {
+std::unique_ptr<Task> Linear<T>::compute_gradient_inplace(const Tensor<T> &input,
+                                                          Tensor<T> &upstream_gradient) const {
   if (upstream_gradient.shape() != input.shape()) {
     throw std::invalid_argument("Upstream gradient must have the same "
                                 "shape as pre-activation values");
   }
+  return nullptr;
 }
 
 template <typename T> std::string Linear<T>::name() const { return "linear"; }

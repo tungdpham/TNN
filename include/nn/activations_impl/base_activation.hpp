@@ -7,25 +7,17 @@
 #pragma once
 
 #include "tensor/tensor.hpp"
+#include <memory>
 
 namespace tnn {
 template <typename T = float> class ActivationFunction {
 public:
   virtual ~ActivationFunction() = default;
 
-  virtual void apply(Tensor<T> &tensor) const = 0;
+  virtual std::unique_ptr<Task> apply(Tensor<T> &tensor) const = 0;
 
-  Tensor<T> compute_gradient(const Tensor<T> &input,
-                             const Tensor<T> *upstream_gradient = nullptr) const {
-    Tensor<T> gradient;
-    assert(upstream_gradient != nullptr && "Upstream gradient must be provided");
-    gradient = upstream_gradient->clone();
-    compute_gradient_inplace(input, gradient);
-    return gradient;
-  }
-
-  virtual void compute_gradient_inplace(const Tensor<T> &input,
-                                        Tensor<T> &upstream_gradient) const = 0;
+  virtual std::unique_ptr<Task> compute_gradient_inplace(const Tensor<T> &input,
+                                                         Tensor<T> &upstream_gradient) const = 0;
 
   virtual std::string name() const = 0;
   virtual std::unique_ptr<ActivationFunction<T>> clone() const = 0;

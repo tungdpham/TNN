@@ -46,7 +46,6 @@ void compute_inference_output(const T *input_data, const T *running_mean_data,
   });
 }
 
-// Fused forward matching GPU behavior: compute mean, inv_std, update running stats, normalize
 template <typename T>
 void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *running_var,
                        const T *gamma, const T *beta, T *output, T *norm_cache, size_t N, size_t C,
@@ -55,12 +54,10 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
   const size_t channel_stride = C * S;
   const T inv_total = T(1) / static_cast<T>(total_elements);
 
-  // Pass 1: Compute mean, variance, inv_std, and update running stats (fused)
   parallel_for<size_t>(0, C, [&](size_t c) {
     T sum = T(0);
     const size_t c_offset = c * S;
 
-    // First pass: compute mean
     for (size_t n = 0; n < N; ++n) {
       const size_t n_offset = n * channel_stride;
       const size_t base_idx = n_offset + c_offset;
@@ -74,7 +71,6 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
     T mu = sum * inv_total;
     mean[c] = mu;
 
-    // Second pass: compute variance using stable formula
     T var_sum = T(0);
     for (size_t n = 0; n < N; ++n) {
       const size_t n_offset = n * channel_stride;
@@ -89,15 +85,12 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
 
     T var = var_sum * inv_total;
 
-    // Store inv_std (matching GPU behavior)
     inv_std[c] = T(1) / std::sqrt(var + epsilon);
 
-    // Update running stats (fused to avoid separate pass)
     running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
     running_var[c] = (T(1) - momentum) * running_var[c] + momentum * var;
   });
 
-  // Pass 2: Apply normalization using inv_std
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const T mu = mean[c];
     const T istd = inv_std[c];
@@ -126,7 +119,6 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
   });
 }
 
-// Fused backward matching GPU behavior: use inv_std, compute gradients efficiently
 template <typename T>
 void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
@@ -136,7 +128,7 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   const T inv_M = T(1) / static_cast<T>(M);
 
   if (affine) {
-    // Pass 1: Compute gradient sums per channel
+
     parallel_for<size_t>(0, C, [&](size_t c) {
       T sum_dy = T(0);
       T sum_dy_x_norm = T(0);
@@ -161,7 +153,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
     });
   }
 
-  // Pass 2: Compute input gradients using the formula matching GPU
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const T g = (affine && gamma) ? gamma[c] : T(1);
     const T istd = inv_std[c];
@@ -179,8 +170,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
       T dy = grad_output[idx];
       T x_hat = norm_input[idx];
 
-      // Standard BN Backward formula: dx = (1/M) * (gamma / std) * (M * dy - sum_dy - x_hat *
-      // sum_dy_x_norm)
       T term2 = static_cast<T>(M) * dy - sum_dy - (x_hat * sum_dy_x_norm);
       grad_input[idx] = term1 * term2;
     }

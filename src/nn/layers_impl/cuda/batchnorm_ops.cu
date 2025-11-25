@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cuda/batchnorm_ops.hpp"
-
 #include <cuda_runtime.h>
 
 namespace tnn {
@@ -13,8 +12,72 @@ namespace cuda {
 namespace batchnorm {
 
 #define BLOCK_SIZE 256
-#define THREADS_PER_BLOCK 256
 #define WARP_SIZE 32
+
+template <typename T> struct WelfordData {
+  T mean;
+  T m2;
+  T count;
+
+  __device__ WelfordData() : mean(0), m2(0), count(0) {}
+  __device__ WelfordData(T m, T v, T c) : mean(m), m2(v), count(c) {}
+};
+
+template <typename T> __device__ WelfordData<T> welford_merge(WelfordData<T> a, WelfordData<T> b) {
+  if (b.count == T(0))
+    return a;
+  if (a.count == T(0))
+    return b;
+
+  T new_count = a.count + b.count;
+  T delta = b.mean - a.mean;
+  T new_mean = a.mean + (delta * b.count) / new_count;
+  T new_m2 = a.m2 + b.m2 + (delta * delta * a.count * b.count) / new_count;
+
+  return WelfordData<T>(new_mean, new_m2, new_count);
+}
+
+template <typename T> __device__ WelfordData<T> warpReduceWelford(WelfordData<T> val) {
+  for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
+    T other_mean = __shfl_down_sync(0xffffffff, val.mean, offset);
+    T other_m2 = __shfl_down_sync(0xffffffff, val.m2, offset);
+    T other_count = __shfl_down_sync(0xffffffff, val.count, offset);
+    val = welford_merge(val, WelfordData<T>(other_mean, other_m2, other_count));
+  }
+  return val;
+}
+
+template <typename T> __device__ WelfordData<T> blockReduceWelford(WelfordData<T> val) {
+  static __shared__ T shared_mean[32];
+  static __shared__ T shared_m2[32];
+  static __shared__ T shared_count[32];
+
+  int lane = threadIdx.x % WARP_SIZE;
+  int wid = threadIdx.x / WARP_SIZE;
+
+  val = warpReduceWelford(val);
+
+  if (lane == 0) {
+    shared_mean[wid] = val.mean;
+    shared_m2[wid] = val.m2;
+    shared_count[wid] = val.count;
+  }
+  __syncthreads();
+
+  WelfordData<T> block_val;
+
+  if (threadIdx.x < (blockDim.x / WARP_SIZE)) {
+    block_val.mean = shared_mean[threadIdx.x];
+    block_val.m2 = shared_m2[threadIdx.x];
+    block_val.count = shared_count[threadIdx.x];
+  }
+
+  if (wid == 0) {
+    block_val = warpReduceWelford(block_val);
+  }
+
+  return block_val;
+}
 
 template <typename T> __inline__ __device__ T warpReduceSum(T val) {
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
@@ -24,7 +87,7 @@ template <typename T> __inline__ __device__ T warpReduceSum(T val) {
 }
 
 template <typename T> __inline__ __device__ T blockReduceSum(T val) {
-  static __shared__ T shared[WARP_SIZE];
+  static __shared__ T shared[32];
   int lane = threadIdx.x % WARP_SIZE;
   int wid = threadIdx.x / WARP_SIZE;
 
@@ -46,53 +109,38 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
                                    T *__restrict__ inv_std_out, T *__restrict__ running_mean,
                                    T *__restrict__ running_var, size_t N, size_t C, size_t S,
                                    T momentum, T epsilon) {
-
   int c = blockIdx.x;
   if (c >= C)
     return;
 
+  size_t channel_stride = C * S;
+  size_t channel_offset = c * S;
   size_t count = N * S;
-  T sum = T(0);
 
-  size_t stride = C * S;
-  size_t offset = c * S;
+  WelfordData<T> thread_data;
 
-  // First pass: compute mean
   for (size_t i = threadIdx.x; i < count; i += blockDim.x) {
     size_t n = i / S;
     size_t s = i % S;
-    size_t idx = n * stride + offset + s;
-    sum += input[idx];
+    size_t idx = n * channel_stride + channel_offset + s;
+
+    T val = input[idx];
+
+    thread_data.count += T(1);
+    T delta = val - thread_data.mean;
+    thread_data.mean += delta / thread_data.count;
+    T delta2 = val - thread_data.mean;
+    thread_data.m2 += delta * delta2;
   }
 
-  sum = blockReduceSum(sum);
+  WelfordData<T> result = blockReduceWelford(thread_data);
 
-  // Broadcast mean to all threads
-  __shared__ T shared_mean;
   if (threadIdx.x == 0) {
-    T inv_N = T(1) / T(count);
-    T mu = sum * inv_N;
-    shared_mean = mu;
+    T mu = result.mean;
+
+    T var = result.m2 / result.count;
+
     mean_out[c] = mu;
-  }
-  __syncthreads();
-  T mu = shared_mean;
-
-  // Second pass: compute variance using stable formula
-  T var_sum = T(0);
-  for (size_t i = threadIdx.x; i < count; i += blockDim.x) {
-    size_t n = i / S;
-    size_t s = i % S;
-    size_t idx = n * stride + offset + s;
-    T diff = input[idx] - mu;
-    var_sum += diff * diff;
-  }
-
-  var_sum = blockReduceSum(var_sum);
-
-  if (threadIdx.x == 0) {
-    T inv_N = T(1) / T(count);
-    T var = var_sum * inv_N;
 
     T inv_std = rsqrt(var + epsilon);
     inv_std_out[c] = inv_std;
@@ -108,12 +156,11 @@ __global__ void fused_apply_kernel(const T *__restrict__ input, const T *__restr
                                    const T *__restrict__ beta, T *__restrict__ output,
                                    T *__restrict__ normalized_cache, size_t N, size_t C, size_t S,
                                    bool affine) {
-  size_t total_elements = N * C * S;
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
-  size_t spatial_size = S;
+  size_t total_elements = N * C * S;
 
   if (idx < total_elements) {
-    int c = (idx / spatial_size) % C;
+    int c = (idx / S) % C;
 
     T mu = mean[c];
     T istd = inv_std[c];
@@ -137,7 +184,6 @@ __global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
                                              const T *__restrict__ normalized_input,
                                              T *__restrict__ d_gamma, T *__restrict__ d_beta,
                                              size_t N, size_t C, size_t S) {
-
   int c = blockIdx.x;
   if (c >= C)
     return;
@@ -165,9 +211,8 @@ __global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
   sum_dy_x_norm = blockReduceSum(sum_dy_x_norm);
 
   if (threadIdx.x == 0) {
-
-    d_gamma[c] += sum_dy_x_norm;
-    d_beta[c] += sum_dy;
+    d_gamma[c] = sum_dy_x_norm;
+    d_beta[c] = sum_dy;
   }
 }
 
@@ -178,8 +223,8 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
                             const T *__restrict__ gamma, const T *__restrict__ d_gamma,
                             const T *__restrict__ d_beta, T *__restrict__ grad_input, size_t N,
                             size_t C, size_t S, bool affine) {
-  size_t total_elements = N * C * S;
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_elements = N * C * S;
 
   if (idx < total_elements) {
     int c = (idx / S) % C;
@@ -249,8 +294,8 @@ template <typename T>
 void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
-
   if (affine) {
+
     fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
                                                                d_beta, N, C, S);
   }
@@ -266,7 +311,7 @@ void compute_inference_output(const T *input_data, const T *running_mean_data,
                               T *output_data, size_t batch_size, size_t channels,
                               size_t spatial_size, T epsilon, bool affine, cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
-  int threads_per_block = THREADS_PER_BLOCK;
+  int threads_per_block = BLOCK_SIZE;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
   compute_inference_output_kernel<<<num_blocks, threads_per_block, 0, stream>>>(

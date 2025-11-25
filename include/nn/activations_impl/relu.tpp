@@ -17,15 +17,15 @@
 namespace tnn {
 template <typename T> ReLU<T>::ReLU() {}
 
-template <typename T> void ReLU<T>::apply(Tensor<T> &tensor) const {
+template <typename T> std::unique_ptr<Task> ReLU<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::relu<T>, data, data, size);
+    return create_cpu_task("default", cpu::relu<T>, data, data, size);
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::relu<T>, data, data, size);
+    return create_gpu_task("default", cuda::relu<T>, data, data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -33,19 +33,20 @@ template <typename T> void ReLU<T>::apply(Tensor<T> &tensor) const {
 }
 
 template <typename T>
-void ReLU<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
+std::unique_ptr<Task> ReLU<T>::compute_gradient_inplace(const Tensor<T> &input,
+                                                        Tensor<T> &upstream_gradient) const {
   assert(input.shape() == upstream_gradient.shape() &&
          "Shapes must match for in-place gradient computation");
   if (input.device() != upstream_gradient.device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for RELU");
   }
   if (input.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::relu_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_cpu_task("default", cpu::relu_gradient<T>, input.data(), upstream_gradient.data(),
+                           input.size());
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::relu_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_gpu_task("default", cuda::relu_gradient<T>, input.data(),
+                           upstream_gradient.data(), input.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

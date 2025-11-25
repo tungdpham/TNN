@@ -1253,6 +1253,14 @@ public:
     return *this;
   }
 
+  SequentialBuilder &groupnorm(size_t num_groups, T epsilon = T(1e-5), bool affine = true,
+                               const std::string &name = "") {
+    layer_builder_.groupnorm(num_groups, epsilon, affine,
+                             name.empty() ? "groupnorm_" + std::to_string(model_.layer_size())
+                                          : name);
+    return *this;
+  }
+
   SequentialBuilder &activation(const std::string &activation_name, const std::string &name = "") {
     layer_builder_.activation(
         activation_name, name.empty() ? "activation_" + std::to_string(model_.layer_size()) : name);
@@ -1311,10 +1319,12 @@ public:
     auto main_path = LayerBuilder<T>()
                          .input(input_shape)
                          .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm(1e-3f, 0.1f, true, "bn0")
+                         .batchnorm(1e-5f, 0.1f, true, "bn0")
+                         //  .groupnorm(32, 1e-5f, true, "gn0")
                          .activation("relu")
                          .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
-                         .batchnorm(1e-3f, 0.1f, true, "bn0")
+                         .batchnorm(1e-5f, 0.1f, true, "bn0")
+                         //  .groupnorm(32, 1e-5f, true, "gn1")
                          .build();
 
     std::vector<std::unique_ptr<Layer<T>>> shortcut;
@@ -1322,7 +1332,8 @@ public:
       shortcut = LayerBuilder<T>()
                      .input(input_shape)
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
-                     .batchnorm(1e-3f, 0.1f, true, "bn0")
+                     .batchnorm(1e-5f, 0.1f, true, "bn0")
+                     //  .groupnorm(32, 1e-5f, true, "gn0")
                      .build();
     }
 

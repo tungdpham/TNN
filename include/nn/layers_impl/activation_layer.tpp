@@ -28,9 +28,15 @@ const Tensor<T> &ActivationLayer<T>::forward(const Tensor<T> &input, size_t micr
     current = &device_input;
   }
 
-  micro_batch_inputs_[micro_batch_id] = current->clone();
+  auto it_input = micro_batch_inputs_.find(micro_batch_id);
+  if (it_input == micro_batch_inputs_.end()) {
+    micro_batch_inputs_[micro_batch_id] = current->clone();
+  } else {
+    it_input->second.resize(current->shape());
+    ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0, "default");
+  }
   Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
-  ops::copy(current->data_ptr(), output.data_ptr(), current->size());
+  ops::copy(current->data_ptr(), output.data_ptr(), current->size(), 0, 0, "default");
   activation_->apply(output);
   return output;
 }

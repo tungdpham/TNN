@@ -16,15 +16,15 @@
 #endif
 
 namespace tnn {
-template <typename T> void Sigmoid<T>::apply(Tensor<T> &tensor) const {
+template <typename T> std::unique_ptr<Task> Sigmoid<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::sigmoid<T>, data, data, size);
+    return create_cpu_task("default", cpu::sigmoid<T>, data, data, size);
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::sigmoid<T>, data, data, size);
+    return create_gpu_task("default", cuda::sigmoid<T>, data, data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -32,20 +32,20 @@ template <typename T> void Sigmoid<T>::apply(Tensor<T> &tensor) const {
 }
 
 template <typename T>
-void Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &input,
-                                          Tensor<T> &upstream_gradient) const {
+std::unique_ptr<Task> Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &input,
+                                                           Tensor<T> &upstream_gradient) const {
   assert(input.shape() == upstream_gradient.shape() &&
          "Shapes must match for in-place gradient computation");
   if (input.device() != upstream_gradient.device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for Sigmoid");
   }
   if (input.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::sigmoid_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_cpu_task("default", cpu::sigmoid_gradient<T>, input.data(),
+                           upstream_gradient.data(), input.size());
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::sigmoid_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_gpu_task("default", cuda::sigmoid_gradient<T>, input.data(),
+                           upstream_gradient.data(), input.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif

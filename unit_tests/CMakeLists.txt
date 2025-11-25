@@ -40,6 +40,7 @@ set(TEST_FILES
     dense_layer_test.cpp
     maxpool2d_layer_test.cpp
     batchnorm_layer_test.cpp
+    groupnorm_layer_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)
