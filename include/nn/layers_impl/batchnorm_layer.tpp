@@ -116,11 +116,11 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     }
   }
 
-  // micro_batch_inputs_[micro_batch_id] = current->clone();
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   if (it_input == micro_batch_inputs_.end()) {
     micro_batch_inputs_[micro_batch_id] = current->clone();
   } else {
+    // reuse existing tensor to avoid reallocations
     it_input->second.resize(current->shape());
     ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0);
   }
