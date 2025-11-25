@@ -24,15 +24,9 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
 
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     // Split batch into micro-batches
-    std::vector<Tensor<float>> micro_batches(
-        coordinator.num_microbatches(),
-        Tensor<float>({batch_data.batch_size() / coordinator.num_microbatches(),
-                       batch_data.channels(), batch_data.height(), batch_data.width()}));
+    std::vector<Tensor<float>> micro_batches;
     split(batch_data, micro_batches, coordinator.num_microbatches());
-    std::vector<Tensor<float>> micro_batch_labels(
-        coordinator.num_microbatches(),
-        Tensor<float>({batch_labels.batch_size() / coordinator.num_microbatches(),
-                       batch_labels.channels(), batch_labels.height(), batch_labels.width()}));
+    std::vector<Tensor<float>> micro_batch_labels;
     split(batch_labels, micro_batch_labels, coordinator.num_microbatches());
 
     auto process_start = std::chrono::high_resolution_clock::now();
@@ -78,16 +72,10 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
   int val_batches = 0;
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    std::vector<Tensor<float>> micro_batches(
-        coordinator.num_microbatches(),
-        Tensor<float>({batch_data.batch_size() / coordinator.num_microbatches(),
-                       batch_data.channels(), batch_data.height(), batch_data.width()}));
+    std::vector<Tensor<float>> micro_batches;
     split(batch_data, micro_batches, coordinator.num_microbatches());
 
-    std::vector<Tensor<float>> micro_batch_labels(
-        coordinator.num_microbatches(),
-        Tensor<float>({batch_labels.batch_size() / coordinator.num_microbatches(),
-                       batch_labels.channels(), batch_labels.height(), batch_labels.width()}));
+    std::vector<Tensor<float>> micro_batch_labels;
     split(batch_labels, micro_batch_labels, coordinator.num_microbatches());
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {

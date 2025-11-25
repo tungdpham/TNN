@@ -325,7 +325,7 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
                                const size_t batch_size, const size_t num_classes, T epsilon,
                                cudaStream_t stream) {
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, batch_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, batch_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
@@ -337,13 +337,13 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
   int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
 
   sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, batch_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
       <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
@@ -352,9 +352,9 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
   cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / batch_size;
 }
@@ -380,8 +380,8 @@ void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &los
                                        const size_t batch_size, const size_t num_classes,
                                        cudaStream_t stream) {
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, batch_size * sizeof(T));
-  cudaMemset(d_loss_values, 0, batch_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, batch_size * sizeof(T), stream);
+  cudaMemsetAsync(d_loss_values, 0, batch_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
@@ -393,15 +393,15 @@ void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &los
   int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
-  cudaMemset(d_block_results, 0, grid_size * sizeof(T));
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
+  cudaMemsetAsync(d_block_results, 0, grid_size * sizeof(T), stream);
 
   sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, batch_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
-  cudaMemset(d_total_loss, 0, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
+  cudaMemsetAsync(d_total_loss, 0, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
       <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
@@ -410,9 +410,9 @@ void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &los
   cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / batch_size;
 }
@@ -438,8 +438,8 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &
                                           const size_t batch_size, const size_t num_classes,
                                           cudaStream_t stream) {
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, batch_size * sizeof(T));
-  cudaMemset(d_loss_values, 0, batch_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, batch_size * sizeof(T), stream);
+  cudaMemsetAsync(d_loss_values, 0, batch_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (batch_size + threads_per_block - 1) / threads_per_block;
@@ -451,15 +451,14 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &
   int grid_size = std::min(256, (int)((batch_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
-  cudaMemset(d_block_results, 0, grid_size * sizeof(T));
-
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
+  cudaMemsetAsync(d_block_results, 0, grid_size * sizeof(T), stream);
   sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, batch_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
-  cudaMemset(d_total_loss, 0, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
+  cudaMemsetAsync(d_total_loss, 0, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
       <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
@@ -468,9 +467,9 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &
   cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / batch_size;
 }
@@ -496,7 +495,7 @@ void compute_mse_loss(const T *predictions, const T *targets, T &loss, const siz
                       const size_t output_size, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, total_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
@@ -508,23 +507,23 @@ void compute_mse_loss(const T *predictions, const T *targets, T &loss, const siz
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
 
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, total_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
+      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
 
   T h_total_loss;
-  cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
+  cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / total_size;
 }
@@ -549,7 +548,7 @@ void compute_mae_loss(const T *predictions, const T *targets, T &loss, const siz
                       const size_t output_size, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, total_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
@@ -561,23 +560,23 @@ void compute_mae_loss(const T *predictions, const T *targets, T &loss, const siz
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
 
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, total_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
+      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
 
   T h_total_loss;
-  cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
+  cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / total_size;
 }
@@ -602,7 +601,7 @@ void compute_huber_loss(const T *predictions, const T *targets, T &loss, const s
                         const size_t output_size, T delta, cudaStream_t stream) {
   size_t total_size = batch_size * output_size;
   T *d_loss_values;
-  cudaMalloc(&d_loss_values, total_size * sizeof(T));
+  cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
   int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
@@ -614,23 +613,23 @@ void compute_huber_loss(const T *predictions, const T *targets, T &loss, const s
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
   T *d_block_results;
-  cudaMalloc(&d_block_results, grid_size * sizeof(T));
+  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
 
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T)>>>(
+  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
       d_loss_values, d_block_results, total_size);
 
   T *d_total_loss;
-  cudaMalloc(&d_total_loss, sizeof(T));
+  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
 
   sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T)>>>(d_block_results, d_total_loss, grid_size);
+      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
 
   T h_total_loss;
   cudaMemcpy(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost);
 
-  cudaFree(d_loss_values);
-  cudaFree(d_block_results);
-  cudaFree(d_total_loss);
+  cudaFreeAsync(d_loss_values, stream);
+  cudaFreeAsync(d_block_results, stream);
+  cudaFreeAsync(d_total_loss, stream);
 
   loss = h_total_loss / total_size;
 }

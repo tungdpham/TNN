@@ -158,7 +158,7 @@ public:
     return device_->getDeviceType();
   }
 
-  size_t getCount() const { return count_; }
+  size_t size() const { return count_; }
 
   size_t getAlignment() const { return alignment_; }
 

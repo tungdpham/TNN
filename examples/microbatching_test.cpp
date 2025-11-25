@@ -9,6 +9,7 @@
 #include "utils/env.hpp"
 
 #include <cmath>
+#include <cstddef>
 #include <iostream>
 #include <vector>
 
@@ -110,7 +111,7 @@ int main() {
       slices[i].print_data();
     }
 
-    for (int i = 0; i < slices.size(); ++i) {
+    for (size_t i = 0; i < slices.size(); ++i) {
       auto micro_preds = model.forward(slices[i], i);
       cout << "Micro-batch " << i << " forward output: " << endl;
       micro_preds.print_data();
