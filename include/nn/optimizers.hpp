@@ -6,8 +6,11 @@
  */
 #pragma once
 
-#include "device/device_ptr.hpp"
-#include "ops/ops.hpp"
+#include "device/task.hpp"
+#include "optimizers_impl/cpu/adam_kernels.hpp"
+#include "optimizers_impl/cpu/sgd_kernels.hpp"
+#include "optimizers_impl/cuda/adam_kernels.hpp"
+#include "optimizers_impl/cuda/sgd_kernels.hpp"
 #include "tensor/tensor.hpp"
 #include <any>
 #include <cmath>
@@ -69,32 +72,35 @@ public:
       initialized_ = true;
     }
 
-#ifndef USE_CUDA
-    parallel_for<size_t>(0, params.size(), [&](size_t i) {
-      if (momentum_ > 0.0f) {
-        velocities_[i] *= momentum_;
-        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
-        velocities_[i] -= scaled_grad;
-        (*params[i]) += velocities_[i];
-      } else {
-        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
-        (*params[i]) -= scaled_grad;
-      }
-    });
-#else
     for (size_t i = 0; i < params.size(); ++i) {
-      if (momentum_ > 0.0f) {
-        ops::mul_scalar(velocities_[i].data_ptr(), momentum_, velocities_[i].data_ptr(),
-                        velocities_[i].size());
-        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
-        ops::axpy(-1.0f, scaled_grad.data_ptr(), velocities_[i].data_ptr(), velocities_[i].size());
-        ops::axpy(1.0f, velocities_[i].data_ptr(), (*params[i]).data_ptr(), params[i]->size());
-      } else {
-        Tensor<T> scaled_grad = (*grads[i]) * this->learning_rate_;
-        ops::axpy(-1.0f, scaled_grad.data_ptr(), (*params[i]).data_ptr(), params[i]->size());
+      const size_t size = params[i]->size();
+
+      if (params[i]->device_type() == DeviceType::CPU) {
+        if (momentum_ > 0.0f) {
+          create_cpu_task("default", cpu::sgd::update_sgd_momentum<T>, params[i]->data_ptr().get(),
+                          grads[i]->data_ptr().get(), velocities_[i].data_ptr().get(), size,
+                          this->learning_rate_, momentum_);
+        } else {
+          create_cpu_task("default", cpu::sgd::update_sgd<T>, params[i]->data_ptr().get(),
+                          grads[i]->data_ptr().get(), size, this->learning_rate_);
+        }
+      }
+#ifdef USE_CUDA
+      else if (params[i]->device_type() == DeviceType::GPU) {
+        if (momentum_ > 0.0f) {
+          create_gpu_task("default", cuda::sgd::update_sgd_momentum<T>, params[i]->data_ptr().get(),
+                          grads[i]->data_ptr().get(), velocities_[i].data_ptr().get(), size,
+                          this->learning_rate_, momentum_);
+        } else {
+          create_gpu_task("default", cuda::sgd::update_sgd<T>, params[i]->data_ptr().get(),
+                          grads[i]->data_ptr().get(), size, this->learning_rate_);
+        }
+      }
+#endif
+      else {
+        throw std::runtime_error("Unsupported device type for SGD optimizer");
       }
     }
-#endif
   }
 
   std::string name() const override { return "SGD"; }
@@ -130,71 +136,42 @@ public:
     if (!initialized_) {
       m_.resize(params.size());
       v_.resize(params.size());
-      temp_buffers_.resize(params.size());
       for (size_t i = 0; i < params.size(); ++i) {
         m_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
         m_[i].fill(0.0f);
         v_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
         v_[i].fill(0.0f);
-        // Pre-allocate temporary buffers to avoid allocations in hot loop
-        temp_buffers_[i].grad_sq = Tensor<T>(params[i]->shape(), params[i]->device());
-        temp_buffers_[i].v_sqrt = Tensor<T>(params[i]->shape(), params[i]->device());
-        temp_buffers_[i].m_hat = Tensor<T>(params[i]->shape(), params[i]->device());
-        temp_buffers_[i].v_hat = Tensor<T>(params[i]->shape(), params[i]->device());
       }
       initialized_ = true;
     }
 
     t_++;
 
-    // Precompute scalar coefficients outside the loop
-    const T one_minus_beta1 = static_cast<T>(1.0) - beta1_;
-    const T one_minus_beta2 = static_cast<T>(1.0) - beta2_;
-    const T bias_correction1 = static_cast<T>(1.0) - std::pow(beta1_, static_cast<T>(t_));
-    const T bias_correction2 = static_cast<T>(1.0) - std::pow(beta2_, static_cast<T>(t_));
+    // Precompute bias correction terms outside the loop
+    const float bias_correction1 = 1.0f - std::pow(beta1_, static_cast<float>(t_));
+    const float bias_correction2 = 1.0f - std::pow(beta2_, static_cast<float>(t_));
 
-    parallel_for<size_t>(0, params.size(), [&](size_t i) {
-      // Update biased first moment estimate: m_t = β₁ * m_{t-1} + (1 - β₁) * g_t
-      m_[i] *= beta1_;
-      m_[i] += (*grads[i]) * one_minus_beta1;
+    for (size_t i = 0; i < params.size(); ++i) {
+      const size_t size = params[i]->size();
 
-      // Update biased second raw moment estimate: v_t = β₂ * v_{t-1} + (1 - β₂) * g_t²
-      temp_buffers_[i].grad_sq = (*grads[i]) * (*grads[i]);
-      v_[i] *= beta2_;
-      v_[i] += temp_buffers_[i].grad_sq * one_minus_beta2;
-
-      // Compute bias-corrected first moment estimate: m̂_t = m_t / (1 - β₁^t)
-      temp_buffers_[i].m_hat = m_[i] / bias_correction1;
-
-      // Compute bias-corrected second raw moment estimate: v̂_t = v_t / (1 - β₂^t)
-      temp_buffers_[i].v_hat = v_[i] / bias_correction2;
-
-      // Compute sqrt(v̂_t)
-      ops::sqrt(temp_buffers_[i].v_hat.data_ptr(), temp_buffers_[i].v_sqrt.data_ptr(),
-                temp_buffers_[i].v_hat.size());
-
-      // Compute denominator: sqrt(v̂_t) + ε (with safe operator precedence)
-      auto denom = temp_buffers_[i].v_sqrt + epsilon_;
-
-      // Parameter update: θ_t = θ_{t-1} - α * m̂_t / (sqrt(v̂_t) + ε)
-      // Use explicit denominator to ensure correct operator precedence
-      auto update = (temp_buffers_[i].m_hat / denom) * this->learning_rate_;
-
-      // Apply weight decay (AdamW-style decoupled weight decay if enabled)
-      if (weight_decay_ > 0.0f) {
-        if (decouple_weight_decay_) {
-          // AdamW: θ_t = θ_{t-1} - λ * θ_{t-1} - α * m̂_t / (sqrt(v̂_t) + ε)
-          // Decoupled weight decay (applied directly to parameters)
-          (*params[i]) -= (*params[i]) * (weight_decay_ * this->learning_rate_);
-        } else {
-          // Adam with L2 regularization: add λ * θ_{t-1} to gradient
-          // This is equivalent to adding weight decay to the gradient before momentum
-          update += (*params[i]) * (weight_decay_ * this->learning_rate_);
-        }
+      if (params[i]->device_type() == DeviceType::CPU) {
+        create_cpu_task("default", cpu::adam::update_adam<T>, params[i]->data_ptr().get(),
+                        grads[i]->data_ptr().get(), m_[i].data_ptr().get(), v_[i].data_ptr().get(),
+                        size, this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                        bias_correction2, weight_decay_, decouple_weight_decay_);
       }
-
-      (*params[i]) -= update;
-    });
+#ifdef USE_CUDA
+      else if (params[i]->device_type() == DeviceType::GPU) {
+        create_gpu_task("default", cuda::adam::update_adam<T>, params[i]->data_ptr().get(),
+                        grads[i]->data_ptr().get(), m_[i].data_ptr().get(), v_[i].data_ptr().get(),
+                        size, this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                        bias_correction2, weight_decay_, decouple_weight_decay_);
+      }
+#endif
+      else {
+        throw std::runtime_error("Unsupported device type for Adam optimizer");
+      }
+    }
   }
 
   std::string name() const override { return decouple_weight_decay_ ? "AdamW" : "Adam"; }
@@ -227,15 +204,6 @@ private:
   bool initialized_;
   std::vector<Tensor<T>> m_;
   std::vector<Tensor<T>> v_;
-
-  // Pre-allocated temporary buffers to avoid allocations in hot loop
-  struct TempBuffers {
-    Tensor<T> grad_sq; // For squared gradients
-    Tensor<T> v_sqrt;  // For sqrt(v_hat)
-    Tensor<T> m_hat;   // For bias-corrected first moment
-    Tensor<T> v_hat;   // For bias-corrected second moment
-  };
-  std::vector<TempBuffers> temp_buffers_;
 };
 
 template <typename T = float> class OptimizerFactory {

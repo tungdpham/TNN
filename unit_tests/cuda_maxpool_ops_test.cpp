@@ -64,9 +64,8 @@ protected:
   // Helper function to compare mask indices from device_ptrs
   void compareMasks(const device_ptr<size_t[]> &expected, const device_ptr<size_t[]> &actual,
                     size_t size) {
-    ASSERT_EQ(expected.getCount(), actual.getCount())
-        << "Mask sizes don't match: expected " << expected.getCount() << ", got "
-        << actual.getCount();
+    ASSERT_EQ(expected.size(), actual.size())
+        << "Mask sizes don't match: expected " << expected.size() << ", got " << actual.size();
 
     // Copy masks to host for comparison
     std::vector<size_t> expected_host(size);

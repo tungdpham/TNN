@@ -677,6 +677,7 @@ void split(const Tensor<T, NCHW> &input, std::vector<Tensor<T, NCHW>> &results, 
     throw std::invalid_argument("Invalid number of splits");
   }
 
+  results.resize(num_splits);
   size_t split_size = input.batch_size() / num_splits;
 
   for (size_t i = 0; i < num_splits; ++i) {

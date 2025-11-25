@@ -127,14 +127,15 @@ public:
 
   ~Tensor() { data_.reset(); }
 
-  Tensor(const Tensor &other)
-      : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_) {
-    if (data_size_ > 0) {
-      allocate_data(data_size_);
-      ops::copy(other.data_, data_, data_size_)->sync();
-    }
-  }
-  // Tensor(const Tensor &other) = delete;
+  // Tensor(const Tensor &other)
+  //     : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_)
+  //     {
+  //   if (data_size_ > 0) {
+  //     allocate_data(data_size_);
+  //     ops::copy(other.data_, data_, data_size_)->sync();
+  //   }
+  // }
+  Tensor(const Tensor &other) = delete;
 
   Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
     layout_trait_ = other.layout_trait_;

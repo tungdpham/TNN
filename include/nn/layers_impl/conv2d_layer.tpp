@@ -171,11 +171,6 @@ const Tensor<T> &Conv2DLayer<T>::backward(const Tensor<T> &gradient, size_t micr
   nchw_to_cnhw_task_ = ops::nchw_to_cnhw(current_gradient->data_ptr(), temp_gradient_buffer_,
                                          batch_size, out_channels_, output_h, output_w, "default");
 
-  auto err = nchw_to_cnhw_task_->sync();
-  if (err != ErrorStatus{}) {
-    throw std::runtime_error("Error in nchw_to_cnhw_task_ sync: " + err.message());
-  }
-
   weight_grad_task_ = compute_weight_gradients(it_col_buffer->second, temp_gradient_buffer_,
                                                weight_gradients_.data_ptr(), output_size,
                                                kernel_size, out_channels_, "default");

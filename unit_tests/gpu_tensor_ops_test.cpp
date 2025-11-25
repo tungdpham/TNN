@@ -341,15 +341,11 @@ TEST_F(GPUTensorOpsTest, SplitBasic) {
   Tensor<float, NCHW> cpu_tensor({4, 2, 3, 3});
   cpu_tensor.fill_random_uniform(10.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits{Tensor<float, NCHW>({2, 2, 3, 3}),
-                                              Tensor<float, NCHW>({2, 2, 3, 3})};
+  std::vector<Tensor<float, NCHW>> cpu_splits, gpu_splits;
   cpu::split(cpu_tensor, cpu_splits, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits{Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_),
-                                              Tensor<float, NCHW>({2, 2, 3, 3}, gpu_device_)};
   cuda::split(gpu_tensor, gpu_splits, 2);
-
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
   for (size_t i = 0; i < cpu_splits.size(); ++i) {
@@ -360,17 +356,11 @@ TEST_F(GPUTensorOpsTest, SplitBasic) {
 TEST_F(GPUTensorOpsTest, SplitMultiple) {
   Tensor<float, NCHW> cpu_tensor({8, 3, 4, 4});
   cpu_tensor.fill_random_uniform(15.0f);
-
-  std::vector<Tensor<float, NCHW>> cpu_splits = {
-      Tensor<float, NCHW>({2, 3, 4, 4}), Tensor<float, NCHW>({2, 3, 4, 4}),
-      Tensor<float, NCHW>({2, 3, 4, 4}), Tensor<float, NCHW>({2, 3, 4, 4})};
+  std::vector<Tensor<float, NCHW>> cpu_splits;
   cpu::split(cpu_tensor, cpu_splits, 4);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
-                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
-                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_),
-                                                 Tensor<float, NCHW>({2, 3, 4, 4}, gpu_device_)};
+  std::vector<Tensor<float, NCHW>> gpu_splits;
   cuda::split(gpu_tensor, gpu_splits, 4);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
@@ -384,19 +374,10 @@ TEST_F(GPUTensorOpsTest, SplitSingleBatch) {
   Tensor<float, NCHW> cpu_tensor({6, 2, 5, 5});
   cpu_tensor.fill_random_uniform(12.0f);
 
-  std::vector<Tensor<float, NCHW>> cpu_splits = {
-      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5}),
-      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5}),
-      Tensor<float, NCHW>({1, 2, 5, 5}), Tensor<float, NCHW>({1, 2, 5, 5})};
+  std::vector<Tensor<float, NCHW>> cpu_splits, gpu_splits;
   cpu::split(cpu_tensor, cpu_splits, 6);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  std::vector<Tensor<float, NCHW>> gpu_splits = {Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
-                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
-                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
-                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
-                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_),
-                                                 Tensor<float, NCHW>({1, 2, 5, 5}, gpu_device_)};
   cuda::split(gpu_tensor, gpu_splits, 6);
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());

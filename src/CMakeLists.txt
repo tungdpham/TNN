@@ -186,10 +186,10 @@ endif()
 
 # Neural Network library
 file(GLOB_RECURSE TNN_NN_SOURCES 
-    "nn/*.cpp"
+    "nn/**/*.cpp"
 )
 file(GLOB_RECURSE TNN_NN_CUDA_SOURCES 
-    "nn/*.cu"
+    "nn/**/*.cu"
 )
 add_library(tnn_nn STATIC ${TNN_NN_SOURCES} ${TNN_NN_CUDA_SOURCES})
 target_include_directories(tnn_nn PUBLIC 
