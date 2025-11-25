@@ -14,6 +14,7 @@
 
 #include "nn/layers_impl/cpu/batchnorm_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_ops.hpp"
+#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -115,7 +116,15 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     }
   }
 
-  micro_batch_inputs_[micro_batch_id] = current->clone();
+  // micro_batch_inputs_[micro_batch_id] = current->clone();
+  auto it_input = micro_batch_inputs_.find(micro_batch_id);
+  if (it_input == micro_batch_inputs_.end()) {
+    micro_batch_inputs_[micro_batch_id] = current->clone();
+  } else {
+    it_input->second.resize(current->shape());
+    ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0);
+  }
+
   return output;
 }
 

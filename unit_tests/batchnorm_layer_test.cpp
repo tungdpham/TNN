@@ -68,7 +68,6 @@ protected:
     size_t channels = input.channels();
     size_t height = input.height();
     size_t width = input.width();
-    size_t spatial_size = height * width;
 
     for (size_t c = 0; c < channels; ++c) {
       float mean = expected_mean[c];
@@ -183,7 +182,7 @@ TEST_F(BatchNormLayerTest, ForwardPassWithAffineTraining) {
   verify_output_shape(input, output);
 
   auto params = layer.parameters();
-  EXPECT_EQ(params.size(), 4); // gamma, beta
+  EXPECT_EQ(params.size(), 2); // gamma, beta
 
   std::vector<float> means, vars;
   compute_batch_statistics(input, means, vars);

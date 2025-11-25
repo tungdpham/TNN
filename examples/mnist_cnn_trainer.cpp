@@ -52,17 +52,7 @@ int main() {
         AugmentationBuilder<float>().contrast(0.3f, 0.15f).gaussian_noise(0.3f, 0.05f).build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    auto model = SequentialBuilder<float>("mnist_cnn_model")
-                     .input({1, mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH})
-                     .conv2d(16, 3, 3, 1, 1, 1, 1, true, "conv1")
-                     .activation("relu", "relu1")
-                     .avgpool2d(2, 2, 2, 2, 0, 0, "avgpool2")
-                     .conv2d(48, 3, 3, 1, 1, 1, 1, true, "conv2")
-                     .activation("relu", "relu2")
-                     .avgpool2d(2, 2, 2, 2, 0, 0, "avgpool4")
-                     .flatten("flatten")
-                     .dense(mnist_constants::NUM_CLASSES, true, "output")
-                     .build();
+    auto model = create_mnist_trainer();
 
     model.set_device(device_type);
     model.initialize();

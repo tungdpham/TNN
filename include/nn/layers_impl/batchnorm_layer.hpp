@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "device/device.hpp"
 #include "device/device_ptr.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"

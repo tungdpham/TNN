@@ -17,15 +17,15 @@
 
 namespace tnn {
 
-template <typename T> void Tanh<T>::apply(Tensor<T> &tensor) const {
+template <typename T> std::unique_ptr<Task> Tanh<T>::apply(Tensor<T> &tensor) const {
   T *data = tensor.data();
   const size_t size = tensor.size();
 
   if (tensor.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::tanh<T>, data, data, size);
+    return create_cpu_task("default", cpu::tanh<T>, data, data, size);
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::tanh<T>, data, data, size);
+    return create_gpu_task("default", cuda::tanh<T>, data, data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -33,19 +33,20 @@ template <typename T> void Tanh<T>::apply(Tensor<T> &tensor) const {
 }
 
 template <typename T>
-void Tanh<T>::compute_gradient_inplace(const Tensor<T> &input, Tensor<T> &upstream_gradient) const {
+std::unique_ptr<Task> Tanh<T>::compute_gradient_inplace(const Tensor<T> &input,
+                                                        Tensor<T> &upstream_gradient) const {
   assert(input.shape() == upstream_gradient.shape() &&
          "Shapes must match for in-place gradient computation");
   if (input.device() != upstream_gradient.device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for Tanh");
   }
   if (input.device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::tanh_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_cpu_task("default", cpu::tanh_gradient<T>, input.data(), upstream_gradient.data(),
+                           input.size());
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::tanh_gradient<T>, input.data(), upstream_gradient.data(),
-                    input.size());
+    return create_gpu_task("default", cuda::tanh_gradient<T>, input.data(),
+                           upstream_gradient.data(), input.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
