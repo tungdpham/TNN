@@ -8,12 +8,13 @@
  */
 #pragma once
 
-#include "asio.hpp"
+#include "asio/error_code.hpp"
 #include "binary_serializer.hpp"
-
 #include "communicator.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
+
+#include <asio.hpp>
 #include <atomic>
 #include <deque>
 #include <iostream>
@@ -119,7 +120,10 @@ public:
 
     if (acceptor_.is_open()) {
       std::error_code ec;
-      acceptor_.close(ec);
+      asio::error_code err = acceptor_.close(ec);
+      if (err) {
+        std::cerr << "Error closing acceptor while stopping: " << ec.message() << std::endl;
+      }
     }
 
     {
@@ -127,7 +131,11 @@ public:
       for (auto &[id, conn] : connections_) {
         if (conn->socket.is_open()) {
           std::error_code ec;
-          conn->socket.close(ec);
+          asio::error_code err = conn->socket.close(ec);
+          if (err) {
+            std::cerr << "Error while disconnecting from " << id << ": " << ec.message()
+                      << std::endl;
+          }
         }
       }
       connections_.clear();
@@ -188,13 +196,22 @@ public:
       asio::connect(connection->socket, endpoints);
 
       std::error_code ec;
-      connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
+      asio::error_code err = connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
+      if (err) {
+        std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
+      }
 
       asio::socket_base::send_buffer_size send_buf_opt(262144); // 256KB
-      connection->socket.set_option(send_buf_opt, ec);
+      err = connection->socket.set_option(send_buf_opt, ec);
+      if (err) {
+        std::cerr << "Failed to set send buffer size: " << ec.message() << std::endl;
+      }
 
       asio::socket_base::receive_buffer_size recv_buf_opt(262144);
-      connection->socket.set_option(recv_buf_opt, ec);
+      err = connection->socket.set_option(recv_buf_opt, ec);
+      if (err) {
+        std::cerr << "Failed to set receive buffer size: " << ec.message() << std::endl;
+      }
 
       {
         std::lock_guard<std::shared_mutex> lock(connections_mutex_);
@@ -218,7 +235,11 @@ public:
       auto &connection = it->second;
       if (connection->socket.is_open()) {
         std::error_code ec;
-        connection->socket.close(ec);
+        auto err = connection->socket.close(ec);
+        if (err) {
+          std::cerr << "Error while disconnecting from " << peer_id << ": " << ec.message()
+                    << std::endl;
+        }
       }
       connections_.erase(it);
       return true;
@@ -284,14 +305,25 @@ private:
       if (!ec && is_running_.load(std::memory_order_acquire)) {
 
         std::error_code nodelay_ec;
-        new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+        asio::error_code nodelay_result =
+            new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+        if (nodelay_result) {
+          std::cerr << "Failed to set TCP_NODELAY: " << nodelay_ec.message() << std::endl;
+        }
 
         // Optimize socket buffers
         asio::socket_base::send_buffer_size send_buf_opt(262144);
-        new_connection->socket.set_option(send_buf_opt, nodelay_ec);
+        asio::error_code send_buf_result =
+            new_connection->socket.set_option(send_buf_opt, nodelay_ec);
+        if (send_buf_result) {
+          std::cerr << "Failed to set send buffer size: " << nodelay_ec.message() << std::endl;
+        }
 
         asio::socket_base::receive_buffer_size recv_buf_opt(262144);
-        new_connection->socket.set_option(recv_buf_opt, nodelay_ec);
+        auto recv_buf_result = new_connection->socket.set_option(recv_buf_opt, nodelay_ec);
+        if (recv_buf_result) {
+          std::cerr << "Failed to set receive buffer size: " << nodelay_ec.message() << std::endl;
+        }
 
         auto remote_endpoint = new_connection->socket.remote_endpoint();
         std::string temp_id =
@@ -374,7 +406,11 @@ private:
       if (it != connections_.end()) {
         if (it->second->socket.is_open()) {
           std::error_code close_ec;
-          it->second->socket.close(close_ec);
+          auto err = it->second->socket.close(close_ec);
+          if (err) {
+            std::cerr << "Error closing socket for connection " << connection_id << ": "
+                      << close_ec.message() << std::endl;
+          }
         }
         connections_.erase(it);
       }
@@ -411,7 +447,11 @@ private:
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
         std::error_code close_ec;
-        it->second->socket.close(close_ec);
+        auto err = it->second->socket.close(close_ec);
+        if (err) {
+          std::cerr << "Error closing socket for connection " << connection_id << ": "
+                    << close_ec.message() << std::endl;
+        }
       }
 
       {

@@ -202,7 +202,11 @@ int main() {
          << "x" << train_batch_data.shape()[2] << "x" << train_batch_data.shape()[3] << endl;
 
     // Create output directory if needed
-    system("mkdir -p output_images");
+    int res = system("mkdir -p output_images");
+    if (res != 0) {
+      cerr << "Failed to create output_images/ directory!" << endl;
+      return 1;
+    }
 
     for (size_t i = 0; i < num_samples; ++i) {
       // Find the label
