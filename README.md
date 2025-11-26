@@ -8,7 +8,7 @@ You should have these dependencies for the main programs installed before buildi
 sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev
 ```
 
-### Install Intel MKL (Recommended)
+### Install Intel MKL (Recommended for CPU usage)
 ```bash
 # 1. Add oneAPI repository
 wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | sudo gpg --dearmor --output /usr/share/keyrings/oneapi-archive-keyring.gpg
@@ -19,6 +19,9 @@ sudo apt install intel-oneapi-mkl-devel
 # 3. Source environment variables
 source /opt/intel/oneapi/setvars.sh
 ```
+
+### Install CUDA and cuDNN
+For installing these two dependencies, you need to follow the guide from NVIDIA page.
 
 ## Build Instructions
 ### Option 1: Using the build script (Recommended)
