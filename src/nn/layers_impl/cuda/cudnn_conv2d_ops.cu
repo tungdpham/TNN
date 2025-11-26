@@ -7,6 +7,7 @@
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 
 #ifdef USE_CUDNN
+#include <cudnn.h>
 #include <iostream>
 #include <stdexcept>
 
