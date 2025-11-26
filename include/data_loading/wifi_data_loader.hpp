@@ -12,7 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
-#include <omp.h>
+
 #include <random>
 #include <sstream>
 #include <string>

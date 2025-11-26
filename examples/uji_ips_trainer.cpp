@@ -11,7 +11,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
-#include <omp.h>
+
 #include <vector>
 
 using namespace tnn;

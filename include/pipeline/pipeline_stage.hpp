@@ -20,7 +20,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <omp.h>
+
 #include <string>
 
 namespace tnn {

@@ -36,7 +36,8 @@ ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_ch
                                                  size_t input_h, size_t input_w,
                                                  size_t out_channels, size_t kernel_h,
                                                  size_t kernel_w, size_t stride_h, size_t stride_w,
-                                                 size_t pad_h, size_t pad_w) {
+                                                 size_t pad_h, size_t pad_w,
+                                                 size_t workspace_limit_bytes) {
   ConvolutionHandle *handle = new ConvolutionHandle();
 
   // Create cuDNN handle
@@ -78,49 +79,82 @@ ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_ch
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->bias_descriptor, CUDNN_TENSOR_NCHW,
                                          CUDNN_DATA_FLOAT, 1, out_channels, 1, 1));
 
-  // Select algorithms using the newer cuDNN 8+ API
-  int requested_algo_count = 1;
+  // Select algorithms with memory constraints
+  int requested_algo_count = 10; // Request multiple algorithms to choose from
   int returned_algo_count;
-  cudnnConvolutionFwdAlgoPerf_t fwd_perf;
-  cudnnConvolutionBwdDataAlgoPerf_t bwd_data_perf;
-  cudnnConvolutionBwdFilterAlgoPerf_t bwd_filter_perf;
+  cudnnConvolutionFwdAlgoPerf_t fwd_perf[10];
+  cudnnConvolutionBwdDataAlgoPerf_t bwd_data_perf[10];
+  cudnnConvolutionBwdFilterAlgoPerf_t bwd_filter_perf[10];
 
-  // Get forward algorithm
-  CHECK_CUDNN(cudnnGetConvolutionForwardAlgorithm_v7(
+  // Get forward algorithm with memory limit
+  CHECK_CUDNN(cudnnFindConvolutionForwardAlgorithm(
       handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
       handle->convolution_descriptor, handle->output_descriptor, requested_algo_count,
-      &returned_algo_count, &fwd_perf));
-  handle->fwd_algo = fwd_perf.algo;
+      &returned_algo_count, fwd_perf));
 
-  // Get backward data algorithm
-  CHECK_CUDNN(cudnnGetConvolutionBackwardDataAlgorithm_v7(
+  // Select best algorithm within memory limit
+  bool found_fwd = false;
+  for (int i = 0; i < returned_algo_count; i++) {
+    if (fwd_perf[i].status == CUDNN_STATUS_SUCCESS &&
+        (workspace_limit_bytes == 0 || fwd_perf[i].memory <= workspace_limit_bytes)) {
+      handle->fwd_algo = fwd_perf[i].algo;
+      handle->fwd_workspace_size = fwd_perf[i].memory;
+      found_fwd = true;
+      // std::cout << "Selected forward algo " << fwd_perf[i].algo << " with workspace "
+      //           << (fwd_perf[i].memory / 1024.0 / 1024.0) << " MB" << std::endl;
+      break;
+    }
+  }
+  if (!found_fwd) {
+    throw std::runtime_error("No suitable forward convolution algorithm found within memory limit");
+  }
+
+  // Get backward data algorithm with memory limit
+  CHECK_CUDNN(cudnnFindConvolutionBackwardDataAlgorithm(
       handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
       handle->convolution_descriptor, handle->input_descriptor, requested_algo_count,
-      &returned_algo_count, &bwd_data_perf));
-  handle->bwd_data_algo = bwd_data_perf.algo;
+      &returned_algo_count, bwd_data_perf));
 
-  // Get backward filter algorithm
-  CHECK_CUDNN(cudnnGetConvolutionBackwardFilterAlgorithm_v7(
+  bool found_bwd_data = false;
+  for (int i = 0; i < returned_algo_count; i++) {
+    if (bwd_data_perf[i].status == CUDNN_STATUS_SUCCESS &&
+        (workspace_limit_bytes == 0 || bwd_data_perf[i].memory <= workspace_limit_bytes)) {
+      handle->bwd_data_algo = bwd_data_perf[i].algo;
+      handle->bwd_data_workspace_size = bwd_data_perf[i].memory;
+      found_bwd_data = true;
+      // std::cout << "Selected backward data algo " << bwd_data_perf[i].algo << " with workspace "
+      //           << (bwd_data_perf[i].memory / 1024.0 / 1024.0) << " MB" << std::endl;
+      break;
+    }
+  }
+  if (!found_bwd_data) {
+    throw std::runtime_error("No suitable backward data algorithm found within memory limit");
+  }
+
+  // Get backward filter algorithm with memory limit
+  CHECK_CUDNN(cudnnFindConvolutionBackwardFilterAlgorithm(
       handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
       handle->convolution_descriptor, handle->filter_descriptor, requested_algo_count,
-      &returned_algo_count, &bwd_filter_perf));
-  handle->bwd_filter_algo = bwd_filter_perf.algo;
+      &returned_algo_count, bwd_filter_perf));
 
-  // Get workspace sizes
-  CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
-      handle->convolution_descriptor, handle->output_descriptor, handle->fwd_algo,
-      &handle->fwd_workspace_size));
+  bool found_bwd_filter = false;
+  for (int i = 0; i < returned_algo_count; i++) {
+    if (bwd_filter_perf[i].status == CUDNN_STATUS_SUCCESS &&
+        (workspace_limit_bytes == 0 || bwd_filter_perf[i].memory <= workspace_limit_bytes)) {
+      handle->bwd_filter_algo = bwd_filter_perf[i].algo;
+      handle->bwd_filter_workspace_size = bwd_filter_perf[i].memory;
+      found_bwd_filter = true;
+      // std::cout << "Selected backward filter algo " << bwd_filter_perf[i].algo << " with
+      // workspace "
+      //           << (bwd_filter_perf[i].memory / 1024.0 / 1024.0) << " MB" << std::endl;
+      break;
+    }
+  }
+  if (!found_bwd_filter) {
+    throw std::runtime_error("No suitable backward filter algorithm found within memory limit");
+  }
 
-  CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
-      handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->input_descriptor, handle->bwd_data_algo,
-      &handle->bwd_data_workspace_size));
-
-  CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->filter_descriptor, handle->bwd_filter_algo,
-      &handle->bwd_filter_workspace_size));
+  // Workspace sizes are already set by the Find algorithms above
 
   return handle;
 }
@@ -224,6 +258,22 @@ void update_batch_size(ConvolutionHandle *handle, size_t batch_size, size_t in_c
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW,
                                          CUDNN_DATA_FLOAT, batch_size, out_channels, output_h,
                                          output_w));
+
+  // Recalculate workspace sizes for new batch size
+  CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(
+      handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
+      handle->convolution_descriptor, handle->output_descriptor, handle->fwd_algo,
+      &handle->fwd_workspace_size));
+
+  CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
+      handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
+      handle->convolution_descriptor, handle->input_descriptor, handle->bwd_data_algo,
+      &handle->bwd_data_workspace_size));
+
+  CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
+      handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
+      handle->convolution_descriptor, handle->filter_descriptor, handle->bwd_filter_algo,
+      &handle->bwd_filter_workspace_size));
 }
 
 WorkspaceSizes get_workspace_sizes(ConvolutionHandle *handle, size_t batch_size) {

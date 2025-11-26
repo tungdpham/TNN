@@ -72,12 +72,11 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
   if (it_input == micro_batch_inputs_.end()) {
     micro_batch_inputs_[micro_batch_id] = current->clone();
   } else {
-    micro_batch_inputs_[micro_batch_id].resize(current->shape());
+    micro_batch_inputs_[micro_batch_id].ensure(current->shape());
     ops::copy(current->data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
   }
 
-  Tensor<T> &output =
-      this->get_output_buffer(micro_batch_id, {batch_size, output_features_, size_t(1), size_t(1)});
+  Tensor<T> &output = this->get_buffer({batch_size, output_features_, size_t(1), size_t(1)});
 
   forward_task_ = compute_dense_forward(current->data_ptr(), weights_.data_ptr(), output.data_ptr(),
                                         batch_size, input_features_, output_features_, "default");
@@ -109,7 +108,7 @@ const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, last_input.shape());
+  Tensor<T> &grad_input = this->get_buffer(last_input.shape());
 
   const Tensor<T> *current_grad = &gradient;
   Tensor<T> device_gradient;
@@ -359,6 +358,15 @@ uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_sha
 
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T> size_t DenseLayer<T>::cached_memory_bytes() const {
+  size_t total_bytes = 0;
+  for (const auto &pair : micro_batch_inputs_) {
+    total_bytes += pair.second.size() * sizeof(T);
+  }
+  total_bytes += Layer<T>::cached_memory_bytes();
+  return total_bytes;
 }
 
 template class DenseLayer<float>;

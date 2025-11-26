@@ -6,6 +6,7 @@
  */
 #pragma once
 #include "device/task.hpp"
+#include "nn/layers_impl/base_layer.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 
 #include <cmath>
@@ -14,7 +15,6 @@
 
 #include "nn/layers_impl/cpu/batchnorm_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_ops.hpp"
-#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -69,7 +69,7 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
-  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
+  Tensor<T> &output = this->get_buffer(current->shape());
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -92,15 +92,6 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     micro_batch_inv_std_[micro_batch_id].ensure(num_features_);
   }
 
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input == micro_batch_inputs_.end()) {
-    micro_batch_inputs_[micro_batch_id] = current->clone();
-  } else {
-    // reuse existing tensor to avoid reallocations
-    it_input->second.resize(current->shape());
-    ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0);
-  }
-
   if (this->is_training_) {
     forward_task_ = run_forward_fused(
         current->data_ptr(), batch_mean_fixed_[micro_batch_id],
@@ -117,10 +108,9 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
 
 template <typename T>
 const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
 
-  if (it_input == micro_batch_inputs_.end() || it_normalized == micro_batch_normalized_.end()) {
+  if (it_normalized == micro_batch_normalized_.end()) {
     throw std::runtime_error("No cached data found for micro-batch ID in BatchNormLayer: " +
                              std::to_string(micro_batch_id));
   }
@@ -138,15 +128,13 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
     current_gradient = &device_gradient;
   }
 
-  const Tensor<T> &input = it_input->second;
-
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height = input.height();
-  const size_t width = input.width();
+  const size_t batch_size = current_gradient->batch_size();
+  const size_t channels = current_gradient->channels();
+  const size_t height = current_gradient->height();
+  const size_t width = current_gradient->width();
   const size_t spatial_size = height * width;
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input.shape());
+  Tensor<T> &grad_input = this->get_buffer(current_gradient->shape());
 
   auto bwd_task =
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
@@ -347,6 +335,35 @@ template <typename T>
 uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T> size_t BatchNormLayer<T>::cached_memory_bytes() const {
+  size_t total_bytes = 0;
+
+  size_t normalized_cache_size = 0;
+  // Cached normalized outputs per micro-batch
+  for (const auto &pair : micro_batch_normalized_) {
+    normalized_cache_size += pair.second.size() * sizeof(T);
+  }
+  // std::cout << "Normalized cache size: " << normalized_cache_size << " bytes" << std::endl;
+
+  size_t inv_std_cache_size = 0;
+  // Cached inverse stddev per micro-batch
+  for (const auto &pair : micro_batch_inv_std_) {
+    inv_std_cache_size += pair.second.size() * sizeof(T);
+  }
+  // std::cout << "Inv std cache size: " << inv_std_cache_size << " bytes" << std::endl;
+
+  size_t mean_cache_size = 0;
+  // Cached fixed batch means per micro-batch
+  for (const auto &pair : batch_mean_fixed_) {
+    mean_cache_size += pair.second.size() * sizeof(T);
+  }
+  // std::cout << "Mean cache size: " << mean_cache_size << " bytes" << std::endl;
+
+  total_bytes += normalized_cache_size + inv_std_cache_size + mean_cache_size;
+  total_bytes += Layer<T>::cached_memory_bytes();
+  return total_bytes;
 }
 
 template class BatchNormLayer<float>;

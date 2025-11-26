@@ -14,7 +14,7 @@
 #include <fstream>
 #include <iostream>
 #include <numeric>
-#include <omp.h>
+
 #include <string>
 #include <vector>
 

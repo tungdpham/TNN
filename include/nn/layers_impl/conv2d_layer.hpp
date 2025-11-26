@@ -71,7 +71,6 @@ private:
 #endif
 
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_pre_activations_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_col_buffers_;
 
   // Reusable temporary buffers to avoid allocation overhead
@@ -160,6 +159,8 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+
+  size_t cached_memory_bytes() const override;
 
 protected:
   void initialize_params() override;

@@ -113,7 +113,7 @@ public:
     }
 
     // Residual connection: F(x) + x
-    Tensor<T> &output = this->get_output_buffer(micro_batch_id, main_path->shape());
+    Tensor<T> &output = this->get_buffer(main_path->shape());
     ops::add(main_path->data_ptr(), shortcut_path->data_ptr(), output.data_ptr(), output.size());
 
     // Cache pre-activation output for backward pass
@@ -121,7 +121,8 @@ public:
     if (it_pre_act == pre_activation_cache_.end()) {
       pre_activation_cache_[micro_batch_id] = output.clone();
     } else {
-      it_pre_act->second.resize(output.shape());
+      // it_pre_act->second.resize(output.shape());
+      it_pre_act->second.ensure(output.shape());
       ops::copy(output.data_ptr(), it_pre_act->second.data_ptr(), output.size());
     }
 
@@ -152,7 +153,8 @@ public:
       grad_after_activation_cache_[micro_batch_id] = current_gradient->clone();
       it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
     } else {
-      it_grad_act->second.resize(current_gradient->shape());
+      // it_grad_act->second.resize(current_gradient->shape());
+      it_grad_act->second.ensure(current_gradient->shape());
       ops::copy(current_gradient->data_ptr(), it_grad_act->second.data_ptr(),
                 current_gradient->size());
     }
@@ -177,7 +179,7 @@ public:
     }
 
     // Sum gradients from both paths
-    Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, grad_main->shape());
+    Tensor<T> &grad_input = this->get_buffer(grad_main->shape());
     ops::add(grad_main->data_ptr(), grad_shortcut->data_ptr(), grad_input.data_ptr(),
              grad_input.size());
     return grad_input;
@@ -400,5 +402,23 @@ public:
 
   const std::vector<std::unique_ptr<Layer<T>>> &get_main_path() const { return main_path_; }
   const std::vector<std::unique_ptr<Layer<T>>> &get_shortcut_path() const { return shortcut_path_; }
+
+  size_t cached_memory_bytes() const override {
+    size_t total_bytes = 0;
+    for (const auto &layer : main_path_) {
+      total_bytes += layer->cached_memory_bytes();
+    }
+    for (const auto &layer : shortcut_path_) {
+      total_bytes += layer->cached_memory_bytes();
+    }
+    for (const auto &[_, tensor] : pre_activation_cache_) {
+      total_bytes += tensor.size() * sizeof(T);
+    }
+    for (const auto &[_, tensor] : grad_after_activation_cache_) {
+      total_bytes += tensor.size() * sizeof(T);
+    }
+    total_bytes += Layer<T>::cached_memory_bytes();
+    return total_bytes;
+  }
 };
 } // namespace tnn

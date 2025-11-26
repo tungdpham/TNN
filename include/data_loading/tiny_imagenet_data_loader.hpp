@@ -16,7 +16,7 @@
 #include <iostream>
 #include <map>
 #include <numeric>
-#include <omp.h>
+
 #include <sstream>
 #include <string>
 #include <vector>

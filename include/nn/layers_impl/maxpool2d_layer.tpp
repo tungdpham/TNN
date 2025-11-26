@@ -7,7 +7,6 @@
 #pragma once
 #include "device/task.hpp"
 #include "nn/layers_impl/maxpool2d_layer.hpp"
-#include "tensor/tensor_ops.hpp"
 #include <stdexcept>
 
 #include "nn/layers_impl/cpu/maxpool_ops.hpp"
@@ -44,23 +43,14 @@ const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
   const size_t input_h = current->height();
   const size_t input_w = current->width();
 
-  const size_t padded_h = input_h + 2 * pad_h_;
-  const size_t padded_w = input_w + 2 * pad_w_;
-  const size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
-  const size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
+  // Cache input shape for backward pass
+  micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels, input_h, input_w};
 
-  auto it_padded = micro_batch_padded_inputs_.find(micro_batch_id);
-  if (it_padded == micro_batch_padded_inputs_.end()) {
-    micro_batch_padded_inputs_[micro_batch_id] =
-        Tensor<T>({batch_size, channels, padded_h, padded_w}, this->device_);
-  } else {
-    micro_batch_padded_inputs_[micro_batch_id].resize({batch_size, channels, padded_h, padded_w});
-  }
+  // Calculate output shape directly from input (implicit padding)
+  const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
+  const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  pad_task_ = pad(*current, micro_batch_padded_inputs_[micro_batch_id], pad_h_, pad_w_, T(0));
-
-  Tensor<T> &output =
-      this->get_output_buffer(micro_batch_id, {batch_size, channels, output_h, output_w});
+  Tensor<T> &output = this->get_buffer({batch_size, channels, output_h, output_w});
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
 
@@ -70,9 +60,9 @@ const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
         make_array_ptr<size_t[]>(this->device_, total_outputs);
   }
 
-  forward_task_ = compute_max_pool_forward(micro_batch_padded_inputs_[micro_batch_id].data_ptr(),
-                                           output.data_ptr(), batch_size, channels, padded_h,
-                                           padded_w, output_h, output_w,
+  // Pass raw input pointer + padding params (implicit padding)
+  forward_task_ = compute_max_pool_forward(current->data_ptr(), output.data_ptr(), batch_size,
+                                           channels, input_h, input_w, output_h, output_w,
                                            micro_batch_mask_indices_[micro_batch_id], "default");
 
   return output;
@@ -80,15 +70,15 @@ const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
 
 template <typename T>
 const Tensor<T> &MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
-  auto it_input = micro_batch_padded_inputs_.find(micro_batch_id);
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
+  auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
-  if (it_input == micro_batch_padded_inputs_.end()) {
-    throw std::runtime_error("No cached input found for micro-batch ID in MaxPool2DLayer: " +
-                             std::to_string(micro_batch_id));
-  }
   if (it_mask == micro_batch_mask_indices_.end()) {
     throw std::runtime_error("No cached mask found for micro-batch ID in MaxPool2DLayer: " +
+                             std::to_string(micro_batch_id));
+  }
+  if (it_shape == micro_batch_input_shapes_.end()) {
+    throw std::runtime_error("No cached input shape found for micro-batch ID in MaxPool2DLayer: " +
                              std::to_string(micro_batch_id));
   }
 
@@ -99,40 +89,25 @@ const Tensor<T> &MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
     current_gradient = &device_gradient;
   }
 
-  const Tensor<T> &cached_padded_input = it_input->second;
   const device_ptr<size_t[]> &mask_indices = it_mask->second;
+  const std::vector<size_t> &input_shape = it_shape->second;
 
-  const size_t batch_size = cached_padded_input.batch_size();
-  const size_t channels = cached_padded_input.channels();
-  const size_t padded_h = cached_padded_input.height();
-  const size_t padded_w = cached_padded_input.width();
+  const size_t batch_size = input_shape[0];
+  const size_t channels = input_shape[1];
+  const size_t input_h = input_shape[2];
+  const size_t input_w = input_shape[3];
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  auto it_grad_padded = micro_batch_grad_padded_inputs_.find(micro_batch_id);
-  if (it_grad_padded == micro_batch_grad_padded_inputs_.end()) {
-    micro_batch_grad_padded_inputs_[micro_batch_id] =
-        Tensor<T>({batch_size, channels, padded_h, padded_w}, this->device_);
-  } else {
-    micro_batch_grad_padded_inputs_[micro_batch_id].resize(
-        {batch_size, channels, padded_h, padded_w});
-  }
+  Tensor<T> &grad_input = this->get_buffer({batch_size, channels, input_h, input_w});
 
-  micro_batch_grad_padded_inputs_[micro_batch_id].fill(T(0));
+  grad_input.fill(T(0));
 
-  backward_task_ = compute_max_pool_backward(
-      current_gradient->data_ptr(), micro_batch_grad_padded_inputs_[micro_batch_id].data_ptr(),
-      batch_size, channels, output_h, output_w, mask_indices, "default");
+  backward_task_ =
+      compute_max_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
+                                channels, output_h, output_w, mask_indices, "default");
 
-  if (pad_h_ > 0 || pad_w_ > 0) {
-    Tensor<T> &grad_input = this->get_gradient_buffer(
-        micro_batch_id, {batch_size, channels, padded_h - 2 * pad_h_, padded_w - 2 * pad_w_});
-    unpad_task_ =
-        unpad(micro_batch_grad_padded_inputs_[micro_batch_id], grad_input, pad_h_, pad_w_);
-    return grad_input;
-  } else {
-    return micro_batch_grad_padded_inputs_[micro_batch_id];
-  }
+  return grad_input;
 }
 
 template <typename T>
@@ -147,13 +122,15 @@ std::unique_ptr<Task> MaxPool2DLayer<T>::compute_max_pool_forward(
   if (input_data.device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::maxpool::compute_max_pool_forward<T>, input_data.get(),
                            output_data.get(), batch_size, channels, input_h, input_w, output_h,
-                           output_w, pool_h_, pool_w_, stride_h_, stride_w_, mask_indices);
+                           output_w, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_,
+                           mask_indices);
   }
 #ifdef USE_CUDA
   else if (input_data.device_type() == DeviceType::GPU) {
     return create_gpu_task(flow_id, cuda::maxpool::compute_max_pool_forward<T>, input_data.get(),
                            output_data.get(), batch_size, channels, input_h, input_w, output_h,
-                           output_w, pool_h_, pool_w_, stride_h_, stride_w_, mask_indices);
+                           output_w, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_,
+                           mask_indices);
   }
 #endif
   else {

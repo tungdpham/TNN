@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-#include <omp.h>
+
 #include <sstream>
 #include <string>
 #include <vector>

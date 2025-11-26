@@ -28,8 +28,8 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, Tensor<T>> micro_batch_padded_inputs_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_grad_padded_inputs_;
+  // Cache input shapes for backward pass
+  std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
 
   std::unique_ptr<Task> compute_avg_pool_forward(const device_ptr<T[]> &input_data,
                                                  device_ptr<T[]> &output_data, size_t batch_size,

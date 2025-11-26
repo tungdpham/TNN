@@ -32,7 +32,6 @@ private:
   Tensor<T> running_mean_;
   Tensor<T> running_var_;
 
-  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_normalized_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
   std::unordered_map<size_t, device_ptr<T[]>> batch_mean_fixed_;
@@ -86,6 +85,8 @@ public:
 
   const Tensor<T> &running_mean() const { return running_mean_; }
   const Tensor<T> &running_var() const { return running_var_; }
+
+  size_t cached_memory_bytes() const override;
 
 protected:
   void initialize_params() override;

@@ -12,11 +12,11 @@ namespace tnn {
 namespace cuda {
 namespace maxpool {
 template <typename T>
-__global__ void compute_max_pool_forward_kernel(const T *input_data, T *output_data,
-                                                size_t batch_size, size_t channels, size_t input_h,
-                                                size_t input_w, size_t output_h, size_t output_w,
-                                                size_t pool_h, size_t pool_w, size_t stride_h,
-                                                size_t stride_w, size_t *mask_indices) {
+__global__ void
+compute_max_pool_forward_kernel(const T *input_data, T *output_data, size_t batch_size,
+                                size_t channels, size_t input_h, size_t input_w, size_t output_h,
+                                size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
+                                size_t stride_w, size_t pad_h, size_t pad_w, size_t *mask_indices) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int total_outputs = batch_size * channels * output_h * output_w;
 
@@ -30,23 +30,32 @@ __global__ void compute_max_pool_forward_kernel(const T *input_data, T *output_d
   int out_h = remaining / output_w;
   int out_w = remaining % output_w;
 
-  const size_t first_h_idx = out_h * stride_h;
-  const size_t first_w_idx = out_w * stride_w;
-  const size_t first_target_idx =
-      ((n * channels + c) * input_h + first_h_idx) * input_w + first_w_idx;
-  T max_val = input_data[first_target_idx];
-  size_t max_idx = first_target_idx;
+  const size_t input_offset = (n * channels + c) * input_h * input_w;
 
-  for (size_t ph = 0; ph < pool_h; ++ph) {
-    for (size_t pw = 0; pw < pool_w; ++pw) {
-      const size_t h_idx = out_h * stride_h + ph;
-      const size_t w_idx = out_w * stride_w + pw;
+  // Calculate the theoretical window in the input (implicit padding)
+  long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
+  long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
+  long h_end = h_start + pool_h;
+  long w_end = w_start + pool_w;
 
-      const size_t target_padded_idx = ((n * channels + c) * input_h + h_idx) * input_w + w_idx;
-      T val = input_data[target_padded_idx];
+  // Clamp the window to actual image boundaries
+  long h_start_valid = max(0L, h_start);
+  long w_start_valid = max(0L, w_start);
+  long h_end_valid = min(static_cast<long>(input_h), h_end);
+  long w_end_valid = min(static_cast<long>(input_w), w_end);
+
+  T max_val = -INFINITY;
+  size_t max_idx = 0;
+
+  // Loop only over valid pixels
+  for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
+    for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
+      const size_t cur_input_idx = input_offset + ih * input_w + iw;
+      T val = input_data[cur_input_idx];
+
       if (val > max_val) {
         max_val = val;
-        max_idx = target_padded_idx;
+        max_idx = cur_input_idx;
       }
     }
   }
@@ -76,15 +85,15 @@ template <typename T>
 void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_size,
                               size_t channels, size_t input_h, size_t input_w, size_t output_h,
                               size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                              size_t stride_w, device_ptr<size_t[]> &mask_indices,
-                              cudaStream_t stream) {
+                              size_t stride_w, size_t pad_h, size_t pad_w,
+                              device_ptr<size_t[]> &mask_indices, cudaStream_t stream) {
   int total_outputs = batch_size * channels * output_h * output_w;
   int threads_per_block = 256;
   int num_blocks = (total_outputs + threads_per_block - 1) / threads_per_block;
 
   compute_max_pool_forward_kernel<<<num_blocks, threads_per_block, 0, stream>>>(
       input_data, output_data, batch_size, channels, input_h, input_w, output_h, output_w, pool_h,
-      pool_w, stride_h, stride_w, mask_indices.get());
+      pool_w, stride_h, stride_w, pad_h, pad_w, mask_indices.get());
 }
 
 template <typename T>
@@ -103,13 +112,15 @@ template void compute_max_pool_forward<float>(const float *input_data, float *ou
                                               size_t batch_size, size_t channels, size_t input_h,
                                               size_t input_w, size_t output_h, size_t output_w,
                                               size_t pool_h, size_t pool_w, size_t stride_h,
-                                              size_t stride_w, device_ptr<size_t[]> &mask_indices,
+                                              size_t stride_w, size_t pad_h, size_t pad_w,
+                                              device_ptr<size_t[]> &mask_indices,
                                               cudaStream_t stream);
 template void compute_max_pool_forward<double>(const double *input_data, double *output_data,
                                                size_t batch_size, size_t channels, size_t input_h,
                                                size_t input_w, size_t output_h, size_t output_w,
                                                size_t pool_h, size_t pool_w, size_t stride_h,
-                                               size_t stride_w, device_ptr<size_t[]> &mask_indices,
+                                               size_t stride_w, size_t pad_h, size_t pad_w,
+                                               device_ptr<size_t[]> &mask_indices,
                                                cudaStream_t stream);
 
 template void compute_max_pool_backward<float>(const float *gradient_data, float *grad_input_data,

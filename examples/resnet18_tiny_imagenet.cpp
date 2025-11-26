@@ -92,6 +92,7 @@ int main() {
 
     cout << "\nStarting Tiny ImageNet CNN training..." << endl;
     train_classification_model(model, train_loader, val_loader, train_config);
+    // this_thread::sleep_for(chrono::seconds(100));
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
