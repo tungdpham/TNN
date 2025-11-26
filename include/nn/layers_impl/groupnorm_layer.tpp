@@ -67,7 +67,7 @@ const Tensor<T> &GroupNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
 
-  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
+  Tensor<T> &output = this->get_buffer(current->shape());
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -138,7 +138,7 @@ const Tensor<T> &GroupNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t width = input.width();
   const size_t spatial_size = height * width;
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input.shape());
+  Tensor<T> &grad_input = this->get_buffer(input.shape());
 
   auto bwd_task =
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,

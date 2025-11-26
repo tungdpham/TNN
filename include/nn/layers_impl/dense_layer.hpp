@@ -87,6 +87,8 @@ public:
 
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 
+  size_t cached_memory_bytes() const override;
+
 protected:
   void initialize_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;

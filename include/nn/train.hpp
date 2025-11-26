@@ -144,6 +144,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
         if (config.print_layer_profiling)
           model.print_layers_profiling_info();
         model.print_profiling_summary();
+        model.print_cache_memory_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
                 << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)

@@ -8,7 +8,7 @@
 #include "utils/env.hpp"
 #include <cmath>
 #include <iostream>
-#include <omp.h>
+
 #include <vector>
 
 using namespace tnn;

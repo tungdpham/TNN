@@ -36,11 +36,14 @@ struct ConvolutionHandle {
 };
 
 // Initialize cuDNN handle and descriptors for a conv layer
+// workspace_limit_bytes: maximum workspace size per algorithm (0 = no limit)
+//   Recommended values: 32MB (balanced), 16MB (conservative), 8MB (minimal)
 ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_channels,
                                                  size_t input_h, size_t input_w,
                                                  size_t out_channels, size_t kernel_h,
                                                  size_t kernel_w, size_t stride_h, size_t stride_w,
-                                                 size_t pad_h, size_t pad_w);
+                                                 size_t pad_h, size_t pad_w,
+                                                 size_t workspace_limit_bytes = 16 * 1024 * 1024);
 
 // Destroy cuDNN handle and clean up descriptors
 void destroy_convolution_handle(ConvolutionHandle *handle);

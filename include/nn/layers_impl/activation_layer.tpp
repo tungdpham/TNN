@@ -32,10 +32,11 @@ const Tensor<T> &ActivationLayer<T>::forward(const Tensor<T> &input, size_t micr
   if (it_input == micro_batch_inputs_.end()) {
     micro_batch_inputs_[micro_batch_id] = current->clone();
   } else {
-    it_input->second.resize(current->shape());
+    // it_input->second.resize(current->shape());
+    it_input->second.ensure(current->shape());
     ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0, "default");
   }
-  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
+  Tensor<T> &output = this->get_buffer(current->shape());
   ops::copy(current->data_ptr(), output.data_ptr(), current->size(), 0, 0, "default");
   activation_->apply(output);
   return output;
@@ -53,7 +54,7 @@ const Tensor<T> &ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t 
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
-  Tensor<T> &grad = this->get_gradient_buffer(micro_batch_id, last_input.shape());
+  Tensor<T> &grad = this->get_buffer(last_input.shape());
   ops::copy(current_gradient->data_ptr(), grad.data_ptr(), current_gradient->size());
   activation_->compute_gradient_inplace(last_input, grad);
   return grad;

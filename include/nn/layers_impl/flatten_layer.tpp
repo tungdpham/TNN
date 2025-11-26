@@ -7,7 +7,6 @@
 #pragma once
 #include "nn/layers_impl/flatten_layer.hpp"
 #include "ops/ops.hpp"
-
 #include <stdexcept>
 
 namespace tnn {
@@ -29,8 +28,7 @@ const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_b
   size_t batch_size = current->batch_size();
   size_t features = current->channels() * current->height() * current->width();
 
-  Tensor<T> &output =
-      this->get_output_buffer(micro_batch_id, std::vector<size_t>{batch_size, features, 1, 1});
+  Tensor<T> &output = this->get_buffer(std::vector<size_t>{batch_size, features, 1, 1});
 
   ops::copy(current->data_ptr(), output.data_ptr(), current->size());
 
@@ -47,9 +45,13 @@ const Tensor<T> &FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t mic
   const std::vector<size_t> &original_shape = it->second;
 
   const Tensor<T> *current_grad = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_grad = &device_gradient;
+  }
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, original_shape);
-
+  Tensor<T> &grad_input = this->get_buffer(original_shape);
   ops::copy(current_grad->data_ptr(), grad_input.data_ptr(), current_grad->size());
   return grad_input;
 }

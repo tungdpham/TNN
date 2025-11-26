@@ -23,7 +23,7 @@ public:
 
   device_ptr(const device_ptr &) = delete;
 
-  void reset(T *ptr = nullptr, const Device *device = nullptr) {
+  void reset() {
     if (ptr_) {
       if (device_) {
         device_->deallocateMemory(static_cast<void *>(ptr_));
@@ -32,8 +32,8 @@ public:
             "Attempting to deallocate device memory without associated device.");
       }
     }
-    ptr_ = ptr;
-    device_ = device;
+    ptr_ = nullptr;
+    device_ = nullptr;
   }
 
   ~device_ptr() { reset(); }
@@ -84,21 +84,21 @@ template <typename T> class device_ptr<T[]> {
 public:
   explicit device_ptr(T *ptr = nullptr, const Device *device = nullptr, size_t count = 0,
                       size_t alignment = 32)
-      : ptr_(ptr), device_(device), count_(count), alignment_(alignment) {}
+      : ptr_(ptr), device_(device), size_(count), capacity_(count), alignment_(alignment) {}
 
-  device_ptr(std::nullptr_t) : ptr_(nullptr), device_(nullptr), count_(0), alignment_(32) {}
+  device_ptr(std::nullptr_t)
+      : ptr_(nullptr), device_(nullptr), size_(0), capacity_(0), alignment_(32) {}
 
   device_ptr(device_ptr &&other) noexcept
-      : ptr_(other.ptr_), device_(other.device_), count_(other.count_),
+      : ptr_(other.ptr_), device_(other.device_), size_(other.size_), capacity_(other.capacity_),
         alignment_(other.alignment_) {
     other.ptr_ = nullptr;
-    other.count_ = 0;
+    other.size_ = 0;
   }
 
   device_ptr(const device_ptr &) = delete;
 
-  void reset(T *ptr = nullptr, const Device *device = nullptr, size_t count = 0,
-             size_t alignment = 32) {
+  void reset() {
     if (ptr_) {
       if (device_) {
         device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
@@ -107,9 +107,10 @@ public:
             "Attempting to deallocate device memory without associated device.");
       }
     }
-    ptr_ = ptr;
-    device_ = device;
-    count_ = count; // Set the new count
+    ptr_ = nullptr;
+    size_ = 0;
+    capacity_ = 0;
+    alignment_ = 0;
   }
 
   ~device_ptr() { reset(); }
@@ -121,12 +122,14 @@ public:
 
       ptr_ = other.ptr_;
       device_ = other.device_;
-      count_ = other.count_;
+      size_ = other.size_;
+      capacity_ = other.capacity_;
       alignment_ = other.alignment_;
 
       other.ptr_ = nullptr;
-      other.count_ = 0;
+      other.size_ = 0;
       other.alignment_ = 0;
+      other.capacity_ = 0;
     }
     return *this;
   }
@@ -141,7 +144,8 @@ public:
   T *release() {
     T *temp = ptr_;
     ptr_ = nullptr;
-    count_ = 0;
+    size_ = 0;
+    capacity_ = 0;
     alignment_ = 0;
     return temp;
   }
@@ -158,13 +162,14 @@ public:
     return device_->device_type();
   }
 
-  size_t size() const { return count_; }
+  size_t size() const { return size_; }
+
+  size_t capacity() const { return capacity_; }
 
   size_t getAlignment() const { return alignment_; }
 
-  void resize(size_t new_count) {
-    T *new_ptr =
-        static_cast<T *>(device_->allocateAlignedMemory(sizeof(T) * new_count, alignment_));
+  void resize(size_t new_size) {
+    T *new_ptr = static_cast<T *>(device_->allocateAlignedMemory(sizeof(T) * new_size, alignment_));
     if (!new_ptr) {
       throw std::runtime_error("Bad Alloc");
     }
@@ -172,11 +177,12 @@ public:
       device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
     }
     ptr_ = new_ptr;
-    count_ = new_count;
+    size_ = new_size;
+    capacity_ = new_size;
   }
 
   void ensure(size_t required_count) {
-    if (count_ < required_count) {
+    if (capacity_ < required_count) {
       resize(required_count);
     }
   }
@@ -186,7 +192,8 @@ public:
 private:
   T *ptr_;
   const Device *device_;
-  size_t count_;
+  size_t size_;
+  size_t capacity_;
   size_t alignment_;
 };
 

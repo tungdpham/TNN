@@ -40,7 +40,7 @@ const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_b
   }
 
   Tensor<T> mask(current->shape(), this->device_);
-  Tensor<T> &output = this->get_output_buffer(micro_batch_id, current->shape());
+  Tensor<T> &output = this->get_buffer(current->shape());
 
   auto forward_task = compute_dropout_forward(*current, output, mask);
   auto err = forward_task->sync();
@@ -72,7 +72,7 @@ const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t mic
   }
   const Tensor<T> &mask = it_mask->second;
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, current_gradient->shape());
+  Tensor<T> &grad_input = this->get_buffer(current_gradient->shape());
 
   grad_input = (*current_gradient) * mask;
 

@@ -287,6 +287,34 @@ public:
     return backward_times_microseconds_;
   }
 
+  void print_cache_memory_summary() const {
+    size_t total_cache_bytes = 0;
+    std::cout << "Cache Memory Usage Summary for Sequential Model: " << name_ << "\n";
+    std::cout << std::string(50, '=') << "\n";
+    std::cout << std::left << std::setw(30) << "Layer" << std::setw(20) << "Cache Memory (bytes)"
+              << "\n";
+    std::cout << std::string(50, '-') << "\n";
+
+    for (const auto &layer : layers_) {
+      size_t layer_cache_bytes = layer->cached_memory_bytes();
+      total_cache_bytes += layer_cache_bytes;
+
+      std::string layer_name = layer->type();
+      auto config = layer->get_config();
+      if (!config.name.empty()) {
+        layer_name = config.name;
+      }
+
+      std::cout << std::left << std::setw(30) << layer_name << std::setw(20) << layer_cache_bytes
+                << "\n";
+    }
+
+    std::cout << std::string(50, '-') << "\n";
+    std::cout << std::left << std::setw(30) << "TOTAL" << std::setw(20) << total_cache_bytes
+              << "\n";
+    std::cout << std::string(50, '=') << "\n\n";
+  }
+
   /**
    * @brief Prints a summary of the profiling data to the console if profiling is enabled, otherwise
    * prints a warning.

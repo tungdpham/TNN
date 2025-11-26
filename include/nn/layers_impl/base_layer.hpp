@@ -85,6 +85,8 @@ public:
     }
   }
 
+  virtual size_t cached_memory_bytes() const { return cache_buffer_.size() * sizeof(T); }
+
   void reset_profiling_info() { perf_timers_.clear(); }
 
   std::string name() const { return name_; }
@@ -96,37 +98,13 @@ protected:
   unsigned long long srand_seed_ = 0;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
   // buffers for storing intermediate results per micro-batch
-  std::unordered_map<size_t, Tensor<T>> output_buffers_;
-  std::unordered_map<size_t, Tensor<T>> gradient_buffers_;
+  Tensor<T> cache_buffer_;
   const Device *device_;
   std::string name_;
 
-  Tensor<T> &get_output_buffer(size_t micro_batch_id, const std::vector<size_t> &shape) {
-    auto it = output_buffers_.find(micro_batch_id);
-    if (it == output_buffers_.end()) {
-      output_buffers_.emplace(micro_batch_id, Tensor<T>(shape, this->device_));
-      return output_buffers_[micro_batch_id];
-    } else {
-      auto &buf = it->second;
-      if (buf.shape() != shape) {
-        buf.resize(shape);
-      }
-      return buf;
-    }
-  }
-
-  Tensor<T> &get_gradient_buffer(size_t micro_batch_id, const std::vector<size_t> &shape) {
-    auto it = gradient_buffers_.find(micro_batch_id);
-    if (it == gradient_buffers_.end()) {
-      gradient_buffers_.emplace(micro_batch_id, Tensor<T>(shape, this->device_));
-      return gradient_buffers_[micro_batch_id];
-    } else {
-      auto &buf = it->second;
-      if (buf.shape() != shape) {
-        buf.resize(shape);
-      }
-      return buf;
-    }
+  Tensor<T> &get_buffer(const std::vector<size_t> &shape) {
+    cache_buffer_.ensure(shape, this->device_);
+    return cache_buffer_;
   }
 };
 

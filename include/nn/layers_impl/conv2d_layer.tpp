@@ -45,7 +45,6 @@ template <typename T> Conv2DLayer<T>::~Conv2DLayer() {
 template <typename T> void Conv2DLayer<T>::initialize_params() {
   weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
   weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
-  weights_.fill(T(0));
   weight_gradients_.fill(T(0));
 
   if (use_bias_) {
@@ -55,16 +54,17 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
     bias_gradients_.fill(T(0));
   }
 
-  temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-  temp_gradient_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-  temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(this->device_, 0);
-
 #ifdef USE_CUDNN
   // cuDNN workspace will be initialized on first forward pass
   if (this->device_->device_type() == DeviceType::GPU) {
     cudnn_workspace_ = make_array_ptr<T[]>(this->device_, 0);
-  }
+  } else
 #endif
+  {
+    temp_output_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+    temp_gradient_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+    temp_col_grad_matrix_buffer_ = make_array_ptr<T[]>(this->device_, 0);
+  }
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
   T fan_out = static_cast<T>(out_channels_ * kernel_h_ * kernel_w_);
@@ -137,8 +137,7 @@ const Tensor<T> &Conv2DLayer<T>::def_forward(const Tensor<T> *current, size_t mi
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
   micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels_, input_h, input_w};
-  Tensor<T> &output =
-      this->get_output_buffer(micro_batch_id, {batch_size, out_channels_, output_h, output_w});
+  Tensor<T> &output = this->get_buffer({batch_size, out_channels_, output_h, output_w});
 
   size_t kernel_size = in_channels_ * kernel_h_ * kernel_w_;
   size_t output_size = batch_size * output_h * output_w;
@@ -191,7 +190,7 @@ const Tensor<T> &Conv2DLayer<T>::def_backward(const Tensor<T> *current_gradient,
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input_shape);
+  Tensor<T> &grad_input = this->get_buffer(input_shape);
   grad_input.fill(T(0));
 
   // Fallback to im2col + GEMM approach
@@ -243,8 +242,7 @@ const Tensor<T> &Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, size_t 
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  Tensor<T> &output =
-      this->get_output_buffer(micro_batch_id, {batch_size, out_channels_, output_h, output_w});
+  Tensor<T> &output = this->get_buffer({batch_size, out_channels_, output_h, output_w});
 
   if (!cudnn_handle_) {
     cudnn_handle_ = cuda::cudnn_conv2d::initialize_convolution_handle(
@@ -258,13 +256,19 @@ const Tensor<T> &Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, size_t 
   } else {
     cuda::cudnn_conv2d::update_batch_size(cudnn_handle_, batch_size, in_channels_, input_h, input_w,
                                           out_channels_, output_h, output_w);
+    // Recalculate and ensure workspace size after batch size update
+    auto workspace_sizes = cuda::cudnn_conv2d::get_workspace_sizes(cudnn_handle_, batch_size);
+    size_t max_workspace = std::max(
+        {workspace_sizes.fwd_size, workspace_sizes.bwd_data_size, workspace_sizes.bwd_filter_size});
+    cudnn_workspace_.ensure(max_workspace);
   }
 
   auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
   if (it_input_cache == micro_batch_inputs_cache_.end()) {
     micro_batch_inputs_cache_[micro_batch_id] = current->clone();
   } else {
-    it_input_cache->second.resize(current->shape());
+    // Resize the cached tensor to match current input shape
+    it_input_cache->second.ensure(current->shape());
     ops::copy(current->data_ptr(), it_input_cache->second.data_ptr(), current->size());
   }
 
@@ -294,7 +298,7 @@ const Tensor<T> &Conv2DLayer<T>::cudnn_backward(const Tensor<T> *current_gradien
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  Tensor<T> &grad_input = this->get_gradient_buffer(micro_batch_id, input_shape);
+  Tensor<T> &grad_input = this->get_buffer(input_shape);
   grad_input.fill(T(0));
 
   const Tensor<T> &cached_input = it_input_cache->second;
@@ -331,7 +335,7 @@ Conv2DLayer<T>::cudnn_forward(const device_ptr<T[]> &input_data, const device_pt
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::forward_with_bias<T>, cudnn_handle_,
                          input_data.get(), weight_data.get(), bias_data, output_data.get(),
                          batch_size, in_channels_, input_h, input_w, out_channels_, output_h,
-                         output_w, cudnn_workspace_.get(), cudnn_workspace_.size());
+                         output_w, cudnn_workspace_.get(), cudnn_workspace_.capacity());
 }
 
 template <typename T>
@@ -346,7 +350,7 @@ std::unique_ptr<Task> Conv2DLayer<T>::cudnn_backward_data(
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_data<T>, cudnn_handle_,
                          gradient_data.get(), weight_data.get(), input_grad_data.get(), batch_size,
                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace_.get(), cudnn_workspace_.size());
+                         cudnn_workspace_.get(), cudnn_workspace_.capacity());
 }
 
 template <typename T>
@@ -361,7 +365,7 @@ std::unique_ptr<Task> Conv2DLayer<T>::cudnn_backward_filter(
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_filter<T>, cudnn_handle_,
                          input_data.get(), gradient_data.get(), weight_grad_data.get(), batch_size,
                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace_.get(), cudnn_workspace_.size());
+                         cudnn_workspace_.get(), cudnn_workspace_.capacity());
 }
 
 template <typename T>
@@ -622,6 +626,35 @@ template <typename T>
 uint64_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
       std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+}
+
+template <typename T> size_t Conv2DLayer<T>::cached_memory_bytes() const {
+  size_t total_bytes = 0;
+  for (const auto &pair : micro_batch_col_buffers_) {
+    total_bytes += pair.second.capacity() * sizeof(T);
+  }
+#ifdef USE_CUDNN
+  size_t input_cache_bytes = 0;
+  for (const auto &pair : micro_batch_inputs_cache_) {
+    input_cache_bytes += pair.second.size() * sizeof(T);
+  }
+  // std::cout << "Cudnn input cache bytes: " << input_cache_bytes << std::endl;
+  total_bytes += input_cache_bytes;
+#endif
+  total_bytes += temp_output_buffer_.capacity() * sizeof(T);
+  // std::cout << "Temp output buffer bytes: " << temp_output_buffer_.capacity() * sizeof(T)
+  //           << std::endl;
+  total_bytes += temp_gradient_buffer_.capacity() * sizeof(T);
+  // std::cout << "Temp gradient buffer bytes: " << temp_gradient_buffer_.capacity() * sizeof(T)
+  //           << std::endl;
+  total_bytes += temp_col_grad_matrix_buffer_.capacity() * sizeof(T);
+  // std::cout << "Temp col grad matrix buffer bytes: "
+  //           << temp_col_grad_matrix_buffer_.capacity() * sizeof(T) << std::endl;
+  total_bytes += cudnn_workspace_.capacity() * sizeof(T);
+  // std::cout << "Cudnn workspace bytes: " << cudnn_workspace_.capacity() * sizeof(T) << std::endl;
+  total_bytes += Layer<T>::cached_memory_bytes();
+  // std::cout << "base layer cached bytes: " << Layer<T>::cached_memory_bytes() << std::endl;
+  return total_bytes;
 }
 
 // Explicit template instantiations

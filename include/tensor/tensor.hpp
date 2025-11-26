@@ -9,6 +9,7 @@
 #include "device/device_ptr.hpp"
 #include "device/task.hpp"
 #include "layout_trait.hpp"
+#include <algorithm>
 #include <cassert>
 #include <chrono>
 #include <cstdint>
@@ -135,6 +136,7 @@ public:
   //     ops::copy(other.data_, data_, data_size_)->sync();
   //   }
   // }
+
   Tensor(const Tensor &other) = delete;
 
   Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
@@ -463,11 +465,13 @@ public:
     assert(new_shape.size() == dims_ && "New shape size must match tensor dims size");
     if (new_device != nullptr && new_device != device_) {
       // Change device
-      Tensor<T, L> new_tensor(new_shape, new_device);
-      size_t min_size = std::min(data_size_, std::accumulate(new_shape.begin(), new_shape.end(),
-                                                             size_t(1), std::multiplies<size_t>()));
-      ops::copy(data_, new_tensor.data_, min_size)->sync();
-      *this = std::move(new_tensor);
+      device_ = new_device;
+      data_.reset();
+      std::copy(new_shape.begin(), new_shape.end(), shape_);
+      data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+      // std::cout << "Resizing tensor to new device. New size: " << data_size_ << std::endl;
+      layout_trait_.compute_strides();
+      allocate_data(data_size_);
       return;
     }
     if (new_shape == std::vector<size_t>(shape_, shape_ + dims_)) {
@@ -477,10 +481,43 @@ public:
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size != data_size_) {
+      // std::cout << "Resizing tensor from " << data_size_ << " to " << new_size << std::endl;
       data_.reset();
       allocate_data(new_size);
       data_size_ = new_size;
     }
+    std::copy(new_shape.begin(), new_shape.end(), shape_);
+    layout_trait_.compute_strides();
+  }
+
+  /**
+   * Similar to resize but only reallocates if the new size is larger than
+   * the current allocated size. Good for caching.
+   */
+  void ensure(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
+    if (new_shape.size() != dims_) {
+      throw std::invalid_argument("ensure: New shape size must match tensor dims size");
+    }
+    if (new_device != nullptr && new_device != device_) {
+      // Change device
+      device_ = new_device;
+      data_.reset();
+      std::copy(new_shape.begin(), new_shape.end(), shape_);
+      data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+      layout_trait_.compute_strides();
+      // std::cout << "Ensuring tensor on new device. New size: " << data_size_ << std::endl;
+      allocate_data(data_size_);
+      return;
+    }
+    size_t new_size =
+        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
+    if (new_size > data_.capacity()) {
+      // std::cout << "Ensuring tensor resize from " << data_.capacity() << " to " << new_size
+      //           << std::endl;
+      data_.reset();
+      allocate_data(new_size);
+    }
+    data_size_ = new_size;
     std::copy(new_shape.begin(), new_shape.end(), shape_);
     layout_trait_.compute_strides();
   }
@@ -500,8 +537,8 @@ public:
     }
 
     if (device_ != other.device_) {
-      throw std::runtime_error(
-          "Cannot copy batch between tensors on different devices. Transfer to same device first.");
+      throw std::runtime_error("Cannot copy batch between tensors on different devices. Transfer "
+                               "to same device first.");
     }
 
     size_t batch_stride = strides_[0];
