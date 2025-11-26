@@ -19,7 +19,7 @@ Device &Device::operator=(Device &&other) noexcept {
   return *this;
 }
 
-const DeviceType &Device::getDeviceType() const { return type_; }
+const DeviceType &Device::device_type() const { return type_; }
 
 int Device::getID() const { return id_; }
 

@@ -33,9 +33,9 @@ private:
   std::vector<std::unique_ptr<Layer<T>>> shortcut_path_;
   std::unique_ptr<ActivationFunction<T>> final_activation_;
 
-  std::unordered_map<size_t, Tensor<T>> main_output_cache_;
-  std::unordered_map<size_t, Tensor<T>> shortcut_output_cache_;
   std::unordered_map<size_t, Tensor<T>> pre_activation_cache_;
+
+  std::unordered_map<size_t, Tensor<T>> grad_after_activation_cache_;
 
   std::string activation_type_;
 
@@ -103,13 +103,6 @@ public:
     for (auto &layer : main_path_) {
       main_path = &layer->forward(*main_path, micro_batch_id);
     }
-    auto it_main = main_output_cache_.find(micro_batch_id);
-    if (it_main == main_output_cache_.end()) {
-      main_output_cache_[micro_batch_id] = main_path->clone();
-    } else {
-      it_main->second.resize(main_path->shape());
-      ops::copy(main_path->data_ptr(), it_main->second.data_ptr(), main_path->size());
-    }
 
     // Shortcut path: x or projection(x)
     const Tensor<T> *shortcut_path = current_input;
@@ -118,19 +111,10 @@ public:
         shortcut_path = &layer->forward(*shortcut_path, micro_batch_id);
       }
     }
-    auto it_shortcut = shortcut_output_cache_.find(micro_batch_id);
-    if (it_shortcut == shortcut_output_cache_.end()) {
-      shortcut_output_cache_[micro_batch_id] = shortcut_path->clone();
-    } else {
-      it_shortcut->second.resize(shortcut_path->shape());
-      ops::copy(shortcut_path->data_ptr(), it_shortcut->second.data_ptr(), shortcut_path->size());
-    }
 
     // Residual connection: F(x) + x
-    Tensor<T> &output =
-        this->get_output_buffer(micro_batch_id, main_output_cache_[micro_batch_id].shape());
-    ops::add(main_output_cache_[micro_batch_id].data_ptr(),
-             shortcut_output_cache_[micro_batch_id].data_ptr(), output.data_ptr(), output.size());
+    Tensor<T> &output = this->get_output_buffer(micro_batch_id, main_path->shape());
+    ops::add(main_path->data_ptr(), shortcut_path->data_ptr(), output.data_ptr(), output.size());
 
     // Cache pre-activation output for backward pass
     auto it_pre_act = pre_activation_cache_.find(micro_batch_id);
@@ -156,17 +140,28 @@ public:
       current_gradient = &device_gradient;
     }
 
+    auto it_pre_act = pre_activation_cache_.find(micro_batch_id);
+    if (final_activation_ && it_pre_act == pre_activation_cache_.end()) {
+      throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+
     // Gradient through final activation
-    Tensor<T> grad_after_activation;
+    auto it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
+    if (it_grad_act == grad_after_activation_cache_.end()) {
+      grad_after_activation_cache_[micro_batch_id] = current_gradient->clone();
+      it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
+    } else {
+      it_grad_act->second.resize(current_gradient->shape());
+      ops::copy(current_gradient->data_ptr(), it_grad_act->second.data_ptr(),
+                current_gradient->size());
+    }
     if (final_activation_) {
-      grad_after_activation = current_gradient->clone();
-      final_activation_->compute_gradient_inplace(pre_activation_cache_[micro_batch_id],
-                                                  grad_after_activation);
+      final_activation_->compute_gradient_inplace(it_pre_act->second, it_grad_act->second);
     }
 
     const Tensor<T> *grad_to_propagate =
-        final_activation_ ? &grad_after_activation : current_gradient;
-
+        final_activation_ ? &it_grad_act->second : current_gradient;
     // Backward through main path
     const Tensor<T> *grad_main = grad_to_propagate;
     for (int i = static_cast<int>(main_path_.size()) - 1; i >= 0; --i) {

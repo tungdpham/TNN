@@ -49,7 +49,7 @@ int main() {
 
     string gpu_device_index = "";
     for (const string &id : manager.getAvailableDeviceIDs()) {
-      if (manager.getDevice(id).getDeviceType() == DeviceType::GPU) {
+      if (manager.getDevice(id).device_type() == DeviceType::GPU) {
         gpu_device_index = id;
         break;
       }

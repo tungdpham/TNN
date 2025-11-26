@@ -33,7 +33,7 @@ protected:
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::GPU) {
+      if (device.device_type() == DeviceType::GPU) {
         gpu_device_ = &device;
         has_gpu_ = true;
         break;
@@ -71,13 +71,13 @@ protected:
     std::vector<size_t> expected_host(size);
     std::vector<size_t> actual_host(size);
 
-    if (expected.getDeviceType() == DeviceType::CPU) {
+    if (expected.device_type() == DeviceType::CPU) {
       std::memcpy(expected_host.data(), expected.get(), size * sizeof(size_t));
     } else {
       expected.getDevice()->copyToHost(expected_host.data(), expected.get(), size * sizeof(size_t));
     }
 
-    if (actual.getDeviceType() == DeviceType::CPU) {
+    if (actual.device_type() == DeviceType::CPU) {
       std::memcpy(actual_host.data(), actual.get(), size * sizeof(size_t));
     } else {
       actual.getDevice()->copyToHost(actual_host.data(), actual.get(), size * sizeof(size_t));

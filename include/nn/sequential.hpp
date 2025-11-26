@@ -9,6 +9,7 @@
 #include "blocks.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
+#include "device/task.hpp"
 #include "layers.hpp"
 #include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
@@ -356,6 +357,27 @@ public:
                 << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
     }
 
+    std::string sync_layer_name = "synchronization";
+    uint64_t forward_sync_time = 0;
+    auto forward_sync_it = forward_times_copy.find(sync_layer_name);
+    if (forward_sync_it != forward_times_copy.end()) {
+      forward_sync_time = forward_sync_it->second;
+    }
+    uint64_t backward_sync_time = 0;
+    auto backward_sync_it = backward_times_copy.find(sync_layer_name);
+    if (backward_sync_it != backward_times_copy.end()) {
+      backward_sync_time = backward_sync_it->second;
+    }
+    uint64_t total_sync_time = forward_sync_time + backward_sync_time;
+    total_forward += forward_sync_time;
+    total_backward += backward_sync_time;
+
+    std::cout << std::left << std::setw(20) << sync_layer_name << std::setw(15) << std::fixed
+              << std::setprecision(3) << static_cast<double>(forward_sync_time) / 1000.0
+              << std::setw(15) << std::fixed << std::setprecision(3)
+              << static_cast<double>(backward_sync_time) / 1000.0 << std::setw(15) << std::fixed
+              << std::setprecision(3) << static_cast<double>(total_sync_time) / 1000.0 << "\n";
+
     std::cout << std::string(70, '-') << "\n";
     std::cout << std::left << std::setw(20) << "TOTAL" << std::setw(15) << std::fixed
               << std::setprecision(3) << static_cast<double>(total_forward / 1000.0)
@@ -407,6 +429,7 @@ public:
         // just profile since it's not expensive
         auto start_time = std::chrono::high_resolution_clock::now();
         current = &layers_[i]->forward(*current, micro_batch_id);
+        // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -425,6 +448,17 @@ public:
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
                                  layers_[i]->name() + "): " + e.what());
       }
+    }
+
+    auto sync_start = std::chrono::high_resolution_clock::now();
+    Flow *def_flow = input_device->getFlow("default");
+    def_flow->synchronize();
+    auto sync_end = std::chrono::high_resolution_clock::now();
+    auto sync_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(sync_end - sync_start);
+    {
+      std::lock_guard<std::mutex> lock(forward_times_mutex_);
+      forward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
     return current->to_device(input_device);
@@ -456,11 +490,13 @@ public:
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
 
+    const Device *grad_device = gradient.device();
     const Tensor<T> *current_gradient = &gradient;
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         auto start_time = std::chrono::high_resolution_clock::now();
         current_gradient = &layers_[i]->backward(*current_gradient, micro_batch_id);
+        // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -480,6 +516,17 @@ public:
         throw std::runtime_error("Error in backward pass of layer " + std::to_string(i) + " (" +
                                  layers_[i]->type() + "): " + e.what());
       }
+    }
+
+    auto sync_start = std::chrono::high_resolution_clock::now();
+    Flow *def_flow = grad_device->getFlow("default");
+    def_flow->synchronize();
+    auto sync_end = std::chrono::high_resolution_clock::now();
+    auto sync_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(sync_end - sync_start);
+    {
+      std::lock_guard<std::mutex> lock(backward_times_mutex_);
+      backward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
     return current_gradient->to_device(gradient.device());
@@ -855,14 +902,17 @@ public:
   }
 
   void clear_gradients() const {
-    parallel_for<size_t>(0, layers_.size(), [&](size_t i) {
-      if (layers_[i]->has_parameters()) {
-        auto parameterized_layer = dynamic_cast<ParameterizedLayer<T> *>(layers_[i].get());
-        if (parameterized_layer) {
-          parameterized_layer->clear_gradients();
-        }
+    std::vector<Tensor<T> *> grads = gradients();
+    std::vector<std::unique_ptr<Task>> tasks;
+    for (auto &grad : grads) {
+      tasks.emplace_back(grad->fill(T(0)));
+    }
+    for (auto &task : tasks) {
+      auto err = task->sync();
+      if (err != ErrorStatus{}) {
+        throw std::runtime_error("Error while clearing gradients: " + err.message());
       }
-    });
+    }
   }
 
   void load_parameters(std::vector<Tensor<T>> &&parameters) {

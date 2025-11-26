@@ -92,30 +92,6 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     micro_batch_inv_std_[micro_batch_id].ensure(num_features_);
   }
 
-  if (this->is_training_) {
-    std::unique_ptr<Task> fwd_task;
-    fwd_task = run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
-                                 micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(),
-                                 running_var_.data_ptr(), gamma_.data_ptr(), beta_.data_ptr(),
-                                 output.data_ptr(), micro_batch_normalized_[micro_batch_id],
-                                 batch_size, channels, spatial_size, "default");
-    if (fwd_task) {
-      auto err = fwd_task->sync();
-      if (err != ErrorStatus{}) {
-        throw std::runtime_error("BatchNorm forward task error: " + err.message());
-      }
-    }
-  } else {
-    auto infer_task =
-        compute_inference_output(*current, output, batch_size, channels, spatial_size, "default");
-    if (infer_task) {
-      auto err = infer_task->sync();
-      if (err != ErrorStatus{}) {
-        throw std::runtime_error("BatchNorm inference task error: " + err.message());
-      }
-    }
-  }
-
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   if (it_input == micro_batch_inputs_.end()) {
     micro_batch_inputs_[micro_batch_id] = current->clone();
@@ -123,6 +99,17 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     // reuse existing tensor to avoid reallocations
     it_input->second.resize(current->shape());
     ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0);
+  }
+
+  if (this->is_training_) {
+    forward_task_ = run_forward_fused(
+        current->data_ptr(), batch_mean_fixed_[micro_batch_id],
+        micro_batch_inv_std_[micro_batch_id], running_mean_.data_ptr(), running_var_.data_ptr(),
+        gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
+        micro_batch_normalized_[micro_batch_id], batch_size, channels, spatial_size, "default");
+  } else {
+    forward_task_ =
+        compute_inference_output(*current, output, batch_size, channels, spatial_size, "default");
   }
 
   return output;
@@ -165,12 +152,6 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
                          gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
                          grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
-  if (bwd_task) {
-    auto err = bwd_task->sync();
-    if (err != ErrorStatus{}) {
-      throw std::runtime_error("BatchNorm backward task error: " + err.message());
-    }
-  }
 
   return grad_input;
 }
@@ -182,7 +163,7 @@ std::unique_ptr<Task> BatchNormLayer<T>::run_forward_fused(
     const device_ptr<T[]> &beta, device_ptr<T[]> &output, device_ptr<T[]> &norm_cache,
     size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) {
 #ifdef USE_CUDA
-  if (this->device_->getDeviceType() == DeviceType::GPU) {
+  if (this->device_->device_type() == DeviceType::GPU) {
     return create_gpu_task("default", cuda::batchnorm::run_forward_fused<T>, input.get(),
                            batch_mean_fixed.get(), batch_inv_std.get(), running_mean.get(),
                            running_var.get(), affine_ ? gamma.get() : nullptr,
@@ -206,7 +187,7 @@ std::unique_ptr<Task> BatchNormLayer<T>::run_backward_fused(
     device_ptr<T[]> &d_beta, device_ptr<T[]> &grad_input, size_t batch_size, size_t channels,
     size_t spatial_size, const std::string &flow_id) {
 #ifdef USE_CUDA
-  if (this->device_->getDeviceType() == DeviceType::GPU) {
+  if (this->device_->device_type() == DeviceType::GPU) {
     return create_gpu_task("default", cuda::batchnorm::run_backward_fused<T>, grad_output.get(),
                            norm_input.get(), inv_std.get(), gamma.get(), d_gamma.get(),
                            d_beta.get(), grad_input.get(), batch_size, channels, spatial_size,

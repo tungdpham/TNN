@@ -19,14 +19,14 @@ template <typename T>
 void gemm(const device_ptr<T[]> &A, const device_ptr<T[]> &B, const device_ptr<T[]> &C,
           const size_t M, const size_t N, const size_t K, const bool trans_A, const bool trans_B,
           const T alpha, const T beta) {
-  if (A.getDeviceType() != B.getDeviceType() || A.getDeviceType() != C.getDeviceType()) {
+  if (A.device_type() != B.device_type() || A.device_type() != C.device_type()) {
     throw std::runtime_error("All device pointers must be on the same device type for gemm.");
   }
-  if (A.getDeviceType() == DeviceType::CPU) {
+  if (A.device_type() == DeviceType::CPU) {
     cpu::gemm<T>(A.get(), B.get(), C.get(), M, N, K, trans_A, trans_B, alpha, beta);
   }
 #ifdef USE_CUDA
-  else if (A.getDeviceType() == DeviceType::GPU) {
+  else if (A.device_type() == DeviceType::GPU) {
     cuda::gemm<T>(A.get(), B.get(), C.get(), M, N, K, trans_A, trans_B, alpha, beta);
   }
 #endif

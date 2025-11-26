@@ -115,3 +115,24 @@ message(STATUS "Set CMAKE_CUDA_ARCHITECTURES to: ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")
 
 endif()
+
+# Auto-detect and enable cuDNN if available
+if(NOT DEFINED ENABLE_CUDNN OR ENABLE_CUDNN)
+    # Try to find cuDNN library
+    find_library(CUDNN_LIBRARY cudnn
+        HINTS ${CUDAToolkit_LIBRARY_DIR}
+        PATHS /usr/local/cuda/lib64 /usr/lib/x86_64-linux-gnu
+    )
+    
+    if(CUDNN_LIBRARY)
+        message(STATUS "Found cuDNN library: ${CUDNN_LIBRARY}")
+        set(ENABLE_CUDNN ON CACHE BOOL "Enable cuDNN support (requires CUDA)" FORCE)
+        add_library(CUDA::cudnn UNKNOWN IMPORTED)
+        set_target_properties(CUDA::cudnn PROPERTIES
+            IMPORTED_LOCATION ${CUDNN_LIBRARY}
+        )
+    else()
+        message(STATUS "cuDNN library not found. Using GEMM-based convolution fallback.")
+        set(ENABLE_CUDNN OFF CACHE BOOL "Enable cuDNN support (requires CUDA)" FORCE)
+    endif()
+endif()

@@ -22,7 +22,7 @@ protected:
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::GPU) {
+      if (device.device_type() == DeviceType::GPU) {
         gpu_device_ = &device;
         has_gpu_ = true;
         break;
@@ -625,7 +625,7 @@ protected:
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::GPU) {
+      if (device.device_type() == DeviceType::GPU) {
         gpu_device_ = &device;
         has_gpu_ = true;
         break;
@@ -693,7 +693,7 @@ TEST(GPUTensorFloatingPointTest, FloatingPointComparisons) {
   const Device *gpu_device = nullptr;
   for (const std::string &id : device_ids) {
     const Device &device = manager.getDevice(id);
-    if (device.getDeviceType() == DeviceType::GPU) {
+    if (device.device_type() == DeviceType::GPU) {
       gpu_device = &device;
       has_gpu = true;
       break;

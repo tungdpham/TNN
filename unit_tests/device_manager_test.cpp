@@ -31,7 +31,7 @@ TEST_F(DeviceManagerTest, InitializeDefaultDevices) {
 
   // Verify CPU device exists and is accessible
   const Device &cpu_device = manager.getDevice("CPU:0");
-  EXPECT_EQ(cpu_device.getDeviceType(), DeviceType::CPU);
+  EXPECT_EQ(cpu_device.device_type(), DeviceType::CPU);
   EXPECT_EQ(cpu_device.getID(), 0);
 }
 
@@ -49,7 +49,7 @@ TEST_F(DeviceManagerTest, DiscoverDevices) {
 
   // Check that device "CPU:0" is CPU
   const Device &cpu_device = manager.getDevice("CPU:0");
-  EXPECT_EQ(cpu_device.getDeviceType(), DeviceType::CPU);
+  EXPECT_EQ(cpu_device.device_type(), DeviceType::CPU);
 }
 
 // Test device allocation and deallocation
@@ -89,7 +89,7 @@ TEST_F(DeviceManagerTest, MultipleDeviceAllocations) {
     ASSERT_NE(ptr, nullptr) << "Failed to allocate on device " << device_id;
 
     // For CPU devices, we can test memory access
-    if (device.getDeviceType() == DeviceType::CPU) {
+    if (device.device_type() == DeviceType::CPU) {
       memset(ptr, static_cast<int>(device.getID() & 0xFF), size);
       char *char_ptr = static_cast<char *>(ptr);
       EXPECT_EQ(char_ptr[0], static_cast<char>(device.getID() & 0xFF));
@@ -181,7 +181,7 @@ TEST_F(DeviceManagerTest, CUDADeviceDiscovery) {
   for (const std::string &device_id : device_ids) {
     if (device_id.find("GPU") == 0) {
       const Device &device = manager.getDevice(device_id);
-      if (device.getDeviceType() == DeviceType::GPU) {
+      if (device.device_type() == DeviceType::GPU) {
         found_gpu = true;
 
         // Test basic GPU allocation

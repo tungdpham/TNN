@@ -15,10 +15,10 @@ std::unique_ptr<Task> im2col(const Tensor<T, NCHW> &input_tensor, device_ptr<T[]
                              size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
                              size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                              const std::string &flow_id = "default") {
-  if (col_data.getDeviceType() != input_tensor.device_type()) {
+  if (col_data.device_type() != input_tensor.device_type()) {
     throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
   }
-  if (input_tensor.device_type() != col_data.getDeviceType()) {
+  if (input_tensor.device_type() != col_data.device_type()) {
     throw std::runtime_error("im2col: Mismatched device types between input tensor and col_data");
   }
   if (input_tensor.is_on_cpu()) {
@@ -41,16 +41,16 @@ std::unique_ptr<Task> col2im(const device_ptr<T[]> &col_data, device_ptr<T[]> &r
                              size_t batch_size, size_t channels, size_t height, size_t width,
                              size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                              size_t pad_h, size_t pad_w, const std::string &flow_id = "default") {
-  if (col_data.getDeviceType() != result_data.getDeviceType()) {
+  if (col_data.device_type() != result_data.device_type()) {
     throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
   }
-  if (col_data.getDeviceType() == DeviceType::CPU) {
+  if (col_data.device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::col2im<T>, col_data.get(), result_data.get(), batch_size,
                            channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
                            pad_w);
   }
 #ifdef USE_CUDA
-  else if (col_data.getDeviceType() == DeviceType::GPU) {
+  else if (col_data.device_type() == DeviceType::GPU) {
     return create_gpu_task(flow_id, cuda::col2im<T>, col_data.get(), result_data.get(), batch_size,
                            channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
                            pad_w);

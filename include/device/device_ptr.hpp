@@ -62,11 +62,11 @@ public:
   T *get() const { return ptr_; }
   const Device *getDevice() const { return device_; }
 
-  DeviceType getDeviceType() const {
+  DeviceType device_type() const {
     if (!device_) {
       throw std::runtime_error("No associated device to get device type from.");
     }
-    return device_->getDeviceType();
+    return device_->device_type();
   }
 
   explicit operator bool() const { return ptr_ != nullptr; }
@@ -151,11 +151,11 @@ public:
 
   const Device *getDevice() const { return device_; }
 
-  DeviceType getDeviceType() const {
+  DeviceType device_type() const {
     if (!device_) {
       throw std::runtime_error("No associated device to get device type from.");
     }
-    return device_->getDeviceType();
+    return device_->device_type();
   }
 
   size_t size() const { return count_; }
@@ -237,7 +237,7 @@ to_cpu(const device_ptr<T> &src_ptr) {
     throw std::runtime_error("No associated device to perform to_cpu()");
   }
 
-  if (src_ptr.getDeviceType() == DeviceType::CPU) {
+  if (src_ptr.device_type() == DeviceType::CPU) {
     // Already on CPU, create a copy
     const Device &cpu_device = getCPU();
     auto cpu_ptr = make_array_ptr<T>(&cpu_device, src_ptr.getCount(), src_ptr.getAlignment());
@@ -260,7 +260,7 @@ to_gpu(const device_ptr<T> &src_ptr, int gpu_id = 0) {
     throw std::runtime_error("No associated device to perform to_gpu()");
   }
 
-  if (src_ptr.getDeviceType() == DeviceType::GPU) {
+  if (src_ptr.device_type() == DeviceType::GPU) {
     // Already on GPU, create a copy
     const Device &gpu_device = getGPU(gpu_id);
     auto gpu_ptr = make_array_ptr<T>(&gpu_device, src_ptr.getCount(), src_ptr.getAlignment());

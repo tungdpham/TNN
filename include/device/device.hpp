@@ -22,7 +22,7 @@ public:
   Device(const Device &) = delete;
   Device &operator=(const Device &) = delete;
 
-  const DeviceType &getDeviceType() const;
+  const DeviceType &device_type() const;
   int getID() const;
   std::string getName() const;
   size_t getTotalMemory() const;

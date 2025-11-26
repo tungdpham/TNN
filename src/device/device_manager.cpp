@@ -63,7 +63,7 @@ void DeviceManager::discoverDevices() {
 DeviceManager::~DeviceManager() = default;
 
 void DeviceManager::addDevice(Device &&device) {
-  std::string device_type = (device.getDeviceType() == DeviceType::CPU) ? "CPU" : "GPU";
+  std::string device_type = (device.device_type() == DeviceType::CPU) ? "CPU" : "GPU";
   int id = device.getID();
   devices_.emplace(device_type + ":" + std::to_string(id), std::move(device));
 }
@@ -82,7 +82,7 @@ const Device &DeviceManager::getDevice(std::string id) const {
 
 const Device &DeviceManager::getDevice(DeviceType type) const {
   for (const auto &pair : devices_) {
-    if (pair.second.getDeviceType() == type) {
+    if (pair.second.device_type() == type) {
       return pair.second;
     }
   }
@@ -110,7 +110,7 @@ void DeviceManager::setDefaultDevice(std::string id) {
 
 void DeviceManager::setDefaultDevice(const DeviceType &type) {
   for (const auto &pair : devices_) {
-    if (pair.second.getDeviceType() == type) {
+    if (pair.second.device_type() == type) {
       default_device_id_ = pair.first;
       return;
     }
@@ -129,7 +129,7 @@ const Device &getGPU(size_t gpu_index) {
   size_t current_gpu = 0;
   for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);
-    if (device.getDeviceType() == DeviceType::GPU) {
+    if (device.device_type() == DeviceType::GPU) {
       if (current_gpu == gpu_index) {
         return device;
       }
@@ -143,7 +143,7 @@ const Device &getCPU() {
   DeviceManager &manager = DeviceManager::getInstance();
   for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);
-    if (device.getDeviceType() == DeviceType::CPU) {
+    if (device.device_type() == DeviceType::CPU) {
       return device;
     }
   }

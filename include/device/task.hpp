@@ -154,12 +154,12 @@ public:
   }
 
   ~CUDATask() override {
-    auto err = sync();
-    if (err != ErrorStatus{}) {
-      std::cerr << "Error in CUDATask sync in destructor: " << err.message() << std::endl;
-      std::cerr << "You might want to capture task and call sync() explicitly to handle errors."
-                << std::endl;
-    }
+    // auto err = sync();
+    // if (err != ErrorStatus{}) {
+    //   std::cerr << "Error in CUDATask sync in destructor: " << err.message() << std::endl;
+    //   std::cerr << "You might want to capture task and call sync() explicitly to handle errors."
+    //             << std::endl;
+    // }
 
     if (event_) {
       release_event(event_);

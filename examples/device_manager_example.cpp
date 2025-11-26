@@ -24,7 +24,7 @@ int main() {
     for (const string &device_id : device_ids) {
       const Device &device = manager.getDevice(device_id);
       cout << "  Device " << device_id << ": " << device.getName()
-           << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
+           << " (Type: " << (device.device_type() == DeviceType::CPU ? "CPU" : "GPU") << ")"
            << endl;
 
       // Show memory information
@@ -66,7 +66,7 @@ int main() {
     for (const string &device_id : device_ids) {
       if (device_id > "0") { // Assuming GPU devices have IDs greater than 0
         const Device &device = manager.getDevice(device_id);
-        if (device.getDeviceType() == DeviceType::GPU) {
+        if (device.device_type() == DeviceType::GPU) {
           cout << "\nTesting allocation on GPU device " << device_id << "..." << endl;
 
           size_t test_size = 1024 * 1024 * 1024; // 1 GB
