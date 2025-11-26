@@ -40,10 +40,10 @@ protected:
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::CPU) {
+      if (device.device_type() == DeviceType::CPU) {
         cpu_device_ = &device;
         has_cpu_ = true;
-      } else if (device.getDeviceType() == DeviceType::GPU) {
+      } else if (device.device_type() == DeviceType::GPU) {
         gpu_device_ = &device;
         has_gpu_ = true;
       }
@@ -67,10 +67,10 @@ protected:
     ASSERT_EQ(expected.shape(), actual.shape()) << context << " Tensors have different shapes";
 
     // Move both to CPU for comparison
-    Tensor<float> expected_cpu = expected.device()->getDeviceType() == DeviceType::CPU
+    Tensor<float> expected_cpu = expected.device()->device_type() == DeviceType::CPU
                                      ? expected.clone()
                                      : expected.to_device(&getCPU());
-    Tensor<float> actual_cpu = actual.device()->getDeviceType() == DeviceType::CPU
+    Tensor<float> actual_cpu = actual.device()->device_type() == DeviceType::CPU
                                    ? actual.clone()
                                    : actual.to_device(&getCPU());
 

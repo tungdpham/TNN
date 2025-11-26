@@ -137,7 +137,7 @@ public:
     vector<string> device_ids = manager.getAvailableDeviceIDs();
     for (const string &id : device_ids) {
       const Device &dev = manager.getDevice(id);
-      if (dev.getDeviceType() == DeviceType::GPU) {
+      if (dev.device_type() == DeviceType::GPU) {
 
         device_ = &dev;
         break;
@@ -510,14 +510,14 @@ int main() {
   for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
     cout << "  Device " << id << ": " << device.getName()
-         << " (Type: " << (device.getDeviceType() == DeviceType::CPU ? "CPU" : "GPU") << ")"
+         << " (Type: " << (device.device_type() == DeviceType::CPU ? "CPU" : "GPU") << ")"
          << " - Total Memory: " << device.getTotalMemory() / (1024 * 1024) << " MB" << endl;
   }
 
   bool found_gpu = false;
   for (const string &id : device_ids) {
     const Device &device = manager.getDevice(id);
-    if (device.getDeviceType() == DeviceType::GPU) {
+    if (device.device_type() == DeviceType::GPU) {
       cout << "\n" << string(60, '=') << endl;
       cout << "Testing GPU Device " << id << " (" << device.getName() << ")" << endl;
       cout << string(60, '=') << endl;

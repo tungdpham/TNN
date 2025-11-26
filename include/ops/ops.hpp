@@ -24,7 +24,7 @@ std::unique_ptr<Task> add(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
     throw std::runtime_error("add: All device pointers must be on the same device");
   }
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::add<T>, a.get(), b.get(), c.get(), size);
@@ -50,7 +50,7 @@ std::unique_ptr<Task> sub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub<T>, a.get(), b.get(), c.get(), size);
@@ -76,7 +76,7 @@ std::unique_ptr<Task> mul(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul<T>, a.get(), b.get(), c.get(), size);
@@ -102,7 +102,7 @@ std::unique_ptr<Task> div(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::div<T>, a.get(), b.get(), c.get(), size);
@@ -128,7 +128,7 @@ std::unique_ptr<Task> fmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fmadd<T>, a.get(), b.get(), c.get(), size);
@@ -154,7 +154,7 @@ std::unique_ptr<Task> fmsub(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fmsub<T>, a.get(), b.get(), c.get(), size);
@@ -180,7 +180,7 @@ std::unique_ptr<Task> fnmadd(const device_ptr<T[]> &a, const device_ptr<T[]> &b,
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fnmadd<T>, a.get(), b.get(), c.get(), size);
@@ -206,7 +206,7 @@ std::unique_ptr<Task> add_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::add_scalar<T>, a.get(), scalar, c.get(), size);
@@ -232,7 +232,7 @@ std::unique_ptr<Task> sub_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub_scalar<T>, a.get(), scalar, c.get(), size);
@@ -259,7 +259,7 @@ std::unique_ptr<Task> mul_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul_scalar<T>, a.get(), scalar, c.get(), size);
@@ -285,7 +285,7 @@ std::unique_ptr<Task> div_scalar(const device_ptr<T[]> &a, T scalar, device_ptr<
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::div_scalar<T>, a.get(), scalar, c.get(), size);
@@ -308,7 +308,7 @@ std::unique_ptr<Task> set_scalar(device_ptr<T[]> &c, T scalar, size_t size,
   }
 
   auto device = c.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::set_scalar<T>, c.get(), scalar, size);
@@ -334,7 +334,7 @@ std::unique_ptr<Task> axpy(T alpha, const device_ptr<T[]> &x, device_ptr<T[]> &y
   }
 
   auto device = x.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::axpy<T>, alpha, x.get(), y.get(), size);
@@ -360,7 +360,7 @@ std::unique_ptr<Task> sqrt(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sqrt<T>, a.get(), c.get(), size);
@@ -385,7 +385,7 @@ inline std::unique_ptr<Task> rsqrt(const device_ptr<float[]> &a, device_ptr<floa
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::rsqrt<float>, a.get(), c.get(), size);
@@ -410,7 +410,7 @@ inline std::unique_ptr<Task> rcp(const device_ptr<float[]> &a, device_ptr<float[
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::rcp<float>, a.get(), c.get(), size);
@@ -436,7 +436,7 @@ std::unique_ptr<Task> abs(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t s
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::abs<T>, a.get(), c.get(), size);
@@ -462,7 +462,7 @@ std::unique_ptr<Task> min(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::min<T>, a.get(), b.get(), c.get(), size);
@@ -488,7 +488,7 @@ std::unique_ptr<Task> max(const device_ptr<T[]> &a, const device_ptr<T[]> &b, de
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::max<T>, a.get(), b.get(), c.get(), size);
@@ -514,7 +514,7 @@ std::unique_ptr<Task> scalar_max(const device_ptr<T[]> &a, T scalar, device_ptr<
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::scalar_max<T>, a.get(), scalar, c.get(), size);
@@ -540,7 +540,7 @@ std::unique_ptr<Task> clamp(const device_ptr<T[]> &a, T min_val, T max_val, devi
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::clamp<T>, a.get(), min_val, max_val, c.get(), size);
@@ -566,7 +566,7 @@ std::unique_ptr<Task> equal(const device_ptr<T[]> &a, const device_ptr<T[]> &b, 
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::equal<T>, a.get(), b.get(), c.get(), size);
@@ -593,7 +593,7 @@ std::unique_ptr<Task> greater(const device_ptr<T[]> &a, const device_ptr<T[]> &b
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::greater<T>, a.get(), b.get(), c.get(), size);
@@ -624,7 +624,7 @@ std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::copy<T>, a.get() + a_offset, c.get() + c_offset, size);
@@ -648,7 +648,7 @@ std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size,
   }
 
   auto device = c.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::zero<T>, c.get(), size);
@@ -668,7 +668,7 @@ template <typename T> T sum(const device_ptr<T[]> &a, size_t size) {
     throw std::runtime_error("sum: Device pointer has no associated device");
   }
 
-  auto device_type = a.getDevice()->getDeviceType();
+  auto device_type = a.getDevice()->device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::sum(a.get(), size);
@@ -692,7 +692,7 @@ T dot_product(const device_ptr<T[]> &a, const device_ptr<T[]> &b, size_t size) {
     throw std::runtime_error("dot_product: All device pointers must be on the same device");
   }
 
-  auto device_type = a.getDevice()->getDeviceType();
+  auto device_type = a.getDevice()->device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::dot_product(a.get(), b.get(), size);
@@ -712,7 +712,7 @@ template <typename T> T norm_squared(const device_ptr<T[]> &a, size_t size) {
     throw std::runtime_error("norm_squared: Device pointer has no associated device");
   }
 
-  auto device_type = a.getDevice()->getDeviceType();
+  auto device_type = a.getDevice()->device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::norm_squared(a.get(), size);
@@ -732,7 +732,7 @@ template <typename T> T sum_squared_diff(const device_ptr<T[]> &a, T mean, size_
     throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
   }
 
-  auto device_type = a.getDevice()->getDeviceType();
+  auto device_type = a.getDevice()->device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::sum_squared_diff(a.get(), mean, size);
@@ -759,7 +759,7 @@ std::unique_ptr<Task> sub_mul_scalar(const device_ptr<T[]> &a, T sub_scalar, T m
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub_mul_scalar<T>, a.get(), sub_scalar, mul_scalar,
@@ -788,7 +788,7 @@ std::unique_ptr<Task> mul_add_scalar(const device_ptr<T[]> &a, T mul_scalar, T a
   }
 
   auto device = a.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul_add_scalar<T>, a.get(), mul_scalar, add_scalar,
@@ -814,7 +814,7 @@ std::unique_ptr<Task> fill_random_uniform(device_ptr<T[]> &data, size_t size, T 
   }
 
   auto device = data.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fill_random_uniform<T>, data.get(), size, min_val, max_val,
@@ -840,7 +840,7 @@ std::unique_ptr<Task> fill_random_normal(device_ptr<T[]> &data, size_t size, T m
   }
 
   auto device = data.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fill_random_normal<T>, data.get(), size, mean, stddev,
@@ -870,7 +870,7 @@ std::unique_ptr<Task> transpose_2d(const device_ptr<T[]> &input, device_ptr<T[]>
   }
 
   auto device = input.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::transpose_2d<T>, input.get(), output.get(), rows, cols);
@@ -899,7 +899,7 @@ std::unique_ptr<Task> nchw_to_cnhw(const device_ptr<T[]> &input, device_ptr<T[]>
   }
 
   auto device = input.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::nchw_to_cnhw<T>, input.get(), output.get(), n, c, h, w);
@@ -926,7 +926,7 @@ std::unique_ptr<Task> cnhw_to_nchw(const device_ptr<T[]> &input, device_ptr<T[]>
     throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
   }
   auto device = input.getDevice();
-  auto device_type = device->getDeviceType();
+  auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::cnhw_to_nchw<T>, input.get(), output.get(), n, c, h, w);

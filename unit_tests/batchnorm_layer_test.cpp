@@ -33,7 +33,7 @@ protected:
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::CPU) {
+      if (device.device_type() == DeviceType::CPU) {
         cpu_device_ = &device;
         has_cpu_ = true;
         break;

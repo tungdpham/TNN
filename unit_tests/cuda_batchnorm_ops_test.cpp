@@ -34,7 +34,7 @@ protected:
     has_gpu_ = false;
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
-      if (device.getDeviceType() == DeviceType::GPU) {
+      if (device.device_type() == DeviceType::GPU) {
         gpu_device_ = &device;
         has_gpu_ = true;
         break;

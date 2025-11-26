@@ -31,6 +31,11 @@ private:
   std::unordered_map<size_t, Tensor<T>> micro_batch_padded_inputs_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_grad_padded_inputs_;
 
+  std::unique_ptr<Task> pad_task_;
+  std::unique_ptr<Task> forward_task_;
+  std::unique_ptr<Task> backward_task_;
+  std::unique_ptr<Task> unpad_task_;
+
   std::unique_ptr<Task> compute_max_pool_forward(const device_ptr<T[]> &input_data,
                                                  device_ptr<T[]> &output_data, size_t batch_size,
                                                  size_t channels, size_t input_h, size_t input_w,

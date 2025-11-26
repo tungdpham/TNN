@@ -1,6 +1,5 @@
 #include "ops/cpu/dkernels.hpp"
 
-#include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>

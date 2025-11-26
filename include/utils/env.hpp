@@ -11,8 +11,8 @@
 namespace tnn {
 
 // Static storage for loaded environment variables from .env file
-static std::unordered_map<std::string, std::string> loaded_env_vars;
-static bool env_file_loaded = false;
+inline std::unordered_map<std::string, std::string> loaded_env_vars;
+inline bool env_file_loaded = false;
 
 namespace detail {
 template <typename T> T convert_from_string(const std::string &str) {

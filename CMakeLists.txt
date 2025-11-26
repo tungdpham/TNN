@@ -16,6 +16,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 option(ENABLE_OPENMP "Enable OpenMP support" OFF)
 option(ENABLE_CUDA "Enable CUDA support" OFF)
+option(ENABLE_CUDNN "Enable cuDNN support (auto-detected if not specified)" ON)
 option(ENABLE_TBB "Enable Intel TBB support" ON)
 option(ENABLE_MKL "Enable Intel MKL support" OFF)
 option(ENABLE_DEBUG "Enable debug build with sanitizers" OFF)

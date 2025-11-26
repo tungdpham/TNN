@@ -295,7 +295,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
   if (affine) {
-
     fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
                                                                d_beta, N, C, S);
   }

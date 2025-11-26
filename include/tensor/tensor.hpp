@@ -144,14 +144,14 @@ public:
 
   template <typename... Indices> T &operator()(Indices... indices) {
     static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
-    assert(device_->getDeviceType() == DeviceType::CPU &&
+    assert(device_->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get()[compute_index(indices...)];
   }
 
   template <typename... Indices> const T &operator()(Indices... indices) const {
     static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
-    assert(device_->getDeviceType() == DeviceType::CPU &&
+    assert(device_->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get()[compute_index(indices...)];
   }
@@ -375,11 +375,11 @@ public:
 
   const Device *device() const { return device_; }
 
-  DeviceType device_type() const { return device_->getDeviceType(); }
+  DeviceType device_type() const { return device_->device_type(); }
 
-  bool is_on_cpu() const { return device_->getDeviceType() == DeviceType::CPU; }
+  bool is_on_cpu() const { return device_->device_type() == DeviceType::CPU; }
 
-  bool is_on_gpu() const { return device_->getDeviceType() == DeviceType::GPU; }
+  bool is_on_gpu() const { return device_->device_type() == DeviceType::GPU; }
 
   const device_ptr<T[]> &data_ptr() const { return data_; }
 
@@ -422,11 +422,11 @@ public:
       return clone();
     }
 
-    if (device_type() == DeviceType::CPU && target_device->getDeviceType() == DeviceType::GPU) {
+    if (device_type() == DeviceType::CPU && target_device->device_type() == DeviceType::GPU) {
       return to_gpu(target_device->getID());
     }
 
-    if (device_type() == DeviceType::GPU && target_device->getDeviceType() == DeviceType::CPU) {
+    if (device_type() == DeviceType::GPU && target_device->device_type() == DeviceType::CPU) {
       return to_cpu();
     }
 
@@ -576,13 +576,11 @@ public:
       throw std::runtime_error("File is not open for writing");
     }
 
-    if (device_type() != DeviceType::CPU) {
-      throw std::runtime_error("Tensor must be on CPU to save to file");
-    }
+    Tensor<T> cpu_tensor = to_cpu();
 
     out.write(reinterpret_cast<const char *>(shape_), dims_ * sizeof(size_t));
 
-    out.write(reinterpret_cast<const char *>(data_.get()), data_size_ * sizeof(T));
+    out.write(reinterpret_cast<const char *>(cpu_tensor.data_.get()), data_size_ * sizeof(T));
   }
 
   static Tensor<T, L> load(std::ifstream &in) {

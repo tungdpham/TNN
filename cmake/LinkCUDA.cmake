@@ -11,6 +11,14 @@ function(link_cuda visibility target_name)
             CUDA_ARCHITECTURES "${TARGET_CUDA_ARCH}"
             CUDA_STANDARD 17
         )
+        
+        # Link CUDA runtime and cuBLAS
         target_link_libraries(${target_name} ${visibility} CUDA::cudart CUDA::cublas)
+        
+        # Optionally link cuDNN if enabled
+        if(ENABLE_CUDNN)
+            target_link_libraries(${target_name} ${visibility} CUDA::cudnn)
+            target_compile_definitions(${target_name} ${visibility} USE_CUDNN)
+        endif()
     endif()
 endfunction()

@@ -128,16 +128,11 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
     device_batch_labels = batch_labels.to_device(model_device);
 
     float loss;
-    auto err = model.loss_function()->compute_loss(predictions, device_batch_labels, loss)->sync();
-    if (err != ErrorStatus{}) {
-      throw std::runtime_error("Error computing loss during training." + err.message());
-    }
+    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
     int corrects = compute_class_corrects(predictions, device_batch_labels);
 
     total_loss += loss;
     total_corrects += corrects;
-
-    model.clear_gradients();
 
     model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
 

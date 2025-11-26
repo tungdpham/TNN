@@ -200,6 +200,9 @@ target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_da
 target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)
+    if(ENABLE_CUDNN)
+        target_link_libraries(tnn_nn PUBLIC CUDA::cudnn)
+    endif()
 endif()
 
 # Partitioner module
