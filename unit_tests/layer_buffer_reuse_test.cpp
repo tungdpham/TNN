@@ -33,12 +33,15 @@ TEST(LayerBufferReuseTest, Conv2DConsistentOutput) {
   input.fill_random_uniform(1.0f);
 
   // First forward pass (micro_batch_id = 0)
-  const auto &output1 = layer->forward(input, 0);
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
+  Tensor<float> output1(output_shape, &getCPU());
+  layer->forward(input, output1, 0);
   Tensor<float> output1_copy = output1.clone();
 
   // Second forward pass with same input and same micro_batch_id
   // This should reuse the buffer and produce identical output
-  const auto &output2 = layer->forward(input, 0);
+  Tensor<float> output2(output_shape, &getCPU());
+  layer->forward(input, output2, 0);
 
   // Verify outputs are identical
   ASSERT_EQ(output1_copy.shape(), output2.shape());
@@ -64,11 +67,14 @@ TEST(LayerBufferReuseTest, DenseConsistentOutput) {
   input.fill_random_uniform(1.0f);
 
   // First forward pass (micro_batch_id = 0)
-  const auto &output1 = layer->forward(input, 0);
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
+  Tensor<float> output1(output_shape, &getCPU());
+  layer->forward(input, output1, 0);
   Tensor<float> output1_copy = output1.clone();
 
   // Second forward pass with same input and same micro_batch_id
-  const auto &output2 = layer->forward(input, 0);
+  Tensor<float> output2(output_shape, &getCPU());
+  layer->forward(input, output2, 0);
 
   // Verify outputs are identical
   ASSERT_EQ(output1_copy.shape(), output2.shape());
@@ -94,11 +100,14 @@ TEST(LayerBufferReuseTest, MaxPool2DConsistentOutput) {
   input.fill_random_uniform(1.0f);
 
   // First forward pass (micro_batch_id = 0)
-  const auto &output1 = layer->forward(input, 0);
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
+  Tensor<float> output1(output_shape, &getCPU());
+  layer->forward(input, output1, 0);
   Tensor<float> output1_copy = output1.clone();
 
   // Second forward pass with same input and same micro_batch_id
-  const auto &output2 = layer->forward(input, 0);
+  Tensor<float> output2(output_shape, &getCPU());
+  layer->forward(input, output2, 0);
 
   // Verify outputs are identical
   ASSERT_EQ(output1_copy.shape(), output2.shape());
@@ -126,11 +135,14 @@ TEST(LayerBufferReuseTest, ActivationConsistentOutput) {
   input.fill_random_uniform(1.0f);
 
   // First forward pass (micro_batch_id = 0)
-  const auto &output1 = layer->forward(input, 0);
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
+  Tensor<float> output1(output_shape, &getCPU());
+  layer->forward(input, output1, 0);
   Tensor<float> output1_copy = output1.clone();
 
   // Second forward pass with same input and same micro_batch_id
-  const auto &output2 = layer->forward(input, 0);
+  Tensor<float> output2(output_shape, &getCPU());
+  layer->forward(input, output2, 0);
 
   // Verify outputs are identical
   ASSERT_EQ(output1_copy.shape(), output2.shape());
@@ -155,11 +167,14 @@ TEST(LayerBufferReuseTest, FlattenConsistentOutput) {
   input.fill_random_uniform(1.0f);
 
   // First forward pass (micro_batch_id = 0)
-  const auto &output1 = layer->forward(input, 0);
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
+  Tensor<float> output1(output_shape, &getCPU());
+  layer->forward(input, output1, 0);
   Tensor<float> output1_copy = output1.clone();
 
   // Second forward pass with same input and same micro_batch_id
-  const auto &output2 = layer->forward(input, 0);
+  Tensor<float> output2(output_shape, &getCPU());
+  layer->forward(input, output2, 0);
 
   // Verify outputs are identical
   ASSERT_EQ(output1_copy.shape(), output2.shape());
@@ -185,9 +200,11 @@ TEST(LayerBufferReuseTest, DenseMultipleEpochs) {
   input.fill_random_uniform(1.0f);
 
   // Simulate 3 epochs with same data
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
   std::vector<Tensor<float>> outputs;
   for (int epoch = 0; epoch < 3; ++epoch) {
-    const auto &output = layer->forward(input, 0);
+    Tensor<float> output(output_shape, &getCPU());
+    layer->forward(input, output, 0);
     outputs.push_back(output.clone());
   }
 
@@ -220,9 +237,11 @@ TEST(LayerBufferReuseTest, Conv2DMultipleEpochs) {
   input.fill_random_uniform(1.0f);
 
   // Simulate 3 epochs with same data
+  std::vector<size_t> output_shape = layer->compute_output_shape(input.shape());
   std::vector<Tensor<float>> outputs;
   for (int epoch = 0; epoch < 3; ++epoch) {
-    const auto &output = layer->forward(input, 0);
+    Tensor<float> output(output_shape, &getCPU());
+    layer->forward(input, output, 0);
     outputs.push_back(output.clone());
   }
 

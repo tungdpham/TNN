@@ -30,7 +30,7 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 }
 
 template <typename T>
-const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void MaxPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
   if (input.device() != this->device_) {
@@ -50,7 +50,7 @@ const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor<T> &output = this->get_buffer({batch_size, channels, output_h, output_w});
+  output.ensure({batch_size, channels, output_h, output_w});
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
 
@@ -64,12 +64,11 @@ const Tensor<T> &MaxPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
   forward_task_ = compute_max_pool_forward(current->data_ptr(), output.data_ptr(), batch_size,
                                            channels, input_h, input_w, output_h, output_w,
                                            micro_batch_mask_indices_[micro_batch_id], "default");
-
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                 size_t micro_batch_id) {
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
   auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
@@ -99,15 +98,13 @@ const Tensor<T> &MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  Tensor<T> &grad_input = this->get_buffer({batch_size, channels, input_h, input_w});
+  grad_input.ensure({batch_size, channels, input_h, input_w});
 
   grad_input.fill(T(0));
 
   backward_task_ =
       compute_max_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
                                 channels, output_h, output_w, mask_indices, "default");
-
-  return grad_input;
 }
 
 template <typename T>

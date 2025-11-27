@@ -57,17 +57,19 @@ private:
   std::unique_ptr<Task> col2im_task_;
   std::unique_ptr<Task> bias_grad_task_;
 
-  const Tensor<T> &def_forward(const Tensor<T> *current, size_t micro_batch_id);
-  const Tensor<T> &def_backward(const Tensor<T> *current_gradient, size_t micro_batch_id);
+  void def_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
+  void def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+                    size_t micro_batch_id);
 
-  const Tensor<T> &cudnn_forward(const Tensor<T> *current, size_t micro_batch_id);
-  const Tensor<T> &cudnn_backward(const Tensor<T> *current_gradient, size_t micro_batch_id);
+  void cudnn_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
+  void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+                      size_t micro_batch_id);
 
 #ifdef USE_CUDNN
   // cuDNN specific members
   cuda::cudnn_conv2d::ConvolutionHandle *cudnn_handle_ = nullptr;
-  device_ptr<T[]> cudnn_workspace_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_cache_;
+  size_t max_workspace_ = 0;
 #endif
 
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
@@ -116,23 +118,27 @@ private:
                                       const device_ptr<T[]> &weight_data, const T *bias_data,
                                       device_ptr<T[]> &output_data, size_t batch_size,
                                       size_t input_h, size_t input_w, size_t output_h,
-                                      size_t output_w, const std::string &flow_id);
+                                      size_t output_w, device_ptr<T[]> &workspace_data,
+                                      const std::string &flow_id);
 
   std::unique_ptr<Task> cudnn_backward_data(const device_ptr<T[]> &gradient_data,
                                             const device_ptr<T[]> &weight_data,
                                             device_ptr<T[]> &input_grad_data, size_t batch_size,
                                             size_t input_h, size_t input_w, size_t output_h,
-                                            size_t output_w, const std::string &flow_id);
+                                            size_t output_w, device_ptr<T[]> &workspace_data,
+                                            const std::string &flow_id);
 
   std::unique_ptr<Task> cudnn_backward_filter(const device_ptr<T[]> &input_data,
                                               const device_ptr<T[]> &gradient_data,
                                               device_ptr<T[]> &weight_grad_data, size_t batch_size,
                                               size_t input_h, size_t input_w, size_t output_h,
-                                              size_t output_w, const std::string &flow_id);
+                                              size_t output_w, device_ptr<T[]> &workspace_data,
+                                              const std::string &flow_id);
 
   std::unique_ptr<Task> cudnn_backward_bias(const device_ptr<T[]> &gradient_data,
                                             device_ptr<T[]> &bias_grad_data, size_t batch_size,
                                             size_t output_h, size_t output_w, size_t out_channels,
+                                            device_ptr<T[]> &workspace_data,
                                             const std::string &flow_id);
 #endif
 
@@ -143,8 +149,9 @@ public:
 
   ~Conv2DLayer();
 
-  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;

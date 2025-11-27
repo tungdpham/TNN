@@ -13,6 +13,7 @@
 #include "layers.hpp"
 #include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
+#include "nn/mem_pool.hpp"
 #include "optimizers.hpp"
 
 #include <chrono>
@@ -25,6 +26,7 @@
 #include <memory>
 #include <mutex>
 #include <nlohmann/json.hpp>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -47,19 +49,37 @@ private:
   std::string name_;
   std::unique_ptr<Optimizer<T>> optimizer_ = nullptr;
   std::unique_ptr<Loss<T>> loss_ = nullptr;
+  MemPool<T> *mem_pool_ = &getDefaultMemPool<T>();
   const Device *device_ = nullptr;
   bool is_training_;
 
   bool enable_profiling_ = false;
+
+  size_t max_size_ = 0;
 
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
   std::map<std::string, uint64_t> forward_times_microseconds_;
   std::map<std::string, uint64_t> backward_times_microseconds_;
 
+  void compute_max_size(const std::vector<size_t> &input_shape) {
+    std::vector<size_t> current_shape = input_shape;
+    size_t current_max = std::accumulate(current_shape.begin(), current_shape.end(), sizeof(T),
+                                         std::multiplies<size_t>());
+    for (const auto &layer : layers_) {
+      current_shape = layer->compute_output_shape(current_shape);
+      size_t activation_size = std::accumulate(current_shape.begin(), current_shape.end(),
+                                               sizeof(T), std::multiplies<size_t>());
+      current_max = std::max(current_max, activation_size);
+    }
+    max_size_ = current_max;
+  }
+
 public:
   explicit Sequential(const std::string &name = "sequential")
-      : name_(name), is_training_(true), enable_profiling_(false) {}
+      : name_(name), is_training_(true), enable_profiling_(false) {
+    mem_pool_ = &getDefaultMemPool<T>();
+  }
 
   Sequential(const Sequential &other)
       : name_(other.name_), is_training_(other.is_training_),
@@ -451,12 +471,22 @@ public:
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
     const Device *input_device = input.device();
+    compute_max_size(input.shape());
+    TempBuffer<T> output_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
+    Tensor<T> &output = output_buffer.get();
+    // temporary buffer for intermediate activations
+    TempBuffer<T> temp_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
+    Tensor<T> &temp = temp_buffer.get();
     const Tensor<T> *current = &input;
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
         // just profile since it's not expensive
         auto start_time = std::chrono::high_resolution_clock::now();
-        current = &layers_[i]->forward(*current, micro_batch_id);
+
+        layers_[i]->forward(*current, output, micro_batch_id);
+        std::swap(temp, output);
+        current = &temp;
+
         // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
@@ -519,11 +549,19 @@ public:
     }
 
     const Device *grad_device = gradient.device();
+    TempBuffer<T> grad_input_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
+    Tensor<T> &grad_input = grad_input_buffer.get();
+    TempBuffer<T> temp_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
+    Tensor<T> &temp = temp_buffer.get();
     const Tensor<T> *current_gradient = &gradient;
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         auto start_time = std::chrono::high_resolution_clock::now();
-        current_gradient = &layers_[i]->backward(*current_gradient, micro_batch_id);
+
+        layers_[i]->backward(*current_gradient, grad_input, micro_batch_id);
+        std::swap(temp, grad_input);
+        current_gradient = &temp;
+
         // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =

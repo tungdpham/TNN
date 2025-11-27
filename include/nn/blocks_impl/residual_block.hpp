@@ -9,9 +9,9 @@
 #include "nn/activations.hpp"
 #include "nn/layers_impl/base_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
+#include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 
-#include <iostream>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -36,6 +36,8 @@ private:
   std::unordered_map<size_t, Tensor<T>> pre_activation_cache_;
 
   std::unordered_map<size_t, Tensor<T>> grad_after_activation_cache_;
+
+  std::unordered_map<size_t, std::vector<size_t>> input_shape_cache_;
 
   std::string activation_type_;
 
@@ -90,7 +92,7 @@ public:
     }
   }
 
-  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override {
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const Tensor<T> *current_input = &input;
     Tensor<T> device_input;
     if (input.device() != this->device_) {
@@ -98,22 +100,45 @@ public:
       current_input = &device_input;
     }
 
+    // Cache input shape for backward pass
+    input_shape_cache_[micro_batch_id] = current_input->shape();
+
+    size_t max_size = 0;
+    std::vector<size_t> current_shape = current_input->shape();
+    for (auto &layer : main_path_) {
+      auto layer_shape = layer->compute_output_shape(current_shape);
+      size_t layer_size =
+          std::accumulate(layer_shape.begin(), layer_shape.end(), 1, std::multiplies<size_t>());
+      max_size = std::max(max_size, layer_size);
+      current_shape = layer_shape;
+    }
+
+    TempBuffer<T> temp_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &temp = temp_buffer.get();
+    TempBuffer<T> main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &main_output = main_output_buffer.get();
+
     // Main path: F(x)
     const Tensor<T> *main_path = current_input;
     for (auto &layer : main_path_) {
-      main_path = &layer->forward(*main_path, micro_batch_id);
+      layer->forward(*main_path, temp, micro_batch_id);
+      std::swap(temp, main_output);
+      main_path = &main_output;
     }
+
+    TempBuffer<T> shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &shortcut_output = shortcut_output_buffer.get();
 
     // Shortcut path: x or projection(x)
     const Tensor<T> *shortcut_path = current_input;
-    if (!shortcut_path_.empty()) {
-      for (auto &layer : shortcut_path_) {
-        shortcut_path = &layer->forward(*shortcut_path, micro_batch_id);
-      }
+    for (auto &layer : shortcut_path_) {
+      layer->forward(*shortcut_path, temp, micro_batch_id);
+      std::swap(temp, shortcut_output);
+      shortcut_path = &shortcut_output;
     }
 
     // Residual connection: F(x) + x
-    Tensor<T> &output = this->get_buffer(main_path->shape());
+    output.ensure(main_path->shape(), this->device_);
     ops::add(main_path->data_ptr(), shortcut_path->data_ptr(), output.data_ptr(), output.size());
 
     // Cache pre-activation output for backward pass
@@ -129,11 +154,10 @@ public:
     if (final_activation_) {
       final_activation_->apply(output);
     }
-
-    return output;
   }
 
-  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override {
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                size_t micro_batch_id = 0) override {
     const Tensor<T> *current_gradient = &gradient;
     Tensor<T> device_gradient;
     if (gradient.device() != this->device_) {
@@ -153,7 +177,6 @@ public:
       grad_after_activation_cache_[micro_batch_id] = current_gradient->clone();
       it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
     } else {
-      // it_grad_act->second.resize(current_gradient->shape());
       it_grad_act->second.ensure(current_gradient->shape());
       ops::copy(current_gradient->data_ptr(), it_grad_act->second.data_ptr(),
                 current_gradient->size());
@@ -164,25 +187,54 @@ public:
 
     const Tensor<T> *grad_to_propagate =
         final_activation_ ? &it_grad_act->second : current_gradient;
+
+    // Retrieve cached input shape
+    auto it_input_shape = input_shape_cache_.find(micro_batch_id);
+    if (it_input_shape == input_shape_cache_.end()) {
+      throw std::runtime_error("No cached input shape found for micro-batch ID: " +
+                               std::to_string(micro_batch_id));
+    }
+
+    // Calculate maximum buffer size needed
+    size_t max_size = 0;
+    std::vector<size_t> current_shape = it_input_shape->second;
+    for (auto &layer : main_path_) {
+      auto layer_shape = layer->compute_output_shape(current_shape);
+      size_t layer_size =
+          std::accumulate(layer_shape.begin(), layer_shape.end(), 1, std::multiplies<size_t>());
+      max_size = std::max(max_size, layer_size);
+      current_shape = layer_shape;
+    }
+
+    TempBuffer<T> temp_grad_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &temp_grad = temp_grad_buffer.get();
+    TempBuffer<T> grad_main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &grad_main_output = grad_main_output_buffer.get();
+
     // Backward through main path
     const Tensor<T> *grad_main = grad_to_propagate;
     for (int i = static_cast<int>(main_path_.size()) - 1; i >= 0; --i) {
-      grad_main = &main_path_[i]->backward(*grad_main, micro_batch_id);
+      main_path_[i]->backward(*grad_main, temp_grad, micro_batch_id);
+      std::swap(temp_grad, grad_main_output);
+      grad_main = &grad_main_output;
     }
 
+    TempBuffer<T> grad_shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    Tensor<T> &grad_shortcut_output = grad_shortcut_output_buffer.get();
     // Backward through shortcut
     const Tensor<T> *grad_shortcut = grad_to_propagate;
     if (!shortcut_path_.empty()) {
       for (int i = static_cast<int>(shortcut_path_.size()) - 1; i >= 0; --i) {
-        grad_shortcut = &shortcut_path_[i]->backward(*grad_shortcut, micro_batch_id);
+        shortcut_path_[i]->backward(*grad_shortcut, temp_grad, micro_batch_id);
+        std::swap(temp_grad, grad_shortcut_output);
+        grad_shortcut = &grad_shortcut_output;
       }
     }
 
     // Sum gradients from both paths
-    Tensor<T> &grad_input = this->get_buffer(grad_main->shape());
+    grad_input.ensure(grad_main->shape(), this->device_);
     ops::add(grad_main->data_ptr(), grad_shortcut->data_ptr(), grad_input.data_ptr(),
              grad_input.size());
-    return grad_input;
   }
 
   void collect_parameters(std::vector<Tensor<T> *> &params) override {
