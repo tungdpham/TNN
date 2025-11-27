@@ -56,7 +56,8 @@ private:
   bool enable_profiling_ = false;
 
   size_t max_size_ = 0;
-
+  Tensor<T> temp_buffer_;
+  Tensor<T> output_buffer_;
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
   std::map<std::string, uint64_t> forward_times_microseconds_;
@@ -472,20 +473,17 @@ public:
     }
     const Device *input_device = input.device();
     compute_max_size(input.shape());
-    TempBuffer<T> output_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
-    Tensor<T> &output = output_buffer.get();
-    // temporary buffer for intermediate activations
-    TempBuffer<T> temp_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
-    Tensor<T> &temp = temp_buffer.get();
+    temp_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
+    output_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
     const Tensor<T> *current = &input;
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
         // just profile since it's not expensive
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        layers_[i]->forward(*current, output, micro_batch_id);
-        std::swap(temp, output);
-        current = &temp;
+        layers_[i]->forward(*current, output_buffer_, micro_batch_id);
+        std::swap(temp_buffer_, output_buffer_);
+        current = &temp_buffer_;
 
         // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -549,18 +547,16 @@ public:
     }
 
     const Device *grad_device = gradient.device();
-    TempBuffer<T> grad_input_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
-    Tensor<T> &grad_input = grad_input_buffer.get();
-    TempBuffer<T> temp_buffer(*mem_pool_, {max_size_, 1, 1, 1}, this->device_);
-    Tensor<T> &temp = temp_buffer.get();
+    temp_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
+    output_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
     const Tensor<T> *current_gradient = &gradient;
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        layers_[i]->backward(*current_gradient, grad_input, micro_batch_id);
-        std::swap(temp, grad_input);
-        current_gradient = &temp;
+        layers_[i]->backward(*current_gradient, output_buffer_, micro_batch_id);
+        std::swap(temp_buffer_, output_buffer_);
+        current_gradient = &temp_buffer_;
 
         // cudaDeviceSynchronize(); // DEBUG
         auto end_time = std::chrono::high_resolution_clock::now();

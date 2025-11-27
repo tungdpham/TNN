@@ -244,6 +244,10 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
 
   output.ensure({batch_size, out_channels_, output_h, output_w}, this->device_);
 
+  // Only update cuDNN descriptors if dimensions have changed
+  bool dimensions_changed = (batch_size != cached_batch_size_) || (input_h != cached_input_h_) ||
+                            (input_w != cached_input_w_);
+
   if (!cudnn_handle_) {
     cudnn_handle_ = cuda::cudnn_conv2d::initialize_convolution_handle(
         batch_size, in_channels_, input_h, input_w, out_channels_, kernel_h_, kernel_w_, stride_h_,
@@ -252,13 +256,21 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
     auto workspace_sizes = cuda::cudnn_conv2d::get_workspace_sizes(cudnn_handle_, batch_size);
     max_workspace_ = std::max(
         {workspace_sizes.fwd_size, workspace_sizes.bwd_data_size, workspace_sizes.bwd_filter_size});
-  } else {
+
+    cached_batch_size_ = batch_size;
+    cached_input_h_ = input_h;
+    cached_input_w_ = input_w;
+  } else if (dimensions_changed) {
     cuda::cudnn_conv2d::update_batch_size(cudnn_handle_, batch_size, in_channels_, input_h, input_w,
                                           out_channels_, output_h, output_w);
     // Recalculate and ensure workspace size after batch size update
     auto workspace_sizes = cuda::cudnn_conv2d::get_workspace_sizes(cudnn_handle_, batch_size);
     max_workspace_ = std::max(
         {workspace_sizes.fwd_size, workspace_sizes.bwd_data_size, workspace_sizes.bwd_filter_size});
+
+    cached_batch_size_ = batch_size;
+    cached_input_h_ = input_h;
+    cached_input_w_ = input_w;
   }
 
   TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({max_workspace_, 1, 1, 1});

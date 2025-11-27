@@ -70,6 +70,10 @@ private:
   cuda::cudnn_conv2d::ConvolutionHandle *cudnn_handle_ = nullptr;
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_cache_;
   size_t max_workspace_ = 0;
+  // Cached dimensions to avoid redundant descriptor updates
+  size_t cached_batch_size_ = 0;
+  size_t cached_input_h_ = 0;
+  size_t cached_input_w_ = 0;
 #endif
 
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
