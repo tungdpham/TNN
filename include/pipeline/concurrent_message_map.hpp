@@ -35,8 +35,8 @@ public:
 
   ~ConcurrentMessageMap() { clear(); }
 
-  void push(CommandType type, const Message &message) {
-    queues_[type].push(message);
+  void push(CommandType type, Message &&message) {
+    queues_[type].emplace(std::move(message));
     total_message_count_.fetch_add(1, std::memory_order_relaxed);
   }
 
@@ -69,7 +69,7 @@ public:
     if (it != queues_.end()) {
       Message message;
       while (it->second.try_pop(message)) {
-        messages.push_back(std::move(message));
+        messages.emplace_back(std::move(message));
       }
     }
     return messages;

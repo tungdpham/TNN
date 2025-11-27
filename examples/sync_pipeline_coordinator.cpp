@@ -113,7 +113,7 @@ int main() {
     auto forward_start = chrono::high_resolution_clock::now();
 
     for (size_t i = 0; i < micro_batches.size(); ++i) {
-      coordinator.forward(micro_batches[i], i);
+      coordinator.forward(std::move(micro_batches[i]), i);
     }
 
     // Wait for all forward jobs to complete with a timeout
@@ -126,26 +126,26 @@ int main() {
 
     vector<Message> all_messages = coordinator.dequeue_all_messages(CommandType::FORWARD_JOB);
 
-    vector<Job<float>> forward_jobs;
+    vector<Job<float> *> forward_jobs;
     for (auto &message : all_messages) {
       if (message.header.command_type == CommandType::FORWARD_JOB) {
-        forward_jobs.push_back(message.get<Job<float>>());
+        forward_jobs.push_back(&message.get<Job<float>>());
       }
     }
 
     vector<Job<float>> backward_jobs;
     for (auto &job : forward_jobs) {
       float loss_val;
-      loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id], loss_val);
+      loss_function->compute_loss(job->data, micro_batch_labels[job->micro_batch_id], loss_val);
       loss += loss_val;
-      avg_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
+      avg_accuracy += compute_class_accuracy(job->data, micro_batch_labels[job->micro_batch_id]);
 
       Tensor<float> gradient;
-      loss_function->compute_gradient(job.data, micro_batch_labels[job.micro_batch_id], gradient);
+      loss_function->compute_gradient(job->data, micro_batch_labels[job->micro_batch_id], gradient);
 
-      Job<float> backward_job{gradient, job.micro_batch_id};
+      Job<float> backward_job{std::move(gradient), job->micro_batch_id};
 
-      backward_jobs.push_back(backward_job);
+      backward_jobs.push_back(std::move(backward_job));
     }
 
     loss /= train_config.num_microbatches;
@@ -158,7 +158,7 @@ int main() {
     auto backward_start = chrono::high_resolution_clock::now();
 
     for (auto &job : backward_jobs) {
-      coordinator.backward(job.data, job.micro_batch_id);
+      coordinator.backward(std::move(job.data), job.micro_batch_id);
     }
 
     coordinator.join(CommandType::BACKWARD_JOB, train_config.num_microbatches, 60);
@@ -209,7 +209,7 @@ int main() {
 
     split(batch_labels, micro_batch_labels, train_config.num_microbatches);
     for (size_t i = 0; i < micro_batches.size(); ++i) {
-      coordinator.forward(micro_batches[i], i);
+      coordinator.forward(std::move(micro_batches[i]), i);
     }
 
     coordinator.join(CommandType::FORWARD_JOB, train_config.num_microbatches, 60);
@@ -221,18 +221,18 @@ int main() {
                           ", expected: " + to_string(train_config.num_microbatches));
     }
 
-    vector<Job<float>> forward_jobs;
+    vector<Job<float> *> forward_jobs;
     for (auto &message : all_messages) {
       if (message.header.command_type == CommandType::FORWARD_JOB) {
-        forward_jobs.push_back(message.get<Job<float>>());
+        forward_jobs.push_back(&message.get<Job<float>>());
       }
     }
 
     for (auto &job : forward_jobs) {
       float loss_val;
-      loss_function->compute_loss(job.data, micro_batch_labels[job.micro_batch_id], loss_val);
+      loss_function->compute_loss(job->data, micro_batch_labels[job->micro_batch_id], loss_val);
       val_loss += loss_val;
-      val_accuracy += compute_class_accuracy(job.data, micro_batch_labels[job.micro_batch_id]);
+      val_accuracy += compute_class_accuracy(job->data, micro_batch_labels[job->micro_batch_id]);
     }
     ++val_batches;
   }

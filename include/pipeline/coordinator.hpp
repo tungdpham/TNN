@@ -76,7 +76,7 @@ public:
   void start() {
     for (const auto &stage_name : this->stage_names_) {
       Message start_msg(stage_name, CommandType::TRAIN_MODE, std::monostate{});
-      this->coordinator_comm_->send_message(start_msg);
+      this->coordinator_comm_->send_message(std::move(start_msg));
     }
 
     // message_thread_ = std::thread(&Coordinator::message_loop, this);
@@ -87,7 +87,7 @@ public:
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
       Message stop_msg(stage_name, CommandType::SHUTDOWN, std::monostate{});
-      this->coordinator_comm_->send_message(stop_msg);
+      this->coordinator_comm_->send_message(std::move(stop_msg));
     }
     should_stop_ = true;
 
@@ -109,17 +109,17 @@ public:
    * @param input The input tensor to be processed.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void forward(const Tensor<float> &input, size_t microbatch_id) {
+  void forward(Tensor<float> &&input, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &first_stage = this->stage_names_[0];
 
-    Job<float> job{input, microbatch_id};
-    Message forward_msg(first_stage, CommandType::FORWARD_JOB, job);
+    Job<float> job(std::move(input), microbatch_id);
+    Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(forward_msg);
+    this->coordinator_comm_->send_message(std::move(forward_msg));
   }
 
   /**
@@ -127,17 +127,17 @@ public:
    * @param gradient The gradient tensor to be backpropagated.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void backward(const Tensor<float> &gradient, size_t microbatch_id) {
+  void backward(Tensor<float> &&gradient, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &last_stage = this->stage_names_.back();
 
-    Job<float> job{gradient, microbatch_id};
-    Message backward_msg(last_stage, CommandType::BACKWARD_JOB, job);
+    Job<float> job(std::move(gradient), microbatch_id);
+    Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(backward_msg);
+    this->coordinator_comm_->send_message(std::move(backward_msg));
   }
 
   /**
@@ -171,7 +171,7 @@ public:
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
       Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
-      this->coordinator_comm_->send_message(update_msg);
+      this->coordinator_comm_->send_message(std::move(update_msg));
     }
 
     bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
@@ -275,7 +275,7 @@ public:
     }
 
     for (int i = 0; i < this->num_microbatches_; ++i) {
-      this->forward(microbatch_inputs[i], i);
+      this->forward(std::move(microbatch_inputs[i]), i);
     }
 
     float total_loss = 0.0f;
@@ -303,7 +303,7 @@ public:
           total_loss += loss;
           Tensor<float> gradient;
           loss_function_->compute_gradient(predictions, targets, gradient);
-          this->backward(gradient, job.micro_batch_id);
+          this->backward(std::move(gradient), job.micro_batch_id);
         }
       }
     }
@@ -332,7 +332,7 @@ public:
     // Request load reports from all stages
     for (const auto &stage_name : this->stage_names_) {
       Message load_msg(stage_name, CommandType::REPORT_LOAD, std::monostate{});
-      this->coordinator_comm_->send_message(load_msg);
+      this->coordinator_comm_->send_message(std::move(load_msg));
     }
 
     // Wait for all load reports to arrive
@@ -382,7 +382,7 @@ public:
   void print_profiling_on_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(profiling_msg);
+      this->coordinator_comm_->send_message(std::move(profiling_msg));
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
@@ -396,7 +396,7 @@ public:
   void clear_profiling_data() {
     for (const auto &stage_name : this->stage_names_) {
       Message clear_msg(stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(clear_msg);
+      this->coordinator_comm_->send_message(std::move(clear_msg));
     }
   }
 
@@ -411,7 +411,7 @@ public:
     // Request parameters from all stages
     for (const auto &stage_name : this->stage_names_) {
       Message params_request_msg(stage_name, CommandType::SEND_PARAMS, std::monostate{});
-      this->coordinator_comm_->send_message(params_request_msg);
+      this->coordinator_comm_->send_message(std::move(params_request_msg));
     }
 
     // Wait for all parameter responses
@@ -443,7 +443,7 @@ public:
   void request_status_from_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       Message status_msg(stage_name, CommandType::STATUS_REQUEST, std::monostate{});
-      this->coordinator_comm_->send_message(status_msg);
+      this->coordinator_comm_->send_message(std::move(status_msg));
     }
   }
 
@@ -556,7 +556,7 @@ private:
       std::string config_json = config.to_json().dump();
       auto config_msg = Message(stage_id, CommandType::CONFIG_TRANSFER, config_json);
 
-      this->coordinator_comm_->send_message(config_msg);
+      this->coordinator_comm_->send_message(std::move(config_msg));
 
       std::cout << "Sent configuration to stage " << stage_id << '\n';
 

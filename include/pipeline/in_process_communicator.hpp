@@ -8,6 +8,7 @@
 #pragma once
 
 #include "communicator.hpp"
+#include <condition_variable>
 
 namespace tnn {
 class InProcessCommunicator : public Communicator {
@@ -24,12 +25,11 @@ public:
     }
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     if (message.header.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
-    this->enqueue_output_message(message);
-
+    this->enqueue_output_message(std::move(message));
     outgoing_cv_.notify_one();
   }
 
@@ -45,7 +45,7 @@ public:
 
       while (!this->out_message_queue_.empty()) {
         lock.lock();
-        auto msg = this->out_message_queue_.front();
+        auto msg = std::move(this->out_message_queue_.front());
         this->out_message_queue_.pop();
         lock.unlock();
         try {
@@ -56,7 +56,7 @@ public:
             throw std::runtime_error("Recipient communicator is null for " +
                                      msg.header.recipient_id);
           }
-          recipient_comm->enqueue_input_message(msg);
+          recipient_comm->enqueue_input_message(std::move(msg));
         } catch (const std::exception &e) {
           std::cerr << "Failed to deliver message to " << msg.header.recipient_id << ": "
                     << e.what() << std::endl;
@@ -67,10 +67,9 @@ public:
 
   void flush_output_messages() override {
     while (this->has_output_message()) {
-      Message message = this->out_message_queue_.front();
+      Message message = std::move(this->out_message_queue_.front());
       this->out_message_queue_.pop();
-
-      send_message(message);
+      send_message(std::move(message));
     }
   }
 

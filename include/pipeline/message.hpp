@@ -61,12 +61,24 @@ struct MessageData {
   uint64_t payload_type; // to indicate which type is held in the variant
   PayloadType payload;
 
-  MessageData(const PayloadType &pay) : payload(std::move(pay)) {
+  MessageData(PayloadType &&pay) : payload(std::move(pay)) {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other)
-      : payload_type(other.payload_type), payload(other.payload) {}
+  MessageData(const MessageData &other) = delete;
+  MessageData(MessageData &&other) noexcept
+      : payload_type(other.payload_type), payload(std::move(other.payload)) {}
+
+  ~MessageData() = default;
+
+  MessageData &operator=(const MessageData &other) = delete;
+  MessageData &operator=(MessageData &&other) noexcept {
+    if (this != &other) {
+      payload_type = other.payload_type;
+      payload = std::move(other.payload);
+    }
+    return *this;
+  }
 
   const uint64_t size() const {
     // Rough estimate of size; actual serialization may differ
@@ -108,15 +120,26 @@ struct Message {
 
   Message() : header("", CommandType::_START), data(std::monostate{}) {}
 
-  Message(std::string recipient_id, CommandType cmd_type, PayloadType payload)
+  Message(std::string recipient_id, CommandType cmd_type, PayloadType &&payload)
       : header(std::move(recipient_id), cmd_type), data(std::move(payload)) {}
 
   Message(std::string recipient_id, CommandType cmd_type)
       : header(std::move(recipient_id), cmd_type), data(std::monostate{}) {}
 
-  Message(const Message &other) : header(other.header), data(other.data) {}
+  Message(const Message &other) = delete;
+  Message(Message &&other) noexcept
+      : header(std::move(other.header)), data(std::move(other.data)) {}
 
   ~Message() = default;
+
+  Message &operator=(const Message &other) = delete;
+  Message &operator=(Message &&other) noexcept {
+    if (this != &other) {
+      header = std::move(other.header);
+      data = std::move(other.data);
+    }
+    return *this;
+  }
 
   template <typename PayloadType> bool has_type() const {
     return std::holds_alternative<PayloadType>(data.payload);
