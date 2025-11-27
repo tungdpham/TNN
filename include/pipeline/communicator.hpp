@@ -45,7 +45,7 @@ public:
     message_notification_callback_ = nullptr;
   }
 
-  virtual void send_message(const Message &message) = 0;
+  virtual void send_message(Message &&message) = 0;
 
   virtual void flush_output_messages() = 0;
 
@@ -81,20 +81,20 @@ public:
     return it->second;
   }
 
-  inline void enqueue_input_message(const Message &message) {
-    message_queues_.push(message.header.command_type, message);
+  inline void enqueue_input_message(Message &&message) {
+    message_queues_.push(message.header.command_type, std::move(message));
 
     if (message_notification_callback_) {
       message_notification_callback_();
     }
   }
 
-  inline void enqueue_output_message(const Message &message) {
+  inline void enqueue_output_message(Message &&message) {
     if (message.header.recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
-    this->out_message_queue_.push(message);
+    this->out_message_queue_.push(std::move(message));
   }
 
   inline Message dequeue_input_message() {

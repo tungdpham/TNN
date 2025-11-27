@@ -53,6 +53,7 @@ struct TrainingConfig {
   uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
+  DeviceType device_type = DeviceType::CPU;
 
   // Distributed params
   size_t num_microbatches = 2;
@@ -73,6 +74,7 @@ struct TrainingConfig {
     std::cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No")
               << std::endl;
     std::cout << "  Number of Microbatches: " << num_microbatches << std::endl;
+    std::cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << std::endl;
   }
 
   void load_from_env() {
@@ -92,8 +94,9 @@ struct TrainingConfig {
     }
     num_threads = get_env<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
     print_layer_profiling = get_env<bool>("PRINT_LAYER_PROFILING", false);
-
     num_microbatches = get_env<size_t>("NUM_MICROBATCHES", 2);
+    std::string device_type_str = get_env<std::string>("DEVICE_TYPE", "CPU");
+    device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
   }
 };
 

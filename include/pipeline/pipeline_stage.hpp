@@ -94,26 +94,24 @@ protected:
   virtual void process_message(Message &message) {
     switch (message.header.command_type) {
     case CommandType::FORWARD_JOB: {
-      Job<float> forward_job = message.get<Job<float>>();
+      Job<float> &forward_job = message.get<Job<float>>();
       forward_job.data = this->model_->forward(forward_job.data, forward_job.micro_batch_id);
-      Message output_message("next_stage", CommandType::FORWARD_JOB, forward_job);
+      Message output_message("next_stage", CommandType::FORWARD_JOB, std::move(forward_job));
       output_message.header.sender_id = name_;
-
-      communicator_->send_message(output_message);
+      communicator_->send_message(std::move(output_message));
     } break;
     case CommandType::BACKWARD_JOB: {
-      Job<float> backward_job = message.get<Job<float>>();
+      Job<float> &backward_job = message.get<Job<float>>();
       backward_job.data = this->model_->backward(backward_job.data, backward_job.micro_batch_id);
-      Message output_message("prev_stage", CommandType::BACKWARD_JOB, backward_job);
+      Message output_message("prev_stage", CommandType::BACKWARD_JOB, std::move(backward_job));
       output_message.header.sender_id = name_;
-
-      communicator_->send_message(output_message);
+      communicator_->send_message(std::move(output_message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       model_->update_parameters();
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       response.header.sender_id = name_;
-      communicator_->send_message(response);
+      communicator_->send_message(std::move(response));
     } break;
     case CommandType::TRAIN_MODE:
       this->model_->set_training(true);
@@ -140,7 +138,7 @@ protected:
         Message outgoing_message(message.header.sender_id, CommandType::PROFILING_PRINTED,
                                  std::monostate{});
         outgoing_message.header.sender_id = name_;
-        communicator_->send_message(outgoing_message);
+        communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
       }
@@ -151,7 +149,7 @@ protected:
         Message outgoing_message(message.header.sender_id, CommandType::PROFILING_CLEARED,
                                  std::monostate{});
         outgoing_message.header.sender_id = name_;
-        communicator_->send_message(outgoing_message);
+        communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
@@ -172,7 +170,7 @@ protected:
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
         Message error_msg(message.header.sender_id, CommandType::ERROR_REPORT, error_text);
         error_msg.header.sender_id = name_;
-        communicator_->send_message(error_msg);
+        communicator_->send_message(std::move(error_msg));
       }
       break;
     }
@@ -265,13 +263,13 @@ protected:
       is_configured_ = true;
 
       Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
-      this->communicator_->send_message(ready_msg);
+      this->communicator_->send_message(std::move(ready_msg));
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
 
       std::string error_text = std::string("Configuration failed: ") + e.what();
       Message error_msg("coordinator", CommandType::ERROR_REPORT, error_text);
-      this->communicator_->send_message(error_msg);
+      this->communicator_->send_message(std::move(error_msg));
     }
   }
 

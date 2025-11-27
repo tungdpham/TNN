@@ -150,7 +150,7 @@ public:
     }
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     try {
       size_t msg_size = message.size();
 
@@ -175,9 +175,9 @@ public:
     }
 
     while (!this->out_message_queue_.empty()) {
-      auto &msg = this->out_message_queue_.front();
-      send_message(msg);
+      auto msg = std::move(this->out_message_queue_.front());
       this->out_message_queue_.pop();
+      send_message(std::move(msg));
     }
 
     lock.unlock();
@@ -432,7 +432,7 @@ private:
 
       // TODO: Set sender_id properly and do validation middlewares.
       message.header.sender_id = connection_id;
-      this->enqueue_input_message(message);
+      this->enqueue_input_message(std::move(message));
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
     }
