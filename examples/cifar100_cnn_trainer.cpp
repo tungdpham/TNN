@@ -13,11 +13,6 @@ using namespace tnn;
 using namespace std;
 
 constexpr float EPSILON = 1e-15f;
-constexpr int PROGRESS_PRINT_INTERVAL = 50;
-constexpr int EPOCHS = 50;
-constexpr size_t BATCH_SIZE = 64;
-constexpr int LR_DECAY_INTERVAL = 15;
-constexpr float LR_DECAY_FACTOR = 0.5f;
 constexpr float LR_INITIAL = 0.001f;
 
 int main() {

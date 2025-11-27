@@ -10,7 +10,6 @@ create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
-create_cuda(simple_cuda_example simple_cuda_example.cu)
 create_cuda(device_ptr_example device_ptr_example.cu)
 create_cuda(cuda_vs_avx2_comparison cuda_vs_avx2_comparison.cpp)
 
@@ -24,4 +23,4 @@ create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.c
 create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
 
 # Microbatching test executable
-create_base_executable(microbatching_test microbatching_test.cpp)
+# create_base_executable(microbatching_test microbatching_test.cpp)
