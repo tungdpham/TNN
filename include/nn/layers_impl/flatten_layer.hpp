@@ -23,8 +23,9 @@ private:
 public:
   explicit FlattenLayer(const std::string &name = "flatten");
 
-  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;

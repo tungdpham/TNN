@@ -10,7 +10,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -164,7 +163,9 @@ TEST_F(AvgPool2DLayerTest, BasicForwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -186,7 +187,9 @@ TEST_F(AvgPool2DLayerTest, ForwardPassWithStride) {
     input_data[i] = 1.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 3, 3, 1, 1, 0, 0);
 
@@ -207,7 +210,9 @@ TEST_F(AvgPool2DLayerTest, ForwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   EXPECT_EQ(output.height(), 3);
   EXPECT_EQ(output.width(), 3);
@@ -227,7 +232,9 @@ TEST_F(AvgPool2DLayerTest, ForwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -249,7 +256,9 @@ TEST_F(AvgPool2DLayerTest, ForwardPassMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -270,7 +279,9 @@ TEST_F(AvgPool2DLayerTest, ForwardPassNonSquarePooling) {
     input_data[i] = 1.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 3, 2, 2, 2, 0, 0);
 
@@ -293,7 +304,9 @@ TEST_F(AvgPool2DLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   float *grad_data = gradient.data();
@@ -301,7 +314,8 @@ TEST_F(AvgPool2DLayerTest, BasicBackwardPass) {
     grad_data[i] = 1.0f;
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -322,7 +336,9 @@ TEST_F(AvgPool2DLayerTest, BackwardPassWithPadding) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -330,7 +346,8 @@ TEST_F(AvgPool2DLayerTest, BackwardPassWithPadding) {
     grad_data[i] = 1.0f;
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 3, 3, 1, 1, 1, 1);
 
@@ -348,7 +365,9 @@ TEST_F(AvgPool2DLayerTest, BackwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -356,7 +375,8 @@ TEST_F(AvgPool2DLayerTest, BackwardPassMultiChannel) {
     grad_data[i] = 1.0f;
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -374,7 +394,9 @@ TEST_F(AvgPool2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -382,7 +404,8 @@ TEST_F(AvgPool2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 1, 1, 0, 0);
 
@@ -466,11 +489,13 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
     input_data[i] = 2.0f;
   }
 
-  const Tensor<float> &output_ref = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
-  EXPECT_EQ(output_ref.height(), 1);
-  EXPECT_EQ(output_ref.width(), 1);
-  EXPECT_NEAR(output_ref.data()[0], 2.0f, 1e-5f);
+  EXPECT_EQ(output.height(), 1);
+  EXPECT_EQ(output.width(), 1);
+  EXPECT_NEAR(output.data()[0], 2.0f, 1e-5f);
 }
 
 TEST_F(AvgPool2DLayerTest, EdgeCaseZeroGradient) {
@@ -484,12 +509,15 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseZeroGradient) {
     input_data[i] = 1.0f;
   }
 
-  layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   gradient.fill(0.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
 
@@ -509,12 +537,14 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  const Tensor<float> &output_ref = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
-  verify_forward_result(input, output_ref, 2, 2, 2, 2, 0, 0);
+  verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
-  for (size_t i = 0; i < output_ref.size(); ++i) {
-    EXPECT_NEAR(output_ref.data()[i], 1e6f, 1e1f);
+  for (size_t i = 0; i < output.size(); ++i) {
+    EXPECT_NEAR(output.data()[i], 1e6f, 1e1f);
   }
 }
 
@@ -529,7 +559,9 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -549,7 +581,9 @@ TEST_F(AvgPool2DLayerTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
 
@@ -569,7 +603,9 @@ TEST_F(AvgPool2DLayerTest, BackwardNumericalStability) {
     input_data[i] = 1e-6f;
   }
 
-  layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   float *grad_data = gradient.data();
@@ -577,7 +613,8 @@ TEST_F(AvgPool2DLayerTest, BackwardNumericalStability) {
     grad_data[i] = 1e-6f;
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
 }

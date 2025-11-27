@@ -51,7 +51,7 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
-const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void BatchNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   if (input.channels() != num_features_) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
@@ -69,7 +69,7 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
-  Tensor<T> &output = this->get_buffer(current->shape());
+  output.ensure(current->shape(), this->device_);
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -102,12 +102,11 @@ const Tensor<T> &BatchNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     forward_task_ =
         compute_inference_output(*current, output, batch_size, channels, spatial_size, "default");
   }
-
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void BatchNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                 size_t micro_batch_id) {
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
 
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -134,14 +133,12 @@ const Tensor<T> &BatchNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t width = current_gradient->width();
   const size_t spatial_size = height * width;
 
-  Tensor<T> &grad_input = this->get_buffer(current_gradient->shape());
+  grad_input.ensure(current_gradient->shape(), this->device_);
 
   auto bwd_task =
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
                          gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
                          grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
-
-  return grad_input;
 }
 
 template <typename T>

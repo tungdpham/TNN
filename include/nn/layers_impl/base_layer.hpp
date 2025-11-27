@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "nn/mem_pool.hpp"
 #include "tensor/tensor.hpp"
 #include <any>
 #include <iostream>
@@ -35,7 +36,7 @@ struct LayerConfig {
 
 template <typename T = float> class Layer {
 public:
-  Layer() { this->device_ = &getCPU(); }
+  Layer() : mem_pool_(&getDefaultMemPool<T>()) { this->device_ = &getCPU(); }
   virtual ~Layer() = default;
 
   virtual void initialize() {};
@@ -45,8 +46,9 @@ public:
     srand_seed_ = seed;
   }
 
-  virtual const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) = 0;
-  virtual const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) = 0;
+  virtual void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) = 0;
+  virtual void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                        size_t micro_batch_id = 0) = 0;
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
@@ -85,7 +87,10 @@ public:
     }
   }
 
-  virtual size_t cached_memory_bytes() const { return cache_buffer_.size() * sizeof(T); }
+  void set_mem_pool(MemPool<T> *mem_pool) { mem_pool_ = mem_pool; }
+  void get_mem_pool(MemPool<T> **mem_pool) const { *mem_pool = mem_pool_; }
+
+  virtual size_t cached_memory_bytes() const { return 0; }
 
   void reset_profiling_info() { perf_timers_.clear(); }
 
@@ -98,13 +103,15 @@ protected:
   unsigned long long srand_seed_ = 0;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
   // buffers for storing intermediate results per micro-batch
-  Tensor<T> cache_buffer_;
+  MemPool<T> *mem_pool_;
   const Device *device_;
   std::string name_;
 
-  Tensor<T> &get_buffer(const std::vector<size_t> &shape) {
-    cache_buffer_.ensure(shape, this->device_);
-    return cache_buffer_;
+  TempBuffer<T> get_buffer(const std::vector<size_t> &shape) {
+    if (!mem_pool_) {
+      throw std::runtime_error("MemPool not set for layer: " + name_);
+    }
+    return TempBuffer<T>(*mem_pool_, shape, this->device_);
   }
 };
 

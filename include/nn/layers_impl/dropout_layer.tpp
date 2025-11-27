@@ -12,6 +12,7 @@
 
 #include "cpu/dropout_ops.hpp"
 #include "device/task.hpp"
+#include "ops/ops.hpp"
 #ifdef USE_CUDA
 #include "cuda/dropout_ops.hpp"
 #endif
@@ -27,9 +28,11 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
 }
 
 template <typename T>
-const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void DropoutLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   if (!this->is_training_) {
-    return input;
+    output.ensure(input.shape());
+    ops::copy(input.data_ptr(), output.data_ptr(), input.size());
+    return;
   }
 
   const Tensor<T> *current = &input;
@@ -39,23 +42,26 @@ const Tensor<T> &DropoutLayer<T>::forward(const Tensor<T> &input, size_t micro_b
     current = &device_input;
   }
 
-  Tensor<T> mask(current->shape(), this->device_);
-  Tensor<T> &output = this->get_buffer(current->shape());
-
-  auto forward_task = compute_dropout_forward(*current, output, mask);
-  auto err = forward_task->sync();
-  if (err != ErrorStatus{}) {
-    throw std::runtime_error("DropoutLayer forward computation failed");
+  auto it_mask = micro_batch_masks_.find(micro_batch_id);
+  if (it_mask == micro_batch_masks_.end()) {
+    micro_batch_masks_[micro_batch_id] = Tensor<T>(current->shape(), this->device_);
+    it_mask = micro_batch_masks_.find(micro_batch_id);
+  } else {
+    it_mask->second.ensure(current->shape());
   }
 
-  micro_batch_masks_[micro_batch_id] = mask.clone();
-  return output;
+  output.ensure(current->shape(), this->device_);
+
+  auto forward_task = compute_dropout_forward(*current, output, it_mask->second);
 }
 
 template <typename T>
-const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void DropoutLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                               size_t micro_batch_id) {
   if (!this->is_training_) {
-    return gradient;
+    grad_input.ensure(gradient.shape());
+    ops::copy(gradient.data_ptr(), grad_input.data_ptr(), gradient.size());
+    return;
   }
 
   const Tensor<T> *current_gradient = &gradient;
@@ -72,11 +78,9 @@ const Tensor<T> &DropoutLayer<T>::backward(const Tensor<T> &gradient, size_t mic
   }
   const Tensor<T> &mask = it_mask->second;
 
-  Tensor<T> &grad_input = this->get_buffer(current_gradient->shape());
+  grad_input.ensure(current_gradient->shape(), this->device_);
 
-  grad_input = (*current_gradient) * mask;
-
-  return grad_input;
+  ops::mul(current_gradient->data_ptr(), mask.data_ptr(), grad_input.data_ptr(), grad_input.size());
 }
 
 template <typename T>

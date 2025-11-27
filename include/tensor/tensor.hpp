@@ -371,6 +371,8 @@ public:
 
   const size_t size() const { return data_size_; }
 
+  const size_t capacity() const { return data_.capacity(); }
+
   bool is_aligned(size_t alignment = 32) const {
     return (reinterpret_cast<uintptr_t>(data_.get()) % alignment) == 0;
   }

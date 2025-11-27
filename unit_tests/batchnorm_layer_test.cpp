@@ -10,7 +10,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -155,7 +154,9 @@ TEST_F(BatchNormLayerTest, BasicForwardPassTraining) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 
@@ -177,7 +178,9 @@ TEST_F(BatchNormLayerTest, ForwardPassWithAffineTraining) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 
@@ -199,7 +202,9 @@ TEST_F(BatchNormLayerTest, ForwardPassSingleChannel) {
   Tensor<float> input({4, 1, 8, 8}, cpu_device_);
   input.fill(2.5f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 
@@ -222,7 +227,9 @@ TEST_F(BatchNormLayerTest, ForwardPassMultiBatch) {
     input_data[i] = static_cast<float>((i % 20) - 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
   EXPECT_EQ(output.batch_size(), 8);
@@ -240,7 +247,9 @@ TEST_F(BatchNormLayerTest, ForwardPassLargeFeatures) {
     input_data[i] = static_cast<float>(i % 100) / 10.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
   EXPECT_EQ(output.channels(), 64);
@@ -260,7 +269,9 @@ TEST_F(BatchNormLayerTest, ForwardPassInference) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 
@@ -281,7 +292,9 @@ TEST_F(BatchNormLayerTest, ForwardPassInferenceWithAffine) {
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }
@@ -300,12 +313,15 @@ TEST_F(BatchNormLayerTest, BasicBackwardPass) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 }
@@ -322,7 +338,9 @@ TEST_F(BatchNormLayerTest, BackwardPassWithAffine) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -330,7 +348,8 @@ TEST_F(BatchNormLayerTest, BackwardPassWithAffine) {
     grad_data[i] = static_cast<float>(i % 5) / 5.0f;
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 
@@ -347,12 +366,15 @@ TEST_F(BatchNormLayerTest, BackwardPassMultiBatch) {
   Tensor<float> input({8, 2, 4, 4}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.batch_size(), 8);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -367,12 +389,15 @@ TEST_F(BatchNormLayerTest, BackwardPassZeroGradient) {
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(0.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 
@@ -489,7 +514,9 @@ TEST_F(BatchNormLayerTest, EdgeCaseSmallBatch) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }
@@ -503,7 +530,9 @@ TEST_F(BatchNormLayerTest, EdgeCaseLargeEpsilon) {
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }
@@ -520,7 +549,9 @@ TEST_F(BatchNormLayerTest, EdgeCaseSmallSpatialSize) {
     input_data[i] = static_cast<float>(i);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
   EXPECT_EQ(output.height(), 1);
@@ -536,7 +567,9 @@ TEST_F(BatchNormLayerTest, EdgeCaseLargeValues) {
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
   input.fill(1e6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 
@@ -559,7 +592,9 @@ TEST_F(BatchNormLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }
@@ -575,7 +610,9 @@ TEST_F(BatchNormLayerTest, NumericalStabilitySmallValues) {
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
   input.fill(1e-6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }
@@ -592,7 +629,9 @@ TEST_F(BatchNormLayerTest, NumericalStabilityMixedValues) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output);
 }

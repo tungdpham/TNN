@@ -51,8 +51,9 @@ public:
   MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
                  size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
 
-  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;

@@ -19,7 +19,7 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<ActivationFunction<T>> activ
 }
 
 template <typename T>
-const Tensor<T> &ActivationLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void ActivationLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
 
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
@@ -36,14 +36,14 @@ const Tensor<T> &ActivationLayer<T>::forward(const Tensor<T> &input, size_t micr
     it_input->second.ensure(current->shape());
     ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size(), 0, 0, "default");
   }
-  Tensor<T> &output = this->get_buffer(current->shape());
+  output.ensure(current->shape());
   ops::copy(current->data_ptr(), output.data_ptr(), current->size(), 0, 0, "default");
   activation_->apply(output);
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void ActivationLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                  size_t micro_batch_id) {
   const Tensor<T> *current_gradient = &gradient;
   Tensor<T> device_gradient;
   if (gradient.device() != this->device_) {
@@ -54,10 +54,9 @@ const Tensor<T> &ActivationLayer<T>::backward(const Tensor<T> &gradient, size_t 
   auto it = micro_batch_inputs_.find(micro_batch_id);
   assert(it != micro_batch_inputs_.end() && "No stored input for given micro_batch_id");
   const Tensor<T> &last_input = it->second;
-  Tensor<T> &grad = this->get_buffer(last_input.shape());
-  ops::copy(current_gradient->data_ptr(), grad.data_ptr(), current_gradient->size());
-  activation_->compute_gradient_inplace(last_input, grad);
-  return grad;
+  grad_input.ensure(last_input.shape());
+  ops::copy(current_gradient->data_ptr(), grad_input.data_ptr(), current_gradient->size());
+  activation_->compute_gradient_inplace(last_input, grad_input);
 }
 
 template <typename T> std::string ActivationLayer<T>::type() const { return "activation"; }

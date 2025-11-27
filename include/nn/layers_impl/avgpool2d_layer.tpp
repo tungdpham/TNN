@@ -31,7 +31,7 @@ AvgPool2DLayer<T>::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 }
 
 template <typename T>
-const Tensor<T> &AvgPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void AvgPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
 
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
@@ -45,24 +45,20 @@ const Tensor<T> &AvgPool2DLayer<T>::forward(const Tensor<T> &input, size_t micro
   const size_t input_h = current->height();
   const size_t input_w = current->width();
 
-  // Cache input shape for backward pass
   micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels, input_h, input_w};
 
-  // Calculate output dimensions (no explicit padding needed)
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  Tensor<T> &output = this->get_buffer({batch_size, channels, output_h, output_w});
+  output.ensure({batch_size, channels, output_h, output_w});
 
-  // Pass raw input pointers and padding info - virtual padding handled in kernel
   compute_avg_pool_forward(current->data_ptr(), output.data_ptr(), batch_size, channels, input_h,
                            input_w, output_h, output_w, "default");
-
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                 size_t micro_batch_id) {
   auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
@@ -85,16 +81,12 @@ const Tensor<T> &AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  Tensor<T> &grad_input = this->get_buffer({batch_size, channels, input_h, input_w});
+  grad_input.ensure({batch_size, channels, input_h, input_w});
 
-  // CRITICAL: Zero the buffer because backward uses scatter-accumulate (+=)
   grad_input.fill(T(0));
 
-  // Virtual padding handled in kernel - operates directly on raw input dimensions
   compute_avg_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
                             channels, input_h, input_w, output_h, output_w, "default");
-
-  return grad_input;
 }
 
 template <typename T>

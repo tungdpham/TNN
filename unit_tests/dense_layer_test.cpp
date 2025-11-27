@@ -10,7 +10,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -138,7 +137,9 @@ TEST_F(DenseLayerTest, BasicForwardPass) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
   EXPECT_EQ(output.batch_size(), 2);
@@ -160,7 +161,9 @@ TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 10);
   EXPECT_EQ(output.batch_size(), 1);
@@ -175,7 +178,9 @@ TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
   Tensor<float> input({4, 15, 1, 1}, cpu_device_);
   input.fill(0.5f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 8);
   EXPECT_EQ(output.batch_size(), 4);
@@ -190,7 +195,9 @@ TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
   Tensor<float> input({2, 128, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 64);
   EXPECT_EQ(output.channels(), 64);
@@ -204,7 +211,9 @@ TEST_F(DenseLayerTest, ForwardPassWithBias) {
   Tensor<float> input({1, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
   EXPECT_EQ(output.channels(), 5);
@@ -218,7 +227,9 @@ TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
   Tensor<float> input({1, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
   EXPECT_EQ(output.channels(), 5);
@@ -235,7 +246,9 @@ TEST_F(DenseLayerTest, ForwardPassVariableInput) {
     input_data[i] = static_cast<float>(i % 5);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 3);
 }
@@ -250,12 +263,15 @@ TEST_F(DenseLayerTest, BasicBackwardPass) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.channels(), 10);
@@ -273,12 +289,15 @@ TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
   Tensor<float> input({1, 20, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.batch_size(), 1);
@@ -292,12 +311,15 @@ TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
   Tensor<float> input({4, 15, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.batch_size(), 4);
@@ -314,7 +336,9 @@ TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -322,7 +346,8 @@ TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -336,12 +361,15 @@ TEST_F(DenseLayerTest, BackwardPassWithBias) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 }
@@ -354,12 +382,15 @@ TEST_F(DenseLayerTest, BackwardPassWithoutBias) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 }
@@ -421,7 +452,9 @@ TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
   Tensor<float> input({1, 2, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   EXPECT_EQ(output.channels(), 1);
   EXPECT_EQ(output.batch_size(), 1);
@@ -435,12 +468,15 @@ TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(0.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 }
@@ -453,7 +489,9 @@ TEST_F(DenseLayerTest, EdgeCaseLargeValues) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
 }
@@ -469,7 +507,9 @@ TEST_F(DenseLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 4);
 }
@@ -482,7 +522,9 @@ TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
   Tensor<float> input({32, 20, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 10);
   EXPECT_EQ(output.batch_size(), 32);
@@ -498,7 +540,9 @@ TEST_F(DenseLayerTest, NumericalStabilitySmallValues) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e-6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
 }
@@ -511,12 +555,15 @@ TEST_F(DenseLayerTest, BackwardNumericalStability) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e-6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1e-6f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 }
@@ -532,7 +579,9 @@ TEST_F(DenseLayerTest, NumericalStabilityMixedValues) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
 }
@@ -547,18 +596,24 @@ TEST_F(DenseLayerTest, MultipleForwardBackwardPasses) {
   // First pass
   Tensor<float> input1({2, 10, 1, 1}, cpu_device_);
   input1.fill(1.0f);
-  const Tensor<float> &output1 = layer.forward(input1);
+  std::vector<size_t> output_shape1 = layer.compute_output_shape(input1.shape());
+  Tensor<float> output1(output_shape1, cpu_device_);
+  layer.forward(input1, output1);
   Tensor<float> gradient1(output1.shape(), cpu_device_);
   gradient1.fill(1.0f);
-  layer.backward(gradient1);
+  Tensor<float> grad_input1(input1.shape(), cpu_device_);
+  layer.backward(gradient1, grad_input1);
 
   // Second pass
   Tensor<float> input2({2, 10, 1, 1}, cpu_device_);
   input2.fill(2.0f);
-  const Tensor<float> &output2 = layer.forward(input2);
+  std::vector<size_t> output_shape2 = layer.compute_output_shape(input2.shape());
+  Tensor<float> output2(output_shape2, cpu_device_);
+  layer.forward(input2, output2);
   Tensor<float> gradient2(output2.shape(), cpu_device_);
   gradient2.fill(1.0f);
-  const Tensor<float> &grad_input2 = layer.backward(gradient2);
+  Tensor<float> grad_input2(input2.shape(), cpu_device_);
+  layer.backward(gradient2, grad_input2);
 
   verify_gradient_shape(gradient2, grad_input2, input2);
 }

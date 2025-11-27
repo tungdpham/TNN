@@ -22,7 +22,6 @@ constexpr float EPSILON = 1e-15f;
 constexpr int PROGRESS_PRINT_INTERVAL = 200;
 constexpr int LR_DECAY_INTERVAL = 10;
 constexpr float LR_DECAY_FACTOR = 0.85f;
-constexpr float POSITIONING_ERROR_THRESHOLD = 5.0f;
 constexpr size_t MAX_BATCH_SIZE = 32;
 constexpr size_t MAX_EPOCHS = 100;
 constexpr float learning_rate = 0.01f;

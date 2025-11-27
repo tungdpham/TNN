@@ -11,7 +11,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -149,7 +148,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
     input_data[i] = 1.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   EXPECT_EQ(output.shape(), input.shape());
 
@@ -174,7 +175,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
     input_data[i] = 1.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: relu(F(x) + x) = relu(-2*1 + 1) = relu(-1) = 0
   const float *output_data = output.data();
@@ -197,7 +200,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
     input_data[i] = 2.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   EXPECT_EQ(output.batch_size(), 1);
   EXPECT_EQ(output.channels(), 2);
@@ -227,7 +232,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   EXPECT_EQ(output.batch_size(), 2);
   EXPECT_EQ(output.channels(), 1);
@@ -261,7 +268,9 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
     input_data[i] = 4.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: F(x) + shortcut(x) = 0.5*4 + 0.25*4 = 2 + 1 = 3
   const float *output_data = output.data();
@@ -287,7 +296,9 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
     input_data[i] = 2.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: relu(F(x) + shortcut(x)) = relu(-1*2 + 0.5*2) = relu(-1) = 0
   const float *output_data = output.data();
@@ -312,7 +323,9 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     input_data[i] = 1.0f;
   }
 
-  residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   float *grad_data = gradient.data();
@@ -320,7 +333,8 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
     grad_data[i] = 1.0f;
   }
 
-  const Tensor<float> &grad_input = residual.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  residual.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 
@@ -373,7 +387,7 @@ TEST_F(ResidualBlockTest, Clone) {
   auto cloned = original.clone();
 
   EXPECT_NE(cloned, nullptr);
-  EXPECT_EQ(cloned->type(), "ResidualBlock");
+  EXPECT_EQ(cloned->type(), "residual_block");
 }
 
 TEST_F(ResidualBlockTest, ComputeOutputShape) {
@@ -402,12 +416,15 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1.0f);
 
-  residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   gradient.fill(0.0f);
 
-  const Tensor<float> &grad_input = residual.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  residual.backward(gradient, grad_input);
 
   for (size_t i = 0; i < grad_input.size(); ++i) {
     EXPECT_NEAR(grad_input.data()[i], 0.0f, 1e-5f);
@@ -428,7 +445,9 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
     input_data[i] = 1e6f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: F(x) + x = 1*1e6 + 1e6 = 2e6
   const float *output_data = output.data();
@@ -451,7 +470,9 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
     input_data[i] = -2.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: F(x) + x = -1*(-2) + (-2) = 2 - 2 = 0
   const float *output_data = output.data();
@@ -474,7 +495,9 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
     input_data[i] = 1e-6f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: F(x) + x = 1*1e-6 + 1e-6 = 2e-6
   const float *output_data = output.data();
@@ -494,12 +517,15 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1e-6f);
 
-  residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   gradient.fill(1e-6f);
 
-  const Tensor<float> &grad_input = residual.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  residual.backward(gradient, grad_input);
 
   // grad_main (1.0 * 1e-6) + grad_shortcut (1e-6) = 2e-6
   const float *grad_input_data = grad_input.data();
@@ -527,7 +553,9 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
     input_data[i] = 2.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: F(x) + x = (2.0 * (0.5 * 2.0)) + 2.0 = (2.0 * 1.0) + 2.0 = 4.0
   const float *output_data = output.data();
@@ -550,12 +578,15 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1.0f);
 
-  residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = residual.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  residual.backward(gradient, grad_input);
 
   // grad_main = 2.0 * 0.5 * 1.0 = 1.0
   // grad_shortcut = 1.0
@@ -580,7 +611,9 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
     input_data[i] = -1.0f;
   }
 
-  const Tensor<float> &output = residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   // Expected: relu(F(x) + x) = relu(0 + (-1)) = relu(-1) = 0
   const float *output_data = output.data();
@@ -603,12 +636,15 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
     input_data[i] = -1.0f;
   }
 
-  residual.forward(input);
+  std::vector<size_t> output_shape = residual.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  residual.forward(input, output);
 
   Tensor<float> gradient({1, 1, 2, 2}, cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = residual.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  residual.backward(gradient, grad_input);
 
   // ReLU blocks gradient when output is negative
   const float *grad_input_data = grad_input.data();

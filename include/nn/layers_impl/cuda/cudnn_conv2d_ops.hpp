@@ -43,7 +43,7 @@ ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_ch
                                                  size_t out_channels, size_t kernel_h,
                                                  size_t kernel_w, size_t stride_h, size_t stride_w,
                                                  size_t pad_h, size_t pad_w,
-                                                 size_t workspace_limit_bytes = 16 * 1024 * 1024);
+                                                 size_t workspace_limit_bytes = 128 * 1024 * 1024);
 
 // Destroy cuDNN handle and clean up descriptors
 void destroy_convolution_handle(ConvolutionHandle *handle);

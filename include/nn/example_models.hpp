@@ -92,30 +92,88 @@ Sequential<float> create_cifar10_trainer_v2() {
   return model;
 }
 
+Sequential<float> create_resnet9_cifar10() {
+  auto model = SequentialBuilder<float>("ResNet-9-CIFAR10")
+                   .input({3, 32, 32})
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   .conv2d(128, 3, 3, 2, 2, 1, 1, true, "conv2")
+                   .batchnorm(1e-5f, 0.1f, true, "bn2")
+                   .activation("relu", "relu2")
+
+                   .basic_residual_block(128, 128, 1, "res_block1")
+                   .basic_residual_block(128, 128, 1, "res_block2")
+
+                   .conv2d(256, 3, 3, 2, 2, 1, 1, true, "conv3")
+                   .batchnorm(1e-5f, 0.1f, true, "bn3")
+                   .activation("relu", "relu3")
+
+                   .basic_residual_block(256, 256, 1, "res_block3")
+                   .basic_residual_block(256, 256, 1, "res_block4")
+
+                   .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(10, true, "output")
+                   .build();
+  return model;
+}
+
 Sequential<float> create_resnet18_cifar10() {
   auto model = SequentialBuilder<float>("ResNet-18-CIFAR10")
                    .input({3, 32, 32})
-                   .conv2d(32, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
                    // Layer 1: 64 channels
-                   .basic_residual_block(32, 32, 1, "layer1_block1")
-                   .basic_residual_block(32, 32, 1, "layer1_block2")
+                   .basic_residual_block(64, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
                    // Layer 2: 128 channels with stride 2
-                   .basic_residual_block(32, 64, 2, "layer2_block1")
-                   .basic_residual_block(64, 64, 1, "layer2_block2")
+                   .basic_residual_block(64, 128, 2, "layer2_block1")
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   .basic_residual_block(128, 128, 1, "layer2_block3")
                    // Layer 3: 256 channels with stride 2
-                   .basic_residual_block(64, 128, 2, "layer3_block1")
-                   .basic_residual_block(128, 128, 1, "layer3_block2")
+                   .basic_residual_block(128, 256, 2, "layer3_block1")
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   .basic_residual_block(256, 256, 1, "layer3_block3")
                    // Layer 4: 512 channels with stride 2
-                   .basic_residual_block(128, 256, 2, "layer4_block1")
-                   .basic_residual_block(256, 256, 1, "layer4_block2")
+                   .basic_residual_block(256, 512, 2, "layer4_block1")
+                   .basic_residual_block(512, 512, 1, "layer4_block2")
+                   //  .basic_residual_block(512, 512, 1, "layer4_block3")
                    // Global average pooling and classifier
-                   .avgpool2d(2, 2, 1, 1, 0, 0, "avgpool")
+                   .avgpool2d(4, 4, 4, 4, 0, 0, "avgpool")
                    .flatten("flatten")
-                   .dense(256, true, "fc")
                    .dense(10, true, "output")
                    .build();
+  return model;
+}
+
+Sequential<float> create_resnet20_cifar10() {
+  auto model = SequentialBuilder<float>("ResNet-20-CIFAR10")
+                   .input({3, 32, 32})
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .batchnorm(1e-5f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1") // Output size: 32x32
+
+                   .basic_residual_block(64, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
+                   .basic_residual_block(64, 64, 1, "layer1_block3") // Output size: 32x32
+
+                   .basic_residual_block(64, 128, 2, "layer2_block1") // Output size: 16x16
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   .basic_residual_block(128, 128, 1, "layer2_block3") // Output size: 16x16
+
+                   // 4. Stage 3 (3 blocks, 64 channels) - Downsample by stride=2
+                   .basic_residual_block(128, 256, 2, "layer3_block1") // Output size: 8x8
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   .basic_residual_block(256, 256, 1, "layer3_block3") // Output size: 8x8
+
+                   // 5. Classifier Head
+                   .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool") // Output size: 1x1
+                   .flatten("flatten")
+                   .dense(10, true, "output") // 10 classes for CIFAR-10
+                   .build();
+
   return model;
 }
 
@@ -259,6 +317,41 @@ Sequential<float> create_resnet18_tiny_imagenet() {
   return model;
 }
 
+Sequential<float> create_resnet34_tiny_imagenet() {
+  auto model = SequentialBuilder<float>("ResNet-34-Tiny-ImageNet")
+                   .input({3, 64, 64})
+                   .conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
+                   .batchnorm(1e-3f, 0.1f, true, "bn1")
+                   .activation("relu", "relu1")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "maxpool")
+                   // Layer 1: 64 channels (3 blocks)
+                   .basic_residual_block(32, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
+                   .basic_residual_block(64, 64, 1, "layer1_block3")
+                   // Layer 2: 128 channels with stride 2 (4 blocks)
+                   .basic_residual_block(64, 128, 2, "layer2_block1")
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   .basic_residual_block(128, 128, 1, "layer2_block3")
+                   .basic_residual_block(128, 128, 1, "layer2_block4")
+                   // Layer 3: 256 channels with stride 2 (6 blocks)
+                   .basic_residual_block(128, 256, 2, "layer3_block1")
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   .basic_residual_block(256, 256, 1, "layer3_block3")
+                   .basic_residual_block(256, 256, 1, "layer3_block4")
+                   .basic_residual_block(256, 256, 1, "layer3_block5")
+                   .basic_residual_block(256, 256, 1, "layer3_block6")
+                   // Layer 4: 512 channels with stride 2 (3 blocks)
+                   .basic_residual_block(256, 512, 2, "layer4_block1")
+                   .basic_residual_block(512, 512, 1, "layer4_block2")
+                   .basic_residual_block(512, 512, 1, "layer4_block3")
+                   // Global average pooling and classifier
+                   .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(200, true, "fc")
+                   .build();
+  return model;
+}
+
 Sequential<float> create_resnet50_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-50-Tiny-ImageNet")
                    .input({3, 64, 64})
@@ -289,7 +382,7 @@ Sequential<float> create_resnet50_tiny_imagenet() {
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
                    .flatten("flatten")
-                   .dense(1000, true, "fc")
+                   .dense(200, true, "fc")
                    .build();
   return model;
 }

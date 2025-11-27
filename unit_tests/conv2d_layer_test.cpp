@@ -10,7 +10,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -197,7 +196,9 @@ TEST_F(Conv2DLayerTest, BasicForwardPass) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.height(), 3);
@@ -217,7 +218,9 @@ TEST_F(Conv2DLayerTest, ForwardPassWithStride) {
   Tensor<float> input({1, 1, 7, 7}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 2, 2, 0, 0);
   EXPECT_EQ(output.height(), 3);
@@ -233,7 +236,9 @@ TEST_F(Conv2DLayerTest, ForwardPassWithPadding) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 1, 1);
   EXPECT_EQ(output.height(), 5);
@@ -251,7 +256,9 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiChannel) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.channels(), 2);
@@ -267,7 +274,9 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiBatch) {
   Tensor<float> input({4, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.batch_size(), 4);
@@ -281,7 +290,9 @@ TEST_F(Conv2DLayerTest, ForwardPassNonSquareKernel) {
   Tensor<float> input({1, 1, 7, 9}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 5, 1, 1, 0, 0);
   EXPECT_EQ(output.height(), 5);
@@ -296,7 +307,9 @@ TEST_F(Conv2DLayerTest, ForwardPassWithBias) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.channels(), 2);
@@ -310,7 +323,9 @@ TEST_F(Conv2DLayerTest, ForwardPassWithoutBias) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.channels(), 2);
@@ -326,12 +341,15 @@ TEST_F(Conv2DLayerTest, BasicBackwardPass) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 
@@ -348,12 +366,15 @@ TEST_F(Conv2DLayerTest, BackwardPassWithPadding) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -367,12 +388,15 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiChannel) {
   Tensor<float> input({1, 3, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.channels(), 3);
@@ -386,12 +410,15 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiBatch) {
   Tensor<float> input({4, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.batch_size(), 4);
@@ -408,7 +435,9 @@ TEST_F(Conv2DLayerTest, BackwardPassVariableGradient) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   float *grad_data = gradient.data();
@@ -416,7 +445,8 @@ TEST_F(Conv2DLayerTest, BackwardPassVariableGradient) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
   EXPECT_EQ(grad_input.shape(), input.shape());
@@ -483,7 +513,9 @@ TEST_F(Conv2DLayerTest, EdgeCase1x1Convolution) {
   Tensor<float> input({1, 3, 8, 8}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   EXPECT_EQ(output.height(), 8);
   EXPECT_EQ(output.width(), 8);
@@ -498,12 +530,15 @@ TEST_F(Conv2DLayerTest, EdgeCaseZeroGradient) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(0.0f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input.shape(), input.shape());
 }
@@ -516,7 +551,9 @@ TEST_F(Conv2DLayerTest, EdgeCaseLargeValues) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.size(), 9);
@@ -533,7 +570,9 @@ TEST_F(Conv2DLayerTest, EdgeCaseNegativeValues) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
 }
@@ -548,7 +587,9 @@ TEST_F(Conv2DLayerTest, NumericalStabilitySmallValues) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e-6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
   EXPECT_EQ(output.size(), 9);
@@ -562,12 +603,15 @@ TEST_F(Conv2DLayerTest, BackwardNumericalStability) {
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e-6f);
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> gradient(output.shape(), cpu_device_);
   gradient.fill(1e-6f);
 
-  const Tensor<float> &grad_input = layer.backward(gradient);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
 }

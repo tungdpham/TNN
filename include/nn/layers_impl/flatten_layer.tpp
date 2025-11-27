@@ -15,7 +15,7 @@ template <typename T>
 FlattenLayer<T>::FlattenLayer(const std::string &name) : StatelessLayer<T>(name) {}
 
 template <typename T>
-const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void FlattenLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   const Tensor<T> *current = &input;
@@ -28,15 +28,14 @@ const Tensor<T> &FlattenLayer<T>::forward(const Tensor<T> &input, size_t micro_b
   size_t batch_size = current->batch_size();
   size_t features = current->channels() * current->height() * current->width();
 
-  Tensor<T> &output = this->get_buffer(std::vector<size_t>{batch_size, features, 1, 1});
+  output.ensure(std::vector<size_t>{batch_size, features, 1, 1});
 
   ops::copy(current->data_ptr(), output.data_ptr(), current->size());
-
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void FlattenLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                               size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
@@ -51,9 +50,8 @@ const Tensor<T> &FlattenLayer<T>::backward(const Tensor<T> &gradient, size_t mic
     current_grad = &device_gradient;
   }
 
-  Tensor<T> &grad_input = this->get_buffer(original_shape);
+  grad_input.ensure(original_shape);
   ops::copy(current_grad->data_ptr(), grad_input.data_ptr(), current_grad->size());
-  return grad_input;
 }
 
 template <typename T> std::string FlattenLayer<T>::type() const { return "flatten"; }

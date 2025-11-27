@@ -49,7 +49,7 @@ template <typename T> void GroupNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
-const Tensor<T> &GroupNormLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   if (input.channels() != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -67,7 +67,7 @@ const Tensor<T> &GroupNormLayer<T>::forward(const Tensor<T> &input, size_t micro
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
 
-  Tensor<T> &output = this->get_buffer(current->shape());
+  output.ensure(current->shape());
 
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
   if (it_normalized == micro_batch_normalized_.end()) {
@@ -104,11 +104,11 @@ const Tensor<T> &GroupNormLayer<T>::forward(const Tensor<T> &input, size_t micro
   }
 
   micro_batch_inputs_[micro_batch_id] = current->clone();
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &GroupNormLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void GroupNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                 size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
 
@@ -138,7 +138,7 @@ const Tensor<T> &GroupNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
   const size_t width = input.width();
   const size_t spatial_size = height * width;
 
-  Tensor<T> &grad_input = this->get_buffer(input.shape());
+  grad_input.ensure(input.shape());
 
   auto bwd_task =
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
@@ -150,8 +150,6 @@ const Tensor<T> &GroupNormLayer<T>::backward(const Tensor<T> &gradient, size_t m
       throw std::runtime_error("GroupNorm backward task error: " + err.message());
     }
   }
-
-  return grad_input;
 }
 
 template <typename T>
