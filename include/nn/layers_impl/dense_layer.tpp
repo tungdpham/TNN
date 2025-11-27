@@ -47,7 +47,7 @@ template <typename T> void DenseLayer<T>::initialize_params() {
 }
 
 template <typename T>
-const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_batch_id) {
+void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   if (!this->initialized_) {
     throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
   }
@@ -76,7 +76,7 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     ops::copy(current->data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
   }
 
-  Tensor<T> &output = this->get_buffer({batch_size, output_features_, size_t(1), size_t(1)});
+  output.ensure({batch_size, output_features_, size_t(1), size_t(1)}, this->device_);
 
   forward_task_ = compute_dense_forward(current->data_ptr(), weights_.data_ptr(), output.data_ptr(),
                                         batch_size, input_features_, output_features_, "default");
@@ -85,12 +85,11 @@ const Tensor<T> &DenseLayer<T>::forward(const Tensor<T> &input, size_t micro_bat
     add_bias_task_ = add_bias_vector(output.data_ptr(), bias_.data_ptr(), batch_size,
                                      output_features_, "default");
   }
-
-  return output;
 }
 
 template <typename T>
-const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro_batch_id) {
+void DenseLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                             size_t micro_batch_id) {
   if (!this->initialized_) {
     throw std::runtime_error(
         "Layer parameters not initialized. Call initialize() before backward.");
@@ -108,7 +107,7 @@ const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro
   const Tensor<T> &last_input = it_input->second;
   size_t batch_size = last_input.batch_size();
 
-  Tensor<T> &grad_input = this->get_buffer(last_input.shape());
+  grad_input.ensure(last_input.shape(), this->device_);
 
   const Tensor<T> *current_grad = &gradient;
   Tensor<T> device_gradient;
@@ -129,8 +128,6 @@ const Tensor<T> &DenseLayer<T>::backward(const Tensor<T> &gradient, size_t micro
   input_grad_task_ =
       compute_input_gradients(current_grad->data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
                               batch_size, input_features_, output_features_, "default");
-
-  return grad_input;
 }
 
 template <typename T>

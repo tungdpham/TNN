@@ -10,7 +10,6 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
-#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -172,7 +171,9 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
     data[i] = static_cast<float>(i % 10);
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -195,7 +196,9 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -225,7 +228,9 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
     data[i] = static_cast<float>(i) + 1.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -249,7 +254,9 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
     data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -272,12 +279,15 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  const Tensor<float> &output = layer.forward(input);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
 
   Tensor<float> grad_output = output.clone();
   grad_output.fill(1.0f);
 
-  const Tensor<float> &grad_input = layer.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(grad_output, grad_input);
 
   EXPECT_EQ(grad_input.batch_size(), input.batch_size());
   EXPECT_EQ(grad_input.channels(), input.channels());

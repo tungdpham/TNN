@@ -26,8 +26,9 @@ public:
   explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
                            const std::string &name = "activation");
 
-  const Tensor<T> &forward(const Tensor<T> &input, size_t micro_batch_id = 0) override;
-  const Tensor<T> &backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) override;
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                size_t micro_batch_id = 0) override;
 
   uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
