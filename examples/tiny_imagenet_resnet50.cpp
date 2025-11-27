@@ -64,9 +64,10 @@ int main() {
     cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
     auto train_aug = AugmentationBuilder<float>()
-                         .horizontal_flip(0.2)
-                         .rotation(0.2f, 5.0f)
-                         .random_crop(0.25f, 4)
+                         .random_crop(1.0f, 4)
+                         .rotation(0.25f, 5.0f)
+                         .horizontal_flip(0.5)
+                         .brightness(0.2f)
                          .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                          .build();
     cout << "Configuring data augmentation for training." << endl;
@@ -78,15 +79,15 @@ int main() {
     cout << "Configuring data normalization for validation." << endl;
     val_loader.set_augmentation(std::move(val_aug));
 
-    cout << "\nBuilding CNN model architecture for Tiny ImageNet..." << endl;
+    cout << "\nBuilding ResNet-50 model architecture for Tiny ImageNet..." << endl;
 
-    auto model = create_resnet18_tiny_imagenet();
+    auto model = create_resnet50_tiny_imagenet();
 
     model.set_device(device_type);
     model.initialize();
 
     // Use slightly higher epsilon for better numerical stability
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-3f, 1e-3);
     // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
     model.set_optimizer(std::move(optimizer));
 
@@ -95,9 +96,8 @@ int main() {
 
     model.enable_profiling(true);
 
-    cout << "\nStarting Tiny ImageNet CNN training..." << endl;
+    cout << "\nStarting Tiny ImageNet ResNet training..." << endl;
     train_classification_model(model, train_loader, val_loader, train_config);
-    // this_thread::sleep_for(chrono::seconds(100));
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;

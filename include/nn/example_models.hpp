@@ -382,7 +382,7 @@ Sequential<float> create_resnet50_tiny_imagenet() {
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
                    .flatten("flatten")
-                   .dense(1000, true, "fc")
+                   .dense(200, true, "fc")
                    .build();
   return model;
 }

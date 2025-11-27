@@ -1,11 +1,15 @@
 # Training executables
 create_default(mnist_cnn_trainer mnist_cnn_trainer.cpp)
+
 create_default(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
 create_default(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
+
 create_default(uji_ips_trainer uji_ips_trainer.cpp)
+
 create_default(tiny_imagenet_resnet18 tiny_imagenet_resnet18.cpp)
 create_default(tiny_imagenet_resnet34 tiny_imagenet_resnet34.cpp)
-create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
+create_default(tiny_imagenet_resnet50 tiny_imagenet_resnet50.cpp)
+
 create_default(cifar10_resnet9 cifar10_resnet9.cpp)
 
 # Examples
@@ -13,6 +17,7 @@ create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
 create_cuda(device_ptr_example device_ptr_example.cu)
 create_cuda(cuda_vs_avx2_comparison cuda_vs_avx2_comparison.cpp)
+create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
 
 # Eval executables
 create_default(mnist_cnn_test mnist_cnn_test.cpp)
