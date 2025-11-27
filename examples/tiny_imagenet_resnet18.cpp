@@ -59,10 +59,10 @@ int main() {
     cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
     auto train_aug = AugmentationBuilder<float>()
-                         .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                          .horizontal_flip(0.2)
                          .rotation(0.2f, 5.0f)
                          .random_crop(0.25f, 4)
+                         .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                          .build();
     cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(train_aug));

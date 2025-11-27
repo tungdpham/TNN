@@ -1,11 +1,12 @@
 # Training executables
 create_default(mnist_cnn_trainer mnist_cnn_trainer.cpp)
 create_default(cifar10_cnn_trainer cifar10_cnn_trainer.cpp)
-create_default(cifar10_cnn_trainer_v2 cifar10_cnn_trainer_v2.cpp)
 create_default(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_default(uji_ips_trainer uji_ips_trainer.cpp)
-create_default(resnet18_tiny_imagenet resnet18_tiny_imagenet.cpp)
+create_default(tiny_imagenet_resnet18 tiny_imagenet_resnet18.cpp)
+create_default(tiny_imagenet_resnet34 tiny_imagenet_resnet34.cpp)
 create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
+create_default(cifar10_resnet9 cifar10_resnet9.cpp)
 
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
