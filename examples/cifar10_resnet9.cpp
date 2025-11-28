@@ -36,6 +36,7 @@ int main() {
     create_cifar10_dataloader("./data", train_loader, test_loader);
 
     auto train_transform = AugmentationBuilder<float>()
+                               .cutout(1.0f, 16)
                                .random_crop(1.0f, 4)
                                .horizontal_flip(0.5f)
                                //  .vertical_flip(0.5f)
@@ -43,7 +44,6 @@ int main() {
                                //  .brightness(0.3f, 0.15f)
                                //  .contrast(0.3f, 0.15f)
                                //  .gaussian_noise(1.0f, 0.1f)
-                               //  .cutout(1.0f, 16)
                                .normalize({0.49139968, 0.48215827, 0.44653124},
                                           {0.24703233f, 0.24348505f, 0.26158768f})
                                .build();

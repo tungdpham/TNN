@@ -31,7 +31,7 @@ int main() {
     std::cout << "No .env file found, using system environment variables only." << std::endl;
   }
 
-  auto model = create_cifar10_trainer_v2();
+  auto model = create_resnet9_cifar10();
 
   string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
 
