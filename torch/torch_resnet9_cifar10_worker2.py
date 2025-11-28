@@ -42,22 +42,56 @@ class BasicResidualBlock(nn.Module):
 
 
 class ResNet9Part2(nn.Module):
+    """
+    The second part of the ResNet-9 model. Input is (N, 128, 16, 16) from Part 1.
+    """
     def __init__(self, num_classes: int = 10):
         super().__init__()
-        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=2,
+        
+        # --- LAYER 2: 128 -> 256 Channels (16x16 -> 8x8) ---
+        # 128x16x16 -> 256x16x16 (stride=1 now)
+        self.conv3 = nn.Conv2d(128, 256, kernel_size=3, stride=1,
                                padding=1, bias=True)
         self.bn3   = nn.BatchNorm2d(256, eps=1e-5, momentum=0.1)
-
+        
+        # MaxPool 2: 256x16x16 -> 256x8x8 (Downsampling)
+        self.pool2 = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        # Residual Blocks (256 channels, 8x8)
         self.res3 = BasicResidualBlock(256)
         self.res4 = BasicResidualBlock(256)
 
+        # --- LAYER 3: 256 -> 512 Channels (8x8 -> 4x4) ---
+        # 256x8x8 -> 512x8x8 (stride=1)
+        self.conv4 = nn.Conv2d(256, 512, kernel_size=3, stride=1,
+                               padding=1, bias=True)
+        self.bn4   = nn.BatchNorm2d(512, eps=1e-5, momentum=0.1)
+        
+        # MaxPool 3: 512x8x8 -> 512x4x4 (Downsampling)
+        self.pool3 = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Final Residual Block (512 channels, 4x4)
+        self.res5 = BasicResidualBlock(512)
+
+        # --- CLASSIFICATION HEAD ---
+        # Global Average Pooling: 512x4x4 -> 512x1x1
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc      = nn.Linear(256, num_classes, bias=True)
+        # Final fully connected layer (512 features -> 10 classes)
+        self.fc      = nn.Linear(512, num_classes, bias=True)
 
     def forward(self, x):
+        # Layer 2
         x = F.relu(self.bn3(self.conv3(x)), inplace=True)
+        x = self.pool2(x) # Added MaxPool 2
         x = self.res3(x)
         x = self.res4(x)
+        
+        # Layer 3
+        x = F.relu(self.bn4(self.conv4(x)), inplace=True) # Added Conv4/BN4
+        x = self.pool3(x) # Added MaxPool 3
+        x = self.res5(x) # Added Res5
+
+        # Final Layers
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
         x = self.fc(x)

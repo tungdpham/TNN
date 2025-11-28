@@ -131,26 +131,40 @@ class BasicResidualBlock(nn.Module):
 
 
 class ResNet9Part1(nn.Module):
+    """
+    The first part of the ResNet-9 model (Initial Conv layers and first residual blocks).
+    The output is the hidden representation 'h' sent to the worker.
+    """
     def __init__(self):
         super().__init__()
+        # 3x32x32 -> 64x32x32
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1,
                                padding=1, bias=True)
         self.bn1   = nn.BatchNorm2d(64, eps=1e-5, momentum=0.1)
 
-        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=2,
+        # 64x32x32 -> 128x32x32 (Note: stride=1 to prepare for MaxPool)
+        self.conv2 = nn.Conv2d(64, 128, kernel_size=3, stride=1,
                                padding=1, bias=True)
         self.bn2   = nn.BatchNorm2d(128, eps=1e-5, momentum=0.1)
 
+        # 128x32x32 -> 128x16x16 (The added MaxPool layer)
+        self.pool1 = nn.MaxPool2d(kernel_size=2, stride=2) 
+        
+        # Two residual blocks on 128 channels, maintaining 16x16 size
         self.res1 = BasicResidualBlock(128)
         self.res2 = BasicResidualBlock(128)
 
     def forward(self, x):
+        # Conv1 -> BN -> ReLU
         x = F.relu(self.bn1(self.conv1(x)), inplace=True)
+        # Conv2 -> BN -> ReLU
         x = F.relu(self.bn2(self.conv2(x)), inplace=True)
+        # MaxPool Downsampling (32x32 -> 16x16)
+        x = self.pool1(x) 
+        # Residual Blocks
         x = self.res1(x)
         x = self.res2(x)
         return x
-
 
 # =====================================================
 #  Hàm send/recv object qua socket
@@ -216,7 +230,7 @@ def main():
         amsgrad=True,
     )
 
-    worker_ip = "192.168.78.32"
+    worker_ip = "192.168.78.212"
     worker_port = 5000
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
