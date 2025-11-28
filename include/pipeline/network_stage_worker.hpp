@@ -27,13 +27,15 @@ public:
   /**
    * @brief Constructor with optional thread affinity configuration
    * @param listen_port Port to listen on for connections
+   * @param use_gpu Whether to use GPU for processing
    * @param use_ecore_affinity Whether to bind worker threads to E-cores for efficiency
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
+   * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
   explicit NetworkStageWorker(int listen_port, bool use_gpu, bool use_ecore_affinity = false,
-                              int max_ecore_threads = -1)
+                              int max_ecore_threads = -1, size_t io_threads = 1)
       : PipelineStage(use_gpu), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
-        max_ecore_threads_(max_ecore_threads) {
+        max_ecore_threads_(max_ecore_threads), io_threads_(io_threads) {
 
     // Initialize hardware info for affinity
     if (use_ecore_affinity_) {
@@ -50,8 +52,8 @@ public:
       }
     }
 
-    this->communicator_ =
-        std::make_unique<TcpCommunicator>(Endpoint::network("localhost", listen_port_));
+    this->communicator_ = std::make_unique<TcpCommunicator>(
+        Endpoint::network("localhost", listen_port_), io_threads_);
   }
 
   ~NetworkStageWorker() {}
@@ -107,6 +109,7 @@ private:
   int listen_port_;
   bool use_ecore_affinity_;
   int max_ecore_threads_;
+  size_t io_threads_;
   HardwareInfo hw_info_;
   std::unique_ptr<ThreadAffinity> thread_affinity_;
 };

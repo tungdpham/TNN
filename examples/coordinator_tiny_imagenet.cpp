@@ -14,6 +14,7 @@
 #include "utils/env.hpp"
 
 #include <cstdlib>
+#include <getopt.h>
 #include <iostream>
 #include <vector>
 
@@ -23,7 +24,64 @@ using namespace std;
 constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
 constexpr float EPSILON = 1e-7f;
 
-int main() {
+struct Config {
+  size_t io_threads = 4;
+};
+
+void print_usage(const char *program_name) {
+  cout << "Usage: " << program_name << " [options]" << endl;
+  cout << endl;
+  cout << "Options:" << endl;
+  cout << "  --io-threads <N>   Number of IO threads for networking (default: 1)" << endl;
+  cout << "  -h, --help         Show this help message" << endl;
+  cout << endl;
+  cout << "Examples:" << endl;
+  cout << "  " << program_name << "                    # Default mode" << endl;
+  cout << "  " << program_name << " --io-threads 4    # Use 4 IO threads" << endl;
+}
+
+bool parse_arguments(int argc, char *argv[], Config &cfg) {
+  int c;
+
+  static struct option long_options[] = {
+      {"io-threads", required_argument, 0, 'i'}, {"help", no_argument, 0, 'h'}, {0, 0, 0, 0}};
+
+  optind = 1;
+
+  while ((c = getopt_long(argc, argv, "h", long_options, nullptr)) != -1) {
+    switch (c) {
+    case 'i':
+      try {
+        int threads = stoi(optarg);
+        if (threads <= 0) {
+          cerr << "Invalid io-threads value: " << optarg << endl;
+          return false;
+        }
+        cfg.io_threads = static_cast<size_t>(threads);
+      } catch (...) {
+        cerr << "--io-threads requires a valid number argument" << endl;
+        return false;
+      }
+      break;
+    case 'h':
+      print_usage(argv[0]);
+      return false;
+    case '?':
+      return false;
+    default:
+      return false;
+    }
+  }
+
+  return true;
+}
+
+int main(int argc, char *argv[]) {
+  Config cfg;
+
+  if (!parse_arguments(argc, argv, cfg)) {
+    return 1;
+  }
   if (!load_env_file("./.env")) {
     std::cout << "No .env file found, using system environment variables only." << std::endl;
   }
@@ -57,9 +115,11 @@ int main() {
   for (const auto &ep : endpoints) {
     std::cout << ep.to_json().dump(4) << std::endl;
   }
+  std::cout << "IO threads: " << cfg.io_threads << std::endl;
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
+  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints,
+                                     cfg.io_threads);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

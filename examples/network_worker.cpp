@@ -18,6 +18,7 @@ struct Config {
   int max_ecore_threads = -1;
   bool show_cores_only = false;
   bool use_gpu = false;
+  size_t io_threads = 4;
 };
 
 void print_usage(const char *program_name) {
@@ -28,6 +29,7 @@ void print_usage(const char *program_name) {
   cout << "  --max-ecores <N>   Maximum number of E-cores to use (default: all)" << endl;
   cout << "  --show-cores       Display CPU core topology and exit" << endl;
   cout << "  --gpu              Enable GPU offloading for processing" << endl;
+  cout << "  --io-threads <N>   Number of IO threads for networking (default: 1)" << endl;
   cout << "  -h, --help         Show this help message" << endl;
   cout << endl;
   cout << "Examples:" << endl;
@@ -35,16 +37,20 @@ void print_usage(const char *program_name) {
   cout << "  " << program_name << " --ecore 8001              # Use E-cores for efficiency" << endl;
   cout << "  " << program_name << " --max-ecores 2 --ecore 8001  # Use max 2 E-cores" << endl;
   cout << "  " << program_name << " --gpu 8001                # Enable GPU processing" << endl;
+  cout << "  " << program_name << " --io-threads 4 8001       # Use 4 IO threads" << endl;
   cout << "  " << program_name << " --show-cores              # Show CPU topology" << endl;
 }
 
 bool parse_arguments(int argc, char *argv[], Config &cfg) {
   int c;
 
-  static struct option long_options[] = {
-      {"ecore", no_argument, 0, 'e'},      {"max-ecores", required_argument, 0, 'm'},
-      {"show-cores", no_argument, 0, 's'}, {"gpu", no_argument, 0, 'g'},
-      {"help", no_argument, 0, 'h'},       {0, 0, 0, 0}};
+  static struct option long_options[] = {{"ecore", no_argument, 0, 'e'},
+                                         {"max-ecores", required_argument, 0, 'm'},
+                                         {"show-cores", no_argument, 0, 's'},
+                                         {"gpu", no_argument, 0, 'g'},
+                                         {"io-threads", required_argument, 0, 'i'},
+                                         {"help", no_argument, 0, 'h'},
+                                         {0, 0, 0, 0}};
 
   optind = 1;
 
@@ -70,6 +76,19 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
       break;
     case 'g':
       cfg.use_gpu = true;
+      break;
+    case 'i':
+      try {
+        int threads = stoi(optarg);
+        if (threads <= 0) {
+          cerr << "Invalid io-threads value: " << optarg << endl;
+          return false;
+        }
+        cfg.io_threads = static_cast<size_t>(threads);
+      } catch (...) {
+        cerr << "--io-threads requires a valid number argument" << endl;
+        return false;
+      }
       break;
     case 'h':
       print_usage(argv[0]);
@@ -146,12 +165,13 @@ int main(int argc, char *argv[]) {
          << endl;
   }
   cout << "GPU offloading: " << (cfg.use_gpu ? "Enabled" : "Disabled") << endl;
+  cout << "IO threads: " << cfg.io_threads << endl;
 
   ThreadWrapper thread_wrapper({MAX_THREADS});
 
   thread_wrapper.execute([&]() {
     NetworkStageWorker worker(cfg.listen_port, cfg.use_gpu, cfg.use_ecore_affinity,
-                              cfg.max_ecore_threads);
+                              cfg.max_ecore_threads, cfg.io_threads);
     worker.start();
   });
 
