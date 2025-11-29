@@ -68,12 +68,21 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
   }
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
-  T fan_out = static_cast<T>(out_channels_ * kernel_h_ * kernel_w_);
-  T std_dev = std::sqrt(static_cast<T>(2.0) / (fan_in + fan_out));
+  // PyTorch default Kaiming Uniform: Uniform(-bound, bound) where bound = 1 / sqrt(fan_in)
+  T bound = static_cast<T>(1.0) / std::sqrt(fan_in);
+
   if (this->use_seed_) {
-    weights_.fill_random_normal(T(0), std_dev, this->srand_seed_);
+    weights_.fill_random_uniform(-bound, bound, this->srand_seed_);
   } else {
-    weights_.fill_random_normal(T(0), std_dev);
+    weights_.fill_random_uniform(-bound, bound);
+  }
+
+  if (use_bias_) {
+    if (this->use_seed_) {
+      bias_.fill_random_uniform(-bound, bound, this->srand_seed_);
+    } else {
+      bias_.fill_random_uniform(-bound, bound);
+    }
   }
 }
 

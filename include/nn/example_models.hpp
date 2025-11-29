@@ -93,26 +93,40 @@ Sequential<float> create_cifar10_trainer_v2() {
 }
 
 Sequential<float> create_resnet9_cifar10() {
+  // Architecture matching PyTorch ResNet9Part1 + ResNet9Part2
   auto model = SequentialBuilder<float>("ResNet-9-CIFAR10")
                    .input({3, 32, 32})
+                   // Layer 1: 3 -> 64 -> 128 channels, 32x32 -> 16x16
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
-                   .conv2d(128, 3, 3, 2, 2, 1, 1, true, "conv2")
+                   .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv2")
                    .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32 -> 16x16
 
                    .basic_residual_block(128, 128, 1, "res_block1")
                    .basic_residual_block(128, 128, 1, "res_block2")
 
-                   .conv2d(256, 3, 3, 2, 2, 1, 1, true, "conv3")
+                   // Layer 2: 128 -> 256 channels, 16x16 -> 8x8
+                   .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv3")
                    .batchnorm(1e-5f, 0.1f, true, "bn3")
                    .activation("relu", "relu3")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16 -> 8x8
 
                    .basic_residual_block(256, 256, 1, "res_block3")
                    .basic_residual_block(256, 256, 1, "res_block4")
 
-                   .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
+                   // Layer 3: 256 -> 512 channels, 8x8 -> 4x4
+                   .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv4")
+                   .batchnorm(1e-5f, 0.1f, true, "bn4")
+                   .activation("relu", "relu4")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8 -> 4x4
+
+                   .basic_residual_block(512, 512, 1, "res_block5")
+
+                   // Classification head
+                   .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool") // 4x4 -> 1x1
                    .flatten("flatten")
                    .dense(10, true, "output")
                    .build();

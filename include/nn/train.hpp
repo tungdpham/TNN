@@ -168,12 +168,12 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
 ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
-  // model.set_training(false);
+  // model.set_training(false); // Use running stats for BatchNorm
   test_loader.reset();
 
   std::cout << "Starting validation..." << std::endl;
   double val_loss = 0.0;
-  double val_accuracy = 0.0;
+  double val_corrects = 0.0;
   int val_batches = 0;
   const Device *model_device = model.get_device();
 
@@ -184,12 +184,12 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
     float loss;
     model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
-    val_accuracy += compute_class_accuracy(predictions, device_batch_labels);
+    val_corrects += compute_class_corrects(predictions, device_batch_labels);
     ++val_batches;
   }
 
   const float avg_val_loss = static_cast<float>(val_loss / val_batches);
-  const float avg_val_accuracy = static_cast<float>(val_accuracy / val_batches);
+  const float avg_val_accuracy = static_cast<float>(val_corrects / test_loader.size());
 
   return {avg_val_loss, avg_val_accuracy};
 }

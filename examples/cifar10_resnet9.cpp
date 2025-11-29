@@ -38,12 +38,6 @@ int main() {
     auto train_transform = AugmentationBuilder<float>()
                                .random_crop(1.0f, 4)
                                .horizontal_flip(0.5f)
-                               //  .vertical_flip(0.5f)
-                               //  .rotation(0.3f, 10.0f)
-                               //  .brightness(0.3f, 0.15f)
-                               //  .contrast(0.3f, 0.15f)
-                               //  .gaussian_noise(1.0f, 0.1f)
-                               //  .cutout(1.0f, 16)
                                .normalize({0.49139968, 0.48215827, 0.44653124},
                                           {0.24703233f, 0.24348505f, 0.26158768f})
                                .build();
@@ -64,7 +58,7 @@ int main() {
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f, 1e-3f, true);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();

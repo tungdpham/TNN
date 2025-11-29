@@ -451,6 +451,18 @@ public:
     ops::fill_random_uniform(data_, data_size_, T(0), range, seed)->sync();
   }
 
+  void fill_random_uniform(T min_val, T max_val) {
+    // Generate seed from current time and pointer address for uniqueness
+    unsigned long long seed = static_cast<unsigned long long>(
+        std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
+        reinterpret_cast<uintptr_t>(data_.get()));
+    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed)->sync();
+  }
+
+  void fill_random_uniform(T min_val, T max_val, unsigned long long seed) {
+    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed)->sync();
+  }
+
   void fill_random_normal(T mean, T stddev) {
     // Generate seed from current time and pointer address for uniqueness
     unsigned long long seed = static_cast<unsigned long long>(

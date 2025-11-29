@@ -9,7 +9,6 @@
 
 using namespace tnn;
 
-constexpr int MAX_THREADS = 4;
 using namespace std;
 
 struct Config {
@@ -19,6 +18,7 @@ struct Config {
   bool show_cores_only = false;
   bool use_gpu = false;
   size_t io_threads = 4;
+  size_t num_threads = 8;
 };
 
 void print_usage(const char *program_name) {
@@ -30,6 +30,7 @@ void print_usage(const char *program_name) {
   cout << "  --show-cores       Display CPU core topology and exit" << endl;
   cout << "  --gpu              Enable GPU offloading for processing" << endl;
   cout << "  --io-threads <N>   Number of IO threads for networking (default: 1)" << endl;
+  cout << "  --num-threads <N>  Number of worker threads for processing (default: 8)" << endl;
   cout << "  -h, --help         Show this help message" << endl;
   cout << endl;
   cout << "Examples:" << endl;
@@ -49,6 +50,7 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
                                          {"show-cores", no_argument, 0, 's'},
                                          {"gpu", no_argument, 0, 'g'},
                                          {"io-threads", required_argument, 0, 'i'},
+                                         {"num-threads", required_argument, 0, 'n'},
                                          {"help", no_argument, 0, 'h'},
                                          {0, 0, 0, 0}};
 
@@ -87,6 +89,19 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
         cfg.io_threads = static_cast<size_t>(threads);
       } catch (...) {
         cerr << "--io-threads requires a valid number argument" << endl;
+        return false;
+      }
+      break;
+    case 'n':
+      try {
+        int threads = stoi(optarg);
+        if (threads <= 0) {
+          cerr << "Invalid num-threads value: " << optarg << endl;
+          return false;
+        }
+        cfg.num_threads = static_cast<size_t>(threads);
+      } catch (...) {
+        cerr << "--num-threads requires a valid number argument" << endl;
         return false;
       }
       break;
@@ -166,8 +181,9 @@ int main(int argc, char *argv[]) {
   }
   cout << "GPU offloading: " << (cfg.use_gpu ? "Enabled" : "Disabled") << endl;
   cout << "IO threads: " << cfg.io_threads << endl;
+  cout << "Worker threads: " << cfg.num_threads << endl;
 
-  ThreadWrapper thread_wrapper({MAX_THREADS});
+  ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   thread_wrapper.execute([&]() {
     NetworkStageWorker worker(cfg.listen_port, cfg.use_gpu, cfg.use_ecore_affinity,

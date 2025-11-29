@@ -655,6 +655,335 @@ TEST_F(Conv2DLayerTest, GradientCollectionWithoutBias) {
   EXPECT_EQ(grads.size(), 1); // weight gradients only
 }
 
+// ResNet-style Tests
+
+TEST_F(Conv2DLayerTest, ResNet1x1ChannelIncrease) {
+  // 1x1 conv to increase channels (common in ResNet shortcut connections)
+  Conv2DLayer<float> layer(64, 256, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_increase");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // 1x1 conv should preserve spatial dimensions
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 256);
+  EXPECT_EQ(output.height(), 8);
+  EXPECT_EQ(output.width(), 8);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 1, 1, 1, 1, 0, 0);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 1, 1, 1, 1, 0, 0);
+}
+
+TEST_F(Conv2DLayerTest, ResNet1x1ChannelDecrease) {
+  // 1x1 conv to decrease channels (bottleneck architecture)
+  Conv2DLayer<float> layer(256, 64, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_decrease");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 256, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 50) * 0.02f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output.height(), 8);
+  EXPECT_EQ(output.width(), 8);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 1, 1, 1, 1, 0, 0);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 1, 1, 1, 1, 0, 0);
+}
+
+TEST_F(Conv2DLayerTest, ResNetStridedDownsample) {
+  // Strided 3x3 conv for spatial downsampling (stride=2, no padding)
+  Conv2DLayer<float> layer(64, 128, 3, 3, 2, 2, 0, 0, false, "resnet_strided_downsample");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 9, 9}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Output: (9 - 3) / 2 + 1 = 4
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 128);
+  EXPECT_EQ(output.height(), 4);
+  EXPECT_EQ(output.width(), 4);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 3, 3, 2, 2, 0, 0);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 3, 3, 2, 2, 0, 0);
+}
+
+TEST_F(Conv2DLayerTest, ResNetStridedWithPadding) {
+  // Strided 3x3 conv with padding (common ResNet pattern: stride=2, pad=1)
+  // This halves spatial dimensions exactly
+  Conv2DLayer<float> layer(64, 128, 3, 3, 2, 2, 1, 1, false, "resnet_strided_padded");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Output: (8 + 2*1 - 3) / 2 + 1 = 4
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 128);
+  EXPECT_EQ(output.height(), 4);
+  EXPECT_EQ(output.width(), 4);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 3, 3, 2, 2, 1, 1);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 3, 3, 2, 2, 1, 1);
+}
+
+TEST_F(Conv2DLayerTest, ResNet1x1StridedDownsample) {
+  // 1x1 strided conv for shortcut downsampling in ResNet
+  Conv2DLayer<float> layer(64, 256, 1, 1, 2, 2, 0, 0, false, "resnet_1x1_strided");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Output: (8 - 1) / 2 + 1 = 4
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 256);
+  EXPECT_EQ(output.height(), 4);
+  EXPECT_EQ(output.width(), 4);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 1, 1, 2, 2, 0, 0);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 1, 1, 2, 2, 0, 0);
+}
+
+TEST_F(Conv2DLayerTest, ResNetBottleneck3x3) {
+  // 3x3 conv in bottleneck block (stride=1, pad=1, same spatial dims)
+  Conv2DLayer<float> layer(64, 64, 3, 3, 1, 1, 1, 1, false, "resnet_bottleneck_3x3");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // With padding=1, stride=1, kernel=3: output = input spatial dims
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output.height(), 8);
+  EXPECT_EQ(output.width(), 8);
+
+  // Verify numerical correctness
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 3, 3, 1, 1, 1, 1);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 3, 3, 1, 1, 1, 1);
+}
+
+TEST_F(Conv2DLayerTest, ResNetFirstConv7x7) {
+  // First conv in ResNet: 7x7, stride=2, pad=3
+  Conv2DLayer<float> layer(3, 64, 7, 7, 2, 2, 3, 3, true, "resnet_first_conv");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 3, 15, 15}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 256) / 255.0f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Output: (15 + 2*3 - 7) / 2 + 1 = 8
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output.height(), 8);
+  EXPECT_EQ(output.width(), 8);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], params.size() > 1 ? params[1] : nullptr, 7, 7, 2,
+                        2, 3, 3);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(0.01f); // Small gradient to avoid numerical issues
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 7, 7, 2, 2, 3, 3);
+}
+
+TEST_F(Conv2DLayerTest, ResNetAsymmetricStride) {
+  // Asymmetric stride case (less common but valid)
+  Conv2DLayer<float> layer(32, 64, 3, 3, 2, 1, 1, 1, false, "resnet_asymmetric_stride");
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({1, 32, 8, 8}, cpu_device_); // Smaller size for numerical verification
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Height: (8 + 2*1 - 3) / 2 + 1 = 4
+  // Width: (8 + 2*1 - 3) / 1 + 1 = 8
+  EXPECT_EQ(output.batch_size(), 1);
+  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output.height(), 4);
+  EXPECT_EQ(output.width(), 8);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 3, 3, 2, 1, 1, 1);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 3, 3, 2, 1, 1, 1);
+}
+
+TEST_F(Conv2DLayerTest, ResNetSmallFeatureMap) {
+  // Small feature map with strided conv (end of network)
+  Conv2DLayer<float> layer(64, 64, 3, 3, 2, 2, 1, 1, false,
+                           "resnet_small_feature"); // Smaller channels for faster verification
+  layer.set_device(cpu_device_);
+  layer.initialize();
+
+  Tensor<float> input({2, 64, 7, 7}, cpu_device_);
+  float *input_data = input.data();
+  for (size_t i = 0; i < input.size(); ++i) {
+    input_data[i] = static_cast<float>((i % 100) * 0.01f);
+  }
+
+  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(output_shape, cpu_device_);
+  layer.forward(input, output);
+
+  // Output: (7 + 2*1 - 3) / 2 + 1 = 4
+  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output.height(), 4);
+  EXPECT_EQ(output.width(), 4);
+
+  // Verify numerical correctness of forward pass
+  auto params = layer.parameters();
+  verify_forward_result(input, output, *params[0], nullptr, 3, 3, 2, 2, 1, 1);
+
+  // Verify backward pass
+  Tensor<float> gradient(output.shape(), cpu_device_);
+  gradient.fill(1.0f);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  layer.backward(gradient, grad_input);
+
+  EXPECT_EQ(grad_input.shape(), input.shape());
+  verify_backward_result(gradient, grad_input, *params[0], 3, 3, 2, 2, 1, 1);
+}
+
 int main(int argc, char **argv) {
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
