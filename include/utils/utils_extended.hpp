@@ -25,7 +25,7 @@ inline float compute_class_accuracy(const Tensor<float> &predictions,
 }
 
 inline int compute_class_corrects(const Tensor<float> &predictions, const Tensor<float> &targets,
-                                  float threshold = 0.5f) {
+                                  float threshold = 0.0f) {
   const size_t batch_size = predictions.shape()[0];
   const size_t num_classes = predictions.shape()[1];
 

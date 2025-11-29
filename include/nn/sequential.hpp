@@ -1430,13 +1430,11 @@ public:
     auto input_shape = std::vector<size_t>{in_channels, current_shape[2], current_shape[3]};
     auto main_path = LayerBuilder<T>()
                          .input(input_shape)
-                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
+                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, true)
                          .batchnorm(1e-5f, 0.1f, true, "bn0")
-                         //  .groupnorm(32, 1e-5f, true, "gn0")
                          .activation("relu")
-                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
+                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, true)
                          .batchnorm(1e-5f, 0.1f, true, "bn0")
-                         //  .groupnorm(32, 1e-5f, true, "gn1")
                          .build();
 
     std::vector<std::unique_ptr<Layer<T>>> shortcut;
@@ -1445,7 +1443,6 @@ public:
                      .input(input_shape)
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
                      .batchnorm(1e-5f, 0.1f, true, "bn0")
-                     //  .groupnorm(32, 1e-5f, true, "gn0")
                      .build();
     }
 
