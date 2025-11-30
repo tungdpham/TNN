@@ -82,7 +82,7 @@ public:
   }
 
   inline void enqueue_input_message(Message &&message) {
-    message_queues_.push(message.header.command_type, std::move(message));
+    message_queues_.push(message.header().command_type, std::move(message));
 
     if (message_notification_callback_) {
       message_notification_callback_();
@@ -90,7 +90,7 @@ public:
   }
 
   inline void enqueue_output_message(Message &&message) {
-    if (message.header.recipient_id.empty()) {
+    if (message.header().recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);

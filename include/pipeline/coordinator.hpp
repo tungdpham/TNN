@@ -360,17 +360,17 @@ public:
       if (load_msg.has_type<LoadTracker>()) {
         try {
           LoadTracker tracker = load_msg.get<LoadTracker>();
-          load_trackers[load_msg.header.sender_id] = tracker;
+          load_trackers[load_msg.header().sender_id] = tracker;
 
-          std::cout << "Received load report from " << load_msg.header.sender_id
+          std::cout << "Received load report from " << load_msg.header().sender_id
                     << ": avg_forward_time=" << tracker.avg_forward_time_
                     << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
           // NOTE: memory usage report is broken, needs some fixing. Just use top command for now.
           // std::cout << "  avg_cpu_utilization=" << tracker.avg_cpu_utilization_
           //           << "%, max_memory_usage=" << tracker.max_memory_usage_ << "MB\n";
         } catch (const std::exception &e) {
-          std::cerr << "Warning: Failed to deserialize load data from " << load_msg.header.sender_id
-                    << ": " << e.what() << "\n";
+          std::cerr << "Warning: Failed to deserialize load data from "
+                    << load_msg.header().sender_id << ": " << e.what() << "\n";
         }
       }
     }

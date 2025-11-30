@@ -73,8 +73,8 @@ public:
   }
 
   static void serialize(const Message &message, TBuffer &buffer) {
-    serialize(message.header, buffer);
-    serialize(message.data, buffer);
+    serialize(message.header(), buffer);
+    serialize(message.data(), buffer);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, FixedHeader &header) {
@@ -169,8 +169,8 @@ public:
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, Message &message) {
-    deserialize(buffer, offset, message.header);
-    deserialize(buffer, offset, message.data);
+    deserialize(buffer, offset, message.header());
+    deserialize(buffer, offset, message.data());
   }
 
 }; // namespace BinarySerializer

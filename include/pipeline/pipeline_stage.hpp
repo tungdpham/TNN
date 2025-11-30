@@ -92,25 +92,25 @@ public:
 
 protected:
   virtual void process_message(Message &message) {
-    switch (message.header.command_type) {
+    switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
       Job<float> &forward_job = message.get<Job<float>>();
       forward_job.data = this->model_->forward(forward_job.data, forward_job.micro_batch_id);
       Message output_message("next_stage", CommandType::FORWARD_JOB, std::move(forward_job));
-      output_message.header.sender_id = name_;
+      output_message.header().sender_id = name_;
       communicator_->send_message(std::move(output_message));
     } break;
     case CommandType::BACKWARD_JOB: {
       Job<float> &backward_job = message.get<Job<float>>();
       backward_job.data = this->model_->backward(backward_job.data, backward_job.micro_batch_id);
       Message output_message("prev_stage", CommandType::BACKWARD_JOB, std::move(backward_job));
-      output_message.header.sender_id = name_;
+      output_message.header().sender_id = name_;
       communicator_->send_message(std::move(output_message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       model_->update_parameters();
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
-      response.header.sender_id = name_;
+      response.header().sender_id = name_;
       communicator_->send_message(std::move(response));
     } break;
     case CommandType::TRAIN_MODE:
@@ -129,15 +129,15 @@ protected:
     case CommandType::ERROR_REPORT:
       if (message.has_type<std::string>()) {
         std::cout << "Stage " << name_ << " received error: " << message.get<std::string>()
-                  << " from " << message.header.sender_id << std::endl;
+                  << " from " << message.header().sender_id << std::endl;
       }
       break;
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
-        Message outgoing_message(message.header.sender_id, CommandType::PROFILING_PRINTED,
+        Message outgoing_message(message.header().sender_id, CommandType::PROFILING_PRINTED,
                                  std::monostate{});
-        outgoing_message.header.sender_id = name_;
+        outgoing_message.header().sender_id = name_;
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
@@ -146,9 +146,9 @@ protected:
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->clear_profiling_data();
-        Message outgoing_message(message.header.sender_id, CommandType::PROFILING_CLEARED,
+        Message outgoing_message(message.header().sender_id, CommandType::PROFILING_CLEARED,
                                  std::monostate{});
-        outgoing_message.header.sender_id = name_;
+        outgoing_message.header().sender_id = name_;
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
@@ -168,8 +168,8 @@ protected:
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
-        Message error_msg(message.header.sender_id, CommandType::ERROR_REPORT, error_text);
-        error_msg.header.sender_id = name_;
+        Message error_msg(message.header().sender_id, CommandType::ERROR_REPORT, error_text);
+        error_msg.header().sender_id = name_;
         communicator_->send_message(std::move(error_msg));
       }
       break;

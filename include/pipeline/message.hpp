@@ -115,44 +115,54 @@ struct MessageData {
 };
 
 struct Message {
-  MessageHeader header;
-  MessageData data;
+private:
+  MessageHeader header_;
+  MessageData data_;
 
-  Message() : header("", CommandType::_START), data(std::monostate{}) {}
+public:
+  Message() : header_("", CommandType::_START), data_(std::monostate{}) {}
 
   Message(std::string recipient_id, CommandType cmd_type, PayloadType &&payload)
-      : header(std::move(recipient_id), cmd_type), data(std::move(payload)) {}
+      : header_(std::move(recipient_id), cmd_type), data_(std::move(payload)) {}
 
   Message(std::string recipient_id, CommandType cmd_type)
-      : header(std::move(recipient_id), cmd_type), data(std::monostate{}) {}
+      : header_(std::move(recipient_id), cmd_type), data_(std::monostate{}) {}
 
   Message(const Message &other) = delete;
   Message(Message &&other) noexcept
-      : header(std::move(other.header)), data(std::move(other.data)) {}
+      : header_(std::move(other.header_)), data_(std::move(other.data_)) {}
 
   ~Message() = default;
 
   Message &operator=(const Message &other) = delete;
   Message &operator=(Message &&other) noexcept {
     if (this != &other) {
-      header = std::move(other.header);
-      data = std::move(other.data);
+      header_ = std::move(other.header_);
+      data_ = std::move(other.data_);
     }
     return *this;
   }
 
+  MessageHeader &header() { return header_; }
+  const MessageHeader &header() const { return header_; }
+
+  MessageData &data() { return data_; }
+  const MessageData &data() const { return data_; }
+
   template <typename PayloadType> bool has_type() const {
-    return std::holds_alternative<PayloadType>(data.payload);
+    return std::holds_alternative<PayloadType>(data_.payload);
   }
 
-  template <typename PayloadType> PayloadType &get() { return std::get<PayloadType>(data.payload); }
+  template <typename PayloadType> PayloadType &get() {
+    return std::get<PayloadType>(data_.payload);
+  }
 
   template <typename PayloadType> void set(const PayloadType &new_payload) {
-    data.payload = new_payload;
-    data.payload_type = static_cast<uint64_t>(data.payload.index());
+    data_.payload = new_payload;
+    data_.payload_type = static_cast<uint64_t>(data_.payload.index());
   }
 
-  const uint64_t size() const { return header.size() + data.size(); }
+  const uint64_t size() const { return header_.size() + data_.size(); }
 };
 
 } // namespace tnn

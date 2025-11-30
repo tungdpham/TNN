@@ -26,7 +26,7 @@ public:
   }
 
   void send_message(Message &&message) override {
-    if (message.header.recipient_id.empty()) {
+    if (message.header().recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     this->enqueue_output_message(std::move(message));
@@ -49,16 +49,16 @@ public:
         this->out_message_queue_.pop();
         lock.unlock();
         try {
-          Endpoint recipient_endpoint = this->get_recipient(msg.header.recipient_id);
+          Endpoint recipient_endpoint = this->get_recipient(msg.header().recipient_id);
           Communicator *recipient_comm =
               recipient_endpoint.get_parameter<Communicator *>("communicator");
           if (recipient_comm == nullptr) {
             throw std::runtime_error("Recipient communicator is null for " +
-                                     msg.header.recipient_id);
+                                     msg.header().recipient_id);
           }
           recipient_comm->enqueue_input_message(std::move(msg));
         } catch (const std::exception &e) {
-          std::cerr << "Failed to deliver message to " << msg.header.recipient_id << ": "
+          std::cerr << "Failed to deliver message to " << msg.header().recipient_id << ": "
                     << e.what() << std::endl;
         }
       }

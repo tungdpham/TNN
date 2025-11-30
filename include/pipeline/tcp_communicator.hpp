@@ -167,7 +167,7 @@ public:
       BinarySerializer::serialize(fixed_header, *buffer);
       BinarySerializer::serialize(message, *buffer);
 
-      async_send_buffer(message.header.recipient_id, std::move(buffer));
+      async_send_buffer(message.header().recipient_id, std::move(buffer));
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -438,7 +438,7 @@ private:
       BinarySerializer::deserialize(buffer, offset, message);
 
       // TODO: Set sender_id properly and do validation middlewares.
-      message.header.sender_id = connection_id;
+      message.header().sender_id = connection_id;
       this->enqueue_input_message(std::move(message));
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
