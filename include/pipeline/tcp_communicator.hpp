@@ -26,44 +26,48 @@
 
 namespace tnn {
 
-// Lock-free buffer pool using thread-local storage
+class BufferPool;
+
+class BufferDeleter {
+public:
+  explicit BufferDeleter(BufferPool *pool = nullptr) : pool_(pool) {}
+
+  void operator()(TBuffer *ptr) const;
+
+private:
+  BufferPool *pool_;
+};
+
+using PooledBuffer = std::unique_ptr<TBuffer, BufferDeleter>;
+
 class BufferPool {
 public:
   static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
   static constexpr size_t MAX_POOL_SIZE = 32;
 
-  std::shared_ptr<TBuffer> get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
+  PooledBuffer get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
+    BufferDeleter deleter(this);
+
     if (is_shutting_down_.load(std::memory_order_relaxed)) {
-      auto buffer = std::make_shared<TBuffer>(min_size);
-      return buffer;
+      return PooledBuffer(new TBuffer(min_size), deleter);
     }
 
-    // Thread-local pool to avoid contention
-    thread_local std::deque<std::shared_ptr<TBuffer>> local_pool;
+    thread_local std::deque<TBuffer *> local_pool;
 
-    for (auto it = local_pool.begin(); it != local_pool.end(); ++it) {
-      if ((*it)->capacity() >= min_size) {
-        auto buffer = std::move(*it);
-        local_pool.erase(it);
-        buffer->clear();
-        return buffer;
+    while (!local_pool.empty()) {
+      TBuffer *raw_buf = local_pool.front();
+      local_pool.pop_front();
+
+      if (raw_buf->capacity() >= min_size) {
+        raw_buf->clear();
+
+        return PooledBuffer(raw_buf, deleter);
       }
+
+      delete raw_buf;
     }
 
-    auto buffer = std::make_shared<TBuffer>(min_size);
-    return buffer;
-  }
-
-  void return_buffer(std::shared_ptr<TBuffer> buffer) {
-    if (!buffer || is_shutting_down_.load(std::memory_order_relaxed))
-      return;
-
-    thread_local std::deque<std::shared_ptr<TBuffer>> local_pool;
-
-    if (local_pool.size() < MAX_POOL_SIZE) {
-      buffer->clear();
-      local_pool.push_back(std::move(buffer));
-    }
+    return PooledBuffer(new TBuffer(min_size), deleter);
   }
 
   static BufferPool &instance() {
@@ -73,9 +77,38 @@ public:
 
   ~BufferPool() { is_shutting_down_.store(true, std::memory_order_release); }
 
+  void return_buffer_internal(TBuffer *buffer) {
+    if (buffer == nullptr) {
+      return;
+    }
+
+    if (is_shutting_down_.load(std::memory_order_relaxed)) {
+      delete buffer;
+      return;
+    }
+
+    thread_local std::deque<TBuffer *> local_pool;
+    if (local_pool.size() < MAX_POOL_SIZE) {
+      buffer->clear();
+      local_pool.push_back(buffer);
+    } else {
+      delete buffer;
+    }
+  }
+
+  bool is_shutting_down() const { return is_shutting_down_.load(std::memory_order_relaxed); }
+
 private:
   std::atomic<bool> is_shutting_down_{false};
 };
+
+inline void BufferDeleter::operator()(TBuffer *ptr) const {
+  if (pool_) {
+    pool_->return_buffer_internal(ptr);
+  } else {
+    delete ptr;
+  }
+}
 
 class TcpCommunicator : public Communicator {
 public:
@@ -94,7 +127,6 @@ public:
       start_server();
     }
 
-    // Start io_context with the specified number of threads
     io_threads_.reserve(num_io_threads_);
     for (size_t i = 0; i < num_io_threads_; ++i) {
       io_threads_.emplace_back([this]() { io_context_.run(); });
@@ -144,7 +176,6 @@ public:
       connections_.clear();
     }
 
-    // Clean up io_context and threads
     work_guard_.reset();
     io_context_.stop();
 
@@ -162,7 +193,7 @@ public:
 
       FixedHeader fixed_header = FixedHeader(msg_size);
 
-      auto buffer = std::make_shared<TBuffer>(msg_size + FixedHeader::size());
+      PooledBuffer buffer = BufferPool::instance().get_buffer(msg_size + FixedHeader::size());
 
       BinarySerializer::serialize(fixed_header, *buffer);
       BinarySerializer::serialize(message, *buffer);
@@ -207,7 +238,7 @@ public:
         std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
       }
 
-      asio::socket_base::send_buffer_size send_buf_opt(262144); // 256KB
+      asio::socket_base::send_buffer_size send_buf_opt(262144);
       err = connection->socket.set_option(send_buf_opt, ec);
       if (err) {
         std::cerr << "Failed to set send buffer size: " << ec.message() << std::endl;
@@ -255,16 +286,17 @@ public:
 
 private:
   struct WriteOperation {
-    std::shared_ptr<TBuffer> buffer;
 
-    explicit WriteOperation(std::shared_ptr<TBuffer> buf) : buffer(std::move(buf)) {}
+    PooledBuffer buffer;
+
+    explicit WriteOperation(PooledBuffer buf) : buffer(std::move(buf)) {}
   };
 
   struct Connection {
     asio::ip::tcp::socket socket;
-    std::shared_ptr<TBuffer> read_buffer;
 
-    // Lock-free write queue using atomic flag and single-producer pattern
+    PooledBuffer read_buffer;
+
     std::deque<WriteOperation> write_queue;
     std::mutex write_mutex;
     std::atomic<bool> writing;
@@ -276,16 +308,7 @@ private:
         : socket(std::move(sock)), read_buffer(BufferPool::instance().get_buffer()),
           writing(false) {}
 
-    ~Connection() {
-      if (read_buffer) {
-        try {
-          BufferPool::instance().return_buffer(read_buffer);
-        } catch (...) {
-          // Ignore exceptions during shutdown
-        }
-        read_buffer.reset();
-      }
-    }
+    ~Connection() = default;
   };
 
   asio::io_context io_context_;
@@ -318,7 +341,6 @@ private:
           std::cerr << "Failed to set TCP_NODELAY: " << nodelay_ec.message() << std::endl;
         }
 
-        // Optimize socket buffers
         asio::socket_base::send_buffer_size send_buf_opt(262144);
         asio::error_code send_buf_result =
             new_connection->socket.set_option(send_buf_opt, nodelay_ec);
@@ -353,7 +375,7 @@ private:
       return;
 
     try {
-      // read fixed-size header part first
+
       const size_t fixed_header_size = FixedHeader::size();
       connection->read_buffer->resize(fixed_header_size);
 
@@ -368,9 +390,8 @@ private:
               }
               FixedHeader fixed_header;
               size_t offset = 0;
-              BinarySerializer::deserialize(*connection->read_buffer, offset,
-                                            fixed_header); // length automatically get bswapped if
-                                                           // host endian != message endian
+              BinarySerializer::deserialize(*connection->read_buffer, offset, fixed_header);
+
               connection->read_buffer->set_endianess(fixed_header.endianess);
               read_message(connection_id, connection, fixed_header);
             } else {
@@ -434,10 +455,9 @@ private:
   void handle_message(const std::string &connection_id, TBuffer &buffer, size_t length) {
     try {
       Message message;
-      size_t offset = FixedHeader::size(); // Skip fixed header part
+      size_t offset = FixedHeader::size();
       BinarySerializer::deserialize(buffer, offset, message);
 
-      // TODO: Set sender_id properly and do validation middlewares.
       message.header().sender_id = connection_id;
       this->enqueue_input_message(std::move(message));
     } catch (const std::exception &e) {
@@ -450,7 +470,6 @@ private:
     std::lock_guard<std::shared_mutex> lock(connections_mutex_);
     auto it = connections_.find(connection_id);
 
-    // Clean up connection's resources
     if (it != connections_.end()) {
       if (it->second->socket.is_open()) {
         std::error_code close_ec;
@@ -470,7 +489,7 @@ private:
     }
   }
 
-  void async_send_buffer(const std::string &recipient_id, std::shared_ptr<TBuffer> buffer) {
+  void async_send_buffer(const std::string &recipient_id, PooledBuffer buffer) {
     std::shared_ptr<Connection> connection;
 
     {
@@ -493,7 +512,7 @@ private:
   }
 
   void start_async_write(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    std::shared_ptr<TBuffer> write_buffer;
+    TBuffer *write_buffer_ptr = nullptr;
 
     {
       std::lock_guard<std::mutex> write_lock(connection->write_mutex);
@@ -501,21 +520,28 @@ private:
         connection->writing.store(false, std::memory_order_release);
         return;
       }
-      write_buffer = std::move(connection->write_queue.front().buffer);
-      connection->write_queue.pop_front();
+
+      write_buffer_ptr = connection->write_queue.front().buffer.get();
     }
 
-    asio::async_write(
-        connection->socket, asio::buffer(write_buffer->get(), write_buffer->size()),
-        [this, connection_id, connection, write_buffer](std::error_code ec, std::size_t) {
-          if (ec) {
-            handle_connection_error(connection_id, ec);
-            connection->writing.store(false, std::memory_order_release);
-            return;
-          }
+    asio::async_write(connection->socket,
+                      asio::buffer(write_buffer_ptr->get(), write_buffer_ptr->size()),
+                      [this, connection_id, connection](std::error_code ec, std::size_t) {
+                        {
+                          std::lock_guard<std::mutex> write_lock(connection->write_mutex);
+                          if (!connection->write_queue.empty()) {
+                            connection->write_queue.pop_front();
+                          }
+                        }
 
-          start_async_write(connection_id, connection);
-        });
+                        if (ec) {
+                          handle_connection_error(connection_id, ec);
+                          connection->writing.store(false, std::memory_order_release);
+                          return;
+                        }
+
+                        start_async_write(connection_id, connection);
+                      });
   }
 };
 } // namespace tnn
