@@ -36,18 +36,11 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
     auto process_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
 
-    auto update_start = std::chrono::high_resolution_clock::now();
     coordinator.update_parameters();
-
-    auto update_end = std::chrono::high_resolution_clock::now();
-    auto update_duration =
-        std::chrono::duration_cast<std::chrono::microseconds>(update_end - update_start);
 
     if ((batch_index + 1) % progress_print_interval == 0) {
 
       std::cout << "Async process completed in " << process_duration.count() << " microseconds"
-                << std::endl;
-      std::cout << "Parameter update completed in " << update_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Average Loss after " << (batch_index + 1)
                 << " batches: " << (total_loss / (batch_index + 1)) << std::endl;
