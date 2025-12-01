@@ -11,6 +11,18 @@ To use coordinator, you can run semi_async_pipeline_coordinator. But first, you 
 ```bash
 # Run network worker on port 8001
 ./bin/network_worker 8001
+
+# Run network worker with GPU
+./bin/network_worker 8001 --gpu 
+
+# Run network worker with custom number of IO threads (default is 4)
+./bin/network_worker 8001 --io-threads 8
+
+# Run network worker with custom number of worker threads (default is 8)
+./bin/network_worker 8001 --num-threads 4
+
+# Use multiple options
+./bin/network_worker 8001 --gpu --io-threads 8 --num-threads 16
 ```
 
 Then, run coordinator after all worker:
@@ -18,4 +30,7 @@ Then, run coordinator after all worker:
 ```bash
 # Run semi async coordinator
 ./bin/semi_async_pipeline_coordinator
+
+# Run tiny imagenet coordinator with ResNet-18
+./bin/coordinator_tiny_imagenet
 ```
