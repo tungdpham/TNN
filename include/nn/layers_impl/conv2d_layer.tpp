@@ -675,7 +675,9 @@ template <typename T> size_t Conv2DLayer<T>::cached_memory_bytes() const {
   total_bytes += temp_col_grad_matrix_buffer_.capacity() * sizeof(T);
   // std::cout << "Temp col grad matrix buffer bytes: "
   //           << temp_col_grad_matrix_buffer_.capacity() * sizeof(T) << std::endl;
+#ifdef USE_CUDNN
   total_bytes += max_workspace_ * sizeof(T);
+#endif
   // std::cout << "Cudnn workspace bytes: " << cudnn_workspace_.capacity() * sizeof(T) << std::endl;
   total_bytes += Layer<T>::cached_memory_bytes();
   // std::cout << "base layer cached bytes: " << Layer<T>::cached_memory_bytes() << std::endl;

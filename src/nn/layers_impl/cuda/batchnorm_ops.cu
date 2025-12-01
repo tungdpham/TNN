@@ -138,6 +138,7 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
   if (threadIdx.x == 0) {
     T mu = result.mean;
 
+    // Biased variance (1/N) for normalization
     T var = result.m2 / result.count;
 
     mean_out[c] = mu;
@@ -145,8 +146,11 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
     T inv_std = rsqrt(var + epsilon);
     inv_std_out[c] = inv_std;
 
+    // Unbiased variance (Bessel's correction: 1/(N-1)) for running statistics
+    T unbiased_var = (result.count > T(1)) ? (result.m2 / (result.count - T(1))) : T(0);
+
     running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
-    running_var[c] = (T(1) - momentum) * running_var[c] + momentum * var;
+    running_var[c] = (T(1) - momentum) * running_var[c] + momentum * unbiased_var;
   }
 }
 
@@ -231,8 +235,10 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
 
     T g = (affine && gamma) ? gamma[c] : T(1);
     T istd = inv_std[c];
-    T sum_dy = affine ? d_beta[c] : T(0);
-    T sum_dy_x_norm = affine ? d_gamma[c] : T(0);
+    // These sums represent dL/dMean and dL/dVar parts, required even if not affine
+    // The reduction kernel always computes them into d_beta and d_gamma buffers
+    T sum_dy = d_beta[c];
+    T sum_dy_x_norm = d_gamma[c];
     T M = T(N * S);
 
     T dy = grad_output[idx];
@@ -251,6 +257,25 @@ __global__ void compute_inference_output_kernel(const T *input_data, const T *ru
                                                 const T *beta_data, T *output_data,
                                                 size_t batch_size, size_t channels,
                                                 size_t spatial_size, T epsilon, bool affine) {
+  // Use shared memory to cache per-channel statistics (mean, inv_std, gamma, beta)
+  extern __shared__ char shared_mem[];
+  T *s_mean = reinterpret_cast<T *>(shared_mem);
+  T *s_inv_std = s_mean + channels;
+  T *s_gamma = s_inv_std + channels;
+  T *s_beta = s_gamma + channels;
+
+  // Cooperatively load per-channel statistics into shared memory
+  for (int c = threadIdx.x; c < channels; c += blockDim.x) {
+    s_mean[c] = running_mean_data[c];
+    T var_val = running_var_data[c];
+    s_inv_std[c] = rsqrt(var_val + epsilon);
+    if (affine) {
+      s_gamma[c] = gamma_data[c];
+      s_beta[c] = beta_data[c];
+    }
+  }
+  __syncthreads();
+
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int total_elements = batch_size * channels * spatial_size;
 
@@ -259,18 +284,11 @@ __global__ void compute_inference_output_kernel(const T *input_data, const T *ru
 
   int c = (idx / spatial_size) % channels;
 
-  T mean_val = running_mean_data[c];
-  T var_val = running_var_data[c];
-  T std_val = sqrt(var_val + epsilon);
-  const T inv_std = T(1) / std_val;
-
   T input_val = input_data[idx];
-  T normalized_val = (input_val - mean_val) * inv_std;
+  T normalized_val = (input_val - s_mean[c]) * s_inv_std[c];
 
   if (affine) {
-    const T gamma_val = gamma_data[c];
-    const T beta_val = beta_data[c];
-    output_data[idx] = gamma_val * normalized_val + beta_val;
+    output_data[idx] = s_gamma[c] * normalized_val + s_beta[c];
   } else {
     output_data[idx] = normalized_val;
   }
@@ -294,10 +312,11 @@ template <typename T>
 void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
-  if (affine) {
-    fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
-                                                               d_beta, N, C, S);
-  }
+  // Always run reduction - even when !affine, we need sum_dy and sum_dy_x_norm
+  // for the input gradient calculation (they represent dL/dMean and dL/dVar terms)
+  fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
+                                                             d_beta, N, C, S);
+
   size_t total_elements = N * C * S;
   int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
   fused_backward_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(
@@ -313,7 +332,10 @@ void compute_inference_output(const T *input_data, const T *running_mean_data,
   int threads_per_block = BLOCK_SIZE;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
-  compute_inference_output_kernel<<<num_blocks, threads_per_block, 0, stream>>>(
+  // Shared memory: mean, inv_std, gamma, beta (4 arrays of size channels)
+  size_t shared_mem_size = 4 * channels * sizeof(T);
+
+  compute_inference_output_kernel<<<num_blocks, threads_per_block, shared_mem_size, stream>>>(
       input_data, running_mean_data, running_var_data, gamma_data, beta_data, output_data,
       batch_size, channels, spatial_size, epsilon, affine);
 }

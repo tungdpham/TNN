@@ -36,8 +36,9 @@ int main() {
     create_cifar10_dataloader("./data", train_loader, test_loader);
 
     auto train_transform = AugmentationBuilder<float>()
-                               .random_crop(1.0f, 4)
+                               .random_crop(0.5f, 4)
                                .horizontal_flip(0.5f)
+                               .cutout(0.5f, 32)
                                .normalize({0.49139968, 0.48215827, 0.44653124},
                                           {0.24703233f, 0.24348505f, 0.26158768f})
                                .build();
@@ -58,7 +59,7 @@ int main() {
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f, 5e-4f);
     model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();

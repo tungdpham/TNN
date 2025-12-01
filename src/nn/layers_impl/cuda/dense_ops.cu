@@ -49,13 +49,6 @@ void cublas_gemm<double>(const double *A, const double *B, double *C, int m, int
   cublasDgemm(handle, opB, opA, n, m, k, &alpha, B, transB ? k : n, A, transA ? m : k, &beta, C, n);
 }
 
-template <typename T> __global__ void set_zero_kernel(T *data, size_t size) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    data[idx] = T(0);
-  }
-}
-
 template <typename T>
 __global__ void add_bias_kernel(T *output_data, const T *bias_data, size_t batch_size,
                                 size_t output_features) {
@@ -126,13 +119,6 @@ template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *grad_input_data,
                              const size_t batch_size, const size_t input_features,
                              const size_t output_features, cudaStream_t stream) {
-
-  int total_size = batch_size * input_features;
-  int threads_per_block = 256;
-  int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
-
-  set_zero_kernel<<<num_blocks, threads_per_block, 0, stream>>>(grad_input_data, total_size);
-
   cublas_gemm(gradient_data, weight_data, grad_input_data, static_cast<int>(batch_size),
               static_cast<int>(input_features), static_cast<int>(output_features), false, false,
               T(1.0f), T(0.0f), stream);

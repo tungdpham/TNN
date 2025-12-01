@@ -83,12 +83,17 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
       }
     }
 
+    // Biased variance (1/N) for normalization
     T var = var_sum * inv_total;
 
     inv_std[c] = T(1) / std::sqrt(var + epsilon);
 
+    // Unbiased variance (Bessel's correction: 1/(N-1)) for running statistics
+    // This matches PyTorch/TensorFlow behavior for tracking running_var
+    T unbiased_var = var_sum / static_cast<T>(total_elements - 1);
+
     running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
-    running_var[c] = (T(1) - momentum) * running_var[c] + momentum * var;
+    running_var[c] = (T(1) - momentum) * running_var[c] + momentum * unbiased_var;
   });
 
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
@@ -127,37 +132,45 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   const size_t M = N * S;
   const T inv_M = T(1) / static_cast<T>(M);
 
-  if (affine) {
+  // Always compute reduction sums - even when !affine, we need sum_dy and sum_dy_x_norm
+  // for the input gradient calculation (they represent dL/dMean and dL/dVar terms)
+  parallel_for<size_t>(0, C, [&](size_t c) {
+    T sum_dy = T(0);
+    T sum_dy_x_norm = T(0);
+    const size_t c_offset = c * S;
 
-    parallel_for<size_t>(0, C, [&](size_t c) {
-      T sum_dy = T(0);
-      T sum_dy_x_norm = T(0);
-      const size_t c_offset = c * S;
+    for (size_t n = 0; n < N; ++n) {
+      const size_t n_offset = n * channel_stride;
+      const size_t base_idx = n_offset + c_offset;
 
-      for (size_t n = 0; n < N; ++n) {
-        const size_t n_offset = n * channel_stride;
-        const size_t base_idx = n_offset + c_offset;
+      for (size_t s = 0; s < S; ++s) {
+        size_t idx = base_idx + s;
+        T dy = grad_output[idx];
+        T x_hat = norm_input[idx];
 
-        for (size_t s = 0; s < S; ++s) {
-          size_t idx = base_idx + s;
-          T dy = grad_output[idx];
-          T x_hat = norm_input[idx];
-
-          sum_dy += dy;
-          sum_dy_x_norm += dy * x_hat;
-        }
+        sum_dy += dy;
+        sum_dy_x_norm += dy * x_hat;
       }
+    }
 
+    // Store in d_gamma/d_beta as intermediate buffers
+    // If affine, these are also the actual parameter gradients
+    if (affine) {
       d_gamma[c] += sum_dy_x_norm;
       d_beta[c] += sum_dy;
-    });
-  }
+    } else {
+      // Store for use in gradient computation
+      d_gamma[c] = sum_dy_x_norm;
+      d_beta[c] = sum_dy;
+    }
+  });
 
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const T g = (affine && gamma) ? gamma[c] : T(1);
     const T istd = inv_std[c];
-    const T sum_dy = affine ? d_beta[c] : T(0);
-    const T sum_dy_x_norm = affine ? d_gamma[c] : T(0);
+    // These sums represent dL/dMean and dL/dVar parts, required even if not affine
+    const T sum_dy = d_beta[c];
+    const T sum_dy_x_norm = d_gamma[c];
 
     const size_t n_offset = n * channel_stride;
     const size_t c_offset = c * S;

@@ -53,7 +53,7 @@ compute_max_pool_forward_kernel(const T *input_data, T *output_data, size_t batc
       const size_t cur_input_idx = input_offset + ih * input_w + iw;
       T val = input_data[cur_input_idx];
 
-      if (val > max_val) {
+      if (val > max_val || (ih == h_start_valid && iw == w_start_valid)) {
         max_val = val;
         max_idx = cur_input_idx;
       }

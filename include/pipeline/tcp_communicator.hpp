@@ -289,7 +289,7 @@ private:
 
     PooledBuffer buffer;
 
-    explicit WriteOperation(PooledBuffer buf) : buffer(std::move(buf)) {}
+    explicit WriteOperation(PooledBuffer &&buf) : buffer(std::move(buf)) {}
   };
 
   struct Connection {

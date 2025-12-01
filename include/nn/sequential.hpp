@@ -9,7 +9,6 @@
 #include "blocks.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
-#include "device/task.hpp"
 #include "layers.hpp"
 #include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
@@ -30,10 +29,6 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#ifdef USE_CUDA
-#include <cuda_runtime.h>
-#endif
 
 namespace tnn {
 struct Partition {
@@ -965,15 +960,8 @@ public:
 
   void clear_gradients() const {
     std::vector<Tensor<T> *> grads = gradients();
-    std::vector<std::unique_ptr<Task>> tasks;
     for (auto &grad : grads) {
-      tasks.emplace_back(grad->fill(T(0)));
-    }
-    for (auto &task : tasks) {
-      auto err = task->sync();
-      if (err != ErrorStatus{}) {
-        throw std::runtime_error("Error while clearing gradients: " + err.message());
-      }
+      grad->fill(T(0));
     }
   }
 

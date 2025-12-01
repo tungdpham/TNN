@@ -168,7 +168,7 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
 ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
 
-  // model.set_training(false); // Use running stats for BatchNorm
+  model.set_training(false);
   test_loader.reset();
 
   std::cout << "Starting validation..." << std::endl;
@@ -286,6 +286,7 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
 
       // re prepare batches to reapply augmentation
       train_loader.prepare_batches(config.batch_size);
+      test_loader.prepare_batches(config.batch_size);
 
       std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }
