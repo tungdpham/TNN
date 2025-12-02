@@ -42,7 +42,6 @@ int main() {
   train_config.print_config();
 
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
-  model.set_optimizer(std::move(optimizer));
 
   Endpoint coordinator_endpoint =
       Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
@@ -62,7 +61,8 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
+  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                     endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

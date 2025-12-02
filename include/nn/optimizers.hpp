@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/task.hpp"
+#include "nlohmann/json.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
 #include "optimizers_impl/cuda/adam_kernels.hpp"
@@ -37,6 +38,52 @@ struct OptimizerConfig {
     }
     return default_value;
   }
+
+  nlohmann::json to_json() const {
+    nlohmann::json j;
+    j["type"] = type;
+    j["name"] = name;
+    j["parameters"] = nlohmann::json::object();
+    for (const auto &[key, value] : parameters) {
+      try {
+        if (auto *int_ptr = std::any_cast<int>(&value)) {
+          j["parameters"][key] = *int_ptr;
+        } else if (auto *size_ptr = std::any_cast<size_t>(&value)) {
+          j["parameters"][key] = *size_ptr;
+        } else if (auto *float_ptr = std::any_cast<float>(&value)) {
+          j["parameters"][key] = *float_ptr;
+        } else if (auto *double_ptr = std::any_cast<double>(&value)) {
+          j["parameters"][key] = *double_ptr;
+        } else if (auto *bool_ptr = std::any_cast<bool>(&value)) {
+          j["parameters"][key] = *bool_ptr;
+        } else if (auto *string_ptr = std::any_cast<std::string>(&value)) {
+          j["parameters"][key] = *string_ptr;
+        }
+      } catch (const std::bad_any_cast &) {
+      }
+    }
+    return j;
+  }
+
+  static OptimizerConfig from_json(const nlohmann::json &j) {
+    OptimizerConfig config;
+    config.type = j.value("type", "");
+    config.name = j.value("name", "");
+    if (j.contains("parameters")) {
+      for (const auto &[key, value] : j["parameters"].items()) {
+        if (value.is_number_integer()) {
+          config.parameters[key] = value.template get<size_t>();
+        } else if (value.is_number_float()) {
+          config.parameters[key] = value.template get<float>();
+        } else if (value.is_boolean()) {
+          config.parameters[key] = value.template get<bool>();
+        } else if (value.is_string()) {
+          config.parameters[key] = value.template get<std::string>();
+        }
+      }
+    }
+    return config;
+  }
 };
 
 template <typename T = float> class Optimizer {
@@ -44,7 +91,26 @@ public:
   explicit Optimizer(float learning_rate) : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
-  virtual void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) = 0;
+  void attach(std::vector<Tensor<T> *> params, const std::vector<Tensor<T> *> grads) {
+    if (params.size() != grads.size()) {
+      throw std::invalid_argument("Parameters and gradients size mismatch in optimizer attach" +
+                                  std::to_string(params.size()) + " vs " +
+                                  std::to_string(grads.size()));
+    }
+    parameters_ = params;
+    gradients_ = grads;
+    on_attach();
+    std::cout << "Optimizer attached to " << parameters_.size() << " parameters and "
+              << gradients_.size() << " gradients." << std::endl;
+  }
+
+  virtual void update() = 0;
+
+  void clear_gradients() {
+    for (auto &grad : gradients_) {
+      grad->fill(T(0));
+    }
+  }
 
   void set_learning_rate(float lr) { learning_rate_ = lr; }
   float get_learning_rate() const { return learning_rate_; }
@@ -55,22 +121,20 @@ public:
 
 protected:
   float learning_rate_;
+  std::vector<Tensor<T> *> parameters_;
+  std::vector<Tensor<T> *> gradients_;
+
+  virtual void on_attach() {}
 };
 
 template <typename T = float> class SGD : public Optimizer<T> {
 public:
   SGD(float learning_rate = 0.01f, float momentum = 0.0f)
-      : Optimizer<T>(learning_rate), momentum_(momentum), initialized_(false) {}
+      : Optimizer<T>(learning_rate), momentum_(momentum) {}
 
-  void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) override {
-    if (momentum_ > 0.0f && !initialized_) {
-      velocities_.resize(params.size());
-      for (size_t i = 0; i < params.size(); ++i) {
-        velocities_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
-        velocities_[i].fill(0.0f);
-      }
-      initialized_ = true;
-    }
+  void update() override {
+    auto &params = this->parameters_;
+    auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
       const size_t size = params[i]->size();
@@ -118,9 +182,19 @@ public:
     return std::make_unique<SGD<T>>(this->learning_rate_, momentum_);
   }
 
+protected:
+  void on_attach() override {
+    if (momentum_ > 0.0f) {
+      velocities_.resize(this->parameters_.size());
+      for (size_t i = 0; i < this->parameters_.size(); ++i) {
+        velocities_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
+        velocities_[i].fill(0.0f);
+      }
+    }
+  }
+
 private:
   float momentum_;
-  bool initialized_;
   std::vector<Tensor<T>> velocities_;
 };
 
@@ -129,21 +203,11 @@ public:
   Adam(float learning_rate = 0.001f, float beta1 = 0.9f, float beta2 = 0.999f,
        float epsilon = 1e-8f, float weight_decay = 0.0f, bool decouple_weight_decay = false)
       : Optimizer<T>(learning_rate), beta1_(beta1), beta2_(beta2), epsilon_(epsilon),
-        weight_decay_(weight_decay), decouple_weight_decay_(decouple_weight_decay), t_(0),
-        initialized_(false) {}
+        weight_decay_(weight_decay), decouple_weight_decay_(decouple_weight_decay), t_(0) {}
 
-  void update(std::vector<Tensor<T> *> &params, const std::vector<Tensor<T> *> &grads) override {
-    if (!initialized_) {
-      m_.resize(params.size());
-      v_.resize(params.size());
-      for (size_t i = 0; i < params.size(); ++i) {
-        m_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
-        m_[i].fill(0.0f);
-        v_[i] = Tensor<T>(params[i]->shape(), params[i]->device());
-        v_[i].fill(0.0f);
-      }
-      initialized_ = true;
-    }
+  void update() override {
+    auto &params = this->parameters_;
+    auto &grads = this->gradients_;
 
     t_++;
 
@@ -194,6 +258,19 @@ public:
                                      decouple_weight_decay_);
   }
 
+protected:
+  void on_attach() override {
+    m_.resize(this->parameters_.size());
+    v_.resize(this->parameters_.size());
+    for (size_t i = 0; i < this->parameters_.size(); ++i) {
+      m_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
+      m_[i].fill(0.0f);
+      v_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
+      v_[i].fill(0.0f);
+    }
+    t_ = 0;
+  }
+
 private:
   float beta1_;
   float beta2_;
@@ -201,24 +278,12 @@ private:
   float weight_decay_;
   bool decouple_weight_decay_;
   unsigned long t_;
-  bool initialized_;
   std::vector<Tensor<T>> m_;
   std::vector<Tensor<T>> v_;
 };
 
 template <typename T = float> class OptimizerFactory {
 public:
-  static std::unique_ptr<Optimizer<T>> create(const std::string &name, float learning_rate,
-                                              float momentum = 0.9f) {
-    if (name == "sgd") {
-      return std::make_unique<SGD<T>>(learning_rate, momentum);
-    }
-    if (name == "adam") {
-      return std::make_unique<Adam<T>>(learning_rate);
-    }
-    throw std::invalid_argument("Unknown optimizer type: " + name);
-  }
-
   static std::unique_ptr<Optimizer<T>> create_from_config(const OptimizerConfig &config) {
     if (config.type == "sgd") {
       float learning_rate = config.get<float>("learning_rate", 0.01f);

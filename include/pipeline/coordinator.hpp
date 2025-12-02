@@ -7,6 +7,7 @@
 #pragma once
 
 #include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
@@ -19,6 +20,7 @@
 #include <future>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -27,7 +29,8 @@ namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(Sequential<float> model) : model_(std::move(model)) {}
+  Coordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer)
+      : model_(std::move(model)), optimizer_(std::move(optimizer)) {}
 
   virtual ~Coordinator() {
     if (message_thread_.joinable()) {
@@ -317,7 +320,6 @@ public:
 
     this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
 
-    // Return average loss across microbatches for consistency with single microbatch mode
     return (this->num_microbatches_ > 0)
                ? (total_loss / static_cast<float>(this->num_microbatches_))
                : total_loss;
@@ -532,6 +534,7 @@ private:
       StageConfig config;
       config.stage_id = this->stage_names_[i];
       config.model_config = splitted_model[i].get_config();
+      config.optimizer_config = optimizer_->get_config().to_json();
       config.model_config["name"] = this->stage_names_[i];
       config.coordinator_endpoint = coordinator_endpoint_;
 
@@ -575,6 +578,7 @@ protected:
 
   // Components of the coordinator
   Sequential<float> model_;
+  std::unique_ptr<Optimizer<float>> optimizer_;
   std::unique_ptr<Communicator> coordinator_comm_;
   std::unique_ptr<Loss<float>> loss_function_;
   std::unique_ptr<Partitioner<float>> partitioner_;

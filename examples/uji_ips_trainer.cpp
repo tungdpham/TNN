@@ -257,12 +257,9 @@ float calculate_classification_accuracy(const Tensor<float> &predictions,
 }
 
 void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
-                     WiFiDataLoader &test_loader, int epochs = 50, int batch_size = 64,
+                     WiFiDataLoader &test_loader, Optimizer<float> &optimizer,
+                     Loss<float> &classification_loss, int epochs = 50, int batch_size = 64,
                      float learning_rate = 0.001f) {
-
-  Adam<float> optimizer(learning_rate, 0.9f, 0.999f, 1e-8f);
-
-  auto classification_loss = LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
 
   const bool is_regression = train_loader.is_regression();
   const string job_type = is_regression ? "Coordinate Prediction" : "Classification";
@@ -319,9 +316,9 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
         loss_gradient = DistanceLoss::compute_gradient(predictions, batch_targets, train_loader);
       } else {
         apply_softmax(predictions);
-        classification_loss->compute_loss(predictions, batch_targets, loss);
+        classification_loss.compute_loss(predictions, batch_targets, loss);
         accuracy = calculate_classification_accuracy(predictions, batch_targets);
-        classification_loss->compute_gradient(predictions, batch_targets, loss_gradient);
+        classification_loss.compute_gradient(predictions, batch_targets, loss_gradient);
       }
 
       total_loss += loss;
@@ -332,7 +329,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
 
       model.backward(loss_gradient);
 
-      model.update_parameters();
+      optimizer.update();
 
       if (num_batches % ips_constants::PROGRESS_PRINT_INTERVAL == 0) {
         cout << "Batch " << num_batches << " - Loss: " << fixed << setprecision(4) << loss;
@@ -377,7 +374,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
       } else {
         apply_softmax(predictions);
         float loss;
-        classification_loss->compute_loss(predictions, batch_targets, loss);
+        classification_loss.compute_loss(predictions, batch_targets, loss);
         val_loss += loss;
         val_accuracy += calculate_classification_accuracy(predictions, batch_targets);
       }
@@ -528,12 +525,19 @@ int main() {
                      .dense(output_size, true, "output")
                      .build();
 
-    model.set_optimizer(make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f));
-    model.set_loss_function(LossFactory<float>::create_crossentropy(ips_constants::EPSILON));
+    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto loss_function = LossFactory<float>::create_crossentropy(ips_constants::EPSILON);
+
+    // Attach optimizer to model parameters
+    auto params = model.parameters();
+    auto grads = model.gradients();
+    optimizer->attach(params, grads);
+
     cout << "\nModel Architecture Summary:" << endl;
 
     cout << "\nStarting IPS model training..." << endl;
-    train_ips_model(model, train_loader, test_loader, max_epochs, batch_size, lr_initial);
+    train_ips_model(model, train_loader, test_loader, *optimizer, *loss_function, max_epochs,
+                    batch_size, lr_initial);
 
     cout << "\nIPS model training completed successfully!" << endl;
 

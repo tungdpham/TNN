@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/device_type.hpp"
+#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
@@ -108,7 +109,9 @@ protected:
       communicator_->send_message(std::move(output_message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
-      model_->update_parameters();
+      // implicitly clear grads
+      this->optimizer_->update();
+      this->optimizer_->clear_gradients();
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       response.header().sender_id = name_;
       communicator_->send_message(std::move(response));
@@ -239,8 +242,14 @@ protected:
 
       stage_id_ = config.stage_id;
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
+
+      std::cout << config_json.dump(2) << std::endl;
+
       this->model_ = std::make_unique<Sequential<float>>(
           Sequential<float>::load_from_config(config.model_config));
+
+      OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
+      this->optimizer_ = OptimizerFactory<float>::create_from_config(optimizer_config);
 
       if (use_gpu_) {
         this->model_->set_device(DeviceType::GPU);
@@ -248,9 +257,9 @@ protected:
         this->model_->set_device(DeviceType::CPU);
       }
 
-      this->model_->print_config();
-
       this->model_->initialize();
+
+      this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
 
       this->model_->enable_profiling(true);
 
@@ -281,6 +290,7 @@ protected:
 
   bool use_gpu_;
   std::unique_ptr<Sequential<float>> model_;
+  std::unique_ptr<Optimizer<float>> optimizer_;
   std::shared_ptr<Communicator> communicator_;
   std::string name_;
   std::atomic<bool> should_stop_;

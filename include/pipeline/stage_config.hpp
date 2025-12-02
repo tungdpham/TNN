@@ -8,6 +8,7 @@ namespace tnn {
 struct StageConfig {
   std::string stage_id;
   nlohmann::json model_config;
+  nlohmann::json optimizer_config;
   Endpoint next_stage_endpoint;
   Endpoint prev_stage_endpoint;
   Endpoint coordinator_endpoint;
@@ -15,6 +16,7 @@ struct StageConfig {
   nlohmann::json to_json() const {
     return nlohmann::json{{"stage_id", stage_id},
                           {"model_config", model_config},
+                          {"optimizer_config", optimizer_config},
                           {"next_stage_endpoint", next_stage_endpoint.to_json()},
                           {"prev_stage_endpoint", prev_stage_endpoint.to_json()},
                           {"coordinator_endpoint", coordinator_endpoint.to_json()}};
@@ -24,6 +26,7 @@ struct StageConfig {
     StageConfig config;
     config.stage_id = j["stage_id"];
     config.model_config = j["model_config"];
+    config.optimizer_config = j["optimizer_config"];
     config.next_stage_endpoint = Endpoint::from_json(j["next_stage_endpoint"]);
     config.prev_stage_endpoint = Endpoint::from_json(j["prev_stage_endpoint"]);
     config.coordinator_endpoint = Endpoint::from_json(j["coordinator_endpoint"]);

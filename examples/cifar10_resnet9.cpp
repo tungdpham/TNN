@@ -60,15 +60,14 @@ int main() {
     model.initialize();
 
     auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f, 5e-4f);
-    model.set_optimizer(std::move(optimizer));
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-    model.set_loss_function(std::move(loss_function));
 
     model.enable_profiling(true);
 
     cout << "\nStarting CIFAR-10 CNN training..." << endl;
-    train_classification_model(model, train_loader, test_loader, train_config);
+    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
+                               std::move(loss_function), train_config);
 
     cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
   } catch (const exception &e) {
