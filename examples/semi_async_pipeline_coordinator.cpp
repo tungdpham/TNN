@@ -85,16 +85,22 @@ int main() {
 
   create_cifar10_dataloader("./data", train_loader, test_loader);
 
-  auto aug_strategy = AugmentationBuilder<float>()
-                          .horizontal_flip(0.25f)
-                          .rotation(0.3f, 10.0f)
-                          .brightness(0.3f, 0.15f)
-                          .contrast(0.3f, 0.15f)
-                          .gaussian_noise(0.3f, 0.05f)
-                          .build();
+  auto train_transform =
+      AugmentationBuilder<float>()
+          .random_crop(0.5f, 4)
+          .horizontal_flip(0.5f)
+          .cutout(0.5f, 8)
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
   std::cout << "Configuring data augmentation for training." << std::endl;
-  train_loader.set_augmentation(std::move(aug_strategy));
+  train_loader.set_augmentation(std::move(train_transform));
 
+  auto val_transform =
+      AugmentationBuilder<float>()
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
+  cout << "Configuring data normalization for test." << endl;
+  test_loader.set_augmentation(std::move(val_transform));
   Tensor<float> batch_data, batch_labels;
 
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});

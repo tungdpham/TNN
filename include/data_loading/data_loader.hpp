@@ -220,54 +220,6 @@ train_val_split(size_t dataset_size, float val_ratio = 0.2f, unsigned int seed =
   return {train_indices, val_indices};
 }
 
-/**
- * Calculate dataset statistics
- */
-template <typename T> struct DatasetStats {
-  std::vector<T> means;
-  std::vector<T> stds;
-  T min_val;
-  T max_val;
-};
-
-template <typename T> DatasetStats<T> calculate_stats(const std::vector<std::vector<T>> &data) {
-  if (data.empty())
-    return {};
-
-  size_t num_features = data[0].size();
-  size_t num_samples = data.size();
-
-  DatasetStats<T> stats;
-  stats.means.resize(num_features, 0);
-  stats.stds.resize(num_features, 0);
-  stats.min_val = std::numeric_limits<T>::max();
-  stats.max_val = std::numeric_limits<T>::lowest();
-
-  for (const auto &sample : data) {
-    for (size_t i = 0; i < num_features; ++i) {
-      stats.means[i] += sample[i];
-      stats.min_val = std::min(stats.min_val, sample[i]);
-      stats.max_val = std::max(stats.max_val, sample[i]);
-    }
-  }
-
-  for (auto &mean : stats.means) {
-    mean /= static_cast<T>(num_samples);
-  }
-
-  for (const auto &sample : data) {
-    for (size_t i = 0; i < num_features; ++i) {
-      T diff = sample[i] - stats.means[i];
-      stats.stds[i] += diff * diff;
-    }
-  }
-
-  for (auto &std_val : stats.stds) {
-    std_val = std::sqrt(std_val / static_cast<T>(num_samples));
-  }
-
-  return stats;
-}
 } // namespace tnn
 
 } // namespace tnn

@@ -150,13 +150,13 @@ int main(int argc, char *argv[]) {
                        //  .contrast(0.3f, 0.15f)
                        //  .gaussian_noise(0.3f, 0.05f)
                        //  .random_crop(0.25, 4)
-                       //  .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
   std::cout << "Configuring data augmentation and normalization for training." << std::endl;
   train_loader.set_augmentation(std::move(train_aug));
 
   auto test_aug = AugmentationBuilder<float>()
-                      // .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                      .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                       .build();
   std::cout << "Configuring data normalization for testing." << std::endl;
   test_loader.set_augmentation(std::move(test_aug));

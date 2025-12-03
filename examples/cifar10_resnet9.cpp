@@ -38,7 +38,7 @@ int main() {
     auto train_transform = AugmentationBuilder<float>()
                                .random_crop(0.5f, 4)
                                .horizontal_flip(0.5f)
-                               .cutout(0.5f, 32)
+                               .cutout(0.5f, 8)
                                .normalize({0.49139968, 0.48215827, 0.44653124},
                                           {0.24703233f, 0.24348505f, 0.26158768f})
                                .build();
