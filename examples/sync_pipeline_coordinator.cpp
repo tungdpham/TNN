@@ -40,7 +40,7 @@ int main() {
 
   auto model = create_mnist_trainer();
 
-  auto optimizer = std::make_unique<Adam<float>>(LR_INITIAL, 0.9f, 0.999f, EPSILON);
+  auto optimizer = OptimizerFactory<float>::create_adam(LR_INITIAL, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint = Endpoint::network(
       get_env<string>("COORDINATOR_HOST", "localhost"), get_env<int>("COORDINATOR_PORT", 8000));

@@ -929,7 +929,7 @@ public:
 
   void set_name(const std::string &name) { name_ = name; }
 
-  void clear_gradients() const {
+  void clear_gradients() {
     std::vector<Tensor<T> *> grads = gradients();
     for (auto &grad : grads) {
       grad->fill(T(0));

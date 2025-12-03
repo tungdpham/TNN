@@ -38,7 +38,7 @@ template <typename T> T convert_from_string(const std::string &str) {
  * @param file_path Path to the .env file (default: "./.env")
  * @return true if file was loaded successfully, false otherwise
  */
-bool load_env_file(const std::string &file_path = "./.env") {
+inline bool load_env_file(const std::string &file_path = "./.env") {
   std::ifstream file(file_path);
   if (!file.is_open()) {
     std::cerr << "Warning: Could not open .env file: " << file_path << std::endl;
@@ -135,7 +135,7 @@ template <typename T = std::string> T get_env(const std::string &env_var, const 
  * Automatically load .env file if it hasn't been loaded yet
  * This is called internally by get_env_auto but can be called manually
  */
-void ensure_env_loaded(const std::string &file_path = "./.env") {
+inline void ensure_env_loaded(const std::string &file_path = "./.env") {
   if (!env_file_loaded) {
     load_env_file(file_path);
   }

@@ -41,7 +41,7 @@ int main() {
   train_config.load_from_env();
   train_config.print_config();
 
-  auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
+  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint =
       Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),

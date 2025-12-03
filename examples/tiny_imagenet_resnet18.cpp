@@ -85,9 +85,7 @@ int main() {
     model.set_device(device_type);
     model.initialize();
 
-    // Use slightly higher epsilon for better numerical stability
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-7f);
-    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
 
