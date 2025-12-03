@@ -303,6 +303,19 @@ public:
     }
     throw std::invalid_argument("Unknown optimizer type: " + config.type);
   }
+
+  static std::unique_ptr<Optimizer<T>> create_sgd(float learning_rate = 0.01f,
+                                                  float momentum = 0.0f) {
+    return std::make_unique<SGD<T>>(learning_rate, momentum);
+  }
+
+  static std::unique_ptr<Optimizer<T>> create_adam(float learning_rate = 0.001f, float beta1 = 0.9f,
+                                                   float beta2 = 0.999f, float epsilon = 1e-8f,
+                                                   float weight_decay = 0.0f,
+                                                   bool decouple_weight_decay = false) {
+    return std::make_unique<Adam<T>>(learning_rate, beta1, beta2, epsilon, weight_decay,
+                                     decouple_weight_decay);
+  }
 };
 
 } // namespace tnn
