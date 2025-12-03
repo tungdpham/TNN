@@ -10,10 +10,8 @@
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
 #include "layers.hpp"
-#include "loss.hpp"
 #include "nn/layers_impl/base_layer.hpp"
 #include "nn/mem_pool.hpp"
-#include "optimizers.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -42,8 +40,6 @@ template <typename T = float> class Sequential {
 private:
   std::vector<std::unique_ptr<Layer<T>>> layers_;
   std::string name_;
-  std::unique_ptr<Optimizer<T>> optimizer_ = nullptr;
-  std::unique_ptr<Loss<T>> loss_ = nullptr;
   MemPool<T> *mem_pool_ = &getDefaultMemPool<T>();
   const Device *device_ = nullptr;
   bool is_training_;
@@ -83,12 +79,6 @@ public:
     for (const auto &layer : other.layers_) {
       layers_.push_back(layer->clone());
     }
-    if (other.optimizer_) {
-      optimizer_ = other.optimizer_->clone();
-    }
-    if (other.loss_) {
-      loss_ = other.loss_->clone();
-    }
 
     // Thread-safe copy of timing maps
     {
@@ -103,7 +93,6 @@ public:
 
   Sequential(Sequential &&other) noexcept
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
-        optimizer_(std::move(other.optimizer_)), loss_(std::move(other.loss_)),
         is_training_(other.is_training_), enable_profiling_(other.enable_profiling_),
         forward_times_microseconds_(std::move(other.forward_times_microseconds_)),
         backward_times_microseconds_(std::move(other.backward_times_microseconds_)) {}
@@ -114,8 +103,6 @@ public:
       for (const auto &layer : other.layers_) {
         layers_.push_back(layer->clone());
       }
-      optimizer_ = other.optimizer_ ? other.optimizer_->clone() : nullptr;
-      loss_ = other.loss_ ? other.loss_->clone() : nullptr;
       name_ = other.name_;
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
@@ -148,8 +135,6 @@ public:
   Sequential &operator=(Sequential &&other) noexcept {
     if (this != &other) {
       layers_ = std::move(other.layers_);
-      optimizer_ = std::move(other.optimizer_);
-      loss_ = std::move(other.loss_);
       name_ = std::move(other.name_);
       is_training_ = other.is_training_;
 
@@ -592,7 +577,7 @@ public:
   /**
    * @brief Returns a vector of pointers to all params in the model
    */
-  std::vector<Tensor<T> *> parameters() const {
+  std::vector<Tensor<T> *> parameters() {
     std::vector<Tensor<T> *> all_params;
     for (auto &layer : layers_) {
       auto layer_params = layer->parameters();
@@ -605,7 +590,7 @@ public:
    * @brief Returns a vector of pointers to params in the specified partition
    * @param part The partition specifying the range of layers.
    */
-  std::vector<Tensor<T> *> parameters(const Partition &part) const {
+  std::vector<Tensor<T> *> parameters(const Partition &part) {
     if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
         part.start_layer >= part.end_layer) {
       throw std::out_of_range("Partition indices out of range");
@@ -622,7 +607,7 @@ public:
   /**
    * @brief Returns a vector of pointers to all gradients in the model
    */
-  std::vector<Tensor<T> *> gradients() const {
+  std::vector<Tensor<T> *> gradients() {
     std::vector<Tensor<T> *> all_grads;
     for (auto &layer : layers_) {
       auto layer_grads = layer->gradients();
@@ -635,7 +620,7 @@ public:
    * @brief Returns a vector of pointers to gradients in the specified partition
    * @param part The partition specifying the range of layers.
    */
-  std::vector<Tensor<T> *> gradients(const Partition &part) const {
+  std::vector<Tensor<T> *> gradients(const Partition &part) {
     if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
         part.start_layer >= part.end_layer) {
       throw std::out_of_range("Partition indices out of range");
@@ -944,20 +929,6 @@ public:
 
   void set_name(const std::string &name) { name_ = name; }
 
-  void update_parameters() const {
-    auto params = parameters();
-    auto grads = gradients();
-    if (params.size() != grads.size()) {
-      std::cout << "Params size: " << params.size() << ", Grads size: " << grads.size() << "\n";
-      throw std::runtime_error("Parameter and gradient count mismatch during update");
-    }
-    if (!optimizer_) {
-      throw std::runtime_error("No optimizer set for model");
-    }
-    optimizer_->update(params, grads);
-    clear_gradients();
-  }
-
   void clear_gradients() const {
     std::vector<Tensor<T> *> grads = gradients();
     for (auto &grad : grads) {
@@ -993,16 +964,6 @@ public:
     }
   }
 
-  void set_optimizer(std::unique_ptr<Optimizer<T>> optimizer) {
-    this->optimizer_ = std::move(optimizer);
-  }
-
-  void set_loss_function(std::unique_ptr<Loss<T>> loss) { this->loss_ = std::move(loss); }
-
-  Optimizer<T> *optimizer() const { return optimizer_.get(); }
-
-  Loss<T> *loss_function() const { return loss_.get(); }
-
   std::vector<Sequential<T>> split(std::vector<Partition> &partitions) const {
     if (partitions.empty()) {
       throw std::invalid_argument("Partitions vector is empty");
@@ -1018,12 +979,6 @@ public:
       Sequential<T> stage(name_ + "_part_" + std::to_string(stages.size()));
       for (size_t i = part.start_layer; i < part.end_layer; ++i) {
         stage.add(layers_[i]->clone());
-      }
-      if (this->optimizer_) {
-        stage.set_optimizer(this->optimizer_->clone());
-      }
-      if (this->loss_) {
-        stage.set_loss_function(this->loss_->clone());
       }
       stages.push_back(std::move(stage));
     }
@@ -1078,46 +1033,6 @@ public:
     }
     config["layers"] = layers_config;
 
-    if (optimizer_) {
-      OptimizerConfig opt_config = optimizer_->get_config();
-      nlohmann::json opt_json;
-      opt_json["type"] = opt_config.type;
-      opt_json["name"] = opt_config.name;
-      opt_json["parameters"] = nlohmann::json::object();
-
-      for (const auto &[key, value] : opt_config.parameters) {
-        try {
-          if (auto *float_ptr = std::any_cast<float>(&value)) {
-            opt_json["parameters"][key] = *float_ptr;
-          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
-            opt_json["parameters"][key] = *double_ptr;
-          }
-        } catch (const std::bad_any_cast &) {
-        }
-      }
-      config["optimizer"] = opt_json;
-    }
-
-    if (loss_) {
-      LossConfig loss_config = loss_->get_config();
-      nlohmann::json loss_json;
-      loss_json["type"] = loss_config.type;
-      loss_json["name"] = loss_config.name;
-      loss_json["parameters"] = nlohmann::json::object();
-
-      for (const auto &[key, value] : loss_config.parameters) {
-        try {
-          if (auto *float_ptr = std::any_cast<float>(&value)) {
-            loss_json["parameters"][key] = *float_ptr;
-          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
-            loss_json["parameters"][key] = *double_ptr;
-          }
-        } catch (const std::bad_any_cast &) {
-        }
-      }
-      config["loss"] = loss_json;
-    }
-
     return config;
   }
 
@@ -1166,46 +1081,6 @@ public:
     }
     config["layers"] = layers_config;
 
-    if (optimizer_) {
-      OptimizerConfig opt_config = optimizer_->get_config();
-      nlohmann::json opt_json;
-      opt_json["type"] = opt_config.type;
-      opt_json["name"] = opt_config.name;
-      opt_json["parameters"] = nlohmann::json::object();
-
-      for (const auto &[key, value] : opt_config.parameters) {
-        try {
-          if (auto *float_ptr = std::any_cast<float>(&value)) {
-            opt_json["parameters"][key] = *float_ptr;
-          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
-            opt_json["parameters"][key] = *double_ptr;
-          }
-        } catch (const std::bad_any_cast &) {
-        }
-      }
-      config["optimizer"] = opt_json;
-    }
-
-    if (loss_) {
-      LossConfig loss_config = loss_->get_config();
-      nlohmann::json loss_json;
-      loss_json["type"] = loss_config.type;
-      loss_json["name"] = loss_config.name;
-      loss_json["parameters"] = nlohmann::json::object();
-
-      for (const auto &[key, value] : loss_config.parameters) {
-        try {
-          if (auto *float_ptr = std::any_cast<float>(&value)) {
-            loss_json["parameters"][key] = *float_ptr;
-          } else if (auto *double_ptr = std::any_cast<double>(&value)) {
-            loss_json["parameters"][key] = *double_ptr;
-          }
-        } catch (const std::bad_any_cast &) {
-        }
-      }
-      config["loss"] = loss_json;
-    }
-
     return config;
   }
 
@@ -1217,42 +1092,6 @@ public:
   static Sequential<T> load_from_config(const nlohmann::json &config) {
     Sequential<T> model(config.value("name", "sequential"));
     model.is_training_ = config.value("is_training", true);
-
-    if (config.contains("optimizer")) {
-      OptimizerConfig opt_config;
-      opt_config.type = config["optimizer"]["type"];
-      opt_config.name = config["optimizer"]["name"];
-
-      if (config["optimizer"].contains("parameters")) {
-        for (const auto &[key, value] : config["optimizer"]["parameters"].items()) {
-          if (value.is_number_float()) {
-            opt_config.parameters[key] = value.template get<float>();
-          } else if (value.is_number_integer()) {
-            opt_config.parameters[key] = value.template get<int>();
-          }
-        }
-      }
-      std::unique_ptr<Optimizer<T>> optimizer = OptimizerFactory<T>::create_from_config(opt_config);
-      model.set_optimizer(std::move(optimizer));
-    }
-
-    if (config.contains("loss")) {
-      LossConfig loss_config;
-      loss_config.type = config["loss"]["type"];
-      loss_config.name = config["loss"]["name"];
-
-      if (config["loss"].contains("parameters")) {
-        for (const auto &[key, value] : config["loss"]["parameters"].items()) {
-          if (value.is_number_float()) {
-            loss_config.parameters[key] = value.template get<float>();
-          } else if (value.is_number_integer()) {
-            loss_config.parameters[key] = value.template get<int>();
-          }
-        }
-      }
-
-      model.set_loss_function(LossFactory<T>::create_from_config(loss_config));
-    }
 
     if (config.contains("layers")) {
       auto factory = LayerFactory<T>();

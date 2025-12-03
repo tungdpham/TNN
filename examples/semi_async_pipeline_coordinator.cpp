@@ -42,7 +42,6 @@ int main() {
   train_config.print_config();
 
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
-  model.set_optimizer(std::move(optimizer));
 
   Endpoint coordinator_endpoint =
       Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
@@ -62,7 +61,8 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
+  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                     endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();
@@ -85,16 +85,22 @@ int main() {
 
   create_cifar10_dataloader("./data", train_loader, test_loader);
 
-  auto aug_strategy = AugmentationBuilder<float>()
-                          .horizontal_flip(0.25f)
-                          .rotation(0.3f, 10.0f)
-                          .brightness(0.3f, 0.15f)
-                          .contrast(0.3f, 0.15f)
-                          .gaussian_noise(0.3f, 0.05f)
-                          .build();
+  auto train_transform =
+      AugmentationBuilder<float>()
+          .random_crop(0.5f, 4)
+          .horizontal_flip(0.5f)
+          .cutout(0.5f, 8)
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
   std::cout << "Configuring data augmentation for training." << std::endl;
-  train_loader.set_augmentation(std::move(aug_strategy));
+  train_loader.set_augmentation(std::move(train_transform));
 
+  auto val_transform =
+      AugmentationBuilder<float>()
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
+  cout << "Configuring data normalization for test." << endl;
+  test_loader.set_augmentation(std::move(val_transform));
   Tensor<float> batch_data, batch_labels;
 
   ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});

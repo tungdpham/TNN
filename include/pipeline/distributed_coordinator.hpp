@@ -11,6 +11,7 @@
 #include "nn/sequential.hpp"
 #include "tcp_communicator.hpp"
 #include <asio.hpp>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,10 +32,10 @@ public:
    * @param endpoints The list of worker endpoints
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  DistributedCoordinator(Sequential<float> model,
+  DistributedCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
                          Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
                          const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
-      : Coordinator(std::move(model)) {
+      : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
     this->remote_endpoints_ = endpoints;

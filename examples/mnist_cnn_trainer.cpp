@@ -58,14 +58,11 @@ int main() {
     model.initialize();
 
     auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f);
-    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
-    model.set_optimizer(std::move(optimizer));
 
-    // auto loss_function = LossFactory<float>::create_softmax_crossentropy();
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-    model.set_loss_function(std::move(loss_function));
 
-    train_classification_model(model, train_loader, test_loader, train_config);
+    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
+                               std::move(loss_function), train_config);
   } catch (const exception &e) {
     cerr << "Error during training: " << e.what() << endl;
     return -1;

@@ -6,6 +6,7 @@
  */
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/example_models.hpp"
+#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "partitioner/naive_partitioner.hpp"
@@ -24,10 +25,7 @@ using namespace std;
 
 constexpr float LR_INITIAL = 0.01f;
 constexpr float EPSILON = 1e-15f;
-constexpr int BATCH_SIZE = 64;
 constexpr int NUM_MICROBATCHES = 1;
-constexpr int NUM_EPOCHS = 1;
-constexpr size_t PROGRESS_PRINT_INTERVAL = 100;
 
 int main() {
   // Load environment variables from .env file
@@ -42,6 +40,8 @@ int main() {
 
   auto model = create_mnist_trainer();
 
+  auto optimizer = std::make_unique<Adam<float>>(LR_INITIAL, 0.9f, 0.999f, EPSILON);
+
   Endpoint coordinator_endpoint = Endpoint::network(
       get_env<string>("COORDINATOR_HOST", "localhost"), get_env<int>("COORDINATOR_PORT", 8000));
 
@@ -51,7 +51,8 @@ int main() {
   };
 
   cout << "\nCreating distributed coordinator..." << endl;
-  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints);
+  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                     endpoints);
 
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 

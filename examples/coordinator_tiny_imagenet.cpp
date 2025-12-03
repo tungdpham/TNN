@@ -97,7 +97,6 @@ int main(int argc, char *argv[]) {
   train_config.print_config();
 
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
-  model.set_optimizer(std::move(optimizer));
 
   Endpoint coordinator_endpoint =
       Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
@@ -118,8 +117,8 @@ int main(int argc, char *argv[]) {
   std::cout << "IO threads: " << cfg.io_threads << std::endl;
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), coordinator_endpoint, endpoints,
-                                     cfg.io_threads);
+  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                     endpoints, cfg.io_threads);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();
@@ -151,13 +150,13 @@ int main(int argc, char *argv[]) {
                        //  .contrast(0.3f, 0.15f)
                        //  .gaussian_noise(0.3f, 0.05f)
                        //  .random_crop(0.25, 4)
-                       //  .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
   std::cout << "Configuring data augmentation and normalization for training." << std::endl;
   train_loader.set_augmentation(std::move(train_aug));
 
   auto test_aug = AugmentationBuilder<float>()
-                      // .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                      .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                       .build();
   std::cout << "Configuring data normalization for testing." << std::endl;
   test_loader.set_augmentation(std::move(test_aug));

@@ -9,8 +9,8 @@
 #include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
-#include "device/task.hpp"
-#include "nn/layers_impl/batchnorm_layer.hpp"
+#include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
@@ -106,6 +106,7 @@ struct ClassResult {
 };
 
 ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &train_loader,
+                              Optimizer<float> &optimizer, Loss<float> &loss_function,
                               const TrainingConfig &config = TrainingConfig()) {
   Tensor<float> batch_data, batch_labels;
   std::cout << "Starting training epoch..." << std::endl;
@@ -131,16 +132,19 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
     device_batch_labels = batch_labels.to_device(model_device);
 
     float loss;
-    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
+    loss_function.compute_loss(predictions, device_batch_labels, loss);
     int corrects = compute_class_corrects(predictions, device_batch_labels);
 
     total_loss += loss;
     total_corrects += corrects;
 
-    model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
+    loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
 
     model.backward(loss_gradient);
-    model.update_parameters();
+
+    optimizer.update();
+
+    optimizer.clear_gradients();
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
@@ -165,7 +169,8 @@ ClassResult train_class_epoch(Sequential<float> &model, ImageDataLoader<float> &
   return {avg_train_loss, avg_train_accuracy};
 }
 
-ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader) {
+ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float> &test_loader,
+                                 Loss<float> &loss_function) {
   Tensor<float> batch_data, batch_labels;
 
   model.set_training(false);
@@ -182,7 +187,7 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
 
     const Tensor<float> device_batch_labels = batch_labels.to_device(model_device);
     float loss;
-    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
+    loss_function.compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
     val_corrects += compute_class_corrects(predictions, device_batch_labels);
     ++val_batches;
@@ -196,8 +201,10 @@ ClassResult validate_class_model(Sequential<float> &model, ImageDataLoader<float
 
 void train_classification_model(Sequential<float> &model, ImageDataLoader<float> &train_loader,
                                 ImageDataLoader<float> &test_loader,
+                                std::unique_ptr<Optimizer<float>> optimizer,
+                                std::unique_ptr<Loss<float>> loss_function,
                                 const TrainingConfig &config = TrainingConfig()) {
-
+  optimizer->attach(model.parameters(), model.gradients());
   Tensor<float> batch_data, batch_labels;
 
   train_loader.prepare_batches(config.batch_size);
@@ -223,8 +230,6 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
   std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
   arena.execute([&] {
 #endif
-    // auto [best_val_loss, best_val_accuracy] = validate_class_model(model, test_loader);
-
     float best_val_accuracy = 0.0f;
 
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -232,14 +237,16 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
 
       // train phrase
       auto train_start = std::chrono::high_resolution_clock::now();
-      auto [avg_train_loss, avg_train_accuracy] = train_class_epoch(model, train_loader, config);
+      auto [avg_train_loss, avg_train_accuracy] =
+          train_class_epoch(model, train_loader, *optimizer, *loss_function, config);
       auto train_end = std::chrono::high_resolution_clock::now();
       auto train_epoch_duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(train_end - train_start);
 
       // validation phrase
       auto val_start = std::chrono::high_resolution_clock::now();
-      auto [avg_val_loss, avg_val_accuracy] = validate_class_model(model, test_loader);
+      auto [avg_val_loss, avg_val_accuracy] =
+          validate_class_model(model, test_loader, *loss_function);
       auto val_end = std::chrono::high_resolution_clock::now();
       auto val_epoch_duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
@@ -273,9 +280,9 @@ void train_classification_model(Sequential<float> &model, ImageDataLoader<float>
 
       // learning rate decay
       if ((epoch + 1) % config.lr_decay_interval == 0) {
-        const float current_lr = model.optimizer()->get_learning_rate();
+        const float current_lr = optimizer->get_learning_rate();
         const float new_lr = current_lr * config.lr_decay_factor;
-        model.optimizer()->set_learning_rate(new_lr);
+        optimizer->set_learning_rate(new_lr);
         std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
                   << " -> " << new_lr << std::endl;
       }
@@ -302,6 +309,7 @@ struct RegResult {
 };
 
 RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> &train_loader,
+                          Optimizer<float> &optimizer, Loss<float> &loss_function,
                           const TrainingConfig &config = TrainingConfig()) {
   Tensor<float> batch_data, batch_labels;
   std::cout << "Starting training epoch..." << std::endl;
@@ -322,14 +330,16 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
     Tensor<float> predictions = model.forward(device_batch_data);
 
     float loss;
-    model.loss_function()->compute_loss(predictions, device_batch_labels, loss);
+    loss_function.compute_loss(predictions, device_batch_labels, loss);
     total_loss += loss;
 
     Tensor<float> loss_gradient(model.get_device());
-    model.loss_function()->compute_gradient(predictions, device_batch_labels, loss_gradient);
+    loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
     model.backward(loss_gradient);
 
-    model.update_parameters();
+    optimizer.update();
+
+    optimizer.clear_gradients();
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
@@ -351,7 +361,8 @@ RegResult train_reg_epoch(Sequential<float> &model, RegressionDataLoader<float> 
   return {avg_train_loss, 0.0f};
 }
 
-RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<float> &test_loader) {
+RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<float> &test_loader,
+                             Loss<float> &loss_function) {
   Tensor<float> batch_data, batch_labels;
 
   model.set_training(false);
@@ -365,7 +376,7 @@ RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<floa
     Tensor<float> predictions = model.forward(batch_data);
 
     float loss;
-    model.loss_function()->compute_loss(predictions, batch_labels, loss);
+    loss_function.compute_loss(predictions, batch_labels, loss);
     val_loss += loss;
     ++val_batches;
   }
@@ -377,6 +388,8 @@ RegResult validate_reg_model(Sequential<float> &model, RegressionDataLoader<floa
 
 void train_regression_model(Sequential<float> &model, RegressionDataLoader<float> &train_loader,
                             RegressionDataLoader<float> &test_loader,
+                            std::unique_ptr<Optimizer<float>> optimizer,
+                            std::unique_ptr<Loss<float>> loss_function,
                             const TrainingConfig &config = TrainingConfig()) {
 
   Tensor<float> batch_data, batch_labels;
@@ -387,7 +400,10 @@ void train_regression_model(Sequential<float> &model, RegressionDataLoader<float
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
 
-  auto [best_val_loss, best_val_error] = validate_reg_model(model, test_loader);
+  // Attach optimizer to model parameters
+  optimizer->attach(model.parameters(), model.gradients());
+
+  auto [best_val_loss, best_val_error] = validate_reg_model(model, test_loader, *loss_function);
 
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
@@ -400,14 +416,16 @@ void train_regression_model(Sequential<float> &model, RegressionDataLoader<float
 
       // train phrase
       auto train_start = std::chrono::high_resolution_clock::now();
-      auto [avg_train_loss, avg_train_accuracy] = train_reg_epoch(model, train_loader, config);
+      auto [avg_train_loss, avg_train_accuracy] =
+          train_reg_epoch(model, train_loader, *optimizer, *loss_function, config);
       auto train_end = std::chrono::high_resolution_clock::now();
       auto epoch_duration =
           std::chrono::duration_cast<std::chrono::milliseconds>(train_end - train_start);
 
       // validation phrase
       auto val_start = std::chrono::high_resolution_clock::now();
-      auto [avg_val_loss, avg_val_accuracy] = validate_reg_model(model, test_loader);
+      auto [avg_val_loss, avg_val_accuracy] =
+          validate_reg_model(model, test_loader, *loss_function);
       auto val_end = std::chrono::high_resolution_clock::now();
       epoch_duration += std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
 
@@ -440,9 +458,9 @@ void train_regression_model(Sequential<float> &model, RegressionDataLoader<float
 
       // learning rate decay
       if ((epoch + 1) % config.lr_decay_interval == 0) {
-        const float current_lr = model.optimizer()->get_learning_rate();
+        const float current_lr = optimizer->get_learning_rate();
         const float new_lr = current_lr * config.lr_decay_factor;
-        model.optimizer()->set_learning_rate(new_lr);
+        optimizer->set_learning_rate(new_lr);
         std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
                   << " -> " << new_lr << std::endl;
       }
