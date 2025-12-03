@@ -507,7 +507,4 @@ void create_cifar100_dataloader(const std::string &data_path, CIFAR100DataLoader
   }
 }
 
-using CIFAR100DataLoaderFloat = CIFAR100DataLoader<float>;
-using CIFAR100DataLoaderDouble = CIFAR100DataLoader<double>;
-
 } // namespace tnn

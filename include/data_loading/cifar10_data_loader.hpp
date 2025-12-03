@@ -390,7 +390,4 @@ void create_cifar10_dataloader(const std::string &data_path, CIFAR10DataLoader<T
   }
 }
 
-using CIFAR10DataLoaderFloat = CIFAR10DataLoader<float>;
-using CIFAR10DataLoaderDouble = CIFAR10DataLoader<double>;
-
 } // namespace tnn
