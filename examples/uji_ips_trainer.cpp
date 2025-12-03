@@ -162,7 +162,7 @@ float calculate_average_positioning_error(const Tensor<float> &predictions,
   double total_error = 0.0;
 
   if (debug && batch_size > 0) {
-    cout << "\nDEBUG: First 3 samples:" << endl;
+    cout << "DEBUG: First 3 samples:" << endl;
     for (size_t i = 0; i < min(size_t(3), batch_size); ++i) {
       vector<float> pred_coords(output_size), target_coords(output_size);
 
@@ -272,7 +272,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
        << endl;
   cout << string(80, '=') << endl;
 
-  cout << "\nPreparing training batches..." << endl;
+  cout << "Preparing training batches..." << endl;
   train_loader.prepare_batches(batch_size);
 
   cout << "Preparing validation batches..." << endl;
@@ -364,7 +364,7 @@ void train_ips_model(Sequential<float> &model, WiFiDataLoader &train_loader,
         val_accuracy += calculate_positioning_accuracy(predictions, batch_targets, test_loader);
 
         if (val_batches == 0) {
-          cout << "\nDEBUG: First validation batch analysis:" << endl;
+          cout << "DEBUG: First validation batch analysis:" << endl;
           val_positioning_error +=
               calculate_average_positioning_error(predictions, batch_targets, test_loader, true);
         } else {
@@ -450,7 +450,7 @@ int main() {
     string train_file = "./data/uji/TrainingData.csv";
     string test_file = "./data/uji/ValidationData.csv";
 
-    cout << "\nLoading training data from: " << train_file << endl;
+    cout << "Loading training data from: " << train_file << endl;
 
     if (!train_loader.load_data(train_file, 0, 520, 520, 522, true)) {
       cerr << "Failed to load training data!" << endl;
@@ -473,7 +473,7 @@ int main() {
     train_loader.print_statistics();
     test_loader.print_statistics();
 
-    cout << "\nNormalizing training data..." << endl;
+    cout << "Normalizing training data..." << endl;
     train_loader.normalize_data();
 
     auto feature_means = train_loader.get_feature_means();
@@ -484,7 +484,7 @@ int main() {
     cout << "Normalizing test data using training statistics..." << endl;
     test_loader.apply_normalization(feature_means, feature_stds, target_means, target_stds);
 
-    cout << "\nNormalization Statistics:" << endl;
+    cout << "Normalization Statistics:" << endl;
     cout << "Target means: ";
     for (size_t i = 0; i < min(target_means.size(), size_t(2)); ++i) {
       cout << target_means[i] << " ";
@@ -496,7 +496,7 @@ int main() {
     }
     cout << endl;
 
-    cout << "\nBuilding IPS model architecture..." << endl;
+    cout << "Building IPS model architecture..." << endl;
 
     const size_t input_features = train_loader.num_features();
     const size_t output_size = train_loader.num_outputs();
@@ -533,13 +533,13 @@ int main() {
     auto grads = model.gradients();
     optimizer->attach(params, grads);
 
-    cout << "\nModel Architecture Summary:" << endl;
+    cout << "Model Architecture Summary:" << endl;
 
-    cout << "\nStarting IPS model training..." << endl;
+    cout << "Starting IPS model training..." << endl;
     train_ips_model(model, train_loader, test_loader, *optimizer, *loss_function, max_epochs,
                     batch_size, lr_initial);
 
-    cout << "\nIPS model training completed successfully!" << endl;
+    cout << "IPS model training completed successfully!" << endl;
 
     try {
       const string model_name = is_regression ? "ips_regression_model" : "ips_classification_model";

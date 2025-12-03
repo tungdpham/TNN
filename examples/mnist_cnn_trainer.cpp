@@ -46,7 +46,7 @@ int main() {
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
     cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
 
-    cout << "\nBuilding CNN model architecture" << endl;
+    cout << "Building CNN model architecture" << endl;
 
     auto aug_strategy =
         AugmentationBuilder<float>().contrast(0.3f, 0.15f).gaussian_noise(0.3f, 0.05f).build();

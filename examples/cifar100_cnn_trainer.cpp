@@ -87,11 +87,11 @@ int main() {
 
     model.enable_profiling(true);
 
-    cout << "\nStarting CIFAR-100 CNN training..." << endl;
+    cout << "Starting CIFAR-100 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
                                std::move(loss_function), train_config);
 
-    cout << "\nCIFAR-100 CNN Tensor<float> model training completed "
+    cout << "CIFAR-100 CNN Tensor<float> model training completed "
             "successfully!"
          << endl;
 

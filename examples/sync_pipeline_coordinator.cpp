@@ -50,13 +50,13 @@ int main() {
       Endpoint::network(get_env<string>("WORKER_HOST_8002", "localhost"), 8002),
   };
 
-  cout << "\nCreating distributed coordinator..." << endl;
+  cout << "Creating distributed coordinator..." << endl;
   DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
                                      endpoints);
 
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 
-  cout << "\nDeploying stages to remote endpoints..." << endl;
+  cout << "Deploying stages to remote endpoints..." << endl;
   for (auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
   }
@@ -202,7 +202,7 @@ int main() {
 
   auto epoch_end = chrono::high_resolution_clock::now();
   auto epoch_duration = chrono::duration_cast<chrono::milliseconds>(epoch_end - epoch_start);
-  cout << "\nEpoch " << (batch_index / train_loader.size()) + 1 << " completed in "
+  cout << "Epoch " << (batch_index / train_loader.size()) + 1 << " completed in "
        << epoch_duration.count() << " milliseconds" << endl;
 
   double val_loss = 0.0;
@@ -244,7 +244,7 @@ int main() {
     ++val_batches;
   }
 
-  cout << "\nValidation completed!" << endl;
+  cout << "Validation completed!" << endl;
   cout << "Average Validation Loss: " << (val_loss / val_batches)
        << ", Average Validation Accuracy: "
        << (val_accuracy / val_batches / NUM_MICROBATCHES) * 100.0f << "%" << endl;

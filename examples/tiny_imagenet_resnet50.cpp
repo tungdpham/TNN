@@ -47,14 +47,14 @@ int main() {
     std::string dataset_path = "data/tiny-imagenet-200";
 
     // Load training data
-    std::cout << "\nLoading training data..." << std::endl;
+    std::cout << "Loading training data..." << std::endl;
     if (!train_loader.load_data(dataset_path, true)) {
       std::cerr << "Failed to load training data!" << std::endl;
       return 1;
     }
 
     // Load validation data
-    std::cout << "\nLoading validation data..." << std::endl;
+    std::cout << "Loading validation data..." << std::endl;
     if (!val_loader.load_data(dataset_path, false)) {
       std::cerr << "Failed to load validation data!" << std::endl;
       return 1;
@@ -79,7 +79,7 @@ int main() {
     cout << "Configuring data normalization for validation." << endl;
     val_loader.set_augmentation(std::move(val_aug));
 
-    cout << "\nBuilding ResNet-50 model architecture for Tiny ImageNet..." << endl;
+    cout << "Building ResNet-50 model architecture for Tiny ImageNet..." << endl;
 
     auto model = create_resnet50_tiny_imagenet();
 
@@ -94,7 +94,7 @@ int main() {
 
     model.enable_profiling(true);
 
-    cout << "\nStarting Tiny ImageNet ResNet training..." << endl;
+    cout << "Starting Tiny ImageNet ResNet training..." << endl;
     train_classification_model(model, train_loader, val_loader, std::move(optimizer),
                                std::move(loss_function), train_config);
 

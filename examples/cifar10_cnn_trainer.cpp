@@ -46,7 +46,7 @@ int main() {
     cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(aug_strategy));
 
-    cout << "\nBuilding CNN model architecture for CIFAR-10..." << endl;
+    cout << "Building CNN model architecture for CIFAR-10..." << endl;
 
     auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v2")
                      .input({3, 32, 32})
@@ -100,11 +100,11 @@ int main() {
 
     model.enable_profiling(true);
 
-    cout << "\nStarting CIFAR-10 CNN training..." << endl;
+    cout << "Starting CIFAR-10 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
                                std::move(loss_function), train_config);
 
-    cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
+    cout << "CIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;

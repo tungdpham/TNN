@@ -11,7 +11,7 @@ int main() {
     cout << "=== Device Manager Example ===" << endl;
 
     // Initialize default devices
-    cout << "\nInitializing devices..." << endl;
+    cout << "Initializing devices..." << endl;
     initializeDefaultDevices();
 
     // Get device manager instance
@@ -19,7 +19,7 @@ int main() {
 
     // List all available devices
     vector<string> device_ids = manager.getAvailableDeviceIDs();
-    cout << "\nFound " << device_ids.size() << " device(s):" << endl;
+    cout << "Found " << device_ids.size() << " device(s):" << endl;
 
     for (const string &device_id : device_ids) {
       const Device &device = manager.getDevice(device_id);
@@ -36,7 +36,7 @@ int main() {
 
     // Test allocation on CPU device (ID 0)
     if (manager.hasDevice(0)) {
-      cout << "\nTesting allocation on CPU device..." << endl;
+      cout << "Testing allocation on CPU device..." << endl;
       const Device &cpu_device = manager.getDevice(0);
 
       size_t test_size = 1024 * 1024; // 1 MB
@@ -67,7 +67,7 @@ int main() {
       if (device_id > "0") { // Assuming GPU devices have IDs greater than 0
         const Device &device = manager.getDevice(device_id);
         if (device.device_type() == DeviceType::GPU) {
-          cout << "\nTesting allocation on GPU device " << device_id << "..." << endl;
+          cout << "Testing allocation on GPU device " << device_id << "..." << endl;
 
           size_t test_size = 1024 * 1024 * 1024; // 1 GB
           void *ptr = device.allocateMemory(test_size);
@@ -86,10 +86,10 @@ int main() {
     }
 
     if (!found_gpu) {
-      cout << "\nNo GPU devices available for testing" << endl;
+      cout << "No GPU devices available for testing" << endl;
     }
 
-    cout << "\n=== Example completed successfully ===" << endl;
+    cout << "=== Example completed successfully ===" << endl;
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
