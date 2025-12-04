@@ -10,7 +10,7 @@
 #include "nn/sequential.hpp"
 
 namespace tnn {
-Sequential<float> create_mnist_trainer() {
+inline Sequential<float> create_mnist_trainer() {
   auto model = SequentialBuilder<float>("mnist_cnn_model")
                    .input({1, 28, 28})
                    .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
@@ -30,7 +30,7 @@ Sequential<float> create_mnist_trainer() {
   return model;
 }
 
-Sequential<float> create_cifar10_trainer_v1() {
+inline Sequential<float> create_cifar10_trainer_v1() {
   auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                    .input({3, 32, 32})
                    .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
@@ -47,7 +47,7 @@ Sequential<float> create_cifar10_trainer_v1() {
   return model;
 }
 
-Sequential<float> create_cifar10_trainer_v2() {
+inline Sequential<float> create_cifar10_trainer_v2() {
   auto model = SequentialBuilder<float>("cifar10_cnn_classifier")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv0")
@@ -92,7 +92,7 @@ Sequential<float> create_cifar10_trainer_v2() {
   return model;
 }
 
-Sequential<float> create_resnet9_cifar10() {
+inline Sequential<float> create_resnet9_cifar10() {
   // Architecture matching PyTorch ResNet9Part1 + ResNet9Part2
   auto model = SequentialBuilder<float>("ResNet-9-CIFAR10")
                    .input({3, 32, 32})
@@ -133,7 +133,7 @@ Sequential<float> create_resnet9_cifar10() {
   return model;
 }
 
-Sequential<float> create_resnet18_cifar10() {
+inline Sequential<float> create_resnet18_cifar10() {
   auto model = SequentialBuilder<float>("ResNet-18-CIFAR10")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
@@ -162,7 +162,7 @@ Sequential<float> create_resnet18_cifar10() {
   return model;
 }
 
-Sequential<float> create_resnet20_cifar10() {
+inline Sequential<float> create_resnet20_cifar10() {
   auto model = SequentialBuilder<float>("ResNet-20-CIFAR10")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
@@ -191,7 +191,7 @@ Sequential<float> create_resnet20_cifar10() {
   return model;
 }
 
-Sequential<float> create_resnet50_cifar10() {
+inline Sequential<float> create_resnet50_cifar10() {
   auto model = SequentialBuilder<float>("ResNet-50-CIFAR10")
                    .input({3, 32, 32})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
@@ -224,7 +224,7 @@ Sequential<float> create_resnet50_cifar10() {
   return model;
 }
 
-Sequential<float> create_resnet18_cifar100() {
+inline Sequential<float> create_resnet18_cifar100() {
   auto model = SequentialBuilder<float>("ResNet-18-CIFAR100")
                    .input({3, 32, 32})
                    .conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
@@ -252,7 +252,7 @@ Sequential<float> create_resnet18_cifar100() {
   return model;
 }
 
-Sequential<float> create_resnet9_tiny_imagenet() {
+inline Sequential<float> create_resnet9_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-9-Tiny-ImageNet")
                    .input({3, 64, 64})
                    // Initial conv: 64x64 -> 32x32
@@ -287,7 +287,7 @@ Sequential<float> create_resnet9_tiny_imagenet() {
   return model;
 }
 
-Sequential<float> create_cnn_tiny_imagenet() {
+inline Sequential<float> create_cnn_tiny_imagenet() {
   auto model = SequentialBuilder<float>()
                    .input({3, 64, 64})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv0")
@@ -331,7 +331,7 @@ Sequential<float> create_cnn_tiny_imagenet() {
   return model;
 }
 
-Sequential<float> create_resnet18_tiny_imagenet() {
+inline Sequential<float> create_resnet18_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-18-Tiny-ImageNet")
                    .input({3, 64, 64})
                    .conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
@@ -359,7 +359,7 @@ Sequential<float> create_resnet18_tiny_imagenet() {
   return model;
 }
 
-Sequential<float> create_resnet34_tiny_imagenet() {
+inline Sequential<float> create_resnet34_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-34-Tiny-ImageNet")
                    .input({3, 64, 64})
                    .conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
@@ -394,7 +394,7 @@ Sequential<float> create_resnet34_tiny_imagenet() {
   return model;
 }
 
-Sequential<float> create_resnet50_tiny_imagenet() {
+inline Sequential<float> create_resnet50_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-50-Tiny-ImageNet")
                    .input({3, 64, 64})
                    .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
@@ -437,7 +437,7 @@ Sequential<float> create_resnet50_tiny_imagenet() {
  * - Uses pre-activation (BN-ReLU-Conv) ordering
  * - Dropout rate of 0.3 between convolutions
  */
-Sequential<float> create_wrn16_8_cifar100() {
+inline Sequential<float> create_wrn16_8_cifar100() {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
@@ -476,7 +476,7 @@ Sequential<float> create_wrn16_8_cifar100() {
   return model;
 }
 
-Sequential<float> create_resnet50_imagenet() {
+inline Sequential<float> create_resnet50_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-50-ImageNet")
                    .input({3, 224, 224})
                    .conv2d(64, 7, 7, 2, 2, 3, 3, true, "conv1")
