@@ -11,6 +11,7 @@
 #include "device/device_type.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
@@ -84,6 +85,7 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
                                 ImageDataLoader<T> &test_loader,
                                 std::unique_ptr<Optimizer<T>> optimizer,
                                 std::unique_ptr<Loss<T>> loss_function,
+                                std::unique_ptr<Scheduler<T>> scheduler,
                                 const TrainingConfig &config = TrainingConfig());
 
 // Regression training functions
@@ -101,6 +103,7 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
                             RegressionDataLoader<T> &test_loader,
                             std::unique_ptr<Optimizer<T>> optimizer,
                             std::unique_ptr<Loss<T>> loss_function,
+                            std::unique_ptr<Scheduler<T>> scheduler,
                             const TrainingConfig &config = TrainingConfig());
 
 } // namespace tnn

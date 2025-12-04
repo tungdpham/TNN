@@ -8,6 +8,7 @@
 #include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -48,8 +49,11 @@ int main() {
 
     cout << "Building CNN model architecture" << endl;
 
-    auto aug_strategy =
-        AugmentationBuilder<float>().contrast(0.3f, 0.15f).gaussian_noise(0.3f, 0.05f).build();
+    auto aug_strategy = AugmentationBuilder<float>()
+                            .rotation(0.5f, 15.0f)
+                            .contrast(0.3f, 0.15f)
+                            .gaussian_noise(0.3f, 0.05f)
+                            .build();
     train_loader.set_augmentation(std::move(aug_strategy));
 
     auto model = create_mnist_trainer();
@@ -57,12 +61,14 @@ int main() {
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+    auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f, 5e-4f);
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
 
+    auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 1, 0.95f);
+
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
-                               std::move(loss_function), train_config);
+                               std::move(loss_function), std::move(scheduler), train_config);
   } catch (const exception &e) {
     cerr << "Error during training: " << e.what() << endl;
     return -1;

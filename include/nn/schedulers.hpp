@@ -95,6 +95,33 @@ protected:
 };
 
 /**
+ * @brief No-op scheduler - learning rate remains constant.
+ */
+template <typename T = float> class NoOpScheduler : public Scheduler<T> {
+public:
+  NoOpScheduler(Optimizer<T> *optimizer) : Scheduler<T>(optimizer) {}
+
+  void step() override {
+    this->current_step_++;
+    // No-op: do nothing, keep learning rate constant
+  }
+
+  std::string name() const override { return "NoOpScheduler"; }
+
+  SchedulerConfig get_config() const override {
+    SchedulerConfig config;
+    config.type = "no_op";
+    config.name = "NoOpScheduler";
+    config.parameters["base_lr"] = this->base_lr_;
+    return config;
+  }
+
+  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
+    return std::make_unique<NoOpScheduler<T>>(optimizer);
+  }
+};
+
+/**
  * @brief Step decay scheduler - reduces LR by a factor every N steps.
  */
 template <typename T = float> class StepLR : public Scheduler<T> {
@@ -597,6 +624,40 @@ private:
  */
 template <typename T = float> class SchedulerFactory {
 public:
+  /**
+   * @brief Static method to create a no-op scheduler (learning rate unchanged).
+   */
+  static std::unique_ptr<Scheduler<T>> create_no_op(Optimizer<T> *optimizer) {
+    return std::make_unique<NoOpScheduler<T>>(optimizer);
+  }
+
+  /**
+   * @brief Static method to create a StepLR scheduler.
+   */
+  static std::unique_ptr<Scheduler<T>> create_step_lr(Optimizer<T> *optimizer, size_t step_size,
+                                                      float gamma = 0.1f) {
+    return std::make_unique<StepLR<T>>(optimizer, step_size, gamma);
+  }
+
+  /**
+   * @brief Static method to create a CosineAnnealingLR scheduler.
+   */
+  static std::unique_ptr<Scheduler<T>> create_cosine_annealing(Optimizer<T> *optimizer,
+                                                               size_t T_max, float eta_min = 0.0f) {
+    return std::make_unique<CosineAnnealingLR<T>>(optimizer, T_max, eta_min);
+  }
+
+  /**
+   * @brief Static method to create a linear warmup followed by cosine annealing scheduler.
+   */
+  static std::unique_ptr<Scheduler<T>> create_warmup_cosine(Optimizer<T> *optimizer,
+                                                            size_t warmup_steps, size_t total_steps,
+                                                            float start_lr = 0.0f,
+                                                            float eta_min = 0.0f) {
+    return std::make_unique<WarmupCosineAnnealing<T>>(optimizer, warmup_steps, total_steps,
+                                                      start_lr, eta_min);
+  }
+
   static std::unique_ptr<Scheduler<T>>
   create(const std::string &name, Optimizer<T> *optimizer,
          const std::unordered_map<std::string, float> &params = {}) {

@@ -161,6 +161,7 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
                                 ImageDataLoader<T> &test_loader,
                                 std::unique_ptr<Optimizer<T>> optimizer,
                                 std::unique_ptr<Loss<T>> loss_function,
+                                std::unique_ptr<Scheduler<T>> scheduler,
                                 const TrainingConfig &config) {
   optimizer->attach(model.parameters(), model.gradients());
   Tensor<T> batch_data, batch_labels;
@@ -236,13 +237,9 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
         model.clear_profiling_data();
       }
 
-      // learning rate decay
-      if ((epoch + 1) % config.lr_decay_interval == 0) {
-        const T current_lr = optimizer->get_learning_rate();
-        const T new_lr = current_lr * config.lr_decay_factor;
-        optimizer->set_learning_rate(new_lr);
-        std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
-                  << " -> " << new_lr << std::endl;
+      // Step the scheduler if provided
+      if (scheduler) {
+        scheduler->step();
       }
 
       if ((epoch + 1) % 5 == 0) {
@@ -345,7 +342,8 @@ template <typename T>
 void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train_loader,
                             RegressionDataLoader<T> &test_loader,
                             std::unique_ptr<Optimizer<T>> optimizer,
-                            std::unique_ptr<Loss<T>> loss_function, const TrainingConfig &config) {
+                            std::unique_ptr<Loss<T>> loss_function,
+                            std::unique_ptr<Scheduler<T>> scheduler, const TrainingConfig &config) {
 
   Tensor<T> batch_data, batch_labels;
 
@@ -411,13 +409,9 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
         model.clear_profiling_data();
       }
 
-      // learning rate decay
-      if ((epoch + 1) % config.lr_decay_interval == 0) {
-        const T current_lr = optimizer->get_learning_rate();
-        const T new_lr = current_lr * config.lr_decay_factor;
-        optimizer->set_learning_rate(new_lr);
-        std::cout << "Learning rate decayed: " << std::fixed << std::setprecision(6) << current_lr
-                  << " -> " << new_lr << std::endl;
+      // Step the scheduler if provided
+      if (scheduler) {
+        scheduler->step();
       }
 
       if ((epoch + 1) % 5 == 0) {
@@ -450,6 +444,7 @@ template void train_classification_model<float>(Sequential<float> &model,
                                                 ImageDataLoader<float> &test_loader,
                                                 std::unique_ptr<Optimizer<float>> optimizer,
                                                 std::unique_ptr<Loss<float>> loss_function,
+                                                std::unique_ptr<Scheduler<float>> scheduler,
                                                 const TrainingConfig &config);
 
 template RegResult train_reg_epoch<float>(Sequential<float> &model,
@@ -466,6 +461,7 @@ template void train_regression_model<float>(Sequential<float> &model,
                                             RegressionDataLoader<float> &test_loader,
                                             std::unique_ptr<Optimizer<float>> optimizer,
                                             std::unique_ptr<Loss<float>> loss_function,
+                                            std::unique_ptr<Scheduler<float>> scheduler,
                                             const TrainingConfig &config);
 
 } // namespace tnn

@@ -87,9 +87,11 @@ int main() {
 
     model.enable_profiling(true);
 
+    auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
+
     cout << "Starting CIFAR-100 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
-                               std::move(loss_function), train_config);
+                               std::move(loss_function), std::move(scheduler), train_config);
 
     cout << "CIFAR-100 CNN Tensor<float> model training completed "
             "successfully!"

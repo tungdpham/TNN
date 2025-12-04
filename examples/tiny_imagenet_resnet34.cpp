@@ -92,9 +92,11 @@ int main() {
 
     model.enable_profiling(true);
 
+    auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
+
     cout << "Starting Tiny ImageNet ResNet training..." << endl;
     train_classification_model(model, train_loader, val_loader, std::move(optimizer),
-                               std::move(loss_function), train_config);
+                               std::move(loss_function), std::move(scheduler), train_config);
     // this_thread::sleep_for(chrono::seconds(100));
 
   } catch (const exception &e) {
