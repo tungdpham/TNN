@@ -345,7 +345,7 @@ TEST_F(GPUTensorOpsTest, SplitBasic) {
   cpu::split(cpu_tensor, cpu_splits, 2);
 
   Tensor<float, NCHW> gpu_tensor = cpu_tensor.to_gpu();
-  cuda::split(gpu_tensor, gpu_splits, 2);
+  cuda::split(gpu_tensor, gpu_splits, 2, 0);
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
   for (size_t i = 0; i < cpu_splits.size(); ++i) {

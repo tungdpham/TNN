@@ -7,6 +7,7 @@
 
 #include "tensor/cuda/tensor_ops.hpp"
 #include "tensor/cuda/tensor_kernels.hpp"
+#include <cstddef>
 
 #ifdef USE_CUDA
 #include "cuda/error_handler.hpp"
@@ -132,12 +133,16 @@ void slice_batch(const Tensor<T, L> &input, Tensor<T, L> &result, size_t start_b
     throw std::invalid_argument("Invalid batch slice range");
   }
 
+  size_t new_batch_size = end_batch - start_batch;
+  std::vector<size_t> new_shape = input.shape();
+  new_shape[0] = new_batch_size;
+  result.resize(new_shape, input.device());
+  size_t batch_stride = input.stride(0);
   const T *input_data = input.data_ptr().get();
-  const std::vector<size_t> strides = input.strides();
   T *result_data = result.data_ptr().get();
 
-  size_t copy_size = (end_batch - start_batch) * strides[0];
-  cuda::cuda_copy(&input_data[start_batch * strides[0]], result_data, copy_size, stream);
+  size_t copy_size = (end_batch - start_batch) * batch_stride;
+  cuda::cuda_copy(&input_data[start_batch * batch_stride], result_data, copy_size, stream);
 }
 
 template <typename T, Layout L>
@@ -196,6 +201,7 @@ void split(const Tensor<T, NCHW> &input, std::vector<Tensor<T, NCHW>> &results, 
   }
 
   results.resize(num_splits);
+
   size_t split_size = input.batch_size() / num_splits;
 
   for (size_t i = 0; i < num_splits; ++i) {
