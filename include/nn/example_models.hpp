@@ -224,6 +224,34 @@ Sequential<float> create_resnet50_cifar10() {
   return model;
 }
 
+Sequential<float> create_resnet18_cifar100() {
+  auto model = SequentialBuilder<float>("ResNet-18-CIFAR100")
+                   .input({3, 32, 32})
+                   .conv2d(32, 3, 3, 1, 1, 1, 1, false, "conv1")
+                   .batchnorm(1e-3f, 0.1f, true, "bn1")
+                   //  .groupnorm(32, 1e-5, true, "gn_0")
+                   .activation("relu", "relu1")
+                   .maxpool2d(2, 2, 2, 2, 0, 0, "maxpool")
+                   // Layer 1: 64 channels
+                   .basic_residual_block(32, 64, 1, "layer1_block1")
+                   .basic_residual_block(64, 64, 1, "layer1_block2")
+                   // Layer 2: 128 channels with stride 2
+                   .basic_residual_block(64, 128, 2, "layer2_block1")
+                   .basic_residual_block(128, 128, 1, "layer2_block2")
+                   // Layer 3: 128 channels with stride 2
+                   .basic_residual_block(128, 256, 2, "layer3_block1")
+                   .basic_residual_block(256, 256, 1, "layer3_block2")
+                   // Layer 4: 256 channels with stride 2
+                   .basic_residual_block(256, 512, 2, "layer4_block1")
+                   .basic_residual_block(512, 512, 1, "layer4_block2")
+                   // Global average pooling and classifier
+                   .avgpool2d(2, 2, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(100, true, "fc")
+                   .build();
+  return model;
+}
+
 Sequential<float> create_resnet9_tiny_imagenet() {
   auto model = SequentialBuilder<float>("ResNet-9-Tiny-ImageNet")
                    .input({3, 64, 64})
@@ -398,6 +426,53 @@ Sequential<float> create_resnet50_tiny_imagenet() {
                    .flatten("flatten")
                    .dense(200, true, "fc")
                    .build();
+  return model;
+}
+
+/**
+ * @brief Creates a Wide ResNet 16-8 for CIFAR-100
+ * WRN-16-8: depth=16, width_factor=8
+ * - 16 layers total (2 blocks per group × 3 groups × 2 conv layers + initial conv + final dense)
+ * - Width multiplier of 8 (base channels 16 → 128)
+ * - Uses pre-activation (BN-ReLU-Conv) ordering
+ * - Dropout rate of 0.3 between convolutions
+ */
+Sequential<float> create_wrn16_8_cifar100() {
+  constexpr size_t width_factor = 8;
+  constexpr float dropout_rate = 0.3f;
+
+  // Base channels: 16, widened by factor of 8
+  constexpr size_t c1 = 16 * width_factor; // 128
+  constexpr size_t c2 = 32 * width_factor; // 256
+  constexpr size_t c3 = 64 * width_factor; // 512
+
+  auto model = SequentialBuilder<float>("WRN-16-8-CIFAR100")
+                   .input({3, 32, 32})
+                   // Initial convolution (no BN/ReLU, handled by first block)
+                   .conv2d(16, 3, 3, 1, 1, 1, 1, true, "conv1")
+
+                   // Group 1: 16 -> 128 channels (2 blocks, no downsampling)
+                   .wide_residual_block(16, c1, 1, dropout_rate, "group1_block1")
+                   .wide_residual_block(c1, c1, 1, dropout_rate, "group1_block2")
+
+                   // Group 2: 128 -> 256 channels (2 blocks, stride 2 for downsampling)
+                   .wide_residual_block(c1, c2, 2, dropout_rate, "group2_block1")
+                   .wide_residual_block(c2, c2, 1, dropout_rate, "group2_block2")
+
+                   // Group 3: 256 -> 512 channels (2 blocks, stride 2 for downsampling)
+                   .wide_residual_block(c2, c3, 2, dropout_rate, "group3_block1")
+                   .wide_residual_block(c3, c3, 1, dropout_rate, "group3_block2")
+
+                   // Final BN-ReLU before pooling
+                   .batchnorm(1e-5f, 0.1f, true, "bn_final")
+                   .activation("relu", "relu_final")
+
+                   // Global average pooling: 8x8 -> 1x1
+                   .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
+                   .flatten("flatten")
+                   .dense(100, true, "fc") // 100 classes for CIFAR-100
+                   .build();
+
   return model;
 }
 

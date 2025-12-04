@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "data_loading/cifar100_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -37,46 +38,20 @@ int main() {
 
     create_cifar100_dataloader("./data", train_loader, test_loader);
 
-    auto model = SequentialBuilder<float>("cifar100_cnn_classifier")
-                     .input({3, 32, 32})
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv0")
-                     .batchnorm(1e-5f, 0.1f, true, "bn0")
-                     .activation("relu", "relu0")
-                     .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv1")
-                     .batchnorm(1e-5f, 0.1f, true, "bn1")
-                     .activation("relu", "relu1")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool0")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
-                     .batchnorm(1e-5f, 0.1f, true, "bn2")
-                     .activation("relu", "relu2")
-                     .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv3")
-                     .batchnorm(1e-5f, 0.1f, true, "bn3")
-                     .activation("relu", "relu3")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv4")
-                     .batchnorm(1e-5f, 0.1f, true, "bn5")
-                     .activation("relu", "relu5")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv5")
-                     .activation("relu", "relu6")
-                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv6")
-                     .batchnorm(1e-5f, 0.1f, true, "bn6")
-                     .activation("relu", "relu6")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv7")
-                     .batchnorm(1e-5f, 0.1f, true, "bn8")
-                     .activation("relu", "relu7")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv8")
-                     .batchnorm(1e-5f, 0.1f, true, "bn9")
-                     .activation("relu", "relu8")
-                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv9")
-                     .batchnorm(1e-5f, 0.1f, true, "bn10")
-                     .activation("relu", "relu9")
-                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                     .flatten("flatten")
-                     .dense(512, true, "fc0")
-                     .activation("relu", "relu10")
-                     .dense(10, true, "fc1")
-                     .build();
+    auto train_transform = AugmentationBuilder<float>()
+                               .random_crop(0.5f, 4)
+                               .horizontal_flip(0.5f)
+                               .cutout(0.5f, 4)
+                               .gaussian_noise(0.5f, 0.05f)
+                               .build();
+    cout << "Configuring data transformation for training." << endl;
+    train_loader.set_augmentation(std::move(train_transform));
+
+    auto val_transform = AugmentationBuilder<float>().build();
+    cout << "Configuring data normalization for test." << endl;
+    test_loader.set_augmentation(std::move(val_transform));
+
+    auto model = create_wrn16_8_cifar100();
 
     model.set_device(device_type);
     model.initialize();
