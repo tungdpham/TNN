@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 namespace tnn {
@@ -441,17 +440,14 @@ inline Sequential<float> create_wrn16_8_cifar100() {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
-  // Base channels: 16, widened by factor of 8
   constexpr size_t c1 = 16 * width_factor; // 128
   constexpr size_t c2 = 32 * width_factor; // 256
   constexpr size_t c3 = 64 * width_factor; // 512
 
   auto model = SequentialBuilder<float>("WRN-16-8-CIFAR100")
                    .input({3, 32, 32})
-                   // Initial convolution (no BN/ReLU, handled by first block)
                    .conv2d(16, 3, 3, 1, 1, 1, 1, true, "conv1")
-
-                   // Group 1: 16 -> 128 channels (2 blocks, no downsampling)
+                   // Group 1: 16 -> 128 channels (2 blocks, stride 1)
                    .wide_residual_block(16, c1, 1, dropout_rate, "group1_block1")
                    .wide_residual_block(c1, c1, 1, dropout_rate, "group1_block2")
 
@@ -470,7 +466,7 @@ inline Sequential<float> create_wrn16_8_cifar100() {
                    // Global average pooling: 8x8 -> 1x1
                    .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
                    .flatten("flatten")
-                   .dense(100, true, "fc") // 100 classes for CIFAR-100
+                   .dense(100, true, "fc")
                    .build();
 
   return model;
