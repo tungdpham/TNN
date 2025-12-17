@@ -40,12 +40,12 @@ void TrainingConfig::print_config() const {
 
 void TrainingConfig::load_from_env() {
   // Get training parameters from environment or use defaults
-  epochs = get_env<int>("EPOCHS", DEFAULT_EPOCH);
-  batch_size = get_env<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
-  lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", DEFAULT_LR_DECAY_FACTOR);
-  lr_decay_interval = get_env<size_t>("LR_DECAY_INTERVAL", DEFAULT_LR_DECAY_INTERVAL);
-  progress_print_interval = get_env<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
-  std::string profiler_type_str = get_env<std::string>("PROFILER_TYPE", "NONE");
+  epochs = Env::get<int>("EPOCHS", DEFAULT_EPOCH);
+  batch_size = Env::get<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
+  lr_decay_factor = Env::get<float>("LR_DECAY_FACTOR", DEFAULT_LR_DECAY_FACTOR);
+  lr_decay_interval = Env::get<size_t>("LR_DECAY_INTERVAL", DEFAULT_LR_DECAY_INTERVAL);
+  progress_print_interval = Env::get<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
+  std::string profiler_type_str = Env::get<std::string>("PROFILER_TYPE", "NONE");
   if (profiler_type_str == "NORMAL") {
     profiler_type = ProfilerType::NORMAL;
   } else if (profiler_type_str == "CUMULATIVE") {
@@ -53,10 +53,10 @@ void TrainingConfig::load_from_env() {
   } else {
     profiler_type = ProfilerType::NONE;
   }
-  num_threads = get_env<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
-  print_layer_profiling = get_env<bool>("PRINT_LAYER_PROFILING", false);
-  num_microbatches = get_env<size_t>("NUM_MICROBATCHES", 2);
-  std::string device_type_str = get_env<std::string>("DEVICE_TYPE", "CPU");
+  num_threads = Env::get<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
+  print_layer_profiling = Env::get<bool>("PRINT_LAYER_PROFILING", false);
+  num_microbatches = Env::get<size_t>("NUM_MICROBATCHES", 2);
+  std::string device_type_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
   device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
 }
 
@@ -107,7 +107,7 @@ ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_lo
         if (config.print_layer_profiling)
           model.print_layers_profiling_info();
         model.print_profiling_summary();
-        // model.print_cache_memory_summary();
+        model.print_cache_memory_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
                 << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)

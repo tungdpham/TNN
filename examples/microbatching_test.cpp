@@ -22,13 +22,10 @@ int main() {
   try {
     // Load environment variables from .env file
     cout << "Loading environment variables..." << endl;
-    if (!load_env_file("./.env")) {
-      cout << "No .env file found, using default training parameters." << endl;
-    }
 
-    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
+    string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
 
-    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
     DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
 
     cout << "Using learning rate: " << lr_initial << endl;

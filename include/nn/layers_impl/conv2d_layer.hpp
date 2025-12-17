@@ -10,15 +10,8 @@
 #include "device/task.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
-
 #ifdef USE_CUDNN
-namespace tnn {
-namespace cuda {
-namespace cudnn_conv2d {
-struct ConvolutionHandle;
-}
-} // namespace cuda
-} // namespace tnn
+#include "cuda/cudnn_conv2d_ops.hpp"
 #endif
 
 #include <memory>

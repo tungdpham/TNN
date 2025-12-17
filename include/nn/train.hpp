@@ -13,19 +13,19 @@
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
+#include "utils/env.hpp"
 #include "utils/memory.hpp"
 #include "utils/utils_extended.hpp"
+
 #ifdef USE_TBB
 #include <tbb/info.h>
 #include <tbb/scalable_allocator.h>
 #include <tbb/task_arena.h>
 #endif
 
-#ifdef USE_MKL
+#ifdef USE_MK
 #include <mkl.h>
 #endif
-
-#include "utils/env.hpp"
 
 namespace tnn {
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };

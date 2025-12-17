@@ -450,19 +450,15 @@ inline Sequential<float> create_wrn16_8_cifar100() {
                    // Group 1: 16 -> 128 channels (2 blocks, stride 1)
                    .wide_residual_block(16, c1, 1, dropout_rate, "group1_block1")
                    .wide_residual_block(c1, c1, 1, dropout_rate, "group1_block2")
-
                    // Group 2: 128 -> 256 channels (2 blocks, stride 2 for downsampling)
                    .wide_residual_block(c1, c2, 2, dropout_rate, "group2_block1")
                    .wide_residual_block(c2, c2, 1, dropout_rate, "group2_block2")
-
                    // Group 3: 256 -> 512 channels (2 blocks, stride 2 for downsampling)
                    .wide_residual_block(c2, c3, 2, dropout_rate, "group3_block1")
                    .wide_residual_block(c3, c3, 1, dropout_rate, "group3_block2")
-
                    // Final BN-ReLU before pooling
                    .batchnorm(1e-5f, 0.1f, true, "bn_final")
                    .activation("relu", "relu_final")
-
                    // Global average pooling: 8x8 -> 1x1
                    .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
                    .flatten("flatten")

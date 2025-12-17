@@ -422,17 +422,15 @@ int main() {
   try {
     // Load environment variables from .env file
     cout << "Loading environment variables..." << endl;
-    if (!load_env_file("./.env")) {
-      cout << "No .env file found, using default training parameters." << endl;
-    }
 
     // Get training parameters from environment or use defaults
-    const size_t max_epochs = get_env<size_t>("EPOCHS", ips_constants::MAX_EPOCHS);
-    const size_t batch_size = get_env<size_t>("BATCH_SIZE", ips_constants::MAX_BATCH_SIZE);
-    const float lr_initial = get_env<float>("LR_INITIAL", ips_constants::learning_rate);
-    const float lr_decay_factor = get_env<float>("LR_DECAY_FACTOR", ips_constants::LR_DECAY_FACTOR);
+    const size_t max_epochs = Env::get<size_t>("EPOCHS", ips_constants::MAX_EPOCHS);
+    const size_t batch_size = Env::get<size_t>("BATCH_SIZE", ips_constants::MAX_BATCH_SIZE);
+    const float lr_initial = Env::get<float>("LR_INITIAL", ips_constants::learning_rate);
+    const float lr_decay_factor =
+        Env::get<float>("LR_DECAY_FACTOR", ips_constants::LR_DECAY_FACTOR);
     const int lr_decay_interval =
-        get_env<int>("LR_DECAY_INTERVAL", ips_constants::LR_DECAY_INTERVAL);
+        Env::get<int>("LR_DECAY_INTERVAL", ips_constants::LR_DECAY_INTERVAL);
 
     cout << "Indoor Positioning System (IPS) Neural Network Training" << endl;
     cout << "Supports UTS, UJI and other WiFi fingerprinting datasets" << endl;

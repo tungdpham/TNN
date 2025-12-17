@@ -28,12 +28,6 @@ constexpr float EPSILON = 1e-15f;
 constexpr int NUM_MICROBATCHES = 1;
 
 int main() {
-  // Load environment variables from .env file
-  cout << "Loading environment variables..." << endl;
-  if (!load_env_file("./.env")) {
-    cout << "No .env file found, using system environment variables only." << endl;
-  }
-
   TrainingConfig train_config;
   train_config.load_from_env();
   train_config.print_config();
@@ -43,11 +37,11 @@ int main() {
   auto optimizer = OptimizerFactory<float>::create_adam(LR_INITIAL, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint = Endpoint::network(
-      get_env<string>("COORDINATOR_HOST", "localhost"), get_env<int>("COORDINATOR_PORT", 8000));
+      Env::get<string>("COORDINATOR_HOST", "localhost"), Env::get<int>("COORDINATOR_PORT", 8000));
 
   vector<Endpoint> endpoints = {
-      Endpoint::network(get_env<string>("WORKER_HOST_8001", "localhost"), 8001),
-      Endpoint::network(get_env<string>("WORKER_HOST_8002", "localhost"), 8002),
+      Endpoint::network(Env::get<string>("WORKER_HOST_8001", "localhost"), 8001),
+      Endpoint::network(Env::get<string>("WORKER_HOST_8002", "localhost"), 8002),
   };
 
   cout << "Creating distributed coordinator..." << endl;

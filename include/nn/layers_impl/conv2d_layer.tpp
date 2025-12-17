@@ -56,7 +56,6 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
   }
 
 #ifdef USE_CUDNN
-  // cuDNN workspace will be initialized on first forward pass
   if (this->device_->device_type() == DeviceType::GPU) {
     max_workspace_ = 0;
   } else
@@ -68,7 +67,6 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
   }
 
   T fan_in = static_cast<T>(in_channels_ * kernel_h_ * kernel_w_);
-  // PyTorch default Kaiming Uniform: Uniform(-bound, bound) where bound = 1 / sqrt(fan_in)
   T bound = static_cast<T>(1.0) / std::sqrt(fan_in);
 
   if (this->use_seed_) {
