@@ -39,7 +39,7 @@ constexpr size_t DEFAULT_BATCH_SIZE = 32;
 constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
 constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5; // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
-constexpr uint64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
+constexpr int64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
   // Trainer params
@@ -48,7 +48,7 @@ struct TrainingConfig {
   float lr_decay_factor = 0.9f;
   size_t lr_decay_interval = 5; // in epochs
   int progress_print_interval = 100;
-  uint64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+  int64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   DeviceType device_type = DeviceType::CPU;

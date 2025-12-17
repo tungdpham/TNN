@@ -6,19 +6,12 @@
  */
 
 #include "nn/train.hpp"
+#include "threading/thread_wrapper.hpp"
 #include <chrono>
 #include <iomanip>
 #include <iostream>
 
 namespace tnn {
-
-#ifdef USE_TBB
-inline void tbb_cleanup() {
-  // Clean all buffers
-  scalable_allocation_command(TBBMALLOC_CLEAN_ALL_BUFFERS, 0);
-}
-#endif
-
 void TrainingConfig::print_config() const {
   std::cout << "Training Configuration:" << std::endl;
   std::cout << "  Epochs: " << epochs << std::endl;
@@ -183,14 +176,11 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
 
   model.print_summary({config.batch_size, image_shape[0], image_shape[1], image_shape[2]});
 
-#ifdef USE_TBB
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
+  T best_val_accuracy = 0.0;
 
-  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
-  arena.execute([&] {
-#endif
-    T best_val_accuracy = 0.0;
+  ThreadWrapper thread_wrapper({config.num_threads});
 
+  thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;
 
@@ -243,7 +233,7 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
       }
 
       if ((epoch + 1) % 5 == 0) {
-        tbb_cleanup();
+        thread_wrapper.clean_buffers();
       }
 
       // re prepare batches to reapply augmentation
@@ -252,10 +242,7 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
 
       std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }
-
-#ifdef USE_TBB
   });
-#endif
 }
 
 template <typename T>
@@ -344,7 +331,6 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
                             std::unique_ptr<Optimizer<T>> optimizer,
                             std::unique_ptr<Loss<T>> loss_function,
                             std::unique_ptr<Scheduler<T>> scheduler, const TrainingConfig &config) {
-
   Tensor<T> batch_data, batch_labels;
 
   train_loader.prepare_batches(config.batch_size);
@@ -358,12 +344,8 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
 
   auto [best_val_loss, best_val_error] = validate_reg_model(model, test_loader, *loss_function);
 
-#ifdef USE_TBB
-  tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(config.num_threads));
-
-  std::cout << "TBB max threads limited to: " << arena.max_concurrency() << std::endl;
-  arena.execute([&] {
-#endif
+  ThreadWrapper thread_wrapper({config.num_threads});
+  thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;
 
@@ -415,7 +397,7 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
       }
 
       if ((epoch + 1) % 5 == 0) {
-        tbb_cleanup();
+        thread_wrapper.clean_buffers();
       }
 
       // re prepare batches to reapply augmentation
@@ -423,10 +405,7 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
 
       std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }
-
-#ifdef USE_TBB
   });
-#endif
 }
 
 template ClassResult train_class_epoch<float>(Sequential<float> &model,
