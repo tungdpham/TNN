@@ -24,13 +24,10 @@ int main() {
   try {
     // Load environment variables from .env file
     cout << "Loading environment variables..." << endl;
-    if (!load_env_file("./.env")) {
-      cout << "No .env file found, using default training parameters." << endl;
-    }
 
-    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
+    string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
 
-    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
     DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
 
     cout << "Using learning rate: " << lr_initial << endl;
@@ -47,14 +44,14 @@ int main() {
     std::string dataset_path = "data/tiny-imagenet-200";
 
     // Load training data
-    std::cout << "\nLoading training data..." << std::endl;
+    std::cout << "Loading training data..." << std::endl;
     if (!train_loader.load_data(dataset_path, true)) {
       std::cerr << "Failed to load training data!" << std::endl;
       return 1;
     }
 
     // Load validation data
-    std::cout << "\nLoading validation data..." << std::endl;
+    std::cout << "Loading validation data..." << std::endl;
     if (!val_loader.load_data(dataset_path, false)) {
       std::cerr << "Failed to load validation data!" << std::endl;
       return 1;
@@ -79,24 +76,24 @@ int main() {
     cout << "Configuring data normalization for validation." << endl;
     val_loader.set_augmentation(std::move(val_aug));
 
-    cout << "\nBuilding ResNet-50 model architecture for Tiny ImageNet..." << endl;
+    cout << "Building ResNet-50 model architecture for Tiny ImageNet..." << endl;
 
     auto model = create_resnet50_tiny_imagenet();
 
     model.set_device(device_type);
     model.initialize();
 
-    // Use slightly higher epsilon for better numerical stability
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-3f, 1e-3);
-    // auto optimizer = make_unique<SGD<float>>(lr_initial, 0.9f);
+    auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
 
     model.enable_profiling(true);
 
-    cout << "\nStarting Tiny ImageNet ResNet training..." << endl;
+    auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
+
+    cout << "Starting Tiny ImageNet ResNet training..." << endl;
     train_classification_model(model, train_loader, val_loader, std::move(optimizer),
-                               std::move(loss_function), train_config);
+                               std::move(loss_function), std::move(scheduler), train_config);
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;

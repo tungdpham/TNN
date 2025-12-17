@@ -28,35 +28,29 @@ constexpr float EPSILON = 1e-15f;
 constexpr int NUM_MICROBATCHES = 1;
 
 int main() {
-  // Load environment variables from .env file
-  cout << "Loading environment variables..." << endl;
-  if (!load_env_file("./.env")) {
-    cout << "No .env file found, using system environment variables only." << endl;
-  }
-
   TrainingConfig train_config;
   train_config.load_from_env();
   train_config.print_config();
 
   auto model = create_mnist_trainer();
 
-  auto optimizer = std::make_unique<Adam<float>>(LR_INITIAL, 0.9f, 0.999f, EPSILON);
+  auto optimizer = OptimizerFactory<float>::create_adam(LR_INITIAL, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint = Endpoint::network(
-      get_env<string>("COORDINATOR_HOST", "localhost"), get_env<int>("COORDINATOR_PORT", 8000));
+      Env::get<string>("COORDINATOR_HOST", "localhost"), Env::get<int>("COORDINATOR_PORT", 8000));
 
   vector<Endpoint> endpoints = {
-      Endpoint::network(get_env<string>("WORKER_HOST_8001", "localhost"), 8001),
-      Endpoint::network(get_env<string>("WORKER_HOST_8002", "localhost"), 8002),
+      Endpoint::network(Env::get<string>("WORKER_HOST_8001", "localhost"), 8001),
+      Endpoint::network(Env::get<string>("WORKER_HOST_8002", "localhost"), 8002),
   };
 
-  cout << "\nCreating distributed coordinator..." << endl;
+  cout << "Creating distributed coordinator..." << endl;
   DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
                                      endpoints);
 
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 
-  cout << "\nDeploying stages to remote endpoints..." << endl;
+  cout << "Deploying stages to remote endpoints..." << endl;
   for (auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
   }
@@ -202,7 +196,7 @@ int main() {
 
   auto epoch_end = chrono::high_resolution_clock::now();
   auto epoch_duration = chrono::duration_cast<chrono::milliseconds>(epoch_end - epoch_start);
-  cout << "\nEpoch " << (batch_index / train_loader.size()) + 1 << " completed in "
+  cout << "Epoch " << (batch_index / train_loader.size()) + 1 << " completed in "
        << epoch_duration.count() << " milliseconds" << endl;
 
   double val_loss = 0.0;
@@ -244,7 +238,7 @@ int main() {
     ++val_batches;
   }
 
-  cout << "\nValidation completed!" << endl;
+  cout << "Validation completed!" << endl;
   cout << "Average Validation Loss: " << (val_loss / val_batches)
        << ", Average Validation Accuracy: "
        << (val_accuracy / val_batches / NUM_MICROBATCHES) * 100.0f << "%" << endl;

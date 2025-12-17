@@ -82,15 +82,12 @@ int main(int argc, char *argv[]) {
   if (!parse_arguments(argc, argv, cfg)) {
     return 1;
   }
-  if (!load_env_file("./.env")) {
-    std::cout << "No .env file found, using system environment variables only." << std::endl;
-  }
 
   auto model = create_resnet18_tiny_imagenet();
 
-  string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
+  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
 
-  float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+  float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -99,14 +96,14 @@ int main(int argc, char *argv[]) {
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
 
   Endpoint coordinator_endpoint =
-      Endpoint::network(get_env<std::string>("COORDINATOR_HOST", "localhost"),
-                        get_env<int>("COORDINATOR_PORT", 8000));
+      Endpoint::network(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
+                        Env::get<int>("COORDINATOR_PORT", 8000));
 
   std::vector<Endpoint> endpoints = {
-      Endpoint::network(get_env<std::string>("WORKER1_HOST", "localhost"),
-                        get_env<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(get_env<std::string>("WORKER2_HOST", "localhost"),
-                        get_env<int>("WORKER2_PORT", 8002)),
+      Endpoint::network(Env::get<std::string>("WORKER1_HOST", "localhost"),
+                        Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::network(Env::get<std::string>("WORKER2_HOST", "localhost"),
+                        Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
@@ -161,7 +158,7 @@ int main(int argc, char *argv[]) {
   std::cout << "Configuring data normalization for testing." << std::endl;
   test_loader.set_augmentation(std::move(test_aug));
 
-  ThreadWrapper thread_wrapper({get_env<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
+  ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
   thread_wrapper.execute([&coordinator, &train_loader, &test_loader, &train_config]() {
     train_model(coordinator, train_loader, test_loader, train_config);

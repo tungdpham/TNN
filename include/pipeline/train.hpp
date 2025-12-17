@@ -8,6 +8,7 @@
 
 #include "nn/train.hpp"
 #include "pipeline/distributed_coordinator.hpp"
+#include "threading/thread_wrapper.hpp"
 
 namespace tnn {
 
@@ -118,21 +119,23 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
 
 void train_model(DistributedCoordinator &coordinator, BaseDataLoader<float> &train_loader,
                  BaseDataLoader<float> &test_loader, TrainingConfig config = TrainingConfig()) {
+  ThreadWrapper thread_wrapper({config.num_threads});
   coordinator.set_num_microbatches(config.num_microbatches);
 
-  for (int epoch = 0; epoch < config.epochs; ++epoch) {
-    train_loader.prepare_batches(config.batch_size);
-    test_loader.prepare_batches(config.batch_size);
-    std::cout << "\n=== Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
-    train_loader.reset();
-    test_loader.reset();
+  thread_wrapper.execute([&]() -> void {
+    for (int epoch = 0; epoch < config.epochs; ++epoch) {
+      train_loader.prepare_batches(config.batch_size);
+      test_loader.prepare_batches(config.batch_size);
+      std::cout << "Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
+      train_loader.reset();
+      test_loader.reset();
+      train_loader.shuffle();
 
-    train_loader.shuffle();
+      train_semi_async_epoch(coordinator, train_loader, config.progress_print_interval);
 
-    train_semi_async_epoch(coordinator, train_loader, config.progress_print_interval);
-
-    validate_semi_async_epoch(coordinator, test_loader);
-  }
+      validate_semi_async_epoch(coordinator, test_loader);
+    }
+  });
 }
 
 } // namespace tnn

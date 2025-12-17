@@ -12,7 +12,7 @@
 namespace tnn {
 
 struct ThreadingConfig {
-  unsigned int num_threads = 1;
+  int64_t num_threads = 1;
 };
 
 class ThreadWrapper {

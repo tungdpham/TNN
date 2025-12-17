@@ -167,7 +167,7 @@ private:
   }
 
   /**
-   * Load training data from directory structure
+   * Load training data from directory structure (parallelized)
    */
   bool load_train_data(const std::string &dataset_dir) {
     std::string train_dir = dataset_dir + "/train";
@@ -177,7 +177,9 @@ private:
       return false;
     }
 
-    size_t total_loaded = 0;
+    std::vector<std::pair<std::string, int>> image_paths;
+    image_paths.reserve(tiny_imagenet_constants::NUM_CLASSES *
+                        tiny_imagenet_constants::TRAIN_IMAGES_PER_CLASS);
 
     for (const auto &class_id : class_ids_) {
       std::string class_dir = train_dir + "/" + class_id + "/images";
@@ -188,23 +190,44 @@ private:
       }
 
       int class_index = class_id_to_index_[class_id];
-      size_t class_count = 0;
 
       for (const auto &entry : std::filesystem::directory_iterator(class_dir)) {
         if (entry.path().extension() == ".JPEG") {
-          std::vector<T> image_data;
-          if (load_jpeg_image(entry.path().string(), image_data)) {
-            data_.push_back(std::move(image_data));
-            labels_.push_back(class_index);
-            class_count++;
-            total_loaded++;
-          }
+          image_paths.emplace_back(entry.path().string(), class_index);
         }
       }
+    }
 
-      if (class_count > 0 && total_loaded % 10000 == 0) {
-        std::cout << "Loaded " << total_loaded << " images..." << std::endl;
+    const size_t num_images = image_paths.size();
+    std::cout << "Found " << num_images << " images to load..." << std::endl;
+
+    data_.resize(num_images);
+    labels_.resize(num_images);
+    std::vector<bool> load_success(num_images, false);
+
+    parallel_for<size_t>(0, num_images, [&](size_t i) {
+      const auto &[path, class_index] = image_paths[i];
+      if (load_jpeg_image(path, data_[i])) {
+        labels_[i] = class_index;
+        load_success[i] = true;
       }
+    });
+
+    size_t total_loaded = std::count(load_success.begin(), load_success.end(), true);
+
+    if (total_loaded < num_images) {
+      size_t write_idx = 0;
+      for (size_t i = 0; i < num_images; ++i) {
+        if (load_success[i]) {
+          if (write_idx != i) {
+            data_[write_idx] = std::move(data_[i]);
+            labels_[write_idx] = labels_[i];
+          }
+          ++write_idx;
+        }
+      }
+      data_.resize(total_loaded);
+      labels_.resize(total_loaded);
     }
 
     std::cout << "Loaded " << total_loaded << " training images" << std::endl;
@@ -492,8 +515,8 @@ public:
     const size_t num_samples = data_.size();
     const size_t num_batches = (num_samples + batch_size - 1) / batch_size;
 
-    batched_data_.reserve(num_batches);
-    batched_labels_.reserve(num_batches);
+    batched_data_.resize(num_batches);
+    batched_labels_.resize(num_batches);
 
     std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
               << std::endl;
@@ -501,7 +524,7 @@ public:
     // Generate a shuffled list of sample indices to improve within-batch label diversity
     std::vector<size_t> shuffled_indices = this->generate_shuffled_indices(num_samples);
 
-    for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
+    parallel_for<size_t>(0, num_batches, [&](size_t batch_idx) {
       const size_t start_idx = batch_idx * batch_size;
       const size_t end_idx = std::min(start_idx + batch_size, num_samples);
       const size_t actual_batch_size = end_idx - start_idx;
@@ -537,14 +560,9 @@ public:
       }
       this->apply_augmentation(batch_data, batch_labels);
 
-      batched_data_.emplace_back(std::move(batch_data));
-      batched_labels_.emplace_back(std::move(batch_labels));
-
-      if ((batch_idx + 1) % 100 == 0) {
-        std::cout << "Prepared " << (batch_idx + 1) << "/" << num_batches << " batches..."
-                  << std::endl;
-      }
-    }
+      batched_data_[batch_idx] = std::move(batch_data);
+      batched_labels_[batch_idx] = std::move(batch_labels);
+    });
 
     this->current_batch_index_ = 0;
     batches_prepared_ = true;
@@ -619,8 +637,5 @@ void create_tiny_image_loader(std::string data_path, TinyImageNetDataLoader<floa
     throw std::runtime_error("Failed to load validation data!");
   }
 }
-
-using TinyImageNetDataLoaderFloat = TinyImageNetDataLoader<float>;
-using TinyImageNetDataLoaderDouble = TinyImageNetDataLoader<double>;
 
 } // namespace tnn

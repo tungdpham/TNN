@@ -102,7 +102,7 @@ public:
     data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
     if (data.get() != nullptr) {
-      ops::copy(data, data_, data_size_)->sync();
+      ops::copy(data, data_, data_size_);
     }
   }
 
@@ -122,7 +122,7 @@ public:
     data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
     if (data.get() != nullptr) {
-      ops::copy(data, data_, data_size_)->sync();
+      ops::copy(data, data_, data_size_);
     }
   }
 
@@ -133,7 +133,7 @@ public:
   //     {
   //   if (data_size_ > 0) {
   //     allocate_data(data_size_);
-  //     ops::copy(other.data_, data_, data_size_)->sync();
+  //     ops::copy(other.data_, data_, data_size_);
   //   }
   // }
 
@@ -195,7 +195,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::add(data_, other.data_, result.data_, data_size_)->sync();
+    ops::add(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
@@ -208,7 +208,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::sub(data_, other.data_, result.data_, data_size_)->sync();
+    ops::sub(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
@@ -221,7 +221,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::mul(data_, other.data_, result.data_, data_size_)->sync();
+    ops::mul(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
@@ -234,7 +234,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::div(data_, other.data_, result.data_, data_size_)->sync();
+    ops::div(data_, other.data_, result.data_, data_size_);
 
     return result;
   }
@@ -243,7 +243,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::add_scalar(data_, scalar, result.data_, data_size_)->sync();
+    ops::add_scalar(data_, scalar, result.data_, data_size_);
 
     return result;
   }
@@ -252,7 +252,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::sub_scalar(data_, scalar, result.data_, data_size_)->sync();
+    ops::sub_scalar(data_, scalar, result.data_, data_size_);
 
     return result;
   }
@@ -261,7 +261,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::mul_scalar(data_, scalar, result.data_, data_size_)->sync();
+    ops::mul_scalar(data_, scalar, result.data_, data_size_);
 
     return result;
   }
@@ -274,7 +274,7 @@ public:
     std::vector<size_t> shape_vec(shape_, shape_ + dims_);
     Tensor<T, L> result(shape_vec, device_);
 
-    ops::div_scalar(data_, scalar, result.data_, data_size_)->sync();
+    ops::div_scalar(data_, scalar, result.data_, data_size_);
 
     return result;
   }
@@ -284,7 +284,7 @@ public:
       throw std::invalid_argument("Tensor shapes must match for addition");
     }
 
-    ops::add(data_, other.data_, data_, data_size_)->sync();
+    ops::add(data_, other.data_, data_, data_size_);
 
     return *this;
   }
@@ -294,7 +294,7 @@ public:
       throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
 
-    ops::sub(data_, other.data_, data_, data_size_)->sync();
+    ops::sub(data_, other.data_, data_, data_size_);
 
     return *this;
   }
@@ -304,23 +304,23 @@ public:
       throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
 
-    ops::mul(data_, other.data_, data_, data_size_)->sync();
+    ops::mul(data_, other.data_, data_, data_size_);
 
     return *this;
   }
 
   Tensor<T, L> &operator+=(T scalar) {
-    ops::add_scalar(data_, scalar, data_, data_size_)->sync();
+    ops::add_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
   Tensor<T, L> &operator-=(T scalar) {
-    ops::sub_scalar(data_, scalar, data_, data_size_)->sync();
+    ops::sub_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
   Tensor<T, L> &operator*=(T scalar) {
-    ops::mul_scalar(data_, scalar, data_, data_size_)->sync();
+    ops::mul_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
@@ -328,7 +328,7 @@ public:
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
-    ops::div_scalar(data_, scalar, data_, data_size_)->sync();
+    ops::div_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
@@ -448,7 +448,7 @@ public:
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get()));
-    ops::fill_random_uniform(data_, data_size_, T(0), range, seed)->sync();
+    ops::fill_random_uniform(data_, data_size_, T(0), range, seed);
   }
 
   void fill_random_uniform(T min_val, T max_val) {
@@ -456,11 +456,11 @@ public:
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get()));
-    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed)->sync();
+    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed);
   }
 
   void fill_random_uniform(T min_val, T max_val, unsigned long long seed) {
-    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed)->sync();
+    ops::fill_random_uniform(data_, data_size_, min_val, max_val, seed);
   }
 
   void fill_random_normal(T mean, T stddev) {
@@ -468,11 +468,11 @@ public:
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
         reinterpret_cast<uintptr_t>(data_.get()));
-    ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
+    ops::fill_random_normal(data_, data_size_, mean, stddev, seed);
   }
 
   void fill_random_normal(T mean, T stddev, unsigned long long seed) {
-    ops::fill_random_normal(data_, data_size_, mean, stddev, seed)->sync();
+    ops::fill_random_normal(data_, data_size_, mean, stddev, seed);
   }
 
   void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
@@ -559,7 +559,7 @@ public:
     size_t src_offset = src_batch_idx * other.strides_[0];
     size_t dest_offset = dest_batch_idx * batch_stride;
 
-    ops::copy(other.data_, data_, batch_stride, src_offset, dest_offset)->sync();
+    ops::copy(other.data_, data_, batch_stride, src_offset, dest_offset);
   }
 
   T min() const {

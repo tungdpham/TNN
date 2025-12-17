@@ -28,7 +28,7 @@ int main() {
 
     hardware_info.print_info();
 
-    cout << "\n=== Writing CPU specs to JSON file ===" << endl;
+    cout << "=== Writing CPU specs to JSON file ===" << endl;
     ofstream json_file("./temp/hardware_info.json");
     if (json_file.is_open()) {
       string json_output = hardware_info.to_json();
@@ -58,12 +58,12 @@ int main() {
       return 1;
     }
 
-    cout << "\n=== Updating dynamic information ===" << endl;
+    cout << "=== Updating dynamic information ===" << endl;
     if (hardware_info.update_dynamic_info()) {
       cout << "Dynamic info updated successfully!" << endl;
     }
 
-    cout << "\n=== Distributed Computing Recommendations ===" << endl;
+    cout << "=== Distributed Computing Recommendations ===" << endl;
 
     auto numa_cores = hardware_info.get_numa_aware_cores();
     cout << "NUMA topology:" << endl;
@@ -77,10 +77,10 @@ int main() {
       cout << endl;
     }
 
-    cout << "\n=== JSON Output (displayed) ===" << endl;
+    cout << "=== JSON Output (displayed) ===" << endl;
     cout << hardware_info.to_json() << endl;
 
-    cout << "\n=== Dynamic Monitoring===" << endl;
+    cout << "=== Dynamic Monitoring===" << endl;
     while (true) {
       this_thread::sleep_for(chrono::seconds(1));
 
@@ -104,7 +104,7 @@ int main() {
     }
 
     csv_file.close();
-    cout << "\nCPU status data written to ./logs/cpu_status.csv" << endl;
+    cout << "CPU status data written to ./logs/cpu_status.csv" << endl;
 
     return 0;
   } catch (const exception &ex) {

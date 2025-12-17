@@ -929,7 +929,7 @@ public:
 
   void set_name(const std::string &name) { name_ = name; }
 
-  void clear_gradients() const {
+  void clear_gradients() {
     std::vector<Tensor<T> *> grads = gradients();
     for (auto &grad : grads) {
       grad->fill(T(0));
@@ -1276,6 +1276,57 @@ public:
     auto res_block = residual_block<T>(
         std::move(main_path), std::move(shortcut), "relu",
         name.empty() ? "basic_residual_block_" + std::to_string(model_.layer_size()) : name);
+    layer_builder_.add_layer(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * @brief Helper function to create a wide residual block (for WRN networks)
+   * Two 3x3 convolutions with batch normalization and optional dropout
+   * Uses pre-activation (BN-ReLU-Conv) ordering as in the original WRN paper
+   * @param in_channels Number of input channels
+   * @param out_channels Number of output channels (typically in_channels * width_factor)
+   * @param stride Stride for the first convolution (use 2 for downsampling)
+   * @param dropout_rate Dropout rate between convolutions (0.0 to disable)
+   * @param name Name for the block
+   */
+  SequentialBuilder &wide_residual_block(size_t in_channels, size_t out_channels, size_t stride = 1,
+                                         T dropout_rate = T(0.0),
+                                         const std::string &name = "wide_residual_block") {
+    auto current_shape = layer_builder_.get_current_shape();
+    auto input_shape = std::vector<size_t>{in_channels, current_shape[2], current_shape[3]};
+
+    // Build main path with pre-activation (BN-ReLU-Conv) ordering
+    LayerBuilder<T> main_builder;
+    main_builder.input(input_shape)
+        .batchnorm(1e-5f, 0.1f, true, "bn1")
+        .activation("relu")
+        .conv2d(out_channels, 3, 3, stride, stride, 1, 1, true)
+        .batchnorm(1e-5f, 0.1f, true, "bn2")
+        .activation("relu");
+
+    // Add dropout if specified
+    if (dropout_rate > T(0.0)) {
+      main_builder.dropout(dropout_rate);
+    }
+
+    main_builder.conv2d(out_channels, 3, 3, 1, 1, 1, 1, true);
+
+    auto main_path = main_builder.build();
+
+    // Build projection shortcut if dimensions change
+    std::vector<std::unique_ptr<Layer<T>>> shortcut;
+    if (stride != 1 || in_channels != out_channels) {
+      shortcut = LayerBuilder<T>()
+                     .input(input_shape)
+                     .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .build();
+    }
+
+    // Note: WRN uses identity activation after addition (no ReLU)
+    auto res_block = residual_block<T>(
+        std::move(main_path), std::move(shortcut), "linear",
+        name.empty() ? "wide_residual_block_" + std::to_string(model_.layer_size()) : name);
     layer_builder_.add_layer(std::move(res_block));
     return *this;
   }

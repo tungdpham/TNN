@@ -72,7 +72,7 @@ void print_image_stats(const Tensor<float> &batch_data, size_t sample_idx,
   const size_t width = 64;
   const size_t pixels_per_channel = height * width;
 
-  cout << "\n  Image: " << label_name << endl;
+  cout << "  Image: " << label_name << endl;
 
   // Calculate per-channel statistics
   for (size_t c = 0; c < channels; ++c) {
@@ -109,7 +109,7 @@ void print_image_stats(const Tensor<float> &batch_data, size_t sample_idx,
 void print_ascii_preview(const Tensor<float> &batch_data, size_t sample_idx) {
   const size_t preview_size = 8; // Show 8x8 corner
 
-  cout << "\n  ASCII preview (top-left 8x8, grayscale):" << endl;
+  cout << "  ASCII preview (top-left 8x8, grayscale):" << endl;
   cout << "  ";
   for (size_t i = 0; i < preview_size; ++i)
     cout << "--";
@@ -143,7 +143,7 @@ void print_ascii_preview(const Tensor<float> &batch_data, size_t sample_idx) {
 int main() {
   try {
     cout << "=== Tiny ImageNet Visual Inspection Tool ===" << endl;
-    cout << "\nThis tool will:" << endl;
+    cout << "This tool will:" << endl;
     cout << "1. Load sample images from the dataset" << endl;
     cout << "2. Save them as PNG files for visual inspection" << endl;
     cout << "3. Print detailed statistics about the images" << endl;
@@ -156,14 +156,14 @@ int main() {
     TinyImageNetDataLoader<float> train_loader;
     TinyImageNetDataLoader<float> val_loader;
 
-    cout << "\n--- Loading Training Data ---" << endl;
+    cout << "--- Loading Training Data ---" << endl;
     if (!train_loader.load_data(dataset_path, true)) {
       cerr << "Failed to load training data!" << endl;
       return 1;
     }
     cout << "Loaded " << train_loader.size() << " training samples" << endl;
 
-    cout << "\n--- Loading Validation Data ---" << endl;
+    cout << "--- Loading Validation Data ---" << endl;
     if (!val_loader.load_data(dataset_path, false)) {
       cerr << "Failed to load validation data!" << endl;
       return 1;
@@ -171,14 +171,14 @@ int main() {
     cout << "Loaded " << val_loader.size() << " validation samples" << endl;
 
     // Print overall statistics
-    cout << "\n=== Dataset Information ===" << endl;
+    cout << "=== Dataset Information ===" << endl;
     train_loader.print_data_stats();
 
     // Get class names
     auto class_names = train_loader.get_class_names();
     auto class_ids = train_loader.get_class_ids();
 
-    cout << "\n--- Sample Class Names (first 10) ---" << endl;
+    cout << "--- Sample Class Names (first 10) ---" << endl;
     for (int i = 0; i < min(10, static_cast<int>(class_names.size())); ++i) {
       cout << "  " << i << ": " << class_ids[i] << " - " << class_names[i] << endl;
     }
@@ -189,7 +189,7 @@ int main() {
     train_loader.set_augmentation(std::move(aug_strategy));
 
     // Sample and save training images
-    cout << "\n=== Sampling Training Images ===" << endl;
+    cout << "=== Sampling Training Images ===" << endl;
     Tensor<float> train_batch_data, train_batch_labels;
     const size_t num_samples = 100;
 
@@ -198,7 +198,7 @@ int main() {
       return 1;
     }
 
-    cout << "\nBatch shape: " << train_batch_data.shape()[0] << "x" << train_batch_data.shape()[1]
+    cout << "Batch shape: " << train_batch_data.shape()[0] << "x" << train_batch_data.shape()[1]
          << "x" << train_batch_data.shape()[2] << "x" << train_batch_data.shape()[3] << endl;
 
     // Create output directory if needed
@@ -222,7 +222,7 @@ int main() {
                               ? class_names[label_idx]
                               : "unknown";
 
-      cout << "\n--- Sample " << (i + 1) << " ---" << endl;
+      cout << "--- Sample " << (i + 1) << " ---" << endl;
       cout << "  Class: " << label_idx << " - " << label_name << endl;
 
       // Save image
@@ -238,7 +238,7 @@ int main() {
     }
 
     // Sample and save validation images
-    cout << "\n=== Sampling Validation Images ===" << endl;
+    cout << "=== Sampling Validation Images ===" << endl;
     Tensor<float> val_batch_data, val_batch_labels;
 
     if (!val_loader.get_batch(num_samples, val_batch_data, val_batch_labels)) {
@@ -260,7 +260,7 @@ int main() {
                               ? class_names[label_idx]
                               : "unknown";
 
-      cout << "\n--- Validation Sample " << (i + 1) << " ---" << endl;
+      cout << "--- Validation Sample " << (i + 1) << " ---" << endl;
       cout << "  Class: " << label_idx << " - " << label_name << endl;
 
       // Save image
@@ -276,19 +276,19 @@ int main() {
     }
 
     // Verify data properties
-    cout << "\n=== Data Validation Checks ===" << endl;
+    cout << "=== Data Validation Checks ===" << endl;
 
     // Check pixel range
     float train_min = train_batch_data.min();
     float train_max = train_batch_data.max();
-    cout << "✓ Training pixel range: [" << train_min << ", " << train_max << "]" << endl;
+    cout << "Training pixel range: [" << train_min << ", " << train_max << "]" << endl;
     if (train_min < 0.0f || train_max > 1.0f) {
       cout << "  WARNING: Pixels outside expected [0, 1] range!" << endl;
     }
 
     float val_min = val_batch_data.min();
     float val_max = val_batch_data.max();
-    cout << "✓ Validation pixel range: [" << val_min << ", " << val_max << "]" << endl;
+    cout << "Validation pixel range: [" << val_min << ", " << val_max << "]" << endl;
     if (val_min < 0.0f || val_max > 1.0f) {
       cout << "  WARNING: Pixels outside expected [0, 1] range!" << endl;
     }
@@ -309,11 +309,11 @@ int main() {
         break;
       }
     }
-    cout << "✓ One-hot encoding: " << (all_one_hot ? "PASS" : "FAIL") << endl;
+    cout << "One-hot encoding: " << (all_one_hot ? "PASS" : "FAIL") << endl;
 
-    cout << "\n=== Inspection Complete ===" << endl;
+    cout << "=== Inspection Complete ===" << endl;
     cout << "Check the 'output_images/' directory for saved PNG files." << endl;
-    cout << "\nThings to verify in the images:" << endl;
+    cout << "Things to verify in the images:" << endl;
     cout << "  1. Images should be recognizable objects/scenes" << endl;
     cout << "  2. Colors should look natural (not inverted or strange)" << endl;
     cout << "  3. Images should be 64x64 pixels" << endl;

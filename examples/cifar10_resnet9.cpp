@@ -16,15 +16,9 @@ constexpr float LR_INITIAL = 0.001f;
 
 int main() {
   try {
-    // Load environment variables from .env file
-    cout << "Loading environment variables..." << endl;
-    if (!load_env_file("./.env")) {
-      cout << "No .env file found, using default training parameters." << endl;
-    }
+    string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
 
-    string device_type_str = get_env<string>("DEVICE_TYPE", "CPU");
-
-    float lr_initial = get_env<float>("LR_INITIAL", LR_INITIAL);
+    float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
     DeviceType device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
 
     TrainingConfig train_config;
@@ -52,24 +46,26 @@ int main() {
     cout << "Configuring data normalization for test." << endl;
     test_loader.set_augmentation(std::move(val_transform));
 
-    cout << "\nBuilding CNN model architecture for CIFAR-10..." << endl;
+    cout << "Building CNN model architecture for CIFAR-10..." << endl;
 
     auto model = create_resnet9_cifar10();
 
     model.set_device(device_type);
     model.initialize();
 
-    auto optimizer = make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, 1e-8f, 5e-4f);
+    auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
 
     model.enable_profiling(true);
 
-    cout << "\nStarting CIFAR-10 CNN training..." << endl;
-    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
-                               std::move(loss_function), train_config);
+    auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
 
-    cout << "\nCIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
+    cout << "Starting CIFAR-10 CNN training..." << endl;
+    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
+                               std::move(loss_function), std::move(scheduler), train_config);
+
+    cout << "CIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;
