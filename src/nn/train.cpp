@@ -193,12 +193,8 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
           std::chrono::duration_cast<std::chrono::milliseconds>(train_end - train_start);
 
       // validation phrase
-      auto val_start = std::chrono::high_resolution_clock::now();
       auto [avg_val_loss, avg_val_accuracy] =
           validate_class_model(model, test_loader, *loss_function);
-      auto val_end = std::chrono::high_resolution_clock::now();
-      auto val_epoch_duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
