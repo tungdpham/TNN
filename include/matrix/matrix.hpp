@@ -32,10 +32,7 @@ private:
     if (count == 0)
       return;
 
-    size_t bytes = count * sizeof(T);
-    size_t aligned_size = ((bytes + MKL_ALIGNMENT - 1) / MKL_ALIGNMENT) * MKL_ALIGNMENT;
-
-    data_ = make_array_ptr<T[]>(device_, aligned_size / sizeof(T));
+    data_ = make_array_ptr<T[]>(device_, count, MKL_ALIGNMENT);
   }
 
 public:
@@ -209,14 +206,12 @@ public:
 
   void fill_random_uniform(T range) {
     ops::fill_random_uniform(data_, rows_ * cols_, -range, range,
-                             static_cast<unsigned long long>(std::random_device{}()))
-        ->sync();
+                             static_cast<unsigned long long>(std::random_device{}()));
   }
 
   void fill_random_normal(T mean, T stddev) {
     ops::fill_random_normal(data_, rows_ * cols_, mean, stddev,
-                            static_cast<unsigned long long>(std::random_device{}()))
-        ->sync();
+                            static_cast<unsigned long long>(std::random_device{}()));
   }
 };
 } // namespace tnn

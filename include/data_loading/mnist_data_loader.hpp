@@ -261,8 +261,7 @@ public:
     batched_data_.reserve(num_batches);
     batched_labels_.reserve(num_batches);
 
-    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
-              << std::endl;
+    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << std::endl;
 
     for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
       const size_t start_idx = batch_idx * batch_size;

@@ -27,6 +27,8 @@ void TrainingConfig::print_config() const {
             << std::endl;
   std::cout << "  Print Layer Profiling Info: " << (print_layer_profiling ? "Yes" : "No")
             << std::endl;
+  std::cout << "  Print Layer Memory Usage: " << (print_layer_memory_usage ? "Yes" : "No")
+            << std::endl;
   std::cout << "  Number of Microbatches: " << num_microbatches << std::endl;
   std::cout << "  Device Type: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << std::endl;
 }
@@ -48,6 +50,7 @@ void TrainingConfig::load_from_env() {
   }
   num_threads = Env::get<size_t>("NUM_THREADS", DEFAULT_NUM_THREADS);
   print_layer_profiling = Env::get<bool>("PRINT_LAYER_PROFILING", false);
+  print_layer_memory_usage = Env::get<bool>("PRINT_LAYER_MEMORY_USAGE", false);
   num_microbatches = Env::get<size_t>("NUM_MICROBATCHES", 2);
   std::string device_type_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
   device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
@@ -99,8 +102,9 @@ ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_lo
       if (model.is_profiling_enabled()) {
         if (config.print_layer_profiling)
           model.print_layers_profiling_info();
+        if (config.print_layer_memory_usage)
+          model.print_cache_memory_summary();
         model.print_profiling_summary();
-        model.print_cache_memory_summary();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
                 << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)
@@ -193,12 +197,8 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
           std::chrono::duration_cast<std::chrono::milliseconds>(train_end - train_start);
 
       // validation phrase
-      auto val_start = std::chrono::high_resolution_clock::now();
       auto [avg_val_loss, avg_val_accuracy] =
           validate_class_model(model, test_loader, *loss_function);
-      auto val_end = std::chrono::high_resolution_clock::now();
-      auto val_epoch_duration =
-          std::chrono::duration_cast<std::chrono::milliseconds>(val_end - val_start);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;

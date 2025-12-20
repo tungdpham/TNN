@@ -518,8 +518,7 @@ public:
     batched_data_.resize(num_batches);
     batched_labels_.resize(num_batches);
 
-    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << "..."
-              << std::endl;
+    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << std::endl;
 
     // Generate a shuffled list of sample indices to improve within-batch label diversity
     std::vector<size_t> shuffled_indices = this->generate_shuffled_indices(num_samples);

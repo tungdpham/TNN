@@ -44,13 +44,12 @@ int main() {
       Endpoint::network(Env::get<string>("WORKER_HOST_8002", "localhost"), 8002),
   };
 
-  cout << "Creating distributed coordinator..." << endl;
   DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
                                      endpoints);
 
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 
-  cout << "Deploying stages to remote endpoints..." << endl;
+  cout << "Deploying stages to remote endpoints" << endl;
   for (auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
   }

@@ -51,6 +51,7 @@ struct TrainingConfig {
   int64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
+  bool print_layer_memory_usage = false;
   DeviceType device_type = DeviceType::CPU;
 
   // Distributed params
