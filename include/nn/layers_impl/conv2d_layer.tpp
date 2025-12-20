@@ -280,7 +280,8 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
     cached_input_w_ = input_w;
   }
 
-  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({max_workspace_, 1, 1, 1});
+  size_t workspace_elements = (max_workspace_ + sizeof(T) - 1) / sizeof(T);
+  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
   Tensor<T> &cudnn_workspace = cudnn_workspace_buffer.get();
 
   auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
@@ -320,7 +321,8 @@ void Conv2DLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor<T>
   grad_input.ensure(input_shape, this->device_);
   grad_input.fill(T(0));
 
-  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({max_workspace_, 1, 1, 1});
+  size_t workspace_elements = (max_workspace_ + sizeof(T) - 1) / sizeof(T);
+  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
   Tensor<T> &cudnn_workspace = cudnn_workspace_buffer.get();
 
   const Tensor<T> &cached_input = it_input_cache->second;
@@ -356,7 +358,8 @@ Conv2DLayer<T>::cudnn_forward(const device_ptr<T[]> &input_data, const device_pt
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::forward_with_bias<T>, cudnn_handle_,
                          input_data.get(), weight_data.get(), bias_data, output_data.get(),
                          batch_size, in_channels_, input_h, input_w, out_channels_, output_h,
-                         output_w, cudnn_workspace_data.get(), cudnn_workspace_data.capacity());
+                         output_w, cudnn_workspace_data.get(),
+                         cudnn_workspace_data.capacity() * sizeof(T));
 }
 
 template <typename T>
@@ -372,7 +375,7 @@ std::unique_ptr<Task> Conv2DLayer<T>::cudnn_backward_data(
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_data<T>, cudnn_handle_,
                          gradient_data.get(), weight_data.get(), input_grad_data.get(), batch_size,
                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace_data.get(), cudnn_workspace_data.capacity());
+                         cudnn_workspace_data.get(), cudnn_workspace_data.capacity() * sizeof(T));
 }
 
 template <typename T>
@@ -388,7 +391,7 @@ std::unique_ptr<Task> Conv2DLayer<T>::cudnn_backward_filter(
   return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_filter<T>, cudnn_handle_,
                          input_data.get(), gradient_data.get(), weight_grad_data.get(), batch_size,
                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace_data.get(), cudnn_workspace_data.capacity());
+                         cudnn_workspace_data.get(), cudnn_workspace_data.capacity() * sizeof(T));
 }
 
 template <typename T>
@@ -666,7 +669,7 @@ template <typename T> size_t Conv2DLayer<T>::cached_memory_bytes() const {
 #endif
   total_bytes += temp_output_buffer_.capacity() * sizeof(T);
   // std::cout << "Temp output buffer bytes: " << temp_output_buffer_.capacity() * sizeof(T)
-  //           << std::endl;
+  // << std::endl;
   total_bytes += temp_gradient_buffer_.capacity() * sizeof(T);
   // std::cout << "Temp gradient buffer bytes: " << temp_gradient_buffer_.capacity() * sizeof(T)
   //           << std::endl;
@@ -674,9 +677,10 @@ template <typename T> size_t Conv2DLayer<T>::cached_memory_bytes() const {
   // std::cout << "Temp col grad matrix buffer bytes: "
   //           << temp_col_grad_matrix_buffer_.capacity() * sizeof(T) << std::endl;
 #ifdef USE_CUDNN
-  total_bytes += max_workspace_ * sizeof(T);
+  size_t workspace_elements = (max_workspace_ + sizeof(T) - 1) / sizeof(T);
+  total_bytes += workspace_elements * sizeof(T);
+  // std::cout << "Cudnn workspace bytes: " << workspace_elements * sizeof(T) << std::endl;
 #endif
-  // std::cout << "Cudnn workspace bytes: " << cudnn_workspace_.capacity() * sizeof(T) << std::endl;
   total_bytes += Layer<T>::cached_memory_bytes();
   // std::cout << "base layer cached bytes: " << Layer<T>::cached_memory_bytes() << std::endl;
   return total_bytes;
