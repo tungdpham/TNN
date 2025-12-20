@@ -1,36 +1,16 @@
 #pragma once
 
-#include "internal_compressor.hpp"
 #include "pipeline/tbuffer.hpp"
 #include <cstring>
-#include <stdexcept>
-#include <string>
 
 namespace tnn {
-static void internal_compress(const TBuffer &data, const std::string name) {
-  if (name == "zstd") {
-    ZstdCompressor::compress(data);
-  } else if (name == "lz4hc") {
-    Lz4hcCompressor::compress(data);
-  } else {
-    throw new std::invalid_argument("Unsupported compression type: " + name);
-  }
-}
-
-static void internal_decompress(const TBuffer &data, const std::string name) {
-  if (name == "zstd") {
-    ZstdCompressor::decompress(data);
-  } else if (name == "lz4hc") {
-    Lz4hcCompressor::decompress(data);
-  } else {
-    throw new std::invalid_argument("Unsupported decompression type: " + name);
-  }
-}
-
 class BloscCompressor {
 public:
-  static TBuffer compress(const TBuffer &data, int clevel = 5, int shuffle = 1);
+  static void shuffle_buffer(const TBuffer &input, TBuffer &output, size_t typesize);
 
-  static TBuffer decompress(const TBuffer &data);
+  template <typename InCompT>
+  static void compress(const TBuffer &input, TBuffer &output, int clevel = 5, int shuffle = 1);
+
+  template <typename InCompT> static void decompress(const TBuffer &input, TBuffer &output);
 };
 } // namespace tnn

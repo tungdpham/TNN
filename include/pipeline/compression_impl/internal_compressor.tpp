@@ -7,32 +7,28 @@
 
 namespace tnn {
 
-TBuffer ZstdCompressor::compress(const TBuffer &data, int compression_level) {
-  if (data.empty()) {
-    return data;
+void ZstdCompressor::compress(const TBuffer &input, TBuffer &output, int compression_level) {
+  if (input.empty()) {
+    return;
   }
-  size_t max_compressed_size = ZSTD_compressBound(data.size());
-  TBuffer compressed_data(max_compressed_size);
+  size_t max_compressed_size = ZSTD_compressBound(input.size());
+  output.resize(max_compressed_size);
 
-  size_t compressed_size = ZSTD_compress(compressed_data.get(), max_compressed_size, data.get(),
-                                         data.size(), compression_level);
+  size_t compressed_size = ZSTD_compress(output.get(), max_compressed_size, input.get(),
+                                         input.size(), compression_level);
 
   if (ZSTD_isError(compressed_size)) {
     throw std::runtime_error("Zstd compression failed: " +
                              std::string(ZSTD_getErrorName(compressed_size)));
   }
-
-  compressed_data.resize(compressed_size);
-  return compressed_data;
 }
 
-TBuffer ZstdCompressor::decompress(const TBuffer &data) {
-  if (data.empty()) {
-    return data;
+void ZstdCompressor::decompress(const TBuffer &input, TBuffer &output) {
+  if (input.empty()) {
+    return;
   }
 
-  unsigned long long decompressed_size = ZSTD_getFrameContentSize(data.get(), data.size());
-
+  unsigned long long decompressed_size = ZSTD_getFrameContentSize(input.get(), input.size());
   if (decompressed_size == ZSTD_CONTENTSIZE_ERROR) {
     throw std::runtime_error("Invalid zstd compressed data");
   }
@@ -42,25 +38,24 @@ TBuffer ZstdCompressor::decompress(const TBuffer &data) {
 
   TBuffer decompressed_data(decompressed_size);
 
-  size_t result =
-      ZSTD_decompress(decompressed_data.get(), decompressed_size, data.get(), data.size());
+  size_t result = ZSTD_decompress(output.get(), decompressed_size, input.get(), input.size());
 
   if (ZSTD_isError(result)) {
     throw std::runtime_error("Zstd decompression failed: " +
                              std::string(ZSTD_getErrorName(result)));
   }
 
-  return decompressed_data;
+  return;
 }
 
-TBuffer Lz4hcCompressor::compress(const TBuffer &data, int compression_level) {
+void Lz4hcCompressor::compress(const TBuffer &input, TBuffer &output, int compression_level) {
   // TODO: Implement LZ4HC compression
-  return data;
+  throw new std::runtime_error("LZ4HC compression not implemented");
 }
 
-TBuffer Lz4hcCompressor::decompress(const TBuffer &data) {
+void Lz4hcCompressor::decompress(const TBuffer &input, TBuffer &output) {
   // TODO: Implement LZ4HC decompression
-  return data;
+  throw new std::runtime_error("LZ4HC decompression not implemented");
 }
 
 } // namespace tnn
