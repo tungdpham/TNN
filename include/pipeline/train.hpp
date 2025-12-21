@@ -23,6 +23,8 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
 
   float total_loss = 0.0f;
 
+  coordinator.set_training(true);
+
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     // Split batch into micro-batches
     std::vector<Tensor<float>> micro_batch_inputs;
@@ -64,6 +66,8 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
   float total_val_loss = 0.0f;
   float total_val_correct = 0.0f;
   int val_batches = 0;
+
+  coordinator.set_training(false);
 
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
     std::vector<Tensor<float>> micro_batch_inputs;
