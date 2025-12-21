@@ -20,19 +20,27 @@
 namespace tnn {
 using PayloadType = std::variant<std::monostate, Job<float>, std::string, bool, LoadTracker>;
 
+enum class CompressionType : uint8_t { NONE = 0, ZSTD = 1, QUANTIZATION = 2 };
+
 struct FixedHeader {
   uint8_t PROTOCOL_VERSION = 1;
   Endianness endianess; // 1 for little-endian, 0 for big-endian
   uint64_t length = 0;  // Length of the rest of the message (excluding fixed header part)
+  CompressionType compression_type = CompressionType::NONE;
 
   FixedHeader() : endianess(get_system_endianness()) {}
 
   FixedHeader(uint64_t len) : length(len) { endianess = get_system_endianness(); }
 
+  FixedHeader(uint64_t len, CompressionType comp_type) : length(len), compression_type(comp_type) {
+    endianess = get_system_endianness();
+  }
+
   static constexpr uint64_t size() {
-    return sizeof(uint8_t) +    // PROTOCOL_VERSION
-           sizeof(Endianness) + // endianess
-           sizeof(uint64_t);    // length
+    return sizeof(uint8_t) +        // PROTOCOL_VERSION
+           sizeof(Endianness) +     // endianess
+           sizeof(uint64_t) +       // length
+           sizeof(CompressionType); // compression_type
   }
 };
 

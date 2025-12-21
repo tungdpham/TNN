@@ -7,14 +7,15 @@
 using namespace tnn;
 
 int main() {
-  Tensor<float, NCHW> tensor({32, 3, 1028, 1028});
-  tensor.fill(0.5f);
+  Tensor<float, NCHW> tensor({64, 512, 16, 16});
+  tensor.fill_random_normal(0.5, 0.05f);
   std::cout << "Tensor created with shape: " << tensor.batch_size() << "x" << tensor.channels()
             << "x" << tensor.height() << "x" << tensor.width() << std::endl;
   TBuffer serialized_data;
   BinarySerializer::serialize(tensor, serialized_data);
   auto compression_start = std::chrono::high_resolution_clock::now();
-  TBuffer compressed_data = ZstdCompressor::compress(serialized_data, 3);
+  TBuffer compressed_data;
+  ZstdCompressor::compress(serialized_data, compressed_data, 3);
   auto compression_end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> compression_duration = compression_end - compression_start;
   std::cout << "Compression took " << compression_duration.count() << " seconds" << std::endl;
@@ -24,7 +25,8 @@ int main() {
   std::cout << "Compressed size: " << compressed_size << " bytes" << std::endl;
 
   auto decompression_start = std::chrono::high_resolution_clock::now();
-  TBuffer decompressed_data = ZstdCompressor::decompress(compressed_data);
+  TBuffer decompressed_data;
+  ZstdCompressor::decompress(compressed_data, decompressed_data);
   auto decompression_end = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> decompression_duration = decompression_end - decompression_start;
   std::cout << "Decompression took " << decompression_duration.count() << " seconds" << std::endl;

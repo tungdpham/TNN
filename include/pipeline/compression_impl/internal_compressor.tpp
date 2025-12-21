@@ -21,6 +21,9 @@ void ZstdCompressor::compress(const TBuffer &input, TBuffer &output, int compres
     throw std::runtime_error("Zstd compression failed: " +
                              std::string(ZSTD_getErrorName(compressed_size)));
   }
+
+  output.resize(compressed_size);
+  return;
 }
 
 void ZstdCompressor::decompress(const TBuffer &input, TBuffer &output) {
@@ -35,8 +38,7 @@ void ZstdCompressor::decompress(const TBuffer &input, TBuffer &output) {
   if (decompressed_size == ZSTD_CONTENTSIZE_UNKNOWN) {
     throw std::runtime_error("Cannot determine decompressed size");
   }
-
-  TBuffer decompressed_data(decompressed_size);
+  output.resize(decompressed_size);
 
   size_t result = ZSTD_decompress(output.get(), decompressed_size, input.get(), input.size());
 
