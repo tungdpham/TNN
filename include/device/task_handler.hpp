@@ -2,8 +2,6 @@
 
 #include "task.hpp"
 
-#include <iostream>
-
 namespace tnn {
 
 class TaskHandler {};

@@ -12,6 +12,7 @@
 #include "layers.hpp"
 #include "nn/layers_impl/base_layer.hpp"
 #include "nn/mem_pool.hpp"
+#include "ops/ops.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -445,9 +446,10 @@ public:
   /**
    * @brief Performs a forward pass through the model.
    * @param input The input tensor.
+   * @param output The output tensor to store the result.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  Tensor<T> forward(const Tensor<T> &input, size_t micro_batch_id = 0) {
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
@@ -497,7 +499,8 @@ public:
       forward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
-    return current->to_device(input_device);
+    output.ensure(current->shape());
+    ops::cd_copy(current->data_ptr(), output.data_ptr(), output.size());
   }
 
   /**
@@ -519,9 +522,10 @@ public:
   /**
    * @brief Performs a backward pass through the model.
    * @param gradient The gradient tensor from the subsequent layer or loss function.
+   * @param output The output tensor to store the result.
    * @param micro_batch_id The ID of the microbatch, defaulting to 0 for normal training.
    */
-  Tensor<T> backward(const Tensor<T> &gradient, size_t micro_batch_id = 0) {
+  void backward(const Tensor<T> &gradient, Tensor<T> &output, size_t micro_batch_id = 0) {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
@@ -571,7 +575,8 @@ public:
       backward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
-    return current_gradient->to_device(gradient.device());
+    output.ensure(current_gradient->shape());
+    ops::cd_copy(current_gradient->data_ptr(), output.data_ptr(), output.size());
   }
 
   /**

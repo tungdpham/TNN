@@ -136,7 +136,11 @@ public:
   Message(std::string recipient_id, CommandType cmd_type)
       : header_(std::move(recipient_id), cmd_type), data_(std::monostate{}) {}
 
+  Message(MessageHeader &&header, MessageData &&data)
+      : header_(std::move(header)), data_(std::move(data)) {}
+
   Message(const Message &other) = delete;
+
   Message(Message &&other) noexcept
       : header_(std::move(other.header_)), data_(std::move(other.data_)) {}
 
@@ -162,6 +166,10 @@ public:
   }
 
   template <typename PayloadType> PayloadType &get() {
+    return std::get<PayloadType>(data_.payload);
+  }
+
+  template <typename PayloadType> const PayloadType &get() const {
     return std::get<PayloadType>(data_.payload);
   }
 

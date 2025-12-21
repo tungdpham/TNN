@@ -58,20 +58,20 @@ private:
   std::mutex mutex_;
 };
 
-template <typename T> class TempBuffer {
+template <typename T> class PooledTensor {
 public:
-  TempBuffer(MemPool<T> &mem_pool, std::vector<size_t> shape, const Device *device)
+  PooledTensor(MemPool<T> &mem_pool, std::vector<size_t> shape, const Device *device)
       : mem_pool_(mem_pool) {
     buffer_ = mem_pool_.get(shape, device);
   }
 
-  TempBuffer(const TempBuffer &) = delete;
-  TempBuffer &operator=(const TempBuffer &) = delete;
+  PooledTensor(const PooledTensor &) = delete;
+  PooledTensor &operator=(const PooledTensor &) = delete;
 
-  TempBuffer(TempBuffer &&other) noexcept
+  PooledTensor(PooledTensor &&other) noexcept
       : mem_pool_(other.mem_pool_), buffer_(std::move(other.buffer_)) {}
 
-  TempBuffer &operator=(TempBuffer &&other) noexcept {
+  PooledTensor &operator=(PooledTensor &&other) noexcept {
     if (this != &other) {
       if (buffer_.capacity() > 0) {
         mem_pool_.release(std::move(buffer_));
@@ -81,7 +81,7 @@ public:
     return *this;
   }
 
-  ~TempBuffer() {
+  ~PooledTensor() {
     if (buffer_.capacity() > 0) {
       mem_pool_.release(std::move(buffer_));
     }

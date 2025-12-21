@@ -44,7 +44,7 @@ private:
   }
 
   void allocate(size_t new_capacity) {
-    constexpr size_t alignment = 32; // 32-byte alignment for AVX2
+    constexpr size_t alignment = 64; // 64-byte alignment for AVX2
 #ifdef _WIN32
     data_ = static_cast<uint8_t *>(_aligned_malloc(new_capacity, alignment));
 #else
@@ -174,9 +174,10 @@ public:
       std::memcpy(data_ + size_, arr, byte_size);
     } else {
       size_t num_blocks = get_num_threads();
+      size_t block_size = byte_size / num_blocks;
       parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
-        size_t start = block_idx * (byte_size / num_blocks);
-        size_t end = std::min(byte_size, (block_idx + 1) * (byte_size / num_blocks));
+        size_t start = block_idx * block_size;
+        size_t end = std::min(byte_size, (block_idx + 1) * block_size);
         std::memcpy(data_ + size_ + start, reinterpret_cast<const uint8_t *>(arr) + start,
                     end - start);
       });

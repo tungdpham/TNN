@@ -281,7 +281,7 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
   }
 
   size_t workspace_elements = (max_workspace_ + sizeof(T) - 1) / sizeof(T);
-  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
+  PooledTensor<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
   Tensor<T> &cudnn_workspace = cudnn_workspace_buffer.get();
 
   auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
@@ -322,7 +322,7 @@ void Conv2DLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor<T>
   grad_input.fill(T(0));
 
   size_t workspace_elements = (max_workspace_ + sizeof(T) - 1) / sizeof(T);
-  TempBuffer<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
+  PooledTensor<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
   Tensor<T> &cudnn_workspace = cudnn_workspace_buffer.get();
 
   const Tensor<T> &cached_input = it_input_cache->second;

@@ -94,6 +94,7 @@ public:
         alignment_(other.alignment_) {
     other.ptr_ = nullptr;
     other.size_ = 0;
+    other.capacity_ = 0;
   }
 
   device_ptr(const device_ptr &) = delete;

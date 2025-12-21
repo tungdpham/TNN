@@ -15,7 +15,7 @@ template <typename T = float> struct Job {
   Tensor<T> data;
   size_t micro_batch_id;
 
-  Job() = default;
+  Job() : data(), micro_batch_id(0) {}
 
   Job(Tensor<T> &&d, size_t mb_id) : data(std::move(d)), micro_batch_id(mb_id) {}
 

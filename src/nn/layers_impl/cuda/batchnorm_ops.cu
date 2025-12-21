@@ -14,6 +14,16 @@ namespace batchnorm {
 #define BLOCK_SIZE 256
 #define WARP_SIZE 32
 
+template <typename T> struct VectorType;
+template <> struct VectorType<float> {
+  using type = float4;
+  static constexpr int size = 4;
+};
+template <> struct VectorType<double> {
+  using type = double2;
+  static constexpr int size = 2;
+};
+
 template <typename T> struct WelfordData {
   T mean;
   T m2;
@@ -155,6 +165,59 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
 }
 
 template <typename T>
+__global__ void fused_stats_kernel_vec(const T *__restrict__ input, T *__restrict__ mean_out,
+                                       T *__restrict__ inv_std_out, T *__restrict__ running_mean,
+                                       T *__restrict__ running_var, size_t N, size_t C, size_t S,
+                                       T momentum, T epsilon) {
+  using VecT = typename VectorType<T>::type;
+  constexpr int vec_size = VectorType<T>::size;
+
+  int c = blockIdx.x;
+  if (c >= C)
+    return;
+
+  size_t channel_stride = C * S;
+  size_t channel_offset = c * S;
+  size_t count = N * S;
+  size_t num_vectors = count / vec_size;
+
+  WelfordData<T> thread_data;
+
+  for (size_t i = threadIdx.x; i < num_vectors; i += blockDim.x) {
+    size_t scalar_idx_start = i * vec_size;
+    size_t n = scalar_idx_start / S;
+    size_t s = scalar_idx_start % S;
+    size_t idx = n * channel_stride + channel_offset + s;
+
+    VecT val_vec = *reinterpret_cast<const VecT *>(&input[idx]);
+    const T *val_arr = reinterpret_cast<const T *>(&val_vec);
+
+#pragma unroll
+    for (int k = 0; k < vec_size; ++k) {
+      T val = val_arr[k];
+      thread_data.count += T(1);
+      T delta = val - thread_data.mean;
+      thread_data.mean += delta / thread_data.count;
+      T delta2 = val - thread_data.mean;
+      thread_data.m2 += delta * delta2;
+    }
+  }
+
+  WelfordData<T> result = blockReduceWelford(thread_data);
+
+  if (threadIdx.x == 0) {
+    T mu = result.mean;
+    T var = result.m2 / result.count;
+    mean_out[c] = mu;
+    T inv_std = rsqrt(var + epsilon);
+    inv_std_out[c] = inv_std;
+    T unbiased_var = (result.count > T(1)) ? (result.m2 / (result.count - T(1))) : T(0);
+    running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
+    running_var[c] = (T(1) - momentum) * running_var[c] + momentum * unbiased_var;
+  }
+}
+
+template <typename T>
 __global__ void fused_apply_kernel(const T *__restrict__ input, const T *__restrict__ mean,
                                    const T *__restrict__ inv_std, const T *__restrict__ gamma,
                                    const T *__restrict__ beta, T *__restrict__ output,
@@ -180,6 +243,56 @@ __global__ void fused_apply_kernel(const T *__restrict__ input, const T *__restr
       res = res * gamma[c] + beta[c];
     }
     output[idx] = res;
+  }
+}
+
+template <typename T>
+__global__ void fused_apply_kernel_vec(const T *__restrict__ input, const T *__restrict__ mean,
+                                       const T *__restrict__ inv_std, const T *__restrict__ gamma,
+                                       const T *__restrict__ beta, T *__restrict__ output,
+                                       T *__restrict__ normalized_cache, size_t N, size_t C,
+                                       size_t S, bool affine) {
+  using VecT = typename VectorType<T>::type;
+  constexpr int vec_size = VectorType<T>::size;
+
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_vectors = (N * C * S) / vec_size;
+
+  if (idx < total_vectors) {
+    size_t scalar_idx = idx * vec_size;
+    int c = (scalar_idx / S) % C;
+
+    T mu = mean[c];
+    T istd = inv_std[c];
+    T g = (affine && gamma) ? gamma[c] : T(1);
+    T b = (affine && beta) ? beta[c] : T(0);
+
+    VecT x_vec = reinterpret_cast<const VecT *>(input)[idx];
+    const T *x_arr = reinterpret_cast<const T *>(&x_vec);
+
+    VecT out_vec;
+    T *out_arr = reinterpret_cast<T *>(&out_vec);
+
+    VecT norm_vec;
+    T *norm_arr = reinterpret_cast<T *>(&norm_vec);
+
+#pragma unroll
+    for (int k = 0; k < vec_size; ++k) {
+      T x = x_arr[k];
+      T norm = (x - mu) * istd;
+      if (normalized_cache)
+        norm_arr[k] = norm;
+
+      T res = norm;
+      if (affine) {
+        res = res * g + b;
+      }
+      out_arr[k] = res;
+    }
+
+    reinterpret_cast<VecT *>(output)[idx] = out_vec;
+    if (normalized_cache)
+      reinterpret_cast<VecT *>(normalized_cache)[idx] = norm_vec;
   }
 }
 
@@ -221,6 +334,57 @@ __global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
 }
 
 template <typename T>
+__global__ void fused_backward_reduce_kernel_vec(const T *__restrict__ grad_output,
+                                                 const T *__restrict__ normalized_input,
+                                                 T *__restrict__ d_gamma, T *__restrict__ d_beta,
+                                                 size_t N, size_t C, size_t S) {
+  using VecT = typename VectorType<T>::type;
+  constexpr int vec_size = VectorType<T>::size;
+
+  int c = blockIdx.x;
+  if (c >= C)
+    return;
+
+  size_t count = N * S;
+  size_t num_vectors = count / vec_size;
+
+  T sum_dy = T(0);
+  T sum_dy_x_norm = T(0);
+
+  size_t stride = C * S;
+  size_t offset = c * S;
+
+  for (size_t i = threadIdx.x; i < num_vectors; i += blockDim.x) {
+    size_t scalar_idx_start = i * vec_size;
+    size_t n = scalar_idx_start / S;
+    size_t s = scalar_idx_start % S;
+    size_t idx = n * stride + offset + s;
+
+    VecT dy_vec = *reinterpret_cast<const VecT *>(&grad_output[idx]);
+    const T *dy_arr = reinterpret_cast<const T *>(&dy_vec);
+
+    VecT x_hat_vec = *reinterpret_cast<const VecT *>(&normalized_input[idx]);
+    const T *x_hat_arr = reinterpret_cast<const T *>(&x_hat_vec);
+
+#pragma unroll
+    for (int k = 0; k < vec_size; ++k) {
+      T dy = dy_arr[k];
+      T x_hat = x_hat_arr[k];
+      sum_dy += dy;
+      sum_dy_x_norm += dy * x_hat;
+    }
+  }
+
+  sum_dy = blockReduceSum(sum_dy);
+  sum_dy_x_norm = blockReduceSum(sum_dy_x_norm);
+
+  if (threadIdx.x == 0) {
+    d_gamma[c] = sum_dy_x_norm;
+    d_beta[c] = sum_dy;
+  }
+}
+
+template <typename T>
 __global__ void
 fused_backward_apply_kernel(const T *__restrict__ grad_output,
                             const T *__restrict__ normalized_input, const T *__restrict__ inv_std,
@@ -236,7 +400,6 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
     T g = (affine && gamma) ? gamma[c] : T(1);
     T istd = inv_std[c];
     // These sums represent dL/dMean and dL/dVar parts, required even if not affine
-    // The reduction kernel always computes them into d_beta and d_gamma buffers
     T sum_dy = d_beta[c];
     T sum_dy_x_norm = d_gamma[c];
     T M = T(N * S);
@@ -248,6 +411,51 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
     T term2 = M * dy - sum_dy - (x_hat * sum_dy_x_norm);
 
     grad_input[idx] = term1 * term2;
+  }
+}
+
+template <typename T>
+__global__ void fused_backward_apply_kernel_vec(
+    const T *__restrict__ grad_output, const T *__restrict__ normalized_input,
+    const T *__restrict__ inv_std, const T *__restrict__ gamma, const T *__restrict__ d_gamma,
+    const T *__restrict__ d_beta, T *__restrict__ grad_input, size_t N, size_t C, size_t S,
+    bool affine) {
+  using VecT = typename VectorType<T>::type;
+  constexpr int vec_size = VectorType<T>::size;
+
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_vectors = (N * C * S) / vec_size;
+
+  if (idx < total_vectors) {
+    size_t scalar_idx = idx * vec_size;
+    int c = (scalar_idx / S) % C;
+
+    T g = (affine && gamma) ? gamma[c] : T(1);
+    T istd = inv_std[c];
+    T sum_dy = d_beta[c];
+    T sum_dy_x_norm = d_gamma[c];
+    T M = T(N * S);
+
+    T term1 = (g * istd) / M;
+
+    VecT dy_vec = reinterpret_cast<const VecT *>(grad_output)[idx];
+    const T *dy_arr = reinterpret_cast<const T *>(&dy_vec);
+
+    VecT x_hat_vec = reinterpret_cast<const VecT *>(normalized_input)[idx];
+    const T *x_hat_arr = reinterpret_cast<const T *>(&x_hat_vec);
+
+    VecT dx_vec;
+    T *dx_arr = reinterpret_cast<T *>(&dx_vec);
+
+#pragma unroll
+    for (int k = 0; k < vec_size; ++k) {
+      T dy = dy_arr[k];
+      T x_hat = x_hat_arr[k];
+      T term2 = M * dy - sum_dy - (x_hat * sum_dy_x_norm);
+      dx_arr[k] = term1 * term2;
+    }
+
+    reinterpret_cast<VecT *>(grad_input)[idx] = dx_vec;
   }
 }
 
@@ -299,28 +507,50 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
                        const T *gamma, const T *beta, T *output, T *norm_cache, size_t N, size_t C,
                        size_t S, T momentum, T epsilon, bool affine, cudaStream_t stream) {
 
-  fused_stats_kernel<<<C, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, running_mean, running_var,
-                                                   N, C, S, momentum, epsilon);
+  constexpr int vec_size = VectorType<T>::size;
+  if (S % vec_size == 0) {
+    fused_stats_kernel_vec<<<C, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, running_mean,
+                                                         running_var, N, C, S, momentum, epsilon);
 
-  size_t total_elements = N * C * S;
-  int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  fused_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, gamma, beta,
-                                                            output, norm_cache, N, C, S, affine);
+    size_t total_elements = N * C * S;
+    size_t total_vectors = total_elements / vec_size;
+    int num_blocks = (total_vectors + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    fused_apply_kernel_vec<<<num_blocks, BLOCK_SIZE, 0, stream>>>(
+        input, mean, inv_std, gamma, beta, output, norm_cache, N, C, S, affine);
+  } else {
+    fused_stats_kernel<<<C, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, running_mean,
+                                                     running_var, N, C, S, momentum, epsilon);
+
+    size_t total_elements = N * C * S;
+    int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    fused_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, gamma, beta,
+                                                              output, norm_cache, N, C, S, affine);
+  }
 }
 
 template <typename T>
 void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         bool affine, cudaStream_t stream) {
-  // Always run reduction - even when !affine, we need sum_dy and sum_dy_x_norm
-  // for the input gradient calculation (they represent dL/dMean and dL/dVar terms)
-  fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
-                                                             d_beta, N, C, S);
+  constexpr int vec_size = VectorType<T>::size;
+  if (S % vec_size == 0) {
+    fused_backward_reduce_kernel_vec<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
+                                                                   d_beta, N, C, S);
 
-  size_t total_elements = N * C * S;
-  int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  fused_backward_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(
-      grad_output, norm_input, inv_std, gamma, d_gamma, d_beta, grad_input, N, C, S, affine);
+    size_t total_elements = N * C * S;
+    size_t total_vectors = total_elements / vec_size;
+    int num_blocks = (total_vectors + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    fused_backward_apply_kernel_vec<<<num_blocks, BLOCK_SIZE, 0, stream>>>(
+        grad_output, norm_input, inv_std, gamma, d_gamma, d_beta, grad_input, N, C, S, affine);
+  } else {
+    fused_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input, d_gamma,
+                                                               d_beta, N, C, S);
+
+    size_t total_elements = N * C * S;
+    int num_blocks = (total_elements + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    fused_backward_apply_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(
+        grad_output, norm_input, inv_std, gamma, d_gamma, d_beta, grad_input, N, C, S, affine);
+  }
 }
 
 template <typename T>

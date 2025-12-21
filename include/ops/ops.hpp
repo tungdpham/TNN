@@ -640,6 +640,44 @@ std::unique_ptr<Task> copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t 
   }
 }
 
+// Special copy for copying cross devices (resort to same device/host copy if applicable)
+template <typename T>
+std::unique_ptr<Task> cd_copy(const device_ptr<T[]> &a, device_ptr<T[]> &c, size_t size,
+                              size_t a_offset = 0, size_t c_offset = 0,
+                              const std::string &flow_id = "default") {
+  if (!a.getDevice() || !c.getDevice()) {
+    throw std::runtime_error("cd_copy: Device pointer has no associated device");
+  }
+  auto a_device = a.getDevice();
+  auto c_device = c.getDevice();
+  if (a_device == c_device) {
+    // same device copy
+    return copy<T>(a, c, size, a_offset, c_offset, flow_id);
+  }
+  auto a_device_type = a_device->device_type();
+  auto c_device_type = c_device->device_type();
+
+  if (a_device_type == DeviceType::CPU && c_device_type == DeviceType::GPU) {
+    // host to device copy
+#ifdef USE_CUDA
+    return create_gpu_task(flow_id, cuda::cuda_h2d_copy<T>, a.get() + a_offset, c.get() + c_offset,
+                           size);
+#else
+    throw std::runtime_error("cd_copy: CUDA not enabled for CPU to GPU copy");
+#endif
+  } else if (a_device_type == DeviceType::GPU && c_device_type == DeviceType::CPU) {
+    // device to host copy
+#ifdef USE_CUDA
+    return create_gpu_task(flow_id, cuda::cuda_d2h_copy<T>, a.get() + a_offset, c.get() + c_offset,
+                           size);
+#else
+    throw std::runtime_error("cd_copy: CUDA not enabled for GPU to CPU copy");
+#endif
+  } else {
+    throw std::runtime_error("cd_copy: Unsupported device type combination");
+  }
+}
+
 template <typename T>
 std::unique_ptr<Task> zero(device_ptr<T[]> &c, size_t size,
                            const std::string &flow_id = "default") {

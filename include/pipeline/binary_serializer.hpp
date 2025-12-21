@@ -3,6 +3,7 @@
 #include "endian.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
+#include "tensor/tensor.hpp"
 
 template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64_t variant_index() {
   static_assert(std::variant_size_v<VariantType> > index, "Type not found in variant");
@@ -94,7 +95,7 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       shape[i] = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
     }
-    tensor = Tensor<T>(shape);
+    tensor.ensure(shape);
     if (tensor.size() > 0) {
       buffer.read_array(offset, tensor.data(), tensor.size(), true);
       offset += tensor.size() * sizeof(T);
@@ -103,9 +104,7 @@ public:
 
   static void deserialize(const TBuffer &buffer, size_t &offset, Job<float> &job) {
     job.micro_batch_id = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
-    Tensor<float> tensor;
-    deserialize(buffer, offset, tensor);
-    job.data = std::move(tensor);
+    deserialize(buffer, offset, job.data);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, std::string &str) {

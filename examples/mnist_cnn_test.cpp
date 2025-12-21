@@ -33,11 +33,11 @@ void run_test() {
   size_t batch_size = 100;
   size_t correct_predictions = 0;
 
-  Tensor<float> batch_data, batch_labels;
+  Tensor<float> batch_data, batch_labels, predictions;
   while (loader.get_batch(batch_size, batch_data, batch_labels)) {
-    model.forward(batch_data);
+    model.forward(batch_data, predictions);
 
-    correct_predictions += compute_class_corrects(batch_data, batch_labels);
+    correct_predictions += compute_class_corrects(predictions, batch_labels);
   }
 
   double accuracy = (double)correct_predictions / loader.size();

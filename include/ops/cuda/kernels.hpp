@@ -96,6 +96,10 @@ void cuda_greater(const T *a, const T *b, T *c, size_t size, cudaStream_t stream
 
 template <typename T> void cuda_copy(const T *a, T *c, size_t size, cudaStream_t stream);
 
+template <typename T> void cuda_h2d_copy(const T *a, T *c, size_t size, cudaStream_t stream);
+
+template <typename T> void cuda_d2h_copy(const T *a, T *c, size_t size, cudaStream_t stream);
+
 template <typename T> void cuda_zero(T *c, size_t size, cudaStream_t stream);
 
 template <typename T> T cuda_sum(const T *a, size_t size, cudaStream_t stream);
