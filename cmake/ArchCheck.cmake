@@ -1,0 +1,7 @@
+if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+    message(STATUS "Configuring for 32-bit")
+    add_compile_definitions(ARCH_32)
+else()
+    message(STATUS "Configuring for 64-bit")
+    add_compile_definitions(ARCH_64)
+endif()

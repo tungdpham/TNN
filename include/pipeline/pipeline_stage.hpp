@@ -13,6 +13,7 @@
 #include "communicator.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
+#include "pipeline/message.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
@@ -92,21 +93,29 @@ public:
   std::string name() const { return name_; }
 
 protected:
-  virtual void process_message(Message &message) {
+  virtual void process_message(const Message &message) {
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
-      Job<float> &forward_job = message.get<Job<float>>();
-      forward_job.data = this->model_->forward(forward_job.data, forward_job.micro_batch_id);
-      Message output_message("next_stage", CommandType::FORWARD_JOB, std::move(forward_job));
-      output_message.header().sender_id = name_;
-      communicator_->send_message(std::move(output_message));
+      const Job<float> &forward_job = message.get<Job<float>>();
+
+      Job<float> &output = pooled_job_message_.get<Job<float>>();
+      this->model_->forward(forward_job.data, output.data, forward_job.micro_batch_id);
+
+      pooled_job_message_.header().recipient_id = "next_stage";
+      pooled_job_message_.header().command_type = CommandType::FORWARD_JOB;
+      output.micro_batch_id = forward_job.micro_batch_id;
+      communicator_->send_message(pooled_job_message_);
     } break;
     case CommandType::BACKWARD_JOB: {
-      Job<float> &backward_job = message.get<Job<float>>();
-      backward_job.data = this->model_->backward(backward_job.data, backward_job.micro_batch_id);
-      Message output_message("prev_stage", CommandType::BACKWARD_JOB, std::move(backward_job));
-      output_message.header().sender_id = name_;
-      communicator_->send_message(std::move(output_message));
+      const Job<float> &backward_job = message.get<Job<float>>();
+
+      Job<float> &output = pooled_job_message_.get<Job<float>>();
+      this->model_->backward(backward_job.data, output.data, backward_job.micro_batch_id);
+
+      pooled_job_message_.header().recipient_id = "prev_stage";
+      output.micro_batch_id = backward_job.micro_batch_id;
+      pooled_job_message_.header().command_type = CommandType::BACKWARD_JOB;
+      communicator_->send_message(pooled_job_message_);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       // implicitly clear grads
@@ -177,11 +186,6 @@ protected:
       }
       break;
     }
-    case CommandType::UPDATE_LOAD: {
-      // update load tracker info
-      update_load_tracker();
-      break;
-    }
     case CommandType::REPORT_LOAD: {
       throw std::runtime_error("Not implemented yet");
       break;
@@ -196,39 +200,7 @@ protected:
     }
   }
 
-  void update_load_tracker() {
-    if (!model_) {
-      load_tracker_.avg_forward_time_ = 0;
-      load_tracker_.avg_backward_time_ = 0;
-    } else {
-      const std::map<std::string, uint64_t> forward_times = model_->get_forward_times();
-      const std::map<std::string, uint64_t> backward_times = model_->get_backward_times();
-
-      uint64_t cummulative_forward_time = std::accumulate(
-          forward_times.begin(), forward_times.end(), 0LL,
-          [](uint64_t sum, const std::pair<std::string, uint64_t> &p) { return sum + p.second; });
-
-      uint64_t cummulative_backward_time = std::accumulate(
-          backward_times.begin(), backward_times.end(), 0LL,
-          [](uint64_t sum, const std::pair<std::string, uint64_t> &p) { return sum + p.second; });
-
-      load_tracker_.avg_forward_time_ =
-          static_cast<float>(static_cast<double>(cummulative_forward_time) / 1000.0);
-      load_tracker_.avg_backward_time_ =
-          static_cast<float>(static_cast<double>(cummulative_backward_time) / 1000.0);
-    }
-
-    if (cpu_info_.update_dynamic_info()) {
-      load_tracker_.avg_cpu_utilization_ = static_cast<float>(cpu_info_.get_overall_utilization());
-      load_tracker_.max_memory_usage_ =
-          static_cast<float>(cpu_info_.get_ram_info().used_memory_bytes / (1024 * 1024));
-    } else {
-      load_tracker_.avg_cpu_utilization_ = -1.0f;
-      load_tracker_.max_memory_usage_ = -1.0f;
-    }
-  }
-
-  void handle_configuration(Message &message) {
+  void handle_configuration(const Message &message) {
     if (!message.has_type<std::string>()) {
       std::cout << "Configuration message missing text data" << '\n';
       return;
@@ -237,45 +209,30 @@ protected:
     try {
       // Parse configuration
       nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
-
       StageConfig config = StageConfig::from_json(config_json);
-
       stage_id_ = config.stage_id;
       std::cout << "Received configuration for stage " << stage_id_ << '\n';
-
       std::cout << config_json.dump(2) << std::endl;
-
       this->model_ = std::make_unique<Sequential<float>>(
           Sequential<float>::load_from_config(config.model_config));
-
       OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
       this->optimizer_ = OptimizerFactory<float>::create_from_config(optimizer_config);
-
       if (use_gpu_) {
         this->model_->set_device(DeviceType::GPU);
       } else {
         this->model_->set_device(DeviceType::CPU);
       }
-
       this->model_->initialize();
-
       this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
-
       this->model_->enable_profiling(true);
-
       std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
-
       setup_stage_connections(config);
-
       name_ = stage_id_;
-
       is_configured_ = true;
-
       Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
       this->communicator_->send_message(std::move(ready_msg));
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
-
       std::string error_text = std::string("Configuration failed: ") + e.what();
       Message error_msg("coordinator", CommandType::ERROR_REPORT, error_text);
       this->communicator_->send_message(std::move(error_msg));
@@ -292,6 +249,7 @@ protected:
   std::unique_ptr<Sequential<float>> model_;
   std::unique_ptr<Optimizer<float>> optimizer_;
   std::shared_ptr<Communicator> communicator_;
+
   std::string name_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
@@ -305,6 +263,9 @@ protected:
   LoadTracker load_tracker_;
   uint32_t update_interval = 10000;
   std::thread monitoring_thread_;
+
+private:
+  Message pooled_job_message_{"", CommandType::FORWARD_JOB, Job<float>(Tensor<float>(), 0)};
 };
 
 } // namespace tnn

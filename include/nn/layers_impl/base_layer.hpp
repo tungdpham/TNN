@@ -107,11 +107,11 @@ protected:
   const Device *device_;
   std::string name_;
 
-  TempBuffer<T> get_buffer(const std::vector<size_t> &shape) {
+  PooledTensor<T> get_buffer(const std::vector<size_t> &shape) {
     if (!mem_pool_) {
       throw std::runtime_error("MemPool not set for layer: " + name_);
     }
-    return TempBuffer<T>(*mem_pool_, shape, this->device_);
+    return PooledTensor<T>(*mem_pool_, shape, this->device_);
   }
 };
 

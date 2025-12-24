@@ -107,6 +107,19 @@ public:
 
   void process_message(const Message &message) {}
 
+  const std::vector<std::string> &stage_names() const { return stage_names_; }
+
+  void send_message(Message &&message) {
+    this->coordinator_comm_->send_message(std::move(message));
+  }
+
+  void set_training(bool training) {
+    for (const auto &stage_name : this->stage_names_) {
+      Message mode_msg(stage_name, training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
+      this->coordinator_comm_->send_message(std::move(mode_msg));
+    }
+  }
+
   /**
    * @brief Forwards input batch but does not wait for the result.
    * @param input The input tensor to be processed.

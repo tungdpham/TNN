@@ -17,7 +17,7 @@ struct Config {
   int max_ecore_threads = -1;
   bool show_cores_only = false;
   bool use_gpu = false;
-  size_t io_threads = 4;
+  size_t io_threads = 2;
   size_t num_threads = 8;
 };
 

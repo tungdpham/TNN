@@ -113,9 +113,9 @@ public:
       current_shape = layer_shape;
     }
 
-    TempBuffer<T> temp_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> temp_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &temp = temp_buffer.get();
-    TempBuffer<T> main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &main_output = main_output_buffer.get();
 
     // Main path: F(x)
@@ -126,7 +126,7 @@ public:
       main_path = &main_output;
     }
 
-    TempBuffer<T> shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &shortcut_output = shortcut_output_buffer.get();
 
     // Shortcut path: x or projection(x)
@@ -206,9 +206,9 @@ public:
       current_shape = layer_shape;
     }
 
-    TempBuffer<T> temp_grad_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> temp_grad_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &temp_grad = temp_grad_buffer.get();
-    TempBuffer<T> grad_main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> grad_main_output_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &grad_main_output = grad_main_output_buffer.get();
 
     // Backward through main path
@@ -219,7 +219,7 @@ public:
       grad_main = &grad_main_output;
     }
 
-    TempBuffer<T> grad_shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
+    PooledTensor<T> grad_shortcut_output_buffer = this->get_buffer({max_size, 1, 1, 1});
     Tensor<T> &grad_shortcut_output = grad_shortcut_output_buffer.get();
     // Backward through shortcut
     const Tensor<T> *grad_shortcut = grad_to_propagate;

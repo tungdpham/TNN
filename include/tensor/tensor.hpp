@@ -128,16 +128,13 @@ public:
 
   ~Tensor() { data_.reset(); }
 
-  // Tensor(const Tensor &other)
-  //     : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_)
-  //     {
-  //   if (data_size_ > 0) {
-  //     allocate_data(data_size_);
-  //     ops::copy(other.data_, data_, data_size_);
-  //   }
-  // }
-
-  Tensor(const Tensor &other) = delete;
+  Tensor(const Tensor &other)
+      : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_) {
+    if (data_size_ > 0) {
+      allocate_data(data_size_);
+      ops::copy(other.data_, data_, data_size_);
+    }
+  }
 
   Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
     layout_trait_ = other.layout_trait_;
@@ -162,7 +159,15 @@ public:
   const T *data() const { return data_.get(); }
 
   // Operators
-  Tensor<T, L> &operator=(const Tensor<T, L> &other) = delete;
+  Tensor<T, L> &operator=(const Tensor<T, L> &other) {
+    if (this != &other) {
+      layout_trait_ = other.layout_trait_;
+      device_ = other.device_;
+      data_size_ = other.data_size_;
+      allocate_data(data_size_);
+    }
+    return *this;
+  }
 
   Tensor<T, L> &operator=(Tensor<T, L> &&other) noexcept {
     if (this != &other) {

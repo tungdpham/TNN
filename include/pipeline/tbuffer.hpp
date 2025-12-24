@@ -7,6 +7,7 @@
 #pragma once
 
 #include "endian.hpp"
+#include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -42,6 +43,31 @@ private:
     return min_capacity > MAX_ARRAY_SIZE ? static_cast<size_t>(-1) : MAX_ARRAY_SIZE;
   }
 
+  void allocate(size_t new_capacity) {
+    constexpr size_t alignment = 64; // 64-byte alignment for AVX2
+#ifdef _WIN32
+    data_ = static_cast<uint8_t *>(_aligned_malloc(new_capacity, alignment));
+#else
+    // POSIX aligned_alloc requires size to be a multiple of alignment
+    size_t adjusted_size = ((new_capacity + alignment - 1) / alignment) * alignment;
+    data_ = static_cast<uint8_t *>(std::aligned_alloc(alignment, adjusted_size));
+#endif
+    if (data_ == nullptr) {
+      throw std::bad_alloc();
+    }
+    capacity_ = new_capacity;
+  }
+
+  void deallocate() {
+#ifdef _WIN32
+    _aligned_free(data_);
+#else
+    free(data_);
+#endif
+    data_ = nullptr;
+    capacity_ = 0;
+  }
+
 public:
   TBuffer() : data_(nullptr), size_(0), capacity_(0) {}
 
@@ -50,36 +76,21 @@ public:
       throw std::invalid_argument("Illegal Capacity: " + std::to_string(initial_capacity));
     }
     if (initial_capacity > 0) {
-      data_ = static_cast<uint8_t *>(malloc(initial_capacity));
-      if (data_ == nullptr) {
-        throw std::bad_alloc();
-      }
-      capacity_ = initial_capacity;
+      allocate(initial_capacity);
     }
   }
 
   TBuffer(std::initializer_list<uint8_t> init) : data_(nullptr), size_(0), capacity_(0) {
     if (init.size() > 0) {
-      data_ = static_cast<uint8_t *>(malloc(init.size()));
-      if (data_ == nullptr) {
-        throw std::bad_alloc();
-      }
-      capacity_ = init.size();
+      allocate(init.size());
+      std::memcpy(data_, init.begin(), init.size());
       size_ = init.size();
-      size_t i = 0;
-      for (const auto &val : init) {
-        data_[i++] = val;
-      }
     }
   }
 
   TBuffer(const TBuffer &other) : data_(nullptr), size_(0), capacity_(0) {
     if (other.size_ > 0) {
-      data_ = static_cast<uint8_t *>(malloc(other.capacity_));
-      if (data_ == nullptr) {
-        throw std::bad_alloc();
-      }
-      capacity_ = other.capacity_;
+      allocate(other.size_);
       size_ = other.size_;
       std::memcpy(data_, other.data_, size_);
     }
@@ -92,17 +103,6 @@ public:
     other.capacity_ = 0;
   }
 
-  static TBuffer from_existing_pointer(uint8_t *data, size_t size) {
-    if (data == nullptr && size > 0) {
-      throw std::invalid_argument("Data pointer is null but size is greater than zero");
-    }
-    TBuffer buffer;
-    buffer.data_ = data;
-    buffer.size_ = size;
-    buffer.capacity_ = size;
-    return buffer;
-  }
-
   ~TBuffer() {
     if (data_ != nullptr) {
       free(data_);
@@ -112,17 +112,10 @@ public:
 
   TBuffer &operator=(const TBuffer &other) {
     if (this != &other) {
-      free(data_);
-      data_ = nullptr;
-      size_ = 0;
-      capacity_ = 0;
+      deallocate();
 
       if (other.size_ > 0) {
-        data_ = static_cast<uint8_t *>(malloc(other.capacity_));
-        if (data_ == nullptr) {
-          throw std::bad_alloc();
-        }
-        capacity_ = other.capacity_;
+        allocate(other.size_);
         size_ = other.size_;
         std::memcpy(data_, other.data_, size_);
       }
@@ -132,7 +125,7 @@ public:
 
   TBuffer &operator=(TBuffer &&other) noexcept {
     if (this != &other) {
-      free(data_);
+      deallocate();
       data_ = other.data_;
       size_ = other.size_;
       capacity_ = other.capacity_;
@@ -160,28 +153,10 @@ public:
 
   void reserve(size_t new_capacity) { ensure_capacity(new_capacity); }
 
-  void shrink_to_fit() {
-    if (size_ < capacity_) {
-      if (size_ == 0) {
-        free(data_);
-        data_ = nullptr;
-        capacity_ = 0;
-      } else {
-        uint8_t *new_data = static_cast<uint8_t *>(malloc(size_));
-        if (new_data == nullptr) {
-          throw std::bad_alloc();
-        }
-        std::memcpy(new_data, data_, size_);
-        free(data_);
-        data_ = new_data;
-        capacity_ = size_;
-      }
-    }
-  }
-
   void clear() { size_ = 0; }
 
-  template <typename T> void write_value(const T &value) {
+#if defined(ARCH_64)
+  template <typename T> inline void write_value(const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     ensure_capacity(size_ + sizeof(T));
@@ -189,36 +164,40 @@ public:
     size_ += sizeof(T);
   }
 
-  void write_string(const std::string &str) {
-    uint64_t str_length = static_cast<uint64_t>(str.size());
-    write_value(str_length);
-    if (str_length > 0) {
-      const char *chars = str.data();
-      write_array(reinterpret_cast<const uint8_t *>(chars), str_length);
-    }
-  }
-
-  template <typename T> void write_array(const T *arr, size_t length) {
+  template <typename T>
+  inline void write_array(const T *arr, size_t length, bool parallel = false) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
     ensure_capacity(size_ + byte_size);
-    std::memcpy(data_ + size_, arr, byte_size);
+    if (!parallel) {
+      std::memcpy(data_ + size_, arr, byte_size);
+    } else {
+      size_t num_blocks = get_num_threads();
+      size_t block_size = byte_size / num_blocks;
+      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
+        size_t start = block_idx * block_size;
+        size_t end = std::min(byte_size, (block_idx + 1) * block_size);
+        std::memcpy(data_ + size_ + start, reinterpret_cast<const uint8_t *>(arr) + start,
+                    end - start);
+      });
+    }
     size_ += byte_size;
   }
 
-  template <typename T> T read_value(size_t &offset) const {
+  inline void write_string(const std::string &str) {
+    uint64_t str_length = static_cast<uint64_t>(str.size());
+    write_value<uint64_t>(str_length);
+    if (str_length > 0) {
+      write_array(reinterpret_cast<const uint8_t *>(str.data()), str_length);
+    }
+  }
+
+  template <typename T> inline T read_value(size_t &offset) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     if (offset + sizeof(T) > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + sizeof(T)));
-    }
-    if constexpr (std::is_same<T, int>::value && sizeof(int) != sizeof(int32_t)) {
-      return static_cast<int>(read_value<int32_t>(offset));
-    } else if constexpr (std::is_same<T, long>::value && sizeof(long) != sizeof(int64_t)) {
-      return static_cast<long>(read_value<int64_t>(offset));
-    } else if constexpr (std::is_same<T, size_t>::value && sizeof(size_t) != sizeof(uint64_t)) {
-      return static_cast<size_t>(read_value<uint64_t>(offset));
     }
     T value;
     std::memcpy(&value, data_ + offset, sizeof(T));
@@ -229,7 +208,34 @@ public:
     return value;
   }
 
-  std::string read_string(size_t &offset) const {
+  template <typename T>
+  inline void read_array(size_t &offset, T *arr, size_t length, bool parallel = false) const {
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "Type must be trivially copyable (primitive or POD type)");
+    size_t byte_size = sizeof(T) * length;
+    if (offset + byte_size > size_) {
+      throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
+    }
+    if (!parallel) {
+      std::memcpy(arr, data_ + offset, byte_size);
+    } else {
+      size_t num_blocks = get_num_threads();
+      size_t block_size = byte_size / num_blocks;
+      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
+        size_t start = block_idx * block_size;
+        size_t end = std::min(byte_size, (block_idx + 1) * block_size);
+        std::memcpy(reinterpret_cast<uint8_t *>(arr) + start, data_ + offset + start, end - start);
+      });
+    }
+    if (endianess_ != get_system_endianness()) {
+      for (size_t i = 0; i < length; ++i) {
+        bswap(arr[i]);
+      }
+    }
+    offset += byte_size;
+  }
+
+  inline std::string read_string(size_t &offset) const {
     uint64_t str_length = read_value<uint64_t>(offset);
     if (offset + str_length > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + str_length));
@@ -242,22 +248,12 @@ public:
     }
     return str;
   }
+#elif defined(ARCH_32)
+  // Implementations for 32-bit architectures can go here
 
-  template <typename T> void read_array(size_t &offset, T *arr, size_t length) const {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    size_t byte_size = sizeof(T) * length;
-    if (offset + byte_size > size_) {
-      throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
-    }
-    std::memcpy(arr, data_ + offset, byte_size);
-    if (endianess_ != get_system_endianness()) {
-      for (size_t i = 0; i < length; ++i) {
-        bswap(arr[i]);
-      }
-    }
-    offset += byte_size;
-  }
+#else
+#error "Unknown architecture. Codebase supports only 32-bit and 64-bit architectures."
+#endif
 
   void resize(size_t new_size) {
     ensure_capacity(new_size);

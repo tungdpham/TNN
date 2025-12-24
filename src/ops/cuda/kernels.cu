@@ -556,6 +556,20 @@ template <typename T> void cuda_copy(const T *a, T *c, size_t size, cudaStream_t
   cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
 }
 
+template <typename T> void cuda_h2d_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
+  if (size == 0)
+    return;
+  cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyHostToDevice, stream);
+  cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
+}
+
+template <typename T> void cuda_d2h_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
+  if (size == 0)
+    return;
+  cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyDeviceToHost);
+  cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
+}
+
 template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStream_t stream) {
   if (size == 0)
     return;
@@ -665,6 +679,8 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
 
 #define INSTANTIATE_UTILS(T)                                                                       \
   template void cuda_copy<T>(const T *, T *, size_t, cudaStream_t);                                \
+  template void cuda_h2d_copy<T>(const T *, T *, size_t, cudaStream_t);                            \
+  template void cuda_d2h_copy<T>(const T *, T *, size_t, cudaStream_t);                            \
   template void cuda_set_scalar<T>(T *, T, size_t, cudaStream_t);                                  \
   template void cuda_zero<T>(T *, size_t, cudaStream_t);                                           \
   template void cuda_transpose_2d<T>(const T *, T *, size_t, size_t, cudaStream_t);                \

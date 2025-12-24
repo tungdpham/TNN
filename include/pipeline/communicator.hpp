@@ -45,7 +45,7 @@ public:
     message_notification_callback_ = nullptr;
   }
 
-  virtual void send_message(Message &&message) = 0;
+  virtual void send_message(const Message &message) = 0;
 
   virtual void flush_output_messages() = 0;
 

@@ -231,7 +231,6 @@ target_include_directories(tnn_pipeline PRIVATE
     ${asio_SOURCE_DIR}/asio/include
 )
 target_link_libraries(tnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
-target_link_libraries(tnn_pipeline PUBLIC libzstd_static)
 target_compile_definitions(tnn_pipeline PUBLIC ASIO_STANDALONE)
 
 # Main TNN library

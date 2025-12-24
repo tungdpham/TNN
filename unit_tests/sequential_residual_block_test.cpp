@@ -93,7 +93,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output shape should match input shape
   verify_output_shape(output.shape(), {1, 64, 32, 32}, "BasicResidualBlockIdentityShortcut");
@@ -123,7 +124,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output channels should be 128
   verify_output_shape(output.shape(), {1, 128, 32, 32}, "BasicResidualBlockProjectionShortcut");
@@ -153,7 +155,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedShortcut) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output spatial dimensions should be halved due to stride=2
   verify_output_shape(output.shape(), {1, 64, 16, 16}, "BasicResidualBlockStridedShortcut");
@@ -172,7 +175,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedAndProjection) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output should have new channels and halved spatial dimensions
   verify_output_shape(output.shape(), {1, 128, 16, 16}, "BasicResidualBlockStridedAndProjection");
@@ -191,14 +195,16 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
   Tensor<float> input({1, 32, 16, 16}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
   EXPECT_EQ(output.shape(), input.shape());
 
   // Create gradient tensor
   Tensor<float> grad_output({1, 32, 16, 16}, cpu_device_);
   grad_output.fill(1.0f);
 
-  auto grad_input = model.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  model.backward(grad_output, grad_input);
 
   // Gradient input should have same shape as input
   verify_output_shape(grad_input.shape(), input.shape(), "BasicResidualBlockBackward");
@@ -231,7 +237,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockMultipleBlocks) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Final output should have 128 channels and halved spatial dims
   verify_output_shape(output.shape(), {1, 128, 16, 16}, "BasicResidualBlockMultipleBlocks");
@@ -254,7 +261,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
   Tensor<float> input({1, 256, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output shape should match input shape
   verify_output_shape(output.shape(), {1, 256, 32, 32}, "BottleneckResidualBlockIdentityShortcut");
@@ -284,7 +292,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockProjectionShortcut) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output channels should be 256 (out_channels)
   verify_output_shape(output.shape(), {1, 256, 32, 32},
@@ -304,7 +313,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedShortcut) {
   Tensor<float> input({1, 256, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output spatial dimensions should be halved due to stride=2
   verify_output_shape(output.shape(), {1, 256, 16, 16}, "BottleneckResidualBlockStridedShortcut");
@@ -323,7 +333,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedAndProjection)
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Output should have 256 channels and halved spatial dimensions
   verify_output_shape(output.shape(), {1, 256, 16, 16},
@@ -343,14 +354,16 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
   Tensor<float> input({1, 64, 16, 16}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
   EXPECT_EQ(output.shape(), input.shape());
 
   // Create gradient tensor
   Tensor<float> grad_output({1, 64, 16, 16}, cpu_device_);
   grad_output.fill(1.0f);
 
-  auto grad_input = model.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  model.backward(grad_output, grad_input);
 
   // Gradient input should have same shape as input
   verify_output_shape(grad_input.shape(), input.shape(), "BottleneckResidualBlockBackward");
@@ -383,7 +396,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockMultipleBlocks) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Final output should have 512 channels and halved spatial dims
   verify_output_shape(output.shape(), {1, 512, 16, 16}, "BottleneckResidualBlockMultipleBlocks");
@@ -409,7 +423,8 @@ TEST_F(SequentialResidualBlockTest, MixedBasicAndBottleneckBlocks) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Final output should have 512 channels and halved spatial dims
   verify_output_shape(output.shape(), {1, 512, 16, 16}, "MixedBasicAndBottleneckBlocks");
@@ -435,7 +450,8 @@ TEST_F(SequentialResidualBlockTest, ResNet18LikeArchitecture) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Final output should be 512 channels and 4x4 spatial dims (32 / 2^3)
   verify_output_shape(output.shape(), {1, 512, 4, 4}, "ResNet18LikeArchitecture");
@@ -462,7 +478,8 @@ TEST_F(SequentialResidualBlockTest, ResNet50LikeArchitecture) {
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
 
   // Final output should be 1024 channels and 8x8 spatial dims (32 / 2^2)
   verify_output_shape(output.shape(), {1, 1024, 8, 8}, "ResNet50LikeArchitecture");
@@ -570,7 +587,8 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
 
-    auto output = model.forward(input);
+    Tensor<float> output;
+    model.forward(input, output);
 
     // Check that output contains finite values (no NaN or Inf)
     const float *output_data = output.data();
@@ -609,7 +627,8 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
 
-    auto output = model.forward(input);
+    Tensor<float> output;
+    model.forward(input, output);
 
     // Check that output contains finite values (no NaN or Inf)
     const float *output_data = output.data();
@@ -643,11 +662,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
   Tensor<float> grad_output(output.shape(), cpu_device_);
   grad_output.fill(1.0f);
 
-  auto grad_input = model.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  model.backward(grad_output, grad_input);
 
   // Check that all gradients are finite
   const float *grad_data = grad_input.data();
@@ -682,11 +703,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
   Tensor<float> grad_output(output.shape(), cpu_device_);
   grad_output.fill(1.0f);
 
-  auto grad_input = model.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  model.backward(grad_output, grad_input);
 
   // Check that all gradients are finite
   const float *grad_data = grad_input.data();
@@ -723,11 +746,13 @@ TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
     input_data[i] = 0.1f * static_cast<float>(rand()) / RAND_MAX;
   }
 
-  auto output = model.forward(input);
+  Tensor<float> output;
+  model.forward(input, output);
   Tensor<float> grad_output(output.shape(), cpu_device_);
   grad_output.fill(0.01f); // Small gradient signal
 
-  auto grad_input = model.backward(grad_output);
+  Tensor<float> grad_input(input.shape(), cpu_device_);
+  model.backward(grad_output, grad_input);
 
   // Compute gradient statistics
   const float *grad_data = grad_input.data();

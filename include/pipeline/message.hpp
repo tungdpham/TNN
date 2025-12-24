@@ -20,19 +20,27 @@
 namespace tnn {
 using PayloadType = std::variant<std::monostate, Job<float>, std::string, bool, LoadTracker>;
 
+enum class CompressionType : uint8_t { NONE = 0, ZSTD = 1, QUANTIZATION = 2 };
+
 struct FixedHeader {
   uint8_t PROTOCOL_VERSION = 1;
   Endianness endianess; // 1 for little-endian, 0 for big-endian
   uint64_t length = 0;  // Length of the rest of the message (excluding fixed header part)
+  CompressionType compression_type = CompressionType::NONE;
 
   FixedHeader() : endianess(get_system_endianness()) {}
 
   FixedHeader(uint64_t len) : length(len) { endianess = get_system_endianness(); }
 
+  FixedHeader(uint64_t len, CompressionType comp_type) : length(len), compression_type(comp_type) {
+    endianess = get_system_endianness();
+  }
+
   static constexpr uint64_t size() {
-    return sizeof(uint8_t) +    // PROTOCOL_VERSION
-           sizeof(Endianness) + // endianess
-           sizeof(uint64_t);    // length
+    return sizeof(uint8_t) +        // PROTOCOL_VERSION
+           sizeof(Endianness) +     // endianess
+           sizeof(uint64_t) +       // length
+           sizeof(CompressionType); // compression_type
   }
 };
 
@@ -65,13 +73,14 @@ struct MessageData {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other) = delete;
+  MessageData(const MessageData &other)
+      : payload_type(other.payload_type), payload(other.payload) {}
+
   MessageData(MessageData &&other) noexcept
       : payload_type(other.payload_type), payload(std::move(other.payload)) {}
 
   ~MessageData() = default;
 
-  MessageData &operator=(const MessageData &other) = delete;
   MessageData &operator=(MessageData &&other) noexcept {
     if (this != &other) {
       payload_type = other.payload_type;
@@ -128,7 +137,11 @@ public:
   Message(std::string recipient_id, CommandType cmd_type)
       : header_(std::move(recipient_id), cmd_type), data_(std::monostate{}) {}
 
+  Message(MessageHeader &&header, MessageData &&data)
+      : header_(std::move(header)), data_(std::move(data)) {}
+
   Message(const Message &other) = delete;
+
   Message(Message &&other) noexcept
       : header_(std::move(other.header_)), data_(std::move(other.data_)) {}
 
@@ -157,12 +170,22 @@ public:
     return std::get<PayloadType>(data_.payload);
   }
 
+  template <typename PayloadType> const PayloadType &get() const {
+    return std::get<PayloadType>(data_.payload);
+  }
+
   template <typename PayloadType> void set(const PayloadType &new_payload) {
     data_.payload = new_payload;
     data_.payload_type = static_cast<uint64_t>(data_.payload.index());
   }
 
   const uint64_t size() const { return header_.size() + data_.size(); }
+
+  Message clone() const {
+    MessageHeader new_header = header_;
+    MessageData new_data = data_;
+    return Message(std::move(new_header), std::move(new_data));
+  }
 };
 
 } // namespace tnn

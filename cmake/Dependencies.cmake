@@ -16,14 +16,6 @@ FetchContent_Declare(
     GIT_TAG v3.11.3
 )
 
-# zstandard compression library
-FetchContent_Declare(
-    zstd
-    GIT_REPOSITORY https://github.com/facebook/zstd.git
-    GIT_TAG v1.5.7
-    SOURCE_SUBDIR build/cmake
-)
-
 # Google Test
 FetchContent_Declare(
     googletest
@@ -42,7 +34,7 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 # Make the dependencies available
-FetchContent_MakeAvailable(asio nlohmann_json zstd googletest stb)
+FetchContent_MakeAvailable(asio nlohmann_json googletest stb)
 
 # Add global compile definitions for ASIO
 add_compile_definitions(ASIO_STANDALONE)

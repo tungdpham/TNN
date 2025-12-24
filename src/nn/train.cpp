@@ -6,6 +6,7 @@
  */
 
 #include "nn/train.hpp"
+#include "device/device_manager.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <chrono>
 #include <iomanip>
@@ -74,13 +75,14 @@ ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_lo
 
   Tensor<T> device_batch_data(model_device), device_batch_labels(model_device),
       loss_gradient(model_device);
+  Tensor<T> predictions(model_device), backward_output(model_device);
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
     num_samples += batch_data.shape()[0];
     device_batch_data = batch_data.to_device(model_device);
-    Tensor<T> predictions = model.forward(device_batch_data);
+    model.forward(device_batch_data, predictions);
     device_batch_labels = batch_labels.to_device(model_device);
 
     T loss;
@@ -91,8 +93,7 @@ ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_lo
     total_corrects += corrects;
 
     loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
-
-    model.backward(loss_gradient);
+    model.backward(loss_gradient, backward_output);
 
     optimizer.update();
 
@@ -136,10 +137,12 @@ ClassResult validate_class_model(Sequential<T> &model, ImageDataLoader<T> &test_
   int val_batches = 0;
   const Device *model_device = model.get_device();
 
+  Tensor<T> device_batch_data(model_device), device_batch_labels(model_device);
+  Tensor<T> predictions(model_device);
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    Tensor<T> predictions = model.forward(batch_data.to_device(model_device));
+    model.forward(batch_data.to_device(model_device), predictions);
 
-    const Tensor<T> device_batch_labels = batch_labels.to_device(model_device);
+    device_batch_labels = batch_labels.to_device(model_device);
     T loss;
     loss_function.compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
@@ -259,21 +262,25 @@ RegResult train_reg_epoch(Sequential<T> &model, RegressionDataLoader<T> &train_l
   int num_batches = 0;
 
   const Device *model_device = model.get_device();
+
+  Tensor<T> device_batch_data(model_device), device_batch_labels(model_device),
+      loss_gradient(model_device);
+  Tensor<T> predictions, backward_output;
+
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels)) {
     ++num_batches;
-    Tensor<T> device_batch_data = batch_data.to_device(model_device);
-    Tensor<T> device_batch_labels = batch_labels.to_device(model_device);
+    device_batch_data = batch_data.to_device(model_device);
+    device_batch_labels = batch_labels.to_device(model_device);
 
-    Tensor<T> predictions = model.forward(device_batch_data);
+    model.forward(device_batch_data, predictions);
 
     T loss;
     loss_function.compute_loss(predictions, device_batch_labels, loss);
     total_loss += loss;
 
-    Tensor<T> loss_gradient(model.get_device());
     loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
-    model.backward(loss_gradient);
+    model.backward(loss_gradient, backward_output);
 
     optimizer.update();
 
@@ -311,11 +318,19 @@ RegResult validate_reg_model(Sequential<T> &model, RegressionDataLoader<T> &test
   double val_loss = 0.0;
   int val_batches = 0;
 
+  const Device *model_device = model.get_device();
+
+  Tensor<T> device_batch_data(model_device), device_batch_labels(model_device);
+  Tensor<T> predictions;
+
   while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    Tensor<T> predictions = model.forward(batch_data);
+    device_batch_data = batch_data.to_device(model_device);
+    device_batch_labels = batch_labels.to_device(model_device);
+
+    model.forward(device_batch_data, predictions);
 
     T loss;
-    loss_function.compute_loss(predictions, batch_labels, loss);
+    loss_function.compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
     ++val_batches;
   }

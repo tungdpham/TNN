@@ -16,6 +16,6 @@ function(create_math_benchmark target_name source_file)
 endfunction()
 
 create_default(serialization_benchmark serialization_benchmark.cpp)
-create_default(compression_benchmark compression_benchmark.cpp)
 create_math_benchmark(gemm_benchmark gemm_benchmark.cpp)
 create_math_benchmark(tensor_ops_benchmark tensor_ops_benchmark.cpp)
+create_math_benchmark(conv2d_benchmark conv2d_benchmark.cpp)

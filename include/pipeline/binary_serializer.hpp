@@ -3,6 +3,7 @@
 #include "endian.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
+#include "tensor/tensor.hpp"
 
 template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64_t variant_index() {
   static_assert(std::variant_size_v<VariantType> > index, "Type not found in variant");
@@ -31,13 +32,14 @@ public:
     for (size_t dim : shape) {
       buffer.write_value(static_cast<uint64_t>(dim));
     }
-    buffer.write_array(tensor.data(), tensor.size());
+    buffer.write_array(tensor.data(), tensor.size(), true);
   }
 
   static void serialize(const FixedHeader &header, TBuffer &buffer) {
     buffer.write_value(header.PROTOCOL_VERSION);
     buffer.write_value(header.endianess);
     buffer.write_value(header.length);
+    buffer.write_value(header.compression_type);
   }
 
   static void serialize(const MessageHeader &header, TBuffer &buffer) {
@@ -50,23 +52,16 @@ public:
     buffer.write_value(data.payload_type);
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
-
     } else if (std::holds_alternative<Job<float>>(data.payload)) {
       const auto &job = std::get<Job<float>>(data.payload);
       buffer.write_value(static_cast<uint64_t>(job.micro_batch_id));
       serialize<float>(job.data, buffer);
-
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
-      uint64_t str_length = static_cast<uint64_t>(str.size());
-      buffer.write_value(str_length);
-      const char *chars = str.data();
-      buffer.write_array(reinterpret_cast<const uint8_t *>(chars), str_length);
-
+      buffer.write_string(str);
     } else if (std::holds_alternative<bool>(data.payload)) {
       const auto &flag = std::get<bool>(data.payload);
       buffer.write_value(static_cast<uint8_t>(flag ? 1 : 0));
-
     } else {
       throw std::runtime_error("Unsupported payload type in MessageData");
     }
@@ -81,6 +76,7 @@ public:
     header.PROTOCOL_VERSION = buffer.read_value<uint8_t>(offset);
     header.endianess = static_cast<Endianness>(buffer.read_value<uint8_t>(offset));
     header.length = buffer.read_value<uint64_t>(offset);
+    header.compression_type = static_cast<CompressionType>(buffer.read_value<uint8_t>(offset));
     if (header.endianess != get_system_endianness()) {
       bswap(header.length);
     }
@@ -99,18 +95,16 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       shape[i] = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
     }
-    tensor = Tensor<T>(shape);
+    tensor.ensure(shape);
     if (tensor.size() > 0) {
-      std::memcpy(tensor.data(), buffer.get() + offset, tensor.size() * sizeof(T));
+      buffer.read_array(offset, tensor.data(), tensor.size(), true);
       offset += tensor.size() * sizeof(T);
     }
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, Job<float> &job) {
     job.micro_batch_id = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
-    Tensor<float> tensor;
-    deserialize(buffer, offset, tensor);
-    job.data = std::move(tensor);
+    deserialize(buffer, offset, job.data);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, std::string &str) {

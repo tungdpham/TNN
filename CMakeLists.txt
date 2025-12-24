@@ -7,6 +7,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 set(NASM_DIR "" CACHE PATH "Path to NASM executable") # User can set this to their NASM path
 
+include(ArchCheck)
+
 include(FindNASM)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
