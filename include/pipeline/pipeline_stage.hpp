@@ -13,6 +13,7 @@
 #include "communicator.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
+#include "pipeline/message.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
@@ -96,22 +97,25 @@ protected:
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
       const Job<float> &forward_job = message.get<Job<float>>();
-      auto input_shape = forward_job.data.shape();
-      auto output_shape = this->model_->compute_output_shape(input_shape);
-      Job<float> output(Tensor<float>(output_shape), forward_job.micro_batch_id);
+
+      Job<float> &output = pooled_job_message_.get<Job<float>>();
       this->model_->forward(forward_job.data, output.data, forward_job.micro_batch_id);
-      Message output_message("next_stage", CommandType::FORWARD_JOB, std::move(output));
-      output_message.header().sender_id = name_;
-      communicator_->send_message(std::move(output_message));
+
+      pooled_job_message_.header().recipient_id = "next_stage";
+      pooled_job_message_.header().command_type = CommandType::FORWARD_JOB;
+      output.micro_batch_id = forward_job.micro_batch_id;
+      communicator_->send_message(pooled_job_message_);
     } break;
     case CommandType::BACKWARD_JOB: {
       const Job<float> &backward_job = message.get<Job<float>>();
-      Job<float> output(Tensor<float>(),
-                        backward_job.micro_batch_id); // let model auto fill output shape
+
+      Job<float> &output = pooled_job_message_.get<Job<float>>();
       this->model_->backward(backward_job.data, output.data, backward_job.micro_batch_id);
-      Message output_message("prev_stage", CommandType::BACKWARD_JOB, std::move(output));
-      output_message.header().sender_id = name_;
-      communicator_->send_message(std::move(output_message));
+
+      pooled_job_message_.header().recipient_id = "prev_stage";
+      output.micro_batch_id = backward_job.micro_batch_id;
+      pooled_job_message_.header().command_type = CommandType::BACKWARD_JOB;
+      communicator_->send_message(pooled_job_message_);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       // implicitly clear grads
@@ -259,6 +263,9 @@ protected:
   LoadTracker load_tracker_;
   uint32_t update_interval = 10000;
   std::thread monitoring_thread_;
+
+private:
+  Message pooled_job_message_{"", CommandType::FORWARD_JOB, Job<float>(Tensor<float>(), 0)};
 };
 
 } // namespace tnn
