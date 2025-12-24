@@ -104,7 +104,7 @@ public:
     io_threads_.clear();
   }
 
-  void send_message(Message &&message) override {
+  void send_message(const Message &message) override {
     try {
       size_t msg_size = message.size();
 

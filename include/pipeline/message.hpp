@@ -73,13 +73,14 @@ struct MessageData {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other) = delete;
+  MessageData(const MessageData &other)
+      : payload_type(other.payload_type), payload(other.payload) {}
+
   MessageData(MessageData &&other) noexcept
       : payload_type(other.payload_type), payload(std::move(other.payload)) {}
 
   ~MessageData() = default;
 
-  MessageData &operator=(const MessageData &other) = delete;
   MessageData &operator=(MessageData &&other) noexcept {
     if (this != &other) {
       payload_type = other.payload_type;
@@ -179,6 +180,12 @@ public:
   }
 
   const uint64_t size() const { return header_.size() + data_.size(); }
+
+  Message clone() const {
+    MessageHeader new_header = header_;
+    MessageData new_data = data_;
+    return Message(std::move(new_header), std::move(new_data));
+  }
 };
 
 } // namespace tnn
