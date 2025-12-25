@@ -51,7 +51,9 @@ public:
 
   bool connect(const std::string &name, const Endpoint &endpoint) {
     try {
-      connect_to_endpoint(name, endpoint);
+      if (!connect_to_endpoint(name, endpoint)) {
+        return false;
+      }
       register_recipient(name, endpoint);
       return true;
     } catch (const std::exception &e) {
@@ -138,6 +140,13 @@ public:
 
   inline void set_message_notification_callback(std::function<void()> callback) {
     message_notification_callback_ = callback;
+  }
+
+  size_t num_input_messages() const { return message_queues_.total_size(); }
+
+  size_t num_output_messages() const {
+    std::lock_guard<std::mutex> lock(this->out_message_mutex_);
+    return this->out_message_queue_.size();
   }
 
 protected:
