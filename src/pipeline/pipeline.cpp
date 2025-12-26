@@ -5,11 +5,11 @@
  * project root for the full license text.
  */
 
+#include "pipeline/in_process_coordinator.hpp"
 #include "pipeline/job.hpp"
-#include <pipeline/distributed_coordinator.hpp>
-#include <pipeline/in_process_coordinator.hpp>
-#include <pipeline/network_serialization.hpp>
-#include <pipeline/network_stage_worker.hpp>
+#include "pipeline/network_coordinator.hpp"
+#include "pipeline/network_serialization.hpp"
+#include "pipeline/network_worker.hpp"
 
 namespace tnn {
 /**

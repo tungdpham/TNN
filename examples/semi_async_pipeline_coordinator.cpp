@@ -10,7 +10,7 @@
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline/distributed_coordinator.hpp"
+#include "pipeline/network_coordinator.hpp"
 #include "pipeline/train.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
@@ -57,8 +57,8 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                     endpoints);
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                 endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

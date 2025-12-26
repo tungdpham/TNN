@@ -6,10 +6,10 @@
  */
 #pragma once
 
-#include "pipeline_stage.hpp"
 #include "rdma_communicator.hpp"
 #include "utils/hardware_info.hpp"
 #include "utils/thread_affinity.hpp"
+#include "worker.hpp"
 #include <csignal>
 #include <iostream>
 #include <memory>
@@ -21,7 +21,7 @@ namespace tnn {
  *
  * Standalone worker process that uses RDMA for communication.
  */
-template <typename T = float> class RdmaNetworkStageWorker : public PipelineStage {
+template <typename T = float> class RdmaNetworkStageWorker : public Worker {
 public:
   /**
    * @brief Constructor
@@ -32,7 +32,7 @@ public:
    */
   explicit RdmaNetworkStageWorker(const Endpoint &endpoint, bool use_gpu,
                                   bool use_ecore_affinity = false, int max_ecore_threads = -1)
-      : PipelineStage(use_gpu), endpoint_(endpoint), use_ecore_affinity_(use_ecore_affinity),
+      : Worker(use_gpu), endpoint_(endpoint), use_ecore_affinity_(use_ecore_affinity),
         max_ecore_threads_(max_ecore_threads) {
 
     // Initialize hardware info for affinity
@@ -93,13 +93,13 @@ public:
     if (!this->should_stop_)
       return;
 
-    PipelineStage::start();
+    Worker::start();
   }
 
   void stop() override {
     std::cout << "Stopping RDMA network stage worker." << '\n';
 
-    PipelineStage::stop();
+    Worker::stop();
 
     std::cout << "RDMA network stage worker stopped" << '\n';
   }

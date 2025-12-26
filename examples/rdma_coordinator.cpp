@@ -4,13 +4,13 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include "pipeline/rdma_coordinator.hpp"
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline/rdma_coordinator.hpp"
 #include "pipeline/train.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
@@ -62,7 +62,7 @@ int main() {
   }
 
   std::cout << "Creating RDMA distributed coordinator." << std::endl;
-  RdmaDistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+  RdmaNetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
                                      endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());

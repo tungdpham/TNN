@@ -23,7 +23,7 @@ namespace tnn {
  * Handles deployment of pipeline stages to remote machines, establishes
  * network communication topology, and coordinates distributed training.
  */
-class DistributedCoordinator : public Coordinator {
+class NetworkCoordinator : public Coordinator {
 public:
   /**
    * @brief Constructor for distributed coordinator
@@ -32,9 +32,9 @@ public:
    * @param endpoints The list of worker endpoints
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  DistributedCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
-                         Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
-                         const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
+  NetworkCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
+                     Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
+                     const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
       : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
@@ -48,7 +48,7 @@ public:
     this->add_message_callback();
   }
 
-  ~DistributedCoordinator() = default;
+  ~NetworkCoordinator() = default;
 };
 
 } // namespace tnn

@@ -21,7 +21,7 @@ namespace tnn {
  *
  * Handles deployment of pipeline stages to remote machines using RDMA communication.
  */
-class RdmaDistributedCoordinator : public Coordinator {
+class RdmaNetworkCoordinator : public Coordinator {
 public:
   /**
    * @brief Constructor for RDMA distributed coordinator
@@ -30,9 +30,8 @@ public:
    * @param coordinator_endpoint The endpoint for the coordinator
    * @param endpoints The list of worker endpoints
    */
-  RdmaDistributedCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
-                             Endpoint coordinator_endpoint,
-                             const std::vector<Endpoint> &endpoints = {})
+  RdmaNetworkCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
+                         Endpoint coordinator_endpoint, const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
@@ -45,7 +44,7 @@ public:
     this->add_message_callback();
   }
 
-  ~RdmaDistributedCoordinator() = default;
+  ~RdmaNetworkCoordinator() = default;
 };
 
 } // namespace tnn

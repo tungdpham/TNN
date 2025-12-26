@@ -9,15 +9,15 @@
 
 #include "coordinator.hpp"
 #include "in_process_communicator.hpp"
-#include "pipeline_stage.hpp"
+#include "worker.hpp"
 
 namespace tnn {
 
-// Concrete implementation of PipelineStage for in-process communication
-class InProcessPipelineStage : public PipelineStage {
+// Concrete implementation of Worker for in-process communication
+class InProcessWorker : public Worker {
 public:
-  InProcessPipelineStage(std::unique_ptr<Communicator> communicator)
-      : PipelineStage(nullptr, std::move(communicator), "") {}
+  InProcessWorker(std::unique_ptr<Communicator> communicator)
+      : Worker(nullptr, std::move(communicator), "") {}
 };
 
 class InProcessCoordinator : public Coordinator {
@@ -40,14 +40,14 @@ public:
     // Initialize remote endpoints and stages
     for (size_t i = 0; i < num_stages; ++i) {
       this->remote_endpoints_[i] = Endpoint::in_process(stage_comms[i].get());
-      temp_stages_[i] = std::make_unique<InProcessPipelineStage>(std::move(stage_comms[i]));
+      temp_stages_[i] = std::make_unique<InProcessWorker>(std::move(stage_comms[i]));
     }
     this->num_stages_ = static_cast<int>(num_stages);
   }
 
-  std::vector<std::unique_ptr<PipelineStage>> get_stages() {
-    // Convert InProcessPipelineStage to base PipelineStage
-    std::vector<std::unique_ptr<PipelineStage>> stages;
+  std::vector<std::unique_ptr<Worker>> get_stages() {
+    // Convert InProcessWorker to base Worker
+    std::vector<std::unique_ptr<Worker>> stages;
     for (auto &stage : temp_stages_) {
       stages.emplace_back(std::move(stage));
     }
@@ -56,7 +56,7 @@ public:
   }
 
 private:
-  std::vector<std::unique_ptr<InProcessPipelineStage>> temp_stages_;
+  std::vector<std::unique_ptr<InProcessWorker>> temp_stages_;
 };
 
 } // namespace tnn
