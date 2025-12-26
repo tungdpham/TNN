@@ -6,8 +6,8 @@
  */
 #pragma once
 
+#include "coordinator.hpp"
 #include "nn/train.hpp"
-#include "pipeline/coordinator.hpp"
 #include "threading/thread_wrapper.hpp"
 
 namespace tnn {

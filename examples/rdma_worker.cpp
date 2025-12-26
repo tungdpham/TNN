@@ -1,4 +1,4 @@
-#include "pipeline/rdma_worker.hpp"
+#include "distributed/rdma_worker.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <cstdlib>
 #include <cstring>

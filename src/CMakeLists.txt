@@ -216,26 +216,26 @@ target_include_directories(tnn_partitioner PUBLIC
 )
 target_link_libraries(tnn_partitioner PUBLIC tnn_nn)
 
-# Pipeline library
-file(GLOB_RECURSE TNN_PIPELINE_SOURCES 
-    "pipeline/*.cpp"
+# Distributed library
+file(GLOB_RECURSE TNN_DISTRIBUTED_SOURCES 
+    "distributed/*.cpp"
 )
-add_library(tnn_pipeline STATIC ${TNN_PIPELINE_SOURCES})
-target_include_directories(tnn_pipeline PUBLIC 
+add_library(tnn_distributed STATIC ${TNN_DISTRIBUTED_SOURCES})
+target_include_directories(tnn_distributed PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
     $<INSTALL_INTERFACE:include>
 )
 # Private include for build-time dependencies
-target_include_directories(tnn_pipeline PRIVATE 
+target_include_directories(tnn_distributed PRIVATE 
     ${asio_SOURCE_DIR}/asio/include
     ${IBVERBS_INCLUDE_DIRS}
 )
-target_link_libraries(tnn_pipeline PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
-target_compile_definitions(tnn_pipeline PUBLIC ASIO_STANDALONE)
+target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
+target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
 # Main TNN library
-set(TNN_MODULES tnn_matrix tnn_tensor tnn_nn tnn_utils tnn_math tnn_data_loading tnn_pipeline tnn_device)
+set(TNN_MODULES tnn_matrix tnn_tensor tnn_nn tnn_utils tnn_math tnn_data_loading tnn_distributed tnn_device)
 if(ENABLE_CUDA)
     list(APPEND TNN_MODULES tnn_cuda)
 endif()

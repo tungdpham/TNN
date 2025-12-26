@@ -5,12 +5,12 @@
  * project root for the full license text.
  */
 #include "data_loading/mnist_data_loader.hpp"
+#include "distributed/network_coordinator.hpp"
 #include "nn/example_models.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline/network_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/env.hpp"
 

@@ -13,7 +13,7 @@
 #include "communicator.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
-#include "pipeline/message.hpp"
+#include "message.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>

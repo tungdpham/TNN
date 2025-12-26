@@ -1,9 +1,9 @@
-#include "pipeline/message.hpp"
+#include "distributed/message.hpp"
 
-#include "pipeline/binary_serializer.hpp"
-#include "pipeline/buffer_pool.hpp"
-#include "pipeline/job.hpp"
-#include "pipeline/tbuffer.hpp"
+#include "distributed/binary_serializer.hpp"
+#include "distributed/buffer_pool.hpp"
+#include "distributed/job.hpp"
+#include "distributed/tbuffer.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <cassert>

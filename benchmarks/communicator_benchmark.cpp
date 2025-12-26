@@ -1,5 +1,5 @@
-#include "pipeline/message.hpp"
-#include "pipeline/tcp_communicator.hpp"
+#include "distributed/message.hpp"
+#include "distributed/tcp_communicator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <atomic>
