@@ -13,7 +13,7 @@
 #include "communicator.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
-#include "pipeline/message.hpp"
+#include "message.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
@@ -27,17 +27,17 @@
 
 namespace tnn {
 
-class PipelineStage {
+class Worker {
 public:
-  explicit PipelineStage(std::unique_ptr<Sequential<float>> model,
-                         std::unique_ptr<Communicator> communicator, const std::string &name = "")
+  explicit Worker(std::unique_ptr<Sequential<float>> model,
+                  std::unique_ptr<Communicator> communicator, const std::string &name = "")
       : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
         should_stop_(true) {}
 
-  virtual ~PipelineStage() { stop(); }
+  virtual ~Worker() { stop(); }
 
 protected:
-  PipelineStage(bool use_gpu)
+  Worker(bool use_gpu)
       : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
         is_configured_(false) {
     if (!cpu_info_.initialize()) {

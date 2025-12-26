@@ -6,10 +6,10 @@
  */
 #pragma once
 
-#include "pipeline_stage.hpp"
-#include "tcp_communicator.hpp"
+#include "rdma_communicator.hpp"
 #include "utils/hardware_info.hpp"
 #include "utils/thread_affinity.hpp"
+#include "worker.hpp"
 #include <csignal>
 #include <iostream>
 #include <memory>
@@ -17,25 +17,23 @@
 namespace tnn {
 
 /**
- * @brief Network-based pipeline stage worker
+ * @brief RDMA-based pipeline stage worker
  *
- * Standalone worker process that listens for stage configurations
- * from a coordinator and processes distributed pipeline jobs.
+ * Standalone worker process that uses RDMA for communication.
  */
-template <typename T = float> class NetworkStageWorker : public PipelineStage {
+template <typename T = float> class RdmaNetworkStageWorker : public Worker {
 public:
   /**
-   * @brief Constructor with optional thread affinity configuration
-   * @param listen_port Port to listen on for connections
+   * @brief Constructor
+   * @param endpoint The endpoint configuration for this worker (includes IP, port, RDMA config)
    * @param use_gpu Whether to use GPU for processing
    * @param use_ecore_affinity Whether to bind worker threads to E-cores for efficiency
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
-   * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  explicit NetworkStageWorker(int listen_port, bool use_gpu, bool use_ecore_affinity = false,
-                              int max_ecore_threads = -1, size_t io_threads = 1)
-      : PipelineStage(use_gpu), listen_port_(listen_port), use_ecore_affinity_(use_ecore_affinity),
-        max_ecore_threads_(max_ecore_threads), io_threads_(io_threads) {
+  explicit RdmaNetworkStageWorker(const Endpoint &endpoint, bool use_gpu,
+                                  bool use_ecore_affinity = false, int max_ecore_threads = -1)
+      : Worker(use_gpu), endpoint_(endpoint), use_ecore_affinity_(use_ecore_affinity),
+        max_ecore_threads_(max_ecore_threads) {
 
     // Initialize hardware info for affinity
     if (use_ecore_affinity_) {
@@ -52,11 +50,12 @@ public:
       }
     }
 
-    this->communicator_ = std::make_unique<TcpCommunicator>(
-        Endpoint::network("localhost", listen_port_), io_threads_);
+    auto communicator = std::make_unique<RdmaCommunicator>(endpoint_);
+
+    this->communicator_ = std::move(communicator);
   }
 
-  ~NetworkStageWorker() {}
+  ~RdmaNetworkStageWorker() {}
 
   /**
    * @brief Enable or disable E-core affinity at runtime
@@ -94,22 +93,21 @@ public:
     if (!this->should_stop_)
       return;
 
-    PipelineStage::start();
+    Worker::start();
   }
 
   void stop() override {
-    std::cout << "Stopping network stage worker." << '\n';
+    std::cout << "Stopping RDMA network stage worker." << '\n';
 
-    PipelineStage::stop();
+    Worker::stop();
 
-    std::cout << "Network stage worker stopped" << '\n';
+    std::cout << "RDMA network stage worker stopped" << '\n';
   }
 
 private:
-  int listen_port_;
+  Endpoint endpoint_;
   bool use_ecore_affinity_;
   int max_ecore_threads_;
-  size_t io_threads_;
   HardwareInfo hw_info_;
   std::unique_ptr<ThreadAffinity> thread_affinity_;
 };

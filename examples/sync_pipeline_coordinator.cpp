@@ -5,12 +5,12 @@
  * project root for the full license text.
  */
 #include "data_loading/mnist_data_loader.hpp"
+#include "distributed/network_coordinator.hpp"
 #include "nn/example_models.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline/distributed_coordinator.hpp"
 #include "tensor/tensor.hpp"
 #include "utils/env.hpp"
 
@@ -44,8 +44,8 @@ int main() {
       Endpoint::network(Env::get<string>("WORKER_HOST_8002", "localhost"), 8002),
   };
 
-  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                     endpoints);
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                 endpoints);
 
   coordinator.set_partitioner(make_unique<NaivePartitioner<float>>());
 

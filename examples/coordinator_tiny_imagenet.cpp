@@ -4,11 +4,11 @@
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
+#include "distributed/network_coordinator.hpp"
+#include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "pipeline/distributed_coordinator.hpp"
-#include "pipeline/train.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
@@ -114,8 +114,8 @@ int main(int argc, char *argv[]) {
   std::cout << "IO threads: " << cfg.io_threads << std::endl;
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  DistributedCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                     endpoints, cfg.io_threads);
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                 endpoints, cfg.io_threads);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

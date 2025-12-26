@@ -4,10 +4,10 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include "distributed/rdma_coordinator.hpp"
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
-#include "distributed/network_coordinator.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -23,7 +23,7 @@
 using namespace tnn;
 using namespace std;
 
-constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
+constexpr float LR_INITIAL = 0.001f;
 constexpr float EPSILON = 1e-7f;
 
 int main() {
@@ -39,16 +39,21 @@ int main() {
 
   auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
+  // RDMA Configuration
+  int ib_port = Env::get<int>("IB_PORT", 1);
+  int gid_index = Env::get<int>("GID_INDEX", 0);
+
   Endpoint coordinator_endpoint =
       Endpoint::network(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
                         Env::get<int>("COORDINATOR_PORT", 8000));
+  coordinator_endpoint.set_parameter("ib_port", std::to_string(ib_port));
+  coordinator_endpoint.set_parameter("gid_index", std::to_string(gid_index));
 
   std::vector<Endpoint> endpoints = {
       Endpoint::network(Env::get<std::string>("WORKER1_HOST", "localhost"),
                         Env::get<int>("WORKER1_PORT", 8001)),
       Endpoint::network(Env::get<std::string>("WORKER2_HOST", "localhost"),
                         Env::get<int>("WORKER2_PORT", 8002)),
-
   };
 
   std::cout << "Configured " << endpoints.size() << " remote endpoints:" << std::endl;
@@ -56,9 +61,9 @@ int main() {
     std::cout << ep.to_json().dump(4) << std::endl;
   }
 
-  std::cout << "Creating distributed coordinator." << std::endl;
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                 endpoints);
+  std::cout << "Creating RDMA distributed coordinator." << std::endl;
+  RdmaNetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                     endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

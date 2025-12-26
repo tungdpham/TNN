@@ -59,6 +59,8 @@ public:
     return 0;
   }
 
+  size_t total_size() const { return total_message_count_.load(std::memory_order_relaxed); }
+
   bool empty(CommandType type) const { return size(type) == 0; }
 
   bool empty() const { return total_message_count_.load(std::memory_order_relaxed) == 0; }

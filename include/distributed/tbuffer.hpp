@@ -8,14 +8,18 @@
 
 #include "endian.hpp"
 #include "threading/thread_handler.hpp"
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
+#include "ops/cpu/kernels.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
+#include <iostream>
 #include <stdexcept>
 #include <type_traits>
-
 namespace tnn {
 
 class TBuffer {
@@ -103,12 +107,7 @@ public:
     other.capacity_ = 0;
   }
 
-  ~TBuffer() {
-    if (data_ != nullptr) {
-      free(data_);
-      data_ = nullptr;
-    }
-  }
+  ~TBuffer() { deallocate(); }
 
   TBuffer &operator=(const TBuffer &other) {
     if (this != &other) {
@@ -168,21 +167,19 @@ public:
   inline void write_array(const T *arr, size_t length, bool parallel = false) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
-    size_t byte_size = sizeof(T) * length;
-    ensure_capacity(size_ + byte_size);
+    ensure_capacity(size_ + length * sizeof(T));
     if (!parallel) {
-      std::memcpy(data_ + size_, arr, byte_size);
+      std::copy(arr, arr + length, reinterpret_cast<T *>(data_ + size_));
     } else {
       size_t num_blocks = get_num_threads();
-      size_t block_size = byte_size / num_blocks;
+      size_t block_size = length / num_blocks;
       parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
         size_t start = block_idx * block_size;
-        size_t end = std::min(byte_size, (block_idx + 1) * block_size);
-        std::memcpy(data_ + size_ + start, reinterpret_cast<const uint8_t *>(arr) + start,
-                    end - start);
+        size_t end = std::min(length, (block_idx + 1) * block_size);
+        std::copy(arr + start, arr + end, reinterpret_cast<T *>(data_ + size_) + start);
       });
     }
-    size_ += byte_size;
+    size_ += length * sizeof(T);
   }
 
   inline void write_string(const std::string &str) {
@@ -217,20 +214,20 @@ public:
       throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
     }
     if (!parallel) {
-      std::memcpy(arr, data_ + offset, byte_size);
+      std::copy(data_ + offset, data_ + offset + byte_size, reinterpret_cast<uint8_t *>(arr));
     } else {
       size_t num_blocks = get_num_threads();
       size_t block_size = byte_size / num_blocks;
       parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
         size_t start = block_idx * block_size;
         size_t end = std::min(byte_size, (block_idx + 1) * block_size);
-        std::memcpy(reinterpret_cast<uint8_t *>(arr) + start, data_ + offset + start, end - start);
+        std::copy(data_ + offset + start, data_ + offset + end,
+                  reinterpret_cast<uint8_t *>(arr) + start);
       });
     }
+    // should not happen often
     if (endianess_ != get_system_endianness()) {
-      for (size_t i = 0; i < length; ++i) {
-        bswap(arr[i]);
-      }
+      parallel_for<size_t>(0, length, [&](size_t i) { bswap(arr[i]); });
     }
     offset += byte_size;
   }
@@ -286,16 +283,20 @@ private:
       new_capacity = huge_capacity(min_capacity);
     }
 
-    uint8_t *new_data = static_cast<uint8_t *>(malloc(new_capacity));
-    if (new_data == nullptr) {
-      throw std::bad_alloc();
+    uint8_t *old_data = data_;
+    size_t old_size = size_;
+
+    allocate(new_capacity);
+
+    if (old_data != nullptr) {
+      std::memcpy(data_, old_data, old_size);
+#ifdef _WIN32
+      _aligned_free(old_data);
+#else
+      free(old_data);
+#endif
     }
-    if (data_ != nullptr) {
-      std::memcpy(new_data, data_, size_);
-      free(data_);
-    }
-    data_ = new_data;
-    capacity_ = new_capacity;
+    size_ = old_size;
   }
 };
 

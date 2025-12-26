@@ -8,12 +8,12 @@
  */
 #pragma once
 
-#include "asio/error_code.hpp"
 #include "binary_serializer.hpp"
 #include "buffer_pool.hpp"
 #include "communicator.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
+#include <asio/error_code.hpp>
 
 #include <asio.hpp>
 #include <atomic>
@@ -40,14 +40,6 @@ public:
       throw;
     }
     is_running_ = false;
-    if (port_ > 0) {
-      start_server();
-    }
-
-    io_threads_.reserve(num_io_threads_);
-    for (size_t i = 0; i < num_io_threads_; ++i) {
-      io_threads_.emplace_back([this]() { io_context_.run(); });
-    }
   }
 
   ~TcpCommunicator() override { stop(); }
@@ -65,6 +57,11 @@ public:
 
     is_running_.store(true, std::memory_order_release);
     accept_connections();
+
+    io_threads_.reserve(num_io_threads_);
+    for (size_t i = 0; i < num_io_threads_; ++i) {
+      io_threads_.emplace_back([this]() { io_context_.run(); });
+    }
   }
 
   void stop() {
@@ -153,18 +150,21 @@ public:
       asio::error_code err = connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
       if (err) {
         std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
+        return false;
       }
 
       asio::socket_base::send_buffer_size send_buf_opt(262144);
       err = connection->socket.set_option(send_buf_opt, ec);
       if (err) {
         std::cerr << "Failed to set send buffer size: " << ec.message() << std::endl;
+        return false;
       }
 
       asio::socket_base::receive_buffer_size recv_buf_opt(262144);
       err = connection->socket.set_option(recv_buf_opt, ec);
       if (err) {
         std::cerr << "Failed to set receive buffer size: " << ec.message() << std::endl;
+        return false;
       }
 
       {
@@ -211,19 +211,19 @@ private:
 
   struct Connection {
     asio::ip::tcp::socket socket;
+    asio::strand<asio::any_io_executor> strand;
 
     PooledBuffer read_buffer;
 
     std::deque<WriteOperation> write_queue;
-    std::mutex write_mutex;
-    std::atomic<bool> writing;
 
     explicit Connection(asio::io_context &io_ctx)
-        : socket(io_ctx), read_buffer(BufferPool::instance().get_buffer()), writing(false) {}
+        : socket(io_ctx), strand(asio::make_strand(io_ctx)),
+          read_buffer(BufferPool::instance().get_buffer()) {}
 
     explicit Connection(asio::ip::tcp::socket sock)
-        : socket(std::move(sock)), read_buffer(BufferPool::instance().get_buffer()),
-          writing(false) {}
+        : socket(std::move(sock)), strand(asio::make_strand(socket.get_executor())),
+          read_buffer(BufferPool::instance().get_buffer()) {}
 
     ~Connection() = default;
   };
@@ -298,7 +298,8 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(connection->read_buffer->get(), fixed_header_size),
-          [this, connection_id, connection](std::error_code ec, std::size_t length) {
+          asio::bind_executor(connection->strand, [this, connection_id, connection](
+                                                      std::error_code ec, std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               if (length != fixed_header_size) {
                 std::cerr << "Header fixed part read error: expected " << fixed_header_size
@@ -314,7 +315,7 @@ private:
             } else {
               handle_connection_error(connection_id, ec);
             }
-          });
+          }));
     } catch (const std::exception &e) {
       std::cerr << "Start Read error: " << e.what() << std::endl;
       handle_connection_error(connection_id, asio::error::operation_aborted);
@@ -333,7 +334,8 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(buf.get() + fixed_header_size, fixed_header.length),
-          [this, connection_id, connection, fixed_header](std::error_code ec, std::size_t length) {
+          asio::bind_executor(connection->strand, [this, connection_id, connection, fixed_header](
+                                                      std::error_code ec, std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               if (length != fixed_header.length) {
                 throw std::runtime_error("Incomplete message body received");
@@ -342,7 +344,7 @@ private:
               handle_message(connection_id, *connection->read_buffer, length);
               start_read(connection_id, connection);
             }
-          });
+          }));
 
     } catch (const std::exception &e) {
       std::cerr << "Message parsing error: " << e.what() << std::endl;
@@ -396,11 +398,6 @@ private:
         }
       }
 
-      {
-        std::lock_guard<std::mutex> write_lock(it->second->write_mutex);
-        it->second->write_queue.clear();
-        it->second->writing.store(false, std::memory_order_release);
-      }
       connections_.erase(it);
     }
   }
@@ -417,47 +414,42 @@ private:
       connection = it->second;
     }
 
-    {
-      std::lock_guard<std::mutex> write_lock(connection->write_mutex);
-      connection->write_queue.emplace_back(std::move(buffer));
-    }
-
-    if (!connection->writing.exchange(true, std::memory_order_acquire)) {
-      start_async_write(recipient_id, connection);
-    }
+    asio::dispatch(connection->strand, [this, recipient_id, connection,
+                                        buf = std::move(buffer)]() mutable {
+      bool write_in_progress = !connection->write_queue.empty();
+      connection->write_queue.emplace_back(std::move(buf));
+      if (connection->write_queue.size() > 10) {
+        std::cerr << "Warning: High number of pending messages (" << connection->write_queue.size()
+                  << ") for connection " << recipient_id << std::endl;
+      }
+      if (!write_in_progress) {
+        start_async_write(recipient_id, connection);
+      }
+    });
   }
 
   void start_async_write(const std::string &connection_id, std::shared_ptr<Connection> connection) {
-    TBuffer *write_buffer_ptr = nullptr;
-
-    {
-      std::lock_guard<std::mutex> write_lock(connection->write_mutex);
-      if (connection->write_queue.empty()) {
-        connection->writing.store(false, std::memory_order_release);
-        return;
-      }
-
-      write_buffer_ptr = connection->write_queue.front().buffer.get();
+    if (connection->write_queue.empty()) {
+      return;
     }
 
-    asio::async_write(connection->socket,
-                      asio::buffer(write_buffer_ptr->get(), write_buffer_ptr->size()),
-                      [this, connection_id, connection](std::error_code ec, std::size_t) {
-                        {
-                          std::lock_guard<std::mutex> write_lock(connection->write_mutex);
-                          if (!connection->write_queue.empty()) {
-                            connection->write_queue.pop_front();
-                          }
-                        }
+    TBuffer *write_buffer_ptr = connection->write_queue.front().buffer.get();
 
-                        if (ec) {
-                          handle_connection_error(connection_id, ec);
-                          connection->writing.store(false, std::memory_order_release);
-                          return;
-                        }
+    asio::async_write(
+        connection->socket, asio::buffer(write_buffer_ptr->get(), write_buffer_ptr->size()),
+        asio::bind_executor(connection->strand,
+                            [this, connection_id, connection](std::error_code ec, std::size_t) {
+                              if (ec) {
+                                handle_connection_error(connection_id, ec);
+                                return;
+                              }
 
-                        start_async_write(connection_id, connection);
-                      });
+                              if (!connection->write_queue.empty()) {
+                                connection->write_queue.pop_front();
+                              }
+
+                              start_async_write(connection_id, connection);
+                            }));
   }
 };
 } // namespace tnn
