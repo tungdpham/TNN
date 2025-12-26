@@ -5,7 +5,7 @@ You should have these dependencies for the main programs installed before buildi
 
 ### Install Required Packages
 ```bash
-sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev
+sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev
 ```
 
 ### Install Intel MKL (Recommended for CPU usage)

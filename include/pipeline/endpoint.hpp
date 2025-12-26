@@ -42,6 +42,10 @@ public:
     parameters_[key] = std::move(value);
   }
 
+  bool has_parameter(const std::string &key) const {
+    return parameters_.find(key) != parameters_.end();
+  }
+
   static Endpoint network(const std::string &host, int port) {
     Endpoint endpoint("tcp");
     endpoint.set_parameter("host", host);

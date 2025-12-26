@@ -229,8 +229,9 @@ target_include_directories(tnn_pipeline PUBLIC
 # Private include for build-time dependencies
 target_include_directories(tnn_pipeline PRIVATE 
     ${asio_SOURCE_DIR}/asio/include
+    ${IBVERBS_INCLUDE_DIRS}
 )
-target_link_libraries(tnn_pipeline PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(tnn_pipeline PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
 target_compile_definitions(tnn_pipeline PUBLIC ASIO_STANDALONE)
 
 # Main TNN library

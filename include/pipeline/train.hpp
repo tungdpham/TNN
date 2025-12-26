@@ -7,13 +7,13 @@
 #pragma once
 
 #include "nn/train.hpp"
+#include "pipeline/coordinator.hpp"
 #include "pipeline/distributed_coordinator.hpp"
 #include "threading/thread_wrapper.hpp"
 
 namespace tnn {
 
-ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
-                                   BaseDataLoader<float> &train_loader,
+ClassResult train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
                                    size_t progress_print_interval) {
   Tensor<float> batch_data, batch_labels;
 
@@ -60,7 +60,7 @@ ClassResult train_semi_async_epoch(DistributedCoordinator &coordinator,
   return {total_loss / batch_index, -1.0f};
 }
 
-ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
+ClassResult validate_semi_async_epoch(Coordinator &coordinator,
                                       BaseDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
   float total_val_loss = 0.0f;
@@ -121,7 +121,7 @@ ClassResult validate_semi_async_epoch(DistributedCoordinator &coordinator,
           static_cast<float>((total_val_correct / test_loader.size()) * 100.0f)};
 }
 
-void train_model(DistributedCoordinator &coordinator, BaseDataLoader<float> &train_loader,
+void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
                  BaseDataLoader<float> &test_loader, TrainingConfig config = TrainingConfig()) {
   ThreadWrapper thread_wrapper({config.num_threads});
   coordinator.set_num_microbatches(config.num_microbatches);

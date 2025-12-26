@@ -35,6 +35,9 @@ endif()
 
 include(Dependencies)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(IBVERBS REQUIRED libibverbs)
+
 # Find packages
 if(ENABLE_OPENMP)
     include(FindOpenMP)
