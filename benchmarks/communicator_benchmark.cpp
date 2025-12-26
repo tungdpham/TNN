@@ -2,7 +2,6 @@
 #include "pipeline/tcp_communicator.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
-#include "utils/memory.hpp"
 #include <atomic>
 #include <cstdlib>
 #include <cstring>
@@ -19,7 +18,7 @@ struct Config {
   int port = 0;
   std::string peer_host = "localhost";
   int peer_port = 0;
-  size_t num_threads = 2;
+  size_t num_threads = 4;
 };
 
 void print_usage(const char *program_name) {

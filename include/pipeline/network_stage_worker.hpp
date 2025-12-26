@@ -52,8 +52,12 @@ public:
       }
     }
 
-    this->communicator_ = std::make_unique<TcpCommunicator>(
+    auto communicator = std::make_unique<TcpCommunicator>(
         Endpoint::network("localhost", listen_port_), io_threads_);
+
+    communicator->start_server();
+
+    this->communicator_ = std::move(communicator);
   }
 
   ~NetworkStageWorker() {}

@@ -42,7 +42,9 @@ public:
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize TCP communicator for the coordinator
-    this->coordinator_comm_ = std::make_unique<TcpCommunicator>(coordinator_endpoint_, io_threads);
+    auto communicator = std::make_unique<TcpCommunicator>(coordinator_endpoint, io_threads);
+    communicator->start_server();
+    this->coordinator_comm_ = std::move(communicator);
     this->add_message_callback();
   }
 

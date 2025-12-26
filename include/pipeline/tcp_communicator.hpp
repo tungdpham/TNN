@@ -40,14 +40,6 @@ public:
       throw;
     }
     is_running_ = false;
-    if (port_ > 0) {
-      start_server();
-    }
-
-    io_threads_.reserve(num_io_threads_);
-    for (size_t i = 0; i < num_io_threads_; ++i) {
-      io_threads_.emplace_back([this]() { io_context_.run(); });
-    }
   }
 
   ~TcpCommunicator() override { stop(); }
@@ -65,6 +57,11 @@ public:
 
     is_running_.store(true, std::memory_order_release);
     accept_connections();
+
+    io_threads_.reserve(num_io_threads_);
+    for (size_t i = 0; i < num_io_threads_; ++i) {
+      io_threads_.emplace_back([this]() { io_context_.run(); });
+    }
   }
 
   void stop() {
