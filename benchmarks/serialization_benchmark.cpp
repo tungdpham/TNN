@@ -7,6 +7,8 @@
 #include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <cassert>
+#include <cstdint>
+#include <cstdlib>
 
 using namespace tnn;
 
@@ -20,26 +22,43 @@ signed main() {
   ThreadWrapper thread_wrapper({16});
 
   thread_wrapper.execute([&]() -> void {
-    // Serialize the message
-    PooledBuffer pooled_buffer = BufferPool::instance().get_buffer(message.size());
-    TBuffer &buffer = *pooled_buffer;
-    buffer.fill(0);
-    auto serialization_start = std::chrono::high_resolution_clock::now();
-    BinarySerializer::serialize(message, buffer);
-    auto serialization_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> serialization_duration =
-        serialization_end - serialization_start;
-    std::cout << "Serialization took " << serialization_duration.count() << " ms" << std::endl;
+    for (int i = 0; i < 10; i++) {
+      // Serialize the message
+      PooledBuffer pooled_buffer = BufferPool::instance().get_buffer(message.size());
+      TBuffer &buffer = *pooled_buffer;
+      buffer.fill(0);
+      auto serialization_start = std::chrono::high_resolution_clock::now();
+      BinarySerializer::serialize(message, buffer);
+      auto serialization_end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> serialization_duration =
+          serialization_end - serialization_start;
+      std::cout << "Serialization took " << serialization_duration.count() << " ms" << std::endl;
 
-    // Deserialize the message
-    Message deserialized_message;
-    auto deserialization_start = std::chrono::high_resolution_clock::now();
-    size_t offset = 0;
-    BinarySerializer::deserialize(buffer, offset, deserialized_message);
-    auto deserialization_end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double, std::milli> deserialization_duration =
-        deserialization_end - deserialization_start;
-    std::cout << "Deserialization took " << deserialization_duration.count() << " ms" << std::endl;
+      // Deserialize the message
+      Message deserialized_message;
+      auto deserialization_start = std::chrono::high_resolution_clock::now();
+      size_t offset = 0;
+      BinarySerializer::deserialize(buffer, offset, deserialized_message);
+      auto deserialization_end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> deserialization_duration =
+          deserialization_end - deserialization_start;
+      std::cout << "Deserialization took " << deserialization_duration.count() << " ms"
+                << std::endl;
+
+      // Raw copy speed
+      Tensor<float> temp({128, 512, 16, 16});
+      size_t data_size = 128 * 512 * 16 * 16 * sizeof(float);
+      uint8_t *data_ptr = (uint8_t *)std::aligned_alloc(64, data_size);
+      auto copy_start = std::chrono::high_resolution_clock::now();
+
+      std::memcpy(data_ptr, temp.data(), data_size);
+
+      auto copy_end = std::chrono::high_resolution_clock::now();
+      std::chrono::duration<double, std::milli> copy_duration = copy_end - copy_start;
+      std::cout << "Raw copy took " << copy_duration.count() << " ms" << std::endl;
+
+      std::free(data_ptr);
+    }
   });
   return 0;
 }
