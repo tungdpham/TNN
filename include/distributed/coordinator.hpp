@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "distributed/job_pool.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -132,7 +133,9 @@ public:
 
     const std::string &first_stage = this->stage_names_[0];
 
-    Job<float> job(std::move(input), microbatch_id);
+    PooledJob<float> job = JobPool<float>::instance().get_job(input.size());
+    job->micro_batch_id = microbatch_id;
+    job->data = std::move(input);
     Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(forward_msg));
@@ -150,7 +153,9 @@ public:
 
     const std::string &last_stage = this->stage_names_.back();
 
-    Job<float> job(std::move(gradient), microbatch_id);
+    PooledJob<float> job = JobPool<float>::instance().get_job(gradient.size());
+    job->micro_batch_id = microbatch_id;
+    job->data = std::move(gradient);
     Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(backward_msg));
@@ -308,18 +313,18 @@ public:
           this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
-        if (forward_msg.has_type<Job<float>>()) {
+        if (forward_msg.has_type<PooledJob<float>>()) {
           ++processed_microbatches_;
 
-          Job<float> &job = forward_msg.get<Job<float>>();
-          Tensor<float> &predictions = job.data;
-          Tensor<float> &targets = microbatch_labels[job.micro_batch_id];
+          PooledJob<float> &job = forward_msg.get<PooledJob<float>>();
+          Tensor<float> &predictions = job->data;
+          Tensor<float> &targets = microbatch_labels[job->micro_batch_id];
           float loss = 0.0f;
           loss_function_->compute_loss(predictions, targets, loss);
           total_loss += loss;
           Tensor<float> gradient;
           loss_function_->compute_gradient(predictions, targets, gradient);
-          this->backward(std::move(gradient), job.micro_batch_id);
+          this->backward(std::move(gradient), job->micro_batch_id);
         }
       }
     }

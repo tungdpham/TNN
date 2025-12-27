@@ -16,7 +16,9 @@ constexpr size_t microbatch_id = 2;
 
 signed main() {
   Tensor<float> tensor({128, 512, 16, 16});
-  Job<float> job(std::move(tensor), microbatch_id);
+  PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
+  job->micro_batch_id = microbatch_id;
+  job->data = std::move(tensor);
   Message message("coordinator", CommandType::FORWARD_JOB, std::move(job));
 
   ThreadWrapper thread_wrapper({16});

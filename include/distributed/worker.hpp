@@ -96,24 +96,25 @@ protected:
   virtual void process_message(const Message &message) {
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
-      const Job<float> &forward_job = message.get<Job<float>>();
-
-      Job<float> &output = pooled_job_message_.get<Job<float>>();
-      this->model_->forward(forward_job.data, output.data, forward_job.micro_batch_id);
+      init_pooling_message();
+      const PooledJob<float> &forward_job = message.get<PooledJob<float>>();
+      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      this->model_->forward(forward_job->data, output->data, forward_job->micro_batch_id);
 
       pooled_job_message_.header().recipient_id = "next_stage";
       pooled_job_message_.header().command_type = CommandType::FORWARD_JOB;
-      output.micro_batch_id = forward_job.micro_batch_id;
+      output->micro_batch_id = forward_job->micro_batch_id;
       communicator_->send_message(pooled_job_message_);
     } break;
     case CommandType::BACKWARD_JOB: {
-      const Job<float> &backward_job = message.get<Job<float>>();
+      init_pooling_message();
+      const PooledJob<float> &backward_job = message.get<PooledJob<float>>();
 
-      Job<float> &output = pooled_job_message_.get<Job<float>>();
-      this->model_->backward(backward_job.data, output.data, backward_job.micro_batch_id);
+      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      this->model_->backward(backward_job->data, output->data, backward_job->micro_batch_id);
 
       pooled_job_message_.header().recipient_id = "prev_stage";
-      output.micro_batch_id = backward_job.micro_batch_id;
+      output->micro_batch_id = backward_job->micro_batch_id;
       pooled_job_message_.header().command_type = CommandType::BACKWARD_JOB;
       communicator_->send_message(pooled_job_message_);
     } break;
@@ -265,7 +266,17 @@ protected:
   std::thread monitoring_thread_;
 
 private:
-  Message pooled_job_message_{"", CommandType::FORWARD_JOB, Job<float>(Tensor<float>(), 0)};
+  Message pooled_job_message_;
+  bool pooling_initialized = false;
+
+  void init_pooling_message() {
+    if (pooling_initialized) {
+      return;
+    }
+    pooling_initialized = true;
+    PooledJob<float> job = JobPool<float>::instance().get_job(0);
+    pooled_job_message_ = Message("", CommandType::FORWARD_JOB, std::move(job));
+  }
 };
 
 } // namespace tnn

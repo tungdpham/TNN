@@ -7,6 +7,7 @@
 #pragma once
 
 #include "coordinator.hpp"
+#include "distributed/job_pool.hpp"
 #include "nn/train.hpp"
 #include "threading/thread_wrapper.hpp"
 
@@ -90,10 +91,10 @@ inline ClassResult validate_semi_async_epoch(Coordinator &coordinator,
           ", expected: " + std::to_string(coordinator.num_microbatches()));
     }
 
-    std::vector<Job<float> *> forward_jobs;
+    std::vector<PooledJob<float> *> forward_jobs;
     for (auto &message : all_messages) {
       if (message.header().command_type == CommandType::FORWARD_JOB) {
-        forward_jobs.push_back(&message.get<Job<float>>());
+        forward_jobs.push_back(&message.get<PooledJob<float>>());
       }
     }
 
@@ -101,8 +102,10 @@ inline ClassResult validate_semi_async_epoch(Coordinator &coordinator,
     auto val_correct = 0.0f;
 
     for (auto &job : forward_jobs) {
-      val_loss += coordinator.compute_loss(job->data, micro_batch_labels[job->micro_batch_id]);
-      val_correct += compute_class_corrects(job->data, micro_batch_labels[job->micro_batch_id]);
+      val_loss +=
+          coordinator.compute_loss((*job)->data, micro_batch_labels[(*job)->micro_batch_id]);
+      val_correct +=
+          compute_class_corrects((*job)->data, micro_batch_labels[(*job)->micro_batch_id]);
     }
     // Normalize loss by number of microbatches to match training loss semantics
     if (coordinator.num_microbatches() > 0) {
