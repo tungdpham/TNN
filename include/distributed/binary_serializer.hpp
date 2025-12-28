@@ -2,6 +2,7 @@
 
 #include "endian.hpp"
 #include "message.hpp"
+#include "packet.hpp"
 #include "tbuffer.hpp"
 #include "tensor/tensor.hpp"
 #include <cstdint>
@@ -37,7 +38,7 @@ public:
     buffer.append(tensor.data(), tensor.size(), true);
   }
 
-  static void serialize(const FixedHeader &header, TBuffer &buffer) {
+  static void serialize(const PacketHeader &header, TBuffer &buffer) {
     buffer.append(header.PROTOCOL_VERSION);
     buffer.append(header.endianess);
     buffer.append(header.length);
@@ -74,7 +75,7 @@ public:
     serialize(message.data(), buffer);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, FixedHeader &header) {
+  static void deserialize(const TBuffer &buffer, size_t &offset, PacketHeader &header) {
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.read(offset, header.length);

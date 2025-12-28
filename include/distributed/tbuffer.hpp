@@ -11,15 +11,14 @@
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
-#include "ops/cpu/kernels.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
-#include <iostream>
 #include <stdexcept>
 #include <type_traits>
+
 namespace tnn {
 
 class TBuffer {

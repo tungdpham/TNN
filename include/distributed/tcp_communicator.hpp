@@ -13,6 +13,7 @@
 #include "communicator.hpp"
 #include "connection.hpp"
 #include "message.hpp"
+#include "packet.hpp"
 #include "tbuffer.hpp"
 
 #include <asio.hpp>
@@ -106,9 +107,9 @@ public:
     try {
       size_t msg_size = message.size();
 
-      FixedHeader fixed_header = FixedHeader(msg_size);
+      PacketHeader fixed_header = PacketHeader(msg_size);
 
-      PooledBuffer buffer = BufferPool::instance().get_buffer(msg_size + FixedHeader::size());
+      PooledBuffer buffer = BufferPool::instance().get_buffer(msg_size + PacketHeader::size());
 
       BinarySerializer::serialize(fixed_header, *buffer);
       BinarySerializer::serialize(message, *buffer);
@@ -268,7 +269,7 @@ private:
 
     try {
 
-      const size_t fixed_header_size = FixedHeader::size();
+      const size_t fixed_header_size = PacketHeader::size();
       connection->read_buffer->resize(fixed_header_size);
 
       asio::async_read(
@@ -281,7 +282,7 @@ private:
                           << " bytes, got " << length << " bytes" << std::endl;
                 return;
               }
-              FixedHeader fixed_header;
+              PacketHeader fixed_header;
               size_t offset = 0;
               BinarySerializer::deserialize(*connection->read_buffer, offset, fixed_header);
 
@@ -298,13 +299,13 @@ private:
   }
 
   void read_message(const std::string &connection_id, std::shared_ptr<Connection> connection,
-                    FixedHeader fixed_header) {
+                    PacketHeader fixed_header) {
     try {
       if (fixed_header.length == 0) {
         throw std::runtime_error("Invalid message length: 0");
       }
       TBuffer &buf = *connection->read_buffer;
-      const size_t fixed_header_size = FixedHeader::size();
+      const size_t fixed_header_size = PacketHeader::size();
       buf.resize(fixed_header.length + fixed_header_size);
 
       asio::async_read(
@@ -349,7 +350,7 @@ private:
   void handle_message(const std::string &connection_id, TBuffer &buffer, size_t length) {
     try {
       Message msg;
-      size_t offset = FixedHeader::size();
+      size_t offset = PacketHeader::size();
       BinarySerializer::deserialize(buffer, offset, msg);
       msg.header().sender_id = connection_id;
       this->enqueue_input_message(std::move(msg));

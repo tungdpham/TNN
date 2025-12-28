@@ -156,8 +156,8 @@ public:
 
     // Serialize message
     size_t msg_size = message.size();
-    FixedHeader fixed_header(msg_size);
-    size_t total_size = msg_size + FixedHeader::size();
+    PacketHeader fixed_header(msg_size);
+    size_t total_size = msg_size + PacketHeader::size();
 
     // Get a buffer (this buffer needs to be registered!)
     // For high performance, BufferPool should return buffers from a pre-registered memory region.
