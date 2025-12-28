@@ -22,11 +22,11 @@ public:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
-                       const size_t num_stages)
+  InProcessCoordinator(const std::string &id, Sequential<float> model,
+                       std::unique_ptr<Optimizer<float>> optimizer, const size_t num_stages)
       : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize in-process communicator for the coordinator
-    this->coordinator_comm_ = std::make_unique<InProcessCommunicator>();
+    this->coordinator_comm_ = std::make_unique<InProcessCommunicator>(id);
     this->add_message_callback();
 
     this->coordinator_endpoint_ = Endpoint::in_process(this->coordinator_comm_.get());
@@ -34,7 +34,7 @@ public:
     // Initialize in-process communicators for each stage
     std::vector<std::unique_ptr<InProcessCommunicator>> stage_comms(num_stages);
     for (size_t i = 0; i < num_stages; ++i) {
-      stage_comms[i] = std::make_unique<InProcessCommunicator>();
+      stage_comms[i] = std::make_unique<InProcessCommunicator>(std::to_string(i));
     }
     temp_stages_.resize(num_stages);
     // Initialize remote endpoints and stages

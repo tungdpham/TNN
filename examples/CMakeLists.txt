@@ -24,8 +24,6 @@ create_default(mnist_cnn_test mnist_cnn_test.cpp)
 create_default(network_worker network_worker.cpp)
 create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
 create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
-create_default(rdma_worker rdma_worker.cpp)
-create_default(rdma_coordinator rdma_coordinator.cpp)
 
 # Microbatching test executable
 # create_base_executable(microbatching_test microbatching_test.cpp)

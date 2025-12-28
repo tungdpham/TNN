@@ -2,6 +2,7 @@
 
 #include "tbuffer.hpp"
 #include <deque>
+#include <memory>
 #include <mutex>
 
 namespace tnn {
@@ -17,7 +18,7 @@ private:
   BufferPool *pool_;
 };
 
-using PooledBuffer = std::unique_ptr<TBuffer, BufferDeleter>;
+using PooledBuffer = std::shared_ptr<TBuffer>;
 
 class BufferPool {
 public:

@@ -114,8 +114,8 @@ int main(int argc, char *argv[]) {
   std::cout << "IO threads: " << cfg.io_threads << std::endl;
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                 endpoints, cfg.io_threads);
+  NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
+                                 coordinator_endpoint, endpoints, cfg.io_threads);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

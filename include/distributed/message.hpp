@@ -8,7 +8,6 @@
 
 #include "command_type.hpp"
 #include "distributed/job_pool.hpp"
-#include "endian.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
 #include "tensor/tensor.hpp"

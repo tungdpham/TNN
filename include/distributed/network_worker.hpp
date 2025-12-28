@@ -34,7 +34,7 @@ public:
       : Worker(use_gpu), listen_port_(listen_port), io_threads_(io_threads) {
 
     auto communicator = std::make_unique<TcpCommunicator>(
-        Endpoint::network("localhost", listen_port_), io_threads_);
+        this->id_, Endpoint::network("localhost", listen_port_), io_threads_);
 
     communicator->start_server();
 

@@ -31,14 +31,14 @@ class Worker {
 public:
   explicit Worker(std::unique_ptr<Sequential<float>> model,
                   std::unique_ptr<Communicator> communicator, const std::string &name = "")
-      : model_(std::move(model)), communicator_(std::move(communicator)), name_(name),
+      : model_(std::move(model)), communicator_(std::move(communicator)), id_(name),
         should_stop_(true) {}
 
   virtual ~Worker() { stop(); }
 
 protected:
   Worker(bool use_gpu)
-      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), name_(""), should_stop_(true),
+      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), id_(""), should_stop_(true),
         is_configured_(false) {
     if (!cpu_info_.initialize()) {
       std::cerr << "Failed to initialize CPU information" << std::endl;
@@ -48,7 +48,7 @@ protected:
 public:
   virtual void start() {
     if (!should_stop_) {
-      std::cerr << "Stage " << name_ << " is already running" << std::endl;
+      std::cerr << "Stage " << id_ << " is already running" << std::endl;
       return;
     }
 
@@ -67,6 +67,12 @@ public:
     message_available_cv_.notify_all();
   }
 
+  void set_id(const std::string &id) {
+    this->id_ = id;
+    this->communicator_->set_id(id);
+    std::cout << "Worker ID set to: " << id_ << std::endl;
+  }
+
   void message_loop() {
     std::cout << "Running event loop" << std::endl;
     while (!should_stop_) {
@@ -75,7 +81,7 @@ public:
           lock, [this]() { return communicator_->has_input_message() || should_stop_; });
 
       if (should_stop_) {
-        std::cout << "Stage " << name_ << " stopping message loop" << std::endl;
+        std::cout << "Stage " << id_ << " stopping message loop" << std::endl;
         break;
       }
 
@@ -88,9 +94,7 @@ public:
 
   bool is_configured() const { return is_configured_; }
 
-  std::string get_stage_id() const { return stage_id_; }
-
-  std::string name() const { return name_; }
+  std::string name() const { return id_; }
 
 protected:
   virtual void process_message(const Message &message) {
@@ -123,7 +127,7 @@ protected:
       this->optimizer_->update();
       this->optimizer_->clear_gradients();
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
-      response.header().sender_id = name_;
+      response.header().sender_id = id_;
       communicator_->send_message(std::move(response));
     } break;
     case CommandType::TRAIN_MODE:
@@ -141,7 +145,7 @@ protected:
 
     case CommandType::ERROR_REPORT:
       if (message.has_type<std::string>()) {
-        std::cout << "Stage " << name_ << " received error: " << message.get<std::string>()
+        std::cout << "Stage " << id_ << " received error: " << message.get<std::string>()
                   << " from " << message.header().sender_id << std::endl;
       }
       break;
@@ -150,7 +154,7 @@ protected:
         model_->print_profiling_summary();
         Message outgoing_message(message.header().sender_id, CommandType::PROFILING_PRINTED,
                                  std::monostate{});
-        outgoing_message.header().sender_id = name_;
+        outgoing_message.header().sender_id = id_;
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
@@ -161,7 +165,7 @@ protected:
         model_->clear_profiling_data();
         Message outgoing_message(message.header().sender_id, CommandType::PROFILING_CLEARED,
                                  std::monostate{});
-        outgoing_message.header().sender_id = name_;
+        outgoing_message.header().sender_id = id_;
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
@@ -182,7 +186,7 @@ protected:
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
         Message error_msg(message.header().sender_id, CommandType::ERROR_REPORT, error_text);
-        error_msg.header().sender_id = name_;
+        error_msg.header().sender_id = id_;
         communicator_->send_message(std::move(error_msg));
       }
       break;
@@ -192,7 +196,7 @@ protected:
       break;
     }
     case CommandType::SHUTDOWN:
-      std::cout << "Stage " << name_ << " received SHUTDOWN command. Stopping." << std::endl;
+      std::cout << "Stage " << id_ << " received SHUTDOWN command. Stopping." << std::endl;
       this->stop();
       break;
     default:
@@ -211,9 +215,11 @@ protected:
       // Parse configuration
       nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
       StageConfig config = StageConfig::from_json(config_json);
-      stage_id_ = config.stage_id;
-      std::cout << "Received configuration for stage " << stage_id_ << '\n';
+      std::cout << "Received configuration for stage " << this->id_ << '\n';
       std::cout << config_json.dump(2) << std::endl;
+      this->set_id(config.stage_id);
+
+      // setup model, optimizer
       this->model_ = std::make_unique<Sequential<float>>(
           Sequential<float>::load_from_config(config.model_config));
       OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
@@ -227,11 +233,13 @@ protected:
       this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
       this->model_->enable_profiling(true);
       std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
+
+      // setup connections
       setup_stage_connections(config);
-      name_ = stage_id_;
       is_configured_ = true;
       Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
       this->communicator_->send_message(std::move(ready_msg));
+
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
       std::string error_text = std::string("Configuration failed: ") + e.what();
@@ -251,10 +259,9 @@ protected:
   std::unique_ptr<Optimizer<float>> optimizer_;
   std::shared_ptr<Communicator> communicator_;
 
-  std::string name_;
+  std::string id_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
-  std::string stage_id_;
   std::vector<StageConfig> stage_configs_;
 
   std::mutex message_available_mutex_;

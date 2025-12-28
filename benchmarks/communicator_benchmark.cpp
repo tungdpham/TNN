@@ -21,7 +21,7 @@ struct Config {
   int port = 0;
   std::string peer_host = "localhost";
   int peer_port = 0;
-  size_t num_threads = 4;
+  size_t num_threads = 8;
 };
 
 void print_usage(const char *program_name) {
@@ -139,11 +139,13 @@ int main(int argc, char *argv[]) {
   cout << "Peer port: " << cfg.peer_port << endl;
   cout << "Worker threads: " << cfg.num_threads << endl;
 
-  TcpCommunicator communicator(Endpoint::network(cfg.host, cfg.port), cfg.num_threads);
+  TcpCommunicator communicator(cfg.host + ":" + to_string(cfg.port),
+                               Endpoint::network(cfg.host, cfg.port), cfg.num_threads);
 
   communicator.start_server();
 
-  while (!communicator.connect("next_stage", Endpoint::network(cfg.peer_host, cfg.peer_port))) {
+  while (!communicator.connect(cfg.peer_host + ":" + to_string(cfg.peer_port),
+                               Endpoint::network(cfg.peer_host, cfg.peer_port))) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }
@@ -155,7 +157,8 @@ int main(int argc, char *argv[]) {
   PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
   job->micro_batch_id = 0;
   job->data = std::move(tensor);
-  Message message("next_stage", CommandType::FORWARD_JOB, std::move(job));
+  Message message(cfg.peer_host + ":" + to_string(cfg.peer_port), CommandType::FORWARD_JOB,
+                  std::move(job));
 
   for (int i = 0; i < 4; i++) {
     communicator.send_message(message);
@@ -166,28 +169,28 @@ int main(int argc, char *argv[]) {
   std::atomic<int> num_messages_received(0);
   condition_variable message_available_cv_;
   mutex message_available_mutex_;
-  communicator.set_message_notification_callback([&]() { message_available_cv_.notify_all(); });
+  communicator.set_message_notification_callback([&]() {
+    std::unique_lock<std::mutex> lock(message_available_mutex_);
+    message_available_cv_.notify_one();
+  });
   thread_wrapper.execute([&]() {
     while (current_time - start_time < std::chrono::seconds(10)) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
-      message_available_cv_.wait(lock, [&]() {
-        current_time = std::chrono::high_resolution_clock::now();
+      message_available_cv_.wait_until(lock, start_time + std::chrono::seconds(10),
+                                       [&]() { return communicator.has_input_message(); });
 
-        return communicator.has_input_message() ||
-               current_time - start_time >= std::chrono::seconds(10);
-      });
-
-      if (current_time - start_time >= std::chrono::seconds(10)) {
+      if (std::chrono::high_resolution_clock::now() - start_time >= std::chrono::seconds(10)) {
         break;
       }
 
       while (communicator.has_input_message()) {
         auto message = communicator.dequeue_input_message();
         num_messages_received++;
-        Message msg = communicator.dequeue_input_message();
-        msg.header().recipient_id = "next_stage";
-        communicator.send_message(msg);
+        message.header().recipient_id = cfg.peer_host + ":" + to_string(cfg.peer_port);
+        communicator.send_message(message);
       }
+
+      current_time = std::chrono::high_resolution_clock::now();
     }
   });
   PooledJob<float> &tmp = message.get<PooledJob<float>>();
@@ -200,6 +203,6 @@ int main(int argc, char *argv[]) {
   std::cout << "Total bytes received: " << total_kb * 1024 << " bytes" << std::endl;
   std::cout << "Total time taken: " << total_duration.count() << " seconds" << std::endl;
   std::cout << "Bandwidth: " << bandwidth_mbps << " MB/s" << std::endl;
-
+  communicator.stop();
   return 0;
 }

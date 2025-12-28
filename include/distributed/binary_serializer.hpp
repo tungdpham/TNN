@@ -42,6 +42,10 @@ public:
     buffer.append(header.PROTOCOL_VERSION);
     buffer.append(header.endianess);
     buffer.append(header.length);
+    buffer.append(header.msg_length);
+    buffer.append(header.msg_serial_id);
+    buffer.append(header.packet_offset);
+    buffer.append(header.total_packets);
     buffer.append<uint8_t>(static_cast<uint8_t>(header.compression_type));
   }
 
@@ -79,9 +83,17 @@ public:
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.read(offset, header.length);
+    buffer.read(offset, header.msg_length);
+    buffer.read(offset, header.msg_serial_id);
+    buffer.read(offset, header.packet_offset);
+    buffer.read(offset, header.total_packets);
     buffer.read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
     if (header.endianess != get_system_endianness()) {
       bswap(header.length);
+      bswap(header.msg_length);
+      bswap(header.msg_serial_id);
+      bswap(header.packet_offset);
+      bswap(header.total_packets);
     }
   }
 
