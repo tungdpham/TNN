@@ -11,11 +11,12 @@
 #include "binary_serializer.hpp"
 #include "buffer_pool.hpp"
 #include "communicator.hpp"
+#include "connection.hpp"
 #include "message.hpp"
 #include "tbuffer.hpp"
-#include <asio/error_code.hpp>
 
 #include <asio.hpp>
+#include <asio/error_code.hpp>
 #include <atomic>
 #include <deque>
 #include <iostream>
@@ -202,32 +203,6 @@ public:
   }
 
 private:
-  struct WriteOperation {
-
-    PooledBuffer buffer;
-
-    explicit WriteOperation(PooledBuffer &&buf) : buffer(std::move(buf)) {}
-  };
-
-  struct Connection {
-    asio::ip::tcp::socket socket;
-    asio::strand<asio::any_io_executor> strand;
-
-    PooledBuffer read_buffer;
-
-    std::deque<WriteOperation> write_queue;
-
-    explicit Connection(asio::io_context &io_ctx)
-        : socket(io_ctx), strand(asio::make_strand(io_ctx)),
-          read_buffer(BufferPool::instance().get_buffer()) {}
-
-    explicit Connection(asio::ip::tcp::socket sock)
-        : socket(std::move(sock)), strand(asio::make_strand(socket.get_executor())),
-          read_buffer(BufferPool::instance().get_buffer()) {}
-
-    ~Connection() = default;
-  };
-
   asio::io_context io_context_;
   asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
   asio::ip::tcp::acceptor acceptor_;
