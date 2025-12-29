@@ -318,6 +318,22 @@ public:
   }
 
   /**
+   * @brief Prints layers' profiling info for specific operations if profiling is enabled.
+   */
+  void print_layers_profiling_info() const {
+    if (!enable_profiling_) {
+      std::cout << "Profiling is not enabled. Enable it with enable_profiling(true)\n";
+      return;
+    }
+
+    std::cout << "Layers' Profiling Info:\n";
+    std::cout << std::string(40, '=') << "\n";
+    for (const auto &layer : layers_) {
+      layer->print_profiling_info();
+    }
+  }
+
+  /**
    * @brief Prints a summary of the profiling data to the console if profiling is enabled, otherwise
    * prints a warning.
    */
@@ -387,26 +403,28 @@ public:
                 << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
     }
 
-    std::string sync_layer_name = "synchronization";
-    uint64_t forward_sync_time = 0;
-    auto forward_sync_it = forward_times_copy.find(sync_layer_name);
-    if (forward_sync_it != forward_times_copy.end()) {
-      forward_sync_time = forward_sync_it->second;
-    }
-    uint64_t backward_sync_time = 0;
-    auto backward_sync_it = backward_times_copy.find(sync_layer_name);
-    if (backward_sync_it != backward_times_copy.end()) {
-      backward_sync_time = backward_sync_it->second;
-    }
-    uint64_t total_sync_time = forward_sync_time + backward_sync_time;
-    total_forward += forward_sync_time;
-    total_backward += backward_sync_time;
+    std::vector<std::string> miscs{"synchronization", "final_transfer"};
+    for (const auto &misc : miscs) {
+      uint64_t forward_time = 0;
+      auto forward_it = forward_times_copy.find(misc);
+      if (forward_it != forward_times_copy.end()) {
+        forward_time = forward_it->second;
+      }
+      uint64_t backward_time = 0;
+      auto backward_it = backward_times_copy.find(misc);
+      if (backward_it != backward_times_copy.end()) {
+        backward_time = backward_it->second;
+      }
+      uint64_t total_time = forward_time + backward_time;
+      total_forward += forward_time;
+      total_backward += backward_time;
 
-    std::cout << std::left << std::setw(20) << sync_layer_name << std::setw(15) << std::fixed
-              << std::setprecision(3) << static_cast<double>(forward_sync_time) / 1000.0
-              << std::setw(15) << std::fixed << std::setprecision(3)
-              << static_cast<double>(backward_sync_time) / 1000.0 << std::setw(15) << std::fixed
-              << std::setprecision(3) << static_cast<double>(total_sync_time) / 1000.0 << "\n";
+      std::cout << std::left << std::setw(20) << misc << std::setw(15) << std::fixed
+                << std::setprecision(3) << static_cast<double>(forward_time) / 1000.0
+                << std::setw(15) << std::fixed << std::setprecision(3)
+                << static_cast<double>(backward_time) / 1000.0 << std::setw(15) << std::fixed
+                << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
+    }
 
     std::cout << std::string(70, '-') << "\n";
     std::cout << std::left << std::setw(20) << "TOTAL" << std::setw(15) << std::fixed
@@ -499,23 +517,15 @@ public:
       forward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
+    auto copy_start = std::chrono::high_resolution_clock::now();
     output.ensure(current->shape());
     ops::cd_copy(current->data_ptr(), output.data_ptr(), output.size());
-  }
-
-  /**
-   * @brief Prints layers' profiling info for specific operations if profiling is enabled.
-   */
-  void print_layers_profiling_info() const {
-    if (!enable_profiling_) {
-      std::cout << "Profiling is not enabled. Enable it with enable_profiling(true)\n";
-      return;
-    }
-
-    std::cout << "Layers' Profiling Info:\n";
-    std::cout << std::string(40, '=') << "\n";
-    for (const auto &layer : layers_) {
-      layer->print_profiling_info();
+    auto copy_end = std::chrono::high_resolution_clock::now();
+    auto copy_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start);
+    {
+      std::lock_guard<std::mutex> lock(forward_times_mutex_);
+      forward_times_microseconds_["final_transfer"] += copy_duration.count();
     }
   }
 
@@ -575,8 +585,16 @@ public:
       backward_times_microseconds_["synchronization"] += sync_duration.count();
     }
 
+    auto copy_start = std::chrono::high_resolution_clock::now();
     output.ensure(current_gradient->shape());
     ops::cd_copy(current_gradient->data_ptr(), output.data_ptr(), output.size());
+    auto copy_end = std::chrono::high_resolution_clock::now();
+    auto copy_duration =
+        std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start);
+    {
+      std::lock_guard<std::mutex> lock(backward_times_mutex_);
+      backward_times_microseconds_["final_transfer"] += copy_duration.count();
+    }
   }
 
   /**
@@ -1262,10 +1280,10 @@ public:
     auto input_shape = std::vector<size_t>{in_channels, current_shape[2], current_shape[3]};
     auto main_path = LayerBuilder<T>()
                          .input(input_shape)
-                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, true)
+                         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
                          .batchnorm(1e-5f, 0.1f, true, "bn0")
                          .activation("relu")
-                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, true)
+                         .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
                          .batchnorm(1e-5f, 0.1f, true, "bn0")
                          .build();
 

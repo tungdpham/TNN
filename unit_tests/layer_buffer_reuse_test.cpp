@@ -6,6 +6,7 @@
 #include <gtest/gtest.h>
 #include <memory>
 
+#include "nn/activations.hpp"
 #include "nn/layers_impl/activation_layer.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"

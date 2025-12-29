@@ -15,6 +15,16 @@
 #include <unordered_map>
 #include <vector>
 
+#ifdef USE_CUDNN
+namespace tnn {
+namespace cuda {
+namespace cudnn_batchnorm {
+struct BatchNormHandle;
+}
+} // namespace cuda
+} // namespace tnn
+#endif
+
 namespace tnn {
 
 template <typename T = float> class BatchNormLayer : public ParameterizedLayer<T> {
@@ -23,6 +33,13 @@ private:
   T epsilon_;
   T momentum_;
   bool affine_;
+
+#ifdef USE_CUDNN
+  cuda::cudnn_batchnorm::BatchNormHandle *cudnn_handle_ = nullptr;
+  size_t cached_batch_size_ = 0;
+  size_t cached_input_h_ = 0;
+  size_t cached_input_w_ = 0;
+#endif
 
   Tensor<T> gamma_;
   Tensor<T> beta_;
@@ -35,9 +52,20 @@ private:
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_normalized_;
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
   std::unordered_map<size_t, device_ptr<T[]>> batch_mean_fixed_;
+  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_cache_;
 
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
+
+  void def_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
+  void def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+                    size_t micro_batch_id);
+
+#ifdef USE_CUDNN
+  void cudnn_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
+  void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+                      size_t micro_batch_id);
+#endif
 
   void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
                                  size_t &height, size_t &width, size_t &spatial_size);
@@ -66,6 +94,7 @@ private:
 public:
   explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
                           bool affine = true, const std::string &name = "batchnorm");
+  ~BatchNormLayer() override;
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,

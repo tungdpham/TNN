@@ -12,14 +12,14 @@ namespace tnn {
 inline Sequential<float> create_mnist_trainer() {
   auto model = SequentialBuilder<float>("mnist_cnn_model")
                    .input({1, 28, 28})
-                   .conv2d(8, 5, 5, 1, 1, 0, 0, true, "conv1")
+                   .conv2d(8, 5, 5, 1, 1, 0, 0, false, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
                    .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
-                   .conv2d(16, 1, 1, 1, 1, 0, 0, true, "conv2_1x1")
+                   .conv2d(16, 1, 1, 1, 1, 0, 0, false, "conv2_1x1")
                    .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
-                   .conv2d(48, 5, 5, 1, 1, 0, 0, true, "conv3")
+                   .conv2d(48, 5, 5, 1, 1, 0, 0, false, "conv3")
                    .batchnorm(1e-5f, 0.1f, true, "bn3")
                    .activation("relu", "relu3")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
@@ -32,12 +32,12 @@ inline Sequential<float> create_mnist_trainer() {
 inline Sequential<float> create_cifar10_trainer_v1() {
   auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v1")
                    .input({3, 32, 32})
-                   .conv2d(16, 3, 3, 1, 1, 0, 0, true, "conv1")
+                   .conv2d(16, 3, 3, 1, 1, 0, 0, false, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
                    .maxpool2d(3, 3, 3, 3, 0, 0, "maxpool1")
-                   .conv2d(64, 3, 3, 1, 1, 0, 0, true, "conv2")
-                   //  .batchnorm(1e-5f, 0.1f, true, "bn2")
+                   .conv2d(64, 3, 3, 1, 1, 0, 0, false, "conv2")
+                   .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
                    .flatten("flatten")
@@ -96,10 +96,10 @@ inline Sequential<float> create_resnet9_cifar10() {
   auto model = SequentialBuilder<float>("ResNet-9-CIFAR10")
                    .input({3, 32, 32})
                    // Layer 1: 3 -> 64 -> 128 channels, 32x32 -> 16x16
-                   .conv2d(64, 3, 3, 1, 1, 1, 1, true, "conv1")
+                   .conv2d(64, 3, 3, 1, 1, 1, 1, false, "conv1")
                    .batchnorm(1e-5f, 0.1f, true, "bn1")
                    .activation("relu", "relu1")
-                   .conv2d(128, 3, 3, 1, 1, 1, 1, true, "conv2")
+                   .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
                    .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32 -> 16x16
@@ -108,7 +108,7 @@ inline Sequential<float> create_resnet9_cifar10() {
                    .basic_residual_block(128, 128, 1, "res_block2")
 
                    // Layer 2: 128 -> 256 channels, 16x16 -> 8x8
-                   .conv2d(256, 3, 3, 1, 1, 1, 1, true, "conv3")
+                   .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv3")
                    .batchnorm(1e-5f, 0.1f, true, "bn3")
                    .activation("relu", "relu3")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16 -> 8x8
@@ -117,7 +117,7 @@ inline Sequential<float> create_resnet9_cifar10() {
                    .basic_residual_block(256, 256, 1, "res_block4")
 
                    // Layer 3: 256 -> 512 channels, 8x8 -> 4x4
-                   .conv2d(512, 3, 3, 1, 1, 1, 1, true, "conv4")
+                   .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv4")
                    .batchnorm(1e-5f, 0.1f, true, "bn4")
                    .activation("relu", "relu4")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8 -> 4x4

@@ -14,6 +14,7 @@
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 #ifdef USE_CUDNN
+#include "device/cuda/cuda_context.hpp"
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 #endif
 #include "tensor/tensor_ops.hpp"
@@ -256,9 +257,15 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
                             (input_w != cached_input_w_);
 
   if (!cudnn_handle_) {
+    auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
+    if (!cuda_context) {
+      throw std::runtime_error("Conv2DLayer requires CUDAContext for cuDNN operations");
+    }
+    cudnnHandle_t shared_handle = cuda_context->getCudnnHandle();
+
     cudnn_handle_ = cuda::cudnn_conv2d::initialize_convolution_handle(
-        batch_size, in_channels_, input_h, input_w, out_channels_, kernel_h_, kernel_w_, stride_h_,
-        stride_w_, pad_h_, pad_w_);
+        shared_handle, batch_size, in_channels_, input_h, input_w, out_channels_, kernel_h_,
+        kernel_w_, stride_h_, stride_w_, pad_h_, pad_w_);
 
     auto workspace_sizes = cuda::cudnn_conv2d::get_workspace_sizes(cudnn_handle_, batch_size);
     max_workspace_ = std::max(
