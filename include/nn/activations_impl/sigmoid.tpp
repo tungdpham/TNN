@@ -16,15 +16,24 @@
 #endif
 
 namespace tnn {
-template <typename T> std::unique_ptr<Task> Sigmoid<T>::apply(Tensor<T> &tensor) const {
-  T *data = tensor.data();
-  const size_t size = tensor.size();
+template <typename T>
+std::unique_ptr<Task> Sigmoid<T>::apply(const Tensor<T> &input, Tensor<T> &output) const {
+  if (input.shape() != output.shape()) {
+    throw std::runtime_error("Input and output shapes must match for Sigmoid");
+  }
+  if (input.device() != output.device()) {
+    throw std::runtime_error("Input and output must be on the same device for Sigmoid");
+  }
 
-  if (tensor.device_type() == DeviceType::CPU) {
-    return create_cpu_task("default", cpu::sigmoid<T>, data, data, size);
+  const T *input_data = input.data();
+  T *output_data = output.data();
+  const size_t size = input.size();
+
+  if (input.device_type() == DeviceType::CPU) {
+    return create_cpu_task("default", cpu::sigmoid<T>, input_data, output_data, size);
   } else {
 #ifdef USE_CUDA
-    return create_gpu_task("default", cuda::sigmoid<T>, data, data, size);
+    return create_gpu_task("default", cuda::sigmoid<T>, input_data, output_data, size);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -32,20 +41,21 @@ template <typename T> std::unique_ptr<Task> Sigmoid<T>::apply(Tensor<T> &tensor)
 }
 
 template <typename T>
-std::unique_ptr<Task> Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &input,
-                                                           Tensor<T> &upstream_gradient) const {
-  assert(input.shape() == upstream_gradient.shape() &&
+std::unique_ptr<Task> Sigmoid<T>::compute_gradient(const Tensor<T> &input,
+                                                   const Tensor<T> &grad_output,
+                                                   Tensor<T> &grad_input) const {
+  assert(grad_output.shape() == grad_input.shape() &&
          "Shapes must match for in-place gradient computation");
-  if (input.device() != upstream_gradient.device()) {
+  if (grad_output.device() != grad_input.device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for Sigmoid");
   }
-  if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task("default", cpu::sigmoid_gradient<T>, input.data(),
-                           upstream_gradient.data(), input.size());
+  if (grad_output.device_type() == DeviceType::CPU) {
+    return create_cpu_task("default", cpu::sigmoid_gradient<T>, input.data(), grad_output.data(),
+                           grad_input.data(), grad_output.size());
   } else {
 #ifdef USE_CUDA
-    return create_gpu_task("default", cuda::sigmoid_gradient<T>, input.data(),
-                           upstream_gradient.data(), input.size());
+    return create_gpu_task("default", cuda::sigmoid_gradient<T>, input.data(), grad_output.data(),
+                           grad_input.data(), grad_output.size());
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -54,7 +64,7 @@ std::unique_ptr<Task> Sigmoid<T>::compute_gradient_inplace(const Tensor<T> &inpu
 
 template <typename T> std::string Sigmoid<T>::name() const { return "sigmoid"; }
 
-template <typename T> std::unique_ptr<ActivationFunction<T>> Sigmoid<T>::clone() const {
+template <typename T> std::unique_ptr<EWActivationFunction<T>> Sigmoid<T>::clone() const {
   return std::make_unique<Sigmoid<T>>(*this);
 }
 

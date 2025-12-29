@@ -47,8 +47,8 @@ void softmax(const T *input, T *output, size_t batch_size, size_t channels, size
 }
 
 template <typename T>
-void softmax_gradient(const T *input, T *grad_output, size_t batch_size, size_t channels,
-                      size_t height, size_t width) {
+void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_t batch_size,
+                      size_t channels, size_t height, size_t width) {
   const size_t spatial_size = height * width;
   const size_t channel_stride = spatial_size;
   const size_t batch_stride = channels * channel_stride;
@@ -74,7 +74,7 @@ void softmax_gradient(const T *input, T *grad_output, size_t batch_size, size_t 
           const size_t idx = n * batch_stride + i * channel_stride + spatial_idx;
           T s_i = softmax_values[idx];
           T upstream_i = grad_output[idx];
-          grad_output[idx] = s_i * (upstream_i - dot_product);
+          grad_input[idx] = s_i * (upstream_i - dot_product);
         }
       }
     }
@@ -88,10 +88,12 @@ template void softmax<float>(const float *input, float *output, size_t batch_siz
 template void softmax<double>(const double *input, double *output, size_t batch_size,
                               size_t channels, size_t height, size_t width);
 
-template void softmax_gradient<float>(const float *input, float *grad_output, size_t batch_size,
-                                      size_t channels, size_t height, size_t width);
-template void softmax_gradient<double>(const double *input, double *grad_output, size_t batch_size,
-                                       size_t channels, size_t height, size_t width);
+template void softmax_gradient<float>(const float *input, const float *grad_output,
+                                      float *grad_input, size_t batch_size, size_t channels,
+                                      size_t height, size_t width);
+template void softmax_gradient<double>(const double *input, const double *grad_output,
+                                       double *grad_input, size_t batch_size, size_t channels,
+                                       size_t height, size_t width);
 
 } // namespace cpu
 } // namespace tnn

@@ -19,11 +19,11 @@ namespace tnn {
 
 template <typename T = float> class ActivationLayer : public StatelessLayer<T> {
 private:
-  std::unique_ptr<ActivationFunction<T>> activation_;
+  std::unique_ptr<EWActivationFunction<T>> activation_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
 
 public:
-  explicit ActivationLayer(std::unique_ptr<ActivationFunction<T>> activation,
+  explicit ActivationLayer(std::unique_ptr<EWActivationFunction<T>> activation,
                            const std::string &name = "activation");
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;

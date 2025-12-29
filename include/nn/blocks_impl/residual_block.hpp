@@ -31,7 +31,7 @@ template <typename T = float> class ResidualBlock : public ParameterizedLayer<T>
 private:
   std::vector<std::unique_ptr<Layer<T>>> main_path_;
   std::vector<std::unique_ptr<Layer<T>>> shortcut_path_;
-  std::unique_ptr<ActivationFunction<T>> final_activation_;
+  std::unique_ptr<EWActivationFunction<T>> final_activation_;
 
   std::unordered_map<size_t, Tensor<T>> pre_activation_cache_;
 
@@ -152,7 +152,7 @@ public:
     }
 
     if (final_activation_) {
-      final_activation_->apply(output);
+      final_activation_->apply(output, output);
     }
   }
 
@@ -182,7 +182,8 @@ public:
                 current_gradient->size());
     }
     if (final_activation_) {
-      final_activation_->compute_gradient_inplace(it_pre_act->second, it_grad_act->second);
+      final_activation_->compute_gradient(it_pre_act->second, it_grad_act->second,
+                                          it_grad_act->second);
     }
 
     const Tensor<T> *grad_to_propagate =

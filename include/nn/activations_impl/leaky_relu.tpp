@@ -18,15 +18,26 @@
 namespace tnn {
 template <typename T> LeakyReLU<T>::LeakyReLU(T negative_slope) : negative_slope_(negative_slope) {}
 
-template <typename T> std::unique_ptr<Task> LeakyReLU<T>::apply(Tensor<T> &tensor) const {
-  T *data = tensor.data();
-  const size_t size = tensor.size();
+template <typename T>
+std::unique_ptr<Task> LeakyReLU<T>::apply(const Tensor<T> &input, Tensor<T> &output) const {
+  if (input.shape() != output.shape()) {
+    throw std::runtime_error("Input and output shapes must match for LeakyReLU");
+  }
+  if (input.device() != output.device()) {
+    throw std::runtime_error("Input and output must be on the same device for LeakyReLU");
+  }
 
-  if (tensor.device_type() == DeviceType::CPU) {
-    return create_cpu_task("default", cpu::leaky_relu<T>, data, data, size, negative_slope_);
+  const T *input_data = input.data();
+  T *output_data = output.data();
+  const size_t size = input.size();
+
+  if (input.device_type() == DeviceType::CPU) {
+    return create_cpu_task("default", cpu::leaky_relu<T>, input_data, output_data, size,
+                           negative_slope_);
   } else {
 #ifdef USE_CUDA
-    return create_gpu_task("default", cuda::leaky_relu<T>, data, data, size, negative_slope_);
+    return create_gpu_task("default", cuda::leaky_relu<T>, input_data, output_data, size,
+                           negative_slope_);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -34,21 +45,23 @@ template <typename T> std::unique_ptr<Task> LeakyReLU<T>::apply(Tensor<T> &tenso
 }
 
 template <typename T>
-std::unique_ptr<Task> LeakyReLU<T>::compute_gradient_inplace(const Tensor<T> &input,
-                                                             Tensor<T> &upstream_gradient) const {
-  assert(input.shape() == upstream_gradient.shape() &&
+std::unique_ptr<Task> LeakyReLU<T>::compute_gradient(const Tensor<T> &input,
+                                                     const Tensor<T> &grad_output,
+                                                     Tensor<T> &grad_input) const {
+  assert(grad_output.shape() == grad_input.shape() &&
          "Shapes must match for in-place gradient computation");
-  if (input.device() != upstream_gradient.device()) {
+  if (grad_output.device() != grad_input.device()) {
     throw std::runtime_error(
         "Input and upstream gradient must be on the same device for LeakyReLU");
   }
-  if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task("default", cpu::leaky_relu_gradient<T>, input.data(),
-                           upstream_gradient.data(), input.size(), negative_slope_);
+  if (grad_output.device_type() == DeviceType::CPU) {
+    return create_cpu_task("default", cpu::leaky_relu_gradient<T>, input.data(), grad_output.data(),
+                           grad_input.data(), grad_output.size(), negative_slope_);
   } else {
 #ifdef USE_CUDA
     return create_gpu_task("default", cuda::leaky_relu_gradient<T>, input.data(),
-                           upstream_gradient.data(), input.size(), negative_slope_);
+                           grad_output.data(), grad_input.data(), grad_output.size(),
+                           negative_slope_);
 #else
     throw std::runtime_error("CUDA support is not enabled.");
 #endif
@@ -57,7 +70,7 @@ std::unique_ptr<Task> LeakyReLU<T>::compute_gradient_inplace(const Tensor<T> &in
 
 template <typename T> std::string LeakyReLU<T>::name() const { return "leaky_relu"; }
 
-template <typename T> std::unique_ptr<ActivationFunction<T>> LeakyReLU<T>::clone() const {
+template <typename T> std::unique_ptr<EWActivationFunction<T>> LeakyReLU<T>::clone() const {
   return std::make_unique<LeakyReLU<T>>(*this);
 }
 

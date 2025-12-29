@@ -36,29 +36,32 @@ __global__ void relu_vec4_kernel(const float *__restrict__ input, float *__restr
 }
 
 __global__ void relu_gradient_vec4_kernel(const float *__restrict__ input,
-                                          float *__restrict__ grad_output, size_t size) {
+                                          const float *__restrict__ grad_output,
+                                          float *__restrict__ grad_input, size_t size) {
   size_t vec_size = size / 4;
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = blockDim.x * gridDim.x;
 
   const float4 *in_vec = reinterpret_cast<const float4 *>(input);
-  float4 *grad_vec = reinterpret_cast<float4 *>(grad_output);
+  const float4 *grad_out_vec = reinterpret_cast<const float4 *>(grad_output);
+  float4 *grad_in_vec = reinterpret_cast<float4 *>(grad_input);
 
   for (size_t i = idx; i < vec_size; i += stride) {
     float4 in_v = in_vec[i];
-    float4 grad_v = grad_vec[i];
+    float4 grad_out_v = grad_out_vec[i];
+    float4 grad_in_v;
 
-    grad_v.x = (in_v.x > 0.0f) ? grad_v.x : 0.0f;
-    grad_v.y = (in_v.y > 0.0f) ? grad_v.y : 0.0f;
-    grad_v.z = (in_v.z > 0.0f) ? grad_v.z : 0.0f;
-    grad_v.w = (in_v.w > 0.0f) ? grad_v.w : 0.0f;
+    grad_in_v.x = (in_v.x > 0.0f) ? grad_out_v.x : 0.0f;
+    grad_in_v.y = (in_v.y > 0.0f) ? grad_out_v.y : 0.0f;
+    grad_in_v.z = (in_v.z > 0.0f) ? grad_out_v.z : 0.0f;
+    grad_in_v.w = (in_v.w > 0.0f) ? grad_out_v.w : 0.0f;
 
-    grad_vec[i] = grad_v;
+    grad_in_vec[i] = grad_in_v;
   }
 
   size_t tail_start = vec_size * 4;
   for (size_t i = tail_start + idx; i < size; i += stride) {
-    grad_output[i] = (input[i] > 0.0f) ? grad_output[i] : 0.0f;
+    grad_input[i] = (input[i] > 0.0f) ? grad_output[i] : 0.0f;
   }
 }
 
@@ -85,27 +88,30 @@ __global__ void relu_vec2_double_kernel(const double *__restrict__ input,
 }
 
 __global__ void relu_gradient_vec2_double_kernel(const double *__restrict__ input,
-                                                 double *__restrict__ grad_output, size_t size) {
+                                                 const double *__restrict__ grad_output,
+                                                 double *__restrict__ grad_input, size_t size) {
   size_t vec_size = size / 2;
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = blockDim.x * gridDim.x;
 
   const double2 *in_vec = reinterpret_cast<const double2 *>(input);
-  double2 *grad_vec = reinterpret_cast<double2 *>(grad_output);
+  const double2 *grad_out_vec = reinterpret_cast<const double2 *>(grad_output);
+  double2 *grad_in_vec = reinterpret_cast<double2 *>(grad_input);
 
   for (size_t i = idx; i < vec_size; i += stride) {
     double2 in_v = in_vec[i];
-    double2 grad_v = grad_vec[i];
+    double2 grad_out_v = grad_out_vec[i];
+    double2 grad_in_v;
 
-    grad_v.x = (in_v.x > 0.0) ? grad_v.x : 0.0;
-    grad_v.y = (in_v.y > 0.0) ? grad_v.y : 0.0;
+    grad_in_v.x = (in_v.x > 0.0) ? grad_out_v.x : 0.0;
+    grad_in_v.y = (in_v.y > 0.0) ? grad_out_v.y : 0.0;
 
-    grad_vec[i] = grad_v;
+    grad_in_vec[i] = grad_in_v;
   }
 
   size_t tail_start = vec_size * 2;
   for (size_t i = tail_start + idx; i < size; i += stride) {
-    grad_output[i] = (input[i] > 0.0) ? grad_output[i] : 0.0;
+    grad_input[i] = (input[i] > 0.0) ? grad_output[i] : 0.0;
   }
 }
 
@@ -117,11 +123,12 @@ __global__ void relu_scalar_kernel(const float *input, float *output, size_t siz
   }
 }
 
-__global__ void relu_gradient_scalar_kernel(const float *input, float *grad_output, size_t size) {
+__global__ void relu_gradient_scalar_kernel(const float *input, const float *grad_output,
+                                            float *grad_input, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = blockDim.x * gridDim.x;
   for (size_t i = idx; i < size; i += stride) {
-    grad_output[i] = (input[i] > 0.0f) ? grad_output[i] : 0.0f;
+    grad_input[i] = (input[i] > 0.0f) ? grad_output[i] : 0.0f;
   }
 }
 
@@ -133,12 +140,12 @@ __global__ void relu_double_scalar_kernel(const double *input, double *output, s
   }
 }
 
-__global__ void relu_gradient_double_scalar_kernel(const double *input, double *grad_output,
-                                                   size_t size) {
+__global__ void relu_gradient_double_scalar_kernel(const double *input, const double *grad_output,
+                                                   double *grad_input, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = blockDim.x * gridDim.x;
   for (size_t i = idx; i < size; i += stride) {
-    grad_output[i] = (input[i] > 0.0) ? grad_output[i] : 0.0;
+    grad_input[i] = (input[i] > 0.0) ? grad_output[i] : 0.0;
   }
 }
 
@@ -161,20 +168,23 @@ template <> void relu<float>(const float *input, float *output, size_t size, cud
 }
 
 template <>
-void relu_gradient<float>(const float *input, float *grad_output, size_t size,
-                          cudaStream_t stream) {
+void relu_gradient<float>(const float *input, const float *grad_output, float *grad_input,
+                          size_t size, cudaStream_t stream) {
   bool is_aligned = (reinterpret_cast<uintptr_t>(input) % 16 == 0) &&
-                    (reinterpret_cast<uintptr_t>(grad_output) % 16 == 0);
+                    (reinterpret_cast<uintptr_t>(grad_output) % 16 == 0) &&
+                    (reinterpret_cast<uintptr_t>(grad_input) % 16 == 0);
 
   if (is_aligned) {
     size_t vec_size = size / 4;
     int num_blocks = (vec_size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     if (num_blocks == 0)
       num_blocks = 1;
-    relu_gradient_vec4_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, size);
+    relu_gradient_vec4_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, grad_input,
+                                                                     size);
   } else {
     int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    relu_gradient_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, size);
+    relu_gradient_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                       grad_input, size);
   }
 }
 
@@ -196,10 +206,11 @@ void relu<double>(const double *input, double *output, size_t size, cudaStream_t
 }
 
 template <>
-void relu_gradient<double>(const double *input, double *grad_output, size_t size,
-                           cudaStream_t stream) {
+void relu_gradient<double>(const double *input, const double *grad_output, double *grad_input,
+                           size_t size, cudaStream_t stream) {
   bool is_aligned = (reinterpret_cast<uintptr_t>(input) % 16 == 0) &&
-                    (reinterpret_cast<uintptr_t>(grad_output) % 16 == 0);
+                    (reinterpret_cast<uintptr_t>(grad_output) % 16 == 0) &&
+                    (reinterpret_cast<uintptr_t>(grad_input) % 16 == 0);
 
   if (is_aligned) {
     size_t vec_size = size / 2;
@@ -207,11 +218,11 @@ void relu_gradient<double>(const double *input, double *grad_output, size_t size
     if (num_blocks == 0)
       num_blocks = 1;
     relu_gradient_vec2_double_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
-                                                                            size);
+                                                                            grad_input, size);
   } else {
     int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
     relu_gradient_double_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
-                                                                              size);
+                                                                              grad_input, size);
   }
 }
 
