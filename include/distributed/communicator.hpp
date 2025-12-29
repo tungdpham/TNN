@@ -29,7 +29,7 @@ private:
   std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
-  Communicator() = default;
+  Communicator(std::string id) : id_(std::move(id)) {}
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
@@ -49,12 +49,16 @@ public:
 
   virtual void flush_output_messages() = 0;
 
-  bool connect(const std::string &name, const Endpoint &endpoint) {
+  void set_id(const std::string &id) { id_ = id; }
+
+  const std::string &get_id() const { return id_; }
+
+  bool connect(const std::string &peer_id, const Endpoint &endpoint) {
     try {
-      if (!connect_to_endpoint(name, endpoint)) {
+      if (!connect_to_endpoint(peer_id, endpoint)) {
         return false;
       }
-      register_recipient(name, endpoint);
+      register_recipient(peer_id, endpoint);
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Failed to connect to endpoint: " << e.what() << std::endl;
@@ -62,11 +66,11 @@ public:
     }
   }
 
-  bool disconnect(const std::string &name) {
+  bool disconnect(const std::string &peer_id) {
     try {
-      Endpoint endpoint = get_recipient(name);
-      disconnect_from_endpoint(name, endpoint);
-      unregister_recipient(name);
+      Endpoint endpoint = get_recipient(peer_id);
+      disconnect_from_endpoint(peer_id, endpoint);
+      unregister_recipient(peer_id);
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Failed to disconnect from endpoint: " << e.what() << std::endl;
@@ -165,6 +169,8 @@ protected:
   }
 
 protected:
+  std::string id_;
+
   ConcurrentMessageMap message_queues_;
 
   std::queue<Message> out_message_queue_;

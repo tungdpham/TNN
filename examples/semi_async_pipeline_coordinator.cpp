@@ -57,8 +57,8 @@ int main() {
   }
 
   std::cout << "Creating distributed coordinator." << std::endl;
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                 endpoints);
+  NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
+                                 coordinator_endpoint, endpoints);
 
   coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
   coordinator.initialize();

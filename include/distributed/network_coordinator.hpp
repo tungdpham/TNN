@@ -32,7 +32,8 @@ public:
    * @param endpoints The list of worker endpoints
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  NetworkCoordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer,
+  NetworkCoordinator(const std::string &id, Sequential<float> model,
+                     std::unique_ptr<Optimizer<float>> optimizer,
                      Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
                      const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
       : Coordinator(std::move(model), std::move(optimizer)) {
@@ -42,7 +43,7 @@ public:
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize TCP communicator for the coordinator
-    auto communicator = std::make_unique<TcpCommunicator>(coordinator_endpoint, io_threads);
+    auto communicator = std::make_unique<TcpCommunicator>(id, coordinator_endpoint, io_threads);
     communicator->start_server();
     this->coordinator_comm_ = std::move(communicator);
     this->add_message_callback();

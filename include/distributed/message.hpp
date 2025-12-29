@@ -7,7 +7,7 @@
 #pragma once
 
 #include "command_type.hpp"
-#include "endian.hpp"
+#include "distributed/job_pool.hpp"
 #include "job.hpp"
 #include "load_tracker.hpp"
 #include "tensor/tensor.hpp"
@@ -18,31 +18,7 @@
 #include <vector>
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, Job<float>, std::string, bool, LoadTracker>;
-
-enum class CompressionType : uint8_t { NONE = 0, ZSTD = 1, QUANTIZATION = 2 };
-
-struct FixedHeader {
-  uint8_t PROTOCOL_VERSION = 1;
-  Endianness endianess; // 1 for little-endian, 0 for big-endian
-  uint64_t length = 0;  // Length of the rest of the message (excluding fixed header part)
-  CompressionType compression_type = CompressionType::NONE;
-
-  FixedHeader() : endianess(get_system_endianness()) {}
-
-  FixedHeader(uint64_t len) : length(len) { endianess = get_system_endianness(); }
-
-  FixedHeader(uint64_t len, CompressionType comp_type) : length(len), compression_type(comp_type) {
-    endianess = get_system_endianness();
-  }
-
-  static constexpr uint64_t size() {
-    return sizeof(uint8_t) +        // PROTOCOL_VERSION
-           sizeof(Endianness) +     // endianess
-           sizeof(uint64_t) +       // length
-           sizeof(CompressionType); // compression_type
-  }
-};
+using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, LoadTracker>;
 
 struct MessageHeader {
   std::string recipient_id; // ID of the recipient stage
@@ -73,8 +49,26 @@ struct MessageData {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other)
-      : payload_type(other.payload_type), payload(other.payload) {}
+  MessageData(const MessageData &other) : payload_type(other.payload_type) {
+    if (std::holds_alternative<std::monostate>(other.payload)) {
+      payload = std::monostate{};
+    } else if (std::holds_alternative<PooledJob<float>>(other.payload)) {
+      const auto &src_ptr = std::get<PooledJob<float>>(other.payload);
+      if (src_ptr) {
+        Job<float> *new_job = new Job<float>(*src_ptr);
+        auto deleter = src_ptr.get_deleter();
+        payload = PooledJob<float>(new_job, deleter);
+      } else {
+        payload = PooledJob<float>(nullptr, src_ptr.get_deleter());
+      }
+    } else if (std::holds_alternative<std::string>(other.payload)) {
+      payload = std::get<std::string>(other.payload);
+    } else if (std::holds_alternative<bool>(other.payload)) {
+      payload = std::get<bool>(other.payload);
+    } else if (std::holds_alternative<LoadTracker>(other.payload)) {
+      payload = std::get<LoadTracker>(other.payload);
+    }
+  }
 
   MessageData(MessageData &&other) noexcept
       : payload_type(other.payload_type), payload(std::move(other.payload)) {}
@@ -100,14 +94,14 @@ struct MessageData {
     if (std::holds_alternative<std::monostate>(payload)) {
       // No additional size for monostate
 
-    } else if (std::holds_alternative<Job<float>>(payload)) {
-      const auto &job = std::get<Job<float>>(payload);
+    } else if (std::holds_alternative<PooledJob<float>>(payload)) {
+      const auto &job = std::get<PooledJob<float>>(payload);
       size += sizeof(uint64_t); // micro_batch_id
       size += sizeof(uint64_t); // shape size (uint64_t in serialization)
       size +=
-          job.data.shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
+          job->data.shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
       // No size prefix for tensor data itself
-      size += job.data.size() * sizeof(float); // data
+      size += job->data.size() * sizeof(float); // data
 
     } else if (std::holds_alternative<std::string>(payload)) {
       const auto &str = std::get<std::string>(payload);

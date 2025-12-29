@@ -41,6 +41,7 @@ set(TEST_FILES
     maxpool2d_layer_test.cpp
     batchnorm_layer_test.cpp
     groupnorm_layer_test.cpp
+    job_pool_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)

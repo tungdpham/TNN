@@ -215,7 +215,7 @@ template <typename T> device_ptr<T> make_ptr(Device *device) {
 
 template <typename T>
 typename std::enable_if<std::is_array<T>::value, device_ptr<T>>::type
-make_array_ptr(const Device *device, size_t count, size_t alignment = 32) {
+make_array_ptr(const Device *device, size_t count, size_t alignment = 64) {
   using ElementT = typename std::remove_extent<T>::type;
 
   static_assert(std::is_trivially_copyable_v<ElementT>,

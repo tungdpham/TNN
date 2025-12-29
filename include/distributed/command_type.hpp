@@ -64,6 +64,9 @@ enum CommandType : uint16_t {
   CLEAR_PROFILING,
   PROFILING_CLEARED,
 
+  // handshake
+  HANDSHAKE,
+
   _COUNT
 };
 

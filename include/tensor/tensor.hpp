@@ -41,8 +41,6 @@
 
 namespace tnn {
 
-enum ALIGNMENT_TYPE { MKL = 64, AVX2 = 32, DEFAULT = 16 };
-
 /**
  * @brief A tensor class dedicated for ML and DL applications.
  * @tparam T Data type (e.g., float, double, int)

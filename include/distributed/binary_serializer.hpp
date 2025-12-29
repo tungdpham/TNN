@@ -2,8 +2,11 @@
 
 #include "endian.hpp"
 #include "message.hpp"
+#include "packet.hpp"
 #include "tbuffer.hpp"
 #include "tensor/tensor.hpp"
+#include <cstdint>
+#include <sys/types.h>
 
 template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64_t variant_index() {
   static_assert(std::variant_size_v<VariantType> > index, "Type not found in variant");
@@ -28,40 +31,44 @@ public:
   template <typename T = float> static void serialize(const Tensor<T> &tensor, TBuffer &buffer) {
     std::vector<size_t> shape = tensor.shape();
     uint64_t shape_size = static_cast<uint64_t>(shape.size());
-    buffer.write_value(shape_size);
+    buffer.append(shape_size);
     for (size_t dim : shape) {
-      buffer.write_value(static_cast<uint64_t>(dim));
+      buffer.append(static_cast<uint64_t>(dim));
     }
-    buffer.write_array(tensor.data(), tensor.size(), true);
+    buffer.append(tensor.data(), tensor.size(), true);
   }
 
-  static void serialize(const FixedHeader &header, TBuffer &buffer) {
-    buffer.write_value(header.PROTOCOL_VERSION);
-    buffer.write_value(header.endianess);
-    buffer.write_value(header.length);
-    buffer.write_value(header.compression_type);
+  static void serialize(const PacketHeader &header, TBuffer &buffer) {
+    buffer.append(header.PROTOCOL_VERSION);
+    buffer.append(header.endianess);
+    buffer.append(header.length);
+    buffer.append(header.msg_length);
+    buffer.append(header.msg_serial_id);
+    buffer.append(header.packet_offset);
+    buffer.append(header.total_packets);
+    buffer.append<uint8_t>(static_cast<uint8_t>(header.compression_type));
   }
 
   static void serialize(const MessageHeader &header, TBuffer &buffer) {
-    buffer.write_string(header.recipient_id);
-    buffer.write_string(header.sender_id);
-    buffer.write_value(header.command_type);
+    buffer.append(header.recipient_id);
+    buffer.append(header.sender_id);
+    buffer.append(header.command_type);
   }
 
   static void serialize(const MessageData &data, TBuffer &buffer) {
-    buffer.write_value(data.payload_type);
+    buffer.append(data.payload_type);
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
-    } else if (std::holds_alternative<Job<float>>(data.payload)) {
-      const auto &job = std::get<Job<float>>(data.payload);
-      buffer.write_value(static_cast<uint64_t>(job.micro_batch_id));
-      serialize<float>(job.data, buffer);
+    } else if (std::holds_alternative<PooledJob<float>>(data.payload)) {
+      const auto &job = std::get<PooledJob<float>>(data.payload);
+      buffer.append(static_cast<uint64_t>(job->micro_batch_id));
+      serialize<float>(job->data, buffer);
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
-      buffer.write_string(str);
+      buffer.append(str);
     } else if (std::holds_alternative<bool>(data.payload)) {
       const auto &flag = std::get<bool>(data.payload);
-      buffer.write_value(static_cast<uint8_t>(flag ? 1 : 0));
+      buffer.append(static_cast<uint8_t>(flag ? 1 : 0));
     } else {
       throw std::runtime_error("Unsupported payload type in MessageData");
     }
@@ -72,78 +79,74 @@ public:
     serialize(message.data(), buffer);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, FixedHeader &header) {
-    header.PROTOCOL_VERSION = buffer.read_value<uint8_t>(offset);
-    header.endianess = static_cast<Endianness>(buffer.read_value<uint8_t>(offset));
-    header.length = buffer.read_value<uint64_t>(offset);
-    header.compression_type = static_cast<CompressionType>(buffer.read_value<uint8_t>(offset));
+  static void deserialize(const TBuffer &buffer, size_t &offset, PacketHeader &header) {
+    buffer.read(offset, header.PROTOCOL_VERSION);
+    buffer.read(offset, header.endianess);
+    buffer.read(offset, header.length);
+    buffer.read(offset, header.msg_length);
+    buffer.read(offset, header.msg_serial_id);
+    buffer.read(offset, header.packet_offset);
+    buffer.read(offset, header.total_packets);
+    buffer.read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
     if (header.endianess != get_system_endianness()) {
       bswap(header.length);
+      bswap(header.msg_length);
+      bswap(header.msg_serial_id);
+      bswap(header.packet_offset);
+      bswap(header.total_packets);
     }
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, MessageHeader &header) {
-    header.recipient_id = buffer.read_string(offset);
-    header.sender_id = buffer.read_string(offset);
-    header.command_type = static_cast<CommandType>(buffer.read_value<uint16_t>(offset));
+    buffer.read(offset, header.recipient_id);
+    buffer.read(offset, header.sender_id);
+    uint16_t cmd_type;
+    buffer.read<uint16_t>(offset, cmd_type);
+    header.command_type = static_cast<CommandType>(cmd_type);
   }
 
   template <typename T = float>
   static void deserialize(const TBuffer &buffer, size_t &offset, Tensor<T> &tensor) {
-    uint64_t shape_size = buffer.read_value<uint64_t>(offset);
-    std::vector<size_t> shape(shape_size);
+    uint64_t shape_size;
+    buffer.read(offset, shape_size);
+    std::vector<uint64_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
-      shape[i] = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
+      buffer.read<uint64_t>(offset, shape[i]);
     }
     tensor.ensure(shape);
     if (tensor.size() > 0) {
-      buffer.read_array(offset, tensor.data(), tensor.size(), true);
+      buffer.read(offset, tensor.data(), tensor.size(), true);
       offset += tensor.size() * sizeof(T);
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Job<float> &job) {
-    job.micro_batch_id = static_cast<size_t>(buffer.read_value<uint64_t>(offset));
-    deserialize(buffer, offset, job.data);
+  static void deserialize(const TBuffer &buffer, size_t &offset, PooledJob<float> &job) {
+    buffer.read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job->micro_batch_id));
+    deserialize(buffer, offset, job->data);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, std::string &str) {
-    uint64_t str_length = buffer.read_value<uint64_t>(offset);
-    if (str_length > 0) {
-      str.resize(str_length);
-      buffer.read_array(offset, reinterpret_cast<uint8_t *>(str.data()), str_length);
-    } else {
-      str.clear();
-    }
+    buffer.read(offset, str, true);
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, bool &flag) {
-    uint8_t value = buffer.read_value<uint8_t>(offset);
+    uint8_t value;
+    buffer.read(offset, value);
     flag = (value != 0);
-  }
-
-  static void deserialize(const TBuffer &buffer, size_t &offset,
-                          std::vector<Tensor<float>> &tensors) {
-    uint64_t tensor_count = buffer.read_value<uint64_t>(offset);
-    tensors.clear();
-    tensors.reserve(tensor_count);
-    for (uint64_t i = 0; i < tensor_count; ++i) {
-      Tensor<float> tensor;
-      deserialize(buffer, offset, tensor);
-      tensors.push_back(std::move(tensor));
-    }
   }
 
   static void deserialize(const TBuffer &buffer, size_t &offset, MessageData &data) {
     // Determine payload type based on payload_type
-    uint64_t payload_type = buffer.read_value<uint64_t>(offset);
+    uint64_t payload_type;
+    buffer.read(offset, payload_type);
     data.payload_type = payload_type;
-    switch (payload_type) {
+    switch (data.payload_type) {
     case variant_index<PayloadType, std::monostate>(): // std::monostate
       data.payload = std::monostate{};
       break;
-    case variant_index<PayloadType, Job<float>>(): { // Job<float>
-      Job<float> job;
+    case variant_index<PayloadType, PooledJob<float>>(): { // Job<float>
+      PooledJob<float> job =
+          JobPool<float>::instance().get_job((buffer.size() - offset) / sizeof(float));
       deserialize(buffer, offset, job);
       data.payload = std::move(job);
     } break;

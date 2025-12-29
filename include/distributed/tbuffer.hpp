@@ -11,15 +11,14 @@
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
-#include "ops/cpu/kernels.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
-#include <iostream>
 #include <stdexcept>
 #include <type_traits>
+
 namespace tnn {
 
 class TBuffer {
@@ -155,7 +154,48 @@ public:
   void clear() { size_ = 0; }
 
 #if defined(ARCH_64)
-  template <typename T> inline void write_value(const T &value) {
+  template <typename T> inline void write(size_t &offset, const T &value) {
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "Type must be trivially copyable (primitive or POD type)");
+    ensure_capacity(offset + sizeof(T));
+    std::memcpy(data_ + offset, &value, sizeof(T));
+    if (offset + sizeof(T) > size_) {
+      size_ = offset + sizeof(T);
+    }
+    offset += sizeof(T);
+  }
+
+  template <typename T>
+  inline void write(size_t &offset, const T *arr, size_t length, bool parallel = false) {
+    static_assert(std::is_trivially_copyable<T>::value,
+                  "Type must be trivially copyable (primitive or POD type)");
+    ensure_capacity(offset + length * sizeof(T));
+    if (!parallel) {
+      std::memcpy(data_ + offset, arr, length * sizeof(T));
+    } else {
+      size_t num_blocks = get_num_threads();
+      size_t block_size = (length + num_blocks - 1) / num_blocks;
+      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
+        size_t start = block_idx * block_size;
+        size_t end = std::min(length, (block_idx + 1) * block_size);
+        std::memcpy(data_ + offset + start * sizeof(T), arr + start, (end - start) * sizeof(T));
+      });
+    }
+    if (offset + length * sizeof(T) > size_) {
+      size_ = offset + length * sizeof(T);
+    }
+    offset += length * sizeof(T);
+  }
+
+  inline void write(size_t &offset, const std::string &str) {
+    uint64_t str_length = static_cast<uint64_t>(str.size());
+    write<uint64_t>(offset, str_length);
+    if (str_length > 0) {
+      write(offset, reinterpret_cast<const uint8_t *>(str.data()), str_length);
+    }
+  }
+
+  template <typename T> inline void append(const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     ensure_capacity(size_ + sizeof(T));
@@ -163,50 +203,47 @@ public:
     size_ += sizeof(T);
   }
 
-  template <typename T>
-  inline void write_array(const T *arr, size_t length, bool parallel = false) {
+  template <typename T> inline void append(const T *arr, size_t length, bool parallel = false) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     ensure_capacity(size_ + length * sizeof(T));
     if (!parallel) {
-      std::copy(arr, arr + length, reinterpret_cast<T *>(data_ + size_));
+      std::memcpy(data_ + size_, arr, length * sizeof(T));
     } else {
       size_t num_blocks = get_num_threads();
-      size_t block_size = length / num_blocks;
+      size_t block_size = (length + num_blocks - 1) / num_blocks;
       parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
         size_t start = block_idx * block_size;
         size_t end = std::min(length, (block_idx + 1) * block_size);
-        std::copy(arr + start, arr + end, reinterpret_cast<T *>(data_ + size_) + start);
+        std::memcpy(data_ + size_ + start * sizeof(T), arr + start, (end - start) * sizeof(T));
       });
     }
     size_ += length * sizeof(T);
   }
 
-  inline void write_string(const std::string &str) {
+  inline void append(const std::string &str) {
     uint64_t str_length = static_cast<uint64_t>(str.size());
-    write_value<uint64_t>(str_length);
+    append(str_length);
     if (str_length > 0) {
-      write_array(reinterpret_cast<const uint8_t *>(str.data()), str_length);
+      append(reinterpret_cast<const uint8_t *>(str.data()), str_length);
     }
   }
 
-  template <typename T> inline T read_value(size_t &offset) const {
+  template <typename T> inline void read(size_t &offset, T &value) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     if (offset + sizeof(T) > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + sizeof(T)));
     }
-    T value;
     std::memcpy(&value, data_ + offset, sizeof(T));
     offset += sizeof(T);
     if (endianess_ != get_system_endianness()) {
       bswap(value);
     }
-    return value;
   }
 
   template <typename T>
-  inline void read_array(size_t &offset, T *arr, size_t length, bool parallel = false) const {
+  inline void read(size_t &offset, T *arr, size_t length, bool parallel = false) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
@@ -214,15 +251,14 @@ public:
       throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
     }
     if (!parallel) {
-      std::copy(data_ + offset, data_ + offset + byte_size, reinterpret_cast<uint8_t *>(arr));
+      std::memcpy(arr, data_ + offset, byte_size);
     } else {
       size_t num_blocks = get_num_threads();
-      size_t block_size = byte_size / num_blocks;
+      size_t block_size = (byte_size + num_blocks - 1) / num_blocks;
       parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
         size_t start = block_idx * block_size;
         size_t end = std::min(byte_size, (block_idx + 1) * block_size);
-        std::copy(data_ + offset + start, data_ + offset + end,
-                  reinterpret_cast<uint8_t *>(arr) + start);
+        std::memcpy(reinterpret_cast<uint8_t *>(arr) + start, data_ + offset + start, end - start);
       });
     }
     // should not happen often
@@ -232,18 +268,18 @@ public:
     offset += byte_size;
   }
 
-  inline std::string read_string(size_t &offset) const {
-    uint64_t str_length = read_value<uint64_t>(offset);
+  inline void read(size_t &offset, std::string &str, bool parallel = false) const {
+    uint64_t str_length;
+    read<uint64_t>(offset, str_length);
     if (offset + str_length > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + str_length));
     }
-    std::string str;
     if (str_length > 0) {
       str.resize(str_length);
-      std::memcpy(&str[0], data_ + offset, str_length);
-      offset += str_length;
+      read(offset, reinterpret_cast<uint8_t *>(str.data()), str_length, parallel);
+    } else {
+      str.clear();
     }
-    return str;
   }
 #elif defined(ARCH_32)
   // Implementations for 32-bit architectures can go here
