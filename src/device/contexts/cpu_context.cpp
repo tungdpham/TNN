@@ -19,7 +19,7 @@
 #endif
 
 namespace tnn {
-CPUContext::CPUContext() : Context() {}
+CPUContext::CPUContext() : Context() { createFlow("default"); }
 
 size_t CPUContext::getTotalMemory() const {
 #ifdef __linux__

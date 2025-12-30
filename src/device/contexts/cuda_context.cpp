@@ -17,6 +17,7 @@ CUDAContext::CUDAContext(int id) : Context() {
     throw std::runtime_error("Failed to set CUDA device " + std::to_string(id) + ": " +
                              cudaGetErrorString(err));
   }
+  createFlow("default");
 #ifdef USE_CUDNN
   cudnnCreate(&cudnn_handle_);
 #endif

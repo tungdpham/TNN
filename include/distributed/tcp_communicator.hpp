@@ -122,13 +122,7 @@ public:
 
       PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
 
-      // auto serialize_start = std::chrono::high_resolution_clock::now();
       BinarySerializer::serialize(message, *data_buffer);
-      // auto serialize_end = std::chrono::high_resolution_clock::now();
-      // auto serialize_duration =
-      //     std::chrono::duration_cast<std::chrono::microseconds>(serialize_end - serialize_start);
-      // std::cout << "Serialization took " << serialize_duration.count() << " microseconds"
-      //           << std::endl;
 
       uint32_t packets_per_msg =
           static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
@@ -448,8 +442,6 @@ private:
   }
 
   void handle_connection_error(std::shared_ptr<Connection> connection, std::error_code ec) {
-    std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-
     if (connection->socket.is_open()) {
       std::error_code close_ec;
       auto err = connection->socket.close(close_ec);
@@ -459,16 +451,19 @@ private:
       }
     }
 
+    std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+
     auto it = connection_groups_.find(connection->get_peer_id());
     if (it != connection_groups_.end()) {
       auto &connection_group = it->second;
       connection_group.remove_conn(connection);
       if (connection_group.get_connections().empty()) {
         connection_groups_.erase(it);
+        std::cout << "All connections to " << connection->get_peer_id() << " closed." << std::endl;
       }
     }
 
-    std::cout << "Connection to " << connection->get_peer_id() << " closed." << std::endl;
+    std::cout << "Socket connection to " << connection->get_peer_id() << " closed." << std::endl;
   }
 
   void async_send_buffer(const std::string &recipient_id, std::vector<PacketHeader> headers,
