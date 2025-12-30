@@ -14,7 +14,7 @@ struct PacketHeader {
   Endianness endianess; // 1 for little-endian, 0 for big-endian
   uint64_t length = 0;  // Length of the rest of the packet (excluding fixed header part)
 
-  // For fragmentation (not implemented yet)
+  // For fragmentation
   uint64_t msg_length = 0;    // Total length for the entire message.
   uint64_t msg_serial_id = 0; // Unique ID for the entire message.
   uint32_t packet_offset = 0; // packet index for fragmentation

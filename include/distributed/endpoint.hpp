@@ -53,6 +53,14 @@ public:
     return endpoint;
   }
 
+  static Endpoint roce(const std::string &device_name, int port, int gid_index) {
+    Endpoint endpoint("roce");
+    endpoint.set_parameter("device_name", device_name);
+    endpoint.set_parameter("port", port);
+    endpoint.set_parameter("gid_index", gid_index);
+    return endpoint;
+  }
+
   static Endpoint in_process(Communicator *comm) {
     Endpoint endpoint("in_process");
     endpoint.set_parameter("communicator", comm);
