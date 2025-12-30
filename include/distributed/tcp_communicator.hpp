@@ -277,19 +277,6 @@ private:
           std::cerr << "Failed to set TCP_NODELAY: " << nodelay_ec.message() << std::endl;
         }
 
-        asio::socket_base::send_buffer_size send_buf_opt(262144);
-        asio::error_code send_buf_result =
-            new_connection->socket.set_option(send_buf_opt, nodelay_ec);
-        if (send_buf_result) {
-          std::cerr << "Failed to set send buffer size: " << nodelay_ec.message() << std::endl;
-        }
-
-        asio::socket_base::receive_buffer_size recv_buf_opt(262144);
-        auto recv_buf_result = new_connection->socket.set_option(recv_buf_opt, nodelay_ec);
-        if (recv_buf_result) {
-          std::cerr << "Failed to set receive buffer size: " << nodelay_ec.message() << std::endl;
-        }
-
         auto remote_endpoint = new_connection->socket.remote_endpoint();
         std::string temp_id =
             remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
@@ -385,8 +372,8 @@ private:
                   auto read_end = std::chrono::high_resolution_clock::now();
                   auto read_duration =
                       std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start);
-                  // std::cout << "Packet read time: " << read_duration.count() << " us" <<
-                  // std::endl;
+                  // std::cout << "Packet read time: " << read_duration.count() << " us" << " for "
+                  //           << packet_header.length << " bytes" << std::endl;
 
                   // Check if message is complete
                   bool is_complete = false;
@@ -461,9 +448,6 @@ private:
           return;
         }
 
-        std::cout << "Handshake: switching identity from " << old_peer_id << " to " << new_peer_id
-                  << std::endl;
-
         {
           std::lock_guard<std::shared_mutex> lock(connections_mutex_);
           connection->set_peer_id(new_peer_id);
@@ -487,7 +471,6 @@ private:
           }
         }
 
-        // 3. Continue reading using the connection object (which now has the new ID)
         start_read(connection);
       } else {
         this->enqueue_input_message(std::move(msg));
@@ -572,20 +555,27 @@ private:
         asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()),
         asio::buffer(packet_data, packet_header.length)};
 
-    asio::async_write(connection->socket, buffers,
-                      asio::bind_executor(connection->strand,
-                                          [this, connection](std::error_code ec, std::size_t) {
-                                            if (ec) {
-                                              handle_connection_error(connection, ec);
-                                              return;
-                                            }
+    auto write_start = std::chrono::high_resolution_clock::now();
+    asio::async_write(
+        connection->socket, buffers,
+        asio::bind_executor(connection->strand, [this, connection, packet_header,
+                                                 write_start](std::error_code ec, std::size_t) {
+          auto write_end = std::chrono::high_resolution_clock::now();
+          auto write_duration =
+              std::chrono::duration_cast<std::chrono::microseconds>(write_end - write_start);
+          // std::cout << "Packet write time: " << write_duration.count() << " us" << " for "
+          //           << packet_header.length << " bytes" << std::endl;
+          if (ec) {
+            handle_connection_error(connection, ec);
+            return;
+          }
 
-                                            connection->write_queue.pop_front();
+          connection->write_queue.pop_front();
 
-                                            if (!connection->write_queue.empty()) {
-                                              start_async_write(connection);
-                                            }
-                                          }));
+          if (!connection->write_queue.empty()) {
+            start_async_write(connection);
+          }
+        }));
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {
@@ -622,8 +612,6 @@ private:
     connection->write_queue.emplace_back(WriteOperation(header, data_buffer->get(), data_buffer));
 
     start_async_write(connection);
-
-    std::cout << "Sent handshake to " << connection->get_peer_id() << std::endl;
   }
 };
 } // namespace tnn
