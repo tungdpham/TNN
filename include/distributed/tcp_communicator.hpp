@@ -78,6 +78,7 @@ public:
   }
 
   void stop() {
+    std::cout << "Closing communication server" << std::endl;
     is_running_.store(false, std::memory_order_release);
 
     if (acceptor_.is_open()) {
@@ -333,8 +334,7 @@ private:
     uint64_t offset = packet_header.packet_offset;
     std::string connection_id = connection->get_peer_id();
     // Get buffer pointer while holding lock, then keep it alive via shared ownership
-    uint8_t *buffer_ptr = nullptr;
-    PooledBuffer buffer_ref;
+    PooledBuffer buffer;
 
     {
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
@@ -346,19 +346,16 @@ private:
       auto &fragmenter = connection_group.get_fragmenter();
 
       fragmenter.register_packet(msg_serial_id, packet_header);
-      PooledBuffer &buf = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
-      buffer_ref = buf;
-
-      buffer_ptr = buf->get() + offset;
+      buffer = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
     }
 
     try {
       auto read_start = std::chrono::high_resolution_clock::now();
 
       asio::async_read(
-          connection->socket, asio::buffer(buffer_ptr, packet_header.length),
-          [this, connection, packet_header, msg_serial_id, read_start,
-           buffer_ref](std::error_code ec, std::size_t length) {
+          connection->socket, asio::buffer(buffer->get() + offset, packet_header.length),
+          [this, connection, packet_header, msg_serial_id, read_start, buffer](std::error_code ec,
+                                                                               std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               std::string connection_id = connection->get_peer_id();
               if (length != packet_header.length) {
@@ -475,6 +472,7 @@ private:
       }
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
+      return;
     }
   }
 
@@ -487,6 +485,15 @@ private:
       if (err) {
         std::cerr << "Error closing socket for connection " << connection->get_peer_id() << ": "
                   << &connection << ": " << close_ec.message() << std::endl;
+      }
+    }
+
+    auto it = connection_groups_.find(connection->get_peer_id());
+    if (it != connection_groups_.end()) {
+      auto &connection_group = it->second;
+      connection_group.remove_conn(connection);
+      if (connection_group.get_connections().empty()) {
+        connection_groups_.erase(it);
       }
     }
 

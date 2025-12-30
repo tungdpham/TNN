@@ -94,7 +94,7 @@ public:
     return state.received_packets == state.total_packets;
   }
 
-  PooledBuffer &get_packet_buffer(uint64_t msg_serial_id, const PacketHeader &header) {
+  PooledBuffer get_packet_buffer(uint64_t msg_serial_id, const PacketHeader &header) {
     std::lock_guard<std::mutex> lock(message_states_mutex_);
     return message_states_[msg_serial_id].buffer;
   }

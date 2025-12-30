@@ -101,8 +101,6 @@ public:
       message_thread_.join();
     }
 
-    this->coordinator_comm_.reset();
-
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
