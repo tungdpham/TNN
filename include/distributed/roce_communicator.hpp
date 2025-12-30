@@ -458,7 +458,7 @@ private:
             if (conn->fragmenter.message_exists(header.msg_serial_id) ||
                 header.packet_offset == 0) {
               conn->fragmenter.register_packet(header.msg_serial_id, header);
-              auto &dest_buf = conn->fragmenter.get_packet_buffer(header.msg_serial_id, header);
+              auto dest_buf = conn->fragmenter.get_packet_buffer(header.msg_serial_id, header);
 
               size_t payload_len = header.length;
               std::memcpy(dest_buf->get() + header.packet_offset,

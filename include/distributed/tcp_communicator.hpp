@@ -9,6 +9,7 @@
 #pragma once
 
 #include "asio/buffer.hpp"
+#include "asio/error.hpp"
 #include "binary_serializer.hpp"
 #include "buffer_pool.hpp"
 #include "communicator.hpp"
@@ -29,6 +30,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <system_error>
 #include <thread>
 #include <unordered_map>
 #include <variant>
@@ -450,14 +452,15 @@ private:
             auto new_group_it = connection_groups_.find(new_peer_id);
             // if already exists, merge old into new. else rename.
             if (new_group_it != connection_groups_.end()) {
-              std::cout << "Merging " << old_peer_id
-                        << " connection into existing group: " << new_peer_id << std::endl;
+              // std::cout << "Merging " << old_peer_id
+              //           << " connection into existing group: " << new_peer_id << std::endl;
               new_group_it->second.add_conn(connection);
               new_group_it->second.get_fragmenter().merge(
                   std::move(old_group_it->second.get_fragmenter()));
               connection_groups_.erase(old_group_it);
             } else {
-              std::cout << "Renaming group " << old_peer_id << " to " << new_peer_id << std::endl;
+              // std::cout << "Renaming group " << old_peer_id << " to " << new_peer_id <<
+              // std::endl;
               auto node_handle = connection_groups_.extract(old_group_it);
               node_handle.key() = new_peer_id;
               connection_groups_.insert(std::move(node_handle));
@@ -472,6 +475,7 @@ private:
       }
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
+      handle_connection_error(connection, std::make_error_code(std::errc::illegal_byte_sequence));
       return;
     }
   }
@@ -555,30 +559,31 @@ private:
     BinarySerializer::serialize(packet_header, *packet_header_buffer);
     uint8_t *packet_data = current_write.packet_data;
 
-    std::array<asio::const_buffer, 2> buffers = {
-        asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()),
-        asio::buffer(packet_data, packet_header.length)};
+    auto buffers = std::make_shared<std::vector<asio::const_buffer>>();
+    buffers->push_back(asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()));
+    buffers->push_back(asio::buffer(packet_data, packet_header.length));
 
     auto write_start = std::chrono::high_resolution_clock::now();
-    asio::async_write(
-        connection->socket, buffers,
-        [this, connection, packet_header, write_start](std::error_code ec, std::size_t) {
-          auto write_end = std::chrono::high_resolution_clock::now();
-          auto write_duration =
-              std::chrono::duration_cast<std::chrono::microseconds>(write_end - write_start);
-          // std::cout << "Packet write time: " << write_duration.count() << " us" << " for "
-          //           << packet_header.length << " bytes" << std::endl;
-          if (ec) {
-            handle_connection_error(connection, ec);
-            return;
-          }
+    asio::async_write(connection->socket, *buffers,
+                      [this, connection, packet_header, write_start, packet_header_buffer,
+                       buffers](std::error_code ec, std::size_t) {
+                        auto write_end = std::chrono::high_resolution_clock::now();
+                        auto write_duration = std::chrono::duration_cast<std::chrono::microseconds>(
+                            write_end - write_start);
+                        // std::cout << "Packet write time: " << write_duration.count() << " us" <<
+                        // " for "
+                        //           << packet_header.length << " bytes" << std::endl;
+                        if (ec) {
+                          handle_connection_error(connection, ec);
+                          return;
+                        }
 
-          connection->write_queue.pop_front();
+                        connection->write_queue.pop_front();
 
-          if (!connection->write_queue.empty()) {
-            start_async_write(connection);
-          }
-        });
+                        if (!connection->write_queue.empty()) {
+                          start_async_write(connection);
+                        }
+                      });
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {

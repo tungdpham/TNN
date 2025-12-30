@@ -139,7 +139,7 @@ protected:
       break;
 
     case CommandType::STATUS_REQUEST: {
-      throw new std::runtime_error("Not implemented yet");
+      throw std::runtime_error("Not implemented yet");
       break;
     }
 
@@ -176,7 +176,7 @@ protected:
       break;
     case CommandType::LOAD_PARAMS: {
       // // decode and deserialize parameters
-      throw new std::runtime_error("Not implemented yet");
+      throw std::runtime_error("Not implemented yet");
       break;
     }
     case CommandType::SEND_PARAMS: {
