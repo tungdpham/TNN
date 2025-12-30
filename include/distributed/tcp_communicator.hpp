@@ -435,6 +435,9 @@ private:
       Message msg;
       size_t offset = 0;
       BinarySerializer::deserialize(*state.buffer, offset, msg);
+      // std::cout << "DEBUG: Received complete message " << msg_serial_id << " from "
+      //           << msg.header().sender_id << " with command type "
+      //           << static_cast<int>(msg.header().command_type) << std::endl;
       if (msg.header().command_type == CommandType::HANDSHAKE) {
         std::string new_peer_id = msg.header().sender_id;
         std::string old_peer_id = connection->get_peer_id();
@@ -525,65 +528,52 @@ private:
     int conn_index = 0;
     for (auto &header : headers) {
       auto &connection = connections[conn_index];
-      asio::post(connection->socket.get_executor(),
-                 [this, recipient_id, connection, header, data_buffer]() mutable {
-                   bool write_in_progress = !connection->write_queue.empty();
-                   connection->write_queue.emplace_back(WriteOperation(
-                       header, data_buffer->get() + header.packet_offset, data_buffer));
-                   if (connection->write_queue.size() > 100) {
-                     std::cerr << "Warning: High number of pending messages ("
-                               << connection->write_queue.size() << ") for connection "
-                               << recipient_id << std::endl;
-                   }
-                   if (!write_in_progress) {
-                     start_async_write(connection);
-                   }
-                 });
+      asio::post(connection->socket.get_executor(), [this, recipient_id, connection, header,
+                                                     data_buffer]() mutable {
+        connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
+        start_async_write(connection->acquire_write(), connection);
+      });
       conn_index = (conn_index + 1) % connections.size();
     }
   }
 
-  void start_async_write(std::shared_ptr<Connection> connection) {
-    if (connection->write_queue.empty()) {
+  void start_async_write(std::unique_ptr<WriteHandle> write_handle,
+                         std::shared_ptr<Connection> connection) {
+    if (write_handle == nullptr) {
       return;
     }
 
-    auto &write_queue = connection->write_queue;
-    if (write_queue.empty()) {
-      std::cerr << "Warning: Attempted to start async write with empty write queue." << std::endl;
+    WriteOperation current_write;
+    bool has_write = write_handle->queue().try_pop(current_write);
+
+    if (!has_write) {
       return;
     }
-    WriteOperation &current_write = write_queue.front();
-    PacketHeader packet_header = current_write.packet_header;
+
+    PacketHeader packet_header = current_write.packet_header();
     auto packet_header_buffer = BufferPool::instance().get_buffer(PacketHeader::size());
     BinarySerializer::serialize(packet_header, *packet_header_buffer);
-    uint8_t *packet_data = current_write.packet_data;
+    uint8_t *packet_data = current_write.packet_data();
 
     auto buffers = std::make_shared<std::vector<asio::const_buffer>>();
     buffers->push_back(asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()));
     buffers->push_back(asio::buffer(packet_data, packet_header.length));
 
-    auto write_start = std::chrono::high_resolution_clock::now();
-    asio::async_write(connection->socket, *buffers,
-                      [this, connection, packet_header, write_start, packet_header_buffer,
-                       buffers](std::error_code ec, std::size_t) {
-                        auto write_end = std::chrono::high_resolution_clock::now();
-                        auto write_duration = std::chrono::duration_cast<std::chrono::microseconds>(
-                            write_end - write_start);
-                        // std::cout << "Packet write time: " << write_duration.count() << " us" <<
-                        // " for "
-                        //           << packet_header.length << " bytes" << std::endl;
-                        if (ec) {
-                          handle_connection_error(connection, ec);
-                          return;
-                        }
+    asio::async_write(
+        connection->socket, *buffers,
+        [this, connection, packet_header, packet_header_buffer, current_write, buffers,
+         write_handle = std::move(write_handle)](std::error_code ec, std::size_t) mutable {
+          // std::cout << "Sent packet with offset:" << packet_header.packet_offset << " of message
+          // "
+          //           << packet_header.msg_serial_id << " with size " << packet_header.msg_length
+          //           << " to " << connection->get_peer_id() << std::endl;
+          if (ec) {
+            handle_connection_error(connection, ec);
+            return;
+          }
 
-                        connection->write_queue.pop_front();
-
-                        if (!connection->write_queue.empty()) {
-                          start_async_write(connection);
-                        }
-                      });
+          start_async_write(std::move(write_handle), connection);
+        });
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {
@@ -617,9 +607,9 @@ private:
 
     PacketHeader header = headers[0];
 
-    connection->write_queue.emplace_back(WriteOperation(header, data_buffer->get(), data_buffer));
+    connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
 
-    start_async_write(connection);
+    start_async_write(connection->acquire_write(), connection);
   }
 };
 } // namespace tnn

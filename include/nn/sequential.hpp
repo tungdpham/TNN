@@ -7,6 +7,7 @@
 #pragma once
 
 #include "blocks.hpp"
+#include "cuda/error_handler.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
 #include "layers.hpp"
@@ -485,7 +486,8 @@ public:
         std::swap(temp_buffer_, output_buffer_);
         current = &temp_buffer_;
 
-        // cudaDeviceSynchronize(); // DEBUG
+        cudaDeviceSynchronize(); // DEBUG
+        CUDA_CHECK(cudaGetLastError());
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
