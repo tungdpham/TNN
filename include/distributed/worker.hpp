@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/device_type.hpp"
+#include "distributed/command_type.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
@@ -193,6 +194,10 @@ protected:
     }
     case CommandType::REPORT_LOAD: {
       throw std::runtime_error("Not implemented yet");
+      break;
+    }
+    case CommandType::HANDSHAKE: {
+      // do nothing;
       break;
     }
     case CommandType::SHUTDOWN:

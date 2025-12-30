@@ -5,6 +5,7 @@
 #include <asio.hpp>
 #include <memory>
 #include <mutex>
+#include <queue>
 #include <string>
 #include <utility>
 
@@ -35,17 +36,17 @@ public:
       return false;
     }
     op = queue_.front();
-    queue_.pop_front();
+    queue_.pop();
     return true;
   }
 
   void enqueue(WriteOperation &&op) {
     std::lock_guard<std::mutex> lock(mutex_);
-    queue_.emplace_back(std::move(op));
+    queue_.emplace(std::move(op));
   }
 
 private:
-  std::deque<WriteOperation> queue_;
+  std::queue<WriteOperation> queue_;
   std::mutex mutex_;
 };
 
@@ -84,8 +85,6 @@ private:
 class Connection {
 public:
   asio::ip::tcp::socket socket;
-
-  PooledBuffer read_buffer;
 
   explicit Connection(asio::io_context &io_ctx) : socket(io_ctx) {}
 

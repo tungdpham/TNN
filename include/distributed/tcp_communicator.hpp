@@ -25,7 +25,6 @@
 #include <asio/error_code.hpp>
 #include <atomic>
 #include <chrono>
-#include <deque>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -303,28 +302,28 @@ private:
 
     try {
       const size_t packet_header_size = PacketHeader::size();
-      connection->read_buffer = BufferPool::instance().get_buffer(packet_header_size);
-      connection->read_buffer->resize(packet_header_size);
+      auto buffer = BufferPool::instance().get_buffer(packet_header_size);
+      buffer->resize(packet_header_size);
 
-      asio::async_read(
-          connection->socket, asio::buffer(connection->read_buffer->get(), packet_header_size),
-          [this, connection](std::error_code ec, std::size_t length) {
-            if (!ec && is_running_.load(std::memory_order_acquire)) {
-              if (length != packet_header_size) {
-                std::cerr << "Header fixed part read error: expected " << packet_header_size
-                          << " bytes, got " << length << " bytes" << std::endl;
-                return;
-              }
-              PacketHeader packet_header;
-              size_t offset = 0;
-              BinarySerializer::deserialize(*connection->read_buffer, offset, packet_header);
+      asio::async_read(connection->socket, asio::buffer(buffer->get(), packet_header_size),
+                       [this, connection, buffer](std::error_code ec, std::size_t length) {
+                         if (!ec && is_running_.load(std::memory_order_acquire)) {
+                           if (length != packet_header_size) {
+                             std::cerr << "Header fixed part read error: expected "
+                                       << packet_header_size << " bytes, got " << length << " bytes"
+                                       << std::endl;
+                             return;
+                           }
+                           PacketHeader packet_header;
+                           size_t offset = 0;
+                           BinarySerializer::deserialize(*buffer, offset, packet_header);
 
-              connection->read_buffer->set_endianess(packet_header.endianess);
-              read_message(connection, packet_header);
-            } else {
-              handle_connection_error(connection, ec);
-            }
-          });
+                           buffer->set_endianess(packet_header.endianess);
+                           read_message(connection, packet_header);
+                         } else {
+                           handle_connection_error(connection, ec);
+                         }
+                       });
     } catch (const std::exception &e) {
       std::cerr << "Start Read error: " << e.what() << std::endl;
       handle_connection_error(connection, asio::error::operation_aborted);
@@ -356,10 +355,9 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(buffer->get() + offset, packet_header.length),
-          [this, connection, packet_header, msg_serial_id, read_start, buffer](std::error_code ec,
-                                                                               std::size_t length) {
+          [this, connection, packet_header, read_start, buffer](std::error_code ec,
+                                                                std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
-              std::string connection_id = connection->get_peer_id();
               if (length != packet_header.length) {
                 std::cerr << "Incomplete packet read: expected " << packet_header.length
                           << " bytes, got " << length << " bytes" << std::endl;
@@ -368,23 +366,23 @@ private:
               auto read_end = std::chrono::high_resolution_clock::now();
               auto read_duration =
                   std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start);
-              // std::cout << "Packet read time: " << read_duration.count() << " us" << " for "
-              //           << packet_header.length << " bytes" << std::endl;
 
               // Check if message is complete
               bool is_complete = false;
               {
                 std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-                auto it = connection_groups_.find(connection_id);
+                auto it = connection_groups_.find(connection->get_peer_id());
                 if (it != connection_groups_.end()) {
                   auto &connection_group = it->second;
                   auto &fragmenter = connection_group.get_fragmenter();
-                  is_complete = fragmenter.commit_packet(msg_serial_id, packet_header);
+                  is_complete =
+                      fragmenter.commit_packet(packet_header.msg_serial_id, packet_header);
                 }
               }
 
               if (is_complete) {
-                handle_message(connection_id, msg_serial_id, std::move(connection));
+                handle_message(connection->get_peer_id(), packet_header.msg_serial_id,
+                               std::move(connection));
                 return;
               }
               start_read(connection);
@@ -428,54 +426,20 @@ private:
         if (it == connection_groups_.end()) {
           throw std::runtime_error("Connection not found");
         }
-        auto &connection_group = it->second;
-        auto &fragmenter = connection_group.get_fragmenter();
+        auto &fragmenter = it->second.get_fragmenter();
         state = fragmenter.fetch_complete_message(msg_serial_id);
       }
       Message msg;
       size_t offset = 0;
       BinarySerializer::deserialize(*state.buffer, offset, msg);
-      // std::cout << "DEBUG: Received complete message " << msg_serial_id << " from "
-      //           << msg.header().sender_id << " with command type "
-      //           << static_cast<int>(msg.header().command_type) << std::endl;
+
       if (msg.header().command_type == CommandType::HANDSHAKE) {
-        std::string new_peer_id = msg.header().sender_id;
-        std::string old_peer_id = connection->get_peer_id();
-
-        if (old_peer_id == new_peer_id) {
-          start_read(connection);
-          return;
-        }
-
-        {
-          std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-          connection->set_peer_id(new_peer_id);
-          auto old_group_it = connection_groups_.find(old_peer_id);
-          if (old_group_it != connection_groups_.end()) {
-            auto new_group_it = connection_groups_.find(new_peer_id);
-            // if already exists, merge old into new. else rename.
-            if (new_group_it != connection_groups_.end()) {
-              // std::cout << "Merging " << old_peer_id
-              //           << " connection into existing group: " << new_peer_id << std::endl;
-              new_group_it->second.add_conn(connection);
-              new_group_it->second.get_fragmenter().merge(
-                  std::move(old_group_it->second.get_fragmenter()));
-              connection_groups_.erase(old_group_it);
-            } else {
-              // std::cout << "Renaming group " << old_peer_id << " to " << new_peer_id <<
-              // std::endl;
-              auto node_handle = connection_groups_.extract(old_group_it);
-              node_handle.key() = new_peer_id;
-              connection_groups_.insert(std::move(node_handle));
-            }
-          }
-        }
-
-        start_read(connection);
-      } else {
-        this->enqueue_input_message(std::move(msg));
-        start_read(connection);
+        handle_handshake(connection, msg);
       }
+
+      this->enqueue_input_message(std::move(msg));
+      start_read(connection);
+
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
       handle_connection_error(connection, std::make_error_code(std::errc::illegal_byte_sequence));
@@ -555,18 +519,14 @@ private:
     BinarySerializer::serialize(packet_header, *packet_header_buffer);
     uint8_t *packet_data = current_write.packet_data();
 
-    auto buffers = std::make_shared<std::vector<asio::const_buffer>>();
-    buffers->push_back(asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()));
-    buffers->push_back(asio::buffer(packet_data, packet_header.length));
+    std::array<asio::const_buffer, 2> buffers = {
+        asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()),
+        asio::buffer(packet_data, packet_header.length)};
 
     asio::async_write(
-        connection->socket, *buffers,
-        [this, connection, packet_header, packet_header_buffer, current_write, buffers,
+        connection->socket, buffers,
+        [this, connection, packet_header_buffer, current_write,
          write_handle = std::move(write_handle)](std::error_code ec, std::size_t) mutable {
-          // std::cout << "Sent packet with offset:" << packet_header.packet_offset << " of message
-          // "
-          //           << packet_header.msg_serial_id << " with size " << packet_header.msg_length
-          //           << " to " << connection->get_peer_id() << std::endl;
           if (ec) {
             handle_connection_error(connection, ec);
             return;
@@ -610,6 +570,35 @@ private:
     connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
 
     start_async_write(connection->acquire_write(), connection);
+  }
+
+  void handle_handshake(std::shared_ptr<Connection> connection, const Message &msg) {
+    std::string new_peer_id = msg.header().sender_id;
+    std::string old_peer_id = connection->get_peer_id();
+
+    {
+      std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+      connection->set_peer_id(new_peer_id);
+      auto old_group_it = connection_groups_.find(old_peer_id);
+      if (old_group_it != connection_groups_.end()) {
+        auto new_group_it = connection_groups_.find(new_peer_id);
+        // if already exists, merge old into new. else rename.
+        if (new_group_it != connection_groups_.end()) {
+          // std::cout << "Merging " << old_peer_id
+          //           << " connection into existing group: " << new_peer_id << std::endl;
+          new_group_it->second.add_conn(connection);
+          new_group_it->second.get_fragmenter().merge(
+              std::move(old_group_it->second.get_fragmenter()));
+          connection_groups_.erase(old_group_it);
+        } else {
+          // std::cout << "Renaming group " << old_peer_id << " to " << new_peer_id <<
+          // std::endl;
+          auto node_handle = connection_groups_.extract(old_group_it);
+          node_handle.key() = new_peer_id;
+          connection_groups_.insert(std::move(node_handle));
+        }
+      }
+    }
   }
 };
 } // namespace tnn
