@@ -56,7 +56,7 @@ public:
 
     communicator_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_available_mutex_);
-      message_available_cv_.notify_all();
+      message_available_cv_.notify_one();
     });
 
     message_loop();

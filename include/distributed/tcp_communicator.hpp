@@ -334,6 +334,7 @@ private:
     std::string connection_id = connection->get_peer_id();
     // Get buffer pointer while holding lock, then keep it alive via shared ownership
     uint8_t *buffer_ptr = nullptr;
+    PooledBuffer buffer_ref;
 
     {
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
@@ -346,6 +347,7 @@ private:
 
       fragmenter.register_packet(msg_serial_id, packet_header);
       PooledBuffer &buf = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
+      buffer_ref = buf;
 
       buffer_ptr = buf->get() + offset;
     }
@@ -355,8 +357,8 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(buffer_ptr, packet_header.length),
-          [this, connection, packet_header, msg_serial_id, read_start](std::error_code ec,
-                                                                       std::size_t length) {
+          [this, connection, packet_header, msg_serial_id, read_start,
+           buffer_ref](std::error_code ec, std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               std::string connection_id = connection->get_peer_id();
               if (length != packet_header.length) {
