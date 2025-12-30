@@ -18,17 +18,14 @@ struct WriteOperation {
 
 struct Connection {
   asio::ip::tcp::socket socket;
-  asio::strand<asio::any_io_executor> strand;
 
   std::deque<WriteOperation> write_queue;
 
   PooledBuffer read_buffer;
 
-  explicit Connection(asio::io_context &io_ctx)
-      : socket(io_ctx), strand(asio::make_strand(io_ctx)) {}
+  explicit Connection(asio::io_context &io_ctx) : socket(io_ctx) {}
 
-  explicit Connection(asio::ip::tcp::socket sock)
-      : socket(std::move(sock)), strand(asio::make_strand(socket.get_executor())) {}
+  explicit Connection(asio::ip::tcp::socket sock) : socket(std::move(sock)) {}
   ~Connection() = default;
 
   void set_peer_id(const std::string &new_id) {

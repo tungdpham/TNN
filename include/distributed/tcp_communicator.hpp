@@ -16,6 +16,7 @@
 #include "connection_group.hpp"
 #include "distributed/command_type.hpp"
 #include "distributed/fragmenter.hpp"
+#include "io_context_pool.hpp"
 #include "message.hpp"
 #include "packet.hpp"
 
@@ -34,18 +35,18 @@
 
 namespace tnn {
 
+constexpr uint32_t DEFAULT_IO_THREADS = 1;
 constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 8 * 1024 * 1024 + 64; // 8MB + header
 constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
 class TcpCommunicator : public Communicator {
 public:
   explicit TcpCommunicator(const std::string &id, const Endpoint &endpoint,
-                           size_t num_io_threads = 1,
+                           size_t num_io_threads = DEFAULT_IO_THREADS,
                            uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT,
                            uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE)
-      : Communicator(id), io_context_(), work_guard_(asio::make_work_guard(io_context_)),
-        acceptor_(io_context_), socket_(io_context_),
-        num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
+      : Communicator(id), num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
+        io_context_pool_(num_io_threads_), acceptor_(io_context_pool_.get_acceptor_io_context()),
         skts_per_endpoint_(skts_per_endpoint), max_packet_size_(max_packet_size) {
     try {
       host_ = endpoint.get_parameter<std::string>("host");
@@ -73,10 +74,7 @@ public:
     is_running_.store(true, std::memory_order_release);
     accept_connections();
 
-    io_threads_.reserve(num_io_threads_);
-    for (size_t i = 0; i < num_io_threads_; ++i) {
-      io_threads_.emplace_back([this]() { io_context_.run(); });
-    }
+    pool_thread_ = std::thread([this]() { io_context_pool_.run(); });
   }
 
   void stop() {
@@ -107,15 +105,11 @@ public:
       connection_groups_.clear();
     }
 
-    work_guard_.reset();
-    io_context_.stop();
+    io_context_pool_.stop();
 
-    for (auto &thread : io_threads_) {
-      if (thread.joinable()) {
-        thread.join();
-      }
+    if (pool_thread_.joinable()) {
+      pool_thread_.join();
     }
-    io_threads_.clear();
   }
 
   void send_message(const Message &message) override {
@@ -174,9 +168,10 @@ public:
   bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
     try {
       for (size_t i = 0; i < skts_per_endpoint_; ++i) {
-        auto connection = std::make_shared<Connection>(io_context_);
+        asio::io_context &ctx = io_context_pool_.get_io_context();
+        auto connection = std::make_shared<Connection>(ctx);
 
-        asio::ip::tcp::resolver resolver(io_context_);
+        asio::ip::tcp::resolver resolver(ctx);
 
         std::string host = endpoint.get_parameter<std::string>("host");
         std::string port = endpoint.get_parameter<std::string>("port");
@@ -212,8 +207,10 @@ public:
           connection_groups_[peer_id].add_conn(connection);
         }
 
-        start_read(connection);
-        handshake(connection, this->id_);
+        asio::post(connection->socket.get_executor(), [this, connection]() {
+          start_read(connection);
+          handshake(connection, this->id_);
+        });
       }
       return true;
     } catch (const std::exception &e) {
@@ -245,12 +242,10 @@ public:
   }
 
 private:
-  asio::io_context io_context_;
-  asio::executor_work_guard<asio::io_context::executor_type> work_guard_;
-  asio::ip::tcp::acceptor acceptor_;
-  asio::ip::tcp::socket socket_;
-  std::vector<std::thread> io_threads_;
   size_t num_io_threads_;
+  IoContextPool io_context_pool_;
+  asio::ip::tcp::acceptor acceptor_;
+  std::thread pool_thread_;
   uint32_t skts_per_endpoint_;
   uint32_t max_packet_size_;
 
@@ -265,30 +260,32 @@ private:
     if (!is_running_.load(std::memory_order_acquire))
       return;
 
-    std::shared_ptr<Connection> new_connection = std::make_shared<Connection>(io_context_);
+    asio::io_context &target_context = io_context_pool_.get_io_context();
+    std::shared_ptr<Connection> new_connection = std::make_shared<Connection>(target_context);
 
     acceptor_.async_accept(new_connection->socket, [this, new_connection](std::error_code ec) {
       if (!ec && is_running_.load(std::memory_order_acquire)) {
+        asio::post(new_connection->socket.get_executor(), [this, new_connection]() {
+          std::error_code nodelay_ec;
+          asio::error_code nodelay_result =
+              new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
+          if (nodelay_result) {
+            std::cerr << "Failed to set TCP_NODELAY: " << nodelay_ec.message() << std::endl;
+          }
 
-        std::error_code nodelay_ec;
-        asio::error_code nodelay_result =
-            new_connection->socket.set_option(asio::ip::tcp::no_delay(true), nodelay_ec);
-        if (nodelay_result) {
-          std::cerr << "Failed to set TCP_NODELAY: " << nodelay_ec.message() << std::endl;
-        }
+          auto remote_endpoint = new_connection->socket.remote_endpoint();
+          std::string temp_id =
+              remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
 
-        auto remote_endpoint = new_connection->socket.remote_endpoint();
-        std::string temp_id =
-            remote_endpoint.address().to_string() + ":" + std::to_string(remote_endpoint.port());
+          new_connection->set_peer_id(temp_id);
 
-        new_connection->set_peer_id(temp_id);
+          {
+            std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+            connection_groups_[temp_id].add_conn(new_connection);
+          }
 
-        {
-          std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-          connection_groups_[temp_id].add_conn(new_connection);
-        }
-
-        start_read(new_connection);
+          start_read(new_connection);
+        });
       }
 
       accept_connections();
@@ -308,24 +305,23 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(connection->read_buffer->get(), packet_header_size),
-          asio::bind_executor(
-              connection->strand, [this, connection](std::error_code ec, std::size_t length) {
-                if (!ec && is_running_.load(std::memory_order_acquire)) {
-                  if (length != packet_header_size) {
-                    std::cerr << "Header fixed part read error: expected " << packet_header_size
-                              << " bytes, got " << length << " bytes" << std::endl;
-                    return;
-                  }
-                  PacketHeader packet_header;
-                  size_t offset = 0;
-                  BinarySerializer::deserialize(*connection->read_buffer, offset, packet_header);
+          [this, connection](std::error_code ec, std::size_t length) {
+            if (!ec && is_running_.load(std::memory_order_acquire)) {
+              if (length != packet_header_size) {
+                std::cerr << "Header fixed part read error: expected " << packet_header_size
+                          << " bytes, got " << length << " bytes" << std::endl;
+                return;
+              }
+              PacketHeader packet_header;
+              size_t offset = 0;
+              BinarySerializer::deserialize(*connection->read_buffer, offset, packet_header);
 
-                  connection->read_buffer->set_endianess(packet_header.endianess);
-                  read_message(connection, packet_header);
-                } else {
-                  handle_connection_error(connection, ec);
-                }
-              }));
+              connection->read_buffer->set_endianess(packet_header.endianess);
+              read_message(connection, packet_header);
+            } else {
+              handle_connection_error(connection, ec);
+            }
+          });
     } catch (const std::exception &e) {
       std::cerr << "Start Read error: " << e.what() << std::endl;
       handle_connection_error(connection, asio::error::operation_aborted);
@@ -359,41 +355,40 @@ private:
 
       asio::async_read(
           connection->socket, asio::buffer(buffer_ptr, packet_header.length),
-          asio::bind_executor(
-              connection->strand, [this, connection, packet_header, msg_serial_id,
-                                   read_start](std::error_code ec, std::size_t length) {
-                if (!ec && is_running_.load(std::memory_order_acquire)) {
-                  std::string connection_id = connection->get_peer_id();
-                  if (length != packet_header.length) {
-                    std::cerr << "Incomplete packet read: expected " << packet_header.length
-                              << " bytes, got " << length << " bytes" << std::endl;
-                    return;
-                  }
-                  auto read_end = std::chrono::high_resolution_clock::now();
-                  auto read_duration =
-                      std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start);
-                  // std::cout << "Packet read time: " << read_duration.count() << " us" << " for "
-                  //           << packet_header.length << " bytes" << std::endl;
+          [this, connection, packet_header, msg_serial_id, read_start](std::error_code ec,
+                                                                       std::size_t length) {
+            if (!ec && is_running_.load(std::memory_order_acquire)) {
+              std::string connection_id = connection->get_peer_id();
+              if (length != packet_header.length) {
+                std::cerr << "Incomplete packet read: expected " << packet_header.length
+                          << " bytes, got " << length << " bytes" << std::endl;
+                return;
+              }
+              auto read_end = std::chrono::high_resolution_clock::now();
+              auto read_duration =
+                  std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start);
+              // std::cout << "Packet read time: " << read_duration.count() << " us" << " for "
+              //           << packet_header.length << " bytes" << std::endl;
 
-                  // Check if message is complete
-                  bool is_complete = false;
-                  {
-                    std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-                    auto it = connection_groups_.find(connection_id);
-                    if (it != connection_groups_.end()) {
-                      auto &connection_group = it->second;
-                      auto &fragmenter = connection_group.get_fragmenter();
-                      is_complete = fragmenter.commit_packet(msg_serial_id, packet_header);
-                    }
-                  }
-
-                  if (is_complete) {
-                    handle_message(connection_id, msg_serial_id, std::move(connection));
-                    return;
-                  }
-                  start_read(connection);
+              // Check if message is complete
+              bool is_complete = false;
+              {
+                std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+                auto it = connection_groups_.find(connection_id);
+                if (it != connection_groups_.end()) {
+                  auto &connection_group = it->second;
+                  auto &fragmenter = connection_group.get_fragmenter();
+                  is_complete = fragmenter.commit_packet(msg_serial_id, packet_header);
                 }
-              }));
+              }
+
+              if (is_complete) {
+                handle_message(connection_id, msg_serial_id, std::move(connection));
+                return;
+              }
+              start_read(connection);
+            }
+          });
     } catch (const std::exception &e) {
       std::cerr << "Message parsing error: " << e.what() << std::endl;
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
@@ -517,20 +512,20 @@ private:
     int conn_index = 0;
     for (auto &header : headers) {
       auto &connection = connections[conn_index];
-      asio::post(
-          connection->strand, [this, recipient_id, connection, header, data_buffer]() mutable {
-            bool write_in_progress = !connection->write_queue.empty();
-            connection->write_queue.emplace_back(
-                WriteOperation(header, data_buffer->get() + header.packet_offset, data_buffer));
-            if (connection->write_queue.size() > 100) {
-              std::cerr << "Warning: High number of pending messages ("
-                        << connection->write_queue.size() << ") for connection " << recipient_id
-                        << std::endl;
-            }
-            if (!write_in_progress) {
-              start_async_write(connection);
-            }
-          });
+      asio::post(connection->socket.get_executor(),
+                 [this, recipient_id, connection, header, data_buffer]() mutable {
+                   bool write_in_progress = !connection->write_queue.empty();
+                   connection->write_queue.emplace_back(WriteOperation(
+                       header, data_buffer->get() + header.packet_offset, data_buffer));
+                   if (connection->write_queue.size() > 100) {
+                     std::cerr << "Warning: High number of pending messages ("
+                               << connection->write_queue.size() << ") for connection "
+                               << recipient_id << std::endl;
+                   }
+                   if (!write_in_progress) {
+                     start_async_write(connection);
+                   }
+                 });
       conn_index = (conn_index + 1) % connections.size();
     }
   }
@@ -558,8 +553,7 @@ private:
     auto write_start = std::chrono::high_resolution_clock::now();
     asio::async_write(
         connection->socket, buffers,
-        asio::bind_executor(connection->strand, [this, connection, packet_header,
-                                                 write_start](std::error_code ec, std::size_t) {
+        [this, connection, packet_header, write_start](std::error_code ec, std::size_t) {
           auto write_end = std::chrono::high_resolution_clock::now();
           auto write_duration =
               std::chrono::duration_cast<std::chrono::microseconds>(write_end - write_start);
@@ -575,7 +569,7 @@ private:
           if (!connection->write_queue.empty()) {
             start_async_write(connection);
           }
-        }));
+        });
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {
