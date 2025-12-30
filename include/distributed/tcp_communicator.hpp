@@ -344,6 +344,12 @@ private:
       buffer = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
     }
 
+    if (offset + packet_header.length > buffer->size()) {
+      std::cerr << "Packet length of " << packet_header.length << " at offset " << offset
+                << " exceeds allocated buffer size of " << buffer->size() << std::endl;
+      return;
+    }
+
     try {
       auto read_start = std::chrono::high_resolution_clock::now();
 
