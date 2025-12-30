@@ -32,31 +32,49 @@ public:
     while (std::getline(file, line)) {
       ++line_number;
 
+      // 1. Remove leading/trailing whitespace from the whole line first
+      size_t first = line.find_first_not_of(" \t\r\n");
+      if (first == std::string::npos)
+        continue;
+      line.erase(0, first);
+      line.erase(line.find_last_not_of(" \t\r\n") + 1);
+
       if (line.empty() || line[0] == '#') {
         continue;
       }
 
       size_t equals_pos = line.find('=');
       if (equals_pos == std::string::npos) {
-        std::cerr << "Warning: Invalid line " << line_number << " in " << file_path << ": " << line
-                  << std::endl;
         continue;
       }
 
       std::string key = line.substr(0, equals_pos);
       std::string value = line.substr(equals_pos + 1);
 
-      // Trim whitespace from key
-      key.erase(0, key.find_first_not_of(" \t"));
-      key.erase(key.find_last_not_of(" \t") + 1);
+      // 2. Trim key and value again after split
+      auto trim = [](std::string &s) {
+        size_t first = s.find_first_not_of(" \t");
+        if (first == std::string::npos) {
+          s.clear();
+          return;
+        }
+        s.erase(0, first);
+        s.erase(s.find_last_not_of(" \t") + 1);
+      };
+      trim(key);
+      trim(value);
 
-      // Handle quoted values
-      if (!value.empty()) {
-        // Remove surrounding quotes if present
+      // 3. Robust quote stripping
+      if (value.size() >= 2) {
         if ((value.front() == '"' && value.back() == '"') ||
             (value.front() == '\'' && value.back() == '\'')) {
-          value = value.substr(1, value.length() - 2);
+          value = value.substr(1, value.size() - 2);
         }
+      }
+
+      // 4. Validate Key (Security)
+      if (key.empty() || key.find_first_of("= \t") != std::string::npos) {
+        continue; // Skip keys with invalid characters
       }
 
       env_vars_[key] = value;

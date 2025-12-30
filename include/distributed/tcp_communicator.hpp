@@ -80,6 +80,9 @@ public:
 
   void stop() {
     std::cout << "Closing communication server" << std::endl;
+    if (!is_running_.load(std::memory_order_acquire))
+      return;
+
     is_running_.store(false, std::memory_order_release);
 
     if (acceptor_.is_open()) {
