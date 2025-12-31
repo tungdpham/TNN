@@ -185,6 +185,9 @@ int main(int argc, char *argv[]) {
 
       while (communicator.has_input_message()) {
         auto message = communicator.dequeue_input_message();
+        if (message.header().command_type != CommandType::FORWARD_JOB) {
+          continue;
+        }
         num_messages_received++;
         message.header().recipient_id = cfg.peer_host + ":" + to_string(cfg.peer_port);
         communicator.send_message(message);

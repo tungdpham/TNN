@@ -34,6 +34,7 @@ public:
       ++it;
     }
 
+    std::cout << "MemPool: Allocating new tensor of size " << required_bytes << " bytes.\n";
     return Tensor<T>(shape, device);
   }
 

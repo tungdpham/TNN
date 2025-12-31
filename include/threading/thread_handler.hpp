@@ -24,11 +24,11 @@ namespace tnn {
 
 enum class SchedulePolicy { Static, Auto, Affinity };
 
-inline uint32_t get_num_threads() {
+inline size_t get_num_threads() {
 #ifdef _OPENMP
-  return static_cast<uint32_t>(omp_get_max_threads());
+  return omp_get_max_threads();
 #elif defined(USE_TBB)
-  return static_cast<uint32_t>(tbb::this_task_arena::max_concurrency());
+  return tbb::this_task_arena::max_concurrency();
 #else
   return 1;
 #endif

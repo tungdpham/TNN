@@ -32,16 +32,16 @@ template <> cudnnDataType_t get_cudnn_data_type<float>() { return CUDNN_DATA_FLO
 
 template <> cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_DATA_DOUBLE; }
 
-ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_channels,
-                                                 size_t input_h, size_t input_w,
+ConvolutionHandle *initialize_convolution_handle(cudnnHandle_t shared_handle, size_t batch_size,
+                                                 size_t in_channels, size_t input_h, size_t input_w,
                                                  size_t out_channels, size_t kernel_h,
                                                  size_t kernel_w, size_t stride_h, size_t stride_w,
                                                  size_t pad_h, size_t pad_w,
                                                  size_t workspace_limit_bytes) {
   ConvolutionHandle *handle = new ConvolutionHandle();
 
-  // Create cuDNN handle
-  CHECK_CUDNN(cudnnCreate(&handle->cudnn_handle));
+  // Use shared cuDNN handle
+  handle->cudnn_handle = shared_handle;
 
   // Create descriptors
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->input_descriptor));
@@ -167,7 +167,6 @@ void destroy_convolution_handle(ConvolutionHandle *handle) {
     cudnnDestroyConvolutionDescriptor(handle->convolution_descriptor);
     cudnnDestroyTensorDescriptor(handle->bias_descriptor);
     cudnnDestroyActivationDescriptor(handle->activation_descriptor);
-    cudnnDestroy(handle->cudnn_handle);
     delete handle;
   }
 }

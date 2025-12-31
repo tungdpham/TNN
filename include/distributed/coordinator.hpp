@@ -90,6 +90,7 @@ public:
 
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
+      std::cout << "Stopping stage " << stage_name << std::endl;
       Message stop_msg(stage_name, CommandType::SHUTDOWN, std::monostate{});
       this->coordinator_comm_->send_message(std::move(stop_msg));
     }
@@ -100,8 +101,6 @@ public:
     if (message_thread_.joinable()) {
       message_thread_.join();
     }
-
-    this->coordinator_comm_.reset();
 
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
@@ -568,7 +567,6 @@ private:
       }
 
       stage_configs_.push_back(config);
-      this->stage_names_.push_back(config.stage_id);
     }
   }
 

@@ -14,12 +14,12 @@ __global__ void tanh_kernel(const float *input, float *output, size_t size) {
   }
 }
 
-__global__ void tanh_gradient_kernel(const float *input, float *grad_output, size_t size) {
+__global__ void tanh_gradient_kernel(const float *input, const float *grad_output,
+                                     float *grad_input, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     float tanh_val = tanhf(input[idx]);
-    float local_grad = 1.0f - tanh_val * tanh_val;
-    grad_output[idx] *= local_grad;
+    grad_input[idx] = grad_output[idx] * (1.0f - tanh_val * tanh_val);
   }
 }
 
@@ -30,12 +30,12 @@ __global__ void tanh_kernel_double(const double *input, double *output, size_t s
   }
 }
 
-__global__ void tanh_gradient_kernel_double(const double *input, double *grad_output, size_t size) {
+__global__ void tanh_gradient_kernel_double(const double *input, const double *grad_output,
+                                            double *grad_input, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     double tanh_val = ::tanh(input[idx]);
-    double local_grad = 1.0 - tanh_val * tanh_val;
-    grad_output[idx] *= local_grad;
+    grad_input[idx] = grad_output[idx] * (1.0 - tanh_val * tanh_val);
   }
 }
 
@@ -45,10 +45,10 @@ template <> void tanh<float>(const float *input, float *output, size_t size, cud
 }
 
 template <>
-void tanh_gradient<float>(const float *input, float *grad_output, size_t size,
-                          cudaStream_t stream) {
+void tanh_gradient<float>(const float *input, const float *grad_output, float *grad_input,
+                          size_t size, cudaStream_t stream) {
   const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  tanh_gradient_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, size);
+  tanh_gradient_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, grad_input, size);
 }
 
 template <>
@@ -58,10 +58,11 @@ void tanh<double>(const double *input, double *output, size_t size, cudaStream_t
 }
 
 template <>
-void tanh_gradient<double>(const double *input, double *grad_output, size_t size,
-                           cudaStream_t stream) {
+void tanh_gradient<double>(const double *input, const double *grad_output, double *grad_input,
+                           size_t size, cudaStream_t stream) {
   const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  tanh_gradient_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, size);
+  tanh_gradient_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, grad_input,
+                                                                    size);
 }
 
 } // namespace cuda

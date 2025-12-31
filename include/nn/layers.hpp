@@ -16,7 +16,7 @@
 namespace tnn {
 
 template <typename T>
-std::unique_ptr<ActivationFunction<T>> create_activation(const std::string &name) {
+std::unique_ptr<EWActivationFunction<T>> create_activation(const std::string &name) {
   ActivationFactory<T>::register_defaults();
   return ActivationFactory<T>::create(name);
 }

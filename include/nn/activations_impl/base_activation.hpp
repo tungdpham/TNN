@@ -10,16 +10,17 @@
 #include <memory>
 
 namespace tnn {
-template <typename T = float> class ActivationFunction {
+template <typename T = float> class EWActivationFunction {
 public:
-  virtual ~ActivationFunction() = default;
+  virtual ~EWActivationFunction() = default;
 
-  virtual std::unique_ptr<Task> apply(Tensor<T> &tensor) const = 0;
+  virtual std::unique_ptr<Task> apply(const Tensor<T> &input, Tensor<T> &output) const = 0;
 
-  virtual std::unique_ptr<Task> compute_gradient_inplace(const Tensor<T> &input,
-                                                         Tensor<T> &upstream_gradient) const = 0;
+  virtual std::unique_ptr<Task> compute_gradient(const Tensor<T> &input,
+                                                 const Tensor<T> &grad_output,
+                                                 Tensor<T> &grad_input) const = 0;
 
   virtual std::string name() const = 0;
-  virtual std::unique_ptr<ActivationFunction<T>> clone() const = 0;
+  virtual std::unique_ptr<EWActivationFunction<T>> clone() const = 0;
 };
 } // namespace tnn

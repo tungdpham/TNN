@@ -44,9 +44,9 @@ __global__ void softmax_kernel(const float *input, float *output, size_t batch_s
   }
 }
 
-__global__ void softmax_gradient_kernel(const float *softmax_values, float *grad_output,
-                                        size_t batch_size, size_t channels, size_t height,
-                                        size_t width) {
+__global__ void softmax_gradient_kernel(const float *softmax_values, const float *grad_output,
+                                        float *grad_input, size_t batch_size, size_t channels,
+                                        size_t height, size_t width) {
   const size_t spatial_size = height * width;
   const size_t channel_stride = spatial_size;
   const size_t batch_stride = channels * channel_stride;
@@ -68,7 +68,7 @@ __global__ void softmax_gradient_kernel(const float *softmax_values, float *grad
       size_t data_idx = n * batch_stride + i * channel_stride + spatial_idx;
       float s_i = softmax_values[data_idx];
       float upstream_i = grad_output[data_idx];
-      grad_output[data_idx] = s_i * (upstream_i - dot_product);
+      grad_input[data_idx] = s_i * (upstream_i - dot_product);
     }
   }
 }
@@ -110,7 +110,8 @@ __global__ void softmax_kernel_double(const double *input, double *output, size_
   }
 }
 
-__global__ void softmax_gradient_kernel_double(const double *softmax_values, double *grad_output,
+__global__ void softmax_gradient_kernel_double(const double *softmax_values,
+                                               const double *grad_output, double *grad_input,
                                                size_t batch_size, size_t channels, size_t height,
                                                size_t width) {
   const size_t spatial_size = height * width;
@@ -134,7 +135,7 @@ __global__ void softmax_gradient_kernel_double(const double *softmax_values, dou
       size_t data_idx = n * batch_stride + i * channel_stride + spatial_idx;
       double s_i = softmax_values[data_idx];
       double upstream_i = grad_output[data_idx];
-      grad_output[data_idx] = s_i * (upstream_i - dot_product);
+      grad_input[data_idx] = s_i * (upstream_i - dot_product);
     }
   }
 }
@@ -149,22 +150,22 @@ void softmax<float>(const float *input, float *output, size_t batch_size, size_t
 }
 
 template <>
-void softmax_gradient<float>(const float *input, float *grad_output, size_t batch_size,
-                             size_t channels, size_t height, size_t width, cudaStream_t stream) {
-  const size_t total_size = batch_size * channels * height * width;
-  const size_t total_spatial = batch_size * height * width;
-
+void softmax_gradient<float>(const float *input, const float *grad_output, float *grad_input,
+                             size_t batch_size, size_t channels, size_t height, size_t width,
+                             cudaStream_t stream) {
+  const size_t total_elements = batch_size * channels * height * width;
   float *softmax_values;
-  cudaMallocAsync(&softmax_values, total_size * sizeof(float), stream);
+  cudaMalloc(&softmax_values, total_elements * sizeof(float));
 
+  softmax<float>(input, softmax_values, batch_size, channels, height, width, stream);
+
+  const size_t total_spatial = batch_size * height * width;
   const int numBlocks = (total_spatial + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  softmax_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, softmax_values, batch_size, channels,
-                                                       height, width);
 
   softmax_gradient_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(
-      softmax_values, grad_output, batch_size, channels, height, width);
+      softmax_values, grad_output, grad_input, batch_size, channels, height, width);
 
-  cudaFreeAsync(softmax_values, stream);
+  cudaFree(softmax_values);
 }
 
 template <>
@@ -177,22 +178,22 @@ void softmax<double>(const double *input, double *output, size_t batch_size, siz
 }
 
 template <>
-void softmax_gradient<double>(const double *input, double *grad_output, size_t batch_size,
-                              size_t channels, size_t height, size_t width, cudaStream_t stream) {
-  const size_t total_size = batch_size * channels * height * width;
-  const size_t total_spatial = batch_size * height * width;
-
+void softmax_gradient<double>(const double *input, const double *grad_output, double *grad_input,
+                              size_t batch_size, size_t channels, size_t height, size_t width,
+                              cudaStream_t stream) {
+  const size_t total_elements = batch_size * channels * height * width;
   double *softmax_values;
-  cudaMallocAsync(&softmax_values, total_size * sizeof(double), stream);
+  cudaMalloc(&softmax_values, total_elements * sizeof(double));
 
+  softmax<double>(input, softmax_values, batch_size, channels, height, width, stream);
+
+  const size_t total_spatial = batch_size * height * width;
   const int numBlocks = (total_spatial + BLOCK_SIZE - 1) / BLOCK_SIZE;
-  softmax_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, softmax_values, batch_size,
-                                                              channels, height, width);
 
   softmax_gradient_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(
-      softmax_values, grad_output, batch_size, channels, height, width);
+      softmax_values, grad_output, grad_input, batch_size, channels, height, width);
 
-  cudaFreeAsync(softmax_values, stream);
+  cudaFree(softmax_values);
 }
 
 } // namespace cuda

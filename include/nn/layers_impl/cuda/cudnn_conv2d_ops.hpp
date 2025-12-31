@@ -35,15 +35,14 @@ struct ConvolutionHandle {
   size_t bwd_filter_workspace_size;
 };
 
-// Initialize cuDNN handle and descriptors for a conv layer
-// workspace_limit_bytes: maximum workspace size per algorithm (0 = no limit)
-//   Recommended values: 32MB (balanced), 16MB (conservative), 8MB (minimal)
-ConvolutionHandle *initialize_convolution_handle(size_t batch_size, size_t in_channels,
-                                                 size_t input_h, size_t input_w,
+// Initialize cuDNN handle and descriptors for a conv layer, with optional workspace size limit
+// Recommended values: 256MB (Performance), 64MB (conservative), 32MB (minimal)
+ConvolutionHandle *initialize_convolution_handle(cudnnHandle_t shared_handle, size_t batch_size,
+                                                 size_t in_channels, size_t input_h, size_t input_w,
                                                  size_t out_channels, size_t kernel_h,
                                                  size_t kernel_w, size_t stride_h, size_t stride_w,
                                                  size_t pad_h, size_t pad_w,
-                                                 size_t workspace_limit_bytes = 64 * 1024 * 1024);
+                                                 size_t workspace_limit_bytes = 256 * 1024 * 1024);
 
 // Destroy cuDNN handle and clean up descriptors
 void destroy_convolution_handle(ConvolutionHandle *handle);
@@ -53,28 +52,24 @@ void update_batch_size(ConvolutionHandle *handle, size_t batch_size, size_t in_c
                        size_t input_h, size_t input_w, size_t out_channels, size_t output_h,
                        size_t output_w);
 
-// Forward pass using cuDNN
 template <typename T>
 void forward_with_bias(ConvolutionHandle *handle, const T *input_data, const T *weight_data,
                        const T *bias_data, T *output_data, size_t batch_size, size_t in_channels,
                        size_t input_h, size_t input_w, size_t out_channels, size_t output_h,
                        size_t output_w, T *workspace, size_t workspace_size, cudaStream_t stream);
 
-// Backward pass - input gradients
 template <typename T>
 void backward_data(ConvolutionHandle *handle, const T *gradient_data, const T *weight_data,
                    T *input_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
                    size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
                    T *workspace, size_t workspace_size, cudaStream_t stream);
 
-// Backward pass - weight gradients
 template <typename T>
 void backward_filter(ConvolutionHandle *handle, const T *input_data, const T *gradient_data,
                      T *weight_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
                      size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
                      T *workspace, size_t workspace_size, cudaStream_t stream);
 
-// Backward pass - bias gradients (reduction kernel)
 template <typename T>
 void backward_bias(ConvolutionHandle *handle, const T *gradient_data, T *bias_grad_data,
                    size_t batch_size, size_t out_channels, size_t output_h, size_t output_w,

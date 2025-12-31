@@ -35,6 +35,7 @@ public:
   void copyToHost(void *dest, const void *src, size_t size) const;
   void createFlow(const std::string &flow_id) const;
   Flow *getFlow(const std::string &flow_id) const;
+  Context *context() const { return context_.get(); }
 
 private:
   DeviceType type_;

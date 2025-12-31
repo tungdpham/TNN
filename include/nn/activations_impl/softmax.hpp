@@ -5,19 +5,18 @@
  * project root for the full license text.
  */
 #pragma once
-#include "nn/activations_impl/base_activation.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-template <typename T = float> class Softmax : public ActivationFunction<T> {
+template <typename T = float> class Softmax {
 public:
-  std::unique_ptr<Task> apply(Tensor<T> &tensor) const override;
+  std::unique_ptr<Task> apply(const Tensor<T> &input, Tensor<T> &output) const;
 
-  std::unique_ptr<Task> compute_gradient_inplace(const Tensor<T> &input,
-                                                 Tensor<T> &upstream_gradient) const override;
+  std::unique_ptr<Task> compute_gradient(const Tensor<T> &input, const Tensor<T> &grad_output,
+                                         Tensor<T> &grad_input) const;
 
-  std::string name() const override;
-  std::unique_ptr<ActivationFunction<T>> clone() const override;
+  std::string name() const;
+  std::unique_ptr<Softmax<T>> clone() const;
 };
 
 } // namespace tnn

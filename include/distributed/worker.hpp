@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/device_type.hpp"
+#include "distributed/command_type.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
@@ -56,7 +57,7 @@ public:
 
     communicator_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(message_available_mutex_);
-      message_available_cv_.notify_all();
+      message_available_cv_.notify_one();
     });
 
     message_loop();
@@ -139,7 +140,7 @@ protected:
       break;
 
     case CommandType::STATUS_REQUEST: {
-      throw new std::runtime_error("Not implemented yet");
+      throw std::runtime_error("Not implemented yet");
       break;
     }
 
@@ -176,7 +177,7 @@ protected:
       break;
     case CommandType::LOAD_PARAMS: {
       // // decode and deserialize parameters
-      throw new std::runtime_error("Not implemented yet");
+      throw std::runtime_error("Not implemented yet");
       break;
     }
     case CommandType::SEND_PARAMS: {
@@ -193,6 +194,10 @@ protected:
     }
     case CommandType::REPORT_LOAD: {
       throw std::runtime_error("Not implemented yet");
+      break;
+    }
+    case CommandType::HANDSHAKE: {
+      // do nothing;
       break;
     }
     case CommandType::SHUTDOWN:

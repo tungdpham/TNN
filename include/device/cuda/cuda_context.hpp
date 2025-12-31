@@ -9,13 +9,24 @@
 #include <string>
 #include <unordered_map>
 
+#ifdef USE_CUDNN
+#include <cudnn.h>
+#endif
+
 namespace tnn {
 class CUDAContext : public Context {
 private:
   std::unordered_map<std::string, std::unique_ptr<Flow>> flows_;
+#ifdef USE_CUDNN
+  cudnnHandle_t cudnn_handle_;
+#endif
 
 public:
   explicit CUDAContext(int id);
+#ifdef USE_CUDNN
+  ~CUDAContext();
+  cudnnHandle_t getCudnnHandle() const { return cudnn_handle_; }
+#endif
 
   size_t getTotalMemory() const override;
   size_t getAvailableMemory() const override;

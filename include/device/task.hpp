@@ -29,7 +29,7 @@ protected:
   ErrorStatus status_{};
 
 public:
-  virtual ~Task() = default;
+  virtual ~Task() {}
 
   bool ready() const { return is_ready_.load(std::memory_order_acquire); }
 
@@ -94,7 +94,6 @@ inline tnn::ErrorStatus cuda_error_to_status(cudaError_t err) {
 class CUDATask : public Task {
 private:
   CUDAFlow *flow_;
-  cudaEvent_t event_ = nullptr;
   std::function<void()> launch_function_;
 
   static inline std::vector<cudaEvent_t> event_pool_;
@@ -153,19 +152,7 @@ public:
     return status;
   }
 
-  ~CUDATask() override {
-    // auto err = sync();
-    // if (err != ErrorStatus{}) {
-    //   std::cerr << "Error in CUDATask sync in destructor: " << err.message() << std::endl;
-    //   std::cerr << "You might want to capture task and call sync() explicitly to handle errors."
-    //             << std::endl;
-    // }
-
-    if (event_) {
-      release_event(event_);
-      event_ = nullptr;
-    }
-  }
+  ~CUDATask() override {}
 
   CUDATask(const CUDATask &) = delete;
   CUDATask &operator=(const CUDATask &) = delete;

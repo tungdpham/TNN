@@ -656,7 +656,9 @@ void slice_channels(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_
 template <typename T, Layout L>
 void split(const Tensor<T, L> &input, std::vector<Tensor<T, L>> &results, size_t num_splits) {
   if (num_splits == 0 || num_splits > input.batch_size()) {
-    throw std::invalid_argument("Invalid number of splits");
+    throw std::invalid_argument(
+        "Invalid number of splits. Batch size: " + std::to_string(input.batch_size()) +
+        ", num_splits: " + std::to_string(num_splits));
   }
 
   results.resize(num_splits);
