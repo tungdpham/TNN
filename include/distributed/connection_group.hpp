@@ -32,11 +32,13 @@ public:
   Fragmenter &get_fragmenter() { return fragmenter_; }
   const Fragmenter &get_fragmenter() const { return fragmenter_; }
 
-  void add_conn(std::shared_ptr<Connection> conn) { connections_.push_back(std::move(conn)); }
+  void add_conn(const std::shared_ptr<Connection> &conn) { connections_.push_back(conn); }
+
   void remove_conn(const std::shared_ptr<Connection> &conn) {
     connections_.erase(std::remove(connections_.begin(), connections_.end(), conn),
                        connections_.end());
   }
+
   const std::vector<std::shared_ptr<Connection>> &get_connections() const { return connections_; }
 
 private:

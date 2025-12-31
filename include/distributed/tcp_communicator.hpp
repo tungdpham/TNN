@@ -143,7 +143,7 @@ public:
         headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
       }
 
-      async_send_buffer(recipient_id, headers, data_buffer);
+      async_send_buffer(recipient_id, headers, std::move(data_buffer));
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -183,20 +183,6 @@ public:
         asio::error_code err = connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);
         if (err) {
           std::cerr << "Failed to set TCP_NODELAY: " << ec.message() << std::endl;
-          return false;
-        }
-
-        asio::socket_base::send_buffer_size send_buf_opt(262144);
-        err = connection->socket.set_option(send_buf_opt, ec);
-        if (err) {
-          std::cerr << "Failed to set send buffer size: " << ec.message() << std::endl;
-          return false;
-        }
-
-        asio::socket_base::receive_buffer_size recv_buf_opt(262144);
-        err = connection->socket.set_option(recv_buf_opt, ec);
-        if (err) {
-          std::cerr << "Failed to set receive buffer size: " << ec.message() << std::endl;
           return false;
         }
 
@@ -477,7 +463,7 @@ private:
   }
 
   void async_send_buffer(const std::string &recipient_id, std::vector<PacketHeader> headers,
-                         PooledBuffer data_buffer) {
+                         PooledBuffer &&data_buffer) {
     std::vector<std::shared_ptr<Connection>> connections;
 
     {
@@ -498,19 +484,17 @@ private:
     for (auto header : headers) {
       auto connection = connections[conn_index];
 
-      connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
-      asio::post(connection->socket.get_executor(), [this, connection]() {
+      asio::post(connection->socket.get_executor(), [this, connection, header, data_buffer]() {
+        connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
         start_async_write(connection->acquire_write(), connection);
       });
 
       conn_index = (conn_index + 1) % connections.size();
-      if (conn_index == 0)
-        break;
     }
   }
 
   void start_async_write(std::unique_ptr<WriteHandle> write_handle,
-                         std::shared_ptr<Connection> connection) {
+                         const std::shared_ptr<Connection> connection) {
     if (!write_handle) {
       return;
     }
@@ -592,15 +576,11 @@ private:
         auto new_group_it = connection_groups_.find(new_peer_id);
         // if already exists, merge old into new. else rename.
         if (new_group_it != connection_groups_.end()) {
-          // std::cout << "Merging " << old_peer_id
-          //           << " connection into existing group: " << new_peer_id << std::endl;
           new_group_it->second.add_conn(connection);
           new_group_it->second.get_fragmenter().merge(
               std::move(old_group_it->second.get_fragmenter()));
           connection_groups_.erase(old_group_it);
         } else {
-          // std::cout << "Renaming group " << old_peer_id << " to " << new_peer_id <<
-          // std::endl;
           auto node_handle = connection_groups_.extract(old_group_it);
           node_handle.key() = new_peer_id;
           connection_groups_.insert(std::move(node_handle));
