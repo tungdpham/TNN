@@ -153,6 +153,11 @@ public:
     return this->out_message_queue_.size();
   }
 
+  std::unordered_map<std::string, uint64_t> get_profile_data() {
+    std::lock_guard<std::mutex> lock(profile_mutex_);
+    return profile_data_;
+  }
+
 protected:
   virtual bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) = 0;
 
@@ -181,5 +186,9 @@ protected:
   std::function<void()> message_notification_callback_;
 
   std::unordered_map<std::string, Endpoint> recipients_;
+
+private:
+  std::mutex profile_mutex_;
+  std::unordered_map<std::string, uint64_t> profile_data_;
 };
 } // namespace tnn

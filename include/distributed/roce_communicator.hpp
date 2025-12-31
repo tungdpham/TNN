@@ -66,6 +66,13 @@ private:
     uint32_t psn = 0;
     std::vector<std::unique_ptr<RegisteredBuffer>> recv_buffers;
     Fragmenter fragmenter;
+
+    ~Connection() {
+      if (qp) {
+        ibv_destroy_qp(qp);
+        qp = nullptr;
+      }
+    }
   };
 
   std::string device_name_;
@@ -80,8 +87,9 @@ private:
   std::thread poll_thread_;
   std::atomic<bool> is_running_{false};
 
-  std::unordered_map<std::string, std::unique_ptr<Connection>> connections_;
-  std::unordered_map<uint32_t, Connection *> qp_map_; // Map QPN to Connection* for polling
+  std::unordered_map<std::string, std::shared_ptr<Connection>> connections_;
+  std::unordered_map<uint32_t, std::shared_ptr<Connection>>
+      qp_map_; // Map QPN to Connection* for polling
   std::mutex connections_mutex_;
 
   // Send buffer pool
@@ -128,10 +136,6 @@ public:
 
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
-      for (auto &pair : connections_) {
-        if (pair.second->qp)
-          ibv_destroy_qp(pair.second->qp);
-      }
       connections_.clear();
       qp_map_.clear();
     }
@@ -168,12 +172,12 @@ public:
       num_packets = 1;
 
     std::vector<PacketHeader> headers;
-    Connection *conn = nullptr;
+    std::shared_ptr<Connection> conn;
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
       auto it = connections_.find(message.header().recipient_id);
       if (it != connections_.end()) {
-        conn = it->second.get();
+        conn = it->second;
         headers = conn->fragmenter.get_headers(*data_buffer, num_packets);
       }
     }
@@ -245,15 +249,18 @@ protected:
       asio::write(socket, asio::buffer(&id_len, sizeof(id_len)));
       asio::write(socket, asio::buffer(id_));
 
-      auto conn = std::make_unique<Connection>();
+      auto conn = std::make_shared<Connection>();
       conn->peer_id = peer_id;
       conn->qp = create_qp();
 
       RoceConnectionInfo my_info = get_local_info(conn->qp);
-      asio::write(socket, asio::buffer(&my_info, sizeof(my_info)));
+      std::vector<uint8_t> my_info_buf;
+      serialize_info(my_info, my_info_buf);
+      asio::write(socket, asio::buffer(my_info_buf));
 
-      RoceConnectionInfo peer_info;
-      asio::read(socket, asio::buffer(&peer_info, sizeof(peer_info)));
+      std::vector<uint8_t> peer_info_buf(26);
+      asio::read(socket, asio::buffer(peer_info_buf));
+      RoceConnectionInfo peer_info = deserialize_info(peer_info_buf);
 
       modify_qp_to_rts(conn->qp, peer_info);
 
@@ -266,8 +273,8 @@ protected:
 
       {
         std::lock_guard<std::mutex> lock(connections_mutex_);
-        qp_map_[conn->qp->qp_num] = conn.get();
-        connections_[peer_id] = std::move(conn);
+        qp_map_[conn->qp->qp_num] = conn;
+        connections_[peer_id] = conn;
       }
 
       return true;
@@ -282,7 +289,6 @@ protected:
     auto it = connections_.find(peer_id);
     if (it != connections_.end()) {
       qp_map_.erase(it->second->qp->qp_num);
-      ibv_destroy_qp(it->second->qp);
       connections_.erase(it);
       return true;
     }
@@ -290,6 +296,40 @@ protected:
   }
 
 private:
+  void serialize_info(const RoceConnectionInfo &info, std::vector<uint8_t> &buf) {
+    buf.reserve(26);
+    // lid (16)
+    buf.push_back((info.lid >> 8) & 0xFF);
+    buf.push_back(info.lid & 0xFF);
+    // qpn (32)
+    buf.push_back((info.qpn >> 24) & 0xFF);
+    buf.push_back((info.qpn >> 16) & 0xFF);
+    buf.push_back((info.qpn >> 8) & 0xFF);
+    buf.push_back(info.qpn & 0xFF);
+    // psn (32)
+    buf.push_back((info.psn >> 24) & 0xFF);
+    buf.push_back((info.psn >> 16) & 0xFF);
+    buf.push_back((info.psn >> 8) & 0xFF);
+    buf.push_back(info.psn & 0xFF);
+    // gid (16 bytes)
+    const uint8_t *gid_ptr = info.gid.raw;
+    for (int i = 0; i < 16; ++i)
+      buf.push_back(gid_ptr[i]);
+  }
+
+  RoceConnectionInfo deserialize_info(const std::vector<uint8_t> &buf) {
+    RoceConnectionInfo info;
+    int idx = 0;
+    info.lid = (buf[idx] << 8) | buf[idx + 1];
+    idx += 2;
+    info.qpn = (buf[idx] << 24) | (buf[idx + 1] << 16) | (buf[idx + 2] << 8) | buf[idx + 3];
+    idx += 4;
+    info.psn = (buf[idx] << 24) | (buf[idx + 1] << 16) | (buf[idx + 2] << 8) | buf[idx + 3];
+    idx += 4;
+    std::memcpy(info.gid.raw, &buf[idx], 16);
+    return info;
+  }
+
   void init_rdma() {
     int num_devices;
     struct ibv_device **dev_list = ibv_get_device_list(&num_devices);
@@ -437,7 +477,17 @@ private:
       }
       for (int i = 0; i < n; ++i) {
         if (wc[i].status != IBV_WC_SUCCESS) {
-          std::cerr << "WC Error: " << ibv_wc_status_str(wc[i].status) << std::endl;
+          std::cerr << "WC Error: " << ibv_wc_status_str(wc[i].status) << " for QP " << wc[i].qp_num
+                    << std::endl;
+          {
+            std::lock_guard<std::mutex> lock(connections_mutex_);
+            auto it = qp_map_.find(wc[i].qp_num);
+            if (it != qp_map_.end()) {
+              std::string peer_id = it->second->peer_id;
+              qp_map_.erase(it);
+              connections_.erase(peer_id);
+            }
+          }
           continue;
         }
 
@@ -446,7 +496,7 @@ private:
           PacketHeader header;
           std::memcpy(&header, buf->data.data(), sizeof(PacketHeader));
 
-          Connection *conn = nullptr;
+          std::shared_ptr<Connection> conn;
           {
             std::lock_guard<std::mutex> lock(connections_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
@@ -479,7 +529,7 @@ private:
             std::cerr << "Received packet from unknown QP: " << wc[i].qp_num << std::endl;
           }
 
-        } else if (wc[i].opcode == IBV_WR_SEND) {
+        } else if (wc[i].opcode == IBV_WC_SEND || wc[i].opcode == IBV_WC_RDMA_WRITE) {
           auto *buf = (RegisteredBuffer *)wc[i].wr_id;
           std::lock_guard<std::mutex> lock(send_buffers_mutex_);
           free_send_buffers_.push(buf);
@@ -502,44 +552,74 @@ private:
   }
 
   void handle_new_connection(std::shared_ptr<asio::ip::tcp::socket> socket) {
-    std::thread([this, socket]() {
-      try {
-        uint32_t id_len;
-        asio::read(*socket, asio::buffer(&id_len, sizeof(id_len)));
-        std::string peer_id(id_len, '\0');
-        asio::read(*socket, asio::buffer(&peer_id[0], id_len));
+    auto id_len_buf = std::make_shared<uint32_t>();
+    asio::async_read(
+        *socket, asio::buffer(id_len_buf.get(), sizeof(uint32_t)),
+        [this, socket, id_len_buf](const asio::error_code &ec, size_t) {
+          if (ec)
+            return;
+          size_t id_len = *id_len_buf;
+          auto peer_id_buf = std::make_shared<std::string>(id_len, '\0');
+          asio::async_read(
+              *socket, asio::buffer(&(*peer_id_buf)[0], id_len),
+              [this, socket, peer_id_buf](const asio::error_code &ec, size_t) {
+                if (ec)
+                  return;
+                std::string peer_id = *peer_id_buf;
 
-        auto conn = std::make_unique<Connection>();
-        conn->peer_id = peer_id;
-        conn->qp = create_qp();
+                auto conn = std::make_shared<Connection>();
+                conn->peer_id = peer_id;
+                try {
+                  conn->qp = create_qp();
+                } catch (...) {
+                  return;
+                }
 
-        RoceConnectionInfo my_info = get_local_info(conn->qp);
-        asio::write(*socket, asio::buffer(&my_info, sizeof(my_info)));
+                RoceConnectionInfo my_info = get_local_info(conn->qp);
+                auto my_info_buf = std::make_shared<std::vector<uint8_t>>();
+                serialize_info(my_info, *my_info_buf);
 
-        RoceConnectionInfo peer_info;
-        asio::read(*socket, asio::buffer(&peer_info, sizeof(peer_info)));
+                asio::async_write(
+                    *socket, asio::buffer(*my_info_buf),
+                    [this, socket, conn, peer_id](const asio::error_code &ec, size_t) {
+                      if (ec)
+                        return;
+                      auto peer_info_buf = std::make_shared<std::vector<uint8_t>>(26);
+                      asio::async_read(
+                          *socket, asio::buffer(*peer_info_buf),
+                          [this, socket, conn, peer_id, peer_info_buf](const asio::error_code &ec,
+                                                                       size_t) {
+                            if (ec)
+                              return;
+                            try {
+                              RoceConnectionInfo peer_info = deserialize_info(*peer_info_buf);
+                              modify_qp_to_rts(conn->qp, peer_info);
 
-        modify_qp_to_rts(conn->qp, peer_info);
+                              for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
+                                auto buf =
+                                    std::make_unique<RegisteredBuffer>(ROCE_BUFFER_SIZE, pd_);
+                                post_recv_buffer(conn->qp, buf.get());
+                                conn->recv_buffers.push_back(std::move(buf));
+                              }
 
-        // Initialize receive buffers for this connection
-        for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-          auto buf = std::make_unique<RegisteredBuffer>(ROCE_BUFFER_SIZE, pd_);
-          post_recv_buffer(conn->qp, buf.get());
-          conn->recv_buffers.push_back(std::move(buf));
-        }
+                              {
+                                std::lock_guard<std::mutex> lock(connections_mutex_);
+                                qp_map_[conn->qp->qp_num] = conn;
+                                connections_[peer_id] = conn;
+                              }
 
-        {
-          std::lock_guard<std::mutex> lock(connections_mutex_);
-          qp_map_[conn->qp->qp_num] = conn.get();
-          connections_[peer_id] = std::move(conn);
-        }
+                              std::string peer_host =
+                                  socket->remote_endpoint().address().to_string();
+                              register_recipient(peer_id, Endpoint::roce(peer_host, port_,
+                                                                         device_name_, gid_index_));
 
-        register_recipient(peer_id, Endpoint::roce(device_name_, port_, gid_index_));
-
-      } catch (const std::exception &e) {
-        std::cerr << "Handshake error: " << e.what() << std::endl;
-      }
-    }).detach();
+                            } catch (const std::exception &e) {
+                              std::cerr << "Handshake error: " << e.what() << std::endl;
+                            }
+                          });
+                    });
+              });
+        });
   }
 };
 
