@@ -43,8 +43,7 @@ public:
         Job<T> *raw_job = *it;
 
         // Reuse jobs within 2x of requested size to reduce allocations
-        if (raw_job->data.capacity() >= min_capacity &&
-            raw_job->data.capacity() <= min_capacity * 2) {
+        if (raw_job->data.capacity() >= min_capacity) {
           pool_.erase(it);
           raw_job->micro_batch_id = 0;
           return PooledJob<T>(raw_job, deleter);
@@ -84,6 +83,8 @@ public:
     if (pool_.size() < MAX_POOL_SIZE) {
       pool_.push_back(job);
     } else {
+      std::cerr << "JobPool is full. Discarding job with capacity: " << job->data.capacity()
+                << std::endl;
       delete job;
     }
   }

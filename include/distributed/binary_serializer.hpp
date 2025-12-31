@@ -1,5 +1,6 @@
 #pragma once
 
+#include "device/device_manager.hpp"
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
@@ -113,7 +114,7 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.read<uint64_t>(offset, shape[i]);
     }
-    tensor.ensure(shape);
+    tensor.ensure(shape, &getCPU());
     if (tensor.size() > 0) {
       buffer.read(offset, tensor.data(), tensor.size(), true);
       offset += tensor.size() * sizeof(T);

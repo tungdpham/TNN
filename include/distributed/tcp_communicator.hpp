@@ -25,6 +25,7 @@
 #include <asio/error_code.hpp>
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <mutex>
@@ -142,7 +143,7 @@ public:
         headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
       }
 
-      async_send_buffer(recipient_id, headers, std::move(data_buffer));
+      async_send_buffer(recipient_id, headers, data_buffer);
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -476,7 +477,7 @@ private:
   }
 
   void async_send_buffer(const std::string &recipient_id, std::vector<PacketHeader> headers,
-                         PooledBuffer &&data_buffer) {
+                         PooledBuffer data_buffer) {
     std::vector<std::shared_ptr<Connection>> connections;
 
     {
@@ -494,20 +495,23 @@ private:
 
     // round-robin selection of connection
     int conn_index = 0;
-    for (auto &header : headers) {
-      auto &connection = connections[conn_index];
-      asio::post(connection->socket.get_executor(), [this, recipient_id, connection, header,
-                                                     data_buffer]() mutable {
-        connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
+    for (auto header : headers) {
+      auto connection = connections[conn_index];
+
+      connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
+      asio::post(connection->socket.get_executor(), [this, connection]() {
         start_async_write(connection->acquire_write(), connection);
       });
+
       conn_index = (conn_index + 1) % connections.size();
+      if (conn_index == 0)
+        break;
     }
   }
 
   void start_async_write(std::unique_ptr<WriteHandle> write_handle,
                          std::shared_ptr<Connection> connection) {
-    if (write_handle == nullptr) {
+    if (!write_handle) {
       return;
     }
 
@@ -529,7 +533,7 @@ private:
 
     asio::async_write(
         connection->socket, buffers,
-        [this, connection, packet_header_buffer, current_write,
+        [this, connection, packet_header_buffer, current_write = std::move(current_write),
          write_handle = std::move(write_handle)](std::error_code ec, std::size_t) mutable {
           if (ec) {
             handle_connection_error(connection, ec);

@@ -46,7 +46,7 @@ public:
       header.packet_offset = i * packet_size;
       header.msg_serial_id = cur_msg_serial_id_;
       header.total_packets = num_packets;
-      headers.push_back(std::move(header));
+      headers.emplace_back(std::move(header));
     }
     cur_msg_serial_id_++;
     return headers;
@@ -120,7 +120,15 @@ public:
     std::lock_guard<std::mutex> lock(message_states_mutex_);
     std::lock_guard<std::mutex> other_lock(other.message_states_mutex_);
     for (auto &pair : other.message_states_) {
-      message_states_.emplace(pair.first, std::move(pair.second));
+      if (message_states_.find(pair.first) != message_states_.end()) {
+        if (message_states_[pair.first].total_packets != pair.second.total_packets ||
+            message_states_[pair.first].buffer->capacity() != pair.second.buffer->capacity()) {
+          throw std::runtime_error("Cannot merge fragmenters with different message states");
+        }
+        message_states_[pair.first].received_packets += pair.second.received_packets;
+      } else {
+        message_states_[pair.first] = std::move(pair.second);
+      }
     }
     other.message_states_.clear();
   }

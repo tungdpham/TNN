@@ -17,6 +17,11 @@ public:
 
   explicit WriteOperation() = default;
 
+  WriteOperation(WriteOperation &&) noexcept = default;
+  WriteOperation &operator=(WriteOperation &&) noexcept = default;
+  WriteOperation(const WriteOperation &) = delete;
+  WriteOperation &operator=(const WriteOperation &) = delete;
+
   PacketHeader packet_header() const { return packet_header_; }
 
   uint8_t *packet_data() const { return data_->get() + data_offset_; }
@@ -35,7 +40,7 @@ public:
     if (queue_.empty()) {
       return false;
     }
-    op = queue_.front();
+    op = std::move(queue_.front());
     queue_.pop();
     return true;
   }

@@ -54,14 +54,13 @@ template <typename T = float, Layout L = NCHW> struct Tensor {
                 "Tensor type must be floating point or integral");
 
 private:
-  LayoutTrait<L> layout_trait_;
   const Device *device_;
+  size_t data_size_;
+  LayoutTrait<L> layout_trait_;
   device_ptr<T[]> data_;
   static constexpr size_t dims_ = LayoutTrait<L>::dims;
   size_t (&shape_)[LayoutTrait<L>::dims] = layout_trait_.shape;
   size_t (&strides_)[LayoutTrait<L>::dims] = layout_trait_.strides;
-
-  size_t data_size_;
 
   template <typename... Indices> inline size_t compute_index(Indices... indices) const {
     static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
@@ -127,7 +126,7 @@ public:
   ~Tensor() { data_.reset(); }
 
   Tensor(const Tensor &other)
-      : layout_trait_(other.layout_trait_), device_(other.device_), data_size_(other.data_size_) {
+      : device_(other.device_), data_size_(other.data_size_), layout_trait_(other.layout_trait_) {
     if (data_size_ > 0) {
       allocate_data(data_size_);
       ops::copy(other.data_, data_, data_size_);
