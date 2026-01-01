@@ -17,7 +17,6 @@ struct Config {
   int port = 0;
   std::string device_name = "";
   int gid_index = -1;
-  std::vector<std::string> workers;
 };
 
 void print_usage(const char *program_name) {
@@ -94,17 +93,6 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
     return false;
   }
 
-  // Parse worker endpoints from remaining arguments
-  for (int i = optind; i < argc; ++i) {
-    cfg.workers.push_back(argv[i]);
-  }
-
-  if (cfg.workers.empty()) {
-    cerr << "No workers specified." << endl;
-    print_usage(argv[0]);
-    return false;
-  }
-
   return true;
 }
 
@@ -115,18 +103,10 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  std::vector<Endpoint> endpoints;
-  for (const auto &worker_info : cfg.workers) {
-    size_t colon_pos = worker_info.find(':');
-    if (colon_pos == std::string::npos) {
-      std::cerr << "Invalid worker info: " << worker_info << ". Expected host:port" << std::endl;
-      return 1;
-    }
-    std::string worker_host = worker_info.substr(0, colon_pos);
-    int worker_port = std::stoi(worker_info.substr(colon_pos + 1));
-
-    endpoints.push_back(Endpoint::roce(worker_host, worker_port, "", 0));
-  }
+  std::vector<Endpoint> endpoints = {
+      Endpoint::roce("10.10.0.2", 8001, "rocep131s0f0", 3),
+      Endpoint::roce("10.10.0.1", 8002, "rocep5s0f0", 3),
+  };
 
   CIFAR10DataLoader<float> train_loader, test_loader;
 

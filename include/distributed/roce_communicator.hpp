@@ -552,6 +552,8 @@ private:
   }
 
   void handle_new_connection(std::shared_ptr<asio::ip::tcp::socket> socket) {
+    std::cout << "Handling new connection: \n";
+
     auto id_len_buf = std::make_shared<uint32_t>();
     asio::async_read(
         *socket, asio::buffer(id_len_buf.get(), sizeof(uint32_t)),
@@ -566,7 +568,7 @@ private:
                 if (ec)
                   return;
                 std::string peer_id = *peer_id_buf;
-
+                std::cout << "Incoming connection from: " << peer_id << std::endl;
                 auto conn = std::make_shared<Connection>();
                 conn->peer_id = peer_id;
                 try {

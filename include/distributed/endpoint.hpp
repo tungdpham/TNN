@@ -49,7 +49,7 @@ public:
   static Endpoint network(const std::string &host, int port) {
     Endpoint endpoint("tcp");
     endpoint.set_parameter("host", host);
-    endpoint.set_parameter("port", std::to_string(port));
+    endpoint.set_parameter("port", port);
     return endpoint;
   }
 
@@ -101,7 +101,15 @@ public:
 
     if (j.contains("parameters_")) {
       for (auto &[key, value] : j["parameters_"].items()) {
-        endpoint.parameters_[key] = value.get<std::string>();
+        if (value.is_string()) {
+          endpoint.parameters_[key] = value.get<std::string>();
+        } else if (value.is_number_integer()) {
+          endpoint.parameters_[key] = value.get<int>();
+        } else if (value.is_number_float()) {
+          endpoint.parameters_[key] = value.get<double>();
+        } else if (value.is_boolean()) {
+          endpoint.parameters_[key] = value.get<bool>();
+        }
       }
     }
     return endpoint;
