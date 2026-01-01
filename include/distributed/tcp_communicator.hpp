@@ -52,7 +52,7 @@ public:
         skts_per_endpoint_(skts_per_endpoint), max_packet_size_(max_packet_size) {
     try {
       host_ = endpoint.get_parameter<std::string>("host");
-      port_ = std::stoi(endpoint.get_parameter<std::string>("port"));
+      port_ = endpoint.get_parameter<int>("port");
     } catch (const std::exception &e) {
       std::cerr << "TcpCommunicator initialization error: " << e.what() << std::endl;
       throw;
@@ -174,8 +174,8 @@ public:
         asio::ip::tcp::resolver resolver(ctx);
 
         std::string host = endpoint.get_parameter<std::string>("host");
-        std::string port = endpoint.get_parameter<std::string>("port");
-        auto endpoints = resolver.resolve(host, port);
+        int port = endpoint.get_parameter<int>("port");
+        auto endpoints = resolver.resolve(host, std::to_string(port));
 
         asio::connect(connection->socket, endpoints);
 
