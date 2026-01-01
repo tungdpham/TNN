@@ -219,7 +219,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_image_shape() const override {
+  std::vector<size_t> get_data_shape() const override {
     return {mnist_constants::NUM_CHANNELS, mnist_constants::IMAGE_HEIGHT,
             mnist_constants::IMAGE_WIDTH};
   }

@@ -304,7 +304,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_image_shape() const override {
+  std::vector<size_t> get_data_shape() const override {
     return {cifar100_constants::NUM_CHANNELS, cifar100_constants::IMAGE_HEIGHT,
             cifar100_constants::IMAGE_WIDTH};
   }

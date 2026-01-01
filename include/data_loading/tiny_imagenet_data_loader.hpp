@@ -462,7 +462,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_image_shape() const override {
+  std::vector<size_t> get_data_shape() const override {
     return {tiny_imagenet_constants::NUM_CHANNELS, tiny_imagenet_constants::IMAGE_HEIGHT,
             tiny_imagenet_constants::IMAGE_WIDTH};
   }

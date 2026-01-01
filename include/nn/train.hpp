@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "data_loading/data_loader.hpp"
 #include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
@@ -73,17 +74,17 @@ struct RegResult {
 
 // Classification training functions
 template <typename T>
-ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_loader,
+ClassResult train_class_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader,
                               Optimizer<T> &optimizer, Loss<T> &loss_function,
                               const TrainingConfig &config = TrainingConfig());
 
 template <typename T>
-ClassResult validate_class_model(Sequential<T> &model, ImageDataLoader<T> &test_loader,
+ClassResult validate_class_model(Sequential<T> &model, BaseDataLoader<T> &test_loader,
                                  Loss<T> &loss_function);
 
 template <typename T>
-void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_loader,
-                                ImageDataLoader<T> &test_loader,
+void train_classification_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
+                                BaseDataLoader<T> &test_loader,
                                 std::unique_ptr<Optimizer<T>> optimizer,
                                 std::unique_ptr<Loss<T>> loss_function,
                                 std::unique_ptr<Scheduler<T>> scheduler,

@@ -9,7 +9,6 @@
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 
@@ -144,12 +143,12 @@ int main(int argc, char *argv[]) {
   create_tiny_image_loader(dataset_path, train_loader, test_loader);
 
   auto train_aug = AugmentationBuilder<float>()
-                       //  .horizontal_flip(0.25f)
-                       //  .rotation(0.3f, 10.0f)
-                       //  .brightness(0.3f, 0.15f)
-                       //  .contrast(0.3f, 0.15f)
-                       //  .gaussian_noise(0.3f, 0.05f)
-                       //  .random_crop(0.25, 4)
+                       .horizontal_flip(0.25f)
+                       .rotation(0.3f, 10.0f)
+                       .brightness(0.3f, 0.15f)
+                       .contrast(0.3f, 0.15f)
+                       .gaussian_noise(0.3f, 0.05f)
+                       .random_crop(0.25, 4)
                        .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
   std::cout << "Configuring data augmentation and normalization for training." << std::endl;

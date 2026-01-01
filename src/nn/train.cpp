@@ -58,7 +58,7 @@ void TrainingConfig::load_from_env() {
 }
 
 template <typename T>
-ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_loader,
+ClassResult train_class_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader,
                               Optimizer<T> &optimizer, Loss<T> &loss_function,
                               const TrainingConfig &config) {
   Tensor<T> batch_data, batch_labels;
@@ -124,7 +124,7 @@ ClassResult train_class_epoch(Sequential<T> &model, ImageDataLoader<T> &train_lo
 }
 
 template <typename T>
-ClassResult validate_class_model(Sequential<T> &model, ImageDataLoader<T> &test_loader,
+ClassResult validate_class_model(Sequential<T> &model, BaseDataLoader<T> &test_loader,
                                  Loss<T> &loss_function) {
   Tensor<T> batch_data, batch_labels;
 
@@ -157,8 +157,8 @@ ClassResult validate_class_model(Sequential<T> &model, ImageDataLoader<T> &test_
 }
 
 template <typename T>
-void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_loader,
-                                ImageDataLoader<T> &test_loader,
+void train_classification_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
+                                BaseDataLoader<T> &test_loader,
                                 std::unique_ptr<Optimizer<T>> optimizer,
                                 std::unique_ptr<Loss<T>> loss_function,
                                 std::unique_ptr<Scheduler<T>> scheduler,
@@ -179,9 +179,9 @@ void train_classification_model(Sequential<T> &model, ImageDataLoader<T> &train_
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
 
-  std::vector<size_t> image_shape = train_loader.get_image_shape();
+  std::vector<size_t> data_shape = train_loader.get_data_shape();
 
-  model.print_summary({config.batch_size, image_shape[0], image_shape[1], image_shape[2]});
+  model.print_summary({config.batch_size, data_shape[0], data_shape[1], data_shape[2]});
 
   T best_val_accuracy = 0.0;
 
@@ -424,18 +424,18 @@ void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train
 }
 
 template ClassResult train_class_epoch<float>(Sequential<float> &model,
-                                              ImageDataLoader<float> &train_loader,
+                                              BaseDataLoader<float> &train_loader,
                                               Optimizer<float> &optimizer,
                                               Loss<float> &loss_function,
                                               const TrainingConfig &config);
 
 template ClassResult validate_class_model<float>(Sequential<float> &model,
-                                                 ImageDataLoader<float> &test_loader,
+                                                 BaseDataLoader<float> &test_loader,
                                                  Loss<float> &loss_function);
 
 template void train_classification_model<float>(Sequential<float> &model,
-                                                ImageDataLoader<float> &train_loader,
-                                                ImageDataLoader<float> &test_loader,
+                                                BaseDataLoader<float> &train_loader,
+                                                BaseDataLoader<float> &test_loader,
                                                 std::unique_ptr<Optimizer<float>> optimizer,
                                                 std::unique_ptr<Loss<float>> loss_function,
                                                 std::unique_ptr<Scheduler<float>> scheduler,
