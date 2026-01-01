@@ -161,7 +161,7 @@ public:
     io_thread_ = std::thread([this]() { io_context_.run(); });
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     size_t msg_size = message.size();
     PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
     BinarySerializer::serialize(message, *data_buffer);
@@ -239,7 +239,8 @@ public:
   void flush_output_messages() override {
     std::lock_guard<std::mutex> lock(out_message_mutex_);
     while (!out_message_queue_.empty()) {
-      send_message(out_message_queue_.front());
+      auto message = std::move(out_message_queue_.front());
+      send_message(std::move(message));
       out_message_queue_.pop();
     }
   }

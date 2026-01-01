@@ -118,32 +118,11 @@ public:
     }
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     try {
       std::string recipient_id = message.header().recipient_id;
 
-      size_t msg_size = message.size();
-
-      PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-
-      BinarySerializer::serialize(message, *data_buffer);
-
-      uint32_t packets_per_msg =
-          static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
-
-      std::vector<PacketHeader> headers;
-
-      {
-        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
-        auto it = connection_groups_.find(recipient_id);
-        if (it == connection_groups_.end()) {
-          return;
-        }
-        auto &connection_group = it->second;
-        headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
-      }
-
-      async_send_buffer(recipient_id, headers, std::move(data_buffer));
+      async_send_buffer(recipient_id, std::move(message));
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -462,35 +441,59 @@ private:
     std::cout << "Socket connection to " << connection->get_peer_id() << " closed." << std::endl;
   }
 
-  void async_send_buffer(const std::string &recipient_id, std::vector<PacketHeader> headers,
-                         PooledBuffer &&data_buffer) {
-    std::vector<std::shared_ptr<Connection>> connections;
+  void async_send_buffer(const std::string &recipient_id, Message &&message) {
+    // delegate serialization to ASIO thread
+    asio::post(io_context_pool_.get_io_context(), [this, recipient_id,
+                                                   message = std::move(message)]() {
+      size_t msg_size = message.size();
 
-    {
-      std::shared_lock<std::shared_mutex> lock(connections_mutex_);
-      auto it = connection_groups_.find(recipient_id);
-      if (it == connection_groups_.end()) {
+      PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
+
+      BinarySerializer::serialize(message, *data_buffer);
+
+      uint32_t packets_per_msg =
+          static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
+
+      std::vector<PacketHeader> headers;
+
+      {
+        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+        auto it = connection_groups_.find(recipient_id);
+        if (it == connection_groups_.end()) {
+          return;
+        }
+        auto &connection_group = it->second;
+        headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
+      }
+
+      std::vector<std::shared_ptr<Connection>> connections;
+
+      {
+        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+        auto it = connection_groups_.find(recipient_id);
+        if (it == connection_groups_.end()) {
+          return;
+        }
+        connections = it->second.get_connections();
+      }
+
+      if (connections.empty()) {
         return;
       }
-      connections = it->second.get_connections();
-    }
 
-    if (connections.empty()) {
-      return;
-    }
+      // round-robin selection of connection
+      int conn_index = 0;
+      for (auto header : headers) {
+        auto connection = connections[conn_index];
 
-    // round-robin selection of connection
-    int conn_index = 0;
-    for (auto header : headers) {
-      auto connection = connections[conn_index];
+        asio::post(connection->socket.get_executor(), [this, connection, header, data_buffer]() {
+          connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
+          start_async_write(connection->acquire_write(), connection);
+        });
 
-      asio::post(connection->socket.get_executor(), [this, connection, header, data_buffer]() {
-        connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
-        start_async_write(connection->acquire_write(), connection);
-      });
-
-      conn_index = (conn_index + 1) % connections.size();
-    }
+        conn_index = (conn_index + 1) % connections.size();
+      }
+    });
   }
 
   void start_async_write(std::unique_ptr<WriteHandle> write_handle,

@@ -49,26 +49,7 @@ struct MessageData {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other) : payload_type(other.payload_type) {
-    if (std::holds_alternative<std::monostate>(other.payload)) {
-      payload = std::monostate{};
-    } else if (std::holds_alternative<PooledJob<float>>(other.payload)) {
-      const auto &src_ptr = std::get<PooledJob<float>>(other.payload);
-      if (src_ptr) {
-        Job<float> *new_job = new Job<float>(*src_ptr);
-        auto deleter = src_ptr.get_deleter();
-        payload = PooledJob<float>(new_job, deleter);
-      } else {
-        payload = PooledJob<float>(nullptr, src_ptr.get_deleter());
-      }
-    } else if (std::holds_alternative<std::string>(other.payload)) {
-      payload = std::get<std::string>(other.payload);
-    } else if (std::holds_alternative<bool>(other.payload)) {
-      payload = std::get<bool>(other.payload);
-    } else if (std::holds_alternative<LoadTracker>(other.payload)) {
-      payload = std::get<LoadTracker>(other.payload);
-    }
-  }
+  MessageData(const MessageData &other) = delete;
 
   MessageData(MessageData &&other) noexcept
       : payload_type(other.payload_type), payload(std::move(other.payload)) {}
@@ -142,6 +123,7 @@ public:
   ~Message() = default;
 
   Message &operator=(const Message &other) = delete;
+
   Message &operator=(Message &&other) noexcept {
     if (this != &other) {
       header_ = std::move(other.header_);
@@ -174,12 +156,6 @@ public:
   }
 
   const uint64_t size() const { return header_.size() + data_.size(); }
-
-  Message clone() const {
-    MessageHeader new_header = header_;
-    MessageData new_data = data_;
-    return Message(std::move(new_header), std::move(new_data));
-  }
 };
 
 } // namespace tnn

@@ -8,6 +8,7 @@
 
 #include "device/device_type.hpp"
 #include "distributed/command_type.hpp"
+#include "distributed/job_pool.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
@@ -88,7 +89,7 @@ public:
 
       while (communicator_->has_input_message()) {
         auto message = communicator_->dequeue_input_message();
-        this->process_message(message);
+        this->process_message(std::move(message));
       }
     }
   }
@@ -98,30 +99,35 @@ public:
   std::string name() const { return id_; }
 
 protected:
-  virtual void process_message(const Message &message) {
+  virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
-      init_pooling_message();
       const PooledJob<float> &forward_job = message.get<PooledJob<float>>();
-      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      PooledJob<float> output = JobPool<float>::instance().get_job(forward_job->data.size());
       this->model_->forward(forward_job->data, output->data, forward_job->micro_batch_id);
 
-      pooled_job_message_.header().recipient_id = "next_stage";
-      pooled_job_message_.header().command_type = CommandType::FORWARD_JOB;
       output->micro_batch_id = forward_job->micro_batch_id;
-      communicator_->send_message(pooled_job_message_);
+
+      // recycle input message
+      message.data() = MessageData(std::move(output));
+      message.header() = MessageHeader{"next_stage", CommandType::FORWARD_JOB};
+      message.header().sender_id = id_;
+
+      communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
-      init_pooling_message();
       const PooledJob<float> &backward_job = message.get<PooledJob<float>>();
-
-      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      PooledJob<float> output = JobPool<float>::instance().get_job(backward_job->data.size());
       this->model_->backward(backward_job->data, output->data, backward_job->micro_batch_id);
 
-      pooled_job_message_.header().recipient_id = "prev_stage";
       output->micro_batch_id = backward_job->micro_batch_id;
-      pooled_job_message_.header().command_type = CommandType::BACKWARD_JOB;
-      communicator_->send_message(pooled_job_message_);
+
+      // recycle input message
+      message.data() = MessageData(std::move(output));
+      message.header() = MessageHeader{"prev_stage", CommandType::BACKWARD_JOB};
+      message.header().sender_id = id_;
+
+      communicator_->send_message(std::move(message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       // implicitly clear grads
@@ -276,19 +282,6 @@ protected:
   LoadTracker load_tracker_;
   uint32_t update_interval = 10000;
   std::thread monitoring_thread_;
-
-private:
-  Message pooled_job_message_;
-  bool pooling_initialized = false;
-
-  void init_pooling_message() {
-    if (pooling_initialized) {
-      return;
-    }
-    pooling_initialized = true;
-    PooledJob<float> job = JobPool<float>::instance().get_job(0);
-    pooled_job_message_ = Message("", CommandType::FORWARD_JOB, std::move(job));
-  }
 };
 
 } // namespace tnn
