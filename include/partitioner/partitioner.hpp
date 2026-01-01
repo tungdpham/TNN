@@ -8,8 +8,7 @@ public:
   Partitioner() = default;
   virtual ~Partitioner() = default;
 
-  virtual std::vector<Partition> get_partitions(const std::vector<Layer<T> *> &layers,
-                                                const size_t num_partitions) = 0;
+  virtual std::vector<Partition> get_partitions(const std::vector<Layer<T> *> &layers) = 0;
 };
 
 } // namespace tnn

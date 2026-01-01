@@ -535,7 +535,7 @@ private:
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    this->partitions_ = partitioner_->get_partitions(this->model_.get_layers(), this->num_stages_);
+    this->partitions_ = partitioner_->get_partitions(this->model_.get_layers());
   }
 
   void initialize_topology() {
