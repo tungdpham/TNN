@@ -1,5 +1,5 @@
 #include "distributed/roce_coordinator.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
+#include "data_loading/cifar100_data_loader.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/optimizers.hpp"
@@ -114,35 +114,36 @@ int main(int argc, char *argv[]) {
       Endpoint::roce("10.10.0.1", 8002, "rocep5s0f0", 3),
   };
 
-  CIFAR10DataLoader<float> train_loader, test_loader;
+  CIFAR100DataLoader<float> train_loader, test_loader;
 
-  create_cifar10_dataloader("./data", train_loader, test_loader);
+  create_cifar100_dataloader("./data", train_loader, test_loader);
 
-  auto train_transform =
-      AugmentationBuilder<float>()
-          .random_crop(0.5f, 4)
-          .horizontal_flip(0.5f)
-          .cutout(0.5f, 8)
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
+  auto train_transform = AugmentationBuilder<float>()
+                             .random_crop(0.5f, 4)
+                             .horizontal_flip(0.5f)
+                             .cutout(0.5f, 8)
+                             .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
+                             .build();
   std::cout << "Configuring data augmentation for training." << std::endl;
   train_loader.set_augmentation(std::move(train_transform));
 
-  auto val_transform =
-      AugmentationBuilder<float>()
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
+  auto val_transform = AugmentationBuilder<float>()
+                           .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
+                           .build();
   cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(std::move(val_transform));
 
-  Sequential<float> model = create_resnet9_cifar10();
+  Sequential<float> model = create_wrn16_8_cifar100();
 
   auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
 
   RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer), cfg.host,
                               cfg.port, cfg.device_name, cfg.gid_index, endpoints);
 
-  coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
+  // initialize a partitioner with weights 2:1
+  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+
+  coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
   auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();

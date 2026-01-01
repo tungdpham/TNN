@@ -39,39 +39,41 @@ int main() {
 
   auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
-  Endpoint coordinator_endpoint =
-      Endpoint::network(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
-                        Env::get<int>("COORDINATOR_PORT", 8000));
+  Endpoint coordinator_endpoint = Endpoint::network(
+      Env::get<string>("COORDINATOR_HOST", "localhost"), Env::get<int>("COORDINATOR_PORT", 8000));
 
-  std::vector<Endpoint> endpoints = {
-      Endpoint::network(Env::get<std::string>("WORKER1_HOST", "localhost"),
+  vector<Endpoint> endpoints = {
+      Endpoint::network(Env::get<string>("WORKER1_HOST", "localhost"),
                         Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(Env::get<std::string>("WORKER2_HOST", "localhost"),
+      Endpoint::network(Env::get<string>("WORKER2_HOST", "localhost"),
                         Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
-  std::cout << "Configured " << endpoints.size() << " remote endpoints:" << std::endl;
+  cout << "Configured " << endpoints.size() << " remote endpoints:" << endl;
   for (const auto &ep : endpoints) {
-    std::cout << ep.to_json().dump(4) << std::endl;
+    cout << ep.to_json().dump(4) << endl;
   }
 
-  std::cout << "Creating distributed coordinator." << std::endl;
-  NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
-                                 coordinator_endpoint, endpoints);
+  cout << "Creating distributed coordinator." << endl;
+  NetworkCoordinator coordinator("coordinator", move(model), move(optimizer), coordinator_endpoint,
+                                 endpoints);
 
-  coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
+  unique_ptr<Partitioner<float>> partitioner =
+      make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+
+  coordinator.set_partitioner(move(partitioner));
   coordinator.initialize();
 
   auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-  coordinator.set_loss_function(std::move(loss_function));
-  std::cout << "Deploying stages to remote endpoints." << std::endl;
+  coordinator.set_loss_function(move(loss_function));
+  cout << "Deploying stages to remote endpoints." << endl;
   for (const auto &ep : endpoints) {
-    std::cout << "  Worker expected at " << ep.to_json().dump(4) << std::endl;
+    cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
   }
 
   if (!coordinator.deploy_stages()) {
-    std::cerr << "Failed to deploy stages. Make sure workers are running." << std::endl;
+    cerr << "Failed to deploy stages. Make sure workers are running." << endl;
     return 1;
   }
 
@@ -88,15 +90,15 @@ int main() {
           .cutout(0.5f, 8)
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  std::cout << "Configuring data augmentation for training." << std::endl;
-  train_loader.set_augmentation(std::move(train_transform));
+  cout << "Configuring data augmentation for training." << endl;
+  train_loader.set_augmentation(move(train_transform));
 
   auto val_transform =
       AugmentationBuilder<float>()
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
   cout << "Configuring data normalization for test." << endl;
-  test_loader.set_augmentation(std::move(val_transform));
+  test_loader.set_augmentation(move(val_transform));
   Tensor<float> batch_data, batch_labels;
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});

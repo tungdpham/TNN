@@ -117,7 +117,10 @@ int main(int argc, char *argv[]) {
   NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
                                  coordinator_endpoint, endpoints, cfg.io_threads);
 
-  coordinator.set_partitioner(std::make_unique<NaivePartitioner<float>>());
+  // initialize a partitioner with weights 2:1
+  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+
+  coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
   auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
