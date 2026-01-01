@@ -103,6 +103,12 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
+
+  TrainingConfig train_config;
+  train_config.load_from_env();
+  train_config.print_config();
+
   std::vector<Endpoint> endpoints = {
       Endpoint::roce("10.10.0.2", 8001, "rocep131s0f0", 3),
       Endpoint::roce("10.10.0.1", 8002, "rocep5s0f0", 3),
@@ -111,6 +117,23 @@ int main(int argc, char *argv[]) {
   CIFAR10DataLoader<float> train_loader, test_loader;
 
   create_cifar10_dataloader("./data", train_loader, test_loader);
+
+  auto train_transform =
+      AugmentationBuilder<float>()
+          .random_crop(0.5f, 4)
+          .horizontal_flip(0.5f)
+          .cutout(0.5f, 8)
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
+  std::cout << "Configuring data augmentation for training." << std::endl;
+  train_loader.set_augmentation(std::move(train_transform));
+
+  auto val_transform =
+      AugmentationBuilder<float>()
+          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
+          .build();
+  cout << "Configuring data normalization for test." << endl;
+  test_loader.set_augmentation(std::move(val_transform));
 
   Sequential<float> model = create_resnet9_cifar10();
 
@@ -136,7 +159,7 @@ int main(int argc, char *argv[]) {
 
   try {
     coordinator.initialize();
-    train_model(coordinator, train_loader, test_loader);
+    train_model(coordinator, train_loader, test_loader, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
