@@ -140,12 +140,12 @@ int main(int argc, char *argv[]) {
   cout << "Worker threads: " << cfg.num_threads << endl;
 
   TcpCommunicator communicator(cfg.host + ":" + to_string(cfg.port),
-                               Endpoint::network(cfg.host, cfg.port), cfg.num_threads);
+                               Endpoint::tcp(cfg.host, cfg.port), cfg.num_threads);
 
   communicator.start_server();
 
   while (!communicator.connect(cfg.peer_host + ":" + to_string(cfg.peer_port),
-                               Endpoint::network(cfg.peer_host, cfg.peer_port))) {
+                               Endpoint::tcp(cfg.peer_host, cfg.peer_port))) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }

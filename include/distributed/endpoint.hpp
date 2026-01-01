@@ -46,7 +46,7 @@ public:
     return parameters_.find(key) != parameters_.end();
   }
 
-  static Endpoint network(const std::string &host, int port) {
+  static Endpoint tcp(const std::string &host, int port) {
     Endpoint endpoint("tcp");
     endpoint.set_parameter("host", host);
     endpoint.set_parameter("port", port);

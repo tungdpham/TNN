@@ -1,10 +1,8 @@
-
-
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
-#include "distributed/network_coordinator.hpp"
+#include "distributed/tcp_coordinator.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -95,14 +93,14 @@ int main(int argc, char *argv[]) {
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
 
   Endpoint coordinator_endpoint =
-      Endpoint::network(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
-                        Env::get<int>("COORDINATOR_PORT", 8000));
+      Endpoint::tcp(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
+                    Env::get<int>("COORDINATOR_PORT", 8000));
 
   std::vector<Endpoint> endpoints = {
-      Endpoint::network(Env::get<std::string>("WORKER1_HOST", "localhost"),
-                        Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(Env::get<std::string>("WORKER2_HOST", "localhost"),
-                        Env::get<int>("WORKER2_PORT", 8002)),
+      Endpoint::tcp(Env::get<std::string>("WORKER1_HOST", "localhost"),
+                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(Env::get<std::string>("WORKER2_HOST", "localhost"),
+                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 

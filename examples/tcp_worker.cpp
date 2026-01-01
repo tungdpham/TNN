@@ -1,4 +1,4 @@
-#include "distributed/network_worker.hpp"
+#include "distributed/tcp_worker.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   thread_wrapper.execute([&]() {
-    NetworkStageWorker worker(cfg.listen_port, cfg.use_gpu, cfg.io_threads);
+    TCPWorker worker(cfg.listen_port, cfg.use_gpu, cfg.io_threads);
     worker.start();
   });
 

@@ -15,12 +15,12 @@
 namespace tnn {
 
 /**
- * @brief Network-based pipeline stage worker
+ * @brief TCP-based pipeline stage worker
  *
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs.
  */
-template <typename T = float> class NetworkStageWorker : public Worker {
+template <typename T = float> class TCPWorker : public Worker {
 public:
   /**
    * @brief Constructor with optional thread affinity configuration
@@ -30,18 +30,18 @@ public:
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  explicit NetworkStageWorker(int listen_port, bool use_gpu, size_t io_threads = 1)
+  explicit TCPWorker(int listen_port, bool use_gpu, size_t io_threads = 1)
       : Worker(use_gpu), listen_port_(listen_port), io_threads_(io_threads) {
 
     auto communicator = std::make_unique<TcpCommunicator>(
-        this->id_, Endpoint::network("localhost", listen_port_), io_threads_);
+        this->id_, Endpoint::tcp("localhost", listen_port_), io_threads_);
 
     communicator->start_server();
 
     this->communicator_ = std::move(communicator);
   }
 
-  ~NetworkStageWorker() {}
+  ~TCPWorker() {}
 
   void start() override {
     if (!this->should_stop_)
@@ -51,11 +51,11 @@ public:
   }
 
   void stop() override {
-    std::cout << "Stopping network stage worker." << '\n';
+    std::cout << "Stopping TCP stage worker." << '\n';
 
     Worker::stop();
 
-    std::cout << "Network stage worker stopped" << '\n';
+    std::cout << "TCP stage worker stopped" << '\n';
   }
 
 private:

@@ -4,10 +4,10 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include "distributed/tcp_coordinator.hpp"
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
-#include "distributed/network_coordinator.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -39,14 +39,14 @@ int main() {
 
   auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
-  Endpoint coordinator_endpoint = Endpoint::network(
-      Env::get<string>("COORDINATOR_HOST", "localhost"), Env::get<int>("COORDINATOR_PORT", 8000));
+  Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
+                                                Env::get<int>("COORDINATOR_PORT", 8000));
 
   vector<Endpoint> endpoints = {
-      Endpoint::network(Env::get<string>("WORKER1_HOST", "localhost"),
-                        Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(Env::get<string>("WORKER2_HOST", "localhost"),
-                        Env::get<int>("WORKER2_PORT", 8002)),
+      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
+                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(Env::get<string>("WORKER2_HOST", "localhost"),
+                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 

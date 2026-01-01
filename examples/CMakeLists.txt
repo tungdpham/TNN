@@ -21,8 +21,8 @@ create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
 create_default(mnist_cnn_test mnist_cnn_test.cpp)
 
 # Network executables
-create_default(network_worker network_worker.cpp)
-create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
+create_default(tcp_worker tcp_worker.cpp)
+create_default(tcp_coordinator tcp_coordinator.cpp)
 create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
 
 # Microbatching test executable

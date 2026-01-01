@@ -34,7 +34,7 @@ public:
    */
   NetworkCoordinator(const std::string &id, Sequential<float> model,
                      std::unique_ptr<Optimizer<float>> optimizer,
-                     Endpoint coordinator_endpoint = Endpoint::network("localhost", 8000),
+                     Endpoint coordinator_endpoint = Endpoint::tcp("localhost", 8000),
                      const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
       : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize coordinator and remote endpoints
