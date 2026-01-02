@@ -12,6 +12,7 @@
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
+#include "load_tracker.hpp"
 #include "partitioner/partitioner.hpp"
 #include "stage_config.hpp"
 
@@ -20,7 +21,6 @@
 #include <condition_variable>
 #include <future>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -343,59 +343,6 @@ public:
     return (this->num_microbatches_ > 0)
                ? (total_loss / static_cast<float>(this->num_microbatches_))
                : total_loss;
-  }
-
-  /**
-   * @brief Sends a request to all stages for load report
-   */
-  void balance_load() {
-    std::cout << "Starting load balancing procedure...\n";
-
-    // Request load reports from all stages
-    for (const auto &stage_name : this->stage_names_) {
-      Message load_msg(stage_name, CommandType::REPORT_LOAD, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(load_msg));
-    }
-
-    // Wait for all load reports to arrive
-    bool received_all_reports = join(CommandType::LOAD_REPORT, this->num_stages_, 30);
-    if (!received_all_reports) {
-      std::cerr << "Warning: Not all stages reported load data within timeout. Using current "
-                   "partitions.\n";
-      return;
-    }
-
-    // Collect and process load reports
-    std::vector<Message> load_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
-
-    if (load_messages.size() != static_cast<size_t>(this->num_stages_)) {
-      std::cerr << "Warning: Expected " << this->num_stages_ << " load reports, got "
-                << load_messages.size() << ". Using current partitions.\n";
-      return;
-    }
-
-    std::map<std::string, LoadTracker> load_trackers;
-
-    // Collect load trackers by stage id
-    for (auto &load_msg : load_messages) {
-      if (load_msg.has_type<LoadTracker>()) {
-        try {
-          LoadTracker tracker = load_msg.get<LoadTracker>();
-          load_trackers[load_msg.header().sender_id] = tracker;
-
-          std::cout << "Received load report from " << load_msg.header().sender_id
-                    << ": avg_forward_time=" << tracker.avg_forward_time_
-                    << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
-          // NOTE: memory usage report is broken, needs some fixing. Just use top command for now.
-          // std::cout << "  avg_cpu_utilization=" << tracker.avg_cpu_utilization_
-          //           << "%, max_memory_usage=" << tracker.max_memory_usage_ << "MB\n";
-        } catch (const std::exception &e) {
-          std::cerr << "Warning: Failed to deserialize load data from "
-                    << load_msg.header().sender_id << ": " << e.what() << "\n";
-        }
-      }
-    }
   }
 
   /**
