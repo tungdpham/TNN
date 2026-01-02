@@ -277,6 +277,7 @@ private:
                                        << std::endl;
                              return;
                            }
+
                            PacketHeader packet_header;
                            size_t offset = 0;
                            BinarySerializer::deserialize(*buffer, offset, packet_header);
@@ -320,21 +321,15 @@ private:
     }
 
     try {
-      auto read_start = std::chrono::high_resolution_clock::now();
-
       asio::async_read(
           connection->socket, asio::buffer(buffer->get() + offset, packet_header.length),
-          [this, connection, packet_header, read_start, buffer](std::error_code ec,
-                                                                std::size_t length) {
+          [this, connection, packet_header, buffer](std::error_code ec, std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               if (length != packet_header.length) {
                 std::cerr << "Incomplete packet read: expected " << packet_header.length
                           << " bytes, got " << length << " bytes" << std::endl;
                 return;
               }
-              auto read_end = std::chrono::high_resolution_clock::now();
-              auto read_duration =
-                  std::chrono::duration_cast<std::chrono::microseconds>(read_end - read_start);
 
               // Check if message is complete
               bool is_complete = false;
@@ -408,7 +403,6 @@ private:
 
       this->enqueue_input_message(std::move(msg));
       start_read(connection);
-
     } catch (const std::exception &e) {
       std::cerr << "Deserialization error: " << e.what() << std::endl;
       handle_connection_error(connection, std::make_error_code(std::errc::illegal_byte_sequence));
@@ -443,57 +437,49 @@ private:
 
   void async_send_buffer(const std::string &recipient_id, Message &&message) {
     // delegate serialization to ASIO thread
-    asio::post(io_context_pool_.get_io_context(), [this, recipient_id,
-                                                   message = std::move(message)]() {
-      size_t msg_size = message.size();
+    asio::post(
+        io_context_pool_.get_io_context(), [this, recipient_id, message = std::move(message)]() {
+          size_t msg_size = message.size();
 
-      PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
+          PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
 
-      BinarySerializer::serialize(message, *data_buffer);
+          BinarySerializer::serialize(message, *data_buffer);
 
-      uint32_t packets_per_msg =
-          static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
+          uint32_t packets_per_msg =
+              static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
 
-      std::vector<PacketHeader> headers;
+          std::vector<PacketHeader> headers;
+          std::vector<std::shared_ptr<Connection>> connections;
 
-      {
-        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
-        auto it = connection_groups_.find(recipient_id);
-        if (it == connection_groups_.end()) {
-          return;
-        }
-        auto &connection_group = it->second;
-        headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
-      }
+          {
+            std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+            auto it = connection_groups_.find(recipient_id);
+            if (it == connection_groups_.end()) {
+              return;
+            }
+            auto &connection_group = it->second;
+            headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
+            connections = it->second.get_connections();
+          }
 
-      std::vector<std::shared_ptr<Connection>> connections;
+          if (connections.empty()) {
+            return;
+          }
 
-      {
-        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
-        auto it = connection_groups_.find(recipient_id);
-        if (it == connection_groups_.end()) {
-          return;
-        }
-        connections = it->second.get_connections();
-      }
+          // round-robin selection of connection
+          int conn_index = 0;
+          for (auto header : headers) {
+            auto connection = connections[conn_index];
 
-      if (connections.empty()) {
-        return;
-      }
+            connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
 
-      // round-robin selection of connection
-      int conn_index = 0;
-      for (auto header : headers) {
-        auto connection = connections[conn_index];
+            asio::post(connection->socket.get_executor(), [this, connection]() {
+              start_async_write(connection->acquire_write(), connection);
+            });
 
-        asio::post(connection->socket.get_executor(), [this, connection, header, data_buffer]() {
-          connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
-          start_async_write(connection->acquire_write(), connection);
+            conn_index = (conn_index + 1) % connections.size();
+          }
         });
-
-        conn_index = (conn_index + 1) % connections.size();
-      }
-    });
   }
 
   void start_async_write(std::unique_ptr<WriteHandle> write_handle,

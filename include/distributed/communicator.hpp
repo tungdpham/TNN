@@ -10,6 +10,7 @@
 #include "endpoint.hpp"
 #include "message.hpp"
 #include "utils/misc.hpp"
+#include <cstdint>
 #include <functional>
 #include <mutex>
 #include <queue>
@@ -153,9 +154,14 @@ public:
     return this->out_message_queue_.size();
   }
 
-  std::unordered_map<std::string, uint64_t> get_profile_data() {
+  std::unordered_map<std::string, int64_t> get_profile_data() {
     std::lock_guard<std::mutex> lock(profile_mutex_);
     return profile_data_;
+  }
+
+  void clear_profile_data() {
+    std::lock_guard<std::mutex> lock(profile_mutex_);
+    profile_data_.clear();
   }
 
 protected:
@@ -171,6 +177,16 @@ protected:
   void unregister_recipient(const std::string &recipient_id) {
     std::lock_guard<std::mutex> lock(recipients_mutex_);
     recipients_.erase(recipient_id);
+  }
+
+  void add_profile_data(const std::string &key, int64_t value) {
+    std::lock_guard<std::mutex> lock(profile_mutex_);
+    auto it = profile_data_.find(key);
+    if (it == profile_data_.end()) {
+      profile_data_[key] = value;
+    } else {
+      it->second += value;
+    }
   }
 
 protected:
@@ -189,6 +205,6 @@ protected:
 
 private:
   std::mutex profile_mutex_;
-  std::unordered_map<std::string, uint64_t> profile_data_;
+  std::unordered_map<std::string, int64_t> profile_data_; // profiling data in microseconds
 };
 } // namespace tnn

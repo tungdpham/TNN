@@ -136,6 +136,7 @@ public:
     job->micro_batch_id = microbatch_id;
     job->data = std::move(input);
     Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
+    forward_msg.header().sender_id = "coordinator";
 
     this->coordinator_comm_->send_message(std::move(forward_msg));
   }
@@ -156,6 +157,7 @@ public:
     job->micro_batch_id = microbatch_id;
     job->data = std::move(gradient);
     Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
+    backward_msg.header().sender_id = "coordinator";
 
     this->coordinator_comm_->send_message(std::move(backward_msg));
   }
@@ -191,6 +193,7 @@ public:
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
       Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
+      update_msg.header().sender_id = "coordinator";
       this->coordinator_comm_->send_message(std::move(update_msg));
     }
 
@@ -401,6 +404,7 @@ public:
   void print_profiling_on_all_stages() {
     for (const auto &stage_name : this->stage_names_) {
       Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
+      profiling_msg.header().sender_id = "coordinator";
       this->coordinator_comm_->send_message(std::move(profiling_msg));
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
