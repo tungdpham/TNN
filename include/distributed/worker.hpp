@@ -16,9 +16,12 @@
 #include "job.hpp"
 #include "load_tracker.hpp"
 #include "message.hpp"
+#include "profiling/event.hpp"
+#include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -102,10 +105,13 @@ protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
+      auto forward_start = std::chrono::system_clock::now();
       const PooledJob<float> &forward_job = message.get<PooledJob<float>>();
       PooledJob<float> output = JobPool<float>::instance().get_job(forward_job->data.size());
       this->model_->forward(forward_job->data, output->data, forward_job->micro_batch_id);
-
+      auto forward_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
       output->micro_batch_id = forward_job->micro_batch_id;
 
       // recycle input message
@@ -116,9 +122,13 @@ protected:
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
+      auto backward_start = std::chrono::system_clock::now();
       const PooledJob<float> &backward_job = message.get<PooledJob<float>>();
       PooledJob<float> output = JobPool<float>::instance().get_job(backward_job->data.size());
       this->model_->backward(backward_job->data, output->data, backward_job->micro_batch_id);
+      auto backward_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
 
       output->micro_batch_id = backward_job->micro_batch_id;
 
@@ -156,6 +166,21 @@ protected:
                   << " from " << message.header().sender_id << std::endl;
       }
       break;
+    case CommandType::START_PROFILING: {
+      Profiler::instance().init_start_time(std::chrono::system_clock::now());
+      Message response(message.header().sender_id, CommandType::PROFILING_STARTED,
+                       std::monostate{});
+      response.header().sender_id = id_;
+      communicator_->send_message(std::move(response));
+      break;
+    }
+    case CommandType::REPORT_PROFILING: {
+      Message response(message.header().sender_id, CommandType::PROFILING_REPORTED,
+                       Profiler::instance());
+      response.header().sender_id = id_;
+      communicator_->send_message(std::move(response));
+      break;
+    }
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();

@@ -43,7 +43,6 @@ inline ClassResult train_semi_async_epoch(Coordinator &coordinator,
     coordinator.update_parameters();
 
     if ((batch_index + 1) % progress_print_interval == 0) {
-
       std::cout << "Async process completed in " << process_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Average Loss after " << (batch_index + 1)
@@ -127,6 +126,7 @@ inline ClassResult validate_semi_async_epoch(Coordinator &coordinator,
 inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
                         BaseDataLoader<float> &test_loader,
                         TrainingConfig config = TrainingConfig()) {
+  coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
   coordinator.set_num_microbatches(config.num_microbatches);
 
@@ -142,6 +142,8 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_l
       train_semi_async_epoch(coordinator, train_loader, config.progress_print_interval);
 
       validate_semi_async_epoch(coordinator, test_loader);
+
+      coordinator.fetch_profiling();
     }
   });
 }

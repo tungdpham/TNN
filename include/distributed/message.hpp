@@ -9,7 +9,7 @@
 #include "command_type.hpp"
 #include "distributed/job_pool.hpp"
 #include "job.hpp"
-#include "load_tracker.hpp"
+#include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
 #include <arpa/inet.h>
 #include <cstring>
@@ -18,7 +18,7 @@
 #include <vector>
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, LoadTracker>;
+using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, Profiler>;
 
 struct MessageHeader {
   std::string recipient_id; // ID of the recipient stage
@@ -91,6 +91,18 @@ struct MessageData {
 
     } else if (std::holds_alternative<bool>(payload)) {
       size += sizeof(uint8_t); // bool serialized as uint8_t
+
+    } else if (std::holds_alternative<Profiler>(payload)) {
+      const auto &profiler = std::get<Profiler>(payload);
+      size += sizeof(int64_t); // profiler_start_time_ (serialized as int64_t)
+      auto events = profiler.get_events();
+      size += sizeof(uint64_t); // number of events
+      for (const auto &event : events) {
+        size += sizeof(int64_t);   // start_time_ (serialized as int64_t)
+        size += sizeof(int64_t);   // end_time_ (serialized as int64_t)
+        size += sizeof(uint64_t);  // name length (uint64_t in serialization)
+        size += event.name.size(); // name data
+      }
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }

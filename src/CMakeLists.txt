@@ -1,6 +1,6 @@
 # TNN CMakeLists.txt
 
-# CUDA library
+# CUDA module
 if(ENABLE_CUDA)
     file(GLOB_RECURSE TNN_CUDA_SOURCES 
         "cuda/*.cu"
@@ -17,7 +17,7 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_cuda PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
-# Device library
+# Device module
 file(GLOB_RECURSE TNN_DEVICE_SOURCES 
     "device/*.cpp"
 )
@@ -30,7 +30,7 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
-# Threading library
+# Threading module
 file(GLOB_RECURSE TNN_THREADING_SOURCES 
     "threading/*.cpp"
 )
@@ -40,7 +40,7 @@ target_include_directories(tnn_threading PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
-# Operations library
+# Operations Module
 file(GLOB_RECURSE TNN_OPS_SOURCES 
     "ops/*.cpp"
     "ops/*.cu"
@@ -55,7 +55,7 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_ops PUBLIC tnn_cuda CUDA::cudart CUDA::cublas)
 endif()
 
-# Matrix library
+# Matrix module
 file(GLOB_RECURSE TNN_MATRIX_SOURCES 
     "matrix/*.cpp"
 )
@@ -69,7 +69,7 @@ if(NOT MSVC)
     target_link_libraries(tnn_matrix PUBLIC m)
 endif()
 
-# Tensor library
+# Tensor module
 file(GLOB_RECURSE TNN_TENSOR_SOURCES 
     "tensor/*.cpp"
     "tensor/*.cu"
@@ -87,7 +87,18 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_tensor PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
-# Utilities library
+# Logging module
+file(GLOB_RECURSE TNN_LOGGING_SOURCES 
+    "logging/*.cpp"
+)
+add_library(tnn_logging STATIC ${TNN_LOGGING_SOURCES})
+target_include_directories(tnn_logging PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_logging PUBLIC spdlog::spdlog)
+
+# Utilities module
 file(GLOB_RECURSE TNN_UTILS_SOURCES 
     "utils/*.cpp"
     "utils/*.cu"
@@ -216,7 +227,7 @@ target_include_directories(tnn_partitioner PUBLIC
 )
 target_link_libraries(tnn_partitioner PUBLIC tnn_nn)
 
-# Distributed library
+# Distributed module
 file(GLOB_RECURSE TNN_DISTRIBUTED_SOURCES 
     "distributed/*.cpp"
 )
@@ -235,7 +246,7 @@ target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVE
 target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
 # Main TNN library
-set(TNN_MODULES tnn_matrix tnn_tensor tnn_nn tnn_utils tnn_math tnn_data_loading tnn_distributed tnn_device)
+set(TNN_MODULES tnn_device tnn_threading tnn_ops tnn_logging tnn_matrix tnn_tensor tnn_data_augmentation tnn_data_loading tnn_nn tnn_utils tnn_math tnn_distributed)
 if(ENABLE_CUDA)
     list(APPEND TNN_MODULES tnn_cuda)
 endif()

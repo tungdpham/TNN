@@ -99,7 +99,6 @@ int main() {
           .build();
   cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(move(val_transform));
-  Tensor<float> batch_data, batch_labels;
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
