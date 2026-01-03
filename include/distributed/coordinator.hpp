@@ -7,13 +7,15 @@
 #pragma once
 
 #include "distributed/job_pool.hpp"
+#include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
-#include "load_tracker.hpp"
 #include "partitioner/partitioner.hpp"
+#include "profiling/event.hpp"
+#include "profiling/profiler_aggregator.hpp"
 #include "stage_config.hpp"
 
 #include <atomic>
@@ -274,7 +276,7 @@ public:
             const size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_duration);
+    auto timeout = Time::steady_clock::now() + Time::seconds(timeout_duration);
 
     bool success =
         message_notification_cv_.wait_until(lock, timeout, [this, type, expected_count]() {
@@ -348,7 +350,7 @@ public:
   /**
    * @brief Requests all stages to print their profiling data.
    */
-  void print_profiling_on_all_stages() {
+  void print_profiling() {
     for (const auto &stage_name : this->stage_names_) {
       Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
       profiling_msg.header().sender_id = "coordinator";
@@ -357,6 +359,62 @@ public:
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
       std::cerr << "Warning: Not all stages confirmed profiling print within timeout.\n";
+    }
+  }
+
+  /**
+   * @brief Requests all stages to start profiling.
+   */
+  void start_profiling() {
+    ProfilerAggregator::instance().set_global_start_time(Clock::now());
+    for (const auto &stage_name : this->stage_names_) {
+      Message start_msg(stage_name, CommandType::START_PROFILING, std::monostate{});
+      start_msg.header().sender_id = "coordinator";
+      this->coordinator_comm_->send_message(std::move(start_msg));
+    }
+    bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
+    if (!all_started) {
+      std::cerr << "Warning: Not all stages confirmed profiling start within timeout.\n";
+    }
+  }
+
+  /**
+   * @brief Requests all stages to report their profiling data.
+   */
+  void fetch_profiling() {
+    for (const auto &stage_name : this->stage_names_) {
+      Message report_msg(stage_name, CommandType::REPORT_PROFILING, std::monostate{});
+      report_msg.header().sender_id = "coordinator";
+      this->coordinator_comm_->send_message(std::move(report_msg));
+    }
+    bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
+    if (!all_reported) {
+      std::cerr << "Warning: Not all stages reported profiling data within timeout.\n";
+    }
+
+    std::vector<Message> profiling_messages =
+        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
+
+    auto &aggregator = ProfilerAggregator::instance();
+    for (const auto &msg : profiling_messages) {
+      if (msg.has_type<Profiler>()) {
+        const Profiler &profiler = msg.get<Profiler>();
+        aggregator.add_profiler(profiler);
+      }
+    }
+
+    for (auto &event : aggregator.get_aggregated_events()) {
+      Clock::time_point start_time = event.start_time;
+      Clock::time_point end_time = event.end_time;
+      Clock::duration offset = aggregator.get_global_start_time().time_since_epoch();
+      start_time -= offset;
+      end_time -= offset;
+      logger_.info(
+          "Event: {}, Source: {}, Type: {}, Start: {:.1f} ms, End: {:.1f} ms, Duration: {:.1f} ms",
+          event.name, event.source, event_type_to_string(event.type),
+          (Time::duration_cast<Time::microseconds>(start_time.time_since_epoch()).count() / 1000.0),
+          (Time::duration_cast<Time::microseconds>(end_time.time_since_epoch()).count() / 1000.0),
+          (Time::duration_cast<Time::microseconds>(end_time - start_time).count() / 1000.0));
     }
   }
 
@@ -559,6 +617,7 @@ protected:
   std::vector<Endpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
   std::thread message_thread_;
+  Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Message synchronization
   mutable std::mutex message_notification_mutex_;

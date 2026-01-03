@@ -13,7 +13,7 @@ Logger::Logger(const std::string &name, const std::string &log_file, LogLevel le
   }
 
   logger_->set_level(level);
-  logger_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+  logger_->set_pattern("[%^%l%$] %v");
 }
 
 void Logger::set_level(spdlog::level::level_enum level) {
@@ -28,7 +28,7 @@ void Logger::set_log_file(const std::string &log_file) {
   }
 
   logger_ = spdlog::basic_logger_mt(logger_name_, log_file);
-  logger_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+  logger_->set_pattern("[%^%l%$] %v");
 }
 
 void Logger::enable_console_logging(bool enable) {
@@ -36,7 +36,7 @@ void Logger::enable_console_logging(bool enable) {
     spdlog::drop(logger_name_);
 
     logger_ = spdlog::stdout_color_mt(logger_name_);
-    logger_->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%n] [%^%l%$] %v");
+    logger_->set_pattern("[%^%l%$] %v");
   }
 }
 

@@ -431,8 +431,6 @@ private:
         std::cout << "All connections to " << connection->get_peer_id() << " closed." << std::endl;
       }
     }
-
-    std::cout << "Socket connection to " << connection->get_peer_id() << " closed." << std::endl;
   }
 
   void async_send_buffer(const std::string &recipient_id, Message &&message) {

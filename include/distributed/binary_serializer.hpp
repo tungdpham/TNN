@@ -4,6 +4,7 @@
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
+#include "profiling/profiler.hpp"
 #include "tbuffer.hpp"
 #include "tensor/tensor.hpp"
 #include <cstdint>
@@ -39,6 +40,24 @@ public:
     buffer.append(tensor.data(), tensor.size(), true);
   }
 
+  static void serialize(const Event &event, TBuffer &buffer) {
+    buffer.append(static_cast<int64_t>(event.start_time.time_since_epoch().count()));
+    buffer.append(static_cast<int64_t>(event.end_time.time_since_epoch().count()));
+    buffer.append(static_cast<uint8_t>(event.type));
+    buffer.append(event.name);
+    buffer.append(event.source);
+  }
+
+  static void serialize(const Profiler &profiler, TBuffer &buffer) {
+    auto events = profiler.get_events();
+    buffer.append(static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
+    int64_t event_count = static_cast<int64_t>(events.size());
+    buffer.append(event_count);
+    for (const auto &event : events) {
+      serialize(event, buffer);
+    }
+  }
+
   static void serialize(const PacketHeader &header, TBuffer &buffer) {
     buffer.append(header.PROTOCOL_VERSION);
     buffer.append(header.endianess);
@@ -70,6 +89,9 @@ public:
     } else if (std::holds_alternative<bool>(data.payload)) {
       const auto &flag = std::get<bool>(data.payload);
       buffer.append(static_cast<uint8_t>(flag ? 1 : 0));
+    } else if (std::holds_alternative<Profiler>(data.payload)) {
+      const auto &profiler = std::get<Profiler>(data.payload);
+      serialize(profiler, buffer);
     } else {
       throw std::runtime_error("Unsupported payload type in MessageData");
     }
@@ -136,6 +158,33 @@ public:
     flag = (value != 0);
   }
 
+  static void deserialize(const TBuffer &buffer, size_t &offset, Event &event) {
+    int64_t start_time_count;
+    int64_t end_time_count;
+    uint8_t type_value;
+    buffer.read(offset, start_time_count);
+    buffer.read(offset, end_time_count);
+    buffer.read(offset, type_value);
+    event.start_time = Clock::time_point(Clock::duration(start_time_count));
+    event.end_time = Clock::time_point(Clock::duration(end_time_count));
+    event.type = static_cast<EventType>(type_value);
+    buffer.read(offset, event.name, true);
+    buffer.read(offset, event.source, true);
+  }
+
+  static void deserialize(const TBuffer &buffer, size_t &offset, Profiler &profiler) {
+    int64_t start_time_count;
+    buffer.read(offset, start_time_count);
+    profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
+    uint64_t event_count;
+    buffer.read(offset, event_count);
+    for (uint64_t i = 0; i < event_count; ++i) {
+      Event event;
+      deserialize(buffer, offset, event);
+      profiler.add_event(event);
+    }
+  }
+
   static void deserialize(const TBuffer &buffer, size_t &offset, MessageData &data) {
     // Determine payload type based on payload_type
     uint64_t payload_type;
@@ -160,6 +209,11 @@ public:
       bool flag;
       deserialize(buffer, offset, flag);
       data.payload = flag;
+    } break;
+    case variant_index<PayloadType, Profiler>(): { // Profiler
+      Profiler profiler;
+      deserialize(buffer, offset, profiler);
+      data.payload = std::move(profiler);
     } break;
     default:
       throw std::runtime_error("Unsupported payload type in MessageData deserialization");
