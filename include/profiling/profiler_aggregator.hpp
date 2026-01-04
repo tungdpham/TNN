@@ -26,6 +26,13 @@ public:
     }
   }
 
+  void sort(std::function<bool(const Event &a, const Event &b)> comp = [](const Event &a,
+                                                                          const Event &b) {
+    return a.start_time == b.start_time ? a.end_time > b.end_time : a.start_time < b.start_time;
+  }) {
+    std::sort(aggregated_events_.begin(), aggregated_events_.end(), comp);
+  }
+
   void set_global_start_time(const Clock::time_point &time) { global_start_time_ = time; }
 
   Clock::time_point get_global_start_time() const { return global_start_time_; }
