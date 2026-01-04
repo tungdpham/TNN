@@ -403,6 +403,8 @@ public:
       }
     }
 
+    aggregator.sort();
+
     for (auto &event : aggregator.get_aggregated_events()) {
       Clock::time_point start_time = event.start_time;
       Clock::time_point end_time = event.end_time;

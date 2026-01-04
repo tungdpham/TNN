@@ -20,6 +20,7 @@
 #include "io_context_pool.hpp"
 #include "message.hpp"
 #include "packet.hpp"
+#include "profiling/event.hpp"
 
 #include <asio.hpp>
 #include <asio/error_code.hpp>
@@ -301,6 +302,7 @@ private:
     // Get buffer pointer while holding lock, then keep it alive via shared ownership
     PooledBuffer buffer;
 
+    auto register_start = Clock::now();
     {
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
       auto it = connection_groups_.find(connection_id);
@@ -313,6 +315,9 @@ private:
       fragmenter.register_packet(msg_serial_id, packet_header);
       buffer = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
     }
+    auto register_end = Clock::now();
+    Profiler::instance().add_event(
+        {EventType::COMMUNICATION, register_start, register_end, "Packet Register", this->id_});
 
     if (offset + packet_header.length > buffer->size()) {
       std::cerr << "Packet length of " << packet_header.length << " at offset " << offset
@@ -321,15 +326,20 @@ private:
     }
 
     try {
+      auto read_start = Clock::now();
       asio::async_read(
           connection->socket, asio::buffer(buffer->get() + offset, packet_header.length),
-          [this, connection, packet_header, buffer](std::error_code ec, std::size_t length) {
+          [this, connection, packet_header, buffer, read_start](std::error_code ec,
+                                                                std::size_t length) {
             if (!ec && is_running_.load(std::memory_order_acquire)) {
               if (length != packet_header.length) {
                 std::cerr << "Incomplete packet read: expected " << packet_header.length
                           << " bytes, got " << length << " bytes" << std::endl;
                 return;
               }
+              auto read_end = Clock::now();
+              Profiler::instance().add_event(
+                  {EventType::COMMUNICATION, read_start, read_end, "Packet Read", this->id_});
 
               // Check if message is complete
               bool is_complete = false;
@@ -383,6 +393,7 @@ private:
   void handle_message(const std::string &connection_id, uint64_t msg_serial_id,
                       std::shared_ptr<Connection> connection) {
     try {
+      auto deserialize_start = Clock::now();
       MessageState state;
       {
         std::lock_guard<std::shared_mutex> lock(connections_mutex_);
@@ -396,6 +407,10 @@ private:
       Message msg;
       size_t offset = 0;
       BinarySerializer::deserialize(*state.buffer, offset, msg);
+
+      auto deserialize_end = Clock::now();
+      Profiler::instance().add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
+                                      "Message Deserialize", this->id_});
 
       if (msg.header().command_type == CommandType::HANDSHAKE) {
         handle_handshake(connection, msg);
@@ -437,6 +452,7 @@ private:
     // delegate serialization to ASIO thread
     asio::post(
         io_context_pool_.get_io_context(), [this, recipient_id, message = std::move(message)]() {
+          auto serialize_start = Clock::now();
           size_t msg_size = message.size();
 
           PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
@@ -459,6 +475,10 @@ private:
             headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
             connections = it->second.get_connections();
           }
+
+          auto serialize_end = Clock::now();
+          Profiler::instance().add_event({EventType::COMMUNICATION, serialize_start, serialize_end,
+                                          "Message Serialize", this->id_});
 
           if (connections.empty()) {
             return;
@@ -502,17 +522,21 @@ private:
         asio::buffer(packet_header_buffer->get(), packet_header_buffer->size()),
         asio::buffer(packet_data, packet_header.length)};
 
-    asio::async_write(
-        connection->socket, buffers,
-        [this, connection, packet_header_buffer, current_write = std::move(current_write),
-         write_handle = std::move(write_handle)](std::error_code ec, std::size_t) mutable {
-          if (ec) {
-            handle_connection_error(connection, ec);
-            return;
-          }
-
-          start_async_write(std::move(write_handle), connection);
-        });
+    auto write_start = Clock::now();
+    asio::async_write(connection->socket, buffers,
+                      [this, connection, packet_header_buffer,
+                       current_write = std::move(current_write),
+                       write_handle = std::move(write_handle),
+                       write_start](std::error_code ec, std::size_t) mutable {
+                        if (ec) {
+                          handle_connection_error(connection, ec);
+                          return;
+                        }
+                        auto write_end = Clock::now();
+                        Profiler::instance().add_event({EventType::COMMUNICATION, write_start,
+                                                        write_end, "Packet Write", this->id_});
+                        start_async_write(std::move(write_handle), connection);
+                      });
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {

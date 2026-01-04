@@ -140,9 +140,13 @@ protected:
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
+      auto update_start = std::chrono::system_clock::now();
       // implicitly clear grads
       this->optimizer_->update();
       this->optimizer_->clear_gradients();
+      auto update_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       response.header().sender_id = id_;
       communicator_->send_message(std::move(response));
