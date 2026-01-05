@@ -203,43 +203,6 @@ public:
     }
   }
 
-  template <typename T> inline void append(const T &value) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    ensure_capacity(size_ + sizeof(T));
-    std::memcpy(data_ + size_, &value, sizeof(T));
-    size_ += sizeof(T);
-  }
-
-  template <typename T> inline void append(const T *arr, size_t length, bool parallel = false) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    size_t byte_size = sizeof(T) * length;
-    ensure_capacity(size_ + byte_size);
-    if (!parallel) {
-      std::memcpy(data_ + size_, arr, byte_size);
-    } else {
-      size_t num_blocks = get_num_threads();
-      num_blocks = std::min(num_blocks, length);
-      size_t block_size = byte_size / num_blocks;
-      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
-        size_t start = block_idx * block_size;
-        size_t end = (block_idx == num_blocks - 1) ? byte_size : (block_idx + 1) * block_size;
-        std::memcpy(data_ + size_ + start, reinterpret_cast<const uint8_t *>(arr) + start,
-                    end - start);
-      });
-    }
-    size_ += length * sizeof(T);
-  }
-
-  inline void append(const std::string &str) {
-    uint64_t str_length = static_cast<uint64_t>(str.size());
-    append(str_length);
-    if (str_length > 0) {
-      append(reinterpret_cast<const uint8_t *>(str.data()), str_length);
-    }
-  }
-
   template <typename T> inline void read(size_t &offset, T &value) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
