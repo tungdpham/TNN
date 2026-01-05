@@ -417,7 +417,7 @@ private:
     init_attr.recv_cq = cq_;
     init_attr.cap.max_send_wr = ROCE_SQ_DEPTH;
     init_attr.cap.max_recv_wr = ROCE_RQ_DEPTH;
-    init_attr.cap.max_send_sge = 1;
+    init_attr.cap.max_send_sge = 2;
     init_attr.cap.max_recv_sge = 1;
     init_attr.qp_type = IBV_QPT_RC;
 
