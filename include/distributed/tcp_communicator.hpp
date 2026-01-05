@@ -26,6 +26,7 @@
 #include <asio/error_code.hpp>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -456,8 +457,8 @@ private:
           size_t msg_size = message.size();
 
           PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-
-          BinarySerializer::serialize(message, *data_buffer);
+          size_t offset = 0;
+          BinarySerializer::serialize(*data_buffer, offset, message);
 
           uint32_t packets_per_msg =
               static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
@@ -515,7 +516,8 @@ private:
 
     PacketHeader packet_header = current_write.packet_header();
     auto packet_header_buffer = BufferPool::instance().get_buffer(PacketHeader::size());
-    BinarySerializer::serialize(packet_header, *packet_header_buffer);
+    size_t offset = 0;
+    BinarySerializer::serialize(*packet_header_buffer, offset, packet_header);
     uint8_t *packet_data = current_write.packet_data();
 
     std::array<asio::const_buffer, 2> buffers = {
@@ -546,7 +548,8 @@ private:
 
     size_t msg_size = handshake_msg.size();
     PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-    BinarySerializer::serialize(handshake_msg, *data_buffer);
+    size_t offset = 0;
+    BinarySerializer::serialize(*data_buffer, offset, handshake_msg);
 
     uint32_t packets_per_msg = 1;
 

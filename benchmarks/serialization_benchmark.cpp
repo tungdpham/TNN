@@ -33,7 +33,8 @@ signed main() {
       TBuffer &buffer = *pooled_buffer;
       buffer.fill(0);
       auto serialization_start = std::chrono::high_resolution_clock::now();
-      BinarySerializer::serialize(message, buffer);
+      size_t serialize_offset = 0;
+      BinarySerializer::serialize(buffer, serialize_offset, message);
       auto serialization_end = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double, std::milli> serialization_duration =
           serialization_end - serialization_start;
@@ -43,8 +44,8 @@ signed main() {
       // Deserialize the message
       Message deserialized_message;
       auto deserialization_start = std::chrono::high_resolution_clock::now();
-      size_t offset = 0;
-      BinarySerializer::deserialize(buffer, offset, deserialized_message);
+      size_t deserialize_offset = 0;
+      BinarySerializer::deserialize(buffer, deserialize_offset, deserialized_message);
       auto deserialization_end = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double, std::milli> deserialization_duration =
           deserialization_end - deserialization_start;

@@ -164,7 +164,8 @@ public:
   void send_message(Message &&message) override {
     size_t msg_size = message.size();
     PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-    BinarySerializer::serialize(message, *data_buffer);
+    size_t offset = 0;
+    BinarySerializer::serialize(*data_buffer, offset, message);
 
     size_t max_payload = ROCE_BUFFER_SIZE - sizeof(PacketHeader);
     uint32_t num_packets = (data_buffer->size() + max_payload - 1) / max_payload;
