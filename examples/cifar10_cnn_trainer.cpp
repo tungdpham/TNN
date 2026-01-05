@@ -77,7 +77,7 @@ int main() {
                      .batchnorm(1e-5f, 0.1f, true, "bn10")
                      .activation("relu", "relu9")
                      .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                     .flatten("flatten")
+                     .flatten(1, "flatten")
                      .dense(512, true, "fc0")
                      .activation("relu", "relu10")
                      .dense(10, true, "fc1")

@@ -16,6 +16,7 @@
 
 #include "activations_impl/base_activation.hpp"
 #include "activations_impl/elu.hpp"
+#include "activations_impl/gelu.hpp"
 #include "activations_impl/leaky_relu.hpp"
 #include "activations_impl/linear.hpp"
 #include "activations_impl/relu.hpp"
@@ -51,6 +52,7 @@ public:
     register_activation("linear", []() { return std::make_unique<Linear<T>>(); });
     register_activation("tanh", []() { return std::make_unique<Tanh<T>>(); });
     register_activation("elu", []() { return std::make_unique<ELU<T>>(); });
+    register_activation("gelu", []() { return std::make_unique<GELU<T>>(); });
   }
 
   static std::vector<std::string> get_available_activations() {

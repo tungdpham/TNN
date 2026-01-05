@@ -30,21 +30,30 @@ template <typename T> class DropoutLayer;
 template <typename T> class FlattenLayer;
 template <typename T> class BatchNormLayer;
 template <typename T> class GroupNormLayer;
+template <typename T> class LayerNormLayer;
+template <typename T> class ClassTokenLayer;
+template <typename T> class PositionalEmbeddingLayer;
 
 } // namespace tnn
 
 // Wrapper to include all layer implementations
+#include "blocks_impl/flash_attention_block.hpp"
+#include "blocks_impl/full_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
+#include "layers_impl/class_token_layer.hpp"
 #include "layers_impl/conv2d_layer.hpp"
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/dropout_layer.hpp"
 #include "layers_impl/flatten_layer.hpp"
 #include "layers_impl/groupnorm_layer.hpp"
+#include "layers_impl/layer_norm_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
+#include "layers_impl/positional_embedding_layer.hpp"
+#include "layers_impl/slice_layer.hpp"
 
 namespace tnn {
 template <typename T = float>
@@ -94,6 +103,12 @@ std::unique_ptr<Layer<T>> dropout_layer(T dropout_rate, const std::string &name 
 }
 
 template <typename T = float>
+std::unique_ptr<Layer<T>> layer_norm(size_t normalized_shape, T epsilon = 1e-5, bool affine = true,
+                                     const std::string &name = "layer_norm") {
+  return std::make_unique<LayerNormLayer<T>>(normalized_shape, epsilon, affine, name);
+}
+
+template <typename T = float>
 std::unique_ptr<Layer<T>> batchnorm_layer(size_t num_features, T epsilon = T(1e-5),
                                           T momentum = T(0.1), bool affine = true,
                                           const std::string &name = "batchnorm") {
@@ -108,8 +123,38 @@ std::unique_ptr<Layer<T>> groupnorm_layer(size_t num_groups, size_t num_channels
 }
 
 template <typename T = float>
-std::unique_ptr<Layer<T>> flatten_layer(const std::string &name = "flatten") {
-  return std::make_unique<FlattenLayer<T>>(name);
+std::unique_ptr<Layer<T>> flatten_layer(int start_dim = 1, const std::string &name = "flatten") {
+  return std::make_unique<FlattenLayer<T>>(start_dim, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> class_token_layer(size_t embed_dim,
+                                            const std::string &name = "class_token") {
+  return std::make_unique<ClassTokenLayer<T>>(embed_dim, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> positional_embedding_layer(size_t embed_dim, size_t seq_len,
+                                                     const std::string &name = "pos_embedding") {
+  return std::make_unique<PositionalEmbeddingLayer<T>>(embed_dim, seq_len, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> slice_layer(size_t axis, size_t start, size_t length,
+                                      const std::string &name = "slice") {
+  return std::make_unique<SliceLayer<T>>(axis, start, length, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> full_attention_block(size_t embed_dim, size_t num_heads,
+                                               const std::string &name = "attention") {
+  return std::make_unique<FullAttentionBlock<T>>(embed_dim, num_heads, name);
+}
+
+template <typename T = float>
+std::unique_ptr<Layer<T>> flash_attention_block(size_t embed_dim, size_t num_heads,
+                                                const std::string &name = "attention") {
+  return std::make_unique<FlashAttentionBlock<T>>(embed_dim, num_heads, name);
 }
 
 template <typename T = float> class LayerFactory {
@@ -221,8 +266,42 @@ public:
                                                  config.name);
     });
 
+    register_layer("layer_norm", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t normalized_shape = config.get<size_t>("normalized_shape");
+      T epsilon = config.get<T>("epsilon", T(1e-5));
+      bool affine = config.get<bool>("affine", true);
+      return std::make_unique<LayerNormLayer<T>>(normalized_shape, epsilon, affine, config.name);
+    });
+
     register_layer("flatten", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-      return std::make_unique<FlattenLayer<T>>(config.name);
+      return FlattenLayer<T>::create_from_config(config);
+    });
+
+    register_layer("class_token", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t embed_dim = config.get<size_t>("embed_dim");
+      return std::make_unique<ClassTokenLayer<T>>(embed_dim, config.name);
+    });
+
+    register_layer("pos_embedding", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t embed_dim = config.get<size_t>("embed_dim");
+      size_t seq_len = config.get<size_t>("seq_len");
+      return std::make_unique<PositionalEmbeddingLayer<T>>(embed_dim, seq_len, config.name);
+    });
+
+    register_layer("slice", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      return SliceLayer<T>::create_from_config(config);
+    });
+
+    register_layer("full_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t embed_dim = config.get<size_t>("embed_dim");
+      size_t num_heads = config.get<size_t>("num_heads");
+      return std::make_unique<FullAttentionBlock<T>>(embed_dim, num_heads, config.name);
+    });
+
+    register_layer("flash_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t embed_dim = config.get<size_t>("embed_dim");
+      size_t num_heads = config.get<size_t>("num_heads");
+      return std::make_unique<FlashAttentionBlock<T>>(embed_dim, num_heads, config.name);
     });
 
     register_layer("residual_block", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -426,6 +505,26 @@ public:
     return *this;
   }
 
+  LayerBuilder &layernorm(T epsilon = T(1e-5), bool affine = true, const std::string &name = "") {
+    std::vector<size_t> current_shape = get_current_shape();
+
+    if (current_shape.size() < 2) {
+      throw std::runtime_error("LayerNorm requires at least 2D input (batch, features)");
+    }
+
+    size_t num_features;
+    if (current_shape.size() >= 2) {
+      num_features = current_shape[1]; // Normalizes over Channels C
+    } else {
+      throw std::runtime_error("Invalid shape for LayerNorm");
+    }
+
+    auto layer = layer_norm<T>(num_features, epsilon, affine,
+                               name.empty() ? "layernorm_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
   LayerBuilder &activation(const std::string &activation_name, const std::string &name = "") {
     auto layer = activation_layer<T>(
         activation_name, name.empty() ? "activation_" + std::to_string(layers_.size()) : name);
@@ -458,9 +557,48 @@ public:
     return *this;
   }
 
-  LayerBuilder &flatten(const std::string &name = "") {
-    auto layer =
-        flatten_layer<T>(name.empty() ? "flatten_" + std::to_string(layers_.size()) : name);
+  LayerBuilder &flatten(int start_dim = 1, const std::string &name = "") {
+    auto layer = flatten_layer<T>(
+        start_dim, name.empty() ? "flatten_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &class_token(size_t embed_dim, const std::string &name = "") {
+    auto layer = class_token_layer<T>(
+        embed_dim, name.empty() ? "class_token_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &positional_embedding(size_t embed_dim, size_t seq_len,
+                                     const std::string &name = "") {
+    auto layer = positional_embedding_layer<T>(
+        embed_dim, seq_len,
+        name.empty() ? "pos_embedding_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &slice(size_t axis, size_t start, size_t length, const std::string &name = "") {
+    auto layer = slice_layer<T>(axis, start, length,
+                                name.empty() ? "slice_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &full_attention(size_t embed_dim, size_t num_heads, const std::string &name = "") {
+    auto layer = full_attention_block<T>(
+        embed_dim, num_heads,
+        name.empty() ? "full_attention_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &flash_attention(size_t embed_dim, size_t num_heads, const std::string &name = "") {
+    auto layer = flash_attention_block<T>(
+        embed_dim, num_heads,
+        name.empty() ? "flash_attention_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }

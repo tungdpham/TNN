@@ -8,7 +8,6 @@
 
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -16,13 +15,15 @@
 
 namespace tnn {
 
-template <typename T = float> class FlattenLayer : public StatelessLayer<T> {
+template <typename T = float> class SliceLayer : public StatelessLayer<T> {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
-  int start_dim_;
+  size_t axis_;
+  size_t start_;
+  size_t length_;
 
 public:
-  explicit FlattenLayer(int start_dim = 1, const std::string &name = "flatten");
+  SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice");
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
@@ -37,13 +38,11 @@ public:
   std::string type() const override;
   LayerConfig get_config() const override;
   std::unique_ptr<Layer<T>> clone() const override;
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-public:
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
 
-#include "nn/layers_impl/flatten_layer.tpp"
+#include "nn/layers_impl/slice_layer.tpp"

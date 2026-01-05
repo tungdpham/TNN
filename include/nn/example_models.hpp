@@ -23,7 +23,7 @@ inline Sequential<float> create_mnist_trainer() {
                    .batchnorm(1e-5f, 0.1f, true, "bn3")
                    .activation("relu", "relu3")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "output")
                    .build();
   return model;
@@ -40,7 +40,7 @@ inline Sequential<float> create_cifar10_trainer_v1() {
                    .batchnorm(1e-5f, 0.1f, true, "bn2")
                    .activation("relu", "relu2")
                    .maxpool2d(4, 4, 4, 4, 0, 0, "maxpool2")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "fc1")
                    .build();
   return model;
@@ -82,7 +82,7 @@ inline Sequential<float> create_cifar10_trainer_v2() {
                    .batchnorm(1e-5f, 0.1f, true, "bn10")
                    .activation("relu", "relu9")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(512, true, "fc0")
                    .activation("relu", "relu10")
                    .dense(10, true, "fc1")
@@ -126,7 +126,7 @@ inline Sequential<float> create_resnet9_cifar10() {
 
                    // Classification head
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool") // 4x4 -> 1x1
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "output")
                    .build();
   return model;
@@ -155,7 +155,7 @@ inline Sequential<float> create_resnet18_cifar10() {
                    //  .basic_residual_block(512, 512, 1, "layer4_block3")
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 4, 4, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "output")
                    .build();
   return model;
@@ -183,7 +183,7 @@ inline Sequential<float> create_resnet20_cifar10() {
 
                    // 5. Classifier Head
                    .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool") // Output size: 1x1
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "output") // 10 classes for CIFAR-10
                    .build();
 
@@ -217,7 +217,7 @@ inline Sequential<float> create_resnet50_cifar10() {
                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block2")
                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
                    // Global average pooling and classifier
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(10, true, "fc")
                    .build();
   return model;
@@ -245,7 +245,7 @@ inline Sequential<float> create_resnet18_cifar100() {
                    .basic_residual_block(512, 512, 1, "layer4_block2")
                    // Global average pooling and classifier
                    .avgpool2d(2, 2, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(100, true, "fc")
                    .build();
   return model;
@@ -280,7 +280,7 @@ inline Sequential<float> create_resnet9_tiny_imagenet() {
                    .basic_residual_block(512, 512, 1, "res3")
                    // Global average pooling: 4x4 -> 1x1
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(200, true, "fc")
                    .build();
   return model;
@@ -322,7 +322,7 @@ inline Sequential<float> create_cnn_tiny_imagenet() {
                    .batchnorm(1e-5f, 0.1f, true, "bn10")
                    .activation("relu", "relu9")
                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(1024, true, "fc0")
                    .activation("relu", "relu10")
                    .dense(200, true, "fc1")
@@ -352,7 +352,7 @@ inline Sequential<float> create_resnet18_tiny_imagenet() {
                    .basic_residual_block(512, 512, 1, "layer4_block2")
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(200, true, "fc")
                    .build();
   return model;
@@ -387,7 +387,7 @@ inline Sequential<float> create_resnet34_tiny_imagenet() {
                    .basic_residual_block(512, 512, 1, "layer4_block3")
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(200, true, "fc")
                    .build();
   return model;
@@ -422,7 +422,7 @@ inline Sequential<float> create_resnet50_tiny_imagenet() {
                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
                    // Global average pooling and classifier
                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(200, true, "fc")
                    .build();
   return model;
@@ -461,7 +461,7 @@ inline Sequential<float> create_wrn16_8_cifar100() {
                    .activation("relu", "relu_final")
                    // Global average pooling: 8x8 -> 1x1
                    .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(100, true, "fc")
                    .build();
 
@@ -497,7 +497,7 @@ inline Sequential<float> create_resnet50_imagenet() {
                    .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
                    // Global average pooling and classifier
                    .avgpool2d(7, 7, 1, 1, 0, 0, "avgpool")
-                   .flatten("flatten")
+                   .flatten(1, "flatten")
                    .dense(1000, true, "fc")
                    .build();
   return model;

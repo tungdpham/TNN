@@ -160,7 +160,7 @@ TEST(LayerBufferReuseTest, FlattenConsistentOutput) {
   const size_t h = 4;
   const size_t w = 4;
 
-  auto layer = std::make_unique<FlattenLayer<float>>("test_flatten");
+  auto layer = std::make_unique<FlattenLayer<float>>(1, "test_flatten");
   layer->set_device(&getCPU());
 
   // Create input

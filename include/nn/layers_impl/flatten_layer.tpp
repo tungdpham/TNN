@@ -12,7 +12,8 @@
 namespace tnn {
 
 template <typename T>
-FlattenLayer<T>::FlattenLayer(const std::string &name) : StatelessLayer<T>(name) {}
+FlattenLayer<T>::FlattenLayer(int start_dim, const std::string &name)
+    : StatelessLayer<T>(name), start_dim_(start_dim) {}
 
 template <typename T>
 void FlattenLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
@@ -25,10 +26,8 @@ void FlattenLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t 
     current = &device_input;
   }
 
-  size_t batch_size = current->batch_size();
-  size_t features = current->channels() * current->height() * current->width();
-
-  output.ensure(std::vector<size_t>{batch_size, features, 1, 1});
+  std::vector<size_t> output_shape = compute_output_shape(current->shape());
+  output.ensure(output_shape);
 
   ops::copy(current->data_ptr(), output.data_ptr(), current->size());
 }
@@ -59,27 +58,48 @@ template <typename T> std::string FlattenLayer<T>::type() const { return "flatte
 template <typename T> LayerConfig FlattenLayer<T>::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.parameters["start_dim"] = start_dim_;
   return config;
 }
 
 template <typename T> std::unique_ptr<Layer<T>> FlattenLayer<T>::clone() const {
-  return std::make_unique<FlattenLayer<T>>(this->name_);
+  return std::make_unique<FlattenLayer<T>>(this->start_dim_, this->name_);
 }
 
 template <typename T>
 std::vector<size_t>
 FlattenLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
-  if (input_shape.size() != 4) {
-    throw std::invalid_argument("FlattenLayer expects 4D input");
+  if (input_shape.empty()) {
+    throw std::invalid_argument("FlattenLayer expects non-empty input shape");
   }
 
-  size_t features = input_shape[1] * input_shape[2] * input_shape[3];
-  return {input_shape[0], features, 1, 1};
+  std::vector<size_t> output_shape;
+
+  output_shape.push_back(input_shape[0]);
+
+  size_t flat_dim = 1;
+  int start = std::max(1, start_dim_);
+
+  for (int i = 1; i < start && i < static_cast<int>(input_shape.size()); ++i) {
+    output_shape.push_back(input_shape[i]);
+  }
+
+  for (size_t i = static_cast<size_t>(start); i < input_shape.size(); ++i) {
+    flat_dim *= input_shape[i];
+  }
+  output_shape.push_back(flat_dim);
+
+  while (output_shape.size() < 4) {
+    output_shape.push_back(1);
+  }
+
+  return output_shape;
 }
 
 template <typename T>
 std::unique_ptr<Layer<T>> FlattenLayer<T>::create_from_config(const LayerConfig &config) {
-  return std::make_unique<FlattenLayer<T>>(config.name);
+  int start_dim = config.get<int>("start_dim", 1);
+  return std::make_unique<FlattenLayer<T>>(start_dim, config.name);
 }
 
 template <typename T>
