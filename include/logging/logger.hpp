@@ -25,32 +25,32 @@ public:
 
   template <typename... Args> void trace(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->trace(fmt, std::forward<Args>(args)...);
+      logger_->trace(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
   template <typename... Args> void debug(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->debug(fmt, std::forward<Args>(args)...);
+      logger_->debug(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
   template <typename... Args> void info(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->info(fmt, std::forward<Args>(args)...);
+      logger_->info(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
   template <typename... Args> void warn(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->warn(fmt, std::forward<Args>(args)...);
+      logger_->warn(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
   template <typename... Args> void error(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->error(fmt, std::forward<Args>(args)...);
+      logger_->error(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
   template <typename... Args> void critical(const char *fmt, Args &&...args) {
     if (logger_)
-      logger_->critical(fmt, std::forward<Args>(args)...);
+      logger_->critical(fmt::runtime(fmt), std::forward<Args>(args)...);
   }
 
 private:

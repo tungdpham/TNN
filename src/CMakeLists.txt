@@ -12,7 +12,7 @@ if(ENABLE_CUDA)
     )
     set_target_properties(tnn_cuda PROPERTIES 
         CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES}
-        CUDA_STANDARD 17
+        CUDA_STANDARD 20
     )
     target_link_libraries(tnn_cuda PUBLIC CUDA::cudart CUDA::cublas)
 endif()
@@ -190,7 +190,7 @@ target_link_libraries(tnn_math PUBLIC tnn_utils)
 if(ENABLE_CUDA)
     set_target_properties(tnn_math PROPERTIES 
         CUDA_ARCHITECTURES ${CMAKE_CUDA_ARCHITECTURES}
-        CUDA_STANDARD 17
+        CUDA_STANDARD 20
     )
     target_link_libraries(tnn_math PUBLIC CUDA::cudart CUDA::cublas)
 endif()
