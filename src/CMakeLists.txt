@@ -216,6 +216,17 @@ if(ENABLE_CUDA)
     endif()
 endif()
 
+# Profiling module
+file(GLOB_RECURSE TNN_PROFILING_SOURCES
+    "profiling/*.cpp"
+)
+add_library(tnn_profiling STATIC ${TNN_PROFILING_SOURCES})
+target_include_directories(tnn_profiling PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_profiling PUBLIC tnn_utils tnn_logging)
+
 # Partitioner module
 file(GLOB_RECURSE TNN_PARTITIONER_SOURCES 
     "partitioner/*.cpp"
@@ -242,7 +253,7 @@ target_include_directories(tnn_distributed PRIVATE
     ${asio_SOURCE_DIR}/asio/include
     ${IBVERBS_INCLUDE_DIRS}
 )
-target_link_libraries(tnn_distributed PUBLIC tnn_nn tnn_partitioner tnn_logging) 
+target_link_libraries(tnn_distributed PUBLIC tnn_nn tnn_partitioner tnn_logging tnn_profiling) 
 target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
 target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
