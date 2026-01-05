@@ -30,8 +30,8 @@ template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64
 namespace tnn {
 class BinarySerializer {
 public:
-  template <typename T = float>
-  static void serialize(TBuffer &buffer, size_t &offset, const Tensor<T> &tensor) {
+  template <typename BufferType, typename T = float>
+  static void serialize(BufferType &buffer, size_t &offset, const Tensor<T> &tensor) {
     std::vector<size_t> shape = tensor.shape();
     uint64_t shape_size = static_cast<uint64_t>(shape.size());
     buffer.write(offset, shape_size);
@@ -41,7 +41,8 @@ public:
     buffer.write(offset, tensor.data(), tensor.size(), true);
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const Event &event) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const Event &event) {
     buffer.write(offset, static_cast<int64_t>(event.start_time.time_since_epoch().count()));
     buffer.write(offset, static_cast<int64_t>(event.end_time.time_since_epoch().count()));
     buffer.write(offset, static_cast<uint8_t>(event.type));
@@ -49,7 +50,8 @@ public:
     buffer.write(offset, event.source);
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const Profiler &profiler) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const Profiler &profiler) {
     auto events = profiler.get_events();
     buffer.write(offset, static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
     int64_t event_count = static_cast<int64_t>(events.size());
@@ -59,7 +61,8 @@ public:
     }
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const PacketHeader &header) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const PacketHeader &header) {
     buffer.write(offset, header.PROTOCOL_VERSION);
     buffer.write(offset, header.endianess);
     buffer.write(offset, header.length);
@@ -70,20 +73,22 @@ public:
     buffer.write(offset, static_cast<uint8_t>(header.compression_type));
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const MessageHeader &header) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const MessageHeader &header) {
     buffer.write(offset, header.recipient_id);
     buffer.write(offset, header.sender_id);
     buffer.write(offset, static_cast<uint16_t>(header.command_type));
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const MessageData &data) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
     buffer.write(offset, data.payload_type);
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
     } else if (std::holds_alternative<PooledJob<float>>(data.payload)) {
       const auto &job = std::get<PooledJob<float>>(data.payload);
       buffer.write(offset, static_cast<uint64_t>(job->micro_batch_id));
-      serialize<float>(buffer, offset, job->data);
+      serialize<BufferType, float>(buffer, offset, job->data);
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
       buffer.write(offset, str);
@@ -98,12 +103,14 @@ public:
     }
   }
 
-  static void serialize(TBuffer &buffer, size_t &offset, const Message &message) {
+  template <typename BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const Message &message) {
     serialize(buffer, offset, message.header());
     serialize(buffer, offset, message.data());
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, PacketHeader &header) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, PacketHeader &header) {
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.read(offset, header.length);
@@ -111,7 +118,7 @@ public:
     buffer.read(offset, header.msg_serial_id);
     buffer.read(offset, header.packet_offset);
     buffer.read(offset, header.total_packets);
-    buffer.read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
+    buffer.template read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
     if (header.endianess != get_system_endianness()) {
       bswap(header.length);
       bswap(header.msg_length);
@@ -121,21 +128,22 @@ public:
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, MessageHeader &header) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, MessageHeader &header) {
     buffer.read(offset, header.recipient_id);
     buffer.read(offset, header.sender_id);
     uint16_t cmd_type;
-    buffer.read<uint16_t>(offset, cmd_type);
+    buffer.template read<uint16_t>(offset, cmd_type);
     header.command_type = static_cast<CommandType>(cmd_type);
   }
 
-  template <typename T = float>
-  static void deserialize(const TBuffer &buffer, size_t &offset, Tensor<T> &tensor) {
+  template <typename BufferType, typename T = float>
+  static void deserialize(const BufferType &buffer, size_t &offset, Tensor<T> &tensor) {
     uint64_t shape_size;
     buffer.read(offset, shape_size);
     std::vector<uint64_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
-      buffer.read<uint64_t>(offset, shape[i]);
+      buffer.template read<uint64_t>(offset, shape[i]);
     }
     tensor.ensure(shape, &getCPU());
     if (tensor.size() > 0) {
@@ -144,22 +152,26 @@ public:
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, PooledJob<float> &job) {
-    buffer.read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job->micro_batch_id));
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, PooledJob<float> &job) {
+    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job->micro_batch_id));
     deserialize(buffer, offset, job->data);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, std::string &str) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, std::string &str) {
     buffer.read(offset, str, true);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, bool &flag) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, bool &flag) {
     uint8_t value;
     buffer.read(offset, value);
     flag = (value != 0);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Event &event) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, Event &event) {
     int64_t start_time_count;
     int64_t end_time_count;
     uint8_t type_value;
@@ -173,7 +185,8 @@ public:
     buffer.read(offset, event.source, true);
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Profiler &profiler) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, Profiler &profiler) {
     int64_t start_time_count;
     buffer.read(offset, start_time_count);
     profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
@@ -186,7 +199,8 @@ public:
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, MessageData &data) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, MessageData &data) {
     // Determine payload type based on payload_type
     uint64_t payload_type;
     buffer.read(offset, payload_type);
@@ -221,7 +235,8 @@ public:
     }
   }
 
-  static void deserialize(const TBuffer &buffer, size_t &offset, Message &message) {
+  template <typename BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, Message &message) {
     deserialize(buffer, offset, message.header());
     deserialize(buffer, offset, message.data());
   }
