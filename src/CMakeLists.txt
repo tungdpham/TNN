@@ -242,6 +242,7 @@ target_include_directories(tnn_distributed PRIVATE
     ${asio_SOURCE_DIR}/asio/include
     ${IBVERBS_INCLUDE_DIRS}
 )
+target_link_libraries(tnn_distributed PUBLIC tnn_nn tnn_partitioner tnn_logging) 
 target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
 target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
