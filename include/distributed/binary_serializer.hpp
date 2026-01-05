@@ -30,15 +30,15 @@ template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64
 namespace tnn {
 
 template <typename T>
-concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, bool parallel,
+concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len,
                           std::string &str, uint64_t &val) {
   t.write(offset, val);
-  t.write(offset, ptr, len, parallel);
+  t.write(offset, ptr, len);
   t.write(offset, static_cast<const std::string &>(str));
 
   ct.read(offset, val);
-  ct.read(offset, ptr, len, parallel);
-  ct.read(offset, str, parallel);
+  ct.read(offset, ptr, len);
+  ct.read(offset, str);
 
   { ct.size() } -> std::convertible_to<size_t>;
 };
@@ -53,7 +53,7 @@ public:
     for (size_t dim : shape) {
       buffer.write(offset, static_cast<uint64_t>(dim));
     }
-    buffer.write(offset, tensor.data(), tensor.size(), true);
+    buffer.write(offset, tensor.data(), tensor.size());
   }
 
   template <Buffer BufferType>
@@ -162,7 +162,7 @@ public:
     }
     tensor.ensure(shape, &getCPU());
     if (tensor.size() > 0) {
-      buffer.read(offset, tensor.data(), tensor.size(), true);
+      buffer.read(offset, tensor.data(), tensor.size());
       offset += tensor.size() * sizeof(T);
     }
   }
@@ -175,7 +175,7 @@ public:
 
   template <Buffer BufferType>
   static void deserialize(const BufferType &buffer, size_t &offset, std::string &str) {
-    buffer.read(offset, str, true);
+    buffer.read(offset, str);
   }
 
   template <Buffer BufferType>
@@ -196,8 +196,8 @@ public:
     event.start_time = Clock::time_point(Clock::duration(start_time_count));
     event.end_time = Clock::time_point(Clock::duration(end_time_count));
     event.type = static_cast<EventType>(type_value);
-    buffer.read(offset, event.name, true);
-    buffer.read(offset, event.source, true);
+    buffer.read(offset, event.name);
+    buffer.read(offset, event.source);
   }
 
   template <Buffer BufferType>
