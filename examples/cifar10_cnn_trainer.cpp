@@ -26,7 +26,6 @@ int main() {
     train_config.print_config();
 
     CIFAR10DataLoader<float> train_loader, test_loader;
-
     CIFAR10DataLoader<float>::create("./data", train_loader, test_loader);
 
     auto aug_strategy = AugmentationBuilder<float>()
@@ -37,10 +36,7 @@ int main() {
                             .gaussian_noise(0.3f, 0.05f)
                             .random_crop(0.4f, 4)
                             .build();
-    cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(aug_strategy));
-
-    cout << "Building CNN model architecture for CIFAR-10..." << endl;
 
     auto model = SequentialBuilder<float>("cifar10_cnn_classifier_v2")
                      .input({3, 32, 32})
@@ -94,11 +90,8 @@ int main() {
 
     auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
 
-    cout << "Starting CIFAR-10 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
                                std::move(loss_function), std::move(scheduler), train_config);
-
-    cout << "CIFAR-10 CNN Tensor<float> model training completed successfully!" << endl;
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;

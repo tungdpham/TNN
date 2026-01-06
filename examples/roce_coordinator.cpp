@@ -124,13 +124,11 @@ int main(int argc, char *argv[]) {
                              .cutout(0.5f, 8)
                              .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
                              .build();
-  std::cout << "Configuring data augmentation for training." << std::endl;
   train_loader.set_augmentation(std::move(train_transform));
 
   auto val_transform = AugmentationBuilder<float>()
                            .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
                            .build();
-  cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(std::move(val_transform));
 
   Sequential<float> model = create_wrn16_8_cifar100();

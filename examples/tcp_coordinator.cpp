@@ -55,7 +55,6 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  cout << "Creating distributed coordinator." << endl;
   NetworkCoordinator coordinator("coordinator", move(model), move(optimizer), coordinator_endpoint,
                                  endpoints);
 
@@ -90,14 +89,12 @@ int main() {
           .cutout(0.5f, 8)
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  cout << "Configuring data augmentation for training." << endl;
   train_loader.set_augmentation(move(train_transform));
 
   auto val_transform =
       AugmentationBuilder<float>()
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(move(val_transform));
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});

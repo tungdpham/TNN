@@ -36,13 +36,8 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    // Create data loaders
     TinyImageNetDataLoader<float> train_loader, val_loader;
-
     TinyImageNetDataLoader<float>::create("data/tiny-imagenet-200", train_loader, val_loader);
-
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
 
     auto train_aug = AugmentationBuilder<float>()
                          .horizontal_flip(0.2)
@@ -50,16 +45,12 @@ int main() {
                          .random_crop(0.25f, 4)
                          .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                          .build();
-    cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(train_aug));
 
     auto val_aug = AugmentationBuilder<float>()
                        .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
-    cout << "Configuring data normalization for validation." << endl;
     val_loader.set_augmentation(std::move(val_aug));
-
-    cout << "Building CNN model architecture for Tiny ImageNet..." << endl;
 
     auto model = create_resnet18_tiny_imagenet();
 
@@ -74,7 +65,6 @@ int main() {
 
     auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
 
-    cout << "Starting Tiny ImageNet CNN training..." << endl;
     train_classification_model(model, train_loader, val_loader, std::move(optimizer),
                                std::move(loss_function), std::move(scheduler), train_config);
 

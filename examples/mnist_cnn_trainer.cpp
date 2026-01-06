@@ -41,11 +41,6 @@ int main() {
 
     MNISTDataLoader<float>::create("./data", train_loader, test_loader);
 
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;
-
-    cout << "Building CNN model architecture" << endl;
-
     auto aug_strategy = AugmentationBuilder<float>()
                             .rotation(0.5f, 15.0f)
                             .contrast(0.3f, 0.15f)

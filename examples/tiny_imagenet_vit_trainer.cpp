@@ -30,8 +30,22 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    TinyImageNetDataLoader<float> train_loader, test_loader;
-    TinyImageNetDataLoader<float>::create("./data/tiny-imagenet-200", train_loader, test_loader);
+    TinyImageNetDataLoader<float> train_loader, val_loader;
+    TinyImageNetDataLoader<float>::create("./data/tiny-imagenet-200", train_loader, val_loader);
+
+    auto train_aug = AugmentationBuilder<float>()
+                         .random_crop(1.0f, 4)
+                         .rotation(0.25f, 5.0f)
+                         .horizontal_flip(0.5)
+                         .brightness(0.2f)
+                         .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                         .build();
+    train_loader.set_augmentation(std::move(train_aug));
+
+    auto val_aug = AugmentationBuilder<float>()
+                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
+                       .build();
+    val_loader.set_augmentation(std::move(val_aug));
 
     size_t patch_size = 4;
     size_t embed_dim = 64;
@@ -86,7 +100,7 @@ int main() {
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
     auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 1, 0.9f);
 
-    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
+    train_classification_model(model, train_loader, val_loader, std::move(optimizer),
                                std::move(loss_function), std::move(scheduler), train_config);
 
   } catch (const exception &e) {
