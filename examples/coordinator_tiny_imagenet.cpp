@@ -1,6 +1,4 @@
 #include "data_augmentation/augmentation.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/train.hpp"

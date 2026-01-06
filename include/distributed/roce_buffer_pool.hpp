@@ -9,7 +9,6 @@
 #include "roce_buffer.hpp"
 #include <atomic>
 #include <deque>
-#include <iostream>
 #include <memory>
 #include <mutex>
 

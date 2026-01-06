@@ -157,6 +157,7 @@ int main() {
       },
       "CUDA Addition (with memory transfer)");
 
+  cout << "  CUDA Time (with transfer): " << fixed << setprecision(3) << cudaTime << " ms" << endl;
   cout << endl << "=== CUDA Tests (compute only) ===" << endl;
 
   // CUDA Addition (compute only)

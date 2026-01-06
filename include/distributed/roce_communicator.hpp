@@ -8,7 +8,6 @@
 
 #include "communicator.hpp"
 #include "distributed/binary_serializer.hpp"
-#include "distributed/buffer_pool.hpp"
 #include "distributed/fragmenter.hpp"
 #include "distributed/packet.hpp"
 #include "distributed/roce_buffer_pool.hpp"

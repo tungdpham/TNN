@@ -13,10 +13,8 @@
 #include <cstdint>
 #include <cstring>
 #include <infiniband/verbs.h>
-#include <iostream>
 #include <stdexcept>
 #include <string>
-#include <vector>
 
 namespace tnn {
 
