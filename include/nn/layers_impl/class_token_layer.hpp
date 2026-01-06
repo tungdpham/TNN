@@ -52,18 +52,17 @@ public:
           "Layer parameters not initialized. Call initialize() before forward.");
     }
 
-    size_t N = input.batch_size();
-    size_t C = input.channels();
-    size_t H = input.height();
-    size_t W = input.width();
-    size_t L = H * W;
+    size_t batch_size = input.batch_size();
+    size_t channels = input.channels();
+    size_t height = input.height();
+    size_t width = input.width();
+    size_t len = height * width;
 
-    if (C != embed_dim_) {
+    if (channels != embed_dim_) {
       throw std::runtime_error("ClassTokenLayer: Input channels must match embed_dim");
     }
 
-    // Output shape: [N, C, L + 1, 1]
-    output.ensure({N, C, L + 1, 1}, this->device_);
+    output.ensure({batch_size, channels, len + 1, 1}, this->device_);
 
     auto &out_ptr = output.data_ptr();
     const auto &in_ptr = input.data_ptr();
@@ -71,12 +70,12 @@ public:
 
     if (this->device_->device_type() == DeviceType::CPU) {
       create_cpu_task("default", cpu::class_token_forward<T>, in_ptr.get(), token_ptr.get(),
-                      out_ptr.get(), N, C, L);
+                      out_ptr.get(), batch_size, channels, len);
     } else {
 #ifdef USE_CUDA
       // Use create_gpu_task to ensure correct flow/stream usage, consistent with other layers
       create_gpu_task("default", cuda::class_token_forward<T>, in_ptr.get(), token_ptr.get(),
-                      out_ptr.get(), N, C, L);
+                      out_ptr.get(), batch_size, channels, len);
 #else
       throw std::runtime_error("CUDA support for ClassTokenLayer not implemented");
 #endif
@@ -85,12 +84,12 @@ public:
 
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                 size_t micro_batch_id = 0) override {
-    size_t N = gradient.batch_size();
-    size_t C = gradient.channels();
-    size_t L_plus_1 = gradient.height();
-    size_t L = L_plus_1 - 1;
+    size_t batch_size = gradient.batch_size();
+    size_t channels = gradient.channels();
+    size_t len_plus_1 = gradient.height();
+    size_t len = len_plus_1 - 1;
 
-    grad_input.ensure({N, C, L, 1}, this->device_);
+    grad_input.ensure({batch_size, channels, len, 1}, this->device_);
 
     const auto &grad_ptr = gradient.data_ptr();
     auto &grad_in_ptr = grad_input.data_ptr();
@@ -98,11 +97,11 @@ public:
 
     if (this->device_->device_type() == DeviceType::CPU) {
       create_cpu_task("default", cpu::class_token_backward<T>, grad_ptr.get(), grad_in_ptr.get(),
-                      token_grad_ptr.get(), N, C, L);
+                      token_grad_ptr.get(), batch_size, channels, len);
     } else {
 #ifdef USE_CUDA
       create_gpu_task("default", cuda::class_token_backward<T>, grad_ptr.get(), grad_in_ptr.get(),
-                      token_grad_ptr.get(), N, C, L);
+                      token_grad_ptr.get(), batch_size, channels, len);
 #else
       throw std::runtime_error("CUDA support for ClassTokenLayer not implemented");
 #endif

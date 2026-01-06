@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 
+#include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -29,14 +30,13 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    // CIFAR100DataLoader<float> train_loader, test_loader;
     TinyImageNetDataLoader<float> train_loader, test_loader;
-    create_tiny_image_loader("./data/tiny-imagenet-200", train_loader, test_loader);
+    TinyImageNetDataLoader<float>::create("./data/tiny-imagenet-200", train_loader, test_loader);
 
     size_t patch_size = 4;
     size_t embed_dim = 64;
     size_t num_heads = 4;
-    size_t mlp_ratio = 4;
+    size_t mlp_ratio = 8;
     size_t depth = 4;
     size_t num_classes = 200;
     size_t num_patches = (64 / patch_size) * (64 / patch_size);

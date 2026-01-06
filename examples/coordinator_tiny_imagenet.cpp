@@ -138,7 +138,7 @@ int main(int argc, char *argv[]) {
   TinyImageNetDataLoader<float> train_loader, test_loader;
   std::string dataset_path = "data/tiny-imagenet-200";
 
-  create_tiny_image_loader(dataset_path, train_loader, test_loader);
+  TinyImageNetDataLoader<float>::create(dataset_path, train_loader, test_loader);
 
   auto train_aug = AugmentationBuilder<float>()
                        .horizontal_flip(0.25f)

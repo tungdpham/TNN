@@ -36,26 +36,8 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    // Create data loaders
-    TinyImageNetDataLoader<float> train_loader;
-    TinyImageNetDataLoader<float> val_loader;
-
-    // Path to Tiny ImageNet dataset
-    std::string dataset_path = "data/tiny-imagenet-200";
-
-    // Load training data
-    std::cout << "Loading training data..." << std::endl;
-    if (!train_loader.load_data(dataset_path, true)) {
-      std::cerr << "Failed to load training data!" << std::endl;
-      return 1;
-    }
-
-    // Load validation data
-    std::cout << "Loading validation data..." << std::endl;
-    if (!val_loader.load_data(dataset_path, false)) {
-      std::cerr << "Failed to load validation data!" << std::endl;
-      return 1;
-    }
+    TinyImageNetDataLoader<float> train_loader, val_loader;
+    TinyImageNetDataLoader<float>::create("data/tiny-imagenet-200", train_loader, val_loader);
 
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
     cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;

@@ -81,7 +81,7 @@ int main() {
 
   CIFAR10DataLoader<float> train_loader, test_loader;
 
-  create_cifar10_dataloader("./data", train_loader, test_loader);
+  CIFAR10DataLoader<float>::create("./data", train_loader, test_loader);
 
   auto train_transform =
       AugmentationBuilder<float>()

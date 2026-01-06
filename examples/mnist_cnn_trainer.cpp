@@ -39,7 +39,7 @@ int main() {
 
     MNISTDataLoader<float> train_loader, test_loader;
 
-    create_mnist_data_loaders("./data", train_loader, test_loader);
+    MNISTDataLoader<float>::create("./data", train_loader, test_loader);
 
     cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
     cout << "Successfully loaded test data: " << test_loader.size() << " samples" << endl;

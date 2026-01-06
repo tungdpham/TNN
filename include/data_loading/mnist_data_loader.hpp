@@ -313,18 +313,17 @@ public:
    * Check if batches are prepared
    */
   bool are_batches_prepared() const override { return batches_prepared_; }
+
+  static void create(std::string data_path, MNISTDataLoader<T> &train_loader,
+                     MNISTDataLoader<T> &test_loader) {
+    if (!train_loader.load_data(data_path + "/mnist/train.csv")) {
+      throw std::runtime_error("Failed to load training data!");
+    }
+
+    if (!test_loader.load_data(data_path + "/mnist/test.csv")) {
+      throw std::runtime_error("Failed to load test data!");
+    }
+  }
 };
-
-template <typename T = float>
-void create_mnist_data_loaders(std::string data_path, MNISTDataLoader<T> &train_loader,
-                               MNISTDataLoader<T> &test_loader) {
-  if (!train_loader.load_data(data_path + "/mnist/train.csv")) {
-    throw std::runtime_error("Failed to load training data!");
-  }
-
-  if (!test_loader.load_data(data_path + "/mnist/test.csv")) {
-    throw std::runtime_error("Failed to load test data!");
-  }
-}
 
 } // namespace tnn

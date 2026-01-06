@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 
   CIFAR100DataLoader<float> train_loader, test_loader;
 
-  create_cifar100_dataloader("./data", train_loader, test_loader);
+  CIFAR100DataLoader<float>::create("./data", train_loader, test_loader);
 
   auto train_transform = AugmentationBuilder<float>()
                              .random_crop(0.5f, 4)
