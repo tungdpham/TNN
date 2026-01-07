@@ -6,7 +6,6 @@
  */
 
 #include "nn/train.hpp"
-#include "device/device_manager.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <chrono>
 #include <iomanip>
