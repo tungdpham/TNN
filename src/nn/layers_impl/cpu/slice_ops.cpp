@@ -33,7 +33,6 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
   const char *src_byte_ptr = reinterpret_cast<const char *>(input);
   char *dst_byte_ptr = reinterpret_cast<char *>(output);
 
-  // Offset to start index
   src_byte_ptr += start * inner_size * sizeof(T);
 
   for (size_t i = 0; i < outer_size; ++i) {
@@ -46,7 +45,7 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
 template <typename T>
 void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length) {
-  // Initialize grad_input to zero
+
   size_t total_elements =
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
   std::memset(grad_input, 0, total_elements * sizeof(T));
@@ -69,7 +68,6 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
   const char *src_byte_ptr = reinterpret_cast<const char *>(gradient);
   char *dst_byte_ptr = reinterpret_cast<char *>(grad_input);
 
-  // Offset to start index in grad_input
   dst_byte_ptr += start * inner_size * sizeof(T);
 
   for (size_t i = 0; i < outer_size; ++i) {

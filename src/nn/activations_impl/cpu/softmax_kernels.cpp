@@ -17,7 +17,6 @@ void softmax(const T *input, T *output, size_t batch_size, size_t channels, size
       for (size_t w = 0; w < width; ++w) {
         const size_t spatial_idx = h * width + w;
 
-        // Find max value for numerical stability
         T max_val = input[n * batch_stride + spatial_idx];
         for (size_t c = 1; c < channels; ++c) {
           const size_t idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -27,7 +26,6 @@ void softmax(const T *input, T *output, size_t batch_size, size_t channels, size
           }
         }
 
-        // Compute exp and sum
         T sum_exp = T(0);
         for (size_t c = 0; c < channels; ++c) {
           const size_t idx = n * batch_stride + c * channel_stride + spatial_idx;
@@ -36,7 +34,6 @@ void softmax(const T *input, T *output, size_t batch_size, size_t channels, size
           sum_exp += exp_val;
         }
 
-        // Normalize
         for (size_t c = 0; c < channels; ++c) {
           const size_t idx = n * batch_stride + c * channel_stride + spatial_idx;
           output[idx] /= sum_exp;
@@ -53,7 +50,6 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
   const size_t channel_stride = spatial_size;
   const size_t batch_stride = channels * channel_stride;
 
-  // First compute softmax values from input
   T *softmax_values = new T[batch_size * channels * spatial_size];
   softmax(input, softmax_values, batch_size, channels, height, width);
 
@@ -62,14 +58,12 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
       for (size_t w = 0; w < width; ++w) {
         const size_t spatial_idx = h * width + w;
 
-        // Compute dot product
         T dot_product = T(0);
         for (size_t j = 0; j < channels; ++j) {
           const size_t idx = n * batch_stride + j * channel_stride + spatial_idx;
           dot_product += softmax_values[idx] * grad_output[idx];
         }
 
-        // Update gradient
         for (size_t i = 0; i < channels; ++i) {
           const size_t idx = n * batch_stride + i * channel_stride + spatial_idx;
           T s_i = softmax_values[idx];

@@ -28,13 +28,11 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
 
-        // Calculate the theoretical window in the input (implicit padding)
         long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
         long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
         long h_end = h_start + pool_h;
         long w_end = w_start + pool_w;
 
-        // Clamp the window to actual image boundaries
         long h_start_valid = std::max(0L, h_start);
         long w_start_valid = std::max(0L, w_start);
         long h_end_valid = std::min(static_cast<long>(input_h), h_end);
@@ -43,7 +41,6 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
         T max_val = MIN_VALUE;
         size_t max_idx = 0;
 
-        // Loop only over valid pixels
         for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
           for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
 
@@ -80,7 +77,6 @@ void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_
   });
 }
 
-// Explicit template instantiations
 template void compute_max_pool_forward<float>(const float *input_data, float *output_data,
                                               size_t batch_size, size_t channels, size_t input_h,
                                               size_t input_w, size_t output_h, size_t output_w,

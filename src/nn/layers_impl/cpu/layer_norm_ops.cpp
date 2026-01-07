@@ -14,7 +14,7 @@ void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta
 
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t s = 0; s < spatial_size; ++s) {
-      // 1. Calculate Mean and Variance for this spatial location across all channels
+
       T sum = 0;
       T sq_sum = 0;
       size_t base_idx = n * batch_stride + s;
@@ -32,7 +32,6 @@ void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta
       T var = sq_sum / channels;
       T inv_std = 1.0 / std::sqrt(var + epsilon);
 
-      // 2. Normalize and Scale
       for (size_t c = 0; c < channels; ++c) {
         size_t idx = base_idx + c * channel_stride;
         T val = input[idx];
@@ -53,7 +52,6 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
   size_t batch_stride = channels * spatial_size;
   size_t channel_stride = spatial_size;
 
-  // Initialize gradients
   if (grad_gamma) {
     for (size_t i = 0; i < channels; ++i)
       grad_gamma[i] = 0;
@@ -67,7 +65,6 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
     for (size_t s = 0; s < spatial_size; ++s) {
       size_t base_idx = n * batch_stride + s;
 
-      // Recompute mean and inv_std
       T sum = 0;
       T sq_sum = 0;
       for (size_t c = 0; c < channels; ++c) {
@@ -85,7 +82,6 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
       T sum_grad_normalized = 0;
       T sum_grad_gamma_normalized = 0;
 
-      // First pass: compute gradients w.r.t. normalized input, gamma, beta
       for (size_t c = 0; c < channels; ++c) {
         size_t idx = base_idx + c * channel_stride;
         T go = grad_output[idx];
@@ -98,14 +94,11 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
         if (grad_beta)
           grad_beta[c] += go;
 
-        // dx_hat = dy * gamma
         T dx_hat = go * g;
         sum_grad_normalized += dx_hat * normalized;
         sum_grad_gamma_normalized += dx_hat;
       }
 
-      // Second pass: compute gradient w.r.t input
-      // dx = (1/N * inv_std) * (N * dx_hat - sum(dx_hat) - x_hat * sum(dx_hat * x_hat))
       T factor = inv_std / channels;
       for (size_t c = 0; c < channels; ++c) {
         size_t idx = base_idx + c * channel_stride;
@@ -113,7 +106,7 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
         T normalized = (val - mean) * inv_std;
         T g = gamma ? gamma[c] : T(1);
         T go = grad_output[idx];
-        T dx_hat = go * g; // This is actually dL/dx_hat
+        T dx_hat = go * g;
 
         grad_input[idx] = factor * (channels * dx_hat - sum_grad_gamma_normalized -
                                     normalized * sum_grad_normalized);

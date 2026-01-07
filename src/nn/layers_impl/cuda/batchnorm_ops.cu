@@ -148,7 +148,6 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
   if (threadIdx.x == 0) {
     T mu = result.mean;
 
-    // Biased variance (1/N) for normalization
     T var = result.m2 / result.count;
 
     mean_out[c] = mu;
@@ -156,7 +155,6 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, T *__restrict__ 
     T inv_std = rsqrt(var + epsilon);
     inv_std_out[c] = inv_std;
 
-    // Unbiased variance (Bessel's correction: 1/(N-1)) for running statistics
     T unbiased_var = (result.count > T(1)) ? (result.m2 / (result.count - T(1))) : T(0);
 
     running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
@@ -399,7 +397,7 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
 
     T g = (affine && gamma) ? gamma[c] : T(1);
     T istd = inv_std[c];
-    // These sums represent dL/dMean and dL/dVar parts, required even if not affine
+
     T sum_dy = d_beta[c];
     T sum_dy_x_norm = d_gamma[c];
     T M = T(N * S);
@@ -465,14 +463,13 @@ __global__ void compute_inference_output_kernel(const T *input_data, const T *ru
                                                 const T *beta_data, T *output_data,
                                                 size_t batch_size, size_t channels,
                                                 size_t spatial_size, T epsilon, bool affine) {
-  // Use shared memory to cache per-channel statistics (mean, inv_std, gamma, beta)
+
   extern __shared__ char shared_mem[];
   T *s_mean = reinterpret_cast<T *>(shared_mem);
   T *s_inv_std = s_mean + channels;
   T *s_gamma = s_inv_std + channels;
   T *s_beta = s_gamma + channels;
 
-  // Cooperatively load per-channel statistics into shared memory
   for (int c = threadIdx.x; c < channels; c += blockDim.x) {
     s_mean[c] = running_mean_data[c];
     T var_val = running_var_data[c];
@@ -562,7 +559,6 @@ void compute_inference_output(const T *input_data, const T *running_mean_data,
   int threads_per_block = BLOCK_SIZE;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
-  // Shared memory: mean, inv_std, gamma, beta (4 arrays of size channels)
   size_t shared_mem_size = 4 * channels * sizeof(T);
 
   compute_inference_output_kernel<<<num_blocks, threads_per_block, shared_mem_size, stream>>>(

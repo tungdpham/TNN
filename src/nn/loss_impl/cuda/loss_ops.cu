@@ -133,25 +133,21 @@ __global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *ta
   if (batch_idx >= batch_size)
     return;
 
-  // Find max logit for numerical stability
   T max_logit = logits[batch_idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
     max_logit = fmax(max_logit, logits[batch_idx * num_classes + j]);
   }
 
-  // Compute log-sum-exp
   T sum_exp = T(0);
   for (size_t j = 0; j < num_classes; ++j) {
     sum_exp += exp(logits[batch_idx * num_classes + j] - max_logit);
   }
   T log_sum_exp = log(sum_exp) + max_logit;
 
-  // Compute loss (negative log likelihood)
   T batch_loss = T(0);
   for (size_t j = 0; j < num_classes; ++j) {
     if (targets[batch_idx * num_classes + j] > T(0.5)) {
-      // log_softmax = logit - log_sum_exp
-      // CrossEntropy = -target * log_softmax = -(logit - log_sum_exp)
+
       batch_loss = log_sum_exp - logits[batch_idx * num_classes + j];
       break;
     }
@@ -172,19 +168,16 @@ __global__ void logsoftmax_crossentropy_gradient_kernel(const T *logits, const T
   int batch_idx = idx / num_classes;
   int class_idx = idx % num_classes;
 
-  // Find max logit for numerical stability
   T max_logit = logits[batch_idx * num_classes];
   for (size_t j = 1; j < num_classes; ++j) {
     max_logit = fmax(max_logit, logits[batch_idx * num_classes + j]);
   }
 
-  // Compute sum_exp
   T sum_exp = T(0);
   for (size_t j = 0; j < num_classes; ++j) {
     sum_exp += exp(logits[batch_idx * num_classes + j] - max_logit);
   }
 
-  // Gradient: softmax(logit) - target
   T softmax_prob = exp(logits[batch_idx * num_classes + class_idx] - max_logit) / sum_exp;
   gradient[batch_idx * num_classes + class_idx] =
       (softmax_prob - targets[batch_idx * num_classes + class_idx]) * inv_batch_size;

@@ -41,13 +41,12 @@ template <typename T> __inline__ __device__ T blockReduceSum(T val) {
   return val;
 }
 
-// Compute statistics per group: each block handles one group (n, g)
 template <typename T>
 __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restrict__ mean_out,
                                          T *__restrict__ inv_std_out, size_t N, size_t C, size_t S,
                                          size_t num_groups, T epsilon) {
 
-  size_t group_idx = blockIdx.x; // Each block handles one (n, g) pair
+  size_t group_idx = blockIdx.x;
   size_t n = group_idx / num_groups;
   size_t g = group_idx % num_groups;
 
@@ -60,7 +59,6 @@ __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restr
 
   T sum = T(0);
 
-  // First pass: compute mean for this group
   for (size_t i = threadIdx.x; i < group_size; i += blockDim.x) {
     size_t c_in_group = i / S;
     size_t s = i % S;
@@ -71,7 +69,6 @@ __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restr
 
   sum = blockReduceSum(sum);
 
-  // Broadcast mean to all threads
   __shared__ T shared_mean;
   if (threadIdx.x == 0) {
     T inv_group_size = T(1) / T(group_size);
@@ -82,7 +79,6 @@ __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restr
   __syncthreads();
   T mu = shared_mean;
 
-  // Second pass: compute variance
   T var_sum = T(0);
   for (size_t i = threadIdx.x; i < group_size; i += blockDim.x) {
     size_t c_in_group = i / S;
@@ -103,7 +99,6 @@ __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restr
   }
 }
 
-// Apply normalization: each thread handles one element
 template <typename T>
 __global__ void fused_group_apply_kernel(const T *__restrict__ input, const T *__restrict__ mean,
                                          const T *__restrict__ inv_std, const T *__restrict__ gamma,
@@ -138,7 +133,6 @@ __global__ void fused_group_apply_kernel(const T *__restrict__ input, const T *_
   }
 }
 
-// Reduce gradients per channel for parameter updates
 template <typename T>
 __global__ void fused_group_backward_reduce_kernel(const T *__restrict__ grad_output,
                                                    const T *__restrict__ normalized_input,
@@ -177,7 +171,6 @@ __global__ void fused_group_backward_reduce_kernel(const T *__restrict__ grad_ou
   }
 }
 
-// Compute input gradients per group
 template <typename T>
 __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_output,
                                                   const T *__restrict__ normalized_input,
@@ -186,7 +179,7 @@ __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_out
                                                   T *__restrict__ grad_input, size_t N, size_t C,
                                                   size_t S, size_t num_groups, bool affine) {
 
-  size_t group_idx = blockIdx.x; // Each block handles one (n, g) pair
+  size_t group_idx = blockIdx.x;
   size_t n = group_idx / num_groups;
   size_t g = group_idx % num_groups;
 
@@ -199,7 +192,6 @@ __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_out
 
   T istd = inv_std[group_idx];
 
-  // Compute sums over the group
   T sum_dy = T(0);
   T sum_dy_x_norm = T(0);
 
@@ -220,7 +212,6 @@ __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_out
   sum_dy = blockReduceSum(sum_dy);
   sum_dy_x_norm = blockReduceSum(sum_dy_x_norm);
 
-  // Broadcast sums
   __shared__ T shared_sum_dy;
   __shared__ T shared_sum_dy_x_norm;
   if (threadIdx.x == 0) {
@@ -231,7 +222,6 @@ __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_out
   sum_dy = shared_sum_dy;
   sum_dy_x_norm = shared_sum_dy_x_norm;
 
-  // Compute gradients for each element in the group
   T inv_group_size = T(1) / T(group_size);
 
   for (size_t i = threadIdx.x; i < group_size; i += blockDim.x) {

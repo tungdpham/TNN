@@ -13,7 +13,6 @@ namespace tnn {
 namespace cpu {
 namespace groupnorm {
 
-// Fused forward: compute mean, inv_std per group, normalize
 template <typename T>
 void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, const T *beta,
                        T *output, T *norm_cache, size_t N, size_t C, size_t S, size_t num_groups,
@@ -23,12 +22,10 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
   const size_t channel_stride = C * S;
   const T inv_group_size = T(1) / static_cast<T>(group_size);
 
-  // Pass 1: Compute mean and inv_std per group
   parallel_for_2d(N, num_groups, [&](size_t n, size_t g) {
     T sum = T(0);
     const size_t n_offset = n * channel_stride;
 
-    // First pass: compute mean for this group
     for (size_t c = 0; c < channels_per_group; ++c) {
       const size_t c_offset = (g * channels_per_group + c) * S;
       const T *input_ptr = input + n_offset + c_offset;
@@ -42,7 +39,6 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
     const size_t group_idx = n * num_groups + g;
     mean[group_idx] = mu;
 
-    // Second pass: compute variance
     T var_sum = T(0);
     for (size_t c = 0; c < channels_per_group; ++c) {
       const size_t c_offset = (g * channels_per_group + c) * S;
@@ -58,7 +54,6 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
     inv_std[group_idx] = T(1) / std::sqrt(var + epsilon);
   });
 
-  // Pass 2: Apply normalization
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const size_t g = c / channels_per_group;
     const size_t group_idx = n * num_groups + g;
@@ -89,7 +84,6 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
   });
 }
 
-// Fused backward: compute gradients using inv_std
 template <typename T>
 void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
@@ -100,7 +94,7 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   const T inv_group_size = T(1) / static_cast<T>(group_size);
 
   if (affine) {
-    // Pass 1: Compute parameter gradients per channel
+
     parallel_for<size_t>(0, C, [&](size_t c) {
       T sum_dy = T(0);
       T sum_dy_x_norm = T(0);
@@ -125,13 +119,11 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
     });
   }
 
-  // Pass 2: Compute input gradients per group
   parallel_for_2d(N, num_groups, [&](size_t n, size_t g) {
     const size_t group_idx = n * num_groups + g;
     const T istd = inv_std[group_idx];
     const size_t n_offset = n * channel_stride;
 
-    // Compute sums over the group
     T sum_dy = T(0);
     T sum_dy_x_norm = T(0);
 
@@ -151,7 +143,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
       }
     }
 
-    // Compute gradients for each element in the group
     for (size_t c = 0; c < channels_per_group; ++c) {
       const size_t global_c = g * channels_per_group + c;
       const T gamma_val = (affine && gamma) ? gamma[global_c] : T(1);
@@ -165,8 +156,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
         T dy = grad_output[idx];
         T x_hat = norm_input[idx];
 
-        // GroupNorm backward formula: dx = (1/M) * (gamma / std) * (M * dy - sum_dy - x_hat *
-        // sum_dy_x_norm)
         T term2 = static_cast<T>(group_size) * dy * gamma_val - sum_dy - (x_hat * sum_dy_x_norm);
         grad_input[idx] = term1 * term2;
       }

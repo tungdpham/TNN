@@ -34,8 +34,6 @@ void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t row
   cudnnTensorDescriptor_t desc;
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&desc));
 
-  // We treat the input as [rows, cols, 1, 1]
-  // Softmax mode CHANNEL will normalize over 'cols' dimension for each 'row'.
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW, get_cudnn_data_type<T>(), rows,
                                          cols, 1, 1));
 
@@ -68,7 +66,6 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
   CHECK_CUDNN(cudnnDestroyTensorDescriptor(desc));
 }
 
-// Explicit instantiations
 template void softmax_forward<float>(cudnnHandle_t handle, const float *input, float *output,
                                      size_t rows, size_t cols, cudaStream_t stream);
 

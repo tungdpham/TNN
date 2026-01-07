@@ -14,7 +14,6 @@ namespace tnn {
 namespace cuda {
 namespace cudnn_batchnorm {
 
-// Helper for cuDNN error checking
 #define CHECK_CUDNN(status)                                                                        \
   {                                                                                                \
     if (status != CUDNN_STATUS_SUCCESS) {                                                          \
@@ -107,7 +106,6 @@ void run_backward(BatchNormHandle *handle, const T *input, const T *grad_output,
       grad_bnScale, grad_bnBias, epsilon, save_mean, save_inv_var));
 }
 
-// Explicit instantiations
 template void run_forward_training<float>(BatchNormHandle *handle, const float *input,
                                           const float *bnScale, const float *bnBias, float *output,
                                           float *running_mean, float *running_var, float *save_mean,

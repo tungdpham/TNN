@@ -32,13 +32,11 @@ compute_max_pool_forward_kernel(const T *input_data, T *output_data, size_t batc
 
   const size_t input_offset = (n * channels + c) * input_h * input_w;
 
-  // Calculate the theoretical window in the input (implicit padding)
   long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
   long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
   long h_end = h_start + pool_h;
   long w_end = w_start + pool_w;
 
-  // Clamp the window to actual image boundaries
   long h_start_valid = max(0L, h_start);
   long w_start_valid = max(0L, w_start);
   long h_end_valid = min(static_cast<long>(input_h), h_end);
@@ -47,7 +45,6 @@ compute_max_pool_forward_kernel(const T *input_data, T *output_data, size_t batc
   T max_val = -INFINITY;
   size_t max_idx = 0;
 
-  // Loop only over valid pixels
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
     for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
       const size_t cur_input_idx = input_offset + ih * input_w + iw;

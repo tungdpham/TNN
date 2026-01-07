@@ -76,7 +76,7 @@ __global__ void slice_backward_kernel(const T *gradient, T *grad_input, size_t o
 template <typename T>
 void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length, cudaStream_t stream) {
-  // Initialize grad_input to zero
+
   size_t full_size = 1;
   for (size_t s : input_shape)
     full_size *= s;
@@ -124,4 +124,4 @@ template void slice_backward<double>(const double *gradient, double *grad_input,
 } // namespace cuda
 } // namespace tnn
 
-#endif // USE_CUDA
+#endif

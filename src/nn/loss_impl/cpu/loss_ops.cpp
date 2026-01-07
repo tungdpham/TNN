@@ -14,7 +14,6 @@ namespace tnn {
 namespace cpu {
 namespace loss {
 
-// CrossEntropy Loss Implementation
 template <typename T>
 void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
                                const size_t batch_size, const size_t num_classes, T epsilon) {
@@ -44,7 +43,6 @@ void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gr
   });
 }
 
-// Softmax CrossEntropy Loss Implementation
 template <typename T>
 void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
                                        const size_t batch_size, const size_t num_classes) {
@@ -98,7 +96,6 @@ void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T 
   }
 }
 
-// MSE Loss Implementation
 template <typename T>
 void compute_mse_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
                       const size_t output_size) {
@@ -124,31 +121,27 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
   });
 }
 
-// LogSoftmax CrossEntropy Loss Implementation
 template <typename T>
 void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
                                           const size_t batch_size, const size_t num_classes) {
   double total_loss = 0.0;
 
   for (size_t i = 0; i < batch_size; ++i) {
-    // Find max for numerical stability
+
     T max_logit = logits[i * num_classes];
     for (size_t j = 1; j < num_classes; ++j) {
       max_logit = std::max(max_logit, logits[i * num_classes + j]);
     }
 
-    // Compute log-sum-exp
     double sum_exp = 0.0;
     for (size_t j = 0; j < num_classes; ++j) {
       sum_exp += std::exp(static_cast<double>(logits[i * num_classes + j] - max_logit));
     }
     const T log_sum_exp = static_cast<T>(std::log(sum_exp)) + max_logit;
 
-    // Compute loss (negative log likelihood)
     for (size_t j = 0; j < num_classes; ++j) {
       if (targets[i * num_classes + j] > static_cast<T>(0.5)) {
-        // log_softmax = logit - log_sum_exp
-        // CrossEntropy = -target * log_softmax = -(logit - log_sum_exp)
+
         total_loss += static_cast<double>(log_sum_exp - logits[i * num_classes + j]);
         break;
       }
@@ -164,19 +157,17 @@ void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets,
   const T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
   for (size_t i = 0; i < batch_size; ++i) {
-    // Find max for numerical stability
+
     T max_logit = logits[i * num_classes];
     for (size_t j = 1; j < num_classes; ++j) {
       max_logit = std::max(max_logit, logits[i * num_classes + j]);
     }
 
-    // Compute sum_exp
     double sum_exp = 0.0;
     for (size_t j = 0; j < num_classes; ++j) {
       sum_exp += std::exp(static_cast<double>(logits[i * num_classes + j] - max_logit));
     }
 
-    // Gradient: softmax(logit) - target
     parallel_for<size_t>(0, num_classes, [&](size_t j) {
       const T softmax_prob = static_cast<T>(
           std::exp(static_cast<double>(logits[i * num_classes + j] - max_logit)) / sum_exp);
@@ -186,7 +177,6 @@ void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets,
   }
 }
 
-// MAE Loss Implementation
 template <typename T>
 void compute_mae_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
                       const size_t output_size) {
@@ -212,7 +202,6 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
   });
 }
 
-// Huber Loss Implementation
 template <typename T>
 void compute_huber_loss(const T *predictions, const T *targets, T &loss, const size_t batch_size,
                         const size_t output_size, T delta) {
@@ -249,7 +238,6 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
   });
 }
 
-// Explicit template instantiations
 template void compute_crossentropy_loss<float>(const float *predictions, const float *targets,
                                                float &loss, const size_t batch_size,
                                                const size_t num_classes, float epsilon);

@@ -66,7 +66,6 @@ void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_s
   });
 }
 
-// Explicit template instantiations
 template void compute_conv_forward<float>(const float *col_data, const float *weight_data,
                                           float *output_data, const size_t output_size,
                                           const size_t kernel_size, const size_t out_channels);
