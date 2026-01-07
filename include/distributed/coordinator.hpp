@@ -15,7 +15,6 @@
 #include "communicator.hpp"
 #include "partitioner/partitioner.hpp"
 #include "profiling/event.hpp"
-#include "profiling/profiler_aggregator.hpp"
 #include "stage_config.hpp"
 
 #include <atomic>
@@ -366,7 +365,7 @@ public:
    * @brief Requests all stages to start profiling.
    */
   void start_profiling() {
-    ProfilerAggregator::instance().set_global_start_time(Clock::now());
+    Profiler::instance().init_start_time(Clock::now());
     for (const auto &stage_name : this->stage_names_) {
       Message start_msg(stage_name, CommandType::START_PROFILING, std::monostate{});
       start_msg.header().sender_id = "coordinator";
@@ -395,20 +394,20 @@ public:
     std::vector<Message> profiling_messages =
         this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
-    auto &aggregator = ProfilerAggregator::instance();
+    auto &aggregator = Profiler::instance();
     for (const auto &msg : profiling_messages) {
       if (msg.has_type<Profiler>()) {
         const Profiler &profiler = msg.get<Profiler>();
-        aggregator.add_profiler(profiler);
+        aggregator.merge(profiler);
       }
     }
 
     aggregator.sort();
 
-    for (auto &event : aggregator.get_aggregated_events()) {
+    for (auto &event : aggregator.get_events()) {
       Clock::time_point start_time = event.start_time;
       Clock::time_point end_time = event.end_time;
-      Clock::duration offset = aggregator.get_global_start_time().time_since_epoch();
+      Clock::duration offset = aggregator.start_time().time_since_epoch();
       start_time -= offset;
       end_time -= offset;
       logger_.info(

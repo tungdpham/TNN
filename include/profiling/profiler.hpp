@@ -52,6 +52,19 @@ public:
     return *this;
   }
 
+  void merge(const Profiler &other) {
+    std::lock_guard<std::mutex> other_lock(other.event_mutex_);
+    std::lock_guard<std::mutex> this_lock(event_mutex_);
+    auto duration = other.start_time() - this->start_time();
+    const auto &events = other.get_events();
+    for (const auto &event : events) {
+      Event adjusted_event = event;
+      adjusted_event.start_time -= duration;
+      adjusted_event.end_time -= duration;
+      events_.push_back(adjusted_event);
+    }
+  }
+
   void add_event(const Event &event) {
     std::lock_guard<std::mutex> lock(event_mutex_);
     events_.push_back(event);
