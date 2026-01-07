@@ -30,12 +30,13 @@ void ActivationLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size
 
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   if (it_input != micro_batch_inputs_.end()) {
+    it_input->second.ensure(current->shape(), this->device_);
     ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size());
   } else {
     micro_batch_inputs_[micro_batch_id] = current->clone();
   }
 
-  output.ensure(current->shape());
+  output.ensure(current->shape(), this->device_);
   activation_->apply(*current, output);
 }
 
@@ -48,21 +49,15 @@ void ActivationLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inp
     device_gradient = gradient.to_device(this->device_);
     current_gradient = &device_gradient;
   }
-  grad_input.ensure(gradient.shape());
 
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   if (it_input == micro_batch_inputs_.end()) {
     throw std::runtime_error("Input for micro batch not found");
   }
   const Tensor<T> &input = it_input->second;
-  const Tensor<T> *current_input = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current_input = &device_input;
-  }
+  grad_input.ensure(input.shape(), this->device_);
 
-  activation_->compute_gradient(*current_input, *current_gradient, grad_input);
+  activation_->compute_gradient(input, *current_gradient, grad_input);
 }
 
 template <typename T> std::string ActivationLayer<T>::type() const { return "activation"; }

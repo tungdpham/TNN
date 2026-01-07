@@ -515,22 +515,16 @@ public:
       throw std::invalid_argument("ensure: New shape size must match tensor dims size");
     }
     if (new_device != nullptr && new_device != device_) {
-      // Change device
       device_ = new_device;
-      data_.reset();
       std::copy(new_shape.begin(), new_shape.end(), shape_);
       data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
       layout_trait_.compute_strides();
-      // std::cout << "Ensuring tensor on new device. New size: " << data_size_ << std::endl;
       allocate_data(data_size_);
       return;
     }
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size > data_.capacity()) {
-      // std::cout << "Ensuring tensor resize from " << data_.capacity() << " to " << new_size
-      //           << std::endl;
-      data_.reset();
       allocate_data(new_size);
     }
     data_size_ = new_size;

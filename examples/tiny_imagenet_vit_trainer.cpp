@@ -50,7 +50,7 @@ int main() {
     size_t embed_dim = 256;
     size_t num_heads = 4;
     size_t mlp_ratio = 4;
-    size_t depth = 4;
+    size_t depth = 1;
     size_t num_classes = 200;
     size_t num_patches = (64 / patch_size) * (64 / patch_size);
     size_t seq_len = num_patches + 1;

@@ -110,7 +110,8 @@ protected:
                                                                   size_t out_channels = 1) {
     std::vector<std::unique_ptr<Layer<float>>> layers;
     // Use a 1x1 conv with specific initialization to act as a simple linear transformation
-    auto layer = conv2d_layer<float>(in_channels, out_channels, 1, 1, 1, 1, 0, 0, false, name);
+    auto layer = std::make_unique<Conv2DLayer<float>>(in_channels, out_channels, 1, 1, 1, 1, 0, 0,
+                                                      false, name);
     layer->set_device(cpu_device_);
     layer->initialize();
 

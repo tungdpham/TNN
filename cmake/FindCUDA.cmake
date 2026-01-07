@@ -109,7 +109,7 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
 
 set(CMAKE_CUDA_FLAGS "--compiler-options -fPIC" CACHE STRING "CUDA compile flags")
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3" CACHE STRING "CUDA release flags")
-set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g" CACHE STRING "CUDA debug flags")
+set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g -Xcompiler -fsanitize=address -fdevice-sanitize=memcheck" CACHE STRING "CUDA debug flags")
 
 message(STATUS "Set CMAKE_CUDA_ARCHITECTURES to: ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")

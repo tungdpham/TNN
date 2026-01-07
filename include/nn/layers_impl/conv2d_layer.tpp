@@ -324,7 +324,6 @@ void Conv2DLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor<T>
   const size_t output_h = current_gradient->height();
   const size_t output_w = current_gradient->width();
 
-  // Tensor<T> &grad_input = this->get_buffer(input_shape);
   grad_input.ensure(input_shape, this->device_);
   grad_input.fill(T(0));
 

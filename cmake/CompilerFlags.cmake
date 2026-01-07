@@ -23,8 +23,15 @@ elseif(MINGW)
 else()
     message(STATUS "Configuring GCC/Clang compiler flags")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3 -march=native -flto=auto -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fverbose-asm -march=native -fsanitize=address,undefined -fno-omit-frame-pointer")
-    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined")
+    set(CMAKE_CXX_FLAGS_DEBUG "-O0 -g -fverbose-asm -march=native -fno-omit-frame-pointer")
+
+    if(NOT ENABLE_CUDA)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address,undefined")
+        set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} -fsanitize=address,undefined")
+    else()
+        message(STATUS "Disabling AddressSanitizer (ASan) for CUDA Debug build to avoid runtime conflicts")
+    endif()
+    
     add_compile_options(
         -Wall 
         $<$<NOT:$<COMPILE_LANGUAGE:CUDA>>:-Wpedantic>

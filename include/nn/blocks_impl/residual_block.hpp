@@ -181,6 +181,7 @@ public:
       ops::copy(current_gradient->data_ptr(), it_grad_act->second.data_ptr(),
                 current_gradient->size());
     }
+
     if (final_activation_) {
       final_activation_->compute_gradient(it_pre_act->second, it_grad_act->second,
                                           it_grad_act->second);

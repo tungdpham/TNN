@@ -5,9 +5,11 @@
  * project root for the full license text.
  */
 
+#include "nn/blocks_impl/full_attention_block.hpp"
 #include "nn/layers.hpp"
 #include "tensor/tensor.hpp"
 #include <gtest/gtest.h>
+#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -23,7 +25,7 @@ TEST(FullAttentionBlockTest, ForwardPassCPU) {
   Tensor<float> input({batch_size, embed_dim, H, W}, &getCPU());
   input.fill_random_uniform(-1.0f, 1.0f);
 
-  auto attention = full_attention_block<float>(embed_dim, num_heads, "attn");
+  auto attention = std::make_unique<FullAttentionBlock<float>>(embed_dim, num_heads, "attn");
   attention->initialize();
 
   Tensor<float> output;
