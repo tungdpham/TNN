@@ -95,8 +95,6 @@ void run_backward(BatchNormHandle *handle, const T *input, const T *grad_output,
                   const T *save_inv_var, double epsilon, cudaStream_t stream) {
   CHECK_CUDNN(cudnnSetStream(handle->cudnn_handle, stream));
 
-  T alpha = 1.0;
-  T beta = 0.0;
   T alphaDataDiff = 1.0;
   T betaDataDiff = 0.0;
   T alphaParamDiff = 1.0;
