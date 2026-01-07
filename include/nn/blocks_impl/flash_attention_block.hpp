@@ -226,10 +226,6 @@ public:
     k_proj_->forward(input, k, micro_batch_id);
     v_proj_->forward(input, v, micro_batch_id);
 
-    q_cache_[micro_batch_id] = q;
-    k_cache_[micro_batch_id] = k;
-    v_cache_[micro_batch_id] = v;
-
     size_t batch_count = batch_size * num_heads_;
 
     // We need a temporary buffer for attention output before final projection
@@ -288,6 +284,29 @@ public:
       }
     }
 #endif
+    auto it_q_cache = q_cache_.find(micro_batch_id);
+    auto it_k_cache = k_cache_.find(micro_batch_id);
+    auto it_v_cache = v_cache_.find(micro_batch_id);
+    if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
+      q_cache_[micro_batch_id] = q.clone();
+    } else {
+      it_q_cache->second.ensure(q.shape(), this->device_);
+      ops::copy(q.data_ptr(), it_q_cache->second.data_ptr(), q.size());
+    }
+
+    if (k_cache_.find(micro_batch_id) == k_cache_.end()) {
+      k_cache_[micro_batch_id] = k.clone();
+    } else {
+      it_k_cache->second.ensure(k.shape(), this->device_);
+      ops::copy(k.data_ptr(), it_k_cache->second.data_ptr(), k.size());
+    }
+
+    if (v_cache_.find(micro_batch_id) == v_cache_.end()) {
+      v_cache_[micro_batch_id] = v.clone();
+    } else {
+      it_v_cache->second.ensure(v.shape(), this->device_);
+      ops::copy(v.data_ptr(), it_v_cache->second.data_ptr(), v.size());
+    }
 
     out_proj_->forward(attn_out, output, micro_batch_id);
   }
