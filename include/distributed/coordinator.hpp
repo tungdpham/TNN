@@ -410,12 +410,22 @@ public:
       Clock::duration offset = aggregator.start_time().time_since_epoch();
       start_time -= offset;
       end_time -= offset;
+
+      size_t start_ms =
+          Time::duration_cast<Time::microseconds>(start_time.time_since_epoch()).count() / 1000.0;
+      size_t end_ms =
+          Time::duration_cast<Time::microseconds>(end_time.time_since_epoch()).count() / 1000.0;
+      size_t duration_ms =
+          Time::duration_cast<Time::microseconds>(end_time - start_time).count() / 1000.0;
+
+      if (start_ms < 0 || end_ms < 0 || duration_ms < 0) {
+        continue;
+      }
+
       logger_.info(
           "Event: {}, Source: {}, Type: {}, Start: {:.1f} ms, End: {:.1f} ms, Duration: {:.1f} ms",
-          event.name, event.source, event_type_to_string(event.type),
-          (Time::duration_cast<Time::microseconds>(start_time.time_since_epoch()).count() / 1000.0),
-          (Time::duration_cast<Time::microseconds>(end_time.time_since_epoch()).count() / 1000.0),
-          (Time::duration_cast<Time::microseconds>(end_time - start_time).count() / 1000.0));
+          event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
+          duration_ms);
     }
   }
 
