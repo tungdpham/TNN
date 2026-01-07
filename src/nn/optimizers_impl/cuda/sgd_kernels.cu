@@ -12,7 +12,6 @@ namespace tnn {
 namespace cuda {
 namespace sgd {
 
-// Kernel for SGD without momentum
 template <typename T>
 __global__ void update_sgd_kernel(T *params_data, const T *grads_data, const size_t size,
                                   const float learning_rate) {
@@ -22,7 +21,6 @@ __global__ void update_sgd_kernel(T *params_data, const T *grads_data, const siz
   }
 }
 
-// Kernel for SGD with momentum
 template <typename T>
 __global__ void update_sgd_momentum_kernel(T *params_data, const T *grads_data, T *velocity_data,
                                            const size_t size, const float learning_rate,
@@ -54,7 +52,6 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
       params_data, grads_data, velocity_data, size, learning_rate, momentum);
 }
 
-// Explicit template instantiations
 template void update_sgd<float>(float *params_data, const float *grads_data, const size_t size,
                                 const float learning_rate, cudaStream_t stream);
 template void update_sgd<double>(double *params_data, const double *grads_data, const size_t size,

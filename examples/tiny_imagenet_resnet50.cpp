@@ -36,29 +36,8 @@ int main() {
     train_config.load_from_env();
     train_config.print_config();
 
-    // Create data loaders
-    TinyImageNetDataLoader<float> train_loader;
-    TinyImageNetDataLoader<float> val_loader;
-
-    // Path to Tiny ImageNet dataset
-    std::string dataset_path = "data/tiny-imagenet-200";
-
-    // Load training data
-    std::cout << "Loading training data..." << std::endl;
-    if (!train_loader.load_data(dataset_path, true)) {
-      std::cerr << "Failed to load training data!" << std::endl;
-      return 1;
-    }
-
-    // Load validation data
-    std::cout << "Loading validation data..." << std::endl;
-    if (!val_loader.load_data(dataset_path, false)) {
-      std::cerr << "Failed to load validation data!" << std::endl;
-      return 1;
-    }
-
-    cout << "Successfully loaded training data: " << train_loader.size() << " samples" << endl;
-    cout << "Successfully loaded validation data: " << val_loader.size() << " samples" << endl;
+    TinyImageNetDataLoader<float> train_loader, val_loader;
+    TinyImageNetDataLoader<float>::create("data/tiny-imagenet-200", train_loader, val_loader);
 
     auto train_aug = AugmentationBuilder<float>()
                          .random_crop(1.0f, 4)
@@ -67,16 +46,12 @@ int main() {
                          .brightness(0.2f)
                          .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                          .build();
-    cout << "Configuring data augmentation for training." << endl;
     train_loader.set_augmentation(std::move(train_aug));
 
     auto val_aug = AugmentationBuilder<float>()
                        .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
-    cout << "Configuring data normalization for validation." << endl;
     val_loader.set_augmentation(std::move(val_aug));
-
-    cout << "Building ResNet-50 model architecture for Tiny ImageNet..." << endl;
 
     auto model = create_resnet50_tiny_imagenet();
 
@@ -91,7 +66,6 @@ int main() {
 
     auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
 
-    cout << "Starting Tiny ImageNet ResNet training..." << endl;
     train_classification_model(model, train_loader, val_loader, std::move(optimizer),
                                std::move(loss_function), std::move(scheduler), train_config);
 

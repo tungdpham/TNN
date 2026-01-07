@@ -19,9 +19,10 @@ namespace tnn {
 template <typename T = float> class FlattenLayer : public StatelessLayer<T> {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
+  int start_dim_;
 
 public:
-  explicit FlattenLayer(const std::string &name = "flatten");
+  explicit FlattenLayer(int start_dim = 1, const std::string &name = "flatten");
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,

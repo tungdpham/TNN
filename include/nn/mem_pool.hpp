@@ -33,15 +33,16 @@ public:
       }
       ++it;
     }
+    if (required_bytes > 0)
+      std::cout << "MemPool: Allocating new tensor of size " << required_bytes << " bytes.\n";
 
-    std::cout << "MemPool: Allocating new tensor of size " << required_bytes << " bytes.\n";
     return Tensor<T>(shape, device);
   }
 
   void release(Tensor<T> &&tensor) {
     std::lock_guard<std::mutex> lock(mutex_);
     size_t type_size = tensor.capacity() * sizeof(T);
-    MemBlock block{std::move(tensor)};
+    MemBlock block(std::move(tensor));
     free_blocks_.emplace(type_size, std::move(block));
   }
 

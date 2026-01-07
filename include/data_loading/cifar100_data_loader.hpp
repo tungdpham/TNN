@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "data_augmentation/augmentation.hpp"
 #include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
@@ -304,7 +303,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_image_shape() const override {
+  std::vector<size_t> get_data_shape() const override {
     return {cifar100_constants::NUM_CHANNELS, cifar100_constants::IMAGE_HEIGHT,
             cifar100_constants::IMAGE_WIDTH};
   }
@@ -489,21 +488,20 @@ public:
       std::cout << "First image mean pixel value: " << mean << std::endl;
     }
   }
+
+  static void create(const std::string &data_path, CIFAR100DataLoader<T> &train_loader,
+                     CIFAR100DataLoader<T> &test_loader) {
+    std::string train_file = data_path + "/cifar-100-binary/train.bin";
+    std::string test_file = data_path + "/cifar-100-binary/test.bin";
+
+    if (!train_loader.load_data(train_file)) {
+      throw std::runtime_error("Failed to load CIFAR-100 training data from " + train_file);
+    }
+
+    if (!test_loader.load_data(test_file)) {
+      throw std::runtime_error("Failed to load CIFAR-100 test data from " + test_file);
+    }
+  }
 };
-
-template <typename T = float>
-void create_cifar100_dataloader(const std::string &data_path, CIFAR100DataLoader<T> &train_loader,
-                                CIFAR100DataLoader<T> &test_loader) {
-  std::string train_file = data_path + "/cifar-100-binary/train.bin";
-  std::string test_file = data_path + "/cifar-100-binary/test.bin";
-
-  if (!train_loader.load_data(train_file)) {
-    throw std::runtime_error("Failed to load CIFAR-100 training data from " + train_file);
-  }
-
-  if (!test_loader.load_data(test_file)) {
-    throw std::runtime_error("Failed to load CIFAR-100 test data from " + test_file);
-  }
-}
 
 } // namespace tnn

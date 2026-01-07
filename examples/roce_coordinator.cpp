@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 
   CIFAR100DataLoader<float> train_loader, test_loader;
 
-  create_cifar100_dataloader("./data", train_loader, test_loader);
+  CIFAR100DataLoader<float>::create("./data", train_loader, test_loader);
 
   auto train_transform = AugmentationBuilder<float>()
                              .random_crop(0.5f, 4)
@@ -124,13 +124,11 @@ int main(int argc, char *argv[]) {
                              .cutout(0.5f, 8)
                              .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
                              .build();
-  std::cout << "Configuring data augmentation for training." << std::endl;
   train_loader.set_augmentation(std::move(train_transform));
 
   auto val_transform = AugmentationBuilder<float>()
                            .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
                            .build();
-  cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(std::move(val_transform));
 
   Sequential<float> model = create_wrn16_8_cifar100();

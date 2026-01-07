@@ -43,19 +43,18 @@ function(detect_gpu_arch)
     if(CMAKE_CUDA_COMPILER)
         set(CUDA_DETECT_FILE "${CMAKE_BINARY_DIR}/detect_cuda_arch.cu")
         file(WRITE ${CUDA_DETECT_FILE}
-"#include <cuda_runtime.h>
-#include <iostream>
-int main() {
-    int deviceCount;
-    cudaGetDeviceCount(&deviceCount);
-    if (deviceCount > 0) {
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, 0);
-        std::cout << prop.major << prop.minor << std::endl;
-    }
-    return 0;
-}")
-        
+            "#include <cuda_runtime.h>
+            #include <iostream>
+            int main() {
+                int deviceCount;
+                cudaGetDeviceCount(&deviceCount);
+                if (deviceCount > 0) {
+                    cudaDeviceProp prop;
+                    cudaGetDeviceProperties(&prop, 0);
+                    std::cout << prop.major << prop.minor << std::endl;
+                }
+                return 0;
+            }")
         try_run(CUDA_DETECT_RUN_RESULT CUDA_DETECT_COMPILE_RESULT
             ${CMAKE_BINARY_DIR} ${CUDA_DETECT_FILE}
             CMAKE_FLAGS "-DCMAKE_CUDA_STANDARD=17"
@@ -70,16 +69,11 @@ int main() {
             return()
         endif()
     endif()
-    
-    # Final fallback to common architectures
-    message(WARNING "Could not auto-detect GPU architecture. Using fallback sm_75 (compatible with most modern GPUs)")
-    set(DETECTED_CUDA_ARCH "sm_75" PARENT_SCOPE)
-    set(DETECTED_CUDA_ARCH_NUMBER "75" PARENT_SCOPE)
 endfunction()
 
 # Allow manual override via command line: -DCUDA_ARCH=sm_86
-# You can also limit max architecture: -DCUDA_ARCH_MAX=89
 set(CUDA_ARCH_MAX "89" CACHE STRING "Maximum CUDA architecture number to target")
+
 if(NOT DEFINED CUDA_ARCH)
     detect_gpu_arch()
     set(CUDA_ARCH ${DETECTED_CUDA_ARCH})
@@ -109,7 +103,7 @@ set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
 
 set(CMAKE_CUDA_FLAGS "--compiler-options -fPIC" CACHE STRING "CUDA compile flags")
 set(CMAKE_CUDA_FLAGS_RELEASE "-O3" CACHE STRING "CUDA release flags")
-set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g" CACHE STRING "CUDA debug flags")
+set(CMAKE_CUDA_FLAGS_DEBUG "-O0 -g -Xcompiler -fsanitize=address -fdevice-sanitize=memcheck" CACHE STRING "CUDA debug flags")
 
 message(STATUS "Set CMAKE_CUDA_ARCHITECTURES to: ${CMAKE_CUDA_ARCHITECTURES}")
 message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")
@@ -132,7 +126,7 @@ if(NOT DEFINED ENABLE_CUDNN OR ENABLE_CUDNN)
             IMPORTED_LOCATION ${CUDNN_LIBRARY}
         )
     else()
-        message(STATUS "cuDNN library not found. Using GEMM-based convolution fallback.")
+        message(STATUS "cuDNN library not found.")
         set(ENABLE_CUDNN OFF CACHE BOOL "Enable cuDNN support (requires CUDA)" FORCE)
     endif()
 endif()

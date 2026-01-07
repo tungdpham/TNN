@@ -4,10 +4,10 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include "distributed/tcp_coordinator.hpp"
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
 #include "data_loading/mnist_data_loader.hpp"
-#include "distributed/network_coordinator.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -39,14 +39,14 @@ int main() {
 
   auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
-  Endpoint coordinator_endpoint = Endpoint::network(
-      Env::get<string>("COORDINATOR_HOST", "localhost"), Env::get<int>("COORDINATOR_PORT", 8000));
+  Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
+                                                Env::get<int>("COORDINATOR_PORT", 8000));
 
   vector<Endpoint> endpoints = {
-      Endpoint::network(Env::get<string>("WORKER1_HOST", "localhost"),
-                        Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(Env::get<string>("WORKER2_HOST", "localhost"),
-                        Env::get<int>("WORKER2_PORT", 8002)),
+      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
+                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(Env::get<string>("WORKER2_HOST", "localhost"),
+                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
@@ -55,7 +55,6 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  cout << "Creating distributed coordinator." << endl;
   NetworkCoordinator coordinator("coordinator", move(model), move(optimizer), coordinator_endpoint,
                                  endpoints);
 
@@ -81,7 +80,7 @@ int main() {
 
   CIFAR10DataLoader<float> train_loader, test_loader;
 
-  create_cifar10_dataloader("./data", train_loader, test_loader);
+  CIFAR10DataLoader<float>::create("./data", train_loader, test_loader);
 
   auto train_transform =
       AugmentationBuilder<float>()
@@ -90,16 +89,13 @@ int main() {
           .cutout(0.5f, 8)
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  cout << "Configuring data augmentation for training." << endl;
   train_loader.set_augmentation(move(train_transform));
 
   auto val_transform =
       AugmentationBuilder<float>()
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  cout << "Configuring data normalization for test." << endl;
   test_loader.set_augmentation(move(val_transform));
-  Tensor<float> batch_data, batch_labels;
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 

@@ -8,6 +8,7 @@
 
 #include "device/device_type.hpp"
 #include "distributed/command_type.hpp"
+#include "distributed/job_pool.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
@@ -15,9 +16,12 @@
 #include "job.hpp"
 #include "load_tracker.hpp"
 #include "message.hpp"
+#include "profiling/event.hpp"
+#include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "utils/hardware_info.hpp"
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <iostream>
@@ -88,7 +92,7 @@ public:
 
       while (communicator_->has_input_message()) {
         auto message = communicator_->dequeue_input_message();
-        this->process_message(message);
+        this->process_message(std::move(message));
       }
     }
   }
@@ -98,35 +102,51 @@ public:
   std::string name() const { return id_; }
 
 protected:
-  virtual void process_message(const Message &message) {
+  virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
-      init_pooling_message();
+      auto forward_start = std::chrono::system_clock::now();
       const PooledJob<float> &forward_job = message.get<PooledJob<float>>();
-      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      PooledJob<float> output = JobPool<float>::instance().get_job(forward_job->data.size());
       this->model_->forward(forward_job->data, output->data, forward_job->micro_batch_id);
-
-      pooled_job_message_.header().recipient_id = "next_stage";
-      pooled_job_message_.header().command_type = CommandType::FORWARD_JOB;
+      auto forward_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
       output->micro_batch_id = forward_job->micro_batch_id;
-      communicator_->send_message(pooled_job_message_);
+
+      // recycle input message
+      message.data() = MessageData(std::move(output));
+      message.header() = MessageHeader{"next_stage", CommandType::FORWARD_JOB};
+      message.header().sender_id = id_;
+
+      communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
-      init_pooling_message();
+      auto backward_start = std::chrono::system_clock::now();
       const PooledJob<float> &backward_job = message.get<PooledJob<float>>();
-
-      PooledJob<float> &output = pooled_job_message_.get<PooledJob<float>>();
+      PooledJob<float> output = JobPool<float>::instance().get_job(backward_job->data.size());
       this->model_->backward(backward_job->data, output->data, backward_job->micro_batch_id);
+      auto backward_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
 
-      pooled_job_message_.header().recipient_id = "prev_stage";
       output->micro_batch_id = backward_job->micro_batch_id;
-      pooled_job_message_.header().command_type = CommandType::BACKWARD_JOB;
-      communicator_->send_message(pooled_job_message_);
+
+      // recycle input message
+      message.data() = MessageData(std::move(output));
+      message.header() = MessageHeader{"prev_stage", CommandType::BACKWARD_JOB};
+      message.header().sender_id = id_;
+
+      communicator_->send_message(std::move(message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
+      auto update_start = std::chrono::system_clock::now();
       // implicitly clear grads
       this->optimizer_->update();
       this->optimizer_->clear_gradients();
+      auto update_end = std::chrono::system_clock::now();
+      Profiler::instance().add_event(
+          {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
       Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       response.header().sender_id = id_;
       communicator_->send_message(std::move(response));
@@ -150,9 +170,29 @@ protected:
                   << " from " << message.header().sender_id << std::endl;
       }
       break;
+    case CommandType::START_PROFILING: {
+      Profiler::instance().init_start_time(std::chrono::system_clock::now());
+      Message response(message.header().sender_id, CommandType::PROFILING_STARTED,
+                       std::monostate{});
+      response.header().sender_id = id_;
+      communicator_->send_message(std::move(response));
+      break;
+    }
+    case CommandType::REPORT_PROFILING: {
+      Message response(message.header().sender_id, CommandType::PROFILING_REPORTED,
+                       Profiler::instance());
+      response.header().sender_id = id_;
+      communicator_->send_message(std::move(response));
+      break;
+    }
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
+        auto profile_data = communicator_->get_profile_data();
+        std::cout << "Communicator profiling data:" << std::endl;
+        for (const auto &[key, value] : profile_data) {
+          std::cout << "  " << key << ": " << value << " us" << std::endl;
+        }
         Message outgoing_message(message.header().sender_id, CommandType::PROFILING_PRINTED,
                                  std::monostate{});
         outgoing_message.header().sender_id = id_;
@@ -276,19 +316,6 @@ protected:
   LoadTracker load_tracker_;
   uint32_t update_interval = 10000;
   std::thread monitoring_thread_;
-
-private:
-  Message pooled_job_message_;
-  bool pooling_initialized = false;
-
-  void init_pooling_message() {
-    if (pooling_initialized) {
-      return;
-    }
-    pooling_initialized = true;
-    PooledJob<float> job = JobPool<float>::instance().get_job(0);
-    pooled_job_message_ = Message("", CommandType::FORWARD_JOB, std::move(job));
-  }
 };
 
 } // namespace tnn

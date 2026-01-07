@@ -25,11 +25,11 @@ public:
     }
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     if (message.header().recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
-    this->enqueue_output_message(message.clone());
+    this->enqueue_output_message(std::move(message));
     outgoing_cv_.notify_one();
   }
 

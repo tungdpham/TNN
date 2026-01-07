@@ -7,6 +7,7 @@ create_default(cifar100_cnn_trainer cifar100_cnn_trainer.cpp)
 create_default(tiny_imagenet_resnet18 tiny_imagenet_resnet18.cpp)
 create_default(tiny_imagenet_resnet34 tiny_imagenet_resnet34.cpp)
 create_default(tiny_imagenet_resnet50 tiny_imagenet_resnet50.cpp)
+create_default(tiny_imagenet_vit_trainer tiny_imagenet_vit_trainer.cpp)
 
 create_default(cifar10_resnet9 cifar10_resnet9.cpp)
 
@@ -15,14 +16,13 @@ create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
 create_cuda(device_ptr_example device_ptr_example.cu)
 create_cuda(cuda_vs_avx2_comparison cuda_vs_avx2_comparison.cpp)
-create_default(tiny_imagenet_visual_check tiny_imagenet_visual_check.cpp)
 
 # Eval executables
 create_default(mnist_cnn_test mnist_cnn_test.cpp)
 
 # Network executables
-create_default(network_worker network_worker.cpp)
-create_default(semi_async_pipeline_coordinator semi_async_pipeline_coordinator.cpp)
+create_default(tcp_worker tcp_worker.cpp)
+create_default(tcp_coordinator tcp_coordinator.cpp)
 create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
 
 # Microbatching test executable

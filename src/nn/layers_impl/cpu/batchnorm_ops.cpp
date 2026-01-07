@@ -6,8 +6,8 @@
  */
 #include "nn/layers_impl/cpu/batchnorm_ops.hpp"
 
-#include "ops/cpu/kernels.hpp"
 #include "threading/thread_handler.hpp"
+#include <cmath>
 
 namespace tnn {
 namespace cpu {
@@ -83,13 +83,10 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, T *running_mean, T *
       }
     }
 
-    // Biased variance (1/N) for normalization
     T var = var_sum * inv_total;
 
     inv_std[c] = T(1) / std::sqrt(var + epsilon);
 
-    // Unbiased variance (Bessel's correction: 1/(N-1)) for running statistics
-    // This matches PyTorch/TensorFlow behavior for tracking running_var
     T unbiased_var = var_sum / static_cast<T>(total_elements - 1);
 
     running_mean[c] = (T(1) - momentum) * running_mean[c] + momentum * mu;
@@ -132,8 +129,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   const size_t M = N * S;
   const T inv_M = T(1) / static_cast<T>(M);
 
-  // Always compute reduction sums - even when !affine, we need sum_dy and sum_dy_x_norm
-  // for the input gradient calculation (they represent dL/dMean and dL/dVar terms)
   parallel_for<size_t>(0, C, [&](size_t c) {
     T sum_dy = T(0);
     T sum_dy_x_norm = T(0);
@@ -153,13 +148,11 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
       }
     }
 
-    // Store in d_gamma/d_beta as intermediate buffers
-    // If affine, these are also the actual parameter gradients
     if (affine) {
       d_gamma[c] += sum_dy_x_norm;
       d_beta[c] += sum_dy;
     } else {
-      // Store for use in gradient computation
+
       d_gamma[c] = sum_dy_x_norm;
       d_beta[c] = sum_dy;
     }
@@ -168,7 +161,7 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
     const T g = (affine && gamma) ? gamma[c] : T(1);
     const T istd = inv_std[c];
-    // These sums represent dL/dMean and dL/dVar parts, required even if not affine
+
     const T sum_dy = d_beta[c];
     const T sum_dy_x_norm = d_gamma[c];
 

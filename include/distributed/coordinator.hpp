@@ -7,12 +7,14 @@
 #pragma once
 
 #include "distributed/job_pool.hpp"
+#include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
 #include "communicator.hpp"
 #include "partitioner/partitioner.hpp"
+#include "profiling/event.hpp"
 #include "stage_config.hpp"
 
 #include <atomic>
@@ -20,7 +22,6 @@
 #include <condition_variable>
 #include <future>
 #include <iostream>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -136,6 +137,7 @@ public:
     job->micro_batch_id = microbatch_id;
     job->data = std::move(input);
     Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
+    forward_msg.header().sender_id = "coordinator";
 
     this->coordinator_comm_->send_message(std::move(forward_msg));
   }
@@ -156,6 +158,7 @@ public:
     job->micro_batch_id = microbatch_id;
     job->data = std::move(gradient);
     Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
+    backward_msg.header().sender_id = "coordinator";
 
     this->coordinator_comm_->send_message(std::move(backward_msg));
   }
@@ -191,6 +194,7 @@ public:
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
       Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
+      update_msg.header().sender_id = "coordinator";
       this->coordinator_comm_->send_message(std::move(update_msg));
     }
 
@@ -271,7 +275,7 @@ public:
             const size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_duration);
+    auto timeout = Time::steady_clock::now() + Time::seconds(timeout_duration);
 
     bool success =
         message_notification_cv_.wait_until(lock, timeout, [this, type, expected_count]() {
@@ -343,69 +347,85 @@ public:
   }
 
   /**
-   * @brief Sends a request to all stages for load report
-   */
-  void balance_load() {
-    std::cout << "Starting load balancing procedure...\n";
-
-    // Request load reports from all stages
-    for (const auto &stage_name : this->stage_names_) {
-      Message load_msg(stage_name, CommandType::REPORT_LOAD, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(load_msg));
-    }
-
-    // Wait for all load reports to arrive
-    bool received_all_reports = join(CommandType::LOAD_REPORT, this->num_stages_, 30);
-    if (!received_all_reports) {
-      std::cerr << "Warning: Not all stages reported load data within timeout. Using current "
-                   "partitions.\n";
-      return;
-    }
-
-    // Collect and process load reports
-    std::vector<Message> load_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::LOAD_REPORT);
-
-    if (load_messages.size() != static_cast<size_t>(this->num_stages_)) {
-      std::cerr << "Warning: Expected " << this->num_stages_ << " load reports, got "
-                << load_messages.size() << ". Using current partitions.\n";
-      return;
-    }
-
-    std::map<std::string, LoadTracker> load_trackers;
-
-    // Collect load trackers by stage id
-    for (auto &load_msg : load_messages) {
-      if (load_msg.has_type<LoadTracker>()) {
-        try {
-          LoadTracker tracker = load_msg.get<LoadTracker>();
-          load_trackers[load_msg.header().sender_id] = tracker;
-
-          std::cout << "Received load report from " << load_msg.header().sender_id
-                    << ": avg_forward_time=" << tracker.avg_forward_time_
-                    << "ms, avg_backward_time=" << tracker.avg_backward_time_ << "ms\n";
-          // NOTE: memory usage report is broken, needs some fixing. Just use top command for now.
-          // std::cout << "  avg_cpu_utilization=" << tracker.avg_cpu_utilization_
-          //           << "%, max_memory_usage=" << tracker.max_memory_usage_ << "MB\n";
-        } catch (const std::exception &e) {
-          std::cerr << "Warning: Failed to deserialize load data from "
-                    << load_msg.header().sender_id << ": " << e.what() << "\n";
-        }
-      }
-    }
-  }
-
-  /**
    * @brief Requests all stages to print their profiling data.
    */
-  void print_profiling_on_all_stages() {
+  void print_profiling() {
     for (const auto &stage_name : this->stage_names_) {
       Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
+      profiling_msg.header().sender_id = "coordinator";
       this->coordinator_comm_->send_message(std::move(profiling_msg));
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
       std::cerr << "Warning: Not all stages confirmed profiling print within timeout.\n";
+    }
+  }
+
+  /**
+   * @brief Requests all stages to start profiling.
+   */
+  void start_profiling() {
+    Profiler::instance().init_start_time(Clock::now());
+    for (const auto &stage_name : this->stage_names_) {
+      Message start_msg(stage_name, CommandType::START_PROFILING, std::monostate{});
+      start_msg.header().sender_id = "coordinator";
+      this->coordinator_comm_->send_message(std::move(start_msg));
+    }
+    bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
+    if (!all_started) {
+      std::cerr << "Warning: Not all stages confirmed profiling start within timeout.\n";
+    }
+  }
+
+  /**
+   * @brief Requests all stages to report their profiling data.
+   */
+  void fetch_profiling() {
+    for (const auto &stage_name : this->stage_names_) {
+      Message report_msg(stage_name, CommandType::REPORT_PROFILING, std::monostate{});
+      report_msg.header().sender_id = "coordinator";
+      this->coordinator_comm_->send_message(std::move(report_msg));
+    }
+    bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
+    if (!all_reported) {
+      std::cerr << "Warning: Not all stages reported profiling data within timeout.\n";
+    }
+
+    std::vector<Message> profiling_messages =
+        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
+
+    auto &aggregator = Profiler::instance();
+    for (const auto &msg : profiling_messages) {
+      if (msg.has_type<Profiler>()) {
+        const Profiler &profiler = msg.get<Profiler>();
+        aggregator.merge(profiler);
+      }
+    }
+
+    aggregator.sort();
+
+    for (auto &event : aggregator.get_events()) {
+      Clock::time_point start_time = event.start_time;
+      Clock::time_point end_time = event.end_time;
+      Clock::duration offset = aggregator.start_time().time_since_epoch();
+      start_time -= offset;
+      end_time -= offset;
+
+      size_t start_ms =
+          Time::duration_cast<Time::microseconds>(start_time.time_since_epoch()).count() / 1000.0;
+      size_t end_ms =
+          Time::duration_cast<Time::microseconds>(end_time.time_since_epoch()).count() / 1000.0;
+      size_t duration_ms =
+          Time::duration_cast<Time::microseconds>(end_time - start_time).count() / 1000.0;
+
+      if (start_ms < 0 || end_ms < 0 || duration_ms < 0) {
+        continue;
+      }
+
+      logger_.info(
+          "Event: {}, Source: {}, Type: {}, Start: {:.1f} ms, End: {:.1f} ms, Duration: {:.1f} ms",
+          event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
+          duration_ms);
     }
   }
 
@@ -608,6 +628,7 @@ protected:
   std::vector<Endpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;
   std::thread message_thread_;
+  Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Message synchronization
   mutable std::mutex message_notification_mutex_;

@@ -8,10 +8,11 @@
 
 #include "communicator.hpp"
 #include "distributed/binary_serializer.hpp"
-#include "distributed/buffer_pool.hpp"
 #include "distributed/fragmenter.hpp"
 #include "distributed/packet.hpp"
+#include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
+#include <any>
 
 #include <asio.hpp>
 #include <atomic>
@@ -44,6 +45,7 @@ private:
   struct RegisteredBuffer {
     std::vector<uint8_t> data;
     ibv_mr *mr = nullptr;
+    std::any attached_context;
 
     RegisteredBuffer(size_t size, ibv_pd *pd) {
       data.resize(size);
@@ -98,6 +100,8 @@ private:
   std::mutex send_buffers_mutex_;
   std::condition_variable send_buffers_cv_;
 
+  std::unique_ptr<RoceBufferPool> buffer_pool_;
+
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
   std::thread io_thread_;
@@ -115,6 +119,7 @@ public:
     }
 
     init_rdma();
+    buffer_pool_ = std::make_unique<RoceBufferPool>(pd_);
     init_send_buffers();
 
     is_running_ = true;
@@ -141,6 +146,7 @@ public:
     }
 
     send_buffers_.clear();
+    buffer_pool_.reset();
 
     if (cq_)
       ibv_destroy_cq(cq_);
@@ -161,10 +167,11 @@ public:
     io_thread_ = std::thread([this]() { io_context_.run(); });
   }
 
-  void send_message(const Message &message) override {
+  void send_message(Message &&message) override {
     size_t msg_size = message.size();
-    PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-    BinarySerializer::serialize(message, *data_buffer);
+    PooledRoceBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
+    size_t offset = 0;
+    BinarySerializer::serialize(*data_buffer, offset, message);
 
     size_t max_payload = ROCE_BUFFER_SIZE - sizeof(PacketHeader);
     uint32_t num_packets = (data_buffer->size() + max_payload - 1) / max_payload;
@@ -207,28 +214,34 @@ public:
         free_send_buffers_.pop();
       }
 
+      send_buf->attached_context = data_buffer;
+
       // Copy header
       std::memcpy(send_buf->data.data(), &headers[i], sizeof(PacketHeader));
-      // Copy data
-      size_t copy_len = headers[i].length;
-      std::memcpy(send_buf->data.data() + sizeof(PacketHeader),
-                  data_buffer->get() + headers[i].packet_offset, copy_len);
 
-      struct ibv_sge sge;
-      sge.addr = (uint64_t)send_buf->data.data();
-      sge.length = sizeof(PacketHeader) + copy_len;
-      sge.lkey = send_buf->mr->lkey;
+      struct ibv_sge sge[2];
+      sge[0].addr = (uint64_t)send_buf->data.data();
+      sge[0].length = sizeof(PacketHeader);
+      sge[0].lkey = send_buf->mr->lkey;
+
+      size_t copy_len = headers[i].length;
+      if (copy_len > 0) {
+        sge[1].addr = (uint64_t)(data_buffer->get() + headers[i].packet_offset);
+        sge[1].length = copy_len;
+        sge[1].lkey = data_buffer->get_lkey();
+      }
 
       struct ibv_send_wr wr, *bad_wr = nullptr;
       std::memset(&wr, 0, sizeof(wr));
       wr.wr_id = (uint64_t)send_buf;
       wr.opcode = IBV_WR_SEND;
-      wr.sg_list = &sge;
-      wr.num_sge = 1;
+      wr.sg_list = sge;
+      wr.num_sge = (copy_len > 0) ? 2 : 1;
       wr.send_flags = IBV_SEND_SIGNALED;
 
       if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
         std::cerr << "Failed to post send to " << message.header().recipient_id << std::endl;
+        send_buf->attached_context.reset();
         std::lock_guard<std::mutex> lock(send_buffers_mutex_);
         free_send_buffers_.push(send_buf);
         send_buffers_cv_.notify_one();
@@ -239,7 +252,8 @@ public:
   void flush_output_messages() override {
     std::lock_guard<std::mutex> lock(out_message_mutex_);
     while (!out_message_queue_.empty()) {
-      send_message(out_message_queue_.front());
+      auto message = std::move(out_message_queue_.front());
+      send_message(std::move(message));
       out_message_queue_.pop();
     }
   }
@@ -402,7 +416,7 @@ private:
     init_attr.recv_cq = cq_;
     init_attr.cap.max_send_wr = ROCE_SQ_DEPTH;
     init_attr.cap.max_recv_wr = ROCE_RQ_DEPTH;
-    init_attr.cap.max_send_sge = 1;
+    init_attr.cap.max_send_sge = 2;
     init_attr.cap.max_recv_sge = 1;
     init_attr.qp_type = IBV_QPT_RC;
 
@@ -555,6 +569,7 @@ private:
 
         } else if (wc[i].opcode == IBV_WC_SEND || wc[i].opcode == IBV_WC_RDMA_WRITE) {
           auto *buf = (RegisteredBuffer *)wc[i].wr_id;
+          buf->attached_context.reset();
           std::lock_guard<std::mutex> lock(send_buffers_mutex_);
           free_send_buffers_.push(buf);
           send_buffers_cv_.notify_one();

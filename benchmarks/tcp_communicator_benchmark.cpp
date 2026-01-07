@@ -140,28 +140,27 @@ int main(int argc, char *argv[]) {
   cout << "Worker threads: " << cfg.num_threads << endl;
 
   TcpCommunicator communicator(cfg.host + ":" + to_string(cfg.port),
-                               Endpoint::network(cfg.host, cfg.port), cfg.num_threads);
+                               Endpoint::tcp(cfg.host, cfg.port), cfg.num_threads);
 
   communicator.start_server();
 
   while (!communicator.connect(cfg.peer_host + ":" + to_string(cfg.peer_port),
-                               Endpoint::network(cfg.peer_host, cfg.peer_port))) {
+                               Endpoint::tcp(cfg.peer_host, cfg.peer_port))) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
-  Tensor<float> tensor({128, 512, 16, 16});
-  tensor.fill_random_normal(0.0f, .2f, 12345);
-  PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
-  job->micro_batch_id = 0;
-  job->data = std::move(tensor);
-  Message message(cfg.peer_host + ":" + to_string(cfg.peer_port), CommandType::FORWARD_JOB,
-                  std::move(job));
-
   for (int i = 0; i < 4; i++) {
-    communicator.send_message(message);
+    Tensor<float> tensor({128, 512, 16, 16});
+    tensor.fill_random_normal(0.0f, .2f, 12345);
+    PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
+    job->micro_batch_id = 0;
+    job->data = std::move(tensor);
+    Message message(cfg.peer_host + ":" + to_string(cfg.peer_port), CommandType::FORWARD_JOB,
+                    std::move(job));
+    communicator.send_message(std::move(message));
   }
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -190,14 +189,13 @@ int main(int argc, char *argv[]) {
         }
         num_messages_received++;
         message.header().recipient_id = cfg.peer_host + ":" + to_string(cfg.peer_port);
-        communicator.send_message(message);
+        communicator.send_message(std::move(message));
       }
 
       current_time = std::chrono::high_resolution_clock::now();
     }
   });
-  PooledJob<float> &tmp = message.get<PooledJob<float>>();
-  int kb_per_message = tmp->data.capacity() * sizeof(float) / 1024;
+  int kb_per_message = 128 * 512 * 16 * 16 * sizeof(float) / 1024;
   auto end_time = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> total_duration = end_time - start_time;
   double total_kb = static_cast<double>(num_messages_received) * kb_per_message;

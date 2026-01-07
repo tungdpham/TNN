@@ -13,11 +13,6 @@ public:
   virtual ~ImageDataLoader() = default;
 
   /**
-   * Get image dimensions
-   */
-  virtual std::vector<size_t> get_image_shape() const = 0;
-
-  /**
    * Get number of classes
    */
   virtual int get_num_classes() const = 0;

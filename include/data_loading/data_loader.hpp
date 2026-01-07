@@ -103,6 +103,11 @@ public:
   virtual int get_batch_size() const { return static_cast<int>(batch_size_); }
 
   /**
+   * Get data shape
+   */
+  virtual std::vector<size_t> get_data_shape() const = 0;
+
+  /**
    * Set random seed for reproducible shuffling
    */
   virtual void set_seed(unsigned int seed) { rng_.seed(seed); }

@@ -1,15 +1,10 @@
-
-
 #include "data_augmentation/augmentation.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
-#include "distributed/network_coordinator.hpp"
+#include "distributed/tcp_coordinator.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 
@@ -96,14 +91,14 @@ int main(int argc, char *argv[]) {
   auto optimizer = std::make_unique<Adam<float>>(lr_initial, 0.9f, 0.999f, EPSILON);
 
   Endpoint coordinator_endpoint =
-      Endpoint::network(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
-                        Env::get<int>("COORDINATOR_PORT", 8000));
+      Endpoint::tcp(Env::get<std::string>("COORDINATOR_HOST", "localhost"),
+                    Env::get<int>("COORDINATOR_PORT", 8000));
 
   std::vector<Endpoint> endpoints = {
-      Endpoint::network(Env::get<std::string>("WORKER1_HOST", "localhost"),
-                        Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::network(Env::get<std::string>("WORKER2_HOST", "localhost"),
-                        Env::get<int>("WORKER2_PORT", 8002)),
+      Endpoint::tcp(Env::get<std::string>("WORKER1_HOST", "localhost"),
+                    Env::get<int>("WORKER1_PORT", 8001)),
+      Endpoint::tcp(Env::get<std::string>("WORKER2_HOST", "localhost"),
+                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
@@ -141,24 +136,22 @@ int main(int argc, char *argv[]) {
   TinyImageNetDataLoader<float> train_loader, test_loader;
   std::string dataset_path = "data/tiny-imagenet-200";
 
-  create_tiny_image_loader(dataset_path, train_loader, test_loader);
+  TinyImageNetDataLoader<float>::create(dataset_path, train_loader, test_loader);
 
   auto train_aug = AugmentationBuilder<float>()
-                       //  .horizontal_flip(0.25f)
-                       //  .rotation(0.3f, 10.0f)
-                       //  .brightness(0.3f, 0.15f)
-                       //  .contrast(0.3f, 0.15f)
-                       //  .gaussian_noise(0.3f, 0.05f)
-                       //  .random_crop(0.25, 4)
+                       .horizontal_flip(0.25f)
+                       .rotation(0.3f, 10.0f)
+                       .brightness(0.3f, 0.15f)
+                       .contrast(0.3f, 0.15f)
+                       .gaussian_noise(0.3f, 0.05f)
+                       .random_crop(0.25, 4)
                        .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                        .build();
-  std::cout << "Configuring data augmentation and normalization for training." << std::endl;
   train_loader.set_augmentation(std::move(train_aug));
 
   auto test_aug = AugmentationBuilder<float>()
                       .normalize({0.485f, 0.456f, 0.406f}, {0.229f, 0.224f, 0.225f})
                       .build();
-  std::cout << "Configuring data normalization for testing." << std::endl;
   test_loader.set_augmentation(std::move(test_aug));
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});

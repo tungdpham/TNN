@@ -29,8 +29,7 @@ int main() {
     train_config.print_config();
 
     CIFAR100DataLoader<float> train_loader, test_loader;
-
-    create_cifar100_dataloader("./data", train_loader, test_loader);
+    CIFAR100DataLoader<float>::create("./data", train_loader, test_loader);
 
     auto train_transform = AugmentationBuilder<float>()
                                .random_crop(0.5f, 4)
@@ -38,11 +37,9 @@ int main() {
                                .cutout(0.5f, 4)
                                .gaussian_noise(0.5f, 0.05f)
                                .build();
-    cout << "Configuring data transformation for training." << endl;
     train_loader.set_augmentation(std::move(train_transform));
 
     auto val_transform = AugmentationBuilder<float>().build();
-    cout << "Configuring data normalization for test." << endl;
     test_loader.set_augmentation(std::move(val_transform));
 
     auto model = create_wrn16_8_cifar100();
@@ -61,10 +58,6 @@ int main() {
     cout << "Starting CIFAR-100 CNN training..." << endl;
     train_classification_model(model, train_loader, test_loader, std::move(optimizer),
                                std::move(loss_function), std::move(scheduler), train_config);
-
-    cout << "CIFAR-100 CNN Tensor<float> model training completed "
-            "successfully!"
-         << endl;
 
     try {
       model.save_to_file("model_snapshots/cifar100_cnn_model");

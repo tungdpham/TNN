@@ -1,14 +1,10 @@
-#include "math/gemm.hpp"
+#include "math/cpu/gemm.hpp"
 #include "matrix/matrix.hpp"
-#include "tensor/tensor.hpp"
 #include "utils/misc.hpp"
 #ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
 #endif
-#include <chrono>
 #include <iostream>
-#include <numeric>
-#include <vector>
 
 using namespace tnn;
 using namespace cpu;

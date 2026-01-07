@@ -52,7 +52,7 @@ TEST_F(TinyImageNetLoaderTest, ValidationDataSize) {
 }
 
 TEST_F(TinyImageNetLoaderTest, ImageShape) {
-  auto shape = train_loader.get_image_shape();
+  auto shape = train_loader.get_data_shape();
   ASSERT_EQ(shape.size(), 3);
   EXPECT_EQ(shape[0], 3);  // Channels
   EXPECT_EQ(shape[1], 64); // Height

@@ -7,7 +7,6 @@
 #pragma once
 
 #include "blocks.hpp"
-#include "cuda/error_handler.hpp"
 #include "device/device_manager.hpp"
 #include "device/device_type.hpp"
 #include "layers.hpp"
@@ -1225,6 +1224,13 @@ public:
     return *this;
   }
 
+  SequentialBuilder &layernorm(T epsilon = T(1e-5), bool affine = true,
+                               const std::string &name = "") {
+    layer_builder_.layernorm(
+        epsilon, affine, name.empty() ? "layernorm_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
   SequentialBuilder &activation(const std::string &activation_name, const std::string &name = "") {
     layer_builder_.activation(
         activation_name, name.empty() ? "activation_" + std::to_string(model_.layer_size()) : name);
@@ -1255,8 +1261,15 @@ public:
     return *this;
   }
 
-  SequentialBuilder &flatten(const std::string &name = "") {
-    layer_builder_.flatten(name.empty() ? "flatten_" + std::to_string(model_.layer_size()) : name);
+  SequentialBuilder &flatten(int start_dim = 1, const std::string &name = "") {
+    layer_builder_.flatten(start_dim,
+                           name.empty() ? "flatten_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &slice(size_t axis, size_t start, size_t length, const std::string &name = "") {
+    layer_builder_.slice(axis, start, length,
+                         name.empty() ? "slice_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 
@@ -1392,6 +1405,36 @@ public:
 
     auto res_block = residual_block<T>(std::move(main_path), std::move(shortcut), "relu", name);
     layer_builder_.add_layer(std::move(res_block));
+    return *this;
+  }
+
+  SequentialBuilder &full_attention(size_t embed_dim, size_t num_heads,
+                                    const std::string &name = "") {
+    layer_builder_.full_attention(
+        embed_dim, num_heads,
+        name.empty() ? "full_attention_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &flash_attention(size_t embed_dim, size_t num_heads,
+                                     const std::string &name = "") {
+    layer_builder_.flash_attention(
+        embed_dim, num_heads,
+        name.empty() ? "flash_attention_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &class_token(size_t embed_dim, const std::string &name = "") {
+    layer_builder_.class_token(
+        embed_dim, name.empty() ? "class_token_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &positional_embedding(size_t embed_dim, size_t seq_length,
+                                          const std::string &name = "") {
+    layer_builder_.positional_embedding(
+        embed_dim, seq_length,
+        name.empty() ? "positional_embedding_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 

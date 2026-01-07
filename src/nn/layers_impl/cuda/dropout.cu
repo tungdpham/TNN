@@ -13,7 +13,7 @@
 
 namespace tnn {
 namespace cuda {
-
+namespace dropout {
 #define BLOCK_SIZE 256
 
 template <typename T> struct VectorType;
@@ -160,5 +160,6 @@ template void compute_dropout_forward<double>(const double *input_data, double *
                                               size_t spatial_size, double dropout_rate,
                                               cudaStream_t stream);
 
+} // namespace dropout
 } // namespace cuda
 } // namespace tnn

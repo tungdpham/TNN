@@ -6,6 +6,7 @@
 
 namespace tnn {
 namespace cpu {
+namespace dropout {
 
 constexpr size_t DROPOUT_BLOCK_SIZE = 1024;
 
@@ -53,5 +54,6 @@ template void compute_dropout_forward<double>(const double *input_data, double *
                                               double *mask_data, size_t batch_size, size_t channels,
                                               size_t spatial_size, double dropout_rate);
 
+} // namespace dropout
 } // namespace cpu
 } // namespace tnn

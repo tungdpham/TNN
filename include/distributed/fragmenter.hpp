@@ -2,7 +2,6 @@
 
 #include "distributed/buffer_pool.hpp"
 #include "packet.hpp"
-#include "tbuffer.hpp"
 #include <cstdint>
 #include <unordered_map>
 
@@ -32,7 +31,8 @@ public:
     return *this;
   }
 
-  std::vector<PacketHeader> get_headers(TBuffer &buffer, uint32_t num_packets) {
+  template <typename BufferType>
+  std::vector<PacketHeader> get_headers(BufferType &buffer, uint32_t num_packets) {
     if (num_packets == 0) {
       throw std::invalid_argument("Number of packets must be greater than 0");
     }

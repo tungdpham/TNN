@@ -30,11 +30,9 @@ compute_avg_pool_forward_kernel(const T *input_data, T *output_data, size_t batc
   int out_h = remaining / output_w;
   int out_w = remaining % output_w;
 
-  // Calculate virtual window position
   long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
   long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
 
-  // Clamp to valid image area
   long h_start_valid = max(0L, h_start);
   long w_start_valid = max(0L, w_start);
   long h_end_valid = min(static_cast<long>(input_h), h_start + static_cast<long>(pool_h));
@@ -43,7 +41,6 @@ compute_avg_pool_forward_kernel(const T *input_data, T *output_data, size_t batc
   const size_t input_offset = (n * channels + c) * input_h * input_w;
   T sum = T(0);
 
-  // Accumulate only valid pixels
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
     for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
       sum += input_data[input_offset + ih * input_w + iw];
@@ -72,10 +69,8 @@ compute_avg_pool_backward_kernel(const T *gradient_data, T *grad_input_data, siz
   int out_h = remaining / output_w;
   int out_w = remaining % output_w;
 
-  // Gradient distributed equally to all contributing pixels
   const T grad_val = gradient_data[idx] * pool_size_inv;
 
-  // Same boundary logic as forward pass
   long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
   long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
 
@@ -86,7 +81,6 @@ compute_avg_pool_backward_kernel(const T *gradient_data, T *grad_input_data, siz
 
   const size_t input_offset = (n * channels + c) * input_h * input_w;
 
-  // Scatter add
   for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
     for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
       atomicAdd(&grad_input_data[input_offset + ih * input_w + iw], grad_val);

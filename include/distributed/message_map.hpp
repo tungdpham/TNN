@@ -12,20 +12,20 @@
 
 namespace tnn {
 
-class ConcurrentMessageMap {
+class MessageMap {
 private:
   std::atomic<size_t> total_message_count_{0};
   tbb::concurrent_unordered_map<CommandType, tbb::concurrent_queue<Message>> queues_;
 
 public:
-  ConcurrentMessageMap() = default;
+  MessageMap() = default;
 
-  ConcurrentMessageMap(const ConcurrentMessageMap &other) = delete;
-  ConcurrentMessageMap &operator=(const ConcurrentMessageMap &other) = delete;
+  MessageMap(const MessageMap &other) = delete;
+  MessageMap &operator=(const MessageMap &other) = delete;
 
-  ConcurrentMessageMap(ConcurrentMessageMap &&other) noexcept : queues_(std::move(other.queues_)) {}
+  MessageMap(MessageMap &&other) noexcept : queues_(std::move(other.queues_)) {}
 
-  ConcurrentMessageMap &operator=(ConcurrentMessageMap &&other) noexcept {
+  MessageMap &operator=(MessageMap &&other) noexcept {
     if (this != &other) {
       clear();
       queues_ = std::move(other.queues_);
@@ -33,7 +33,7 @@ public:
     return *this;
   }
 
-  ~ConcurrentMessageMap() { clear(); }
+  ~MessageMap() { clear(); }
 
   void push(CommandType type, Message &&message) {
     queues_[type].emplace(std::move(message));

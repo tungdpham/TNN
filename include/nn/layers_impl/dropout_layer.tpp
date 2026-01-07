@@ -91,13 +91,15 @@ std::unique_ptr<Task> DropoutLayer<T>::compute_dropout_forward(const Tensor<T> &
   size_t spatial_size = input.height() * input.width();
 
   if (input.device_type() == DeviceType::CPU) {
-    return create_cpu_task("default", cpu::compute_dropout_forward<T>, input.data(), output.data(),
-                           mask.data(), batch_size, channels, spatial_size, dropout_rate_);
+    return create_cpu_task("default", cpu::dropout::compute_dropout_forward<T>, input.data(),
+                           output.data(), mask.data(), batch_size, channels, spatial_size,
+                           dropout_rate_);
   }
 #ifdef USE_CUDA
   else if (input.device_type() == DeviceType::GPU) {
-    return create_gpu_task("default", cuda::compute_dropout_forward<T>, input.data(), output.data(),
-                           mask.data(), batch_size, channels, spatial_size, dropout_rate_);
+    return create_gpu_task("default", cuda::dropout::compute_dropout_forward<T>, input.data(),
+                           output.data(), mask.data(), batch_size, channels, spatial_size,
+                           dropout_rate_);
   }
 #endif
   else {

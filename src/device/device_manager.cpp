@@ -52,7 +52,8 @@ void DeviceManager::discoverDevices() {
       }
     }
   } else {
-    std::cout << "No CUDA devices found or CUDA not available" << std::endl;
+    std::cout << "No CUDA devices found or CUDA not available. Error: " << cudaGetErrorString(err)
+              << " (" << err << ")" << std::endl;
   }
 #else
   std::cout << "CUDA support not compiled in" << std::endl;

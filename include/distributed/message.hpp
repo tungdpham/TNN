@@ -9,7 +9,7 @@
 #include "command_type.hpp"
 #include "distributed/job_pool.hpp"
 #include "job.hpp"
-#include "load_tracker.hpp"
+#include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
 #include <arpa/inet.h>
 #include <cstring>
@@ -18,7 +18,7 @@
 #include <vector>
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, LoadTracker>;
+using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, Profiler>;
 
 struct MessageHeader {
   std::string recipient_id; // ID of the recipient stage
@@ -49,26 +49,7 @@ struct MessageData {
     payload_type = static_cast<uint64_t>(payload.index());
   }
 
-  MessageData(const MessageData &other) : payload_type(other.payload_type) {
-    if (std::holds_alternative<std::monostate>(other.payload)) {
-      payload = std::monostate{};
-    } else if (std::holds_alternative<PooledJob<float>>(other.payload)) {
-      const auto &src_ptr = std::get<PooledJob<float>>(other.payload);
-      if (src_ptr) {
-        Job<float> *new_job = new Job<float>(*src_ptr);
-        auto deleter = src_ptr.get_deleter();
-        payload = PooledJob<float>(new_job, deleter);
-      } else {
-        payload = PooledJob<float>(nullptr, src_ptr.get_deleter());
-      }
-    } else if (std::holds_alternative<std::string>(other.payload)) {
-      payload = std::get<std::string>(other.payload);
-    } else if (std::holds_alternative<bool>(other.payload)) {
-      payload = std::get<bool>(other.payload);
-    } else if (std::holds_alternative<LoadTracker>(other.payload)) {
-      payload = std::get<LoadTracker>(other.payload);
-    }
-  }
+  MessageData(const MessageData &other) = delete;
 
   MessageData(MessageData &&other) noexcept
       : payload_type(other.payload_type), payload(std::move(other.payload)) {}
@@ -110,6 +91,18 @@ struct MessageData {
 
     } else if (std::holds_alternative<bool>(payload)) {
       size += sizeof(uint8_t); // bool serialized as uint8_t
+
+    } else if (std::holds_alternative<Profiler>(payload)) {
+      const auto &profiler = std::get<Profiler>(payload);
+      size += sizeof(int64_t); // profiler_start_time_ (serialized as int64_t)
+      auto events = profiler.get_events();
+      size += sizeof(uint64_t); // number of events
+      for (const auto &event : events) {
+        size += sizeof(int64_t);   // start_time_ (serialized as int64_t)
+        size += sizeof(int64_t);   // end_time_ (serialized as int64_t)
+        size += sizeof(uint64_t);  // name length (uint64_t in serialization)
+        size += event.name.size(); // name data
+      }
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }
@@ -142,6 +135,7 @@ public:
   ~Message() = default;
 
   Message &operator=(const Message &other) = delete;
+
   Message &operator=(Message &&other) noexcept {
     if (this != &other) {
       header_ = std::move(other.header_);
@@ -174,12 +168,6 @@ public:
   }
 
   const uint64_t size() const { return header_.size() + data_.size(); }
-
-  Message clone() const {
-    MessageHeader new_header = header_;
-    MessageData new_data = data_;
-    return Message(std::move(new_header), std::move(new_data));
-  }
 };
 
 } // namespace tnn

@@ -170,25 +170,12 @@ public:
     offset += sizeof(T);
   }
 
-  template <typename T>
-  inline void write(size_t &offset, const T *arr, size_t length, bool parallel = false) {
+  template <typename T> inline void write(size_t &offset, const T *arr, size_t length) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
     ensure_capacity(offset + byte_size);
-    if (!parallel) {
-      std::memcpy(data_ + offset, arr, byte_size);
-    } else {
-      size_t num_blocks = get_num_threads();
-      num_blocks = std::min(num_blocks, length);
-      size_t block_size = byte_size / num_blocks;
-      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
-        size_t start = block_idx * block_size;
-        size_t end = (block_idx == num_blocks - 1) ? byte_size : (block_idx + 1) * block_size;
-        std::memcpy(data_ + offset + start, reinterpret_cast<const uint8_t *>(arr) + start,
-                    end - start);
-      });
-    }
+    std::memcpy(data_ + offset, arr, byte_size);
     if (offset + length * sizeof(T) > size_) {
       size_ = offset + length * sizeof(T);
     }
@@ -200,43 +187,6 @@ public:
     write<uint64_t>(offset, str_length);
     if (str_length > 0) {
       write(offset, reinterpret_cast<const uint8_t *>(str.data()), str_length);
-    }
-  }
-
-  template <typename T> inline void append(const T &value) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    ensure_capacity(size_ + sizeof(T));
-    std::memcpy(data_ + size_, &value, sizeof(T));
-    size_ += sizeof(T);
-  }
-
-  template <typename T> inline void append(const T *arr, size_t length, bool parallel = false) {
-    static_assert(std::is_trivially_copyable<T>::value,
-                  "Type must be trivially copyable (primitive or POD type)");
-    size_t byte_size = sizeof(T) * length;
-    ensure_capacity(size_ + byte_size);
-    if (!parallel) {
-      std::memcpy(data_ + size_, arr, byte_size);
-    } else {
-      size_t num_blocks = get_num_threads();
-      num_blocks = std::min(num_blocks, length);
-      size_t block_size = byte_size / num_blocks;
-      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
-        size_t start = block_idx * block_size;
-        size_t end = (block_idx == num_blocks - 1) ? byte_size : (block_idx + 1) * block_size;
-        std::memcpy(data_ + size_ + start, reinterpret_cast<const uint8_t *>(arr) + start,
-                    end - start);
-      });
-    }
-    size_ += length * sizeof(T);
-  }
-
-  inline void append(const std::string &str) {
-    uint64_t str_length = static_cast<uint64_t>(str.size());
-    append(str_length);
-    if (str_length > 0) {
-      append(reinterpret_cast<const uint8_t *>(str.data()), str_length);
     }
   }
 
@@ -253,26 +203,14 @@ public:
     }
   }
 
-  template <typename T>
-  inline void read(size_t &offset, T *arr, size_t length, bool parallel = false) const {
+  template <typename T> inline void read(size_t &offset, T *arr, size_t length) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
     if (offset + byte_size > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + byte_size));
     }
-    if (!parallel) {
-      std::memcpy(arr, data_ + offset, byte_size);
-    } else {
-      size_t num_blocks = get_num_threads();
-      num_blocks = std::min(num_blocks, length);
-      size_t block_size = byte_size / num_blocks;
-      parallel_for<size_t>(0, num_blocks, [&](size_t block_idx) {
-        size_t start = block_idx * block_size;
-        size_t end = (block_idx == num_blocks - 1) ? byte_size : (block_idx + 1) * block_size;
-        std::memcpy(reinterpret_cast<uint8_t *>(arr) + start, data_ + offset + start, end - start);
-      });
-    }
+    std::memcpy(arr, data_ + offset, byte_size);
     // should not happen often
     if (endianess_ != get_system_endianness()) {
       parallel_for<size_t>(0, length, [&](size_t i) { bswap(arr[i]); });
@@ -280,7 +218,7 @@ public:
     offset += byte_size;
   }
 
-  inline void read(size_t &offset, std::string &str, bool parallel = false) const {
+  inline void read(size_t &offset, std::string &str) const {
     uint64_t str_length;
     read<uint64_t>(offset, str_length);
     if (offset + str_length > size_) {
@@ -288,7 +226,7 @@ public:
     }
     if (str_length > 0) {
       str.resize(str_length);
-      read(offset, reinterpret_cast<uint8_t *>(str.data()), str_length, parallel);
+      read(offset, reinterpret_cast<uint8_t *>(str.data()), str_length);
     } else {
       str.clear();
     }

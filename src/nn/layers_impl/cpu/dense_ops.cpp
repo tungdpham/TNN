@@ -57,7 +57,6 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
   });
 }
 
-// Explicit template instantiations
 template void compute_dense_forward<float>(const float *input_data, const float *weight_data,
                                            float *output_data, const size_t batch_size,
                                            const size_t input_features,

@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "data_augmentation/augmentation.hpp"
 #include "image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
@@ -462,7 +461,7 @@ public:
   /**
    * Get image dimensions (channels, height, width)
    */
-  std::vector<size_t> get_image_shape() const override {
+  std::vector<size_t> get_data_shape() const override {
     return {tiny_imagenet_constants::NUM_CHANNELS, tiny_imagenet_constants::IMAGE_HEIGHT,
             tiny_imagenet_constants::IMAGE_WIDTH};
   }
@@ -625,16 +624,16 @@ public:
       std::cout << "First image mean pixel value: " << mean << std::endl;
     }
   }
-};
 
-void create_tiny_image_loader(std::string data_path, TinyImageNetDataLoader<float> &train_loader,
-                              TinyImageNetDataLoader<float> &val_loader) {
-  if (!train_loader.load_data(data_path, true)) {
-    throw std::runtime_error("Failed to load training data!");
+  static void create(std::string data_path, TinyImageNetDataLoader<T> &train_loader,
+                     TinyImageNetDataLoader<T> &val_loader) {
+    if (!train_loader.load_data(data_path, true)) {
+      throw std::runtime_error("Failed to load training data!");
+    }
+    if (!val_loader.load_data(data_path, false)) {
+      throw std::runtime_error("Failed to load validation data!");
+    }
   }
-  if (!val_loader.load_data(data_path, false)) {
-    throw std::runtime_error("Failed to load validation data!");
-  }
-}
+};
 
 } // namespace tnn

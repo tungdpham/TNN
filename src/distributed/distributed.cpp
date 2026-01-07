@@ -7,9 +7,8 @@
 
 #include "distributed/in_process_coordinator.hpp"
 #include "distributed/job.hpp"
-#include "distributed/network_coordinator.hpp"
-#include "distributed/network_serialization.hpp"
-#include "distributed/network_worker.hpp"
+#include "distributed/tcp_coordinator.hpp"
+#include "distributed/tcp_worker.hpp"
 
 namespace tnn {
 /**

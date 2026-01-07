@@ -4,7 +4,7 @@
 
 enum Endianness : uint8_t { LITTLE = 0, BIG = 1 };
 
-Endianness get_system_endianness() {
+inline Endianness get_system_endianness() {
   union {
     uint32_t i;
     char c[4];
