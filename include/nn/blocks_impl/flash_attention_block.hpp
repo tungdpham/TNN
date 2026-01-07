@@ -153,7 +153,8 @@ private:
 
 #ifdef USE_CUDNN
   static void run_cudnn_softmax_backward(cudnnHandle_t handle, float alpha_val, const T *y,
-                                         const T *dy, T *dx, size_t rows, size_t cols, cudaStream_t stream) {
+                                         const T *dy, T *dx, size_t rows, size_t cols,
+                                         cudaStream_t stream) {
     cudnnTensorDescriptor_t yDesc, dyDesc, dxDesc;
     cudnnCreateTensorDescriptor(&yDesc);
     cudnnCreateTensorDescriptor(&dyDesc);
@@ -214,7 +215,13 @@ public:
     size_t W = input.width();
     size_t L = H * W;
 
-    Tensor<T> q, k, v;
+    PooledTensor<T> q_buffer = this->get_buffer(q_proj_->compute_output_shape(input.shape()));
+    Tensor<T> &q = q_buffer.get();
+    PooledTensor<T> k_buffer = this->get_buffer(k_proj_->compute_output_shape(input.shape()));
+    Tensor<T> &k = k_buffer.get();
+    PooledTensor<T> v_buffer = this->get_buffer(v_proj_->compute_output_shape(input.shape()));
+    Tensor<T> &v = v_buffer.get();
+
     q_proj_->forward(input, q, micro_batch_id);
     k_proj_->forward(input, k, micro_batch_id);
     v_proj_->forward(input, v, micro_batch_id);
@@ -303,9 +310,12 @@ public:
     size_t L = H * W;
     size_t batch_count = batch_size * num_heads_;
 
-    Tensor<T> dq(q.shape(), q.device());
-    Tensor<T> dk(k.shape(), k.device());
-    Tensor<T> dv(v.shape(), v.device());
+    PooledTensor<T> dq_buffer = this->get_buffer(q.shape());
+    Tensor<T> &dq = dq_buffer.get();
+    PooledTensor<T> dk_buffer = this->get_buffer(k.shape());
+    Tensor<T> &dk = dk_buffer.get();
+    PooledTensor<T> dv_buffer = this->get_buffer(v.shape());
+    Tensor<T> &dv = dv_buffer.get();
 
     auto &q_ptr = q.data_ptr();
     auto &k_ptr = k.data_ptr();
@@ -394,9 +404,13 @@ public:
     }
 #endif
 
-    Tensor<T> dq_input;
-    Tensor<T> dk_input;
-    Tensor<T> dv_input;
+    PooledTensor<T> dq_input_buffer = this->get_buffer(q.shape());
+    Tensor<T> &dq_input = dq_input_buffer.get();
+    PooledTensor<T> dk_input_buffer = this->get_buffer(k.shape());
+    Tensor<T> &dk_input = dk_input_buffer.get();
+    PooledTensor<T> dv_input_buffer = this->get_buffer(v.shape());
+    Tensor<T> &dv_input = dv_input_buffer.get();
+
     q_proj_->backward(dq, dq_input, micro_batch_id);
     k_proj_->backward(dk, dk_input, micro_batch_id);
     v_proj_->backward(dv, dv_input, micro_batch_id);
