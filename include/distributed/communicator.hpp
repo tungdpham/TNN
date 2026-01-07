@@ -6,9 +6,9 @@
  */
 #pragma once
 
-#include "concurrent_message_map.hpp"
 #include "endpoint.hpp"
 #include "message.hpp"
+#include "message_map.hpp"
 #include "utils/misc.hpp"
 #include <cstdint>
 #include <functional>
@@ -192,7 +192,7 @@ protected:
 protected:
   std::string id_;
 
-  ConcurrentMessageMap message_queues_;
+  MessageMap message_queues_;
 
   std::queue<Message> out_message_queue_;
 
