@@ -96,12 +96,6 @@ void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
       current->data_ptr(), group_mean_[micro_batch_id], micro_batch_inv_std_[micro_batch_id],
       gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
       micro_batch_normalized_[micro_batch_id], batch_size, channels, spatial_size, "default");
-  if (fwd_task) {
-    auto err = fwd_task->sync();
-    if (err != ErrorStatus{}) {
-      throw std::runtime_error("GroupNorm forward task error: " + err.message());
-    }
-  }
 
   micro_batch_inputs_[micro_batch_id] = current->clone();
 }
@@ -144,12 +138,6 @@ void GroupNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
       run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
                          gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
                          grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
-  if (bwd_task) {
-    auto err = bwd_task->sync();
-    if (err != ErrorStatus{}) {
-      throw std::runtime_error("GroupNorm backward task error: " + err.message());
-    }
-  }
 }
 
 template <typename T>

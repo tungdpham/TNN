@@ -88,7 +88,7 @@ public:
   }
 
   void set_mem_pool(MemPool<T> *mem_pool) { mem_pool_ = mem_pool; }
-  void get_mem_pool(MemPool<T> **mem_pool) const { *mem_pool = mem_pool_; }
+  const MemPool<T> *get_mem_pool() const { return mem_pool_; }
 
   virtual size_t cached_memory_bytes() const { return 0; }
 

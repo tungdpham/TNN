@@ -598,9 +598,9 @@ template <typename T> void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<
 }
 
 template <typename T> void Conv2DLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0))->sync();
+  weight_gradients_.fill(T(0));
   if (use_bias_) {
-    bias_gradients_.fill(T(0))->sync();
+    bias_gradients_.fill(T(0));
   }
 }
 
