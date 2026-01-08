@@ -120,6 +120,7 @@ public:
     }
 
     init_rdma();
+    print_gid_table();
     buffer_pool_ = std::make_unique<RoceBufferPool>(pd_);
     init_send_buffers();
 
@@ -369,6 +370,32 @@ private:
     return info;
   }
 
+  void print_gid_table() {
+    struct ibv_port_attr port_attr;
+    if (ibv_query_port(context_, ib_port_, &port_attr) == 0) {
+      std::cout << "[RoCE] GID Table for device " << device_name_ << ":\n";
+      for (int i = 0; i < port_attr.gid_tbl_len; ++i) {
+        union ibv_gid gid;
+        if (ibv_query_gid(context_, ib_port_, i, &gid) == 0) {
+          bool empty = true;
+          for (int b = 0; b < 16; ++b)
+            if (gid.raw[b] != 0)
+              empty = false;
+          if (empty)
+            continue;
+
+          std::cout << "  GID Index " << i << ": ";
+          auto old_flags = std::cout.flags();
+          std::cout << std::hex;
+          for (int b = 0; b < 16; ++b)
+            std::cout << (int)gid.raw[b] << (b < 15 ? ":" : "");
+          std::cout.flags(old_flags);
+          std::cout << "\n";
+        }
+      }
+    }
+  }
+
   void init_rdma() {
     int num_devices;
     struct ibv_device **dev_list = ibv_get_device_list(&num_devices);
@@ -400,6 +427,57 @@ private:
     cq_ = ibv_create_cq(context_, ROCE_SQ_DEPTH + ROCE_RQ_DEPTH, nullptr, nullptr, 0);
     if (!cq_)
       throw std::runtime_error("Failed to create CQ");
+
+    if (gid_index_ == -1) {
+      struct ibv_port_attr port_attr;
+      int best_gid_index = -1;
+      bool found_ipv4 = false;
+
+      if (ibv_query_port(context_, ib_port_, &port_attr) == 0) {
+        for (int i = 0; i < port_attr.gid_tbl_len; ++i) {
+          union ibv_gid gid;
+          if (ibv_query_gid(context_, ib_port_, i, &gid) == 0) {
+            bool empty = true;
+            for (int b = 0; b < 16; ++b) {
+              if (gid.raw[b] != 0) {
+                empty = false;
+                break;
+              }
+            }
+            if (empty)
+              continue;
+
+            // check for IPv4 mapped address ::ffff:x.x.x.x
+            // this usually indicates RoCE v2 with IPv4
+            bool is_ipv4 = true;
+            for (int b = 0; b < 10; ++b) {
+              if (gid.raw[b] != 0) {
+                is_ipv4 = false;
+                break;
+              }
+            }
+            if (is_ipv4 && gid.raw[10] == 0xff && gid.raw[11] == 0xff) {
+              best_gid_index = i;
+              found_ipv4 = true;
+              break;
+            }
+
+            if (best_gid_index == -1) {
+              best_gid_index = i;
+            }
+          }
+        }
+      }
+
+      gid_index_ = best_gid_index;
+      if (gid_index_ != -1) {
+        std::cout << "[RoCE] Auto-selected GID Index: " << gid_index_
+                  << (found_ipv4 ? " (IPv4/RoCEv2)" : "") << "\n";
+      } else {
+        throw std::runtime_error(
+            "Auto-selection of GID Index failed: No valid GID found on device " + device_name_);
+      }
+    }
   }
 
   void init_send_buffers() {
@@ -497,6 +575,39 @@ private:
         std::cerr << (int)peer_info.gid.raw[i] << ":";
       std::cerr.flags(old_flags);
       std::cerr << "\n";
+
+      union ibv_gid local_gid;
+      if (ibv_query_gid(context_, ib_port_, gid_index_, &local_gid) == 0) {
+        std::cerr << "  Local GID (Index " << gid_index_ << "): ";
+        std::cerr << std::hex;
+        for (int i = 0; i < 16; ++i)
+          std::cerr << (int)local_gid.raw[i] << ":";
+        std::cerr.flags(old_flags);
+        std::cerr << "\n";
+
+        bool remote_ipv4 = true;
+        for (int i = 0; i < 10; ++i)
+          if (peer_info.gid.raw[i] != 0)
+            remote_ipv4 = false;
+        if (peer_info.gid.raw[10] != 0xff || peer_info.gid.raw[11] != 0xff)
+          remote_ipv4 = false;
+
+        bool local_ipv4 = true;
+        for (int i = 0; i < 10; ++i)
+          if (local_gid.raw[i] != 0)
+            local_ipv4 = false;
+        if (local_gid.raw[10] != 0xff || local_gid.raw[11] != 0xff)
+          local_ipv4 = false;
+
+        if (remote_ipv4 != local_ipv4) {
+          std::cerr << "Hint: GID Type mismatch detected!\n"
+                    << "      Remote is " << (remote_ipv4 ? "IPv4-mapped" : "IPv6/Link-local")
+                    << "\n"
+                    << "      Local is " << (local_ipv4 ? "IPv4-mapped" : "IPv6/Link-local") << "\n"
+                    << "      Try using a different --gid-index that matches the IP version.\n";
+        }
+      }
+
       throw std::runtime_error("Failed to modify QP to RTR");
     }
 
