@@ -36,12 +36,9 @@ public:
    * @param endpoints The list of worker endpoints
    */
   RoceCoordinator(const std::string &id, Sequential<float> model,
-                  std::unique_ptr<Optimizer<float>> optimizer, const std::string &host, int port,
-                  const std::string &device_name, int gid_index,
+                  std::unique_ptr<Optimizer<float>> optimizer, Endpoint coordinator_endpoint,
                   const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), std::move(optimizer)) {
-
-    Endpoint coordinator_endpoint = Endpoint::roce(host, port, device_name, gid_index);
 
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;

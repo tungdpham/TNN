@@ -1,4 +1,5 @@
 #include "distributed/roce_worker.hpp"
+#include "distributed/endpoint.hpp"
 #include <getopt.h>
 #include <iostream>
 #include <string>
@@ -90,9 +91,7 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
     return false;
   }
   if (cfg.gid_index < 0) {
-    cerr << "Invalid or missing gid-index: " << cfg.gid_index << endl;
-    print_usage(argv[0]);
-    return false;
+    cout << "Since gid-index is not specified, auto-selecting GID index." << endl;
   }
 
   return true;
@@ -106,7 +105,8 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    RoceWorker worker(cfg.host, cfg.port, cfg.device_name, cfg.gid_index, cfg.use_gpu);
+    Endpoint worker_endpoint = Endpoint::roce(cfg.host, cfg.port, cfg.device_name, cfg.gid_index);
+    RoceWorker worker(worker_endpoint, cfg.use_gpu);
     worker.start();
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

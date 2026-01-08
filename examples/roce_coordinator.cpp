@@ -13,8 +13,6 @@ using namespace tnn;
 using namespace std;
 
 struct Config {
-  std::string host = "localhost";
-  int port = 0;
   std::string device_name = "";
   int gid_index = -1;
 };
@@ -33,24 +31,13 @@ void print_usage(const char *program_name) {
 bool parse_arguments(int argc, char *argv[], Config &cfg) {
   int c;
 
-  static struct option long_options[] = {
-      {"host", required_argument, 0, 'H'},   {"port", required_argument, 0, 'p'},
-      {"device", required_argument, 0, 'd'}, {"gid-index", required_argument, 0, 'g'},
-      {"help", no_argument, 0, 'h'},         {0, 0, 0, 0}};
+  static struct option long_options[] = {{"device", required_argument, 0, 'd'},
+                                         {"gid-index", required_argument, 0, 'g'},
+                                         {"help", no_argument, 0, 'h'},
+                                         {0, 0, 0, 0}};
 
   while ((c = getopt_long(argc, argv, "H:p:d:g:h", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'H':
-      cfg.host = optarg;
-      break;
-    case 'p':
-      try {
-        cfg.port = stoi(optarg);
-      } catch (...) {
-        cerr << "Invalid port value: " << optarg << endl;
-        return false;
-      }
-      break;
     case 'd':
       cfg.device_name = optarg;
       break;
@@ -72,25 +59,13 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
     }
   }
 
-  if (cfg.host.empty()) {
-    cerr << "Missing required argument: --host" << endl;
-    print_usage(argv[0]);
-    return false;
-  }
-  if (cfg.port <= 0 || cfg.port > 65535) {
-    cerr << "Invalid or missing port: " << cfg.port << endl;
-    print_usage(argv[0]);
-    return false;
-  }
   if (cfg.device_name.empty()) {
     cerr << "Missing required argument: --device" << endl;
     print_usage(argv[0]);
     return false;
   }
   if (cfg.gid_index < 0) {
-    cerr << "Invalid or missing gid-index: " << cfg.gid_index << endl;
-    print_usage(argv[0]);
-    return false;
+    cout << "Since gid-index is not specified, auto-selecting GID index." << endl;
   }
 
   return true;
@@ -110,8 +85,10 @@ int main(int argc, char *argv[]) {
   train_config.print_config();
 
   std::vector<Endpoint> endpoints = {
-      Endpoint::roce("10.10.0.2", 8001, "rocep131s0f0", 3),
-      Endpoint::roce("10.10.0.1", 8002, "rocep5s0f0", 3),
+      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
+                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+      Endpoint::roce(Env::get<std::string>("WORKER2_HOST", "10.10.0.1"),
+                     Env::get<int>("WORKER2_PORT", 8002), "rocep5s0f0", -1),
   };
 
   CIFAR100DataLoader<float> train_loader, test_loader;
@@ -135,8 +112,12 @@ int main(int argc, char *argv[]) {
 
   auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
 
-  RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer), cfg.host,
-                              cfg.port, cfg.device_name, cfg.gid_index, endpoints);
+  std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
+  int port = Env::get<int>("COORDINATOR_PORT", 8000);
+
+  Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
+  RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
+                              coordinator_endpoint, endpoints);
 
   // initialize a partitioner with weights 2:1
   auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));

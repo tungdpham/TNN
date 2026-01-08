@@ -30,13 +30,10 @@ public:
    * @param gid_index GID index for RoCE
    * @param use_gpu Whether to use GPU for processing
    */
-  explicit RoceWorker(const std::string &host, int port, const std::string &device_name,
-                      int gid_index, bool use_gpu)
-      : Worker(use_gpu), host_(host), port_(port), device_name_(device_name),
-        gid_index_(gid_index) {
+  explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
+      : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
 
-    auto communicator = std::make_unique<RoceCommunicator>(
-        this->id_, Endpoint::roce(host_, port_, device_name_, gid_index_));
+    auto communicator = std::make_unique<RoceCommunicator>(this->id_, worker_endpoint_);
 
     communicator->start_server();
 
@@ -59,10 +56,7 @@ public:
   }
 
 private:
-  std::string host_;
-  int port_;
-  std::string device_name_;
-  int gid_index_;
+  Endpoint worker_endpoint_;
 };
 
 } // namespace tnn
