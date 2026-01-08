@@ -85,8 +85,10 @@ int main(int argc, char *argv[]) {
   train_config.print_config();
 
   std::vector<Endpoint> endpoints = {
-      Endpoint::roce("10.10.0.2", 8001, "rocep131s0f0", 3),
-      Endpoint::roce("10.10.0.1", 8002, "rocep5s0f0", 3),
+      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
+                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+      Endpoint::roce(Env::get<std::string>("WORKER2_HOST", "10.10.0.1"),
+                     Env::get<int>("WORKER2_PORT", 8002), "rocep5s0f0", -1),
   };
 
   CIFAR100DataLoader<float> train_loader, test_loader;
