@@ -1424,6 +1424,21 @@ public:
     return *this;
   }
 
+  SequentialBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "") {
+    layer_builder_.embedding(vocab_size, embed_dim,
+                             name.empty() ? "embedding_" + std::to_string(model_.layer_size())
+                                          : name);
+    return *this;
+  }
+
+  SequentialBuilder &causal_attention(size_t embed_dim, size_t num_heads,
+                                      const std::string &name = "") {
+    layer_builder_.causal_attention(
+        embed_dim, num_heads,
+        name.empty() ? "causal_attention_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
   SequentialBuilder &class_token(size_t embed_dim, const std::string &name = "") {
     layer_builder_.class_token(
         embed_dim, name.empty() ? "class_token_" + std::to_string(model_.layer_size()) : name);
