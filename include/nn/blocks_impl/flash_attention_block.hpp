@@ -215,12 +215,9 @@ public:
     size_t W = input.width();
     size_t L = H * W;
 
-    PooledTensor<T> q_buffer = this->get_buffer(q_proj_->compute_output_shape(input.shape()));
-    Tensor<T> &q = q_buffer.get();
-    PooledTensor<T> k_buffer = this->get_buffer(k_proj_->compute_output_shape(input.shape()));
-    Tensor<T> &k = k_buffer.get();
-    PooledTensor<T> v_buffer = this->get_buffer(v_proj_->compute_output_shape(input.shape()));
-    Tensor<T> &v = v_buffer.get();
+    Tensor<T> &q = q_cache_[micro_batch_id];
+    Tensor<T> &k = k_cache_[micro_batch_id];
+    Tensor<T> &v = v_cache_[micro_batch_id];
 
     q_proj_->forward(input, q, micro_batch_id);
     k_proj_->forward(input, k, micro_batch_id);
@@ -263,50 +260,15 @@ public:
       size_t head_size = head_dim_ * L;
       size_t score_size = L * L;
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_q = q_ptr + i * head_size;
-        T *curr_k = k_ptr + i * head_size;
-        T *curr_s = s_ptr + i * score_size;
-
-        create_gpu_task("default", cuda::gemm<T>, curr_q, curr_k, curr_s, M, N, K_dim, true, false,
-                        alpha, beta);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr, k_ptr, s_ptr, M, N, K_dim,
+                      true, false, alpha, beta, batch_count, head_size, head_size, score_size);
 
       softmax_last_dim(scores);
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_v = v_ptr + i * head_size;
-        T *curr_s = s_ptr + i * score_size;
-        T *curr_out = out_ptr + i * head_size;
-
-        create_gpu_task("default", cuda::gemm<T>, curr_v, curr_s, curr_out, head_dim_, L, L, false,
-                        true, 1.0f, 0.0f);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, v_ptr, s_ptr, out_ptr, head_dim_, L,
+                      L, false, true, 1.0f, 0.0f, batch_count, head_size, score_size, head_size);
     }
 #endif
-    auto it_q_cache = q_cache_.find(micro_batch_id);
-    auto it_k_cache = k_cache_.find(micro_batch_id);
-    auto it_v_cache = v_cache_.find(micro_batch_id);
-    if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
-      q_cache_[micro_batch_id] = q.clone();
-    } else {
-      it_q_cache->second.ensure(q.shape(), this->device_);
-      ops::copy(q.data_ptr(), it_q_cache->second.data_ptr(), q.size());
-    }
-
-    if (k_cache_.find(micro_batch_id) == k_cache_.end()) {
-      k_cache_[micro_batch_id] = k.clone();
-    } else {
-      it_k_cache->second.ensure(k.shape(), this->device_);
-      ops::copy(k.data_ptr(), it_k_cache->second.data_ptr(), k.size());
-    }
-
-    if (v_cache_.find(micro_batch_id) == v_cache_.end()) {
-      v_cache_[micro_batch_id] = v.clone();
-    } else {
-      it_v_cache->second.ensure(v.shape(), this->device_);
-      ops::copy(v.data_ptr(), it_v_cache->second.data_ptr(), v.size());
-    }
 
     out_proj_->forward(attn_out, output, micro_batch_id);
   }
@@ -370,13 +332,9 @@ public:
       auto s_ptr = s.data_ptr().get();
       auto ds_ptr_raw = ds.data_ptr().get();
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_q = q_ptr.get() + i * head_size;
-        T *curr_k = k_ptr.get() + i * head_size;
-        T *curr_s = s_ptr + i * score_size;
-        create_gpu_task("default", cuda::gemm<T>, curr_q, curr_k, curr_s, M, N, K_dim, true, false,
-                        alpha, beta);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr.get(), k_ptr.get(), s_ptr, M,
+                      N, K_dim, true, false, alpha, beta, batch_count, head_size, head_size,
+                      score_size);
 
 #ifdef USE_CUDNN
       auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
@@ -384,42 +342,26 @@ public:
                       cuda_context->getCudnnHandle(), s_ptr, s_ptr, batch_count * L, L);
 #endif
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_v = v_ptr.get() + i * head_size;
-        T *curr_do = dout_ptr.get() + i * head_size;
-        T *curr_ds = ds_ptr_raw + i * score_size;
-        create_gpu_task("default", cuda::gemm<T>, curr_v, curr_do, curr_ds, L, L, head_dim_, true,
-                        false, 1.0f, 0.0f);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, v_ptr.get(), dout_ptr.get(),
+                      ds_ptr_raw, L, L, head_dim_, true, false, 1.0f, 0.0f, batch_count, head_size,
+                      head_size, score_size);
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_do = dout_ptr.get() + i * head_size;
-        T *curr_s = s_ptr + i * score_size;
-        T *curr_dv = dv_ptr.get() + i * head_size;
-        create_gpu_task("default", cuda::gemm<T>, curr_do, curr_s, curr_dv, head_dim_, L, L, false,
-                        false, 1.0f, 0.0f);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, dout_ptr.get(), s_ptr, dv_ptr.get(),
+                      head_dim_, L, L, false, false, 1.0f, 0.0f, batch_count, head_size, score_size,
+                      head_size);
 
 #ifdef USE_CUDNN
       create_gpu_task("default", run_cudnn_softmax_backward, cuda_context->getCudnnHandle(), alpha,
                       s_ptr, ds_ptr_raw, da.data_ptr().get(), batch_count * L, L);
 #endif
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_k = k_ptr.get() + i * head_size;
-        T *curr_da = da.data_ptr().get() + i * score_size;
-        T *curr_dq = dq_ptr.get() + i * head_size;
-        create_gpu_task("default", cuda::gemm<T>, curr_k, curr_da, curr_dq, head_dim_, L, L, false,
-                        true, 1.0f, 0.0f);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, k_ptr.get(), da.data_ptr().get(),
+                      dq_ptr.get(), head_dim_, L, L, false, true, 1.0f, 0.0f, batch_count,
+                      head_size, score_size, head_size);
 
-      for (size_t i = 0; i < batch_count; ++i) {
-        T *curr_q = q_ptr.get() + i * head_size;
-        T *curr_da = da.data_ptr().get() + i * score_size;
-        T *curr_dk = dk_ptr.get() + i * head_size;
-        create_gpu_task("default", cuda::gemm<T>, curr_q, curr_da, curr_dk, head_dim_, L, L, false,
-                        false, 1.0f, 0.0f);
-      }
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr.get(), da.data_ptr().get(),
+                      dk_ptr.get(), head_dim_, L, L, false, false, 1.0f, 0.0f, batch_count,
+                      head_size, score_size, head_size);
     }
 #endif
 
