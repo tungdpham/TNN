@@ -70,6 +70,33 @@ inline void gemm(const char transa, const char transb, const MKL_INT m, const MK
 }
 
 /**
+ * @brief Wrapper for Intel MKL SGEMM Batch
+ */
+inline void gemm_batch(const char transa, const char transb, const MKL_INT m, const MKL_INT n,
+                       const MKL_INT k, const float alpha, const float **a_array, const MKL_INT lda,
+                       const float **b_array, const MKL_INT ldb, const float beta, float **c_array,
+                       const MKL_INT ldc, const MKL_INT batch_size) {
+  CBLAS_TRANSPOSE transa_val = (transa == 'T' ? CblasTrans : CblasNoTrans);
+  CBLAS_TRANSPOSE transb_val = (transb == 'T' ? CblasTrans : CblasNoTrans);
+  cblas_sgemm_batch(CblasRowMajor, &transa_val, &transb_val, &m, &n, &k, &alpha, a_array, &lda,
+                    b_array, &ldb, &beta, c_array, &ldc, 1, &batch_size);
+}
+
+/**
+ * @brief Wrapper for Intel MKL DGEMM Batch
+ */
+inline void gemm_batch(const char transa, const char transb, const MKL_INT m, const MKL_INT n,
+                       const MKL_INT k, const double alpha, const double **a_array,
+                       const MKL_INT lda, const double **b_array, const MKL_INT ldb,
+                       const double beta, double **c_array, const MKL_INT ldc,
+                       const MKL_INT batch_size) {
+  CBLAS_TRANSPOSE transa_val = (transa == 'T' ? CblasTrans : CblasNoTrans);
+  CBLAS_TRANSPOSE transb_val = (transb == 'T' ? CblasTrans : CblasNoTrans);
+  cblas_dgemm_batch(CblasRowMajor, &transa_val, &transb_val, &m, &n, &k, &alpha, a_array, &lda,
+                    b_array, &ldb, &beta, c_array, &ldc, 1, &batch_size);
+}
+
+/**
  * @brief Optimized GEMM for convolution forward pass
  * Computes output = weights * im2col_data
  *

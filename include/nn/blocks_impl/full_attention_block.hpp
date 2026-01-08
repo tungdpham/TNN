@@ -157,22 +157,16 @@ public:
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;
 
-    for (size_t i = 0; i < batch_count; ++i) {
-      T *curr_q = q_ptr + i * head_size;
-      T *curr_k = k_ptr + i * head_size;
-      T *curr_s = s_ptr + i * score_size;
-
-      if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", cpu::gemm<T>, curr_q, curr_k, curr_s, M, N, K_dim, true, false,
-                        alpha, beta);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::gemm<T>, curr_q, curr_k, curr_s, M, N, K_dim, true, false,
-                        alpha, beta);
-      }
-#endif
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, q_ptr, k_ptr, s_ptr, M, N, K_dim,
+                      true, false, alpha, beta, batch_count, head_size, head_size, score_size);
     }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr, k_ptr, s_ptr, M, N, K_dim,
+                      true, false, alpha, beta, batch_count, head_size, head_size, score_size);
+    }
+#endif
 
     softmax_last_dim(scores);
 
@@ -180,22 +174,16 @@ public:
     Tensor<T> &attn_out = attn_out_buffer.get();
     auto out_ptr = attn_out.data_ptr().get();
 
-    for (size_t i = 0; i < batch_count; ++i) {
-      T *curr_v = v_ptr + i * head_size;
-      T *curr_s = s_ptr + i * score_size;
-      T *curr_out = out_ptr + i * head_size;
-
-      if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", cpu::gemm<T>, curr_v, curr_s, curr_out, head_dim_, L, L, false,
-                        true, 1.0f, 0.0f);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::gemm<T>, curr_v, curr_s, curr_out, head_dim_, L, L, false,
-                        true, 1.0f, 0.0f);
-      }
-#endif
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, v_ptr, s_ptr, out_ptr, head_dim_, L,
+                      L, false, true, 1.0f, 0.0f, batch_count, head_size, score_size, head_size);
     }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, v_ptr, s_ptr, out_ptr, head_dim_, L,
+                      L, false, true, 1.0f, 0.0f, batch_count, head_size, score_size, head_size);
+    }
+#endif
 
     out_proj_->forward(attn_out, output, micro_batch_id);
   }
@@ -231,26 +219,24 @@ public:
     auto g_q_ptr = grad_q.data_ptr().get();
     auto g_k_ptr = grad_k.data_ptr().get();
 
-    for (size_t i = 0; i < batch_count; ++i) {
-      T *curr_gv = g_v_ptr + i * head_size;
-      T *curr_gout = g_out_ptr + i * head_size;
-      T *curr_s = s_ptr + i * score_size;
-      T *curr_gs = g_s_ptr + i * score_size;
-      T *curr_v = v_ptr + i * head_size;
-
-      if (this->device_->device_type() == DeviceType::CPU) {
-        cpu::gemm<T>(curr_gout, curr_s, curr_gv, head_dim_, L, L, false, false, 1.0f, 0.0f);
-        cpu::gemm<T>(curr_gout, curr_v, curr_gs, L, L, head_dim_, true, false, 1.0f, 0.0f);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::gemm<T>, curr_gout, curr_s, curr_gv, head_dim_, L, L,
-                        false, false, 1.0f, 0.0f);
-        create_gpu_task("default", cuda::gemm<T>, curr_gout, curr_v, curr_gs, L, L, head_dim_, true,
-                        false, 1.0f, 0.0f);
-      }
-#endif
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_out_ptr, s_ptr, g_v_ptr, head_dim_,
+                      L, L, false, false, 1.0f, 0.0f, batch_count, head_size, score_size,
+                      head_size);
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
+                      head_dim_, true, false, 1.0f, 0.0f, batch_count, head_size, head_size,
+                      score_size);
     }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_out_ptr, s_ptr, g_v_ptr,
+                      head_dim_, L, L, false, false, 1.0f, 0.0f, batch_count, head_size, score_size,
+                      head_size);
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
+                      head_dim_, true, false, 1.0f, 0.0f, batch_count, head_size, head_size,
+                      score_size);
+    }
+#endif
 
     if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
@@ -269,26 +255,24 @@ public:
 
     T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
 
-    for (size_t i = 0; i < batch_count; ++i) {
-      T *curr_gs = g_s_ptr + i * score_size;
-      T *curr_q = q_ptr + i * head_size;
-      T *curr_k = k_ptr + i * head_size;
-      T *curr_gq = g_q_ptr + i * head_size;
-      T *curr_gk = g_k_ptr + i * head_size;
-
-      if (this->device_->device_type() == DeviceType::CPU) {
-        cpu::gemm<T>(curr_k, curr_gs, curr_gq, head_dim_, L, L, false, true, alpha, 0.0f);
-        cpu::gemm<T>(curr_q, curr_gs, curr_gk, head_dim_, L, L, false, false, alpha, 0.0f);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::gemm<T>, curr_k, curr_gs, curr_gq, head_dim_, L, L, false,
-                        true, alpha, 0.0f);
-        create_gpu_task("default", cuda::gemm<T>, curr_q, curr_gs, curr_gk, head_dim_, L, L, false,
-                        false, alpha, 0.0f);
-      }
-#endif
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, k_ptr, g_s_ptr, g_q_ptr, head_dim_,
+                      L, L, false, true, alpha, 0.0f, batch_count, head_size, score_size,
+                      head_size);
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, q_ptr, g_s_ptr, g_k_ptr, head_dim_,
+                      L, L, false, false, alpha, 0.0f, batch_count, head_size, score_size,
+                      head_size);
     }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, k_ptr, g_s_ptr, g_q_ptr, head_dim_,
+                      L, L, false, true, alpha, 0.0f, batch_count, head_size, score_size,
+                      head_size);
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr, g_s_ptr, g_k_ptr, head_dim_,
+                      L, L, false, false, alpha, 0.0f, batch_count, head_size, score_size,
+                      head_size);
+    }
+#endif
 
     PooledTensor<T> grad_input_q_buffer = this->get_buffer(grad_input.shape());
     Tensor<T> &grad_input_q = grad_input_q_buffer.get();
