@@ -13,6 +13,7 @@
 #include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
 #include <any>
+#include <cerrno>
 
 #include <asio.hpp>
 #include <atomic>
@@ -442,6 +443,13 @@ private:
   void modify_qp_to_rts(ibv_qp *qp, const RoceConnectionInfo &peer_info, uint32_t local_psn) {
     struct ibv_qp_attr attr;
     int flags;
+    int ret;
+
+    // check port attributes to determine MTU
+    struct ibv_port_attr port_attr;
+    if ((ret = ibv_query_port(context_, ib_port_, &port_attr)) != 0) {
+      throw std::runtime_error("Failed to query port: " + std::string(std::strerror(ret)));
+    }
 
     // INIT
     std::memset(&attr, 0, sizeof(attr));
@@ -450,13 +458,18 @@ private:
     attr.port_num = ib_port_;
     attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE;
     flags = IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS;
-    if (ibv_modify_qp(qp, &attr, flags))
+    if ((ret = ibv_modify_qp(qp, &attr, flags)) != 0) {
+      std::cerr << "Failed to modify QP to INIT. ret=" << ret << " (" << std::strerror(ret)
+                << ")\n";
       throw std::runtime_error("Failed to modify QP to INIT");
+    }
 
     // RTR
     std::memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_RTR;
-    attr.path_mtu = IBV_MTU_1024;
+
+    attr.path_mtu = (port_attr.active_mtu < IBV_MTU_1024) ? port_attr.active_mtu : IBV_MTU_1024;
+
     attr.dest_qp_num = peer_info.qpn;
     attr.rq_psn = peer_info.psn;
     attr.max_dest_rd_atomic = 1;
@@ -471,8 +484,21 @@ private:
     attr.ah_attr.grh.hop_limit = 64;
     flags = IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN |
             IBV_QP_MAX_DEST_RD_ATOMIC | IBV_QP_MIN_RNR_TIMER;
-    if (ibv_modify_qp(qp, &attr, flags))
+    if ((ret = ibv_modify_qp(qp, &attr, flags)) != 0) {
+      std::cerr << "Failed to modify QP to RTR. ret=" << ret << " (" << std::strerror(ret) << ")\n";
+      std::cerr << "  GID Index: " << gid_index_ << "\n";
+      std::cerr << "  Remote QPN: " << peer_info.qpn << "\n";
+      std::cerr << "  Remote LID: " << peer_info.lid << "\n";
+      std::cerr << "  MTU (Active/Path): " << port_attr.active_mtu << "/" << attr.path_mtu << "\n";
+      std::cerr << "  Remote GID: ";
+      auto old_flags = std::cerr.flags();
+      std::cerr << std::hex;
+      for (int i = 0; i < 16; ++i)
+        std::cerr << (int)peer_info.gid.raw[i] << ":";
+      std::cerr.flags(old_flags);
+      std::cerr << "\n";
       throw std::runtime_error("Failed to modify QP to RTR");
+    }
 
     // RTS
     std::memset(&attr, 0, sizeof(attr));
@@ -484,8 +510,10 @@ private:
     attr.max_rd_atomic = 1;
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN |
             IBV_QP_MAX_QP_RD_ATOMIC;
-    if (ibv_modify_qp(qp, &attr, flags))
+    if ((ret = ibv_modify_qp(qp, &attr, flags)) != 0) {
+      std::cerr << "Failed to modify QP to RTS. ret=" << ret << " (" << std::strerror(ret) << ")\n";
       throw std::runtime_error("Failed to modify QP to RTS");
+    }
   }
 
   void post_recv_buffer(ibv_qp *qp, RegisteredBuffer *buf) {
