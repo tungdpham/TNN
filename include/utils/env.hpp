@@ -27,12 +27,8 @@ public:
     }
 
     std::string line;
-    size_t line_number = 0;
 
     while (std::getline(file, line)) {
-      ++line_number;
-
-      // 1. Remove leading/trailing whitespace from the whole line first
       size_t first = line.find_first_not_of(" \t\r\n");
       if (first == std::string::npos)
         continue;

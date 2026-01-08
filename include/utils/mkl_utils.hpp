@@ -9,8 +9,6 @@
 #ifdef USE_MKL
 
 #include <mkl.h>
-#include <stdexcept>
-#include <string>
 
 namespace tnn {
 namespace mkl {
