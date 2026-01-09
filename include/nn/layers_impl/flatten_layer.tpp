@@ -87,6 +87,7 @@ FlattenLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) co
   for (size_t i = static_cast<size_t>(start); i < input_shape.size(); ++i) {
     flat_dim *= input_shape[i];
   }
+
   output_shape.push_back(flat_dim);
 
   while (output_shape.size() < 4) {

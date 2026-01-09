@@ -1187,8 +1187,8 @@ public:
 
   std::vector<size_t> get_current_shape() const { return layer_builder_.get_current_shape(); }
 
-  SequentialBuilder &input(const std::vector<size_t> &shape) {
-    layer_builder_.input(shape);
+  SequentialBuilder &input(const std::vector<size_t> &batchless_shape) {
+    layer_builder_.input(batchless_shape);
     return *this;
   }
 
@@ -1405,6 +1405,48 @@ public:
 
     auto res_block = residual_block<T>(std::move(main_path), std::move(shortcut), "relu", name);
     layer_builder_.add_layer(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * @brief Helper function to create a GPT-style Transformer block
+   * Structure:
+   *   1. x = x + Dropout(CausalAttention(LayerNorm(x)))
+   *   2. x = x + Dropout(Projection(Activation(Expansion(LayerNorm(x)))))
+   */
+  SequentialBuilder &gpt_block(size_t embed_dim, size_t num_heads, size_t ffn_dim,
+                               T dropout_rate = T(0.1), const std::string &activation_fn = "gelu",
+                               const std::string &name = "") {
+    std::string valid_name =
+        name.empty() ? "gpt_block_" + std::to_string(model_.layer_size()) : name;
+    std::vector<size_t> current_shape = layer_builder_.get_current_shape();
+
+    std::vector<size_t> batchless_shape(current_shape.begin() + 1, current_shape.end());
+
+    // 1. Attention Sub-block (Residual)
+    auto attn_main = LayerBuilder<T>()
+                         .input(batchless_shape)
+                         .layernorm(1e-5f, true, "ln_1")
+                         .causal_attention(embed_dim, num_heads, "attn")
+                         .dropout(dropout_rate)
+                         .build();
+
+    auto attn_res = residual_block<T>(std::move(attn_main), {}, "linear", valid_name + "_attn");
+    layer_builder_.add_layer(std::move(attn_res));
+
+    // 2. Feed-Forward Sub-block (Residual)
+    auto ffn_main = LayerBuilder<T>()
+                        .input(batchless_shape) // Input shape matches (residual preserves shape)
+                        .layernorm(1e-5f, true, "ln_2")
+                        .dense(ffn_dim, true, "mlp_fc1")
+                        .activation(activation_fn)
+                        .dense(embed_dim, true, "mlp_fc2") // Project back to embed_dim
+                        .dropout(dropout_rate)
+                        .build();
+
+    auto ffn_res = residual_block<T>(std::move(ffn_main), {}, "linear", valid_name + "_ffn");
+    layer_builder_.add_layer(std::move(ffn_res));
+
     return *this;
   }
 

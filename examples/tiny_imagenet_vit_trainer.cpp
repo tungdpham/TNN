@@ -93,7 +93,6 @@ int main() {
 
     model.set_device(device_type);
     model.initialize();
-    model.print_summary({64, 3, 64, 64});
 
     auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f, 1e-4f);
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();

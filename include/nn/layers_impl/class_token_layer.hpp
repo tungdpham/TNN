@@ -127,6 +127,10 @@ public:
   }
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
+    if (input_shape.size() != 4) {
+      throw std::invalid_argument("ClassTokenLayer expects 4D input including batch size");
+    }
+
     // input_shape: [N, C, H, W]
     // output_shape: [N, C, H*W + 1, 1]
     size_t N = input_shape[0];

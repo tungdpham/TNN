@@ -8,6 +8,7 @@ create_default(tiny_imagenet_resnet18 tiny_imagenet_resnet18.cpp)
 create_default(tiny_imagenet_resnet34 tiny_imagenet_resnet34.cpp)
 create_default(tiny_imagenet_resnet50 tiny_imagenet_resnet50.cpp)
 create_default(tiny_imagenet_vit_trainer tiny_imagenet_vit_trainer.cpp)
+create_default(gpt_trainer_example gpt_trainer_example.cpp)
 
 create_default(cifar10_resnet9 cifar10_resnet9.cpp)
 

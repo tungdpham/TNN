@@ -304,11 +304,9 @@ public:
                                "Use .input() method first.");
     }
 
-    std::vector<size_t> shape_with_batch = {1};
-    shape_with_batch.insert(shape_with_batch.end(), input_shape_.begin(), input_shape_.end());
-
     // Compute output shape by passing through all layers
-    std::vector<size_t> current_shape = shape_with_batch;
+    std::vector<size_t> current_shape = input_shape_;
+
     for (const auto &layer : layers_) {
       current_shape = layer->compute_output_shape(current_shape);
     }
@@ -330,8 +328,10 @@ public:
     return feature_count;
   }
 
-  LayerBuilder &input(const std::vector<size_t> &shape) {
-    input_shape_ = shape;
+  LayerBuilder &input(const std::vector<size_t> &batchless_shape) {
+    input_shape_ = {1};
+    input_shape_.insert(input_shape_.end(), batchless_shape.begin(), batchless_shape.end());
+
     input_shape_set_ = true;
     return *this;
   }

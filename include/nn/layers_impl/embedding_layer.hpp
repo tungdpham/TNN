@@ -92,8 +92,15 @@ public:
   void set_training(bool training) override { this->is_training_ = training; }
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
+    const Tensor<T> *current = &input;
+    Tensor<T> device_input;
+    if (input.device() != this->device_) {
+      device_input = input.to_device(this->device_);
+      current = &device_input;
+    }
+
     if (this->is_training_) {
-      micro_batch_inputs_[micro_batch_id] = input.clone();
+      micro_batch_inputs_[micro_batch_id] = current->clone();
     }
 
     size_t num_tokens = input.size();
@@ -112,7 +119,7 @@ public:
     }
     output.ensure(out_shape, this->device_);
 
-    compute_forward_task(input.data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
+    compute_forward_task(current->data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
                          vocab_size_, embed_dim_, vocab_size_, "default");
   }
 
@@ -123,6 +130,13 @@ public:
       throw std::runtime_error("EmbeddingLayer::backward: No cached input for micro_batch_id " +
                                std::to_string(micro_batch_id));
     }
+    const Tensor<T> *current_gradient = &gradient;
+    Tensor<T> device_gradient;
+    if (gradient.device() != this->device_) {
+      device_gradient = gradient.to_device(this->device_);
+      current_gradient = &device_gradient;
+    }
+
     const Tensor<T> &input = it->second;
 
     grad_input.ensure(input.shape(), this->device_);
@@ -130,7 +144,7 @@ public:
 
     size_t num_tokens = input.size();
 
-    compute_backward_task(input.data_ptr(), gradient.data_ptr(), grad_weight_.data_ptr(),
+    compute_backward_task(input.data_ptr(), current_gradient->data_ptr(), grad_weight_.data_ptr(),
                           num_tokens, vocab_size_, embed_dim_, vocab_size_, "default");
   }
 
@@ -150,6 +164,10 @@ public:
     std::vector<size_t> out = input_shape;
     if (out.size() >= 2)
       out[1] = embed_dim_;
+    else {
+      throw std::runtime_error("EmbeddingLayer::compute_output_shape: Input tensor must have "
+                               "shape [N, 1, H, W] or [N, L] where L is the number of tokens.");
+    }
     return out;
   }
 

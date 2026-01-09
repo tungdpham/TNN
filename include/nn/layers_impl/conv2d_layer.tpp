@@ -574,13 +574,15 @@ template <typename T>
 std::vector<size_t>
 Conv2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("Conv2DLayer expects 4D input");
+    throw std::invalid_argument("Conv2DLayer expects 4D input including batch size");
   }
+
+  size_t batch_size = input_shape[0];
 
   size_t output_h = (input_shape[2] + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   size_t output_w = (input_shape[3] + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  return {input_shape[0], out_channels_, output_h, output_w};
+  return {batch_size, out_channels_, output_h, output_w};
 }
 
 template <typename T> void Conv2DLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {

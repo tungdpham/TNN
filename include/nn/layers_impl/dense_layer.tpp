@@ -293,7 +293,7 @@ template <typename T>
 std::vector<size_t>
 DenseLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("DenseLayer expects 4D input");
+    throw std::invalid_argument("DenseLayer expects 4D input including batch size");
   }
   return {input_shape[0], output_features_, 1, 1};
 }

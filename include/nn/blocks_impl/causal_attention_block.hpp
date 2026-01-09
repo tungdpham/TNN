@@ -5,10 +5,12 @@
 
 #include "device/task.hpp"
 #include "math/cpu/gemm.hpp"
+#include "nn/blocks_impl/cpu/causal_mask.hpp"
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 #ifdef USE_CUDA
 #include "math/cuda/gemm.hpp"
+#include "nn/blocks_impl/cuda/causal_mask.hpp"
 #endif
 #ifdef USE_CUDNN
 #include "device/cuda/cuda_context.hpp"
@@ -195,21 +197,18 @@ public:
     // APPLY CAUSAL MASK
     PooledTensor<T> mask_buffer = this->get_buffer({batch_count, 1, L, L});
     Tensor<T> &mask = mask_buffer.get();
-
-    // Fill mask on CPU (temp)
-    Tensor<T> mask_cpu({batch_count, 1, L, L}, &DeviceManager::getInstance().getDevice("cpu"));
-    T *m_ptr = mask_cpu.data_ptr().get();
+    T *m_ptr = mask.data_ptr().get();
     T neg_inf = static_cast<T>(-1e9);
 
-    for (size_t b = 0; b < batch_count; ++b) {
-      for (size_t i = 0; i < L; ++i) {
-        for (size_t j = 0; j < L; ++j) {
-          m_ptr[b * L * L + i * L + j] = (j > i) ? neg_inf : static_cast<T>(0);
-        }
-      }
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::fill_causal_mask<T>, m_ptr, batch_count, L, neg_inf);
     }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::fill_causal_mask<T>, m_ptr, batch_count, L, neg_inf);
+    }
+#endif
 
-    ops::cd_copy(mask_cpu.data_ptr(), mask.data_ptr(), mask.size());
     ops::add(scores.data_ptr(), mask.data_ptr(), scores.data_ptr(), scores.size());
 
     softmax_last_dim(scores);

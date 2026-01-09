@@ -186,13 +186,15 @@ template <typename T>
 std::vector<size_t>
 MaxPool2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("MaxPool2DLayer expects 4D input");
+    throw std::invalid_argument("MaxPool2DLayer expects 4D input including batch size");
   }
 
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
   size_t output_h = (input_shape[2] + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   size_t output_w = (input_shape[3] + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  return {input_shape[0], input_shape[1], output_h, output_w};
+  return {batch_size, channels, output_h, output_w};
 }
 
 template <typename T>

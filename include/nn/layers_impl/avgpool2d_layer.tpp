@@ -167,23 +167,25 @@ template <typename T>
 std::vector<size_t>
 AvgPool2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
-    throw std::invalid_argument("AvgPool2DLayer expects 4D input");
+    throw std::invalid_argument("AvgPool2DLayer expects 4D input including batch size");
   }
 
   // Check for underflow in the calculation
+  size_t batch_size = input_shape[0];
+  size_t channels = input_shape[1];
   size_t padded_h = input_shape[2] + 2 * pad_h_;
   size_t padded_w = input_shape[3] + 2 * pad_w_;
 
   // Handle case where pool size is larger than input (global average pooling)
   if (padded_h < pool_h_ || padded_w < pool_w_) {
     // For global average pooling, output is 1x1
-    return {input_shape[0], input_shape[1], 1, 1};
+    return {batch_size, channels, 1, 1};
   }
 
   size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
   size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
 
-  return {input_shape[0], input_shape[1], output_h, output_w};
+  return {batch_size, channels, output_h, output_w};
 }
 
 template <typename T>
