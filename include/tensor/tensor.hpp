@@ -532,15 +532,6 @@ public:
     layout_trait_.compute_strides();
   }
 
-  Tensor<T, L> reshape(const std::vector<size_t> &new_shape) const {
-    size_t new_size =
-        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size != size()) {
-      throw std::invalid_argument("New shape must have same total size");
-    }
-    return Tensor<T, L>(new_shape, data_, device_);
-  }
-
   void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) {
     if (dest_batch_idx >= batch_size() || src_batch_idx >= other.batch_size()) {
       throw std::invalid_argument("Invalid batch index for copy");

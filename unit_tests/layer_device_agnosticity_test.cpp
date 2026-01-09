@@ -694,7 +694,9 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   Tensor<float> cpu_conv_out(conv_output_shape, cpu_device_);
   cpu_conv.forward(input, cpu_conv_out);
   // Reshape for dense layer
-  Tensor<float> cpu_conv_flat = cpu_conv_out.reshape({batch_size, flattened_size, 1, 1});
+  // Tensor<float> cpu_conv_flat = cpu_conv_out.resize({batch_size, flattened_size, 1, 1});
+  Tensor<float> cpu_conv_flat({batch_size, flattened_size, 1, 1}, cpu_conv_out.data_ptr(),
+                              cpu_device_);
   std::vector<size_t> dense_output_shape = cpu_dense.compute_output_shape(cpu_conv_flat.shape());
   Tensor<float> cpu_dense_out(dense_output_shape, cpu_device_);
   cpu_dense.forward(cpu_conv_flat, cpu_dense_out);
@@ -702,7 +704,9 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   // Forward pass - GPU
   Tensor<float> gpu_conv_out(conv_output_shape, gpu_device_);
   gpu_conv.forward(input, gpu_conv_out);
-  Tensor<float> gpu_conv_flat = gpu_conv_out.reshape({batch_size, flattened_size, 1, 1});
+  // Tensor<float> gpu_conv_flat = gpu_conv_out.resize({batch_size, flattened_size, 1, 1});
+  Tensor<float> gpu_conv_flat({batch_size, flattened_size, 1, 1}, gpu_conv_out.data_ptr(),
+                              gpu_device_);
   Tensor<float> gpu_dense_out(dense_output_shape, gpu_device_);
   gpu_dense.forward(gpu_conv_flat, gpu_dense_out);
 
@@ -715,14 +719,16 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   // CPU backward
   Tensor<float> cpu_grad_dense(cpu_conv_flat.shape(), cpu_device_);
   cpu_dense.backward(grad_output, cpu_grad_dense);
-  Tensor<float> cpu_grad_dense_reshape = cpu_grad_dense.reshape(cpu_conv_out.shape());
+  Tensor<float> cpu_grad_dense_reshape({batch_size, out_channels, input_h, input_w},
+                                       cpu_grad_dense.data_ptr(), cpu_device_);
   Tensor<float> cpu_grad_conv(input.shape(), cpu_device_);
   cpu_conv.backward(cpu_grad_dense_reshape, cpu_grad_conv);
 
   // GPU backward
   Tensor<float> gpu_grad_dense(gpu_conv_flat.shape(), gpu_device_);
   gpu_dense.backward(grad_output, gpu_grad_dense);
-  Tensor<float> gpu_grad_dense_reshape = gpu_grad_dense.reshape(gpu_conv_out.shape());
+  Tensor<float> gpu_grad_dense_reshape({batch_size, out_channels, input_h, input_w},
+                                       gpu_grad_dense.data_ptr(), gpu_device_);
   Tensor<float> gpu_grad_conv(input.shape(), gpu_device_);
   gpu_conv.backward(gpu_grad_dense_reshape, gpu_grad_conv);
 

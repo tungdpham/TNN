@@ -430,30 +430,6 @@ TEST_F(GPUTensorTest, CopyConstructor) {
   EXPECT_FLOAT_EQ(cpu_copy(0, 0, 0, 0), 42.0f);
 }
 
-// Reshape tests
-TEST_F(GPUTensorTest, ReshapeOperation) {
-  Tensor<float, NCHW> tensor({1, 1, 4, 4}, gpu_device_);
-  tensor.fill(5.0f);
-
-  Tensor<float, NCHW> reshaped = tensor.reshape({1, 2, 2, 4});
-
-  EXPECT_EQ(reshaped.batch_size(), 1);
-  EXPECT_EQ(reshaped.channels(), 2);
-  EXPECT_EQ(reshaped.height(), 2);
-  EXPECT_EQ(reshaped.width(), 4);
-  EXPECT_EQ(reshaped.size(), 16);
-  EXPECT_TRUE(reshaped.is_on_gpu());
-
-  Tensor<float, NCHW> cpu_result = reshaped.to_cpu();
-  EXPECT_FLOAT_EQ(cpu_result(0, 0, 0, 0), 5.0f);
-}
-
-TEST_F(GPUTensorTest, ReshapeInvalidSize) {
-  Tensor<float, NCHW> tensor({1, 1, 2, 2}, gpu_device_);
-
-  EXPECT_THROW(tensor.reshape({1, 1, 3, 3}), std::invalid_argument);
-}
-
 // Device transfer tests
 TEST_F(GPUTensorTest, ToCPU) {
   Tensor<float, NCHW> gpu_tensor({1, 1, 2, 2}, gpu_device_);
