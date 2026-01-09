@@ -18,7 +18,6 @@
 using namespace tnn;
 using namespace std;
 
-// A simple character-level data loader for GPT training
 class CharTextDataLoader : public BaseDataLoader<float> {
 private:
   string text_;
@@ -145,8 +144,8 @@ int main() {
   for (int i = 0; i < 10000; ++i)
     text += base_text;
 
-  size_t seq_len = 64;
-  size_t batch_size = 32;
+  size_t seq_len = 128;
+  size_t batch_size = 16;
   size_t embed_dim = 64;
   size_t num_heads = 4;
   size_t ffn_dim = 256;
