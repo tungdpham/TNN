@@ -9,9 +9,8 @@
 
 namespace tnn {
 // im2col/col2im operations
-
 template <typename T>
-std::unique_ptr<Task> im2col(const Tensor<T, NCHW> &input_tensor, device_ptr<T[]> &col_data,
+std::unique_ptr<Task> im2col(const Tensor<T> &input_tensor, device_ptr<T[]> &col_data,
                              size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
                              size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                              const std::string &flow_id = "default") {
@@ -62,10 +61,9 @@ std::unique_ptr<Task> col2im(const device_ptr<T[]> &col_data, device_ptr<T[]> &r
 }
 
 // Padding operations
-
 template <typename T>
-std::unique_ptr<Task> pad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t pad_h,
-                          size_t pad_w, T value = T(0), const std::string &flow_id = "default") {
+std::unique_ptr<Task> pad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w,
+                          T value = T(0), const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
     return create_cpu_task(flow_id, cpu::pad<T>, input, result, pad_h, pad_w, value);
   }
@@ -80,8 +78,8 @@ std::unique_ptr<Task> pad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result,
 }
 
 template <typename T>
-std::unique_ptr<Task> unpad(const Tensor<T> &input, Tensor<T, NCHW> &result, size_t pad_h,
-                            size_t pad_w, const std::string &flow_id = "default") {
+std::unique_ptr<Task> unpad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w,
+                            const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
     return create_cpu_task(flow_id, cpu::unpad<T>, input, result, pad_h, pad_w);
   }
@@ -96,37 +94,16 @@ std::unique_ptr<Task> unpad(const Tensor<T> &input, Tensor<T, NCHW> &result, siz
 }
 
 // Crop operation
-
-template <typename T, Layout L>
-std::unique_ptr<Task> crop(const Tensor<T, L> &input, Tensor<T, L> &result, const size_t start_h,
+template <typename T>
+std::unique_ptr<Task> crop(const Tensor<T> &input, Tensor<T> &result, const size_t start_h,
                            const size_t start_w, const size_t end_h, const size_t end_w,
                            const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::crop<T, L>, input, result, start_h, start_w, end_h, end_w);
+    return create_cpu_task(flow_id, cpu::crop<T>, input, result, start_h, start_w, end_h, end_w);
   }
 #ifdef USE_CUDA
   else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::crop<T, L>, input, result, start_h, start_w, end_h,
-                           end_w);
-  }
-#endif
-  else {
-    throw std::runtime_error("crop: Unsupported device type");
-  }
-}
-
-template <typename T>
-std::unique_ptr<Task> crop(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result,
-                           const size_t start_h, const size_t start_w, const size_t end_h,
-                           const size_t end_w, const std::string &flow_id = "default") {
-  if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::crop<T, NCHW>, input, result, start_h, start_w, end_h,
-                           end_w);
-  }
-#ifdef USE_CUDA
-  else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::crop<T, NCHW>, input, result, start_h, start_w, end_h,
-                           end_w);
+    return create_gpu_task(flow_id, cuda::crop<T>, input, result, start_h, start_w, end_h, end_w);
   }
 #endif
   else {
@@ -136,50 +113,15 @@ std::unique_ptr<Task> crop(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result
 
 // Slicing operations
 
-template <typename T, Layout L>
-std::unique_ptr<Task> slice_batch(const Tensor<T, L> &input, Tensor<T, L> &result,
-                                  size_t start_batch, size_t end_batch,
-                                  const std::string &flow_id = "default") {
-  if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::slice_batch<T, L>, input, result, start_batch, end_batch);
-  }
-#ifdef USE_CUDA
-  else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::slice_batch<T, L>, input, result, start_batch, end_batch);
-  }
-#endif
-  else {
-    throw std::runtime_error("slice_batch: Unsupported device type");
-  }
-}
-
-template <typename T, Layout L>
-std::unique_ptr<Task> slice_channels(const Tensor<T, L> &input, Tensor<T, L> &result,
-                                     size_t start_ch, size_t end_ch,
-                                     const std::string &flow_id = "default") {
-  if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::slice_channels<T, L>, input, result, start_ch, end_ch);
-  }
-#ifdef USE_CUDA
-  else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::slice_channels<T, L>, input, result, start_ch, end_ch);
-  }
-#endif
-  else {
-    throw std::runtime_error("slice_channels: Unsupported device type");
-  }
-}
-
 template <typename T>
-std::unique_ptr<Task> slice_channels(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result,
-                                     size_t start_ch, size_t end_ch,
-                                     const std::string &flow_id = "default") {
+std::unique_ptr<Task> slice_channels(const Tensor<T> &input, Tensor<T> &result, size_t start_ch,
+                                     size_t end_ch, const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::slice_channels<T, NCHW>, input, result, start_ch, end_ch);
+    return create_cpu_task(flow_id, cpu::slice_channels<T>, input, result, start_ch, end_ch);
   }
 #ifdef USE_CUDA
   else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::slice_channels<T, NCHW>, input, result, start_ch, end_ch);
+    return create_gpu_task(flow_id, cuda::slice_channels<T>, input, result, start_ch, end_ch);
   }
 #endif
   else {
@@ -188,32 +130,15 @@ std::unique_ptr<Task> slice_channels(const Tensor<T, NCHW> &input, Tensor<T, NCH
 }
 
 // Split operation
-
-template <typename T, Layout L>
-std::unique_ptr<Task> split(const Tensor<T, L> &input, std::vector<Tensor<T, L>> &results,
-                            size_t num_splits, const std::string &flow_id = "default") {
-  if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::split<T, L>, input, results, num_splits);
-  }
-#ifdef USE_CUDA
-  else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::split<T, L>, input, results, num_splits);
-  }
-#endif
-  else {
-    throw std::runtime_error("split: Unsupported device type");
-  }
-}
-
 template <typename T>
-std::unique_ptr<Task> split(const Tensor<T, NCHW> &input, std::vector<Tensor<T, NCHW>> &results,
+std::unique_ptr<Task> split(const Tensor<T> &input, std::vector<Tensor<T>> &results,
                             size_t num_splits, const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::split<T, NCHW>, input, results, num_splits);
+    return create_cpu_task(flow_id, cpu::split<T>, input, results, num_splits);
   }
 #ifdef USE_CUDA
   else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::split<T, NCHW>, input, results, num_splits);
+    return create_gpu_task(flow_id, cuda::split<T>, input, results, num_splits);
   }
 #endif
   else {
@@ -222,31 +147,14 @@ std::unique_ptr<Task> split(const Tensor<T, NCHW> &input, std::vector<Tensor<T, 
 }
 
 // Softmax operation
-
-template <typename T, Layout L>
-std::unique_ptr<Task> apply_softmax(Tensor<T, L> &input, const std::string &flow_id = "default") {
-  if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::apply_softmax<T, L>, input);
-  }
-#ifdef USE_CUDA
-  else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::apply_softmax<T, L>, input);
-  }
-#endif
-  else {
-    throw std::runtime_error("apply_softmax: Unsupported device type");
-  }
-}
-
 template <typename T>
-std::unique_ptr<Task> apply_softmax(Tensor<T, NCHW> &input,
-                                    const std::string &flow_id = "default") {
+std::unique_ptr<Task> apply_softmax(Tensor<T> &input, const std::string &flow_id = "default") {
   if (input.is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::apply_softmax<T, NCHW>, input);
+    return create_cpu_task(flow_id, cpu::apply_softmax<T>, input);
   }
 #ifdef USE_CUDA
   else if (input.is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::apply_softmax<T, NCHW>, input);
+    return create_gpu_task(flow_id, cuda::apply_softmax<T>, input);
   }
 #endif
   else {

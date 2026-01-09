@@ -64,7 +64,7 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 
 template <typename T>
 void BatchNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
-  if (input.channels() != num_features_) {
+  if (input.shape()[1] != num_features_) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
@@ -108,8 +108,14 @@ void BatchNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
 template <typename T>
 void BatchNormLayer<T>::def_forward(const Tensor<T> *current, Tensor<T> &output,
                                     size_t micro_batch_id) {
-  size_t batch_size, channels, height, width, spatial_size;
-  extract_tensor_dimensions(*current, batch_size, channels, height, width, spatial_size);
+  size_t batch_size, channels, spatial_size;
+  if (current->shape().size() != 4) {
+    throw std::invalid_argument("BatchNorm: Input tensor must be 4-dimensional (NCHW)");
+  }
+  batch_size = current->dimension(0);
+  channels = current->dimension(1);
+  spatial_size = current->stride(1);
+
   if (num_features_ != channels) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
@@ -165,10 +171,11 @@ void BatchNormLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T
                              std::to_string(micro_batch_id));
   }
 
-  const size_t batch_size = current_gradient->batch_size();
-  const size_t channels = current_gradient->channels();
-  const size_t height = current_gradient->height();
-  const size_t width = current_gradient->width();
+  const auto &grad_shape = current_gradient->shape();
+  const size_t batch_size = grad_shape[0];
+  const size_t channels = grad_shape[1];
+  const size_t height = grad_shape[2];
+  const size_t width = grad_shape[3];
   const size_t spatial_size = height * width;
 
   grad_input.ensure(current_gradient->shape(), this->device_);
@@ -183,17 +190,18 @@ void BatchNormLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T
 template <typename T>
 void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
                                       size_t micro_batch_id) {
-  size_t batch_size, channels, height, width, spatial_size;
-  extract_tensor_dimensions(*current, batch_size, channels, height, width, spatial_size);
+  const size_t batch_size = current->dimension(0);
+  const size_t channels = current->dimension(1);
+  const size_t spatial_size = current->stride(1);
   if (num_features_ != channels) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
 
   output.ensure(current->shape(), this->device_);
 
-  // Initialize cuDNN handle if needed
-  bool dimensions_changed = (batch_size != cached_batch_size_) || (height != cached_input_h_) ||
-                            (width != cached_input_w_);
+  // check if we need to (re)initialize cuDNN handle
+  bool dimensions_changed =
+      (batch_size != cached_batch_size_) || (spatial_size != cached_input_spatial_size_);
 
   if (!cudnn_handle_) {
     auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
@@ -204,13 +212,11 @@ void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &outpu
     cudnnDataType_t data_type = cuda::cudnn_batchnorm::get_cudnn_data_type<T>();
 
     cudnn_handle_ = cuda::cudnn_batchnorm::initialize_batchnorm_handle(
-        shared_handle, batch_size, channels, height, width, data_type);
+        shared_handle, batch_size, channels, spatial_size, data_type);
 
     cached_batch_size_ = batch_size;
-    cached_input_h_ = height;
-    cached_input_w_ = width;
+    cached_input_spatial_size_ = spatial_size;
   } else if (dimensions_changed) {
-    // Recreate handle with new dimensions
     cuda::cudnn_batchnorm::destroy_batchnorm_handle(cudnn_handle_);
 
     auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
@@ -218,11 +224,10 @@ void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &outpu
     cudnnDataType_t data_type = cuda::cudnn_batchnorm::get_cudnn_data_type<T>();
 
     cudnn_handle_ = cuda::cudnn_batchnorm::initialize_batchnorm_handle(
-        shared_handle, batch_size, channels, height, width, data_type);
+        shared_handle, batch_size, channels, spatial_size, data_type);
 
     cached_batch_size_ = batch_size;
-    cached_input_h_ = height;
-    cached_input_w_ = width;
+    cached_input_spatial_size_ = spatial_size;
   }
 
   // Cache input for backward pass
@@ -377,17 +382,6 @@ BatchNormLayer<T>::compute_inference_output(const Tensor<T> &input, Tensor<T> &o
     throw std::runtime_error("Unsupported device type for compute_inference_output");
   }
   return nullptr;
-}
-
-template <typename T>
-void BatchNormLayer<T>::extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size,
-                                                  size_t &channels, size_t &height, size_t &width,
-                                                  size_t &spatial_size) {
-  batch_size = input.batch_size();
-  channels = input.channels();
-  height = input.height();
-  width = input.width();
-  spatial_size = height * width;
 }
 
 template <typename T> std::string BatchNormLayer<T>::type() const { return "batchnorm"; }

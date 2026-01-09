@@ -99,7 +99,7 @@ void benchmark_cpu_im2col_col2im(const BenchmarkConfig &config, int warmup_runs 
   std::cout << "\n--- CPU Benchmark ---" << std::endl;
 
   // Create input tensor on CPU
-  Tensor<float, NCHW> input({config.batch_size, config.channels, config.height, config.width});
+  Tensor<float> input({config.batch_size, config.channels, config.height, config.width});
   input.fill_random_normal(0.0f, 1.0f);
 
   // Calculate output dimensions
@@ -168,8 +168,8 @@ void benchmark_cuda_im2col_col2im(const BenchmarkConfig &config, int warmup_runs
   const Device &gpu_device = getGPU(0);
 
   // Create input tensor on GPU
-  Tensor<float, NCHW> input({config.batch_size, config.channels, config.height, config.width},
-                            &gpu_device);
+  Tensor<float> input({config.batch_size, config.channels, config.height, config.width},
+                      &gpu_device);
   input.fill_random_normal(0.0f, 1.0f);
 
   // Calculate output dimensions
@@ -270,7 +270,7 @@ void benchmark_cpu_layout_transform(const BenchmarkConfig &config, int warmup_ru
   std::cout << "\n--- CPU Layout Transform Benchmark ---" << std::endl;
 
   // Create input tensor on CPU
-  Tensor<float, NCHW> input({config.batch_size, config.channels, config.height, config.width});
+  Tensor<float> input({config.batch_size, config.channels, config.height, config.width});
   input.fill_random_normal(0.0f, 1.0f);
 
   size_t total_size = config.batch_size * config.channels * config.height * config.width;
@@ -336,8 +336,8 @@ void benchmark_cuda_layout_transform(const BenchmarkConfig &config, int warmup_r
   const Device &gpu_device = getGPU(0);
 
   // Create input tensor on GPU
-  Tensor<float, NCHW> input({config.batch_size, config.channels, config.height, config.width},
-                            &gpu_device);
+  Tensor<float> input({config.batch_size, config.channels, config.height, config.width},
+                      &gpu_device);
   input.fill_random_normal(0.0f, 1.0f);
 
   size_t total_size = config.batch_size * config.channels * config.height * config.width;

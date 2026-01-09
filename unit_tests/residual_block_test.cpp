@@ -205,10 +205,10 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
   Tensor<float> output(output_shape, cpu_device_);
   residual.forward(input, output);
 
-  EXPECT_EQ(output.batch_size(), 1);
-  EXPECT_EQ(output.channels(), 2);
-  EXPECT_EQ(output.height(), 2);
-  EXPECT_EQ(output.width(), 2);
+  EXPECT_EQ(output_shape[0], 1);
+  EXPECT_EQ(output_shape[1], 2);
+  EXPECT_EQ(output_shape[2], 2);
+  EXPECT_EQ(output_shape[3], 2);
 
   // Expected: F(x) + x where F is conv2d with scale 0.5
   // With 2 input channels and 2 output channels: each output = sum(0.5 * input[i]) + input
@@ -237,8 +237,8 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
   Tensor<float> output(output_shape, cpu_device_);
   residual.forward(input, output);
 
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 1);
+  EXPECT_EQ(output_shape[0], 2);
+  EXPECT_EQ(output_shape[1], 1);
 
   // Expected: F(x) + x = 1*x + x = 2*x
   const float *output_data = output.data();

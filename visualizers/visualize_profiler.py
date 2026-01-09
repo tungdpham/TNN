@@ -19,7 +19,7 @@ def parse_log(file_path):
                     duration = end_time - start_time
                     
                     if source not in events_by_source:
-                        events_by_source[source] = {'COMMUNICATION': [], 'COMPUTE': []}
+                        events_by_source[source] = {'COMPUTE': [], 'COMMUNICATION': []}
                     
                     if event_type in events_by_source[source]:
                         events_by_source[source][event_type].append((start_time, duration))
@@ -41,8 +41,8 @@ def plot_timeline(events_by_source):
     if num_sources == 1:
         axes = [axes]
     
-    y_positions = {'COMMUNICATION': 1, 'COMPUTE': 0}
-    colors = {'COMMUNICATION': 'blue', 'COMPUTE': 'orange'}
+    y_positions = {'COMPUTE': 1, 'COMMUNICATION': 0}
+    colors = {'COMPUTE': 'orange', 'COMMUNICATION': 'blue'}
     
     for idx, (source, events) in enumerate(sorted(events_by_source.items())):
         ax = axes[idx]
@@ -53,13 +53,13 @@ def plot_timeline(events_by_source):
                                facecolors=colors[event_type], label=event_type)
         
         ax.set_yticks([0, 1])
-        ax.set_yticklabels(['Compute', 'Communication'])
+        ax.set_yticklabels(['Communication', 'Compute'])
         ax.set_ylabel(f'{source}')
         ax.set_title(f'{source} Timeline')
         ax.grid(True)
         
-        handles = [plt.Rectangle((0,0),1,1, color=colors[t]) for t in ['COMMUNICATION', 'COMPUTE']]
-        ax.legend(handles, ['Communication', 'Compute'])
+        handles = [plt.Rectangle((0,0),1,1, color=colors[t]) for t in ['COMPUTE', 'COMMUNICATION']]
+        ax.legend(handles, ['Compute', 'Communication'])
     
     axes[-1].set_xlabel('Time (ms)')
     fig.suptitle('Profiler Event Timeline by Source', fontsize=16, y=0.995)

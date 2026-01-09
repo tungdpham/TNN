@@ -61,8 +61,8 @@ void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t mi
     throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
   }
 
-  const size_t batch_size = input.batch_size();
-  const size_t total_input_features = input.channels() * input.height() * input.width();
+  const size_t batch_size = input.dimension(0);
+  const size_t total_input_features = input.stride(0);
 
   if (total_input_features != input_features_) {
     std::cerr << "Input shape: " << total_input_features
@@ -114,7 +114,7 @@ void DenseLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
   }
 
   const Tensor<T> &last_input = it_input->second;
-  size_t batch_size = last_input.batch_size();
+  const size_t batch_size = last_input.dimension(0);
 
   grad_input.ensure(last_input.shape(), this->device_);
 

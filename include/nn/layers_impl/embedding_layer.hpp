@@ -116,6 +116,9 @@ public:
                                  "W] or [N, L] where L is "
                                  "the number of tokens.");
       }
+    } else {
+      throw std::runtime_error("EmbeddingLayer::forward: Input tensor must have shape [N, 1, H, W] "
+                               "or [N, L] where L is the number of tokens.");
     }
     output.ensure(out_shape, this->device_);
 

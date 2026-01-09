@@ -86,9 +86,9 @@ void DropoutLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
 template <typename T>
 std::unique_ptr<Task> DropoutLayer<T>::compute_dropout_forward(const Tensor<T> &input,
                                                                Tensor<T> &output, Tensor<T> &mask) {
-  size_t batch_size = input.batch_size();
-  size_t channels = input.channels();
-  size_t spatial_size = input.height() * input.width();
+  size_t batch_size = input.dimension(0);
+  size_t channels = input.dimension(1);
+  size_t spatial_size = input.stride(1);
 
   if (input.device_type() == DeviceType::CPU) {
     return create_cpu_task("default", cpu::dropout::compute_dropout_forward<T>, input.data(),

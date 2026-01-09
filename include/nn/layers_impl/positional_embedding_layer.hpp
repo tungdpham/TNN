@@ -49,17 +49,22 @@ public:
           "Layer parameters not initialized. Call initialize() before forward.");
     }
 
-    size_t N = input.batch_size();
-    size_t C = input.channels();
-    size_t H = input.height();
-    size_t W = input.width();
-    size_t L = H * W;
+    if (input.dims() != 4) {
+      throw std::runtime_error(
+          "PositionalEmbeddingLayer: Input tensor must be 4-dimensional (NCHW)");
+    }
 
-    if (C != embed_dim_) {
+    size_t batch_size = input.dimension(0);
+    size_t channels = input.dimension(1);
+    size_t height = input.dimension(2);
+    size_t width = input.dimension(3);
+    size_t length = input.stride(1);
+
+    if (channels != embed_dim_) {
       throw std::runtime_error("PositionalEmbeddingLayer: Input channels must match embed_dim");
     }
-    if (L != seq_len_) {
-      if (H != seq_len_ || W != 1) {
+    if (length != seq_len_) {
+      if (height != seq_len_ || width != 1) {
         throw std::runtime_error("PositionalEmbeddingLayer: Input sequence length mismatch");
       }
     }
@@ -70,9 +75,9 @@ public:
     auto &in_ptr = input.data_ptr();
     auto &pos_ptr = pos_embedding_.data_ptr();
 
-    size_t size = C * seq_len_;
+    size_t size = channels * seq_len_;
 
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < batch_size; ++i) {
       // output[i] = input[i] + pos_embedding
       if (this->device_->device_type() == DeviceType::CPU) {
         create_cpu_task("default", ops::cpu::add<T>, in_ptr.get() + i * size, pos_ptr.get(),
@@ -89,12 +94,17 @@ public:
 
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                 size_t micro_batch_id = 0) override {
-    size_t N = gradient.batch_size();
-    size_t C = gradient.channels();
-    size_t H = gradient.height();
-    size_t W = gradient.width();
-    size_t size = C * H * W;
+    if (gradient.dims() != 4) {
+      throw std::runtime_error(
+          "PositionalEmbeddingLayer: Gradient tensor must be 4-dimensional (NCHW)");
+    }
 
+    size_t batch_size = gradient.dimension(0);
+    size_t channels = gradient.dimension(1);
+    size_t height = gradient.dimension(2);
+    size_t width = gradient.dimension(3);
+
+    size_t size = channels * height * width;
     grad_input.ensure(gradient.shape(), this->device_);
 
     // grad_input = gradient
@@ -103,7 +113,7 @@ public:
     const auto &grad_ptr = gradient.data_ptr();
     auto &pos_grad_ptr = pos_embedding_gradients_.data_ptr();
 
-    for (size_t i = 0; i < N; ++i) {
+    for (size_t i = 0; i < batch_size; ++i) {
       // Accumulate gradient to pos_embedding_gradients_
       if (this->device_->device_type() == DeviceType::CPU) {
         create_cpu_task("default", ops::cpu::add<T>, pos_grad_ptr.get(), grad_ptr.get() + i * size,

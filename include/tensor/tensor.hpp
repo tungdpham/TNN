@@ -8,7 +8,6 @@
 
 #include "device/device_ptr.hpp"
 #include "device/task.hpp"
-#include "layout_trait.hpp"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -44,11 +43,10 @@ namespace tnn {
 /**
  * @brief A tensor class dedicated for ML and DL applications.
  * @tparam T Data type (e.g., float, double, int)
- * @tparam L Memory layout (NCHW, NHWC, NCDHW, NDHWC)
  * For now only NCHW is supported. A lot of changes are needed to support other
  * layouts.
  */
-template <typename T = float, Layout L = NCHW> struct Tensor {
+template <typename T = float> struct Tensor {
   static_assert(std::is_arithmetic<T>::value, "Tensor type must be arithmetic");
   static_assert(std::is_floating_point<T>::value || std::is_integral<T>::value,
                 "Tensor type must be floating point or integral");
@@ -56,17 +54,24 @@ template <typename T = float, Layout L = NCHW> struct Tensor {
 private:
   const Device *device_;
   size_t data_size_;
-  LayoutTrait<L> layout_trait_;
   device_ptr<T[]> data_;
-  static constexpr size_t dims_ = LayoutTrait<L>::dims;
-  size_t (&shape_)[LayoutTrait<L>::dims] = layout_trait_.shape;
-  size_t (&strides_)[LayoutTrait<L>::dims] = layout_trait_.strides;
+  std::vector<size_t> shape_;
+
+  inline size_t compute_stride(size_t index) const {
+    size_t stride = 1;
+    for (size_t i = index + 1; i < shape_.size(); ++i) {
+      stride *= shape_[i];
+    }
+    return stride;
+  }
 
   template <typename... Indices> inline size_t compute_index(Indices... indices) const {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
-    size_t index = 0;
-    short count = 0;
-    ((index += indices * strides_[count++]), ...);
+    assert(sizeof...(indices) == shape_.size());
+
+    size_t index = [this, ... indices = indices]<size_t... I>(std::index_sequence<I...>) {
+      return ((static_cast<size_t>(indices) * compute_stride(I)) + ... + 0);
+    }(std::make_index_sequence<sizeof...(Indices)>{});
+
     return index;
   }
 
@@ -75,48 +80,41 @@ private:
 public:
   // Constructors and Destructor
   Tensor(const Device *device = &getCPU()) : device_(device), data_size_(0) {
-    for (size_t i = 0; i < dims_; ++i) {
+    for (size_t i = 0; i < shape_.size(); ++i) {
       shape_[i] = 0;
-      strides_[i] = 0;
     }
     allocate_data(0);
   }
 
-  Tensor(std::initializer_list<size_t> shape_list, const Device *dt = &getCPU()) : device_(dt) {
-    assert(shape_list.size() == dims_ && "Initializer list size must match tensor dimensions");
-    std::copy(shape_list.begin(), shape_list.end(), shape_);
-    layout_trait_.compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+  Tensor(std::initializer_list<size_t> shape_list, const Device *dt = &getCPU())
+      : device_(dt), shape_(shape_list) {
+    data_size_ =
+        std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
   }
 
   Tensor(std::initializer_list<size_t> shape_list, const device_ptr<T[]> &data,
          const Device *dt = &getCPU())
-      : device_(dt) {
-    assert(shape_list.size() == dims_ && "Initializer list size must match dimensions");
-    std::copy(shape_list.begin(), shape_list.end(), shape_);
-    layout_trait_.compute_strides();
-    data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
+      : device_(dt), shape_(shape_list) {
+    data_size_ =
+        std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
     if (data.get() != nullptr) {
       ops::copy(data, data_, data_size_);
     }
   }
 
-  Tensor(std::vector<size_t> shape, const Device *dt = &getCPU()) : device_(dt) {
-    assert(shape.size() == dims_ && "Shape vector size must match tensor dimensions");
-    std::copy(shape.begin(), shape.end(), shape_);
-    layout_trait_.compute_strides();
-    data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+  Tensor(std::vector<size_t> shape, const Device *dt = &getCPU())
+      : device_(dt), shape_(std::move(shape)) {
+    data_size_ =
+        std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
   }
 
   Tensor(std::vector<size_t> shape, const device_ptr<T[]> &data, const Device *dt = &getCPU())
-      : device_(dt) {
-    assert(shape.size() == dims_ && "Shape vector size must match dimensions");
-    std::copy(shape.begin(), shape.end(), shape_);
-    layout_trait_.compute_strides();
-    data_size_ = std::accumulate(shape.begin(), shape.end(), size_t(1), std::multiplies<size_t>());
+      : device_(dt), shape_(std::move(shape)) {
+    data_size_ =
+        std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     allocate_data(data_size_);
     if (data.get() != nullptr) {
       ops::copy(data, data_, data_size_);
@@ -126,27 +124,25 @@ public:
   ~Tensor() { data_.reset(); }
 
   Tensor(const Tensor &other)
-      : device_(other.device_), data_size_(other.data_size_), layout_trait_(other.layout_trait_) {
+      : device_(other.device_), data_size_(other.data_size_), shape_(other.shape_) {
     if (data_size_ > 0) {
       allocate_data(data_size_);
       ops::copy(other.data_, data_, data_size_);
     }
   }
 
-  Tensor(Tensor &&other) noexcept : device_(other.device_), data_size_(other.data_size_) {
-    layout_trait_ = other.layout_trait_;
+  Tensor(Tensor &&other) noexcept
+      : device_(other.device_), data_size_(other.data_size_), shape_(std::move(other.shape_)) {
     data_ = std::move(other.data_);
   }
 
   template <typename... Indices> T &operator()(Indices... indices) {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
     assert(device_->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get()[compute_index(indices...)];
   }
 
   template <typename... Indices> const T &operator()(Indices... indices) const {
-    static_assert(sizeof...(indices) == dims_, "Incorrect number of dimensions");
     assert(device_->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get()[compute_index(indices...)];
@@ -156,9 +152,8 @@ public:
   const T *data() const { return data_.get(); }
 
   // Operators
-  Tensor<T, L> &operator=(const Tensor<T, L> &other) {
+  Tensor<T> &operator=(const Tensor<T> &other) {
     if (this != &other) {
-      layout_trait_ = other.layout_trait_;
       device_ = other.device_;
       data_size_ = other.data_size_;
       allocate_data(data_size_);
@@ -166,12 +161,12 @@ public:
     return *this;
   }
 
-  Tensor<T, L> &operator=(Tensor<T, L> &&other) noexcept {
+  Tensor<T> &operator=(Tensor<T> &&other) noexcept {
     if (this != &other) {
       data_.reset();
 
       device_ = other.device_;
-      layout_trait_ = other.layout_trait_;
+      shape_ = std::move(other.shape_);
       data_ = std::move(other.data_);
       data_size_ = other.data_size_;
 
@@ -180,118 +175,85 @@ public:
     return *this;
   }
 
-  bool same_shape(const Tensor<T, L> &other) const {
-    for (size_t i = 0; i < dims_; ++i) {
-      if (shape_[i] != other.shape_[i]) {
-        return false;
-      }
-    }
-    return true;
-  }
+  bool same_shape(const Tensor<T> &other) const { return shape_ == other.shape_; }
 
-  Tensor<T, L> operator+(const Tensor<T, L> &other) const {
+  Tensor<T> operator+(const Tensor<T> &other) const {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for addition");
     }
 
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+    Tensor<T> result(shape_, device_);
     ops::add(data_, other.data_, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator-(const Tensor<T, L> &other) const {
+  Tensor<T> operator-(const Tensor<T> &other) const {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
 
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+    Tensor<T> result(shape_, device_);
     ops::sub(data_, other.data_, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator*(const Tensor<T, L> &other) const {
+  Tensor<T> operator*(const Tensor<T> &other) const {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
 
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+    Tensor<T> result(shape_, device_);
     ops::mul(data_, other.data_, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator/(const Tensor<T, L> &other) const {
+  Tensor<T> operator/(const Tensor<T> &other) const {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for element-wise division");
     }
 
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+    Tensor<T> result(shape_, device_);
     ops::div(data_, other.data_, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator+(T scalar) const {
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+  Tensor<T> operator+(T scalar) const {
+    Tensor<T> result(shape_, device_);
     ops::add_scalar(data_, scalar, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator-(T scalar) const {
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+  Tensor<T> operator-(T scalar) const {
+    Tensor<T> result(shape_, device_);
     ops::sub_scalar(data_, scalar, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator*(T scalar) const {
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+  Tensor<T> operator*(T scalar) const {
+    Tensor<T> result(shape_, device_);
     ops::mul_scalar(data_, scalar, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> operator/(T scalar) const {
+  Tensor<T> operator/(T scalar) const {
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
 
-    std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-    Tensor<T, L> result(shape_vec, device_);
-
+    Tensor<T> result(shape_, device_);
     ops::div_scalar(data_, scalar, result.data_, data_size_);
-
     return result;
   }
 
-  Tensor<T, L> &operator+=(const Tensor<T, L> &other) {
+  Tensor<T> &operator+=(const Tensor<T> &other) {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for addition");
     }
-
     ops::add(data_, other.data_, data_, data_size_);
-
     return *this;
   }
 
-  Tensor<T, L> &operator-=(const Tensor<T, L> &other) {
+  Tensor<T> &operator-=(const Tensor<T> &other) {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
@@ -301,7 +263,7 @@ public:
     return *this;
   }
 
-  Tensor<T, L> &operator*=(const Tensor<T, L> &other) {
+  Tensor<T> &operator*=(const Tensor<T> &other) {
     if (!same_shape(other)) {
       throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
@@ -311,22 +273,22 @@ public:
     return *this;
   }
 
-  Tensor<T, L> &operator+=(T scalar) {
+  Tensor<T> &operator+=(T scalar) {
     ops::add_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
-  Tensor<T, L> &operator-=(T scalar) {
+  Tensor<T> &operator-=(T scalar) {
     ops::sub_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
-  Tensor<T, L> &operator*=(T scalar) {
+  Tensor<T> &operator*=(T scalar) {
     ops::mul_scalar(data_, scalar, data_, data_size_);
     return *this;
   }
 
-  Tensor<T, L> &operator/=(T scalar) {
+  Tensor<T> &operator/=(T scalar) {
     if (scalar == T(0)) {
       throw std::invalid_argument("Division by zero");
     }
@@ -334,16 +296,14 @@ public:
     return *this;
   }
 
-  std::vector<size_t> shape() const { return std::vector<size_t>(shape_, shape_ + dims_); }
-
-  std::vector<size_t> strides() const { return std::vector<size_t>(strides_, strides_ + dims_); }
+  const std::vector<size_t> &shape() const { return shape_; }
 
   std::string shape_str() const {
     std::ostringstream oss;
     oss << "{";
-    for (size_t i = 0; i < dims_; ++i) {
+    for (size_t i = 0; i < shape_.size(); ++i) {
       oss << shape_[i];
-      if (i < dims_ - 1) {
+      if (i < shape_.size() - 1) {
         oss << ", ";
       }
     }
@@ -351,27 +311,11 @@ public:
     return oss.str();
   }
 
-  const size_t batch_size() const { return layout_trait_.batch_size(); }
-
-  const size_t channels() const { return layout_trait_.channels(); }
-
-  const size_t height() const { return layout_trait_.height(); }
-
-  const size_t width() const { return layout_trait_.width(); }
-
-  const size_t depth() const {
-    if constexpr (dims_ == 5) {
-      return layout_trait_.depth();
-    } else {
-      return 1;
-    }
-  }
-
-  const size_t dims() const { return dims_; }
+  const size_t dims() const { return shape_.size(); }
 
   const size_t dimension(const size_t index) const { return shape_[index]; }
 
-  const size_t stride(const size_t index) const { return strides_[index]; }
+  const size_t stride(const size_t index) const { return compute_stride(index); }
 
   const size_t size() const { return data_size_; }
 
@@ -393,14 +337,14 @@ public:
 
   device_ptr<T[]> &data_ptr() { return data_; }
 
-  Tensor<T, L> to_cpu() const {
+  Tensor<T> to_cpu() const {
     if (device_type() == DeviceType::CPU) {
       return clone();
     }
 
     if (device_type() == DeviceType::GPU) {
-      std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-      Tensor<T, L> cpu_tensor(shape_vec, &getCPU());
+      std::vector<size_t> shape_vec(shape_);
+      Tensor<T> cpu_tensor(shape_vec, &getCPU());
       // Copy from GPU to CPU
       data_.getDevice()->copyToHost(cpu_tensor.data_.get(), data_.get(), data_size_ * sizeof(T));
       return cpu_tensor;
@@ -408,14 +352,14 @@ public:
     throw std::runtime_error("Unsupported device type for to_cpu()");
   }
 
-  Tensor<T, L> to_gpu(int gpu_id = 0) const {
+  Tensor<T> to_gpu(int gpu_id = 0) const {
     if (device_type() == DeviceType::GPU) {
       return clone();
     }
 
     if (device_type() == DeviceType::CPU) {
-      std::vector<size_t> shape_vec(shape_, shape_ + dims_);
-      Tensor<T, L> gpu_tensor(shape_vec, &getGPU(gpu_id));
+      std::vector<size_t> shape_vec(shape_);
+      Tensor<T> gpu_tensor(shape_vec, &getGPU(gpu_id));
 
       // Copy from CPU to GPU
       getGPU(gpu_id).copyToDevice(gpu_tensor.data_.get(), data_.get(), data_size_ * sizeof(T));
@@ -425,7 +369,7 @@ public:
     throw std::runtime_error("Unsupported device type for to_gpu()");
   }
 
-  Tensor<T, L> to_device(const Device *target_device) const {
+  Tensor<T> to_device(const Device *target_device) const {
     if (device_ == target_device) {
       return clone();
     }
@@ -441,9 +385,7 @@ public:
     throw std::runtime_error("Unsupported device type for to_device()");
   }
 
-  Tensor<T, L> clone() const {
-    return Tensor<T, L>(std::vector<size_t>(shape_, shape_ + dims_), data_, device_);
-  }
+  Tensor<T> clone() const { return Tensor<T>(shape_, data_, device_); }
 
   std::unique_ptr<Task> fill(T value) { return ops::set_scalar(data_, value, data_size_); }
 
@@ -480,32 +422,28 @@ public:
   }
 
   void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
-    assert(new_shape.size() == dims_ && "New shape size must match tensor dims size");
     if (new_device != nullptr && new_device != device_) {
       // Change device
       device_ = new_device;
       data_.reset();
-      std::copy(new_shape.begin(), new_shape.end(), shape_);
-      data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
-      // std::cout << "Resizing tensor to new device. New size: " << data_size_ << std::endl;
-      layout_trait_.compute_strides();
+      shape_ = new_shape;
+      data_size_ =
+          std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
       allocate_data(data_size_);
       return;
     }
-    if (new_shape == std::vector<size_t>(shape_, shape_ + dims_)) {
+    if (new_shape == shape_) {
       return;
     }
 
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size != data_size_) {
-      // std::cout << "Resizing tensor from " << data_size_ << " to " << new_size << std::endl;
       data_.reset();
       allocate_data(new_size);
       data_size_ = new_size;
     }
-    std::copy(new_shape.begin(), new_shape.end(), shape_);
-    layout_trait_.compute_strides();
+    shape_ = new_shape;
   }
 
   /**
@@ -513,14 +451,11 @@ public:
    * the current allocated size. Good for caching.
    */
   void ensure(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) {
-    if (new_shape.size() != dims_) {
-      throw std::invalid_argument("ensure: New shape size must match tensor dims size");
-    }
     if (new_device != nullptr && new_device != device_) {
       device_ = new_device;
-      std::copy(new_shape.begin(), new_shape.end(), shape_);
-      data_size_ = std::accumulate(shape_, shape_ + dims_, size_t(1), std::multiplies<size_t>());
-      layout_trait_.compute_strides();
+      shape_ = new_shape;
+      data_size_ =
+          std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
       allocate_data(data_size_);
       return;
     }
@@ -530,12 +465,12 @@ public:
       allocate_data(new_size);
     }
     data_size_ = new_size;
-    std::copy(new_shape.begin(), new_shape.end(), shape_);
-    layout_trait_.compute_strides();
+    shape_ = new_shape;
   }
 
-  void copy_batch(Tensor<T, L> &other, size_t src_batch_idx, size_t dest_batch_idx) {
-    if (dest_batch_idx >= batch_size() || src_batch_idx >= other.batch_size()) {
+  void copy_batch(Tensor<T> &other, size_t src_batch_idx, size_t dest_batch_idx) {
+    size_t batch_size = shape_[0];
+    if (dest_batch_idx >= batch_size || src_batch_idx >= other.shape_[0]) {
       throw std::invalid_argument("Invalid batch index for copy");
     }
 
@@ -544,8 +479,8 @@ public:
                                "to same device first.");
     }
 
-    size_t batch_stride = strides_[0];
-    size_t src_offset = src_batch_idx * other.strides_[0];
+    size_t batch_stride = compute_stride(0);
+    size_t src_offset = src_batch_idx * other.compute_stride(0);
     size_t dest_offset = dest_batch_idx * batch_stride;
 
     ops::copy(other.data_, data_, batch_stride, src_offset, dest_offset);
@@ -589,7 +524,7 @@ public:
   }
 
   void print_data() const {
-    Tensor<T, L> cpu_tensor = to_cpu();
+    Tensor<T> cpu_tensor = to_cpu();
     size_t total_elements = cpu_tensor.size();
     std::cout << "Tensor data (shape " << cpu_tensor.shape_str() << "):\n";
     T *data = cpu_tensor.data_.get();
@@ -600,7 +535,7 @@ public:
   }
 
   void head(size_t n = 10) const {
-    Tensor<T, L> cpu_tensor = to_cpu();
+    Tensor<T> cpu_tensor = to_cpu();
     size_t total_elements = cpu_tensor.size();
     n = std::min(n, total_elements);
     std::cout << "Tensor head (first " << n << " elements of shape " << cpu_tensor.shape_str()
@@ -618,22 +553,26 @@ public:
 
     Tensor<T> cpu_tensor = to_cpu();
 
-    out.write(reinterpret_cast<const char *>(shape_), dims_ * sizeof(size_t));
-
+    // write dims, shape, and data
+    size_t dims = shape_.size();
+    out.write(reinterpret_cast<const char *>(&dims), sizeof(size_t));
+    out.write(reinterpret_cast<const char *>(shape_.data()), shape_.size() * sizeof(size_t));
     out.write(reinterpret_cast<const char *>(cpu_tensor.data_.get()), data_size_ * sizeof(T));
   }
 
-  static Tensor<T, L> load(std::ifstream &in) {
+  static Tensor<T> load(std::ifstream &in) {
     if (!in.is_open()) {
       throw std::runtime_error("File is not open for reading");
     }
-    std::vector<size_t> shape(dims_);
-    in.read(reinterpret_cast<char *>(shape.data()), dims_ * sizeof(size_t));
-    if (in.gcount() != dims_ * sizeof(size_t)) {
+    // read dims, shape, and data
+    size_t dims;
+    in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
+    std::vector<size_t> shape(dims);
+    in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
+    if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
       throw std::runtime_error("Failed to read tensor shape from file");
     }
-
-    Tensor<T, L> tensor(shape);
+    Tensor<T> tensor(shape);
     in.read(reinterpret_cast<char *>(tensor.data_.get()), tensor.size() * sizeof(T));
     if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
       throw std::runtime_error("Failed to read tensor data from file");

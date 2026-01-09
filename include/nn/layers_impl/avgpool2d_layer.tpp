@@ -40,10 +40,14 @@ void AvgPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
     current = &device_input;
   }
 
-  const size_t batch_size = current->batch_size();
-  const size_t channels = current->channels();
-  const size_t input_h = current->height();
-  const size_t input_w = current->width();
+  const auto &shape = current->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
+  }
+  const size_t batch_size = shape[0];
+  const size_t channels = shape[1];
+  const size_t input_h = shape[2];
+  const size_t input_w = shape[3];
 
   micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels, input_h, input_w};
 
@@ -78,8 +82,12 @@ void AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
   const size_t channels = input_shape[1];
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
-  const size_t output_h = current_gradient->height();
-  const size_t output_w = current_gradient->width();
+  const auto &grad_shape = current_gradient->shape();
+  if (grad_shape.size() != 4) {
+    throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
+  }
+  const size_t output_h = grad_shape[2];
+  const size_t output_w = grad_shape[3];
 
   grad_input.ensure({batch_size, channels, input_h, input_w});
 

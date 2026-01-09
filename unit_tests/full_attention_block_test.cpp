@@ -32,10 +32,11 @@ TEST(FullAttentionBlockTest, ForwardPassCPU) {
   attention->forward(input, output);
 
   // Check output shape
-  EXPECT_EQ(output.batch_size(), batch_size);
-  EXPECT_EQ(output.channels(), embed_dim);
-  EXPECT_EQ(output.height(), H);
-  EXPECT_EQ(output.width(), W);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[0], batch_size);
+  EXPECT_EQ(output_shape[1], embed_dim);
+  EXPECT_EQ(output_shape[2], H);
+  EXPECT_EQ(output_shape[3], W);
 }
 
 TEST(FullAttentionBlockTest, BuilderTest) {

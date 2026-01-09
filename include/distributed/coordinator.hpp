@@ -423,7 +423,7 @@ public:
       }
 
       logger_.info(
-          "Event: {}, Source: {}, Type: {}, Start: {:.1f} ms, End: {:.1f} ms, Duration: {:.1f} ms",
+          "Event: {}, Source: {}, Type: {}, Start: {:.2f} ms, End: {:.2f} ms, Duration: {:.2f} ms",
           event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
           duration_ms);
     }

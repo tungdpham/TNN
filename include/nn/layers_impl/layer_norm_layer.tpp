@@ -51,16 +51,17 @@ void LayerNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
     ops::copy(input.data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), input.size());
   }
 
-  if (input.channels() != normalized_shape_) {
+  if (input.shape()[1] != normalized_shape_) {
     throw std::invalid_argument("Input channels must match normalized_shape in LayerNormLayer");
   }
 
   output.ensure(input.shape(), this->device_);
 
-  size_t batch_size = input.batch_size();
-  size_t channels = input.channels();
-  size_t height = input.height();
-  size_t width = input.width();
+  const auto &shape = input.shape();
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t height = shape[2];
+  size_t width = shape[3];
   size_t spatial_size = height * width;
 
   const T *gamma_ptr = affine_ ? gamma_.data() : nullptr;
@@ -92,10 +93,11 @@ void LayerNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
 
   grad_input.ensure(input.shape(), this->device_);
 
-  size_t batch_size = input.batch_size();
-  size_t channels = input.channels();
-  size_t height = input.height();
-  size_t width = input.width();
+  const auto &shape = input.shape();
+  size_t batch_size = shape[0];
+  size_t channels = shape[1];
+  size_t height = shape[2];
+  size_t width = shape[3];
   size_t spatial_size = height * width;
 
   const T *gamma_ptr = affine_ ? gamma_.data() : nullptr;

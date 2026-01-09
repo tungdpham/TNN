@@ -90,8 +90,16 @@ void Conv2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t m
   if (!this->initialized_) {
     throw std::runtime_error("Conv2DLayer must be initialized before forward pass.");
   }
-  if (input.channels() != in_channels_) {
-    std::cerr << "Input shape: " << input.channels() << " channels, expected: " << in_channels_
+
+  std::vector<size_t> shape = input.shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
+  }
+
+  size_t channels = shape[1];
+
+  if (channels != in_channels_) {
+    std::cerr << "Input shape: " << channels << " channels, expected: " << in_channels_
               << " channels" << std::endl;
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
@@ -139,9 +147,13 @@ void Conv2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
 template <typename T>
 void Conv2DLayer<T>::def_forward(const Tensor<T> *current, Tensor<T> &output,
                                  size_t micro_batch_id) {
-  const size_t batch_size = current->batch_size();
-  const size_t input_h = current->height();
-  const size_t input_w = current->width();
+  std::vector<size_t> shape = current->shape();
+  if (shape.size() != 4) {
+    throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
+  }
+  const size_t batch_size = shape[0];
+  const size_t input_h = shape[2];
+  const size_t input_w = shape[3];
 
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
@@ -192,12 +204,11 @@ void Conv2DLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T> &
   }
 
   const auto &input_shape = it_input_shape->second;
-
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
-  const size_t output_h = current_gradient->height();
-  const size_t output_w = current_gradient->width();
+  const size_t output_h = current_gradient->shape()[2];
+  const size_t output_w = current_gradient->shape()[3];
 
   grad_input.ensure(input_shape, this->device_);
   grad_input.fill(T(0));
@@ -243,9 +254,10 @@ void Conv2DLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T> &
 template <typename T>
 void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
                                    size_t micro_batch_id) {
-  const size_t batch_size = current->batch_size();
-  const size_t input_h = current->height();
-  const size_t input_w = current->width();
+  const auto &shape = current->shape();
+  const size_t batch_size = shape[0];
+  const size_t input_h = shape[2];
+  const size_t input_w = shape[3];
 
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
@@ -321,8 +333,9 @@ void Conv2DLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor<T>
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
-  const size_t output_h = current_gradient->height();
-  const size_t output_w = current_gradient->width();
+  const auto &grad_shape = current_gradient->shape();
+  const size_t output_h = grad_shape[2];
+  const size_t output_w = grad_shape[3];
 
   grad_input.ensure(input_shape, this->device_);
 

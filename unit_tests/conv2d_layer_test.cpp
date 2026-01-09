@@ -48,17 +48,19 @@ protected:
   void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output,
                            size_t out_channels, size_t kernel_h, size_t kernel_w, size_t stride_h,
                            size_t stride_w, size_t pad_h, size_t pad_w) {
-    size_t batch_size = input.batch_size();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    size_t batch_size = input_shape[0];
+    size_t input_h = input_shape[2];
+    size_t input_w = input_shape[3];
 
     size_t expected_h = (input_h + 2 * pad_h - kernel_h) / stride_h + 1;
     size_t expected_w = (input_w + 2 * pad_w - kernel_w) / stride_w + 1;
 
-    EXPECT_EQ(output.batch_size(), batch_size);
-    EXPECT_EQ(output.channels(), out_channels);
-    EXPECT_EQ(output.height(), expected_h);
-    EXPECT_EQ(output.width(), expected_w);
+    EXPECT_EQ(output_shape[0], batch_size);
+    EXPECT_EQ(output_shape[1], out_channels);
+    EXPECT_EQ(output_shape[2], expected_h);
+    EXPECT_EQ(output_shape[3], expected_w);
   }
 
   // Verify forward pass numerical correctness
@@ -71,13 +73,15 @@ protected:
     const float *weight_data = weights.data();
     const float *bias_data = bias ? bias->data() : nullptr;
 
-    size_t batch_size = input.batch_size();
-    size_t in_channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
-    size_t out_channels = output.channels();
-    size_t output_h = output.height();
-    size_t output_w = output.width();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    size_t batch_size = input_shape[0];
+    size_t in_channels = input_shape[1];
+    size_t input_h = input_shape[2];
+    size_t input_w = input_shape[3];
+    size_t out_channels = output_shape[1];
+    size_t output_h = output_shape[2];
+    size_t output_w = output_shape[3];
 
     // For each output element, compute expected value via manual convolution
     for (size_t n = 0; n < batch_size; ++n) {
@@ -128,13 +132,15 @@ protected:
     const float *grad_input_data = grad_input.data();
     const float *weight_data = weights.data();
 
-    size_t batch_size = grad_input.batch_size();
-    size_t in_channels = grad_input.channels();
-    size_t input_h = grad_input.height();
-    size_t input_w = grad_input.width();
-    size_t out_channels = grad_output.channels();
-    size_t output_h = grad_output.height();
-    size_t output_w = grad_output.width();
+    auto grad_input_shape = grad_input.shape();
+    auto grad_output_shape = grad_output.shape();
+    size_t batch_size = grad_input_shape[0];
+    size_t in_channels = grad_input_shape[1];
+    size_t input_h = grad_input_shape[2];
+    size_t input_w = grad_input_shape[3];
+    size_t out_channels = grad_output_shape[1];
+    size_t output_h = grad_output_shape[2];
+    size_t output_w = grad_output_shape[3];
 
     std::vector<float> expected_grad_input(grad_input.size(), 0.0f);
 
@@ -201,8 +207,9 @@ TEST_F(Conv2DLayerTest, BasicForwardPass) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
-  EXPECT_EQ(output.height(), 3);
-  EXPECT_EQ(output.width(), 3);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[2], 3);
+  EXPECT_EQ(out_shape[3], 3);
 
   // Verify numerical correctness
   auto params = layer.parameters();
@@ -223,9 +230,10 @@ TEST_F(Conv2DLayerTest, ForwardPassWithStride) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 2, 2, 0, 0);
-  EXPECT_EQ(output.height(), 3);
-  EXPECT_EQ(output.width(), 3);
-  EXPECT_EQ(output.channels(), 2);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[2], 3);
+  EXPECT_EQ(out_shape[3], 3);
+  EXPECT_EQ(out_shape[1], 2);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassWithPadding) {
@@ -241,8 +249,9 @@ TEST_F(Conv2DLayerTest, ForwardPassWithPadding) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 1, 1);
-  EXPECT_EQ(output.height(), 5);
-  EXPECT_EQ(output.width(), 5);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[2], 5);
+  EXPECT_EQ(out_shape[3], 5);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassMultiChannel) {
@@ -261,9 +270,10 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiChannel) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
-  EXPECT_EQ(output.channels(), 2);
-  EXPECT_EQ(output.height(), 3);
-  EXPECT_EQ(output.width(), 3);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 2);
+  EXPECT_EQ(out_shape[2], 3);
+  EXPECT_EQ(out_shape[3], 3);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassMultiBatch) {
@@ -279,7 +289,8 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiBatch) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 3, 1, 1, 0, 0);
-  EXPECT_EQ(output.batch_size(), 4);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[0], 4);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassNonSquareKernel) {
@@ -295,8 +306,9 @@ TEST_F(Conv2DLayerTest, ForwardPassNonSquareKernel) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 1, 3, 5, 1, 1, 0, 0);
-  EXPECT_EQ(output.height(), 5);
-  EXPECT_EQ(output.width(), 5);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[2], 5);
+  EXPECT_EQ(out_shape[3], 5);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassWithBias) {
@@ -312,7 +324,8 @@ TEST_F(Conv2DLayerTest, ForwardPassWithBias) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
-  EXPECT_EQ(output.channels(), 2);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 2);
 }
 
 TEST_F(Conv2DLayerTest, ForwardPassWithoutBias) {
@@ -328,7 +341,8 @@ TEST_F(Conv2DLayerTest, ForwardPassWithoutBias) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 3, 3, 1, 1, 0, 0);
-  EXPECT_EQ(output.channels(), 2);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 2);
 }
 
 // Backward Pass Tests
@@ -399,7 +413,8 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiChannel) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.channels(), 3);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[1], 3);
 }
 
 TEST_F(Conv2DLayerTest, BackwardPassMultiBatch) {
@@ -421,7 +436,8 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiBatch) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.batch_size(), 4);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], 4);
 }
 
 TEST_F(Conv2DLayerTest, BackwardPassVariableGradient) {
@@ -517,9 +533,10 @@ TEST_F(Conv2DLayerTest, EdgeCase1x1Convolution) {
   Tensor<float> output(output_shape, cpu_device_);
   layer.forward(input, output);
 
-  EXPECT_EQ(output.height(), 8);
-  EXPECT_EQ(output.width(), 8);
-  EXPECT_EQ(output.channels(), 16);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[2], 8);
+  EXPECT_EQ(out_shape[3], 8);
+  EXPECT_EQ(out_shape[1], 16);
 }
 
 TEST_F(Conv2DLayerTest, EdgeCaseZeroGradient) {
@@ -674,10 +691,11 @@ TEST_F(Conv2DLayerTest, ResNet1x1ChannelIncrease) {
   layer.forward(input, output);
 
   // 1x1 conv should preserve spatial dimensions
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 256);
-  EXPECT_EQ(output.height(), 8);
-  EXPECT_EQ(output.width(), 8);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 256);
+  EXPECT_EQ(output_shape_actual[2], 8);
+  EXPECT_EQ(output_shape_actual[3], 8);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -709,10 +727,11 @@ TEST_F(Conv2DLayerTest, ResNet1x1ChannelDecrease) {
   Tensor<float> output(output_shape, cpu_device_);
   layer.forward(input, output);
 
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 64);
-  EXPECT_EQ(output.height(), 8);
-  EXPECT_EQ(output.width(), 8);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[0], 2);
+  EXPECT_EQ(out_shape[1], 64);
+  EXPECT_EQ(out_shape[2], 8);
+  EXPECT_EQ(out_shape[3], 8);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -745,10 +764,11 @@ TEST_F(Conv2DLayerTest, ResNetStridedDownsample) {
   layer.forward(input, output);
 
   // Output: (9 - 3) / 2 + 1 = 4
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 128);
-  EXPECT_EQ(output.height(), 4);
-  EXPECT_EQ(output.width(), 4);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 128);
+  EXPECT_EQ(output_shape_actual[2], 4);
+  EXPECT_EQ(output_shape_actual[3], 4);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -782,10 +802,11 @@ TEST_F(Conv2DLayerTest, ResNetStridedWithPadding) {
   layer.forward(input, output);
 
   // Output: (8 + 2*1 - 3) / 2 + 1 = 4
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 128);
-  EXPECT_EQ(output.height(), 4);
-  EXPECT_EQ(output.width(), 4);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 128);
+  EXPECT_EQ(output_shape_actual[2], 4);
+  EXPECT_EQ(output_shape_actual[3], 4);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -818,10 +839,11 @@ TEST_F(Conv2DLayerTest, ResNet1x1StridedDownsample) {
   layer.forward(input, output);
 
   // Output: (8 - 1) / 2 + 1 = 4
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 256);
-  EXPECT_EQ(output.height(), 4);
-  EXPECT_EQ(output.width(), 4);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 256);
+  EXPECT_EQ(output_shape_actual[2], 4);
+  EXPECT_EQ(output_shape_actual[3], 4);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -854,10 +876,11 @@ TEST_F(Conv2DLayerTest, ResNetBottleneck3x3) {
   layer.forward(input, output);
 
   // With padding=1, stride=1, kernel=3: output = input spatial dims
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 64);
-  EXPECT_EQ(output.height(), 8);
-  EXPECT_EQ(output.width(), 8);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 64);
+  EXPECT_EQ(output_shape_actual[2], 8);
+  EXPECT_EQ(output_shape_actual[3], 8);
 
   // Verify numerical correctness
   auto params = layer.parameters();
@@ -890,10 +913,11 @@ TEST_F(Conv2DLayerTest, ResNetFirstConv7x7) {
   layer.forward(input, output);
 
   // Output: (15 + 2*3 - 7) / 2 + 1 = 8
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 64);
-  EXPECT_EQ(output.height(), 8);
-  EXPECT_EQ(output.width(), 8);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 64);
+  EXPECT_EQ(output_shape_actual[2], 8);
+  EXPECT_EQ(output_shape_actual[3], 8);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -928,10 +952,11 @@ TEST_F(Conv2DLayerTest, ResNetAsymmetricStride) {
 
   // Height: (8 + 2*1 - 3) / 2 + 1 = 4
   // Width: (8 + 2*1 - 3) / 1 + 1 = 8
-  EXPECT_EQ(output.batch_size(), 1);
-  EXPECT_EQ(output.channels(), 64);
-  EXPECT_EQ(output.height(), 4);
-  EXPECT_EQ(output.width(), 8);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 1);
+  EXPECT_EQ(output_shape_actual[1], 64);
+  EXPECT_EQ(output_shape_actual[2], 4);
+  EXPECT_EQ(output_shape_actual[3], 8);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();
@@ -965,10 +990,11 @@ TEST_F(Conv2DLayerTest, ResNetSmallFeatureMap) {
   layer.forward(input, output);
 
   // Output: (7 + 2*1 - 3) / 2 + 1 = 4
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 64);
-  EXPECT_EQ(output.height(), 4);
-  EXPECT_EQ(output.width(), 4);
+  auto output_shape_actual = output.shape();
+  EXPECT_EQ(output_shape_actual[0], 2);
+  EXPECT_EQ(output_shape_actual[1], 64);
+  EXPECT_EQ(output_shape_actual[2], 4);
+  EXPECT_EQ(output_shape_actual[3], 4);
 
   // Verify numerical correctness of forward pass
   auto params = layer.parameters();

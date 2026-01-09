@@ -29,3 +29,4 @@ create_default(coordinator_tiny_imagenet coordinator_tiny_imagenet.cpp)
 # Microbatching test executable
 create_default(roce_worker roce_worker.cpp)
 create_default(roce_coordinator roce_coordinator.cpp)
+create_default(inspect_openwebtext inspect_openwebtext.cpp)

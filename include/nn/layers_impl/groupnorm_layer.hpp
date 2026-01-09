@@ -34,9 +34,6 @@ private:
   std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
   std::unordered_map<size_t, device_ptr<T[]>> group_mean_;
 
-  void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
-                                 size_t &height, size_t &width, size_t &spatial_size);
-
   std::unique_ptr<Task> run_forward_fused(const device_ptr<T[]> &input, device_ptr<T[]> &group_mean,
                                           device_ptr<T[]> &group_inv_std,
                                           const device_ptr<T[]> &gamma, const device_ptr<T[]> &beta,

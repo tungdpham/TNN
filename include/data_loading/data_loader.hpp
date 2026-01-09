@@ -171,24 +171,6 @@ protected:
     std::shuffle(indices.begin(), indices.end(), rng_);
     return indices;
   }
-
-  /**
-   * Utility function to create one-hot encoded labels
-   */
-  void create_one_hot_label(Tensor<T> &label_tensor, int batch_idx, int class_idx,
-                            int num_classes) {
-
-    label_tensor(batch_idx, class_idx, 0, 0) = static_cast<T>(1.0);
-  }
-
-  /**
-   * Utility function to normalize data to [0, 1] range
-   */
-  void normalize_to_unit_range(std::vector<T> &data, T max_value = static_cast<T>(255.0)) {
-    for (auto &value : data) {
-      value /= max_value;
-    }
-  }
 };
 
 /**

@@ -28,8 +28,9 @@ template <typename T> cudnnDataType_t get_cudnn_data_type();
 template <> cudnnDataType_t get_cudnn_data_type<float>() { return CUDNN_DATA_FLOAT; }
 template <> cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_DATA_DOUBLE; }
 
-BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t N, size_t C,
-                                             size_t H, size_t W, cudnnDataType_t data_type) {
+BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t batch_size,
+                                             size_t channels, size_t spatial_size,
+                                             cudnnDataType_t data_type) {
   BatchNormHandle *handle = new BatchNormHandle();
   handle->cudnn_handle = shared_handle;
 
@@ -37,10 +38,10 @@ BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->output_descriptor));
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->bn_scale_bias_mean_var_descriptor));
 
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW, data_type, N,
-                                         C, H, W));
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW, data_type, N,
-                                         C, H, W));
+  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW, data_type,
+                                         batch_size, channels, spatial_size, 1));
+  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW, data_type,
+                                         batch_size, channels, spatial_size, 1));
 
   CHECK_CUDNN(cudnnDeriveBNTensorDescriptor(handle->bn_scale_bias_mean_var_descriptor,
                                             handle->input_descriptor, CUDNN_BATCHNORM_SPATIAL));

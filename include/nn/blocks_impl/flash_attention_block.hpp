@@ -51,8 +51,9 @@ private:
       if (!cuda_context) {
         throw std::runtime_error("Failed to get CUDA context");
       }
-      size_t total_rows = input.batch_size() * input.height();
-      size_t cols = input.width();
+      const auto &shape = input.shape();
+      size_t total_rows = shape[0] * shape[2];
+      size_t cols = shape[3];
 
       auto &input_ptr = input.data_ptr();
 
@@ -65,9 +66,9 @@ private:
     } else {
       // CPU implementation
       T *data = input.data_ptr().get();
-      size_t total_rows =
-          input.batch_size() * input.height(); // N * H (here N=batch*heads, H=seq_len)
-      size_t cols = input.width();             // W (here seq_len)
+      const auto &shape = input.shape();
+      size_t total_rows = shape[0] * shape[2]; // N * H (here N=batch*heads, H=seq_len)
+      size_t cols = shape[3];                  // W (here seq_len)
 
       for (size_t i = 0; i < total_rows; ++i) {
         T *row = data + i * cols;
@@ -210,9 +211,10 @@ public:
   }
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    size_t batch_size = input.batch_size();
-    size_t H = input.height();
-    size_t W = input.width();
+    const auto &shape = input.shape();
+    size_t batch_size = shape[0];
+    size_t H = shape[2];
+    size_t W = shape[3];
     size_t L = H * W;
 
     Tensor<T> &q = q_cache_[micro_batch_id];
@@ -285,9 +287,10 @@ public:
     Tensor<T> d_attn_out;
     out_proj_->backward(gradient, d_attn_out, micro_batch_id);
 
-    size_t batch_size = q.batch_size();
-    size_t H = q.height();
-    size_t W = q.width();
+    const auto &q_shape = q.shape();
+    size_t batch_size = q_shape[0];
+    size_t H = q_shape[2];
+    size_t W = q_shape[3];
     size_t L = H * W;
     size_t batch_count = batch_size * num_heads_;
 

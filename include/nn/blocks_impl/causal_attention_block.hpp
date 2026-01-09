@@ -47,8 +47,9 @@ private:
       if (!cuda_context) {
         throw std::runtime_error("Failed to get CUDA context");
       }
-      size_t total_rows = input.batch_size() * input.height();
-      size_t cols = input.width();
+      const auto &shape = input.shape();
+      size_t total_rows = shape[0] * shape[2];
+      size_t cols = shape[3];
 
       auto &input_ptr = input.data_ptr();
 
@@ -60,8 +61,9 @@ private:
 #endif
     } else {
       T *data = input.data_ptr().get();
-      size_t total_rows = input.batch_size() * input.height();
-      size_t cols = input.width();
+      const auto &shape = input.shape();
+      size_t total_rows = shape[0] * shape[2];
+      size_t cols = shape[3];
 
       for (size_t i = 0; i < total_rows; ++i) {
         T *row = data + i * cols;
@@ -91,8 +93,9 @@ private:
     const T *dy = grad_output.data_ptr().get();
     T *dx = grad_input.data_ptr().get();
 
-    size_t total_rows = output.batch_size() * output.height();
-    size_t cols = output.width();
+    const auto &shape = output.shape();
+    size_t total_rows = shape[0] * shape[2];
+    size_t cols = shape[3];
 
     for (size_t i = 0; i < total_rows; ++i) {
       const T *y_row = y + i * cols;
@@ -154,9 +157,10 @@ public:
   }
 
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    size_t batch_size = input.batch_size();
-    size_t H = input.height();
-    size_t W = input.width();
+    const auto &shape = input.shape();
+    size_t batch_size = shape[0];
+    size_t H = shape[2];
+    size_t W = shape[3];
     size_t L = H * W; // Sequence length
 
     q_proj_->forward(input, q_, micro_batch_id);
@@ -237,8 +241,9 @@ public:
     Tensor<T> &grad_attn_out = grad_attn_out_buffer.get();
     out_proj_->backward(gradient, grad_attn_out, micro_batch_id);
 
-    size_t batch_size = q_.batch_size();
-    size_t L = q_.height() * q_.width();
+    const auto &q_shape = q_.shape();
+    size_t batch_size = q_shape[0];
+    size_t L = q_shape[2] * q_shape[3];
     size_t batch_count = batch_size * num_heads_;
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;

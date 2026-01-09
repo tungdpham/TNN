@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "matrix/matrix.hpp"
 #include "ops/cpu/kernels.hpp"
 #include "tensor/tensor.hpp"
 #include <immintrin.h>
@@ -18,16 +17,16 @@ namespace cpu {
  * For GPU tensors, use the GPU-aware versions in gpu namespace.
  * All functions in this file expect CPU tensors and will throw if given GPU tensors.
  */
-template <typename T>
-void im2col_pad_1_stride_1_kernel_3(const Tensor<T, NCHW> &input, T *col_data) {
+template <typename T> void im2col_pad_1_stride_1_kernel_3(const Tensor<T> &input, T *col_data) {
   if (!input.is_on_cpu()) {
     throw std::runtime_error("im2col_pad_1_stride_1_kernel_3_cpu requires CPU tensor");
   }
 
-  const size_t in_h = input.height();
-  const size_t in_w = input.width();
-  const size_t channels = input.channels();
-  const size_t batch_size = input.batch_size();
+  const auto &shape = input.shape();
+  const size_t in_h = shape[2];
+  const size_t in_w = shape[3];
+  const size_t channels = shape[1];
+  const size_t batch_size = shape[0];
 
   size_t col_width = in_h * in_w;
 
@@ -200,21 +199,22 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor<T, NCHW> &input, T *col_data) {
 }
 
 template <typename T>
-void im2col_padded(const Tensor<T, NCHW> &input_tensor, T *col_data, const size_t kernel_h,
+void im2col_padded(const Tensor<T> &input_tensor, T *col_data, const size_t kernel_h,
                    const size_t kernel_w, const size_t stride_h, const size_t stride_w,
                    const size_t pad_h, const size_t pad_w) {
   if (!input_tensor.is_on_cpu()) {
     throw std::runtime_error("im2col_padded_cpu requires CPU tensor");
   }
 
-  const size_t in_h = input_tensor.height();
-  const size_t in_w = input_tensor.width();
+  const auto &shape = input_tensor.shape();
+  const size_t in_h = shape[2];
+  const size_t in_w = shape[3];
   const size_t padded_h = in_h + 2 * pad_h;
   const size_t padded_w = in_w + 2 * pad_w;
   const size_t out_h = (padded_h - kernel_h) / stride_h + 1;
   const size_t out_w = (padded_w - kernel_w) / stride_w + 1;
-  const size_t channels = input_tensor.channels();
-  const size_t batch_size = input_tensor.batch_size();
+  const size_t channels = shape[1];
+  const size_t batch_size = shape[0];
 
   size_t col_width = out_h * out_w;
 
@@ -280,7 +280,7 @@ void im2col_padded(const Tensor<T, NCHW> &input_tensor, T *col_data, const size_
  * @param pad_w Horizontal padding to be applied to the input tensor.
  */
 template <typename T>
-void im2col(const Tensor<T, NCHW> &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
+void im2col(const Tensor<T> &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
             size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
   if (!input_tensor.is_on_cpu()) {
     throw std::runtime_error("im2col_cpu requires CPU tensor");
@@ -295,12 +295,13 @@ void im2col(const Tensor<T, NCHW> &input_tensor, T *col_data, size_t kernel_h, s
     return;
   }
 
-  const size_t in_h = input_tensor.height();
-  const size_t in_w = input_tensor.width();
+  const auto &shape = input_tensor.shape();
+  const size_t in_h = shape[2];
+  const size_t in_w = shape[3];
   const size_t out_h = (in_h - kernel_h) / stride_h + 1;
   const size_t out_w = (in_w - kernel_w) / stride_w + 1;
-  const size_t channels = input_tensor.channels();
-  const size_t batch_size = input_tensor.batch_size();
+  const size_t channels = shape[1];
+  const size_t batch_size = shape[0];
 
   size_t col_width = out_h * out_w;
 
@@ -421,7 +422,6 @@ static void col2im(const T *col_data, T *result_data, size_t batch_size, size_t 
     return;
   }
 
-  // No padding case
   size_t output_h = (height - kernel_h) / stride_h + 1;
   size_t output_w = (width - kernel_w) / stride_w + 1;
 
@@ -456,23 +456,17 @@ static void col2im(const T *col_data, T *result_data, size_t batch_size, size_t 
       SchedulePolicy::Static);
 }
 
-template <typename T, Layout L>
-void pad(const Tensor<T, L> &input, Tensor<T, L> &result, size_t pad_h, size_t pad_w,
-         T value = T(0)) {
-  throw std::runtime_error("Unsupported tensor layout for padding");
-}
-
 template <typename T>
-void pad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t pad_h, size_t pad_w,
-         T value = T(0)) {
+void pad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w, T value = T(0)) {
   if (!input.is_on_cpu()) {
     throw std::runtime_error("pad requires CPU tensor");
   }
 
-  const size_t batch_size_ = input.batch_size();
-  const size_t channels_ = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
+  auto input_shape = input.shape();
+  const size_t batch_size_ = input_shape[0];
+  const size_t channels_ = input_shape[1];
+  const size_t height_ = input_shape[2];
+  const size_t width_ = input_shape[3];
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();
@@ -519,21 +513,17 @@ void pad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t pad_h, si
   });
 }
 
-template <typename T, Layout L>
-void unpad(const Tensor<T, L> &input, Tensor<T, NCHW> &result, size_t pad_h, size_t pad_w) {
-  throw std::runtime_error("Unsupported tensor layout for unpadding");
-}
-
 template <typename T>
-void unpad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t pad_h, size_t pad_w) {
+void unpad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w) {
   if (!input.is_on_cpu()) {
     throw std::runtime_error("unpad requires CPU tensor");
   }
 
-  const size_t batch_size_ = input.batch_size();
-  const size_t channels_ = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
+  auto input_shape = input.shape();
+  const size_t batch_size_ = input_shape[0];
+  const size_t channels_ = input_shape[1];
+  const size_t height_ = input_shape[2];
+  const size_t width_ = input_shape[3];
 
   if (height_ <= 2 * pad_h || width_ <= 2 * pad_w) {
     throw std::invalid_argument("Padding size too large for unpadding");
@@ -554,37 +544,33 @@ void unpad(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t pad_h, 
   });
 }
 
-template <typename T, Layout L>
-void crop(const Tensor<T, L> &input, Tensor<T, L> &result, const size_t start_h,
-          const size_t start_w, const size_t end_h, const size_t end_w) {
-  throw std::runtime_error("Unsupported tensor layout for cropping");
-}
-
 template <typename T>
-void crop(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, const size_t start_h,
-          const size_t start_w, const size_t end_h, const size_t end_w) {
+void crop(const Tensor<T> &input, Tensor<T> &result, const size_t start_h, const size_t start_w,
+          const size_t end_h, const size_t end_w) {
   if (!input.is_on_cpu()) {
     throw std::runtime_error("crop requires CPU tensor");
   }
 
-  if (end_h >= input.height() || end_w >= input.width() || start_h > end_h || start_w > end_w) {
+  auto input_shape = input.shape();
+  if (end_h >= input_shape[2] || end_w >= input_shape[3] || start_h > end_h || start_w > end_w) {
     throw std::invalid_argument("Invalid crop dimensions");
   }
 
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height_ = input.height();
-  const size_t width_ = input.width();
+  const size_t batch_size = input_shape[0];
+  const size_t channels = input_shape[1];
+  const size_t height_ = input_shape[2];
+  const size_t width_ = input_shape[3];
 
   const T *input_data = input.data_ptr().get();
   T *result_data = result.data_ptr().get();
+  auto result_shape = result.shape();
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t c = 0; c < channels; ++c) {
-      for (size_t h = 0; h < result.height(); ++h) {
+      for (size_t h = 0; h < result_shape[2]; ++h) {
         std::copy(&input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w],
                   &input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w] +
-                      result.width(),
-                  &result_data[((n * channels + c) * result.height() + h) * result.width()]);
+                      result_shape[3],
+                  &result_data[((n * channels + c) * result_shape[2] + h) * result_shape[3]]);
       }
     }
   }
@@ -596,37 +582,29 @@ void crop(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, const size_t st
  * @param end_batch Ending batch index (exclusive)
  * @return A new tensor containing the sliced batches
  */
-template <typename T, Layout L>
-void slice_batch(const Tensor<T, L> &input, Tensor<T, L> &result, size_t start_batch,
-                 size_t end_batch) {
+template <typename T>
+void slice_batch(const Tensor<T> &input, Tensor<T> &result, size_t start_batch, size_t end_batch) {
   if (!input.is_on_cpu()) {
     throw std::runtime_error("slice_batch requires CPU tensor");
   }
 
-  if (end_batch > input.batch_size() || start_batch > end_batch) {
+  auto input_shape = input.shape();
+  if (end_batch > input_shape[0] || start_batch > end_batch) {
     throw std::invalid_argument("Invalid batch slice range");
   }
 
-  auto input_shape = input.shape();
   std::vector<size_t> result_shape = input_shape;
   result_shape[0] = end_batch - start_batch;
   result.resize(result_shape, input.device());
 
   const T *input_data = input.data_ptr().get();
-  const std::vector<size_t> strides = input.strides();
+  size_t stride_0 = 1;
+  for (size_t i = 1; i < input_shape.size(); ++i) {
+    stride_0 *= input_shape[i];
+  }
   T *result_data = result.data_ptr().get();
 
-  std::copy(&input_data[start_batch * strides[0]], &input_data[end_batch * strides[0]],
-            result_data);
-}
-
-/*
- * @brief Slice the tensor along the channel dimension.
- */
-template <typename T, Layout L>
-void slice_channels(const Tensor<T, L> &input, Tensor<T, L> &result, size_t start_ch,
-                    size_t end_ch) {
-  throw std::runtime_error("Unsupported tensor layout for channel slicing");
+  std::copy(&input_data[start_batch * stride_0], &input_data[end_batch * stride_0], result_data);
 }
 
 /**
@@ -636,16 +614,17 @@ void slice_channels(const Tensor<T, L> &input, Tensor<T, L> &result, size_t star
  * @return A new tensor containing the sliced channels
  */
 template <typename T>
-void slice_channels(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_t start_ch,
-                    size_t end_ch) {
-  if (end_ch >= input.channels() || start_ch > end_ch) {
+void slice_channels(const Tensor<T> &input, Tensor<T> &result, size_t start_ch, size_t end_ch) {
+  auto input_shape = input.shape();
+  auto result_shape = result.shape();
+  if (end_ch >= input_shape[1] || start_ch > end_ch) {
     throw std::invalid_argument("Invalid channel slice range");
   }
 
-  for (size_t n = 0; n < input.batch_size(); ++n) {
-    for (size_t c = 0; c < result.channels(); ++c) {
-      for (size_t h = 0; h < input.height(); ++h) {
-        for (size_t w = 0; w < input.width(); ++w) {
+  for (size_t n = 0; n < input_shape[0]; ++n) {
+    for (size_t c = 0; c < result_shape[1]; ++c) {
+      for (size_t h = 0; h < input_shape[2]; ++h) {
+        for (size_t w = 0; w < input_shape[3]; ++w) {
           result(n, c, h, w) = input(n, start_ch + c, h, w);
         }
       }
@@ -653,48 +632,28 @@ void slice_channels(const Tensor<T, NCHW> &input, Tensor<T, NCHW> &result, size_
   }
 }
 
-template <typename T, Layout L>
-void split(const Tensor<T, L> &input, std::vector<Tensor<T, L>> &results, size_t num_splits) {
-  if (num_splits == 0 || num_splits > input.batch_size()) {
+template <typename T>
+void split(const Tensor<T> &input, std::vector<Tensor<T>> &results, size_t num_splits) {
+  auto input_shape = input.shape();
+  if (num_splits == 0 || num_splits > input_shape[0]) {
     throw std::invalid_argument(
-        "Invalid number of splits. Batch size: " + std::to_string(input.batch_size()) +
+        "Invalid number of splits. Batch size: " + std::to_string(input_shape[0]) +
         ", num_splits: " + std::to_string(num_splits));
   }
 
   results.resize(num_splits);
 
-  size_t split_size = input.batch_size() / num_splits;
+  size_t split_size = input_shape[0] / num_splits;
 
   for (size_t i = 0; i < num_splits; ++i) {
     size_t start = i * split_size;
-    size_t end = (i == num_splits - 1) ? input.batch_size() : start + split_size;
+    size_t end = (i == num_splits - 1) ? input_shape[0] : start + split_size;
 
     cpu::slice_batch(input, results[i], start, end);
   }
 }
 
-template <typename T>
-void split(const Tensor<T, NCHW> &input, std::vector<Tensor<T, NCHW>> &results, size_t num_splits) {
-  if (num_splits == 0 || num_splits > input.batch_size()) {
-    throw std::invalid_argument("Invalid number of splits");
-  }
-
-  results.resize(num_splits);
-  size_t split_size = input.batch_size() / num_splits;
-
-  for (size_t i = 0; i < num_splits; ++i) {
-    size_t start = i * split_size;
-    size_t end = (i == num_splits - 1) ? input.batch_size() : start + split_size;
-
-    cpu::slice_batch(input, results[i], start, end);
-  }
-}
-
-template <typename T, Layout L> void apply_softmax(Tensor<T, L> &input) {
-  throw std::runtime_error("Unsupported tensor layout for softmax");
-}
-
-template <typename T> void apply_softmax(Tensor<T, NCHW> &input) {
+template <typename T> void apply_softmax(Tensor<T> &input) {
   auto shape = input.shape();
   const size_t batch_size = shape[0];
   const size_t num_classes = shape[1];

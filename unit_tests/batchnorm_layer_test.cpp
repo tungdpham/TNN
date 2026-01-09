@@ -46,10 +46,12 @@ protected:
 
   // Verify output shape matches input shape
   void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output) {
-    EXPECT_EQ(output.batch_size(), input.batch_size());
-    EXPECT_EQ(output.channels(), input.channels());
-    EXPECT_EQ(output.height(), input.height());
-    EXPECT_EQ(output.width(), input.width());
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    EXPECT_EQ(output_shape[0], input_shape[0]);
+    EXPECT_EQ(output_shape[1], input_shape[1]);
+    EXPECT_EQ(output_shape[2], input_shape[2]);
+    EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
   // Verify forward pass numerical correctness
@@ -63,10 +65,11 @@ protected:
     const float *gamma_data = gamma ? gamma->data() : nullptr;
     const float *beta_data = beta ? beta->data() : nullptr;
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    auto input_shape = input.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
 
     for (size_t c = 0; c < channels; ++c) {
       float mean = expected_mean[c];
@@ -96,10 +99,11 @@ protected:
   void compute_batch_statistics(const Tensor<float> &input, std::vector<float> &means,
                                 std::vector<float> &vars) {
     const float *data = input.data();
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    auto input_shape = input.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
     size_t spatial_size = height * width;
     size_t batch_spatial = batch_size * spatial_size;
 
@@ -232,7 +236,7 @@ TEST_F(BatchNormLayerTest, ForwardPassMultiBatch) {
   layer.forward(input, output);
 
   verify_output_shape(input, output);
-  EXPECT_EQ(output.batch_size(), 8);
+  EXPECT_EQ(output_shape[0], 8);
 }
 
 TEST_F(BatchNormLayerTest, ForwardPassLargeFeatures) {
@@ -252,7 +256,7 @@ TEST_F(BatchNormLayerTest, ForwardPassLargeFeatures) {
   layer.forward(input, output);
 
   verify_output_shape(input, output);
-  EXPECT_EQ(output.channels(), 64);
+  EXPECT_EQ(output_shape[1], 64);
 }
 
 // Forward Pass Tests - Inference Mode
@@ -376,7 +380,8 @@ TEST_F(BatchNormLayerTest, BackwardPassMultiBatch) {
   Tensor<float> grad_input(input.shape(), cpu_device_);
   layer.backward(gradient, grad_input);
 
-  EXPECT_EQ(grad_input.batch_size(), 8);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], 8);
   EXPECT_EQ(grad_input.shape(), input.shape());
 }
 
@@ -554,8 +559,8 @@ TEST_F(BatchNormLayerTest, EdgeCaseSmallSpatialSize) {
   layer.forward(input, output);
 
   verify_output_shape(input, output);
-  EXPECT_EQ(output.height(), 1);
-  EXPECT_EQ(output.width(), 1);
+  EXPECT_EQ(output_shape[2], 1);
+  EXPECT_EQ(output_shape[3], 1);
 }
 
 TEST_F(BatchNormLayerTest, EdgeCaseLargeValues) {

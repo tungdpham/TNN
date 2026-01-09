@@ -23,8 +23,9 @@ struct BatchNormHandle {
 
 template <typename T> cudnnDataType_t get_cudnn_data_type();
 
-BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t N, size_t C,
-                                             size_t H, size_t W, cudnnDataType_t data_type);
+BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t batch_size,
+                                             size_t channels, size_t spatial_size,
+                                             cudnnDataType_t data_type);
 void destroy_batchnorm_handle(BatchNormHandle *handle);
 
 template <typename T>

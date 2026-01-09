@@ -50,7 +50,7 @@ template <typename T> void GroupNormLayer<T>::initialize_params() {
 
 template <typename T>
 void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
-  if (input.channels() != num_channels_) {
+  if (input.shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
 
@@ -61,8 +61,10 @@ void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
     current = &device_input;
   }
 
-  size_t batch_size, channels, height, width, spatial_size;
-  extract_tensor_dimensions(*current, batch_size, channels, height, width, spatial_size);
+  size_t batch_size = current->dimension(0);
+  size_t channels = current->dimension(1);
+  size_t spatial_size = current->stride(1);
+
   if (num_channels_ != channels) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -126,11 +128,9 @@ void GroupNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
 
   const Tensor<T> &input = it_input->second;
 
-  const size_t batch_size = input.batch_size();
-  const size_t channels = input.channels();
-  const size_t height = input.height();
-  const size_t width = input.width();
-  const size_t spatial_size = height * width;
+  const size_t batch_size = input.dimension(0);
+  const size_t channels = input.dimension(1);
+  const size_t spatial_size = input.stride(1);
 
   grad_input.ensure(input.shape());
 
@@ -182,17 +182,6 @@ std::unique_ptr<Task> GroupNormLayer<T>::run_backward_fused(
                            d_beta.get(), grad_input.get(), batch_size, channels, spatial_size,
                            num_groups_, affine_);
   }
-}
-
-template <typename T>
-void GroupNormLayer<T>::extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size,
-                                                  size_t &channels, size_t &height, size_t &width,
-                                                  size_t &spatial_size) {
-  batch_size = input.batch_size();
-  channels = input.channels();
-  height = input.height();
-  width = input.width();
-  spatial_size = height * width;
 }
 
 template <typename T> std::string GroupNormLayer<T>::type() const { return "groupnorm"; }

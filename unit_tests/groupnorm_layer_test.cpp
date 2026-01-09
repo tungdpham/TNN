@@ -46,20 +46,23 @@ protected:
 
   // Verify output shape matches input shape
   void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output) {
-    EXPECT_EQ(output.batch_size(), input.batch_size());
-    EXPECT_EQ(output.channels(), input.channels());
-    EXPECT_EQ(output.height(), input.height());
-    EXPECT_EQ(output.width(), input.width());
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    EXPECT_EQ(output_shape[0], input_shape[0]);
+    EXPECT_EQ(output_shape[1], input_shape[1]);
+    EXPECT_EQ(output_shape[2], input_shape[2]);
+    EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
   // Compute group statistics for verification
   void compute_group_statistics(const Tensor<float> &input, size_t num_groups,
                                 std::vector<float> &means, std::vector<float> &vars) {
     const float *data = input.data();
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    auto input_shape = input.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
     size_t spatial_size = height * width;
     size_t channels_per_group = channels / num_groups;
     size_t group_size = channels_per_group * spatial_size;
@@ -116,10 +119,11 @@ protected:
     const float *gamma_data = gamma ? gamma->data() : nullptr;
     const float *beta_data = beta ? beta->data() : nullptr;
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    auto input_shape = input.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
     size_t channels_per_group = channels / num_groups;
 
     for (size_t n = 0; n < batch_size; ++n) {
@@ -289,10 +293,12 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   Tensor<float> grad_input(input.shape(), cpu_device_);
   layer.backward(grad_output, grad_input);
 
-  EXPECT_EQ(grad_input.batch_size(), input.batch_size());
-  EXPECT_EQ(grad_input.channels(), input.channels());
-  EXPECT_EQ(grad_input.height(), input.height());
-  EXPECT_EQ(grad_input.width(), input.width());
+  auto input_shape = input.shape();
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], input_shape[0]);
+  EXPECT_EQ(grad_input_shape[1], input_shape[1]);
+  EXPECT_EQ(grad_input_shape[2], input_shape[2]);
+  EXPECT_EQ(grad_input_shape[3], input_shape[3]);
 
   // Verify gradients are non-zero
   const float *grad_data = grad_input.data();

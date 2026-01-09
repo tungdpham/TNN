@@ -13,7 +13,7 @@ The tensor structure uses a 1d-array to store the data and a layout trait struct
 There are several ways to construct a Tensor. The most common one is to use
 
 ```c
-Tensor<float, NCHW> tensor(64, 32, 48, 48); // Create a tensor with NCHW layout that stores single precision floats. The dimensions are 64, 32, 48, 48 respectively for batch size, channels, height, and width.
+Tensor<float> tensor(64, 32, 48, 48); // Create a tensor with NCHW layout that stores single precision floats. The dimensions are 64, 32, 48, 48 respectively for batch size, channels, height, and width.
 ```
 
 Other constructors include:

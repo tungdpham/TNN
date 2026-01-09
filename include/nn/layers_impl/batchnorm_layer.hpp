@@ -37,8 +37,7 @@ private:
 #ifdef USE_CUDNN
   cuda::cudnn_batchnorm::BatchNormHandle *cudnn_handle_ = nullptr;
   size_t cached_batch_size_ = 0;
-  size_t cached_input_h_ = 0;
-  size_t cached_input_w_ = 0;
+  size_t cached_input_spatial_size_ = 0;
 #endif
 
   Tensor<T> gamma_;
@@ -66,9 +65,6 @@ private:
   void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
                       size_t micro_batch_id);
 #endif
-
-  void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
-                                 size_t &height, size_t &width, size_t &spatial_size);
 
   std::unique_ptr<Task> compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
                                                  size_t batch_size, size_t channels,

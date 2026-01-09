@@ -47,12 +47,14 @@ protected:
   // Verify forward pass output shape
   void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output,
                            size_t output_features) {
-    size_t batch_size = input.batch_size();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    size_t batch_size = input_shape[0];
 
-    EXPECT_EQ(output.batch_size(), batch_size);
-    EXPECT_EQ(output.channels(), output_features);
-    EXPECT_EQ(output.height(), 1);
-    EXPECT_EQ(output.width(), 1);
+    EXPECT_EQ(output_shape[0], batch_size);
+    EXPECT_EQ(output_shape[1], output_features);
+    EXPECT_EQ(output_shape[2], 1);
+    EXPECT_EQ(output_shape[3], 1);
   }
 
   // Verify forward pass numerical correctness
@@ -64,9 +66,11 @@ protected:
     const float *weight_data = weights.data();
     const float *bias_data = bias ? bias->data() : nullptr;
 
-    size_t batch_size = input.batch_size();
-    size_t input_features = input.channels();
-    size_t output_features = output.channels();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    size_t batch_size = input_shape[0];
+    size_t input_features = input_shape[1];
+    size_t output_features = output_shape[1];
 
     // For each batch and output feature, compute expected value via matrix multiplication
     for (size_t n = 0; n < batch_size; ++n) {
@@ -100,9 +104,11 @@ protected:
     const float *grad_input_data = grad_input.data();
     const float *weight_data = weights.data();
 
-    size_t batch_size = grad_input.batch_size();
-    size_t input_features = grad_input.channels();
-    size_t output_features = grad_output.channels();
+    auto grad_input_shape = grad_input.shape();
+    auto grad_output_shape = grad_output.shape();
+    size_t batch_size = grad_input_shape[0];
+    size_t input_features = grad_input_shape[1];
+    size_t output_features = grad_output_shape[1];
 
     // For each batch and input feature, compute expected gradient
     for (size_t n = 0; n < batch_size; ++n) {
@@ -137,13 +143,14 @@ TEST_F(DenseLayerTest, BasicForwardPass) {
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> expected_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(expected_shape, cpu_device_);
   layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
-  EXPECT_EQ(output.batch_size(), 2);
-  EXPECT_EQ(output.channels(), 5);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[0], 2);
+  EXPECT_EQ(output_shape[1], 5);
 
   // Verify numerical correctness
   auto params = layer.parameters();
@@ -161,13 +168,14 @@ TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> expected_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(expected_shape, cpu_device_);
   layer.forward(input, output);
 
   verify_output_shape(input, output, 10);
-  EXPECT_EQ(output.batch_size(), 1);
-  EXPECT_EQ(output.channels(), 10);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[0], 1);
+  EXPECT_EQ(output_shape[1], 10);
 }
 
 TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
@@ -178,13 +186,14 @@ TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
   Tensor<float> input({4, 15, 1, 1}, cpu_device_);
   input.fill(0.5f);
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> expected_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(expected_shape, cpu_device_);
   layer.forward(input, output);
 
   verify_output_shape(input, output, 8);
-  EXPECT_EQ(output.batch_size(), 4);
-  EXPECT_EQ(output.channels(), 8);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[0], 4);
+  EXPECT_EQ(output_shape[1], 8);
 }
 
 TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
@@ -195,12 +204,13 @@ TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
   Tensor<float> input({2, 128, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> expected_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(expected_shape, cpu_device_);
   layer.forward(input, output);
 
   verify_output_shape(input, output, 64);
-  EXPECT_EQ(output.channels(), 64);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[1], 64);
 }
 
 TEST_F(DenseLayerTest, ForwardPassWithBias) {
@@ -216,7 +226,8 @@ TEST_F(DenseLayerTest, ForwardPassWithBias) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
-  EXPECT_EQ(output.channels(), 5);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 5);
 }
 
 TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
@@ -232,7 +243,8 @@ TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 5);
-  EXPECT_EQ(output.channels(), 5);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 5);
 }
 
 TEST_F(DenseLayerTest, ForwardPassVariableInput) {
@@ -274,7 +286,8 @@ TEST_F(DenseLayerTest, BasicBackwardPass) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.channels(), 10);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[1], 10);
 
   // Verify numerical correctness
   auto params = layer.parameters();
@@ -300,7 +313,8 @@ TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.batch_size(), 1);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], 1);
 }
 
 TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
@@ -322,7 +336,8 @@ TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.batch_size(), 4);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], 4);
 }
 
 TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
@@ -456,8 +471,9 @@ TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
   Tensor<float> output(output_shape, cpu_device_);
   layer.forward(input, output);
 
-  EXPECT_EQ(output.channels(), 1);
-  EXPECT_EQ(output.batch_size(), 1);
+  auto out_shape = output.shape();
+  EXPECT_EQ(out_shape[1], 1);
+  EXPECT_EQ(out_shape[0], 1);
 }
 
 TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
@@ -522,12 +538,13 @@ TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
   Tensor<float> input({32, 20, 1, 1}, cpu_device_);
   input.fill(1.0f);
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> expected_shape = layer.compute_output_shape(input.shape());
+  Tensor<float> output(expected_shape, cpu_device_);
   layer.forward(input, output);
 
   verify_output_shape(input, output, 10);
-  EXPECT_EQ(output.batch_size(), 32);
+  auto output_shape = output.shape();
+  EXPECT_EQ(output_shape[0], 32);
 }
 
 // Numerical Stability Tests

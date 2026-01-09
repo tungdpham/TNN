@@ -12,7 +12,6 @@
 #include "nn/layers_impl/cuda/class_token_ops.hpp"
 #endif
 #include "nn/layers_impl/parameterized_layer.hpp"
-#include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <memory>
@@ -52,10 +51,11 @@ public:
           "Layer parameters not initialized. Call initialize() before forward.");
     }
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    const auto &shape = input.shape();
+    size_t batch_size = shape[0];
+    size_t channels = shape[1];
+    size_t height = shape[2];
+    size_t width = shape[3];
     size_t len = height * width;
 
     if (channels != embed_dim_) {
@@ -84,9 +84,10 @@ public:
 
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                 size_t micro_batch_id = 0) override {
-    size_t batch_size = gradient.batch_size();
-    size_t channels = gradient.channels();
-    size_t len_plus_1 = gradient.height();
+    const auto &shape = gradient.shape();
+    size_t batch_size = shape[0];
+    size_t channels = shape[1];
+    size_t len_plus_1 = shape[2];
     size_t len = len_plus_1 - 1;
 
     grad_input.ensure({batch_size, channels, len, 1}, this->device_);

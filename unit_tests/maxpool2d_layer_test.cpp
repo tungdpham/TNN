@@ -48,27 +48,31 @@ protected:
   void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output, size_t pool_h,
                            size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
                            size_t pad_w) {
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
+    auto input_shape = input.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t input_h = input_shape[2];
+    size_t input_w = input_shape[3];
 
     size_t expected_h = (input_h + 2 * pad_h - pool_h) / stride_h + 1;
     size_t expected_w = (input_w + 2 * pad_w - pool_w) / stride_w + 1;
 
-    EXPECT_EQ(output.batch_size(), batch_size);
-    EXPECT_EQ(output.channels(), channels);
-    EXPECT_EQ(output.height(), expected_h);
-    EXPECT_EQ(output.width(), expected_w);
+    auto output_shape = output.shape();
+    EXPECT_EQ(output_shape[0], batch_size);
+    EXPECT_EQ(output_shape[1], channels);
+    EXPECT_EQ(output_shape[2], expected_h);
+    EXPECT_EQ(output_shape[3], expected_w);
   }
 
   // Verify backward pass gradient shape
   void verify_gradient_shape(const Tensor<float> &gradient, const Tensor<float> &grad_input,
                              const Tensor<float> &original_input) {
-    EXPECT_EQ(grad_input.batch_size(), original_input.batch_size());
-    EXPECT_EQ(grad_input.channels(), original_input.channels());
-    EXPECT_EQ(grad_input.height(), original_input.height());
-    EXPECT_EQ(grad_input.width(), original_input.width());
+    auto grad_input_shape = grad_input.shape();
+    auto original_input_shape = original_input.shape();
+    EXPECT_EQ(grad_input_shape[0], original_input_shape[0]);
+    EXPECT_EQ(grad_input_shape[1], original_input_shape[1]);
+    EXPECT_EQ(grad_input_shape[2], original_input_shape[2]);
+    EXPECT_EQ(grad_input_shape[3], original_input_shape[3]);
   }
 
   // Verify backward pass numerical correctness
@@ -80,12 +84,14 @@ protected:
     const float *grad_output_data = grad_output.data();
     const float *grad_input_data = grad_input.data();
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
-    size_t output_h = grad_output.height();
-    size_t output_w = grad_output.width();
+    auto input_shape = input.shape();
+    auto grad_output_shape = grad_output.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t input_h = input_shape[2];
+    size_t input_w = input_shape[3];
+    size_t output_h = grad_output_shape[2];
+    size_t output_w = grad_output_shape[3];
 
     std::vector<float> expected_grad_input(grad_input.size(), 0.0f);
 
@@ -139,12 +145,14 @@ protected:
     const float *input_data = input.data();
     const float *output_data = output.data();
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t input_h = input.height();
-    size_t input_w = input.width();
-    size_t output_h = output.height();
-    size_t output_w = output.width();
+    auto input_shape = input.shape();
+    auto output_shape = output.shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t input_h = input_shape[2];
+    size_t input_w = input_shape[3];
+    size_t output_h = output_shape[2];
+    size_t output_w = output_shape[3];
 
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t c = 0; c < channels; ++c) {
@@ -241,8 +249,8 @@ TEST_F(MaxPool2DLayerTest, ForwardPassWithPadding) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 3, 3, 1, 1, 1, 1);
-  EXPECT_EQ(output.height(), 3);
-  EXPECT_EQ(output.width(), 3);
+  EXPECT_EQ(output_shape[2], 3);
+  EXPECT_EQ(output_shape[3], 3);
 }
 
 TEST_F(MaxPool2DLayerTest, ForwardPassMultiChannel) {
@@ -261,9 +269,9 @@ TEST_F(MaxPool2DLayerTest, ForwardPassMultiChannel) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
-  EXPECT_EQ(output.channels(), 2);
-  EXPECT_EQ(output.height(), 2);
-  EXPECT_EQ(output.width(), 2);
+  EXPECT_EQ(output_shape[1], 2);
+  EXPECT_EQ(output_shape[2], 2);
+  EXPECT_EQ(output_shape[3], 2);
 }
 
 TEST_F(MaxPool2DLayerTest, ForwardPassMultiBatch) {
@@ -282,7 +290,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassMultiBatch) {
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
-  EXPECT_EQ(output.batch_size(), 2);
+  EXPECT_EQ(output_shape[0], 2);
 }
 
 TEST_F(MaxPool2DLayerTest, ForwardPassNonSquarePooling) {
@@ -400,7 +408,8 @@ TEST_F(MaxPool2DLayerTest, BackwardPassMultiChannel) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.channels(), 2);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[1], 2);
 }
 
 TEST_F(MaxPool2DLayerTest, BackwardPassMultiBatch) {
@@ -425,7 +434,8 @@ TEST_F(MaxPool2DLayerTest, BackwardPassMultiBatch) {
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
-  EXPECT_EQ(grad_input.batch_size(), 2);
+  auto grad_input_shape = grad_input.shape();
+  EXPECT_EQ(grad_input_shape[0], 2);
 }
 
 TEST_F(MaxPool2DLayerTest, BackwardPassVariableGradient) {
@@ -580,8 +590,8 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
   Tensor<float> output(output_shape, cpu_device_);
   layer.forward(input, output);
 
-  EXPECT_EQ(output.height(), 1);
-  EXPECT_EQ(output.width(), 1);
+  EXPECT_EQ(output_shape[2], 1);
+  EXPECT_EQ(output_shape[3], 1);
   EXPECT_NEAR(output.data()[0], 16.0f, 1e-5f);
 }
 
