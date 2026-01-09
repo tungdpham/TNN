@@ -808,17 +808,17 @@ public:
       return;
     }
 
-    std::cout << std::string(75, '=') << "\n";
+    std::cout << std::string(100, '=') << "\n";
     std::cout << "Model Summary: " << name_ << "\n";
-    std::cout << std::string(75, '=') << "\n";
-    std::cout << std::left << std::setw(15) << "Layer (Type)" << std::setw(15) << "Input Shape"
-              << std::setw(15) << "Output Shape" << std::setw(20) << "Forward Complexity"
+    std::cout << std::string(100, '=') << "\n";
+    std::cout << std::left << std::setw(20) << "Layer (Type)" << std::setw(20) << "Input Shape"
+              << std::setw(20) << "Output Shape" << std::setw(20) << "Forward Complexity"
               << std::setw(20) << "Backward Complexity" << "\n";
 
     std::vector<size_t> current_shape = input_shape;
     for (size_t i = 0; i < layers_.size(); ++i) {
       const auto &layer = layers_[i];
-      std::cout << std::left << std::setw(15)
+      std::cout << std::left << std::setw(20)
                 << (layer->get_config().name.empty() ? layer->type() : layer->get_config().name);
 
       std::string input_shape_str = "(";
@@ -828,7 +828,7 @@ public:
         input_shape_str += std::to_string(current_shape[j]);
       }
       input_shape_str += ")";
-      std::cout << std::setw(15) << input_shape_str;
+      std::cout << std::setw(20) << input_shape_str;
 
       auto output_shape = layer->compute_output_shape(current_shape);
       std::string output_shape_str = "(";
@@ -838,13 +838,13 @@ public:
         output_shape_str += std::to_string(output_shape[j]);
       }
       output_shape_str += ")";
-      std::cout << std::setw(15) << output_shape_str;
+      std::cout << std::setw(20) << output_shape_str;
 
       std::cout << std::setw(20) << layer->forward_complexity(current_shape) << std::setw(20)
                 << layer->backward_complexity(current_shape) << "\n";
       current_shape = layer->compute_output_shape(current_shape);
     }
-    std::cout << std::string(75, '-') << "\n";
+    std::cout << std::string(100, '-') << "\n";
   }
 
   /**
@@ -1435,14 +1435,15 @@ public:
     layer_builder_.add_layer(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
-    auto ffn_main = LayerBuilder<T>()
-                        .input(batchless_shape) // Input shape matches (residual preserves shape)
-                        .layernorm(1e-5f, true, "ln_2")
-                        .dense(ffn_dim, true, "mlp_fc1")
-                        .activation(activation_fn)
-                        .dense(embed_dim, true, "mlp_fc2") // Project back to embed_dim
-                        .dropout(dropout_rate)
-                        .build();
+    auto ffn_main =
+        LayerBuilder<T>()
+            .input(batchless_shape) // Input shape matches (residual preserves shape)
+            .layernorm(1e-5f, true, "ln_2")
+            .conv2d(ffn_dim, 1, 1, 1, 1, 0, 0, true, "mlp_fc1")
+            .activation(activation_fn)
+            .conv2d(embed_dim, 1, 1, 1, 1, 0, 0, true, "mlp_fc2") // Project back to embed_dim
+            .dropout(dropout_rate)
+            .build();
 
     auto ffn_res = residual_block<T>(std::move(ffn_main), {}, "linear", valid_name + "_ffn");
     layer_builder_.add_layer(std::move(ffn_res));

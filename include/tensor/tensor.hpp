@@ -367,6 +367,8 @@ public:
     }
   }
 
+  const size_t dims() const { return dims_; }
+
   const size_t dimension(const size_t index) const { return shape_[index]; }
 
   const size_t stride(const size_t index) const { return strides_[index]; }

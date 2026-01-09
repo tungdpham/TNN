@@ -68,16 +68,20 @@ public:
     }
     const size_t batch_size = predictions.shape()[0];
     const size_t num_classes = predictions.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < predictions.dims(); ++i) {
+      spatial_dim *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_loss<T>, predictions.data(),
-                             targets.data(), loss, batch_size, num_classes, epsilon_);
+                             targets.data(), loss, batch_size, num_classes, epsilon_, spatial_dim);
     }
 #ifdef USE_CUDA
     else if (predictions.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_crossentropy_loss<T>,
                              predictions.data(), targets.data(), loss, batch_size, num_classes,
-                             epsilon_);
+                             epsilon_, spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -92,17 +96,21 @@ public:
     gradient.resize(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
     const size_t num_classes = predictions.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < predictions.dims(); ++i) {
+      spatial_dim *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<T>,
                              predictions.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #ifdef USE_CUDA
     else if (predictions.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_crossentropy_gradient<T>,
                              predictions.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -139,15 +147,21 @@ public:
     }
     const size_t batch_size = logits.shape()[0];
     const size_t num_classes = logits.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < logits.dims(); ++i) {
+      spatial_dim *= logits.shape()[i];
+    }
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes);
+                             logits.data(), targets.data(), loss, batch_size, num_classes,
+                             spatial_dim);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes);
+                             logits.data(), targets.data(), loss, batch_size, num_classes,
+                             spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for SoftmaxCrossEntropyLoss.");
@@ -162,17 +176,21 @@ public:
     gradient.resize(logits.shape());
     const size_t batch_size = logits.shape()[0];
     const size_t num_classes = logits.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < logits.dims(); ++i) {
+      spatial_dim *= logits.shape()[i];
+    }
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for SoftmaxCrossEntropyLoss.");
@@ -205,15 +223,21 @@ public:
     }
     const size_t batch_size = logits.shape()[0];
     const size_t num_classes = logits.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < logits.dims(); ++i) {
+      spatial_dim *= logits.shape()[i];
+    }
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes);
+                             logits.data(), targets.data(), loss, batch_size, num_classes,
+                             spatial_dim);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes);
+                             logits.data(), targets.data(), loss, batch_size, num_classes,
+                             spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -228,17 +252,21 @@ public:
     gradient.resize(logits.shape());
     const size_t batch_size = logits.shape()[0];
     const size_t num_classes = logits.shape()[1];
+    size_t spatial_dim = 1;
+    for (size_t i = 2; i < logits.dims(); ++i) {
+      spatial_dim *= logits.shape()[i];
+    }
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes);
+                             num_classes, spatial_dim);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -268,7 +296,10 @@ public:
       throw std::runtime_error("Predictions and targets must be on the same device for MSELoss.");
     }
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_mse_loss<T>, predictions.data(),
@@ -290,7 +321,10 @@ public:
     }
     gradient.resize(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_mse_gradient<T>, predictions.data(),
@@ -327,7 +361,10 @@ public:
       throw std::runtime_error("Predictions and targets must be on the same device for MAELoss.");
     }
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_mae_loss<T>, predictions.data(),
@@ -349,7 +386,10 @@ public:
     }
     gradient.resize(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_mae_gradient<T>, predictions.data(),
@@ -386,7 +426,10 @@ public:
       throw std::runtime_error("Predictions and targets must be on the same device for HuberLoss.");
     }
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_huber_loss<T>, predictions.data(),
@@ -408,7 +451,10 @@ public:
     }
     gradient.resize(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
-    const size_t output_size = predictions.shape()[1];
+    size_t output_size = 1;
+    for (size_t i = 1; i < predictions.dims(); ++i) {
+      output_size *= predictions.shape()[i];
+    }
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_huber_gradient<T>, predictions.data(),

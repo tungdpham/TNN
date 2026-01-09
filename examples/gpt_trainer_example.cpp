@@ -138,15 +138,15 @@ int main() {
                 "Within thine own bud buriest thy content\n"
                 "And, tender churl, mak'st waste in niggarding.\n"
                 "Pity the world, or else this glutton be,\n"
-                "To eat the world's due, by the grave and thee.";
+                "To eat the world's due, by the grave and thee.\n";
 
   // Repeat text to have enough data for a few batches
   string base_text = text;
-  for (int i = 0; i < 200; ++i)
-    text += "\n" + base_text;
+  for (int i = 0; i < 10000; ++i)
+    text += base_text;
 
-  size_t seq_len = 32;
-  size_t batch_size = 16;
+  size_t seq_len = 64;
+  size_t batch_size = 32;
   size_t embed_dim = 64;
   size_t num_heads = 4;
   size_t ffn_dim = 256;
@@ -188,20 +188,16 @@ int main() {
   model.print_summary({16, 1, seq_len, 1});
 
   // Training Setup
-  auto optimizer = OptimizerFactory<float>::create_adam(0.01f);
+  auto optimizer = OptimizerFactory<float>::create_adam(0.001f);
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
   optimizer->attach(model.parameters(), model.gradients());
 
   // Training Loop
-  int epochs = 20;
+  int epochs = 3;
   Tensor<float> input, target;
   Tensor<float> output;
   Tensor<float> loss_grad;
   Tensor<float> grad_input;
-
-  // Buffers for reshaping
-  Tensor<float> flat_output;
-  Tensor<float> flat_target;
 
   for (int epoch = 0; epoch < epochs; ++epoch) {
     loader.reset();
@@ -213,7 +209,6 @@ int main() {
       model.forward(input, output);
 
       // Computes Loss
-      // Output shape: (B, V, S, 1)
       float loss_val = 0;
       criterion->compute_loss(output, target, loss_val);
       total_loss += loss_val;
@@ -271,8 +266,8 @@ int main() {
     const float *out_ptr = cpu_full_out.data();
 
     // Access (0, v, last_token_idx, 0)
+
     for (size_t v = 0; v < vocab_size; ++v) {
-      // index = v * S + last_token_idx
       size_t idx = v * seq_len + last_token_idx;
 
       float val = out_ptr[idx];

@@ -96,7 +96,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
 
   auto loss_task =
       create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
-                      targets.data(), cpu_loss, batch_size, num_classes, epsilon);
+                      targets.data(), cpu_loss, batch_size, num_classes, epsilon, 1);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -108,7 +108,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
 
   auto gpu_loss_task = create_gpu_task("default", cuda::loss::compute_crossentropy_loss<float>,
                                        gpu_predictions.get(), gpu_targets.get(), gpu_loss,
-                                       batch_size, num_classes, epsilon);
+                                       batch_size, num_classes, epsilon, 1);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-4f);
 }
@@ -139,7 +139,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
   std::vector<float> cpu_gradient(batch_size * num_classes);
 
   create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<float>, predictions.data(),
-                  targets.data(), cpu_gradient.data(), batch_size, num_classes);
+                  targets.data(), cpu_gradient.data(), batch_size, num_classes, 1);
 
   // GPU version
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
@@ -152,7 +152,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
 
   create_gpu_task("default", cuda::loss::compute_crossentropy_gradient<float>,
                   gpu_predictions.get(), gpu_targets.get(), gpu_gradient.get(), batch_size,
-                  num_classes);
+                  num_classes, 1);
 
   std::vector<float> gpu_gradient_cpu(batch_size * num_classes);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -188,7 +188,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
   float cpu_loss, gpu_loss;
 
   create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
-                  targets.data(), cpu_loss, batch_size, num_classes, epsilon);
+                  targets.data(), cpu_loss, batch_size, num_classes, epsilon, 1);
 
   device_ptr<float[]> gpu_predictions = make_array_ptr<float[]>(gpu_device_, predictions.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
@@ -198,7 +198,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
   create_gpu_task("default", cuda::loss::compute_crossentropy_loss<float>, gpu_predictions.get(),
-                  gpu_targets.get(), gpu_loss, batch_size, num_classes, epsilon);
+                  gpu_targets.get(), gpu_loss, batch_size, num_classes, epsilon, 1);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-3f);
 }
@@ -228,7 +228,7 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLossBasic) {
 
   auto loss_task =
       create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<float>, logits.data(),
-                      targets.data(), cpu_loss, batch_size, num_classes);
+                      targets.data(), cpu_loss, batch_size, num_classes, 1);
 
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
   device_ptr<float[]> gpu_targets = make_array_ptr<float[]>(gpu_device_, targets.size());
@@ -238,7 +238,7 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLossBasic) {
 
   auto gpu_loss_task =
       create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<float>,
-                      gpu_logits.get(), gpu_targets.get(), gpu_loss, batch_size, num_classes);
+                      gpu_logits.get(), gpu_targets.get(), gpu_loss, batch_size, num_classes, 1);
 
   // Use relative tolerance for larger values
   float tolerance = std::max(1e-4f, std::abs(cpu_loss) * 1e-6f);
@@ -266,7 +266,7 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyGradientBasic) {
   // CPU version
   std::vector<float> cpu_gradient(batch_size * num_classes);
   create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_gradient<float>, logits.data(),
-                  targets.data(), cpu_gradient.data(), batch_size, num_classes);
+                  targets.data(), cpu_gradient.data(), batch_size, num_classes, 1);
 
   // GPU version
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
@@ -277,7 +277,8 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyGradientBasic) {
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
   create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_gradient<float>,
-                  gpu_logits.get(), gpu_targets.get(), gpu_gradient.get(), batch_size, num_classes);
+                  gpu_logits.get(), gpu_targets.get(), gpu_gradient.get(), batch_size, num_classes,
+                  1);
 
   std::vector<float> gpu_gradient_cpu(batch_size * num_classes);
   gpu_device_->copyToHost(gpu_gradient_cpu.data(), gpu_gradient.get(),
@@ -307,7 +308,7 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLargeBatch) {
   float cpu_loss, gpu_loss;
 
   create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<float>, logits.data(),
-                  targets.data(), cpu_loss, batch_size, num_classes);
+                  targets.data(), cpu_loss, batch_size, num_classes, 1);
 
   // GPU version
   device_ptr<float[]> gpu_logits = make_array_ptr<float[]>(gpu_device_, logits.size());
@@ -317,7 +318,7 @@ TEST_F(CUDALossOpsTest, SoftmaxCrossEntropyLargeBatch) {
   gpu_device_->copyToDevice(gpu_targets.get(), targets.data(), targets.size() * sizeof(float));
 
   create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<float>, gpu_logits.get(),
-                  gpu_targets.get(), gpu_loss, batch_size, num_classes);
+                  gpu_targets.get(), gpu_loss, batch_size, num_classes, 1);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-3f);
 }
