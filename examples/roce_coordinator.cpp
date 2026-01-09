@@ -5,6 +5,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
+#include "utils/env.hpp"
 #include <getopt.h>
 #include <iostream>
 #include <vector>

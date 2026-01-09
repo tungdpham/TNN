@@ -5,7 +5,7 @@
  * project root for the full license text.
  */
 
-#include "utils/accuracy_impl/cuda/accuracy.hpp"
+#include "nn/accuracy_impl/cuda/accuracy.hpp"
 #include <cuda_runtime.h>
 
 namespace tnn {

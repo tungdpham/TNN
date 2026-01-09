@@ -1,7 +1,7 @@
 #include "data_loading/mnist_data_loader.hpp"
+#include "nn/accuracy.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/utils_extended.hpp"
 #include <iomanip>
 #include <iostream>
 #include <string>

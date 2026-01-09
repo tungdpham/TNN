@@ -98,8 +98,8 @@ int main() {
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
     auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 1, 0.9f);
 
-    train_classification_model(model, train_loader, val_loader, std::move(optimizer),
-                               std::move(loss_function), std::move(scheduler), train_config);
+    train_model(model, train_loader, val_loader, std::move(optimizer), std::move(loss_function),
+                std::move(scheduler), train_config);
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;

@@ -7,16 +7,12 @@
 #pragma once
 
 #include "data_loading/data_loader.hpp"
-#include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
-#include "utils/env.hpp"
-#include "utils/memory.hpp"
-#include "utils/utils_extended.hpp"
 
 #ifdef USE_TBB
 #include <tbb/info.h>
@@ -30,6 +26,7 @@
 
 namespace tnn {
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
+enum class TrainingMode { CLASSIFICATION = 0, REGRESSION = 1, CUSTOM = 2 };
 
 #ifdef USE_TBB
 inline void tbb_cleanup();
@@ -54,6 +51,7 @@ struct TrainingConfig {
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
   DeviceType device_type = DeviceType::CPU;
+  TrainingMode mode = TrainingMode::CLASSIFICATION;
 
   // Distributed params
   size_t num_microbatches = 2;
@@ -62,43 +60,24 @@ struct TrainingConfig {
   void load_from_env();
 };
 
-struct ClassResult {
+struct Result {
   float avg_loss = 0.0f;
-  float avg_accuracy = 0.0f;
-};
-
-struct RegResult {
-  float avg_loss = 0.0f;
-  float avg_error = 0.0f;
+  float avg_accuracy = -1.0f;
 };
 
 // Classification training functions
 template <typename T>
-ClassResult train_class_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                              Optimizer<T> &optimizer, Loss<T> &loss_function,
-                              const TrainingConfig &config = TrainingConfig());
+Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimizer<T> &optimizer,
+                   Loss<T> &loss_function, const TrainingConfig &config = TrainingConfig());
 
 template <typename T>
-ClassResult validate_class_model(Sequential<T> &model, BaseDataLoader<T> &test_loader,
-                                 Loss<T> &loss_function);
+Result validate_model(Sequential<T> &model, BaseDataLoader<T> &test_loader, Loss<T> &loss_function);
 
 template <typename T>
-void train_classification_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                                BaseDataLoader<T> &test_loader,
-                                std::unique_ptr<Optimizer<T>> optimizer,
-                                std::unique_ptr<Loss<T>> loss_function,
-                                std::unique_ptr<Scheduler<T>> scheduler,
-                                const TrainingConfig &config = TrainingConfig());
-
-// Regression training functions
-template <typename T>
-RegResult train_reg_epoch(Sequential<T> &model, RegressionDataLoader<T> &train_loader,
-                          Optimizer<T> &optimizer, Loss<T> &loss_function,
-                          const TrainingConfig &config = TrainingConfig());
-
-template <typename T>
-RegResult validate_reg_model(Sequential<T> &model, RegressionDataLoader<T> &test_loader,
-                             Loss<T> &loss_function);
+void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
+                 BaseDataLoader<T> &test_loader, std::unique_ptr<Optimizer<T>> optimizer,
+                 std::unique_ptr<Loss<T>> loss_function, std::unique_ptr<Scheduler<T>> scheduler,
+                 const TrainingConfig &config = TrainingConfig());
 
 template <typename T>
 void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train_loader,

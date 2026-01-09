@@ -8,14 +8,14 @@
 
 #include "coordinator.hpp"
 #include "distributed/job_pool.hpp"
+#include "nn/accuracy.hpp"
 #include "nn/train.hpp"
 #include "threading/thread_wrapper.hpp"
 
 namespace tnn {
 
-inline ClassResult train_semi_async_epoch(Coordinator &coordinator,
-                                          BaseDataLoader<float> &train_loader,
-                                          size_t progress_print_interval) {
+inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
+                                     size_t progress_print_interval) {
   Tensor<float> batch_data, batch_labels;
 
   size_t batch_index = 0;
@@ -60,8 +60,8 @@ inline ClassResult train_semi_async_epoch(Coordinator &coordinator,
   return {total_loss / batch_index, -1.0f};
 }
 
-inline ClassResult validate_semi_async_epoch(Coordinator &coordinator,
-                                             BaseDataLoader<float> &test_loader) {
+inline Result validate_semi_async_epoch(Coordinator &coordinator,
+                                        BaseDataLoader<float> &test_loader) {
   Tensor<float> batch_data, batch_labels;
   float total_val_loss = 0.0f;
   float total_val_correct = 0.0f;

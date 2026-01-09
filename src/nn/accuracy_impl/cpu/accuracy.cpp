@@ -5,7 +5,7 @@
  * project root for the full license text.
  */
 
-#include "utils/accuracy_impl/cpu/accuracy.hpp"
+#include "nn/accuracy_impl/cpu/accuracy.hpp"
 
 namespace tnn {
 namespace cpu {

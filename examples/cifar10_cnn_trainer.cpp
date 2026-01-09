@@ -90,8 +90,8 @@ int main() {
 
     auto scheduler = SchedulerFactory<float>::create_no_op(optimizer.get());
 
-    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
-                               std::move(loss_function), std::move(scheduler), train_config);
+    train_model(model, train_loader, test_loader, std::move(optimizer), std::move(loss_function),
+                std::move(scheduler), train_config);
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
     return -1;

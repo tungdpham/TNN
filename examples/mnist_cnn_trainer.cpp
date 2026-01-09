@@ -59,8 +59,8 @@ int main() {
 
     auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 1, 0.95f);
 
-    train_classification_model(model, train_loader, test_loader, std::move(optimizer),
-                               std::move(loss_function), std::move(scheduler), train_config);
+    train_model(model, train_loader, test_loader, std::move(optimizer), std::move(loss_function),
+                std::move(scheduler), train_config);
   } catch (const exception &e) {
     cerr << "Error during training: " << e.what() << endl;
     return -1;

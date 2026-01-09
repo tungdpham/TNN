@@ -1,9 +1,9 @@
 #pragma once
 
+#include "accuracy_impl/cpu/accuracy.hpp"
 #include "tensor/tensor.hpp"
-#include "utils/accuracy_impl/cpu/accuracy.hpp"
 #ifdef USE_CUDA
-#include "utils/accuracy_impl/cuda/accuracy.hpp"
+#include "accuracy_impl/cuda/accuracy.hpp"
 #endif
 
 namespace tnn {
