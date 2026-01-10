@@ -889,12 +889,13 @@ public:
     if (!weights_file.is_open()) {
       throw std::runtime_error("Could not open weights file: " + path);
     }
+    const Device *target_device = device_ ? device_ : &getCPU();
     for (auto &layer : layers_) {
       layer->initialize();
       if (layer->has_parameters()) {
         auto params = layer->parameters();
         for (auto &param : params) {
-          *param = Tensor<T>::load(weights_file);
+          *param = Tensor<T>::load(weights_file, target_device);
         }
       }
     }
@@ -908,7 +909,7 @@ public:
    * @param path The base path to load the model (without file extension).
    * @return The loaded Sequential model.
    */
-  static Sequential<T> from_file(const std::string &path) {
+  static Sequential<T> from_file(const std::string &path, const Device *device = &getCPU()) {
 
     std::ifstream config_file(path + ".json");
     if (!config_file.is_open()) {
@@ -919,6 +920,9 @@ public:
     config_file.close();
 
     Sequential<T> model = load_from_config(config_json);
+    if (device != nullptr) {
+      model.set_device(device);
+    }
 
     std::ifstream weights_file(path + ".bin", std::ios::binary);
     if (!weights_file.is_open()) {
@@ -929,7 +933,7 @@ public:
         layer->initialize();
         auto params = layer->parameters();
         for (auto &param : params) {
-          *param = Tensor<T>::load(weights_file);
+          *param = Tensor<T>::load(weights_file, device);
         }
       }
     }
@@ -1199,6 +1203,14 @@ public:
     return *this;
   }
 
+  SequentialBuilder &conv1d(size_t out_channels, size_t kernel_size, size_t stride = 1,
+                            size_t padding = 0, bool use_bias = true,
+                            const std::string &name = "") {
+    layer_builder_.conv1d(out_channels, kernel_size, stride, padding, use_bias,
+                          name.empty() ? "conv1d_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
   SequentialBuilder &conv2d(size_t out_channels, size_t kernel_h, size_t kernel_w,
                             size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0,
                             size_t pad_w = 0, bool use_bias = true, const std::string &name = "") {
@@ -1435,15 +1447,14 @@ public:
     layer_builder_.add_layer(std::move(attn_res));
 
     // 2. Feed-Forward Sub-block (Residual)
-    auto ffn_main =
-        LayerBuilder<T>()
-            .input(batchless_shape) // Input shape matches (residual preserves shape)
-            .layernorm(1e-5f, true, "ln_2")
-            .conv2d(ffn_dim, 1, 1, 1, 1, 0, 0, true, "mlp_fc1")
-            .activation(activation_fn)
-            .conv2d(embed_dim, 1, 1, 1, 1, 0, 0, true, "mlp_fc2") // Project back to embed_dim
-            .dropout(dropout_rate)
-            .build();
+    auto ffn_main = LayerBuilder<T>()
+                        .input(batchless_shape) // Input shape matches (residual preserves shape)
+                        .layernorm(1e-5f, true, "ln_2")
+                        .dense(ffn_dim, true, "mlp_fc1")
+                        .activation(activation_fn)
+                        .dense(embed_dim, true, "mlp_fc2") // Project back to embed_dim
+                        .dropout(dropout_rate)
+                        .build();
 
     auto ffn_res = residual_block<T>(std::move(ffn_main), {}, "linear", valid_name + "_ffn");
     layer_builder_.add_layer(std::move(ffn_res));

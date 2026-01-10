@@ -29,8 +29,8 @@ public:
       : ParameterizedLayer<T>(name), embed_dim_(embed_dim), seq_len_(seq_len) {}
 
   void initialize_params() override {
-    pos_embedding_ = Tensor<T>({1, embed_dim_, seq_len_, 1}, this->device_);
-    pos_embedding_gradients_ = Tensor<T>({1, embed_dim_, seq_len_, 1}, this->device_);
+    pos_embedding_ = Tensor<T>({seq_len_, embed_dim_}, this->device_);
+    pos_embedding_gradients_ = Tensor<T>({seq_len_, embed_dim_}, this->device_);
 
     T fan_in = static_cast<T>(embed_dim_);
     T bound = static_cast<T>(1.0) / std::sqrt(fan_in);
@@ -49,24 +49,23 @@ public:
           "Layer parameters not initialized. Call initialize() before forward.");
     }
 
-    if (input.dims() != 4) {
-      throw std::runtime_error(
-          "PositionalEmbeddingLayer: Input tensor must be 4-dimensional (NCHW)");
+    const auto &shape = input.shape();
+    if (shape.size() < 2) {
+      throw std::runtime_error("PositionalEmbeddingLayer: Input tensor must be at least 2D");
     }
 
-    size_t batch_size = input.dimension(0);
-    size_t channels = input.dimension(1);
-    size_t height = input.dimension(2);
-    size_t width = input.dimension(3);
-    size_t length = input.stride(1);
+    size_t last_dim = shape.back();
+    size_t second_last_dim = shape[shape.size() - 2];
 
-    if (channels != embed_dim_) {
-      throw std::runtime_error("PositionalEmbeddingLayer: Input channels must match embed_dim");
+    if (last_dim != embed_dim_) {
+      throw std::runtime_error("PositionalEmbeddingLayer: Input last dim (" +
+                               std::to_string(last_dim) + ") must match embed_dim (" +
+                               std::to_string(embed_dim_) + ")");
     }
-    if (length != seq_len_) {
-      if (height != seq_len_ || width != 1) {
-        throw std::runtime_error("PositionalEmbeddingLayer: Input sequence length mismatch");
-      }
+    if (second_last_dim != seq_len_) {
+      throw std::runtime_error("PositionalEmbeddingLayer: Input sequence length (" +
+                               std::to_string(second_last_dim) + ") must match seq_len (" +
+                               std::to_string(seq_len_) + ")");
     }
 
     output.ensure(input.shape(), this->device_);
@@ -75,18 +74,20 @@ public:
     auto &in_ptr = input.data_ptr();
     auto &pos_ptr = pos_embedding_.data_ptr();
 
-    size_t size = channels * seq_len_;
+    size_t sample_size = seq_len_ * embed_dim_;
+    size_t total_elements = input.size();
+    size_t batch_size = total_elements / sample_size;
 
     for (size_t i = 0; i < batch_size; ++i) {
       // output[i] = input[i] + pos_embedding
       if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", ops::cpu::add<T>, in_ptr.get() + i * size, pos_ptr.get(),
-                        out_ptr.get() + i * size, size);
+        create_cpu_task("default", ops::cpu::add<T>, in_ptr.get() + i * sample_size, pos_ptr.get(),
+                        out_ptr.get() + i * sample_size, sample_size);
       }
 #ifdef USE_CUDA
       else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::cuda_add<T>, in_ptr.get() + i * size, pos_ptr.get(),
-                        out_ptr.get() + i * size, size);
+        create_gpu_task("default", cuda::cuda_add<T>, in_ptr.get() + i * sample_size, pos_ptr.get(),
+                        out_ptr.get() + i * sample_size, sample_size);
       }
 #endif
     }
@@ -94,17 +95,15 @@ public:
 
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                 size_t micro_batch_id = 0) override {
-    if (gradient.dims() != 4) {
-      throw std::runtime_error(
-          "PositionalEmbeddingLayer: Gradient tensor must be 4-dimensional (NCHW)");
+    const auto &shape = gradient.shape();
+    if (shape.size() < 2) {
+      throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
     }
 
-    size_t batch_size = gradient.dimension(0);
-    size_t channels = gradient.dimension(1);
-    size_t height = gradient.dimension(2);
-    size_t width = gradient.dimension(3);
+    size_t sample_size = seq_len_ * embed_dim_;
+    size_t total_elements = gradient.size();
+    size_t batch_size = total_elements / sample_size;
 
-    size_t size = channels * height * width;
     grad_input.ensure(gradient.shape(), this->device_);
 
     // grad_input = gradient
@@ -116,13 +115,13 @@ public:
     for (size_t i = 0; i < batch_size; ++i) {
       // Accumulate gradient to pos_embedding_gradients_
       if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", ops::cpu::add<T>, pos_grad_ptr.get(), grad_ptr.get() + i * size,
-                        pos_grad_ptr.get(), size);
+        create_cpu_task("default", ops::cpu::add<T>, pos_grad_ptr.get(),
+                        grad_ptr.get() + i * sample_size, pos_grad_ptr.get(), sample_size);
       }
 #ifdef USE_CUDA
       else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::cuda_add<T>, pos_grad_ptr.get(), grad_ptr.get() + i * size,
-                        pos_grad_ptr.get(), size);
+        create_gpu_task("default", cuda::cuda_add<T>, pos_grad_ptr.get(),
+                        grad_ptr.get() + i * sample_size, pos_grad_ptr.get(), sample_size);
       }
 #endif
     }

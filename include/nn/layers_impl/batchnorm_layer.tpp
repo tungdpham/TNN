@@ -171,12 +171,9 @@ void BatchNormLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T
                              std::to_string(micro_batch_id));
   }
 
-  const auto &grad_shape = current_gradient->shape();
-  const size_t batch_size = grad_shape[0];
-  const size_t channels = grad_shape[1];
-  const size_t height = grad_shape[2];
-  const size_t width = grad_shape[3];
-  const size_t spatial_size = height * width;
+  const size_t batch_size = current_gradient->dimension(0);
+  const size_t channels = current_gradient->dimension(1);
+  const size_t spatial_size = current_gradient->stride(1);
 
   grad_input.ensure(current_gradient->shape(), this->device_);
 
@@ -473,13 +470,13 @@ uint64_t BatchNormLayer<T>::backward_flops(const std::vector<size_t> &input_shap
 template <typename T>
 uint64_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T>
 uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T> size_t BatchNormLayer<T>::cached_memory_bytes() const {

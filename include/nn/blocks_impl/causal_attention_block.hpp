@@ -16,7 +16,7 @@
 #include "device/cuda/cuda_context.hpp"
 #include "nn/blocks_impl/cuda/cudnn_attention_ops.hpp"
 #endif
-#include "nn/layers_impl/conv2d_layer.hpp"
+#include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <cmath>
@@ -32,25 +32,28 @@ private:
   size_t num_heads_;
   size_t head_dim_;
 
-  std::unique_ptr<Conv2DLayer<T>> q_proj_;
-  std::unique_ptr<Conv2DLayer<T>> k_proj_;
-  std::unique_ptr<Conv2DLayer<T>> v_proj_;
-  std::unique_ptr<Conv2DLayer<T>> out_proj_;
+  std::unique_ptr<DenseLayer<T>> q_proj_;
+  std::unique_ptr<DenseLayer<T>> k_proj_;
+  std::unique_ptr<DenseLayer<T>> v_proj_;
+  std::unique_ptr<DenseLayer<T>> out_proj_;
 
   Tensor<T> q_, k_, v_;
   Tensor<T> scores_;
 
   void softmax_last_dim(Tensor<T> &input) {
+    const auto &shape = input.shape();
+    size_t cols = shape.back();
+    size_t total_rows = 1;
+    for (size_t i = 0; i < shape.size() - 1; ++i) {
+      total_rows *= shape[i];
+    }
+
     if (input.is_on_gpu()) {
 #ifdef USE_CUDNN
       auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
       if (!cuda_context) {
         throw std::runtime_error("Failed to get CUDA context");
       }
-      const auto &shape = input.shape();
-      size_t total_rows = shape[0] * shape[2];
-      size_t cols = shape[3];
-
       auto &input_ptr = input.data_ptr();
 
       create_gpu_task("default", cuda::cudnn_attn::softmax_forward<T>,
@@ -61,10 +64,6 @@ private:
 #endif
     } else {
       T *data = input.data_ptr().get();
-      const auto &shape = input.shape();
-      size_t total_rows = shape[0] * shape[2];
-      size_t cols = shape[3];
-
       for (size_t i = 0; i < total_rows; ++i) {
         T *row = data + i * cols;
         T max_val = row[0];
@@ -94,8 +93,11 @@ private:
     T *dx = grad_input.data_ptr().get();
 
     const auto &shape = output.shape();
-    size_t total_rows = shape[0] * shape[2];
-    size_t cols = shape[3];
+    size_t cols = shape.back();
+    size_t total_rows = 1;
+    for (size_t i = 0; i < shape.size() - 1; ++i) {
+      total_rows *= shape[i];
+    }
 
     for (size_t i = 0; i < total_rows; ++i) {
       const T *y_row = y + i * cols;
@@ -123,14 +125,10 @@ public:
     }
     head_dim_ = embed_dim / num_heads;
 
-    q_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_q");
-    k_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_k");
-    v_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_v");
-    out_proj_ = std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true,
-                                                 name + "_out");
+    q_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_q");
+    k_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_k");
+    v_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_v");
+    out_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_out");
   }
 
   void initialize_params() override {
@@ -159,9 +157,14 @@ public:
   void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const auto &shape = input.shape();
     size_t batch_size = shape[0];
-    size_t H = shape[2];
-    size_t W = shape[3];
-    size_t L = H * W; // Sequence length
+    size_t L;
+    bool is_3d = (shape.size() == 3);
+
+    if (is_3d) {
+      L = shape[1];
+    } else {
+      L = shape[2] * shape[3];
+    }
 
     q_proj_->forward(input, q_, micro_batch_id);
     k_proj_->forward(input, k_, micro_batch_id);
@@ -217,7 +220,7 @@ public:
 
     softmax_last_dim(scores);
 
-    PooledTensor<T> attn_out_buffer = this->get_buffer({batch_size, embed_dim_, H, W});
+    PooledTensor<T> attn_out_buffer = this->get_buffer(q_.shape());
     Tensor<T> &attn_out = attn_out_buffer.get();
     auto out_ptr = attn_out.data_ptr().get();
 
@@ -243,7 +246,7 @@ public:
 
     const auto &q_shape = q_.shape();
     size_t batch_size = q_shape[0];
-    size_t L = q_shape[2] * q_shape[3];
+    size_t L = (q_shape.size() == 4) ? (q_shape[2] * q_shape[3]) : q_shape[1];
     size_t batch_count = batch_size * num_heads_;
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;
@@ -392,7 +395,7 @@ public:
     return backward_complexity(input_shape);
   }
 
-  std::string type() const override { return "CausalAttentionBlock"; }
+  std::string type() const override { return "causal_attention"; }
 
   std::unique_ptr<Layer<T>> clone() const override {
     return std::make_unique<CausalAttentionBlock<T>>(embed_dim_, num_heads_, this->name_);

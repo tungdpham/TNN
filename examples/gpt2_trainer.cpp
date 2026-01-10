@@ -16,15 +16,15 @@ using namespace tnn;
 using namespace std;
 
 // Helper to convert sparse indices to one-hot vectors
-// Input: (B, T), Output: (B, V, T, 1)
+// Input: (B, T), Output: (B, T, V)
 void one_hot_encode(const Tensor<float> &targets, Tensor<float> &one_hot_targets,
                     size_t vocab_size) {
   size_t B = targets.shape()[0];
   size_t T_seq = targets.shape()[1];
 
   // Only resize if necessary to avoid re-allocation
-  if (one_hot_targets.shape() != vector<size_t>{B, vocab_size, T_seq, 1}) {
-    one_hot_targets.resize({B, vocab_size, T_seq, 1});
+  if (one_hot_targets.shape() != vector<size_t>{B, T_seq, vocab_size}) {
+    one_hot_targets.resize({B, T_seq, vocab_size});
   }
 
   float *out_ptr = one_hot_targets.data();
@@ -38,11 +38,9 @@ void one_hot_encode(const Tensor<float> &targets, Tensor<float> &one_hot_targets
       float token_id = in_ptr[b * T_seq + t];
       int idx = static_cast<int>(token_id);
       if (idx >= 0 && idx < (int)vocab_size) {
-        // Layout is NCHW where C is vocab_size, H is seq_len, W is 1
-        // Index: (b, idx, t, 0)
-        // Offset = b * (C * H * W) + idx * (H * W) + t * W + 0
-        //        = b * (V * T) + idx * T + t
-        size_t offset = b * (vocab_size * T_seq) + idx * T_seq + t;
+        // Layout is (B, T, V)
+        // Offset = b * (T * V) + t * V + idx
+        size_t offset = b * (T_seq * vocab_size) + t * vocab_size + idx;
         out_ptr[offset] = 1.0f;
       }
     }
@@ -97,7 +95,7 @@ int main(int argc, char **argv) {
   model.set_device(device_type);
   model.initialize();
 
-  model.print_summary({batch_size, 1, seq_len, 1});
+  model.print_summary({batch_size, seq_len});
 
   auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.95f, 1e-8f, 0.1f);
 
@@ -105,14 +103,14 @@ int main(int argc, char **argv) {
 
   optimizer->attach(model.parameters(), model.gradients());
 
-  size_t max_steps = 1000;
+  size_t max_steps = 100;
   size_t step = 0;
 
   Tensor<float> raw_input, raw_target;
   Tensor<float> model_input, one_hot_target;
   Tensor<float> output, loss_grad, grad_input;
 
-  model_input.resize({batch_size, 1, seq_len, 1});
+  model_input.resize({batch_size, seq_len});
 
   loader.shuffle();
   loader.reset();
@@ -151,8 +149,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  model.save_to_file("gpt2_model");
-  cout << "Training finished. Model saved to gpt2_model." << endl;
+  model.save_to_file("model_snapshots/gpt2_model");
+  cout << "Training finished. Model saved to model_snapshots/gpt2_model." << endl;
 
   return 0;
 }

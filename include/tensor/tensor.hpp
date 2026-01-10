@@ -551,16 +551,22 @@ public:
       throw std::runtime_error("File is not open for writing");
     }
 
-    Tensor<T> cpu_tensor = to_cpu();
-
-    // write dims, shape, and data
+    // write dims, shape
     size_t dims = shape_.size();
     out.write(reinterpret_cast<const char *>(&dims), sizeof(size_t));
     out.write(reinterpret_cast<const char *>(shape_.data()), shape_.size() * sizeof(size_t));
-    out.write(reinterpret_cast<const char *>(cpu_tensor.data_.get()), data_size_ * sizeof(T));
+
+    if (device_type() == DeviceType::CPU) {
+      out.write(reinterpret_cast<const char *>(data_.get()), data_size_ * sizeof(T));
+    } else {
+      // GPU case: copy to host buffer first then write
+      std::vector<T> host_buffer(data_size_);
+      device_->copyToHost(host_buffer.data(), data_.get(), data_size_ * sizeof(T));
+      out.write(reinterpret_cast<const char *>(host_buffer.data()), data_size_ * sizeof(T));
+    }
   }
 
-  static Tensor<T> load(std::ifstream &in) {
+  static Tensor<T> load(std::ifstream &in, const Device *device = &getCPU()) {
     if (!in.is_open()) {
       throw std::runtime_error("File is not open for reading");
     }
@@ -572,10 +578,21 @@ public:
     if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
       throw std::runtime_error("Failed to read tensor shape from file");
     }
-    Tensor<T> tensor(shape);
-    in.read(reinterpret_cast<char *>(tensor.data_.get()), tensor.size() * sizeof(T));
-    if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
-      throw std::runtime_error("Failed to read tensor data from file");
+
+    Tensor<T> tensor(shape, device);
+    if (device->device_type() == DeviceType::CPU) {
+      in.read(reinterpret_cast<char *>(tensor.data_.get()), tensor.size() * sizeof(T));
+      if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
+        throw std::runtime_error("Failed to read tensor data from file");
+      }
+    } else {
+      // GPU case: read into host buffer then copy to device
+      std::vector<T> host_buffer(tensor.size());
+      in.read(reinterpret_cast<char *>(host_buffer.data()), tensor.size() * sizeof(T));
+      if (in.gcount() != static_cast<std::streamsize>(tensor.size() * sizeof(T))) {
+        throw std::runtime_error("Failed to read tensor data from file");
+      }
+      device->copyToDevice(tensor.data_.get(), host_buffer.data(), tensor.size() * sizeof(T));
     }
     return tensor;
   }

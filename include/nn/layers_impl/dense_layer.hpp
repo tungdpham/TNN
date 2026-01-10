@@ -90,11 +90,12 @@ public:
 
   size_t cached_memory_bytes() const override;
 
+  void clear_gradients() override;
+
 protected:
   void initialize_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
-  void clear_gradients() override;
 };
 
 } // namespace tnn

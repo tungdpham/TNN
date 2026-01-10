@@ -558,7 +558,7 @@ inline Sequential<float> create_gpt2(size_t seq_len, size_t vocab_size) {
   constexpr float dropout = 0.1f;
 
   SequentialBuilder<float> builder("GPT-2");
-  builder.input({1, seq_len, 1})
+  builder.input({seq_len})
       .embedding(vocab_size, embed_dim, "token_embed")
       .positional_embedding(embed_dim, seq_len, "pos_embed")
       .dropout(dropout);
@@ -567,7 +567,7 @@ inline Sequential<float> create_gpt2(size_t seq_len, size_t vocab_size) {
     builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, "gelu");
   }
 
-  builder.layernorm(1e-5f, true, "ln_f").conv2d(vocab_size, 1, 1, 1, 1, 0, 0, true, "head");
+  builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");
 
   auto model = builder.build();
   return model;

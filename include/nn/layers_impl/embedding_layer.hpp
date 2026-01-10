@@ -77,9 +77,9 @@ public:
       : ParameterizedLayer<T>(name), vocab_size_(vocab_size), embed_dim_(embed_dim) {}
 
   void initialize_params() override {
-    // weight shape: [vocab_size, embed_dim, 1, 1]
-    weight_ = Tensor<T>({vocab_size_, embed_dim_, 1, 1}, this->device_);
-    grad_weight_ = Tensor<T>({vocab_size_, embed_dim_, 1, 1}, this->device_);
+    // weight shape: [vocab_size, embed_dim]
+    weight_ = Tensor<T>({vocab_size_, embed_dim_}, this->device_);
+    grad_weight_ = Tensor<T>({vocab_size_, embed_dim_}, this->device_);
 
     if (this->use_seed_) {
       weight_.fill_random_normal(0.0, 0.02, this->srand_seed_);
@@ -108,18 +108,7 @@ public:
       return;
 
     std::vector<size_t> out_shape = input.shape();
-    if (out_shape.size() >= 2) {
-      if (out_shape.size() == 4 && out_shape[1] == 1) {
-        out_shape[1] = embed_dim_;
-      } else {
-        throw std::runtime_error("EmbeddingLayer::forward: Input tensor must have shape [N, 1, H, "
-                                 "W] or [N, L] where L is "
-                                 "the number of tokens.");
-      }
-    } else {
-      throw std::runtime_error("EmbeddingLayer::forward: Input tensor must have shape [N, 1, H, W] "
-                               "or [N, L] where L is the number of tokens.");
-    }
+    out_shape.push_back(embed_dim_);
     output.ensure(out_shape, this->device_);
 
     compute_forward_task(current->data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
@@ -165,12 +154,7 @@ public:
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
     std::vector<size_t> out = input_shape;
-    if (out.size() >= 2)
-      out[1] = embed_dim_;
-    else {
-      throw std::runtime_error("EmbeddingLayer::compute_output_shape: Input tensor must have "
-                               "shape [N, 1, H, W] or [N, L] where L is the number of tokens.");
-    }
+    out.push_back(embed_dim_);
     return out;
   }
 

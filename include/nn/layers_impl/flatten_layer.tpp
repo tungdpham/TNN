@@ -90,10 +90,6 @@ FlattenLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) co
 
   output_shape.push_back(flat_dim);
 
-  while (output_shape.size() < 4) {
-    output_shape.push_back(1);
-  }
-
   return output_shape;
 }
 
@@ -118,14 +114,14 @@ template <typename T>
 uint64_t FlattenLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T>
 uint64_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template class FlattenLayer<float>;

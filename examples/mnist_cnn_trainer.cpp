@@ -21,10 +21,6 @@ constexpr float LR_INITIAL = 0.01f;
 int main() {
   cin.tie(nullptr);
   try {
-
-    // Load environment variables from .env file
-    cout << "Loading environment variables..." << endl;
-
     string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
 
     float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);

@@ -26,13 +26,13 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features, bool us
       output_features_(output_features), use_bias_(use_bias) {}
 
 template <typename T> void DenseLayer<T>::initialize_params() {
-  weights_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
-  weight_gradients_ = Tensor<T>({output_features_, input_features_, 1, 1}, this->device_);
+  weights_ = Tensor<T>({output_features_, input_features_}, this->device_);
+  weight_gradients_ = Tensor<T>({output_features_, input_features_}, this->device_);
   weights_.fill(T(0));
   weight_gradients_.fill(T(0));
   if (use_bias_) {
-    bias_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
-    bias_gradients_ = Tensor<T>({output_features_, 1, 1, 1}, this->device_);
+    bias_ = Tensor<T>({output_features_}, this->device_);
+    bias_gradients_ = Tensor<T>({output_features_}, this->device_);
     bias_.fill(T(0));
     bias_gradients_.fill(T(0));
   }
@@ -61,12 +61,16 @@ void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t mi
     throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
   }
 
-  const size_t batch_size = input.dimension(0);
-  const size_t total_input_features = input.stride(0);
+  const std::vector<size_t> &in_shape = input.shape();
+  size_t last_dim = in_shape.back();
+  size_t batch_size = 1;
+  for (size_t i = 0; i < in_shape.size() - 1; ++i) {
+    batch_size *= in_shape[i];
+  }
 
-  if (total_input_features != input_features_) {
-    std::cerr << "Input shape: " << total_input_features
-              << " features, expected: " << input_features_ << " features" << std::endl;
+  if (last_dim != input_features_) {
+    std::cerr << "Input last dimension: " << last_dim << " features, expected: " << input_features_
+              << " features" << std::endl;
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
@@ -85,7 +89,9 @@ void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t mi
     ops::copy(current->data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
   }
 
-  output.ensure({batch_size, output_features_, size_t(1), size_t(1)}, this->device_);
+  std::vector<size_t> out_shape = in_shape;
+  out_shape.back() = output_features_;
+  output.ensure(out_shape, this->device_);
 
   forward_task_ = compute_dense_forward(current->data_ptr(), weights_.data_ptr(), output.data_ptr(),
                                         batch_size, input_features_, output_features_, "default");
@@ -114,7 +120,11 @@ void DenseLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
   }
 
   const Tensor<T> &last_input = it_input->second;
-  const size_t batch_size = last_input.dimension(0);
+  const std::vector<size_t> &in_shape = last_input.shape();
+  size_t batch_size = 1;
+  for (size_t i = 0; i < in_shape.size() - 1; ++i) {
+    batch_size *= in_shape[i];
+  }
 
   grad_input.ensure(last_input.shape(), this->device_);
 
@@ -292,10 +302,12 @@ template <typename T> std::unique_ptr<Layer<T>> DenseLayer<T>::clone() const {
 template <typename T>
 std::vector<size_t>
 DenseLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
-  if (input_shape.size() != 4) {
-    throw std::invalid_argument("DenseLayer expects 4D input including batch size");
+  if (input_shape.empty()) {
+    throw std::runtime_error("DenseLayer::compute_output_shape: Input shape is empty.");
   }
-  return {input_shape[0], output_features_, 1, 1};
+  std::vector<size_t> out_shape = input_shape;
+  out_shape.back() = output_features_;
+  return out_shape;
 }
 
 template <typename T> void DenseLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
@@ -356,14 +368,14 @@ template <typename T>
 uint64_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T>
 uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
 
   return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T> size_t DenseLayer<T>::cached_memory_bytes() const {

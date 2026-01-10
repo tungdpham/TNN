@@ -246,14 +246,14 @@ template <typename T>
 uint64_t AvgPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
   // Return relative complexity for scheduling/profiling - using FLOP count as proxy
   return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T>
 uint64_t AvgPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
   // Return relative complexity for scheduling/profiling - using FLOP count as proxy
   return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT32_MAX)));
+      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 // Explicit template instantiations

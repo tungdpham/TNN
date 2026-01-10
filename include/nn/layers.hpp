@@ -23,6 +23,7 @@ std::unique_ptr<EWActivationFunction<T>> create_activation(const std::string &na
 
 template <typename T> class DenseLayer;
 template <typename T> class ActivationLayer;
+template <typename T> class Conv1DLayer;
 template <typename T> class Conv2DLayer;
 template <typename T> class MaxPool2DLayer;
 template <typename T> class AvgPool2DLayer;
@@ -48,6 +49,7 @@ template <typename T> class CausalAttentionBlock;
 #include "layers_impl/base_layer.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
 #include "layers_impl/class_token_layer.hpp"
+#include "layers_impl/conv1d_layer.hpp"
 #include "layers_impl/conv2d_layer.hpp"
 #include "layers_impl/dense_layer.hpp"
 #include "layers_impl/dropout_layer.hpp"
@@ -93,6 +95,18 @@ public:
 
       return std::make_unique<DenseLayer<T>>(input_features, output_features, use_bias,
                                              config.name);
+    });
+
+    register_layer("conv1d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      size_t in_channels = config.get<size_t>("in_channels");
+      size_t out_channels = config.get<size_t>("out_channels");
+      size_t kernel_size = config.get<size_t>("kernel_size");
+      size_t stride = config.get<size_t>("stride", 1);
+      size_t padding = config.get<size_t>("padding", 0);
+      bool use_bias = config.get<bool>("use_bias", true);
+
+      return std::make_unique<Conv1DLayer<T>>(in_channels, out_channels, kernel_size, stride,
+                                              padding, use_bias, config.name);
     });
 
     register_layer("conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -337,12 +351,31 @@ public:
   }
 
   LayerBuilder &dense(size_t output_features, bool use_bias = true, const std::string &name = "") {
-
-    size_t input_features = get_feature_count();
+    std::vector<size_t> current_shape = get_current_shape();
+    size_t input_features = current_shape.back();
 
     auto layer = std::make_unique<DenseLayer<T>>(
         input_features, output_features, use_bias,
         name.empty() ? "dense_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &conv1d(size_t out_channels, size_t kernel_size, size_t stride = 1,
+                       size_t padding = 0, bool use_bias = true, const std::string &name = "") {
+    std::vector<size_t> current_shape = get_current_shape();
+
+    if (current_shape.size() < 3) {
+      throw std::runtime_error("Conv1D requires at least 3D input (batch, channels, length). "
+                               "Current shape has " +
+                               std::to_string(current_shape.size()) + " dimensions.");
+    }
+
+    size_t in_channels = current_shape[1];
+
+    auto layer = std::make_unique<Conv1DLayer<T>>(
+        in_channels, out_channels, kernel_size, stride, padding, use_bias,
+        name.empty() ? "conv1d_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
@@ -428,12 +461,7 @@ public:
       throw std::runtime_error("LayerNorm requires at least 2D input (batch, features)");
     }
 
-    size_t num_features;
-    if (current_shape.size() >= 2) {
-      num_features = current_shape[1]; // Normalizes over Channels C
-    } else {
-      throw std::runtime_error("Invalid shape for LayerNorm");
-    }
+    size_t num_features = current_shape.back();
 
     auto layer = std::make_unique<LayerNormLayer<T>>(
         num_features, epsilon, affine,

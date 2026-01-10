@@ -66,12 +66,12 @@ public:
       throw std::runtime_error(
           "Predictions and targets must be on the same device for CrossEntropyLoss.");
     }
-    const size_t batch_size = predictions.shape()[0];
-    const size_t num_classes = predictions.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < predictions.dims(); ++i) {
-      spatial_dim *= predictions.shape()[i];
+    const size_t num_classes = predictions.shape().back();
+    size_t batch_size = 1;
+    for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+      batch_size *= predictions.shape()[i];
     }
+    size_t spatial_dim = 1;
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_loss<T>, predictions.data(),
@@ -94,12 +94,12 @@ public:
           "Predictions and targets must be on the same device for CrossEntropyLoss.");
     }
     gradient.resize(predictions.shape());
-    const size_t batch_size = predictions.shape()[0];
-    const size_t num_classes = predictions.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < predictions.dims(); ++i) {
-      spatial_dim *= predictions.shape()[i];
+    const size_t num_classes = predictions.shape().back();
+    size_t batch_size = 1;
+    for (size_t i = 0; i < predictions.dims() - 1; ++i) {
+      batch_size *= predictions.shape()[i];
     }
+    size_t spatial_dim = 1;
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<T>,
@@ -221,12 +221,12 @@ public:
       throw std::runtime_error(
           "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
     }
-    const size_t batch_size = logits.shape()[0];
-    const size_t num_classes = logits.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < logits.dims(); ++i) {
-      spatial_dim *= logits.shape()[i];
+    const size_t num_classes = logits.shape().back();
+    size_t batch_size = 1;
+    for (size_t i = 0; i < logits.dims() - 1; ++i) {
+      batch_size *= logits.shape()[i];
     }
+    size_t spatial_dim = 1;
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
@@ -250,12 +250,12 @@ public:
           "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
     }
     gradient.resize(logits.shape());
-    const size_t batch_size = logits.shape()[0];
-    const size_t num_classes = logits.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < logits.dims(); ++i) {
-      spatial_dim *= logits.shape()[i];
+    const size_t num_classes = logits.shape().back();
+    size_t batch_size = 1;
+    for (size_t i = 0; i < logits.dims() - 1; ++i) {
+      batch_size *= logits.shape()[i];
     }
+    size_t spatial_dim = 1;
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,

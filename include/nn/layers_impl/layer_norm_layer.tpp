@@ -26,13 +26,13 @@ template <typename T> void LayerNormLayer<T>::initialize_params() {
     return;
 
   if (affine_) {
-    gamma_ = Tensor<T>({normalized_shape_, 1, 1, 1}, this->device_);
-    beta_ = Tensor<T>({normalized_shape_, 1, 1, 1}, this->device_);
+    gamma_ = Tensor<T>({normalized_shape_}, this->device_);
+    beta_ = Tensor<T>({normalized_shape_}, this->device_);
     gamma_.fill(T(1));
     beta_.fill(T(0));
 
-    gamma_gradients_ = Tensor<T>({normalized_shape_, 1, 1, 1}, this->device_);
-    beta_gradients_ = Tensor<T>({normalized_shape_, 1, 1, 1}, this->device_);
+    gamma_gradients_ = Tensor<T>({normalized_shape_}, this->device_);
+    beta_gradients_ = Tensor<T>({normalized_shape_}, this->device_);
     gamma_gradients_.fill(T(0));
     beta_gradients_.fill(T(0));
   }
@@ -51,18 +51,23 @@ void LayerNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
     ops::copy(input.data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), input.size());
   }
 
-  if (input.shape()[1] != normalized_shape_) {
-    throw std::invalid_argument("Input channels must match normalized_shape in LayerNormLayer");
+  const auto &shape = input.shape();
+  size_t last_dim = shape.back();
+
+  if (last_dim != normalized_shape_) {
+    throw std::invalid_argument("Input last dimension (" + std::to_string(last_dim) +
+                                ") must match normalized_shape (" +
+                                std::to_string(normalized_shape_) + ") in LayerNormLayer");
   }
 
-  output.ensure(input.shape(), this->device_);
+  output.ensure(shape, this->device_);
 
-  const auto &shape = input.shape();
-  size_t batch_size = shape[0];
-  size_t channels = shape[1];
-  size_t height = shape[2];
-  size_t width = shape[3];
-  size_t spatial_size = height * width;
+  size_t channels = last_dim;
+  size_t batch_size = 1;
+  for (size_t i = 0; i < shape.size() - 1; ++i) {
+    batch_size *= shape[i];
+  }
+  size_t spatial_size = 1;
 
   const T *gamma_ptr = affine_ ? gamma_.data() : nullptr;
   const T *beta_ptr = affine_ ? beta_.data() : nullptr;
@@ -91,14 +96,16 @@ void LayerNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
 
   const Tensor<T> &input = micro_batch_inputs_[micro_batch_id];
 
-  grad_input.ensure(input.shape(), this->device_);
-
   const auto &shape = input.shape();
-  size_t batch_size = shape[0];
-  size_t channels = shape[1];
-  size_t height = shape[2];
-  size_t width = shape[3];
-  size_t spatial_size = height * width;
+  grad_input.ensure(shape, this->device_);
+
+  size_t last_dim = shape.back();
+  size_t channels = last_dim;
+  size_t batch_size = 1;
+  for (size_t i = 0; i < shape.size() - 1; ++i) {
+    batch_size *= shape[i];
+  }
+  size_t spatial_size = 1;
 
   const T *gamma_ptr = affine_ ? gamma_.data() : nullptr;
   T *gamma_grad_ptr = affine_ ? gamma_gradients_.data() : nullptr;
