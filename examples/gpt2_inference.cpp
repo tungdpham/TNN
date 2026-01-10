@@ -1,6 +1,5 @@
 #include <algorithm>
 #include <cmath>
-#include <filesystem>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -17,13 +16,6 @@ int main(int argc, char **argv) {
   string model_path = "model_snapshots/gpt2_model";
   string vocab_path = "data/open-web-text/vocab.bin";
   string data_path = "data/open-web-text/train.bin";
-
-  if (argc >= 2)
-    model_path = argv[1];
-  if (argc >= 3)
-    vocab_path = argv[2];
-  if (argc >= 4)
-    data_path = argv[3];
 
   cout << "Loading model from: " << model_path << endl;
   cout << "Loading vocab from: " << vocab_path << endl;
@@ -51,7 +43,6 @@ int main(int argc, char **argv) {
   }
 
   Tensor<float> raw_input, raw_target;
-  // Get a random batch
   loader.shuffle();
   if (!loader.get_batch(1, raw_input, raw_target)) {
     cerr << "Failed to get a batch from data loader." << endl;
@@ -82,10 +73,19 @@ int main(int argc, char **argv) {
     Tensor<float> output;
     model.forward(model_input, output);
 
+    // Transfer output to CPU for sampling
+    Tensor<float> cpu_output = output.to_cpu();
+
     size_t vocab_size = tokenizer.vocab_size();
     size_t last_step_idx = tokens_to_use - 1;
 
-    const float *logits = output.data() + (last_step_idx * vocab_size);
+    const float *logits = cpu_output.data() + (last_step_idx * vocab_size);
+
+    // Check for NaNs
+    if (std::isnan(logits[0])) {
+      cerr << "\nModel output contains NaNs. The model likely diverged during training." << endl;
+      return 1;
+    }
 
     // Greedy sampling: argmax
     int next_token = 0;

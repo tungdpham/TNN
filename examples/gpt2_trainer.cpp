@@ -9,6 +9,7 @@
 #include "nn/example_models.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
+#include "ops/ops.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
@@ -98,20 +99,22 @@ int main(int argc, char **argv) {
 
   model.print_summary({batch_size, seq_len});
 
-  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.95f, 1e-8f, 0.1f);
+  auto optimizer = OptimizerFactory<float>::create_adam(0.0001f, 0.9f, 0.95f, 1e-8f, 0.1f);
 
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
 
   optimizer->attach(model.parameters(), model.gradients());
 
-  size_t max_steps = 100;
+  size_t max_steps = 20000;
   size_t step = 0;
 
-  Tensor<float> raw_input, raw_target;
-  Tensor<float> model_input, one_hot_target;
-  Tensor<float> output, loss_grad, grad_input;
+  Tensor<float> raw_input, raw_target, one_hot_target;
+  Tensor<float> model_input(model.get_device()), device_target(model.get_device());
+  Tensor<float> output(model.get_device()), loss_grad(model.get_device()),
+      grad_input(model.get_device());
 
   model_input.resize({batch_size, seq_len});
+  device_target.resize({batch_size, seq_len, vocab_size});
 
   loader.shuffle();
   loader.reset();
@@ -125,19 +128,20 @@ int main(int argc, char **argv) {
       continue;
     }
 
-    float *raw_in_ptr = raw_input.data();
-    float *mod_in_ptr = model_input.data();
-    std::copy(raw_in_ptr, raw_in_ptr + raw_input.size(), mod_in_ptr);
+    ops::cd_copy(raw_input.data_ptr(), model_input.data_ptr(), raw_input.size());
 
     one_hot_encode(raw_target, one_hot_target, vocab_size);
+
+    ops::cd_copy(one_hot_target.data_ptr(), device_target.data_ptr(), one_hot_target.size());
 
     model.forward(model_input, output);
 
     float loss_val = 0;
-    criterion->compute_loss(output, one_hot_target, loss_val);
+    criterion->compute_loss(output, device_target, loss_val);
     total_loss += loss_val;
 
-    criterion->compute_gradient(output, one_hot_target, loss_grad);
+    criterion->compute_gradient(output, device_target, loss_grad);
+
     model.backward(loss_grad, grad_input);
 
     optimizer->update();

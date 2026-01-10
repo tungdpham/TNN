@@ -84,7 +84,7 @@ int main() {
 
     auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
-    auto loss_function = LossFactory<float>::create_softmax_crossentropy();
+    auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
 
     model.enable_profiling(true);
 

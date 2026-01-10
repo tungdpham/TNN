@@ -17,26 +17,21 @@ namespace loss {
 template <typename T>
 __global__ void crossentropy_loss_kernel(const T *predictions, const T *targets, T *loss_values,
                                          const size_t total_instances, const size_t num_classes,
-                                         T epsilon, const size_t spatial_dim) {
+                                         T epsilon) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_instances)
     return;
 
-  size_t s = idx % spatial_dim;
-  size_t b = idx / spatial_dim;
-
-  size_t batch_stride = num_classes * spatial_dim;
-  size_t channel_stride = spatial_dim;
-  size_t base_ptr = b * batch_stride + s;
+  size_t b = idx;
+  size_t base_ptr = b * num_classes;
 
   T batch_loss = T(0);
   for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c * channel_stride] > T(0.5)) {
-      T pred = predictions[base_ptr + c * channel_stride];
+    if (targets[base_ptr + c] > T(0)) {
+      T pred = predictions[base_ptr + c];
       pred = fmax(pred, epsilon);
       pred = fmin(pred, T(1.0) - epsilon);
-      batch_loss -= log(pred);
-      break;
+      batch_loss -= targets[base_ptr + c] * log(pred);
     }
   }
 
@@ -46,27 +41,21 @@ __global__ void crossentropy_loss_kernel(const T *predictions, const T *targets,
 template <>
 __global__ void crossentropy_loss_kernel<double>(const double *predictions, const double *targets,
                                                  double *loss_values, const size_t total_instances,
-                                                 const size_t num_classes, double epsilon,
-                                                 const size_t spatial_dim) {
+                                                 const size_t num_classes, double epsilon) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_instances)
     return;
 
-  size_t s = idx % spatial_dim;
-  size_t b = idx / spatial_dim;
-
-  size_t batch_stride = num_classes * spatial_dim;
-  size_t channel_stride = spatial_dim;
-  size_t base_ptr = b * batch_stride + s;
+  size_t b = idx;
+  size_t base_ptr = b * num_classes;
 
   double batch_loss = 0.0;
   for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c * channel_stride] > 0.5) {
-      double pred = predictions[base_ptr + c * channel_stride];
+    if (targets[base_ptr + c] > 0.0) {
+      double pred = predictions[base_ptr + c];
       pred = fmax(pred, epsilon);
       pred = fmin(pred, 1.0 - epsilon);
-      batch_loss -= log(pred);
-      break;
+      batch_loss -= targets[base_ptr + c] * log(pred);
     }
   }
 
@@ -75,131 +64,45 @@ __global__ void crossentropy_loss_kernel<double>(const double *predictions, cons
 
 template <typename T>
 __global__ void crossentropy_gradient_kernel(const T *predictions, const T *targets, T *gradient,
-                                             const size_t total_elements, T inv_batch_size) {
+                                             const size_t total_elements, T epsilon,
+                                             T inv_batch_size) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_elements)
     return;
 
-  // Elementwise independent
-  gradient[idx] = (predictions[idx] - targets[idx]) * inv_batch_size;
-}
+  T pred = predictions[idx];
+  pred = fmax(pred, epsilon);
+  pred = fmin(pred, T(1.0) - epsilon);
 
-template <typename T>
-__global__ void softmax_crossentropy_loss_kernel(const T *logits, const T *targets, T *loss_values,
-                                                 const size_t total_instances,
-                                                 const size_t num_classes,
-                                                 const size_t spatial_dim) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_instances)
-    return;
-
-  size_t s = idx % spatial_dim;
-  size_t b = idx / spatial_dim;
-
-  size_t batch_stride = num_classes * spatial_dim;
-  size_t channel_stride = spatial_dim;
-  size_t base_ptr = b * batch_stride + s;
-
-  T max_logit = logits[base_ptr + 0 * channel_stride];
-  for (size_t c = 1; c < num_classes; ++c) {
-    max_logit = fmax(max_logit, logits[base_ptr + c * channel_stride]);
-  }
-
-  T sum_exp = T(0);
-  for (size_t c = 0; c < num_classes; ++c) {
-    sum_exp += exp(logits[base_ptr + c * channel_stride] - max_logit);
-  }
-  T log_sum_exp = log(sum_exp) + max_logit;
-
-  T batch_loss = T(0);
-  for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c * channel_stride] > T(0.5)) {
-      batch_loss = log_sum_exp - logits[base_ptr + c * channel_stride];
-      break;
-    }
-  }
-
-  loss_values[idx] = batch_loss;
-}
-
-template <typename T>
-__global__ void softmax_crossentropy_gradient_kernel(const T *logits, const T *targets, T *gradient,
-                                                     const size_t total_elements,
-                                                     const size_t num_classes,
-                                                     const size_t spatial_dim, T inv_batch_size) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_elements)
-    return;
-
-  // Layout (B, C, S). idx is element index.
-  size_t channel_stride = spatial_dim;
-  size_t batch_stride = num_classes * spatial_dim;
-
-  size_t b = idx / batch_stride;
-  size_t rem = idx % batch_stride;
-  size_t c = rem / channel_stride;
-  size_t s = rem % channel_stride;
-
-  size_t base_ptr = b * batch_stride + s;
-
-  T max_logit = logits[base_ptr + 0 * channel_stride];
-  for (size_t k = 1; k < num_classes; ++k) {
-    max_logit = fmax(max_logit, logits[base_ptr + k * channel_stride]);
-  }
-
-  T sum_exp = T(0);
-  for (size_t k = 0; k < num_classes; ++k) {
-    sum_exp += exp(logits[base_ptr + k * channel_stride] - max_logit);
-  }
-
-  T softmax_prob = exp(logits[base_ptr + c * channel_stride] - max_logit) / sum_exp;
-  // idx refers to (b, c, s), which is exactly base_ptr + c*channel_stride.
-  // Wait, idx = b*batch_stride + c*channel_stride + s.
-  // So idx IS the correct index for logits[idx].
-  // Yes.
-
-  gradient[idx] = (softmax_prob - targets[idx]) * inv_batch_size;
+  gradient[idx] = (-targets[idx] / pred) * inv_batch_size;
 }
 
 template <typename T>
 __global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *targets,
                                                     T *loss_values, const size_t total_instances,
-                                                    const size_t num_classes,
-                                                    const size_t spatial_dim) {
+                                                    const size_t num_classes) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_instances)
     return;
 
-  // idx maps to (batch, spatial)
-  // idx = b * spatial_dim + s
-  size_t s = idx % spatial_dim;
-  size_t b = idx / spatial_dim;
+  size_t b = idx;
+  size_t base_ptr = b * num_classes;
 
-  // Data layout: (B, C, S)
-  // Element (b, c, s) is at: b * (C * S) + c * S + s
-  size_t batch_stride = num_classes * spatial_dim;
-  size_t channel_stride = spatial_dim;
-  size_t base_ptr = b * batch_stride + s;
-
-  // 1. Find max_logit for stability
-  T max_logit = logits[base_ptr + 0 * channel_stride];
+  T max_logit = logits[base_ptr + 0];
   for (size_t c = 1; c < num_classes; ++c) {
-    max_logit = fmax(max_logit, logits[base_ptr + c * channel_stride]);
+    max_logit = fmax(max_logit, logits[base_ptr + c]);
   }
 
-  // 2. Compute sum_exp
   T sum_exp = T(0);
   for (size_t c = 0; c < num_classes; ++c) {
-    sum_exp += exp(logits[base_ptr + c * channel_stride] - max_logit);
+    sum_exp += exp(logits[base_ptr + c] - max_logit);
   }
   T log_sum_exp = log(sum_exp) + max_logit;
 
-  // 3. Compute Loss for this instance
   T instance_loss = T(0);
   for (size_t c = 0; c < num_classes; ++c) {
-    if (targets[base_ptr + c * channel_stride] > T(0.5)) {
-      instance_loss = log_sum_exp - logits[base_ptr + c * channel_stride];
-      break;
+    if (targets[base_ptr + c] > T(0)) {
+      instance_loss += targets[base_ptr + c] * (log_sum_exp - logits[base_ptr + c]);
     }
   }
 
@@ -207,39 +110,80 @@ __global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *ta
 }
 
 template <typename T>
-__global__ void
-logsoftmax_crossentropy_gradient_kernel(const T *logits, const T *targets, T *gradient,
-                                        const size_t total_elements, const size_t num_classes,
-                                        const size_t spatial_dim, T inv_total_instances) {
+__global__ void batch_max_kernel(const T *logits, T *max_vals, const size_t num_classes) {
+  size_t idx = blockIdx.x;
+  size_t b = idx;
+  size_t base_ptr = b * num_classes;
+
+  T thread_max = -1e37;
+  if (threadIdx.x < num_classes) {
+    thread_max = logits[base_ptr + threadIdx.x];
+  }
+
+  for (size_t c = threadIdx.x + blockDim.x; c < num_classes; c += blockDim.x) {
+    thread_max = fmax(thread_max, logits[base_ptr + c]);
+  }
+
+  __shared__ T shared_max[256];
+  shared_max[threadIdx.x] = thread_max;
+  __syncthreads();
+
+  for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (threadIdx.x < stride) {
+      shared_max[threadIdx.x] = fmax(shared_max[threadIdx.x], shared_max[threadIdx.x + stride]);
+    }
+    __syncthreads();
+  }
+
+  if (threadIdx.x == 0) {
+    max_vals[idx] = shared_max[0];
+  }
+}
+
+template <typename T>
+__global__ void batch_sumexp_kernel(const T *logits, const T *max_vals, T *sum_vals,
+                                    const size_t num_classes) {
+  size_t idx = blockIdx.x;
+  size_t b = idx;
+  size_t base_ptr = b * num_classes;
+
+  T instance_max = max_vals[idx];
+  T thread_sum = T(0);
+
+  for (size_t c = threadIdx.x; c < num_classes; c += blockDim.x) {
+    T val = logits[base_ptr + c];
+    thread_sum += exp(val - instance_max);
+  }
+
+  __shared__ T shared_sum[256];
+  shared_sum[threadIdx.x] = thread_sum;
+  __syncthreads();
+
+  for (int stride = blockDim.x / 2; stride > 0; stride >>= 1) {
+    if (threadIdx.x < stride) {
+      shared_sum[threadIdx.x] += shared_sum[threadIdx.x + stride];
+    }
+    __syncthreads();
+  }
+
+  if (threadIdx.x == 0) {
+    sum_vals[idx] = shared_sum[0];
+  }
+}
+
+template <typename T>
+__global__ void logsoftmax_crossentropy_gradient_kernel_optimized(
+    const T *logits, const T *targets, T *gradient, const T *max_vals, const T *sum_vals,
+    const size_t total_elements, const size_t num_classes, T inv_total_instances) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_elements)
     return;
 
-  // Layout (B, C, S)
-  // idx = b * (C*S) + c * S + s
-  size_t channel_stride = spatial_dim;
-  size_t batch_stride = num_classes * spatial_dim;
+  size_t b = idx / num_classes;
 
-  // Extract b, c, s
-  size_t b = idx / batch_stride;
-  size_t rem = idx % batch_stride;
-  size_t s = rem % channel_stride;
+  T max_logit = max_vals[b];
+  T sum_exp = sum_vals[b];
 
-  // Identify the instance (b, s) base pointer
-  size_t base_ptr = b * batch_stride + s;
-
-  // Recompute softmax for this instance (b, s)
-  T max_logit = logits[base_ptr + 0 * channel_stride];
-  for (size_t k = 1; k < num_classes; ++k) {
-    max_logit = fmax(max_logit, logits[base_ptr + k * channel_stride]);
-  }
-
-  T sum_exp = T(0);
-  for (size_t k = 0; k < num_classes; ++k) {
-    sum_exp += exp(logits[base_ptr + k * channel_stride] - max_logit);
-  }
-
-  // Compute gradient for this specific element idx (b, c, s)
   T softmax_prob = exp(logits[idx] - max_logit) / sum_exp;
   gradient[idx] = (softmax_prob - targets[idx]) * inv_total_instances;
 }
@@ -377,8 +321,8 @@ __global__ void sum_reduce_kernel_stage2(const T *block_results, T *result,
 template <typename T>
 void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
                                const size_t batch_size, const size_t num_classes, T epsilon,
-                               const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
+                               cudaStream_t stream) {
+  size_t total_instances = batch_size;
   T *d_loss_values;
   cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
 
@@ -386,7 +330,7 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
   int num_blocks = (total_instances + threads_per_block - 1) / threads_per_block;
 
   crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      predictions, targets, d_loss_values, total_instances, num_classes, epsilon, spatial_dim);
+      predictions, targets, d_loss_values, total_instances, num_classes, epsilon);
 
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
@@ -416,77 +360,16 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, T &loss,
 
 template <typename T>
 void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gradient,
-                                   const size_t batch_size, const size_t num_classes,
-                                   const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
-  T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(total_instances);
+                                   const size_t batch_size, const size_t num_classes, T epsilon,
+                                   cudaStream_t stream) {
+  size_t total_elements = batch_size * num_classes;
+  T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(batch_size);
 
-  size_t total_size = batch_size * num_classes * spatial_dim;
   int threads_per_block = 256;
-  int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
+  int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
   crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      predictions, targets, gradient, total_size, inv_batch_size);
-
-  cudaStreamSynchronize(stream);
-}
-
-template <typename T>
-void compute_softmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
-                                       const size_t batch_size, const size_t num_classes,
-                                       const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
-  T *d_loss_values;
-  cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
-  cudaMemsetAsync(d_loss_values, 0, total_instances * sizeof(T), stream);
-
-  int threads_per_block = 256;
-  int num_blocks = (total_instances + threads_per_block - 1) / threads_per_block;
-
-  softmax_crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      logits, targets, d_loss_values, total_instances, num_classes, spatial_dim);
-
-  int block_size = 256;
-  int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
-
-  T *d_block_results;
-  cudaMallocAsync(&d_block_results, grid_size * sizeof(T), stream);
-  cudaMemsetAsync(d_block_results, 0, grid_size * sizeof(T), stream);
-
-  sum_reduce_kernel_stage1<T><<<grid_size, block_size, block_size * sizeof(T), stream>>>(
-      d_loss_values, d_block_results, total_instances);
-
-  T *d_total_loss;
-  cudaMallocAsync(&d_total_loss, sizeof(T), stream);
-  cudaMemsetAsync(d_total_loss, 0, sizeof(T), stream);
-
-  sum_reduce_kernel_stage2<T>
-      <<<1, block_size, block_size * sizeof(T), stream>>>(d_block_results, d_total_loss, grid_size);
-
-  T h_total_loss;
-  cudaMemcpyAsync(&h_total_loss, d_total_loss, sizeof(T), cudaMemcpyDeviceToHost, stream);
-  cudaStreamSynchronize(stream);
-
-  cudaFreeAsync(d_loss_values, stream);
-  cudaFreeAsync(d_block_results, stream);
-  cudaFreeAsync(d_total_loss, stream);
-
-  loss = h_total_loss / total_instances;
-}
-
-template <typename T>
-void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
-                                           const size_t batch_size, const size_t num_classes,
-                                           const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
-  T inv_batch_size = static_cast<T>(1.0) / static_cast<T>(total_instances);
-
-  size_t total_size = batch_size * num_classes * spatial_dim;
-  int threads_per_block = 256;
-  int num_blocks = (total_size + threads_per_block - 1) / threads_per_block;
-
-  softmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      logits, targets, gradient, total_size, num_classes, spatial_dim, inv_batch_size);
+      predictions, targets, gradient, total_elements, epsilon, inv_batch_size);
 
   cudaStreamSynchronize(stream);
 }
@@ -494,8 +377,8 @@ void compute_softmax_crossentropy_gradient(const T *logits, const T *targets, T 
 template <typename T>
 void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &loss,
                                           const size_t batch_size, const size_t num_classes,
-                                          const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
+                                          cudaStream_t stream) {
+  size_t total_instances = batch_size;
   T *d_loss_values;
   cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
   cudaMemsetAsync(d_loss_values, 0, total_instances * sizeof(T), stream);
@@ -504,7 +387,7 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &
   int num_blocks = (total_instances + threads_per_block - 1) / threads_per_block;
 
   logsoftmax_crossentropy_loss_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      logits, targets, d_loss_values, total_instances, num_classes, spatial_dim);
+      logits, targets, d_loss_values, total_instances, num_classes);
 
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
@@ -536,17 +419,32 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, T &
 template <typename T>
 void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
                                               const size_t batch_size, const size_t num_classes,
-                                              const size_t spatial_dim, cudaStream_t stream) {
-  size_t total_instances = batch_size * spatial_dim;
+                                              cudaStream_t stream) {
+  size_t total_instances = batch_size;
   T inv_total_instances = static_cast<T>(1.0) / static_cast<T>(total_instances);
 
-  size_t total_elements = batch_size * num_classes * spatial_dim;
+  T *d_max_vals;
+  T *d_sum_vals;
+  cudaMallocAsync(&d_max_vals, total_instances * sizeof(T), stream);
+  cudaMallocAsync(&d_sum_vals, total_instances * sizeof(T), stream);
+
+  batch_max_kernel<T><<<total_instances, 256, 0, stream>>>(logits, d_max_vals, num_classes);
+
+  batch_sumexp_kernel<T>
+      <<<total_instances, 256, 0, stream>>>(logits, d_max_vals, d_sum_vals, num_classes);
+
+  size_t total_elements = batch_size * num_classes;
 
   int threads_per_block = 256;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
-  logsoftmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
-      logits, targets, gradient, total_elements, num_classes, spatial_dim, inv_total_instances);
+  logsoftmax_crossentropy_gradient_kernel_optimized<T>
+      <<<num_blocks, threads_per_block, 0, stream>>>(logits, targets, gradient, d_max_vals,
+                                                     d_sum_vals, total_elements, num_classes,
+                                                     inv_total_instances);
+
+  cudaFreeAsync(d_max_vals, stream);
+  cudaFreeAsync(d_sum_vals, stream);
 
   cudaStreamSynchronize(stream);
 }
@@ -714,52 +612,40 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
 template void compute_crossentropy_loss<float>(const float *predictions, const float *targets,
                                                float &loss, const size_t batch_size,
                                                const size_t num_classes, float epsilon,
-                                               const size_t spatial_dim, cudaStream_t stream);
+                                               cudaStream_t stream);
 template void compute_crossentropy_loss<double>(const double *predictions, const double *targets,
                                                 double &loss, const size_t batch_size,
                                                 const size_t num_classes, double epsilon,
-                                                const size_t spatial_dim, cudaStream_t stream);
+                                                cudaStream_t stream);
 template void compute_crossentropy_gradient<float>(const float *predictions, const float *targets,
                                                    float *gradient, const size_t batch_size,
-                                                   const size_t num_classes,
-                                                   const size_t spatial_dim, cudaStream_t stream);
+                                                   const size_t num_classes, float epsilon,
+                                                   cudaStream_t stream);
 template void compute_crossentropy_gradient<double>(const double *predictions,
                                                     const double *targets, double *gradient,
                                                     const size_t batch_size,
-                                                    const size_t num_classes,
-                                                    const size_t spatial_dim, cudaStream_t stream);
-
-template void compute_softmax_crossentropy_loss<float>(const float *logits, const float *targets,
-                                                       float &loss, const size_t batch_size,
-                                                       const size_t num_classes,
-                                                       const size_t spatial_dim,
-                                                       cudaStream_t stream);
-template void compute_softmax_crossentropy_loss<double>(const double *logits, const double *targets,
-                                                        double &loss, const size_t batch_size,
-                                                        const size_t num_classes,
-                                                        const size_t spatial_dim,
-                                                        cudaStream_t stream);
-template void compute_softmax_crossentropy_gradient<float>(
-    const float *logits, const float *targets, float *gradient, const size_t batch_size,
-    const size_t num_classes, const size_t spatial_dim, cudaStream_t stream);
-template void compute_softmax_crossentropy_gradient<double>(
-    const double *logits, const double *targets, double *gradient, const size_t batch_size,
-    const size_t num_classes, const size_t spatial_dim, cudaStream_t stream);
+                                                    const size_t num_classes, double epsilon,
+                                                    cudaStream_t stream);
 
 template void compute_logsoftmax_crossentropy_loss<float>(const float *logits, const float *targets,
                                                           float &loss, const size_t batch_size,
                                                           const size_t num_classes,
-                                                          const size_t spatial_dim,
+
                                                           cudaStream_t stream);
-template void compute_logsoftmax_crossentropy_loss<double>(
-    const double *logits, const double *targets, double &loss, const size_t batch_size,
-    const size_t num_classes, const size_t spatial_dim, cudaStream_t stream);
-template void compute_logsoftmax_crossentropy_gradient<float>(
-    const float *logits, const float *targets, float *gradient, const size_t batch_size,
-    const size_t num_classes, const size_t spatial_dim, cudaStream_t stream);
-template void compute_logsoftmax_crossentropy_gradient<double>(
-    const double *logits, const double *targets, double *gradient, const size_t batch_size,
-    const size_t num_classes, const size_t spatial_dim, cudaStream_t stream);
+template void compute_logsoftmax_crossentropy_loss<double>(const double *logits,
+                                                           const double *targets, double &loss,
+                                                           const size_t batch_size,
+                                                           const size_t num_classes,
+                                                           cudaStream_t stream);
+template void compute_logsoftmax_crossentropy_gradient<float>(const float *logits,
+                                                              const float *targets, float *gradient,
+                                                              const size_t batch_size,
+                                                              const size_t num_classes,
+                                                              cudaStream_t stream);
+template void
+compute_logsoftmax_crossentropy_gradient<double>(const double *logits, const double *targets,
+                                                 double *gradient, const size_t batch_size,
+                                                 const size_t num_classes, cudaStream_t stream);
 
 template void compute_mse_loss<float>(const float *predictions, const float *targets, float &loss,
                                       const size_t batch_size, const size_t output_size,

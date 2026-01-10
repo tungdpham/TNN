@@ -6,9 +6,9 @@
  */
 #pragma once
 
-#include "../tensor/tensor.hpp"
 #include "device/task.hpp"
 #include "loss_impl/cpu/loss_ops.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "loss_impl/cuda/loss_ops.hpp"
 #endif
@@ -71,17 +71,16 @@ public:
     for (size_t i = 0; i < predictions.dims() - 1; ++i) {
       batch_size *= predictions.shape()[i];
     }
-    size_t spatial_dim = 1;
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_loss<T>, predictions.data(),
-                             targets.data(), loss, batch_size, num_classes, epsilon_, spatial_dim);
+                             targets.data(), loss, batch_size, num_classes, epsilon_);
     }
 #ifdef USE_CUDA
     else if (predictions.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_crossentropy_loss<T>,
                              predictions.data(), targets.data(), loss, batch_size, num_classes,
-                             epsilon_, spatial_dim);
+                             epsilon_);
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -93,24 +92,23 @@ public:
       throw std::runtime_error(
           "Predictions and targets must be on the same device for CrossEntropyLoss.");
     }
-    gradient.resize(predictions.shape());
+    gradient.ensure(predictions.shape());
     const size_t num_classes = predictions.shape().back();
     size_t batch_size = 1;
     for (size_t i = 0; i < predictions.dims() - 1; ++i) {
       batch_size *= predictions.shape()[i];
     }
-    size_t spatial_dim = 1;
 
     if (predictions.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<T>,
                              predictions.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
+                             num_classes, epsilon_);
     }
 #ifdef USE_CUDA
     else if (predictions.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_crossentropy_gradient<T>,
                              predictions.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
+                             num_classes, epsilon_);
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -134,82 +132,6 @@ private:
   T epsilon_;
 };
 
-// Numerically stable Softmax + CrossEntropy combined loss
-template <typename T = float> class SoftmaxCrossEntropyLoss : public Loss<T> {
-public:
-  SoftmaxCrossEntropyLoss() = default;
-
-  std::unique_ptr<Task> compute_loss(const Tensor<T> &logits, const Tensor<T> &targets,
-                                     T &loss) override {
-    if (logits.device() != targets.device()) {
-      throw std::runtime_error(
-          "Logits and targets must be on the same device for SoftmaxCrossEntropyLoss.");
-    }
-    const size_t batch_size = logits.shape()[0];
-    const size_t num_classes = logits.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < logits.dims(); ++i) {
-      spatial_dim *= logits.shape()[i];
-    }
-
-    if (logits.device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes,
-                             spatial_dim);
-    }
-#ifdef USE_CUDA
-    else if (logits.device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes,
-                             spatial_dim);
-    }
-#endif
-    throw std::runtime_error("Unsupported device type for SoftmaxCrossEntropyLoss.");
-  }
-
-  std::unique_ptr<Task> compute_gradient(const Tensor<T> &logits, const Tensor<T> &targets,
-                                         Tensor<T> &gradient) override {
-    if (logits.device() != targets.device()) {
-      throw std::runtime_error(
-          "Logits and targets must be on the same device for SoftmaxCrossEntropyLoss.");
-    }
-    gradient.resize(logits.shape());
-    const size_t batch_size = logits.shape()[0];
-    const size_t num_classes = logits.shape()[1];
-    size_t spatial_dim = 1;
-    for (size_t i = 2; i < logits.dims(); ++i) {
-      spatial_dim *= logits.shape()[i];
-    }
-
-    if (logits.device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_softmax_crossentropy_gradient<T>,
-                             logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
-    }
-#ifdef USE_CUDA
-    else if (logits.device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_softmax_crossentropy_gradient<T>,
-                             logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
-    }
-#endif
-    throw std::runtime_error("Unsupported device type for SoftmaxCrossEntropyLoss.");
-  }
-
-  std::string name() const override { return "SoftmaxCrossEntropyLoss"; }
-
-  LossConfig get_config() const override {
-    LossConfig config;
-    config.type = "softmax_crossentropy";
-    config.name = "SoftmaxCrossEntropyLoss";
-    return config;
-  }
-
-  std::unique_ptr<Loss<T>> clone() const override {
-    return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
-  }
-};
-
 // Numerically stable LogSoftmax + CrossEntropy combined loss
 template <typename T = float> class LogSoftmaxCrossEntropyLoss : public Loss<T> {
 public:
@@ -226,18 +148,15 @@ public:
     for (size_t i = 0; i < logits.dims() - 1; ++i) {
       batch_size *= logits.shape()[i];
     }
-    size_t spatial_dim = 1;
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes,
-                             spatial_dim);
+                             logits.data(), targets.data(), loss, batch_size, num_classes);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits.data(), targets.data(), loss, batch_size, num_classes,
-                             spatial_dim);
+                             logits.data(), targets.data(), loss, batch_size, num_classes);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -249,24 +168,23 @@ public:
       throw std::runtime_error(
           "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
     }
-    gradient.resize(logits.shape());
+    gradient.ensure(logits.shape());
     const size_t num_classes = logits.shape().back();
     size_t batch_size = 1;
     for (size_t i = 0; i < logits.dims() - 1; ++i) {
       batch_size *= logits.shape()[i];
     }
-    size_t spatial_dim = 1;
 
     if (logits.device_type() == DeviceType::CPU) {
       return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
+                             num_classes);
     }
 #ifdef USE_CUDA
     else if (logits.device_type() == DeviceType::GPU) {
       return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
                              logits.data(), targets.data(), gradient.data(), batch_size,
-                             num_classes, spatial_dim);
+                             num_classes);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -319,7 +237,7 @@ public:
     if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for MSELoss.");
     }
-    gradient.resize(predictions.shape());
+    gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
@@ -384,7 +302,7 @@ public:
     if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for MAELoss.");
     }
-    gradient.resize(predictions.shape());
+    gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
@@ -449,7 +367,7 @@ public:
     if (predictions.device() != targets.device()) {
       throw std::runtime_error("Predictions and targets must be on the same device for HuberLoss.");
     }
-    gradient.resize(predictions.shape());
+    gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
     size_t output_size = 1;
     for (size_t i = 1; i < predictions.dims(); ++i) {
@@ -494,9 +412,6 @@ public:
     if (loss_type == "crossentropy" || loss_type == "ce") {
       return std::make_unique<CrossEntropyLoss<T>>();
     }
-    if (loss_type == "softmax_crossentropy" || loss_type == "softmax_ce") {
-      return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
-    }
     if (loss_type == "logsoftmax_crossentropy" || loss_type == "logsoftmax_ce") {
       return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
     }
@@ -517,9 +432,6 @@ public:
       T epsilon = config.get<T>("epsilon", static_cast<T>(1e-15));
       return std::make_unique<CrossEntropyLoss<T>>(epsilon);
     }
-    if (config.type == "softmax_crossentropy" || config.type == "softmax_ce") {
-      return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
-    }
     if (config.type == "logsoftmax_crossentropy" || config.type == "logsoftmax_ce") {
       return std::make_unique<LogSoftmaxCrossEntropyLoss<T>>();
     }
@@ -538,10 +450,6 @@ public:
 
   static std::unique_ptr<Loss<T>> create_crossentropy(T epsilon = static_cast<T>(1e-15)) {
     return std::make_unique<CrossEntropyLoss<T>>(epsilon);
-  }
-
-  static std::unique_ptr<Loss<T>> create_softmax_crossentropy() {
-    return std::make_unique<SoftmaxCrossEntropyLoss<T>>();
   }
 
   static std::unique_ptr<Loss<T>> create_logsoftmax_crossentropy() {
