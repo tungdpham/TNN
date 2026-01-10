@@ -94,6 +94,7 @@ int main(int argc, char **argv) {
 
   model.set_device(device_type);
   model.initialize();
+  model.enable_profiling(true);
 
   model.print_summary({batch_size, seq_len});
 
@@ -145,8 +146,10 @@ int main(int argc, char **argv) {
     step++;
     if (step % log_interval == 0) {
       cout << "Step " << step << " | Loss: " << total_loss / log_interval << endl;
+      model.print_profiling_summary();
       total_loss = 0;
     }
+    model.clear_profiling_data();
   }
 
   model.save_to_file("model_snapshots/gpt2_model");

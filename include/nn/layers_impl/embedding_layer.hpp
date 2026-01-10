@@ -8,6 +8,7 @@
 
 #include "nn/layers_impl/cpu/embedding_ops.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
+#include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/embedding_ops.hpp"
@@ -100,7 +101,13 @@ public:
     }
 
     if (this->is_training_) {
-      micro_batch_inputs_[micro_batch_id] = current->clone();
+      auto it_input = micro_batch_inputs_.find(micro_batch_id);
+      if (it_input == micro_batch_inputs_.end()) {
+        micro_batch_inputs_[micro_batch_id] = current->clone();
+      } else {
+        it_input->second.ensure(current->shape(), this->device_);
+        ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size());
+      }
     }
 
     size_t num_tokens = input.size();
