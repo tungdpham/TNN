@@ -61,6 +61,8 @@ public:
     return result;
   }
 
+  size_t vocab_size() const { return vocab_.size(); }
+
 private:
   std::vector<std::string> vocab_;
 };
