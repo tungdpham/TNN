@@ -120,26 +120,13 @@ void BatchNormLayer<T>::def_forward(const Tensor<T> *current, Tensor<T> &output,
 
   output.ensure(current->shape(), this->device_);
 
-  auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
-  if (it_normalized == micro_batch_normalized_.end()) {
-    micro_batch_normalized_[micro_batch_id] = make_array_ptr<T[]>(this->device_, current->size());
-  } else {
-    micro_batch_normalized_[micro_batch_id].ensure(current->size());
-  }
+  device_ptr<T[]> &norm_cache = micro_batch_normalized_[micro_batch_id];
+  device_ptr<T[]> &batch_inv_std = micro_batch_inv_std_[micro_batch_id];
+  device_ptr<T[]> &batch_mean_fixed = batch_mean_fixed_[micro_batch_id];
 
-  auto it_batch_mean_fixed = batch_mean_fixed_.find(micro_batch_id);
-  if (it_batch_mean_fixed == batch_mean_fixed_.end()) {
-    batch_mean_fixed_[micro_batch_id] = make_array_ptr<T[]>(this->device_, num_features_);
-  } else {
-    batch_mean_fixed_[micro_batch_id].ensure(num_features_);
-  }
-
-  auto it_batch_inv_std_fixed = micro_batch_inv_std_.find(micro_batch_id);
-  if (it_batch_inv_std_fixed == micro_batch_inv_std_.end()) {
-    micro_batch_inv_std_[micro_batch_id] = make_array_ptr<T[]>(this->device_, num_features_);
-  } else {
-    micro_batch_inv_std_[micro_batch_id].ensure(num_features_);
-  }
+  norm_cache.ensure(current->size(), this->device_);
+  batch_inv_std.ensure(num_features_, this->device_);
+  batch_mean_fixed.ensure(num_features_, this->device_);
 
   if (this->is_training_) {
     forward_task_ = run_forward_fused(

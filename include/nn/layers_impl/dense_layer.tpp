@@ -75,13 +75,9 @@ void DenseLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output, size
     current = &device_input;
   }
 
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input == micro_batch_inputs_.end()) {
-    micro_batch_inputs_[micro_batch_id] = current->clone();
-  } else {
-    micro_batch_inputs_[micro_batch_id].ensure(current->shape());
-    ops::copy(current->data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), current->size());
-  }
+  Tensor<T> &cached_input = micro_batch_inputs_[micro_batch_id];
+  cached_input.ensure(current->shape(), this->device_);
+  ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
 
   std::vector<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;

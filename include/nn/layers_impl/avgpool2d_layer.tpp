@@ -55,7 +55,7 @@ void AvgPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output.ensure({batch_size, channels, output_h, output_w});
+  output.ensure({batch_size, channels, output_h, output_w}, this->device_);
 
   compute_avg_pool_forward(current->data_ptr(), output.data_ptr(), batch_size, channels, input_h,
                            input_w, output_h, output_w, "default");
@@ -90,9 +90,7 @@ void AvgPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  grad_input.ensure({batch_size, channels, input_h, input_w});
-
-  grad_input.fill(T(0));
+  grad_input.ensure({batch_size, channels, input_h, input_w}, this->device_);
 
   compute_avg_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
                             channels, input_h, input_w, output_h, output_w, "default");

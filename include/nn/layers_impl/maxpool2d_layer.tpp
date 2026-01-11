@@ -59,11 +59,8 @@ void MaxPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
 
   const size_t total_outputs = batch_size * channels * output_h * output_w;
 
-  auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
-  if (it_mask == micro_batch_mask_indices_.end()) {
-    micro_batch_mask_indices_[micro_batch_id] =
-        make_array_ptr<size_t[]>(this->device_, total_outputs);
-  }
+  device_ptr<size_t[]> &mask_indices = micro_batch_mask_indices_[micro_batch_id];
+  mask_indices.ensure(total_outputs, this->device_);
 
   // Pass raw input pointer + padding params (implicit padding)
   forward_task_ = compute_max_pool_forward(current->data_ptr(), output.data_ptr(), batch_size,

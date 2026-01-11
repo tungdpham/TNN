@@ -91,7 +91,7 @@ void Conv1DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     col_buffer = make_array_ptr<T[]>(this->device_, col_matrix_size);
   }
 
-  temp_output_buffer_.ensure(out_channels_ * output_size);
+  temp_output_buffer_.ensure(out_channels_ * output_size, this->device_);
 
   im2col_task_ = im2col(input, col_buffer, 1, kernel_size_, 1, stride_, 0, padding_);
 
@@ -116,15 +116,14 @@ void Conv1DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_in
   size_t output_len = gradient.shape()[2];
 
   grad_input.ensure(input_shape, this->device_);
-  grad_input.fill(T(0));
 
   auto &col_buffer = micro_batch_col_buffers_[micro_batch_id];
   size_t kernel_elements = in_channels_ * kernel_size_;
   size_t output_size = batch_size * output_len;
   size_t col_grad_matrix_size = kernel_elements * output_size;
 
-  temp_gradient_buffer_.ensure(out_channels_ * output_size);
-  temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size);
+  temp_gradient_buffer_.ensure(out_channels_ * output_size, this->device_);
+  temp_col_grad_matrix_buffer_.ensure(col_grad_matrix_size, this->device_);
 
   ops::nchw_to_cnhw(gradient.data_ptr(), temp_gradient_buffer_, batch_size, out_channels_, 1,
                     output_len, "default");

@@ -44,13 +44,9 @@ template <typename T>
 void LayerNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                      size_t micro_batch_id) {
   // Cache input
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input == micro_batch_inputs_.end()) {
-    micro_batch_inputs_[micro_batch_id] = input.clone();
-  } else {
-    micro_batch_inputs_[micro_batch_id].ensure(input.shape());
-    ops::copy(input.data_ptr(), micro_batch_inputs_[micro_batch_id].data_ptr(), input.size());
-  }
+  Tensor<T> &cached_input = micro_batch_inputs_[micro_batch_id];
+  cached_input.ensure(input.shape(), this->device_);
+  ops::copy(input.data_ptr(), cached_input.data_ptr(), input.size());
 
   const auto &shape = input.shape();
   size_t last_dim = shape.back();

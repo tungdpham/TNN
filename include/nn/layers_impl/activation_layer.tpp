@@ -29,13 +29,9 @@ void ActivationLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     current = &device_input;
   }
 
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input != micro_batch_inputs_.end()) {
-    it_input->second.ensure(current->shape(), this->device_);
-    ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size());
-  } else {
-    micro_batch_inputs_[micro_batch_id] = current->clone();
-  }
+  Tensor<T> &cached_input = micro_batch_inputs_[micro_batch_id];
+  cached_input.ensure(current->shape(), this->device_);
+  ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
 
   output.ensure(current->shape(), this->device_);
   activation_->apply(*current, output);

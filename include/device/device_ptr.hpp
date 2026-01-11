@@ -172,7 +172,7 @@ public:
   void resize(size_t new_size) {
     T *new_ptr = static_cast<T *>(device_->allocateAlignedMemory(sizeof(T) * new_size, alignment_));
     if (!new_ptr) {
-      throw std::runtime_error("Bad Alloc");
+      throw std::runtime_error("device_ptr: Bad Alloc");
     }
     if (ptr_) {
       device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
@@ -182,7 +182,11 @@ public:
     capacity_ = new_size;
   }
 
-  void ensure(size_t required_count) {
+  void ensure(size_t required_count, const Device *device = nullptr) {
+    if (device != nullptr && this->device_ != device) {
+      reset();
+      this->device_ = device;
+    }
     if (capacity_ < required_count) {
       resize(required_count);
     }

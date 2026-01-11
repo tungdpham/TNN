@@ -72,27 +72,14 @@ void GroupNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
 
   output.ensure(current->shape());
 
-  auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
-  if (it_normalized == micro_batch_normalized_.end()) {
-    micro_batch_normalized_[micro_batch_id] = make_array_ptr<T[]>(this->device_, current->size());
-  } else {
-    micro_batch_normalized_[micro_batch_id].ensure(current->size());
-  }
+  device_ptr<T[]> &norm = micro_batch_normalized_[micro_batch_id];
+  norm.ensure(current->size(), this->device_);
 
-  auto it_group_mean = group_mean_.find(micro_batch_id);
-  if (it_group_mean == group_mean_.end()) {
-    group_mean_[micro_batch_id] = make_array_ptr<T[]>(this->device_, batch_size * num_groups_);
-  } else {
-    group_mean_[micro_batch_id].ensure(batch_size * num_groups_);
-  }
+  device_ptr<T[]> &mean = group_mean_[micro_batch_id];
+  mean.ensure(batch_size * num_groups_, this->device_);
 
-  auto it_group_inv_std = micro_batch_inv_std_.find(micro_batch_id);
-  if (it_group_inv_std == micro_batch_inv_std_.end()) {
-    micro_batch_inv_std_[micro_batch_id] =
-        make_array_ptr<T[]>(this->device_, batch_size * num_groups_);
-  } else {
-    micro_batch_inv_std_[micro_batch_id].ensure(batch_size * num_groups_);
-  }
+  device_ptr<T[]> &inv_std = micro_batch_inv_std_[micro_batch_id];
+  inv_std.ensure(batch_size * num_groups_, this->device_);
 
   std::unique_ptr<Task> fwd_task;
   fwd_task = run_forward_fused(

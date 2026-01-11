@@ -43,17 +43,12 @@ void DropoutLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     current = &device_input;
   }
 
-  auto it_mask = micro_batch_masks_.find(micro_batch_id);
-  if (it_mask == micro_batch_masks_.end()) {
-    micro_batch_masks_[micro_batch_id] = Tensor<T>(current->shape(), this->device_);
-    it_mask = micro_batch_masks_.find(micro_batch_id);
-  } else {
-    it_mask->second.ensure(current->shape());
-  }
+  Tensor<T> &mask = micro_batch_masks_[micro_batch_id];
+  mask.ensure(current->shape(), this->device_);
 
   output.ensure(current->shape(), this->device_);
 
-  auto forward_task = compute_dropout_forward(*current, output, it_mask->second);
+  auto forward_task = compute_dropout_forward(*current, output, mask);
 }
 
 template <typename T>

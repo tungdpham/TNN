@@ -160,12 +160,8 @@ void Conv2DLayer<T>::def_forward(const Tensor<T> *current, Tensor<T> &output,
   size_t col_matrix_size = kernel_size * output_size;
 
   // Ensure per-microbatch col buffer is allocated
-  auto col_buffer_it = micro_batch_col_buffers_.find(micro_batch_id);
-  if (col_buffer_it == micro_batch_col_buffers_.end()) {
-    micro_batch_col_buffers_[micro_batch_id] = make_array_ptr<T[]>(this->device_, col_matrix_size);
-  } else {
-    col_buffer_it->second.ensure(col_matrix_size);
-  }
+  device_ptr<T[]> &col_buffer = micro_batch_col_buffers_[micro_batch_id];
+  col_buffer.ensure(col_matrix_size, this->device_);
 
   size_t output_buffer_size = out_channels_ * output_size;
   temp_output_buffer_.ensure(output_buffer_size);
@@ -295,14 +291,9 @@ void Conv2DLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
   PooledTensor<T> cudnn_workspace_buffer = this->get_buffer({workspace_elements, 1, 1, 1});
   Tensor<T> &cudnn_workspace = cudnn_workspace_buffer.get();
 
-  auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
-  if (it_input_cache == micro_batch_inputs_cache_.end()) {
-    micro_batch_inputs_cache_[micro_batch_id] = current->clone();
-  } else {
-    // Resize the cached tensor to match current input shape
-    it_input_cache->second.ensure(current->shape());
-    ops::copy(current->data_ptr(), it_input_cache->second.data_ptr(), current->size());
-  }
+  Tensor<T> &cached_input = micro_batch_inputs_cache_[micro_batch_id];
+  cached_input.ensure(current->shape(), this->device_);
+  ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
 
   // Use cuDNN forward
   const T *bias_ptr = use_bias_ ? bias_.data_ptr().get() : nullptr;
