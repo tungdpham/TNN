@@ -11,6 +11,7 @@
 #include "device/device_type.hpp"
 #include "layers.hpp"
 #include "nn/layers_impl/base_layer.hpp"
+#include "nn/layers_impl/dropout_layer.hpp"
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 
@@ -52,8 +53,10 @@ private:
   Tensor<T> output_buffer_;
   mutable std::mutex forward_times_mutex_;
   mutable std::mutex backward_times_mutex_;
-  std::map<std::string, uint64_t> forward_times_microseconds_;
-  std::map<std::string, uint64_t> backward_times_microseconds_;
+  std::map<Layer<T> *, uint64_t> forward_times_microseconds_;
+  std::map<Layer<T> *, uint64_t> backward_times_microseconds_;
+  std::unique_ptr<Layer<T>> sync_layer_;
+  std::unique_ptr<Layer<T>> transfer_layer_;
 
   void compute_max_size(const std::vector<size_t> &input_shape) {
     std::vector<size_t> current_shape = input_shape;
@@ -72,11 +75,15 @@ public:
   explicit Sequential(const std::string &name = "sequential")
       : name_(name), is_training_(true), enable_profiling_(false) {
     mem_pool_ = &getDefaultMemPool<T>();
+    sync_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "synchronization");
+    transfer_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "final_transfer");
   }
 
   Sequential(const Sequential &other)
       : name_(other.name_), is_training_(other.is_training_),
         enable_profiling_(other.enable_profiling_) {
+    sync_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "synchronization");
+    transfer_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "final_transfer");
     for (const auto &layer : other.layers_) {
       layers_.push_back(layer->clone());
     }
@@ -96,7 +103,9 @@ public:
       : layers_(std::move(other.layers_)), name_(std::move(other.name_)),
         is_training_(other.is_training_), enable_profiling_(other.enable_profiling_),
         forward_times_microseconds_(std::move(other.forward_times_microseconds_)),
-        backward_times_microseconds_(std::move(other.backward_times_microseconds_)) {}
+        backward_times_microseconds_(std::move(other.backward_times_microseconds_)),
+        sync_layer_(std::move(other.sync_layer_)),
+        transfer_layer_(std::move(other.transfer_layer_)) {}
 
   Sequential &operator=(const Sequential &other) {
     if (this != &other) {
@@ -107,6 +116,9 @@ public:
       name_ = other.name_;
       is_training_ = other.is_training_;
       enable_profiling_ = other.enable_profiling_;
+
+      sync_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "synchronization");
+      transfer_layer_ = std::make_unique<DropoutLayer<T>>(0.0, "final_transfer");
 
       // Thread-safe clearing and copying of timing maps
       {
@@ -142,6 +154,8 @@ public:
       enable_profiling_ = other.enable_profiling_;
       forward_times_microseconds_ = std::move(other.forward_times_microseconds_);
       backward_times_microseconds_ = std::move(other.backward_times_microseconds_);
+      sync_layer_ = std::move(other.sync_layer_);
+      transfer_layer_ = std::move(other.transfer_layer_);
     }
     return *this;
   }
@@ -276,7 +290,7 @@ public:
   /**
    * @brief Returns the recorded forward times for each layer in milliseconds.
    */
-  std::map<std::string, uint64_t> get_forward_times() const {
+  std::map<Layer<T> *, uint64_t> get_forward_times() const {
     std::lock_guard<std::mutex> lock(forward_times_mutex_);
     return forward_times_microseconds_;
   }
@@ -284,7 +298,7 @@ public:
   /**
    * @brief Returns the recorded backward times for each layer in milliseconds.
    */
-  std::map<std::string, uint64_t> get_backward_times() const {
+  std::map<Layer<T> *, uint64_t> get_backward_times() const {
     std::lock_guard<std::mutex> lock(backward_times_mutex_);
     return backward_times_microseconds_;
   }
@@ -345,8 +359,8 @@ public:
     }
 
     // Create thread-safe copies of the timing maps
-    std::map<std::string, uint64_t> forward_times_copy;
-    std::map<std::string, uint64_t> backward_times_copy;
+    std::map<Layer<T> *, uint64_t> forward_times_copy;
+    std::map<Layer<T> *, uint64_t> backward_times_copy;
 
     {
       std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
@@ -372,21 +386,14 @@ public:
 
     uint64_t total_forward = 0, total_backward = 0;
     for (size_t i = 0; i < layers_.size(); ++i) {
-
-      std::string layer_name = layers_[i]->type();
-      auto config = layers_[i]->get_config();
-      if (!config.name.empty()) {
-        layer_name = config.name;
-      }
-
       uint64_t forward_time = 0;
-      auto forward_it = forward_times_copy.find(layer_name);
+      auto forward_it = forward_times_copy.find(layers_[i].get());
       if (forward_it != forward_times_copy.end()) {
         forward_time = forward_it->second;
       }
 
       uint64_t backward_time = 0;
-      auto backward_it = backward_times_copy.find(layer_name);
+      auto backward_it = backward_times_copy.find(layers_[i].get());
       if (backward_it != backward_times_copy.end()) {
         backward_time = backward_it->second;
       }
@@ -396,6 +403,12 @@ public:
       total_forward += forward_time;
       total_backward += backward_time;
 
+      std::string layer_name = layers_[i]->type();
+      auto config = layers_[i]->get_config();
+      if (!config.name.empty()) {
+        layer_name = config.name;
+      }
+
       std::cout << std::left << std::setw(20) << layer_name << std::setw(15) << std::fixed
                 << std::setprecision(3) << static_cast<double>(forward_time) / 1000.0
                 << std::setw(15) << std::fixed << std::setprecision(3)
@@ -403,8 +416,8 @@ public:
                 << std::setprecision(3) << static_cast<double>(total_time) / 1000.0 << "\n";
     }
 
-    std::vector<std::string> miscs{"synchronization", "final_transfer"};
-    for (const auto &misc : miscs) {
+    std::vector<Layer<T> *> miscs{sync_layer_.get(), transfer_layer_.get()};
+    for (auto misc : miscs) {
       uint64_t forward_time = 0;
       auto forward_it = forward_times_copy.find(misc);
       if (forward_it != forward_times_copy.end()) {
@@ -419,7 +432,9 @@ public:
       total_forward += forward_time;
       total_backward += backward_time;
 
-      std::cout << std::left << std::setw(20) << misc << std::setw(15) << std::fixed
+      std::string layer_name = misc->get_config().name; // Use config name
+
+      std::cout << std::left << std::setw(20) << layer_name << std::setw(15) << std::fixed
                 << std::setprecision(3) << static_cast<double>(forward_time) / 1000.0
                 << std::setw(15) << std::fixed << std::setprecision(3)
                 << static_cast<double>(backward_time) / 1000.0 << std::setw(15) << std::fixed
@@ -491,15 +506,9 @@ public:
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
-        std::string layer_name = layers_[i]->type();
-        auto config = layers_[i]->get_config();
-        if (!config.name.empty()) {
-          layer_name = config.name;
-        }
-
         {
           std::lock_guard<std::mutex> lock(forward_times_mutex_);
-          forward_times_microseconds_[layer_name] += duration.count();
+          forward_times_microseconds_[layers_[i].get()] += duration.count();
         }
       } catch (const std::exception &e) {
         throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
@@ -515,7 +524,7 @@ public:
         std::chrono::duration_cast<std::chrono::microseconds>(sync_end - sync_start);
     {
       std::lock_guard<std::mutex> lock(forward_times_mutex_);
-      forward_times_microseconds_["synchronization"] += sync_duration.count();
+      forward_times_microseconds_[sync_layer_.get()] += sync_duration.count();
     }
 
     auto copy_start = std::chrono::high_resolution_clock::now();
@@ -526,7 +535,7 @@ public:
         std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start);
     {
       std::lock_guard<std::mutex> lock(forward_times_mutex_);
-      forward_times_microseconds_["final_transfer"] += copy_duration.count();
+      forward_times_microseconds_[transfer_layer_.get()] += copy_duration.count();
     }
   }
 
@@ -558,15 +567,9 @@ public:
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
 
-        std::string layer_name = layers_[i]->type();
-        auto config = layers_[i]->get_config();
-        if (!config.name.empty()) {
-          layer_name = config.name;
-        }
-
         {
           std::lock_guard<std::mutex> lock(backward_times_mutex_);
-          backward_times_microseconds_[layer_name] += duration.count();
+          backward_times_microseconds_[layers_[i].get()] += duration.count();
         }
 
       } catch (const std::exception &e) {
@@ -583,7 +586,7 @@ public:
         std::chrono::duration_cast<std::chrono::microseconds>(sync_end - sync_start);
     {
       std::lock_guard<std::mutex> lock(backward_times_mutex_);
-      backward_times_microseconds_["synchronization"] += sync_duration.count();
+      backward_times_microseconds_[sync_layer_.get()] += sync_duration.count();
     }
 
     auto copy_start = std::chrono::high_resolution_clock::now();
@@ -594,7 +597,7 @@ public:
         std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start);
     {
       std::lock_guard<std::mutex> lock(backward_times_mutex_);
-      backward_times_microseconds_["final_transfer"] += copy_duration.count();
+      backward_times_microseconds_[transfer_layer_.get()] += copy_duration.count();
     }
   }
 

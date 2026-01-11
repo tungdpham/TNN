@@ -52,7 +52,6 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
   if (use_bias_) {
     bias_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
     bias_gradients_ = Tensor<T>({out_channels_, 1, 1, 1}, this->device_);
-    bias_.fill(T(0));
     bias_gradients_.fill(T(0));
   }
 
@@ -211,7 +210,6 @@ void Conv2DLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T> &
   const size_t output_w = current_gradient->shape()[3];
 
   grad_input.ensure(input_shape, this->device_);
-  grad_input.fill(T(0));
 
   // Fallback to im2col + GEMM approach
   auto it_col_buffer = micro_batch_col_buffers_.find(micro_batch_id);

@@ -16,22 +16,16 @@
 using namespace tnn;
 using namespace std;
 
-// Helper to convert sparse indices to one-hot vectors
-// Input: (B, T), Output: (B, T, V)
 void one_hot_encode(const Tensor<float> &targets, Tensor<float> &one_hot_targets,
                     size_t vocab_size) {
   size_t B = targets.shape()[0];
   size_t T_seq = targets.shape()[1];
 
-  // Only resize if necessary to avoid re-allocation
-  if (one_hot_targets.shape() != vector<size_t>{B, T_seq, vocab_size}) {
-    one_hot_targets.resize({B, T_seq, vocab_size});
-  }
+  one_hot_targets.ensure({B, T_seq, vocab_size});
 
   float *out_ptr = one_hot_targets.data();
   const float *in_ptr = targets.data();
 
-  // Fill with zeros
   std::fill(out_ptr, out_ptr + one_hot_targets.size(), 0.0f);
 
   for (size_t b = 0; b < B; ++b) {
@@ -39,8 +33,6 @@ void one_hot_encode(const Tensor<float> &targets, Tensor<float> &one_hot_targets
       float token_id = in_ptr[b * T_seq + t];
       int idx = static_cast<int>(token_id);
       if (idx >= 0 && idx < (int)vocab_size) {
-        // Layout is (B, T, V)
-        // Offset = b * (T * V) + t * V + idx
         size_t offset = b * (T_seq * vocab_size) + t * vocab_size + idx;
         out_ptr[offset] = 1.0f;
       }
