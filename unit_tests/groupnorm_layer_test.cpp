@@ -164,7 +164,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   size_t num_channels = 4;
   GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
@@ -190,7 +190,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   size_t num_channels = 4;
   GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
@@ -222,7 +222,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   size_t num_channels = 4;
   GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, num_channels, 2, 2}, cpu_device_);
@@ -248,7 +248,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   size_t num_channels = 4;
   GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
@@ -273,7 +273,7 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   size_t num_channels = 4;
   GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);

@@ -10,7 +10,6 @@ using namespace tnn;
 using namespace std;
 
 void run_test() {
-
   Sequential<float> model;
   try {
     model = Sequential<float>::from_file("model_snapshots/mnist_cnn_model");

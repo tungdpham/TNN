@@ -203,14 +203,14 @@ public:
                                                  name + "_out");
   }
 
-  void initialize_params() override {
-    q_proj_->initialize();
-    k_proj_->initialize();
-    v_proj_->initialize();
-    out_proj_->initialize();
+  void init_params() override {
+    q_proj_->init();
+    k_proj_->init();
+    v_proj_->init();
+    out_proj_->init();
   }
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const auto &shape = input.shape();
     size_t batch_size = shape[0];
     size_t H = shape[2];
@@ -275,8 +275,8 @@ public:
     out_proj_->forward(attn_out, output, micro_batch_id);
   }
 
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override {
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override {
     if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
       throw std::runtime_error("FlashAttentionBlock: Cache not found for micro_batch_id");
     }
@@ -395,9 +395,6 @@ public:
     ops::add(dq_in_ptr, dk_in_ptr, temp_ptr, size, "default");
     ops::add(temp_ptr, dv_in_ptr, grad_in_ptr, size, "default");
   }
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override { return 0; }
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }

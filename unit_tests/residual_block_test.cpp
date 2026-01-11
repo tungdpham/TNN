@@ -113,7 +113,7 @@ protected:
     auto layer = std::make_unique<Conv2DLayer<float>>(in_channels, out_channels, 1, 1, 1, 1, 0, 0,
                                                       false, name);
     layer->set_device(cpu_device_);
-    layer->initialize();
+    layer->init();
 
     // Set weights to scale value
     auto params = layer->parameters();
@@ -141,7 +141,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "identity_residual");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -168,7 +168,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "relu", "identity_relu");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -193,7 +193,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "identity_multichannel");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 2, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -225,7 +225,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "identity_multibatch");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({2, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -261,7 +261,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
   ResidualBlock<float> residual(std::move(main_path), std::move(shortcut), "none",
                                 "projection_residual");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -289,7 +289,7 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
   ResidualBlock<float> residual(std::move(main_path), std::move(shortcut), "relu",
                                 "projection_relu");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -316,7 +316,7 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "identity_backward");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -412,7 +412,7 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "zero_gradient");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1.0f);
@@ -438,7 +438,7 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "large_values");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -463,7 +463,7 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "negative_values");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -488,7 +488,7 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "small_values");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -513,7 +513,7 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "backward_stability");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1e-6f);
@@ -546,7 +546,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "multi_layer");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -574,7 +574,7 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "none", "multi_layer_backward");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   input.fill(1.0f);
@@ -604,7 +604,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "relu", "relu_suppression");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();
@@ -629,7 +629,7 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
 
   ResidualBlock<float> residual(std::move(main_path), {}, "relu", "relu_suppression_bwd");
   residual.set_device(cpu_device_);
-  residual.initialize();
+  residual.init();
 
   Tensor<float> input({1, 1, 2, 2}, cpu_device_);
   float *input_data = input.data();

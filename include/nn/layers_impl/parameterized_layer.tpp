@@ -9,13 +9,7 @@
 
 namespace tnn {
 
-template <typename T> void ParameterizedLayer<T>::initialize() {
-  if (initialized_) {
-    return;
-  }
-  initialize_params();
-  initialized_ = true;
-}
+template <typename T> void ParameterizedLayer<T>::init_impl() { init_params(); }
 
 template <typename T> std::vector<Tensor<T> *> ParameterizedLayer<T>::parameters() {
   std::vector<Tensor<T> *> params;

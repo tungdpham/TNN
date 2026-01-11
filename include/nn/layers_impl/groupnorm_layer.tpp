@@ -27,7 +27,7 @@ GroupNormLayer<T>::GroupNormLayer(size_t num_groups, size_t num_channels, T epsi
   }
 }
 
-template <typename T> void GroupNormLayer<T>::initialize_params() {
+template <typename T> void GroupNormLayer<T>::init_params() {
   if (this->initialized_) {
     return;
   }
@@ -49,7 +49,8 @@ template <typename T> void GroupNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void GroupNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                     size_t micro_batch_id) {
   if (input.shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -103,8 +104,8 @@ void GroupNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
 }
 
 template <typename T>
-void GroupNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                                 size_t micro_batch_id) {
+void GroupNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                      size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
 
@@ -278,18 +279,6 @@ uint64_t GroupNormLayer<T>::backward_flops(const std::vector<size_t> &input_shap
   uint64_t input_grad_flops = 9 * num_elements;
 
   return param_grad_flops + input_grad_flops;
-}
-
-template <typename T>
-uint64_t GroupNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t GroupNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template class GroupNormLayer<float>;

@@ -138,7 +138,7 @@ protected:
 TEST_F(DenseLayerTest, BasicForwardPass) {
   DenseLayer<float> layer(10, 5, true, "test_dense");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -160,7 +160,7 @@ TEST_F(DenseLayerTest, BasicForwardPass) {
 TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
   DenseLayer<float> layer(20, 10, true, "test_dense_single");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 20, 1, 1}, cpu_device_);
   float *input_data = input.data();
@@ -181,7 +181,7 @@ TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
 TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
   DenseLayer<float> layer(15, 8, false, "test_dense_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({4, 15, 1, 1}, cpu_device_);
   input.fill(0.5f);
@@ -199,7 +199,7 @@ TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
 TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
   DenseLayer<float> layer(128, 64, true, "test_dense_large");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 128, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -216,7 +216,7 @@ TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
 TEST_F(DenseLayerTest, ForwardPassWithBias) {
   DenseLayer<float> layer(10, 5, true, "test_dense_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -233,7 +233,7 @@ TEST_F(DenseLayerTest, ForwardPassWithBias) {
 TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
   DenseLayer<float> layer(10, 5, false, "test_dense_no_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -250,7 +250,7 @@ TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
 TEST_F(DenseLayerTest, ForwardPassVariableInput) {
   DenseLayer<float> layer(6, 3, true, "test_dense_variable");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 6, 1, 1}, cpu_device_);
   float *input_data = input.data();
@@ -270,7 +270,7 @@ TEST_F(DenseLayerTest, ForwardPassVariableInput) {
 TEST_F(DenseLayerTest, BasicBackwardPass) {
   DenseLayer<float> layer(10, 5, true, "test_dense_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -297,7 +297,7 @@ TEST_F(DenseLayerTest, BasicBackwardPass) {
 TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
   DenseLayer<float> layer(20, 10, true, "test_dense_backward_single");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 20, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -320,7 +320,7 @@ TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
 TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
   DenseLayer<float> layer(15, 8, false, "test_dense_backward_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({4, 15, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -343,7 +343,7 @@ TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
 TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
   DenseLayer<float> layer(8, 4, true, "test_dense_backward_var");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 8, 1, 1}, cpu_device_);
   float *input_data = input.data();
@@ -371,7 +371,7 @@ TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
 TEST_F(DenseLayerTest, BackwardPassWithBias) {
   DenseLayer<float> layer(10, 5, true, "test_dense_backward_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -392,7 +392,7 @@ TEST_F(DenseLayerTest, BackwardPassWithBias) {
 TEST_F(DenseLayerTest, BackwardPassWithoutBias) {
   DenseLayer<float> layer(10, 5, false, "test_dense_backward_no_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -462,7 +462,7 @@ TEST_F(DenseLayerTest, Clone) {
 TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
   DenseLayer<float> layer(2, 1, true, "test_small_layer");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 2, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -479,7 +479,7 @@ TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
 TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
   DenseLayer<float> layer(10, 5, true, "test_zero_gradient");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -500,7 +500,7 @@ TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
 TEST_F(DenseLayerTest, EdgeCaseLargeValues) {
   DenseLayer<float> layer(10, 5, false, "test_large_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e6f);
@@ -515,7 +515,7 @@ TEST_F(DenseLayerTest, EdgeCaseLargeValues) {
 TEST_F(DenseLayerTest, EdgeCaseNegativeValues) {
   DenseLayer<float> layer(8, 4, true, "test_negative_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 8, 1, 1}, cpu_device_);
   float *input_data = input.data();
@@ -533,7 +533,7 @@ TEST_F(DenseLayerTest, EdgeCaseNegativeValues) {
 TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
   DenseLayer<float> layer(20, 10, true, "test_large_batch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({32, 20, 1, 1}, cpu_device_);
   input.fill(1.0f);
@@ -552,7 +552,7 @@ TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
 TEST_F(DenseLayerTest, NumericalStabilitySmallValues) {
   DenseLayer<float> layer(10, 5, true, "test_small_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e-6f);
@@ -567,7 +567,7 @@ TEST_F(DenseLayerTest, NumericalStabilitySmallValues) {
 TEST_F(DenseLayerTest, BackwardNumericalStability) {
   DenseLayer<float> layer(10, 5, false, "test_backward_stability");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   input.fill(1e-6f);
@@ -588,7 +588,7 @@ TEST_F(DenseLayerTest, BackwardNumericalStability) {
 TEST_F(DenseLayerTest, NumericalStabilityMixedValues) {
   DenseLayer<float> layer(10, 5, true, "test_mixed_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 10, 1, 1}, cpu_device_);
   float *input_data = input.data();
@@ -608,7 +608,7 @@ TEST_F(DenseLayerTest, NumericalStabilityMixedValues) {
 TEST_F(DenseLayerTest, MultipleForwardBackwardPasses) {
   DenseLayer<float> layer(10, 5, true, "test_multiple_passes");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   // First pass
   Tensor<float> input1({2, 10, 1, 1}, cpu_device_);

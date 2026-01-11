@@ -19,7 +19,7 @@ SliceLayer<T>::SliceLayer(size_t axis, size_t start, size_t length, const std::s
     : StatelessLayer<T>(name), axis_(axis), start_(start), length_(length) {}
 
 template <typename T>
-void SliceLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void SliceLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   const Tensor<T> *current = &input;
@@ -48,8 +48,8 @@ void SliceLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t mi
 }
 
 template <typename T>
-void SliceLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                             size_t micro_batch_id) {
+void SliceLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                  size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
@@ -126,18 +126,6 @@ uint64_t SliceLayer<T>::forward_flops(const std::vector<size_t> &input_shape) co
 template <typename T>
 uint64_t SliceLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
   return 0;
-}
-
-template <typename T>
-uint64_t SliceLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t SliceLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template class SliceLayer<float>;

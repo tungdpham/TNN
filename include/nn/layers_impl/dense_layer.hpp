@@ -66,16 +66,13 @@ private:
                                         const size_t output_features,
                                         const std::string &flow_id) const;
 
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override;
+
 public:
   DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
              const std::string &name = "dense");
-
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -93,7 +90,7 @@ public:
   void clear_gradients() override;
 
 protected:
-  void initialize_params() override;
+  void init_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
 };

@@ -88,7 +88,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -119,7 +119,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -150,7 +150,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -170,7 +170,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedAndProjection) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -190,7 +190,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 32, 16, 16}, cpu_device_);
   input.fill(1.0f);
@@ -232,7 +232,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockMultipleBlocks) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -256,7 +256,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 256, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -287,7 +287,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockProjectionShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -308,7 +308,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedShortcut) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 256, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -328,7 +328,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedAndProjection)
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -349,7 +349,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 16, 16}, cpu_device_);
   input.fill(1.0f);
@@ -391,7 +391,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockMultipleBlocks) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -418,7 +418,7 @@ TEST_F(SequentialResidualBlockTest, MixedBasicAndBottleneckBlocks) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -445,7 +445,7 @@ TEST_F(SequentialResidualBlockTest, ResNet18LikeArchitecture) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -473,7 +473,7 @@ TEST_F(SequentialResidualBlockTest, ResNet50LikeArchitecture) {
                                 .build();
 
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 64, 32, 32}, cpu_device_);
   input.fill(1.0f);
@@ -575,7 +575,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
                                 .basic_residual_block(16, 16, 1)
                                 .build();
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   // Test with different input scales
   std::vector<float> scales = {0.01f, 0.1f, 1.0f, 10.0f};
@@ -615,7 +615,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
                                 .bottleneck_residual_block(32, 16, 32, 1)
                                 .build();
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   // Test with different input scales
   std::vector<float> scales = {0.01f, 0.1f, 1.0f, 10.0f};
@@ -653,7 +653,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
                                 .basic_residual_block(8, 8, 1)
                                 .build();
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 8, 8, 8}, cpu_device_);
   srand(42);
@@ -694,7 +694,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
                                 .bottleneck_residual_block(16, 8, 16, 1)
                                 .build();
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 16, 8, 8}, cpu_device_);
   srand(42);
@@ -737,7 +737,7 @@ TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
                                 .bottleneck_residual_block(32, 16, 32, 1)
                                 .build();
   model.set_device(cpu_device_);
-  model.initialize();
+  model.init();
 
   Tensor<float> input({1, 16, 16, 16}, cpu_device_);
   srand(42);

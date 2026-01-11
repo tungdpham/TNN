@@ -16,7 +16,8 @@ FlattenLayer<T>::FlattenLayer(int start_dim, const std::string &name)
     : StatelessLayer<T>(name), start_dim_(start_dim) {}
 
 template <typename T>
-void FlattenLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void FlattenLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                   size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
   const Tensor<T> *current = &input;
@@ -33,8 +34,8 @@ void FlattenLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t 
 }
 
 template <typename T>
-void FlattenLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                               size_t micro_batch_id) {
+void FlattenLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                    size_t micro_batch_id) {
   auto it = micro_batch_original_shapes_.find(micro_batch_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
@@ -108,20 +109,6 @@ template <typename T>
 uint64_t FlattenLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
 
   return 0;
-}
-
-template <typename T>
-uint64_t FlattenLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t FlattenLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template class FlattenLayer<float>;

@@ -22,6 +22,7 @@
 #include <cmath>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tnn {
@@ -37,8 +38,10 @@ private:
   std::unique_ptr<DenseLayer<T>> v_proj_;
   std::unique_ptr<DenseLayer<T>> out_proj_;
 
-  Tensor<T> q_, k_, v_;
-  Tensor<T> scores_;
+  std::unordered_map<size_t, Tensor<T>> q_cache_;
+  std::unordered_map<size_t, Tensor<T>> k_cache_;
+  std::unordered_map<size_t, Tensor<T>> v_cache_;
+  std::unordered_map<size_t, Tensor<T>> scores_cache_;
 
   void softmax_last_dim(Tensor<T> &input) {
     const auto &shape = input.shape();
@@ -131,11 +134,11 @@ public:
     out_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_out");
   }
 
-  void initialize_params() override {
-    q_proj_->initialize();
-    k_proj_->initialize();
-    v_proj_->initialize();
-    out_proj_->initialize();
+  void init_params() override {
+    q_proj_->init();
+    k_proj_->init();
+    v_proj_->init();
+    out_proj_->init();
   }
 
   void set_training(bool training) override {
@@ -154,7 +157,7 @@ public:
     out_proj_->set_device(device);
   }
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const auto &shape = input.shape();
     size_t batch_size = shape[0];
     size_t L;
@@ -166,24 +169,28 @@ public:
       L = shape[2] * shape[3];
     }
 
-    q_proj_->forward(input, q_, micro_batch_id);
-    k_proj_->forward(input, k_, micro_batch_id);
-    v_proj_->forward(input, v_, micro_batch_id);
+    Tensor<T> &q = q_cache_[micro_batch_id];
+    Tensor<T> &k = k_cache_[micro_batch_id];
+    Tensor<T> &v = v_cache_[micro_batch_id];
+
+    q_proj_->forward(input, q, micro_batch_id);
+    k_proj_->forward(input, k, micro_batch_id);
+    v_proj_->forward(input, v, micro_batch_id);
 
     size_t batch_count = batch_size * num_heads_;
     size_t M = L;
     size_t N = L;
     size_t K_dim = head_dim_;
 
-    scores_.ensure({batch_count, 1, L, L}, this->device_);
-    Tensor<T> &scores = scores_;
+    Tensor<T> &scores = scores_cache_[micro_batch_id];
+    scores.ensure({batch_count, 1, L, L}, this->device_);
 
     T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
     T beta = 0.0f;
 
-    auto q_ptr = q_.data_ptr().get();
-    auto k_ptr = k_.data_ptr().get();
-    auto v_ptr = v_.data_ptr().get();
+    auto q_ptr = q.data_ptr().get();
+    auto k_ptr = k.data_ptr().get();
+    auto v_ptr = v.data_ptr().get();
     auto s_ptr = scores.data_ptr().get();
 
     size_t head_size = head_dim_ * L;
@@ -220,7 +227,7 @@ public:
 
     softmax_last_dim(scores);
 
-    PooledTensor<T> attn_out_buffer = this->get_buffer(q_.shape());
+    PooledTensor<T> attn_out_buffer = this->get_buffer(q.shape());
     Tensor<T> &attn_out = attn_out_buffer.get();
     auto out_ptr = attn_out.data_ptr().get();
 
@@ -238,35 +245,43 @@ public:
     out_proj_->forward(attn_out, output, micro_batch_id);
   }
 
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override {
-    PooledTensor<T> grad_attn_out_buffer = this->get_buffer(q_.shape());
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override {
+    if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
+      throw std::runtime_error("CausalAttentionBlock: Cache not found for micro_batch_id");
+    }
+    Tensor<T> &q = q_cache_[micro_batch_id];
+    Tensor<T> &k = k_cache_[micro_batch_id];
+    Tensor<T> &v = v_cache_[micro_batch_id];
+    Tensor<T> &scores = scores_cache_[micro_batch_id];
+
+    PooledTensor<T> grad_attn_out_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_attn_out = grad_attn_out_buffer.get();
     out_proj_->backward(gradient, grad_attn_out, micro_batch_id);
 
-    const auto &q_shape = q_.shape();
+    const auto &q_shape = q.shape();
     size_t batch_size = q_shape[0];
     size_t L = (q_shape.size() == 4) ? (q_shape[2] * q_shape[3]) : q_shape[1];
     size_t batch_count = batch_size * num_heads_;
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;
 
-    PooledTensor<T> grad_q_buffer = this->get_buffer(q_.shape());
+    PooledTensor<T> grad_q_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_q = grad_q_buffer.get();
-    PooledTensor<T> grad_k_buffer = this->get_buffer(k_.shape());
+    PooledTensor<T> grad_k_buffer = this->get_buffer(k.shape());
     Tensor<T> &grad_k = grad_k_buffer.get();
-    PooledTensor<T> grad_v_buffer = this->get_buffer(v_.shape());
+    PooledTensor<T> grad_v_buffer = this->get_buffer(v.shape());
     Tensor<T> &grad_v = grad_v_buffer.get();
-    PooledTensor<T> grad_scores_buffer = this->get_buffer(scores_.shape());
+    PooledTensor<T> grad_scores_buffer = this->get_buffer(scores.shape());
     Tensor<T> &grad_scores = grad_scores_buffer.get();
 
     auto g_v_ptr = grad_v.data_ptr().get();
     auto g_out_ptr = grad_attn_out.data_ptr().get();
-    auto s_ptr = scores_.data_ptr().get();
+    auto s_ptr = scores.data_ptr().get();
     auto g_s_ptr = grad_scores.data_ptr().get();
-    auto v_ptr = v_.data_ptr().get();
-    auto q_ptr = q_.data_ptr().get();
-    auto k_ptr = k_.data_ptr().get();
+    auto v_ptr = v.data_ptr().get();
+    auto q_ptr = q.data_ptr().get();
+    auto k_ptr = k.data_ptr().get();
     auto g_q_ptr = grad_q.data_ptr().get();
     auto g_k_ptr = grad_k.data_ptr().get();
 
@@ -298,7 +313,7 @@ public:
       throw std::runtime_error("AttentionBlock: GPU Softmax requires cuDNN.");
 #endif
     } else {
-      softmax_backward_cpu(scores_, grad_scores, grad_scores);
+      softmax_backward_cpu(scores, grad_scores, grad_scores);
     }
 
     T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
@@ -372,27 +387,20 @@ public:
     return out_proj_->compute_output_shape(input_shape);
   }
 
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override {
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {
     size_t batch_size = input_shape[0];
-    size_t L = input_shape[2] * input_shape[3]; /* N, C, H, W */
-    uint64_t flops = 3 * q_proj_->forward_complexity(input_shape);
+    size_t L = input_shape[2];
+    uint64_t flops = q_proj_->forward_flops(input_shape) + k_proj_->forward_flops(input_shape) +
+                     v_proj_->forward_flops(input_shape);
     size_t score_ops = batch_size * num_heads_ * L * L * head_dim_ * 2;
     size_t attn_ops = batch_size * num_heads_ * L * L * head_dim_ * 2;
     flops += score_ops + attn_ops;
-    flops += out_proj_->forward_complexity(input_shape);
+    flops += out_proj_->forward_flops(input_shape);
     return flops;
   }
 
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override {
-    return forward_complexity(input_shape) * 2;
-  }
-
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {
-    return forward_complexity(input_shape);
-  }
-
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override {
-    return backward_complexity(input_shape);
+    return forward_flops(input_shape) * 2;
   }
 
   std::string type() const override { return "causal_attention"; }

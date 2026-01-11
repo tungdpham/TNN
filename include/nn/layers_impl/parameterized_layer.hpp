@@ -18,13 +18,15 @@ template <typename T = float> class ParameterizedLayer : public Layer<T> {
 public:
   explicit ParameterizedLayer(const std::string &name = "") { this->name_ = name; }
 
-  void initialize() override;
   std::vector<Tensor<T> *> parameters() override;
   std::vector<Tensor<T> *> gradients() override;
   bool has_parameters() const override { return true; }
 
+private:
+  void init_impl() override;
+
 protected:
-  virtual void initialize_params() = 0;
+  virtual void init_params() = 0;
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
   bool initialized_ = false;

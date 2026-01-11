@@ -197,7 +197,7 @@ protected:
 TEST_F(Conv2DLayerTest, BasicForwardPass) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_conv");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -220,7 +220,7 @@ TEST_F(Conv2DLayerTest, BasicForwardPass) {
 TEST_F(Conv2DLayerTest, ForwardPassWithStride) {
   Conv2DLayer<float> layer(1, 2, 3, 3, 2, 2, 0, 0, false, "test_conv_stride");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 7, 7}, cpu_device_);
   input.fill(1.0f);
@@ -239,7 +239,7 @@ TEST_F(Conv2DLayerTest, ForwardPassWithStride) {
 TEST_F(Conv2DLayerTest, ForwardPassWithPadding) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 1, 1, true, "test_conv_padding");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -257,7 +257,7 @@ TEST_F(Conv2DLayerTest, ForwardPassWithPadding) {
 TEST_F(Conv2DLayerTest, ForwardPassMultiChannel) {
   Conv2DLayer<float> layer(3, 2, 3, 3, 1, 1, 0, 0, true, "test_conv_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 3, 5, 5}, cpu_device_);
   float *input_data = input.data();
@@ -279,7 +279,7 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiChannel) {
 TEST_F(Conv2DLayerTest, ForwardPassMultiBatch) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, false, "test_conv_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({4, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -296,7 +296,7 @@ TEST_F(Conv2DLayerTest, ForwardPassMultiBatch) {
 TEST_F(Conv2DLayerTest, ForwardPassNonSquareKernel) {
   Conv2DLayer<float> layer(1, 1, 3, 5, 1, 1, 0, 0, true, "test_conv_nonsquare");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 7, 9}, cpu_device_);
   input.fill(1.0f);
@@ -314,7 +314,7 @@ TEST_F(Conv2DLayerTest, ForwardPassNonSquareKernel) {
 TEST_F(Conv2DLayerTest, ForwardPassWithBias) {
   Conv2DLayer<float> layer(1, 2, 3, 3, 1, 1, 0, 0, true, "test_conv_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -331,7 +331,7 @@ TEST_F(Conv2DLayerTest, ForwardPassWithBias) {
 TEST_F(Conv2DLayerTest, ForwardPassWithoutBias) {
   Conv2DLayer<float> layer(1, 2, 3, 3, 1, 1, 0, 0, false, "test_conv_no_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -350,7 +350,7 @@ TEST_F(Conv2DLayerTest, ForwardPassWithoutBias) {
 TEST_F(Conv2DLayerTest, BasicBackwardPass) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_conv_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -375,7 +375,7 @@ TEST_F(Conv2DLayerTest, BasicBackwardPass) {
 TEST_F(Conv2DLayerTest, BackwardPassWithPadding) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 1, 1, true, "test_conv_backward_pad");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -397,7 +397,7 @@ TEST_F(Conv2DLayerTest, BackwardPassWithPadding) {
 TEST_F(Conv2DLayerTest, BackwardPassMultiChannel) {
   Conv2DLayer<float> layer(3, 2, 3, 3, 1, 1, 0, 0, true, "test_conv_backward_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 3, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -420,7 +420,7 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiChannel) {
 TEST_F(Conv2DLayerTest, BackwardPassMultiBatch) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, false, "test_conv_backward_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({4, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -443,7 +443,7 @@ TEST_F(Conv2DLayerTest, BackwardPassMultiBatch) {
 TEST_F(Conv2DLayerTest, BackwardPassVariableGradient) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_conv_backward_var");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   float *input_data = input.data();
@@ -524,7 +524,7 @@ TEST_F(Conv2DLayerTest, Clone) {
 TEST_F(Conv2DLayerTest, EdgeCase1x1Convolution) {
   Conv2DLayer<float> layer(3, 16, 1, 1, 1, 1, 0, 0, true, "test_1x1_conv");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 3, 8, 8}, cpu_device_);
   input.fill(1.0f);
@@ -542,7 +542,7 @@ TEST_F(Conv2DLayerTest, EdgeCase1x1Convolution) {
 TEST_F(Conv2DLayerTest, EdgeCaseZeroGradient) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_zero_gradient");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1.0f);
@@ -563,7 +563,7 @@ TEST_F(Conv2DLayerTest, EdgeCaseZeroGradient) {
 TEST_F(Conv2DLayerTest, EdgeCaseLargeValues) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, false, "test_large_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e6f);
@@ -579,7 +579,7 @@ TEST_F(Conv2DLayerTest, EdgeCaseLargeValues) {
 TEST_F(Conv2DLayerTest, EdgeCaseNegativeValues) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_negative_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   float *input_data = input.data();
@@ -599,7 +599,7 @@ TEST_F(Conv2DLayerTest, EdgeCaseNegativeValues) {
 TEST_F(Conv2DLayerTest, NumericalStabilitySmallValues) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, true, "test_small_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e-6f);
@@ -615,7 +615,7 @@ TEST_F(Conv2DLayerTest, NumericalStabilitySmallValues) {
 TEST_F(Conv2DLayerTest, BackwardNumericalStability) {
   Conv2DLayer<float> layer(1, 1, 3, 3, 1, 1, 0, 0, false, "test_backward_stability");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   input.fill(1e-6f);
@@ -636,7 +636,7 @@ TEST_F(Conv2DLayerTest, BackwardNumericalStability) {
 TEST_F(Conv2DLayerTest, ParameterCollectionWithBias) {
   Conv2DLayer<float> layer(3, 16, 3, 3, 1, 1, 0, 0, true, "test_params_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> params = layer.parameters();
 
@@ -646,7 +646,7 @@ TEST_F(Conv2DLayerTest, ParameterCollectionWithBias) {
 TEST_F(Conv2DLayerTest, ParameterCollectionWithoutBias) {
   Conv2DLayer<float> layer(3, 16, 3, 3, 1, 1, 0, 0, false, "test_params_no_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> params = layer.parameters();
   EXPECT_EQ(params.size(), 1); // weights only
@@ -655,7 +655,7 @@ TEST_F(Conv2DLayerTest, ParameterCollectionWithoutBias) {
 TEST_F(Conv2DLayerTest, GradientCollectionWithBias) {
   Conv2DLayer<float> layer(3, 16, 3, 3, 1, 1, 0, 0, true, "test_grads_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
@@ -665,7 +665,7 @@ TEST_F(Conv2DLayerTest, GradientCollectionWithBias) {
 TEST_F(Conv2DLayerTest, GradientCollectionWithoutBias) {
   Conv2DLayer<float> layer(3, 16, 3, 3, 1, 1, 0, 0, false, "test_grads_no_bias");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
@@ -678,7 +678,7 @@ TEST_F(Conv2DLayerTest, ResNet1x1ChannelIncrease) {
   // 1x1 conv to increase channels (common in ResNet shortcut connections)
   Conv2DLayer<float> layer(64, 256, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_increase");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -715,7 +715,7 @@ TEST_F(Conv2DLayerTest, ResNet1x1ChannelDecrease) {
   // 1x1 conv to decrease channels (bottleneck architecture)
   Conv2DLayer<float> layer(256, 64, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_decrease");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 256, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -751,7 +751,7 @@ TEST_F(Conv2DLayerTest, ResNetStridedDownsample) {
   // Strided 3x3 conv for spatial downsampling (stride=2, no padding)
   Conv2DLayer<float> layer(64, 128, 3, 3, 2, 2, 0, 0, false, "resnet_strided_downsample");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 9, 9}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -789,7 +789,7 @@ TEST_F(Conv2DLayerTest, ResNetStridedWithPadding) {
   // This halves spatial dimensions exactly
   Conv2DLayer<float> layer(64, 128, 3, 3, 2, 2, 1, 1, false, "resnet_strided_padded");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -826,7 +826,7 @@ TEST_F(Conv2DLayerTest, ResNet1x1StridedDownsample) {
   // 1x1 strided conv for shortcut downsampling in ResNet
   Conv2DLayer<float> layer(64, 256, 1, 1, 2, 2, 0, 0, false, "resnet_1x1_strided");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -863,7 +863,7 @@ TEST_F(Conv2DLayerTest, ResNetBottleneck3x3) {
   // 3x3 conv in bottleneck block (stride=1, pad=1, same spatial dims)
   Conv2DLayer<float> layer(64, 64, 3, 3, 1, 1, 1, 1, false, "resnet_bottleneck_3x3");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -900,7 +900,7 @@ TEST_F(Conv2DLayerTest, ResNetFirstConv7x7) {
   // First conv in ResNet: 7x7, stride=2, pad=3
   Conv2DLayer<float> layer(3, 64, 7, 7, 2, 2, 3, 3, true, "resnet_first_conv");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 3, 15, 15}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -938,7 +938,7 @@ TEST_F(Conv2DLayerTest, ResNetAsymmetricStride) {
   // Asymmetric stride case (less common but valid)
   Conv2DLayer<float> layer(32, 64, 3, 3, 2, 1, 1, 1, false, "resnet_asymmetric_stride");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 32, 8, 8}, cpu_device_); // Smaller size for numerical verification
   float *input_data = input.data();
@@ -977,7 +977,7 @@ TEST_F(Conv2DLayerTest, ResNetSmallFeatureMap) {
   Conv2DLayer<float> layer(64, 64, 3, 3, 2, 2, 1, 1, false,
                            "resnet_small_feature"); // Smaller channels for faster verification
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 64, 7, 7}, cpu_device_);
   float *input_data = input.data();

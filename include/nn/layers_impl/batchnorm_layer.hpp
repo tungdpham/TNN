@@ -87,17 +87,17 @@ private:
                                            size_t batch_size, size_t channels, size_t spatial_size,
                                            const std::string &flow_id = "default");
 
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override;
+
 public:
   explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
                           bool affine = true, const std::string &name = "batchnorm");
   ~BatchNormLayer() override;
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
+  void save_state(std::ofstream &file) override;
+  void load_state(std::ifstream &file) override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -109,13 +109,10 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 
-  const Tensor<T> &running_mean() const { return running_mean_; }
-  const Tensor<T> &running_var() const { return running_var_; }
-
   size_t cached_memory_bytes() const override;
 
 protected:
-  void initialize_params() override;
+  void init_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
   void clear_gradients() override;

@@ -36,19 +36,16 @@ template <typename T> BatchNormLayer<T>::~BatchNormLayer() {
 #endif
 }
 
-template <typename T> void BatchNormLayer<T>::initialize_params() {
+template <typename T> void BatchNormLayer<T>::init_params() {
   if (this->initialized_) {
     return;
   }
 
-  // Allocate gradients unconditionally to support non-affine mode without invalid pointers
   gamma_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
   beta_gradients_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
   gamma_gradients_.fill(T(0));
   beta_gradients_.fill(T(0));
 
-  // Always allocate gamma and beta. Required for CuDNN and simplifies logic.
-  // If affine_ is false, they are not added to parameters and thus not updated.
   gamma_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
   beta_ = Tensor<T>({num_features_, 1, 1, 1}, this->device_);
   gamma_.fill(T(1));
@@ -63,7 +60,8 @@ template <typename T> void BatchNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void BatchNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void BatchNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                     size_t micro_batch_id) {
   if (input.shape()[1] != num_features_) {
     throw std::invalid_argument("Input channels must match num_features in BatchNormLayer");
   }
@@ -86,8 +84,8 @@ void BatchNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
 }
 
 template <typename T>
-void BatchNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                                 size_t micro_batch_id) {
+void BatchNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                      size_t micro_batch_id) {
   const Tensor<T> *current_gradient = &gradient;
   Tensor<T> device_gradient;
   if (gradient.device() != this->device_) {
@@ -404,6 +402,29 @@ BatchNormLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) 
   return input_shape;
 }
 
+template <typename T> void BatchNormLayer<T>::save_state(std::ofstream &file) {
+  if (affine_) {
+    gamma_.save(file);
+    beta_.save(file);
+  }
+  running_mean_.save(file);
+  running_var_.save(file);
+}
+
+template <typename T> void BatchNormLayer<T>::load_state(std::ifstream &file) {
+  if (this->device_ == nullptr) {
+    std::cerr << "ERR: Device not set for BatchNormLayer when loading state." << std::endl;
+    return;
+  }
+  if (affine_) {
+    gamma_ = Tensor<T>::load(file, this->device_);
+    beta_ = Tensor<T>::load(file, this->device_);
+  }
+  running_mean_ = Tensor<T>::load(file, this->device_);
+  running_var_ = Tensor<T>::load(file, this->device_);
+  this->initialized_ = true;
+}
+
 template <typename T> void BatchNormLayer<T>::collect_parameters(std::vector<Tensor<T> *> &params) {
   if (affine_) {
     params.push_back(&gamma_);
@@ -465,18 +486,6 @@ uint64_t BatchNormLayer<T>::backward_flops(const std::vector<size_t> &input_shap
   uint64_t input_grad_flops = 9 * num_elements;
 
   return param_grad_flops + input_grad_flops;
-}
-
-template <typename T>
-uint64_t BatchNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t BatchNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T> size_t BatchNormLayer<T>::cached_memory_bytes() const {

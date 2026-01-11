@@ -21,7 +21,7 @@ LayerNormLayer<T>::LayerNormLayer(size_t normalized_shape, T epsilon, bool affin
     : ParameterizedLayer<T>(name), normalized_shape_(normalized_shape), epsilon_(epsilon),
       affine_(affine) {}
 
-template <typename T> void LayerNormLayer<T>::initialize_params() {
+template <typename T> void LayerNormLayer<T>::init_params() {
   if (this->initialized_)
     return;
 
@@ -41,7 +41,8 @@ template <typename T> void LayerNormLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void LayerNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void LayerNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                     size_t micro_batch_id) {
   // Cache input
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
   if (it_input == micro_batch_inputs_.end()) {
@@ -88,8 +89,8 @@ void LayerNormLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
 }
 
 template <typename T>
-void LayerNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                                 size_t micro_batch_id) {
+void LayerNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                      size_t micro_batch_id) {
   if (micro_batch_inputs_.find(micro_batch_id) == micro_batch_inputs_.end()) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
@@ -127,35 +128,23 @@ void LayerNormLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_inpu
 }
 
 template <typename T>
-uint64_t LayerNormLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
+uint64_t LayerNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() < 2)
     return 0;
   size_t elements = 1;
   for (size_t s : input_shape)
     elements *= s;
-  // Mean: N adds + 1 div. Var: N subs + N muls + N adds + 1 div. Norm: N subs + N muls. Scale: N
-  // muls + N adds. approx 8 ops per element
   return elements * 8;
 }
 
 template <typename T>
-uint64_t LayerNormLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
+uint64_t LayerNormLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() < 2)
     return 0;
   size_t elements = 1;
   for (size_t s : input_shape)
     elements *= s;
   return elements * 16;
-}
-
-template <typename T>
-uint64_t LayerNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
-  return forward_complexity(input_shape);
-}
-
-template <typename T>
-uint64_t LayerNormLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
-  return backward_complexity(input_shape);
 }
 
 template <typename T> LayerConfig LayerNormLayer<T>::get_config() const {

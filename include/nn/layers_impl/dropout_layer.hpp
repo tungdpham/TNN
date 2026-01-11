@@ -26,15 +26,12 @@ private:
   std::unique_ptr<Task> compute_dropout_forward(const Tensor<T> &input, Tensor<T> &output,
                                                 Tensor<T> &mask);
 
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override;
+
 public:
   explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
-
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

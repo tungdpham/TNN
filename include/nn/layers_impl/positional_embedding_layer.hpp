@@ -7,9 +7,7 @@
 #pragma once
 
 #include "nn/layers_impl/parameterized_layer.hpp"
-#include "ops/ops.hpp"
 #include "tensor/tensor.hpp"
-#include <cmath>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,141 +21,32 @@ private:
   Tensor<T> pos_embedding_;
   Tensor<T> pos_embedding_gradients_;
 
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override;
+
 public:
   PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
-                           const std::string &name = "pos_embedding")
-      : ParameterizedLayer<T>(name), embed_dim_(embed_dim), seq_len_(seq_len) {}
+                           const std::string &name = "pos_embedding");
 
-  void initialize_params() override {
-    pos_embedding_ = Tensor<T>({seq_len_, embed_dim_}, this->device_);
-    pos_embedding_gradients_ = Tensor<T>({seq_len_, embed_dim_}, this->device_);
+  void init_params() override;
 
-    T fan_in = static_cast<T>(embed_dim_);
-    T bound = static_cast<T>(1.0) / std::sqrt(fan_in);
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-    if (this->use_seed_) {
-      pos_embedding_.fill_random_uniform(-bound, bound, this->srand_seed_);
-    } else {
-      pos_embedding_.fill_random_uniform(-bound, bound);
-    }
-    pos_embedding_gradients_.fill(T(0));
-  }
+  std::string type() const override;
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    if (!this->initialized_) {
-      throw std::runtime_error(
-          "Layer parameters not initialized. Call initialize() before forward.");
-    }
+  LayerConfig get_config() const override;
 
-    const auto &shape = input.shape();
-    if (shape.size() < 2) {
-      throw std::runtime_error("PositionalEmbeddingLayer: Input tensor must be at least 2D");
-    }
+  std::unique_ptr<Layer<T>> clone() const override;
 
-    size_t last_dim = shape.back();
-    size_t second_last_dim = shape[shape.size() - 2];
-
-    if (last_dim != embed_dim_) {
-      throw std::runtime_error("PositionalEmbeddingLayer: Input last dim (" +
-                               std::to_string(last_dim) + ") must match embed_dim (" +
-                               std::to_string(embed_dim_) + ")");
-    }
-    if (second_last_dim != seq_len_) {
-      throw std::runtime_error("PositionalEmbeddingLayer: Input sequence length (" +
-                               std::to_string(second_last_dim) + ") must match seq_len (" +
-                               std::to_string(seq_len_) + ")");
-    }
-
-    output.ensure(input.shape(), this->device_);
-
-    auto &out_ptr = output.data_ptr();
-    auto &in_ptr = input.data_ptr();
-    auto &pos_ptr = pos_embedding_.data_ptr();
-
-    size_t sample_size = seq_len_ * embed_dim_;
-    size_t total_elements = input.size();
-    size_t batch_size = total_elements / sample_size;
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      // output[i] = input[i] + pos_embedding
-      if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", ops::cpu::add<T>, in_ptr.get() + i * sample_size, pos_ptr.get(),
-                        out_ptr.get() + i * sample_size, sample_size);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::cuda_add<T>, in_ptr.get() + i * sample_size, pos_ptr.get(),
-                        out_ptr.get() + i * sample_size, sample_size);
-      }
-#endif
-    }
-  }
-
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override {
-    const auto &shape = gradient.shape();
-    if (shape.size() < 2) {
-      throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
-    }
-
-    size_t sample_size = seq_len_ * embed_dim_;
-    size_t total_elements = gradient.size();
-    size_t batch_size = total_elements / sample_size;
-
-    grad_input.ensure(gradient.shape(), this->device_);
-
-    // grad_input = gradient
-    ops::copy(gradient.data_ptr(), grad_input.data_ptr(), gradient.size());
-
-    const auto &grad_ptr = gradient.data_ptr();
-    auto &pos_grad_ptr = pos_embedding_gradients_.data_ptr();
-
-    for (size_t i = 0; i < batch_size; ++i) {
-      // Accumulate gradient to pos_embedding_gradients_
-      if (this->device_->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", ops::cpu::add<T>, pos_grad_ptr.get(),
-                        grad_ptr.get() + i * sample_size, pos_grad_ptr.get(), sample_size);
-      }
-#ifdef USE_CUDA
-      else if (this->device_->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::cuda_add<T>, pos_grad_ptr.get(),
-                        grad_ptr.get() + i * sample_size, pos_grad_ptr.get(), sample_size);
-      }
-#endif
-    }
-  }
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
-
-  std::string type() const override { return "pos_embedding"; }
-
-  LayerConfig get_config() const override {
-    LayerConfig config;
-    config.name = this->name_;
-    config.parameters["embed_dim"] = embed_dim_;
-    config.parameters["seq_len"] = seq_len_;
-    return config;
-  }
-
-  std::unique_ptr<Layer<T>> clone() const override {
-    return std::make_unique<PositionalEmbeddingLayer<T>>(embed_dim_, seq_len_, this->name_);
-  }
-
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
-    return input_shape;
-  }
+  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
 protected:
-  void collect_parameters(std::vector<Tensor<T> *> &params) override {
-    params.push_back(&pos_embedding_);
-  }
-
-  void collect_gradients(std::vector<Tensor<T> *> &grads) override {
-    grads.push_back(&pos_embedding_gradients_);
-  }
+  void collect_parameters(std::vector<Tensor<T> *> &params) override;
+  void collect_gradients(std::vector<Tensor<T> *> &grads) override;
 };
 
 } // namespace tnn
+
+#include "nn/layers_impl/positional_embedding_layer.tpp"

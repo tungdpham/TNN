@@ -31,7 +31,8 @@ AvgPool2DLayer<T>::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 }
 
 template <typename T>
-void AvgPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void AvgPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                     size_t micro_batch_id) {
 
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
@@ -61,8 +62,8 @@ void AvgPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
 }
 
 template <typename T>
-void AvgPool2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                                 size_t micro_batch_id) {
+void AvgPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                      size_t micro_batch_id) {
   auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
@@ -240,20 +241,6 @@ uint64_t AvgPool2DLayer<T>::backward_flops(const std::vector<size_t> &input_shap
   uint64_t total_inputs = batch_size * channels * input_shape[2] * input_shape[3];
 
   return flops_per_element * total_inputs;
-}
-
-template <typename T>
-uint64_t AvgPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t AvgPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 // Explicit template instantiations

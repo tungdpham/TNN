@@ -139,7 +139,6 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    coordinator.initialize();
     train_model(coordinator, train_loader, test_loader, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {

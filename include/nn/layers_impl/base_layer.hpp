@@ -39,26 +39,61 @@ public:
   Layer() : mem_pool_(&getDefaultMemPool<T>()) { this->device_ = &getCPU(); }
   virtual ~Layer() = default;
 
-  virtual void initialize() {};
+  void init() {
+    if (initialized_) {
+      return;
+    }
+    init_impl();
+    initialized_ = true;
+  };
 
   void set_seed(unsigned long long seed) {
     use_seed_ = true;
     srand_seed_ = seed;
   }
 
-  virtual void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) = 0;
-  virtual void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                        size_t micro_batch_id = 0) = 0;
+  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) {
+    if (!initialized_) {
+      std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before forward."
+                << std::endl;
+      return;
+    }
+    forward_impl(input, output, micro_batch_id);
+  }
+
+  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input, size_t micro_batch_id = 0) {
+    if (!initialized_) {
+      std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before backward."
+                << std::endl;
+      return;
+    }
+    backward_impl(gradient, grad_input, micro_batch_id);
+  }
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }
   virtual std::vector<Tensor<T> *> gradients() { return {}; }
 
-  virtual void clear_gradients() {}
+  virtual void save_state(std::ofstream &file) {
+    auto params = parameters();
+    for (const auto &param : params) {
+      param->save(file);
+    }
+  }
 
-  virtual uint64_t
-  forward_complexity(const std::vector<size_t> &input_shape) const = 0; // relative complexity
-  virtual uint64_t
-  backward_complexity(const std::vector<size_t> &input_shape) const = 0; // relative complexity
+  virtual void load_state(std::ifstream &file) {
+    auto params = parameters();
+    for (auto &param : params) {
+      if (this->device_ == nullptr) {
+        std::cerr << "ERR: Device not set for Layer " << name_ << " when loading state."
+                  << std::endl;
+        return;
+      }
+      *param = Tensor<T>::load(file, this->device_);
+    }
+    this->initialized_ = true;
+  }
+
+  virtual void clear_gradients() {}
 
   virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;
   virtual uint64_t backward_flops(const std::vector<size_t> &input_shape) const = 0;
@@ -97,6 +132,7 @@ public:
   std::string name() const { return name_; }
 
 protected:
+  bool initialized_ = false;
   bool is_training_ = true;
   bool enable_profiling_ = false;
   bool use_seed_ = false;
@@ -106,6 +142,12 @@ protected:
   MemPool<T> *mem_pool_;
   const Device *device_;
   std::string name_;
+
+  virtual void init_impl() = 0;
+  virtual void forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                            size_t micro_batch_id = 0) = 0;
+  virtual void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                             size_t micro_batch_id = 0) = 0;
 
   PooledTensor<T> get_buffer(const std::vector<size_t> &shape) {
     if (!mem_pool_) {

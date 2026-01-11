@@ -159,7 +159,7 @@ protected:
 TEST_F(AvgPool2DLayerTest, BasicForwardPass) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_avgpool");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -183,7 +183,7 @@ TEST_F(AvgPool2DLayerTest, BasicForwardPass) {
 TEST_F(AvgPool2DLayerTest, ForwardPassWithStride) {
   AvgPool2DLayer<float> layer(3, 3, 1, 1, 0, 0, "test_avgpool_stride");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   float *input_data = input.data();
@@ -206,7 +206,7 @@ TEST_F(AvgPool2DLayerTest, ForwardPassWithStride) {
 TEST_F(AvgPool2DLayerTest, ForwardPassWithPadding) {
   AvgPool2DLayer<float> layer(3, 3, 1, 1, 1, 1, "test_avgpool_padding");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -228,7 +228,7 @@ TEST_F(AvgPool2DLayerTest, ForwardPassWithPadding) {
 TEST_F(AvgPool2DLayerTest, ForwardPassMultiChannel) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_avgpool_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -253,7 +253,7 @@ TEST_F(AvgPool2DLayerTest, ForwardPassMultiChannel) {
 TEST_F(AvgPool2DLayerTest, ForwardPassMultiBatch) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_avgpool_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -278,7 +278,7 @@ TEST_F(AvgPool2DLayerTest, ForwardPassMultiBatch) {
 TEST_F(AvgPool2DLayerTest, ForwardPassNonSquarePooling) {
   AvgPool2DLayer<float> layer(3, 2, 2, 2, 0, 0, "test_avgpool_nonsquare");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 6, 4}, cpu_device_);
   float *input_data = input.data();
@@ -303,7 +303,7 @@ TEST_F(AvgPool2DLayerTest, ForwardPassNonSquarePooling) {
 TEST_F(AvgPool2DLayerTest, BasicBackwardPass) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_avgpool_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -335,7 +335,7 @@ TEST_F(AvgPool2DLayerTest, BasicBackwardPass) {
 TEST_F(AvgPool2DLayerTest, BackwardPassWithPadding) {
   AvgPool2DLayer<float> layer(3, 3, 1, 1, 1, 1, "test_avgpool_backward_pad");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -364,7 +364,7 @@ TEST_F(AvgPool2DLayerTest, BackwardPassWithPadding) {
 TEST_F(AvgPool2DLayerTest, BackwardPassMultiChannel) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_avgpool_backward_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -393,7 +393,7 @@ TEST_F(AvgPool2DLayerTest, BackwardPassMultiChannel) {
 TEST_F(AvgPool2DLayerTest, BackwardPassVariableGradient) {
   AvgPool2DLayer<float> layer(2, 2, 1, 1, 0, 0, "test_avgpool_backward_var");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -488,7 +488,7 @@ TEST_F(AvgPool2DLayerTest, Clone) {
 TEST_F(AvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
   AvgPool2DLayer<float> layer(4, 4, 1, 1, 0, 0, "test_global_avgpool");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -509,7 +509,7 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
 TEST_F(AvgPool2DLayerTest, EdgeCaseZeroGradient) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -537,7 +537,7 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseZeroGradient) {
 TEST_F(AvgPool2DLayerTest, EdgeCaseLargeValues) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_large_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -559,7 +559,7 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseLargeValues) {
 TEST_F(AvgPool2DLayerTest, EdgeCaseNegativeValues) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_negative_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -581,7 +581,7 @@ TEST_F(AvgPool2DLayerTest, EdgeCaseNegativeValues) {
 TEST_F(AvgPool2DLayerTest, NumericalStabilitySmallValues) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_small_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -603,7 +603,7 @@ TEST_F(AvgPool2DLayerTest, NumericalStabilitySmallValues) {
 TEST_F(AvgPool2DLayerTest, BackwardNumericalStability) {
   AvgPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_backward_stability");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();

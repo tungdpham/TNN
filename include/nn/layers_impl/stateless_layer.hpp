@@ -20,6 +20,11 @@ public:
   std::vector<Tensor<T> *> parameters() override { return {}; }
   std::vector<Tensor<T> *> gradients() override { return {}; }
   bool has_parameters() const override { return false; }
+
+private:
+  void init_impl() override {
+    (void)this; // no-op
+  }
 };
 
 } // namespace tnn

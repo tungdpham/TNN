@@ -83,16 +83,16 @@ public:
     }
   }
 
-  void initialize_params() override {
+  void init_params() override {
     for (auto &layer : main_path_) {
-      layer->initialize();
+      layer->init();
     }
     for (auto &layer : shortcut_path_) {
-      layer->initialize();
+      layer->init();
     }
   }
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const Tensor<T> *current_input = &input;
     Tensor<T> device_input;
     if (input.device() != this->device_) {
@@ -156,8 +156,8 @@ public:
     }
   }
 
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override {
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override {
     const Tensor<T> *current_gradient = &gradient;
     Tensor<T> device_gradient;
     if (gradient.device() != this->device_) {
@@ -312,18 +312,18 @@ public:
     return shape;
   }
 
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override {
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {
     uint64_t main_complexity = 0;
     std::vector<size_t> current_shape = input_shape;
     for (const auto &layer : main_path_) {
-      main_complexity += layer->forward_complexity(current_shape);
+      main_complexity += layer->forward_flops(current_shape);
       current_shape = layer->compute_output_shape(current_shape);
     }
 
     uint64_t shortcut_complexity = 0;
     std::vector<size_t> shortcut_shape = input_shape;
     for (const auto &layer : shortcut_path_) {
-      shortcut_complexity += layer->forward_complexity(shortcut_shape);
+      shortcut_complexity += layer->forward_flops(shortcut_shape);
       shortcut_shape = layer->compute_output_shape(shortcut_shape);
     }
 
@@ -336,18 +336,18 @@ public:
     return main_complexity + shortcut_complexity + add_complexity;
   }
 
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override {
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override {
     uint64_t main_complexity = 0;
     std::vector<size_t> current_shape = input_shape;
     for (const auto &layer : main_path_) {
-      main_complexity += layer->backward_complexity(current_shape);
+      main_complexity += layer->backward_flops(current_shape);
       current_shape = layer->compute_output_shape(current_shape);
     }
 
     uint64_t shortcut_complexity = 0;
     std::vector<size_t> shortcut_shape = input_shape;
     for (const auto &layer : shortcut_path_) {
-      shortcut_complexity += layer->backward_complexity(shortcut_shape);
+      shortcut_complexity += layer->backward_flops(shortcut_shape);
       shortcut_shape = layer->compute_output_shape(shortcut_shape);
     }
 
@@ -358,14 +358,6 @@ public:
     }
 
     return main_complexity + shortcut_complexity + add_complexity;
-  }
-
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {
-    return forward_complexity(input_shape);
-  }
-
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override {
-    return backward_complexity(input_shape);
   }
 
   std::string type() const override { return "residual_block"; }

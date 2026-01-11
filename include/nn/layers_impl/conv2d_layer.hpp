@@ -139,19 +139,16 @@ private:
                                             const std::string &flow_id);
 #endif
 
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override;
+
 public:
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
               size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
               bool use_bias = true, const std::string &name = "conv2d");
 
   ~Conv2DLayer();
-
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -169,7 +166,7 @@ public:
   void clear_gradients() override;
 
 protected:
-  void initialize_params() override;
+  void init_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;
 };

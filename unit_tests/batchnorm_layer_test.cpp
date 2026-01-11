@@ -149,7 +149,7 @@ protected:
 TEST_F(BatchNormLayerTest, BasicForwardPassTraining) {
   BatchNormLayer<float> layer(3, 1e-5f, 0.1f, false, "test_bn");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 3, 4, 4}, cpu_device_);
@@ -173,7 +173,7 @@ TEST_F(BatchNormLayerTest, BasicForwardPassTraining) {
 TEST_F(BatchNormLayerTest, ForwardPassWithAffineTraining) {
   BatchNormLayer<float> layer(3, 1e-5f, 0.1f, true, "test_bn_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 3, 4, 4}, cpu_device_);
@@ -200,7 +200,7 @@ TEST_F(BatchNormLayerTest, ForwardPassWithAffineTraining) {
 TEST_F(BatchNormLayerTest, ForwardPassSingleChannel) {
   BatchNormLayer<float> layer(1, 1e-5f, 0.1f, false, "test_bn_single");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({4, 1, 8, 8}, cpu_device_);
@@ -222,7 +222,7 @@ TEST_F(BatchNormLayerTest, ForwardPassSingleChannel) {
 TEST_F(BatchNormLayerTest, ForwardPassMultiBatch) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({8, 2, 4, 4}, cpu_device_);
@@ -242,7 +242,7 @@ TEST_F(BatchNormLayerTest, ForwardPassMultiBatch) {
 TEST_F(BatchNormLayerTest, ForwardPassLargeFeatures) {
   BatchNormLayer<float> layer(64, 1e-5f, 0.1f, true, "test_bn_large");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 64, 8, 8}, cpu_device_);
@@ -264,7 +264,7 @@ TEST_F(BatchNormLayerTest, ForwardPassLargeFeatures) {
 TEST_F(BatchNormLayerTest, ForwardPassInference) {
   BatchNormLayer<float> layer(3, 1e-5f, 0.1f, false, "test_bn_inference");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(false);
 
   Tensor<float> input({2, 3, 4, 4}, cpu_device_);
@@ -290,7 +290,7 @@ TEST_F(BatchNormLayerTest, ForwardPassInference) {
 TEST_F(BatchNormLayerTest, ForwardPassInferenceWithAffine) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, true, "test_bn_inference_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(false);
 
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
@@ -308,7 +308,7 @@ TEST_F(BatchNormLayerTest, ForwardPassInferenceWithAffine) {
 TEST_F(BatchNormLayerTest, BasicBackwardPass) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -333,7 +333,7 @@ TEST_F(BatchNormLayerTest, BasicBackwardPass) {
 TEST_F(BatchNormLayerTest, BackwardPassWithAffine) {
   BatchNormLayer<float> layer(3, 1e-5f, 0.1f, true, "test_bn_backward_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 3, 4, 4}, cpu_device_);
@@ -364,7 +364,7 @@ TEST_F(BatchNormLayerTest, BackwardPassWithAffine) {
 TEST_F(BatchNormLayerTest, BackwardPassMultiBatch) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_backward_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({8, 2, 4, 4}, cpu_device_);
@@ -388,7 +388,7 @@ TEST_F(BatchNormLayerTest, BackwardPassMultiBatch) {
 TEST_F(BatchNormLayerTest, BackwardPassZeroGradient) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, true, "test_bn_backward_zero");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -468,7 +468,7 @@ TEST_F(BatchNormLayerTest, CreateFromConfig) {
 TEST_F(BatchNormLayerTest, ParameterCollectionWithAffine) {
   BatchNormLayer<float> layer(16, 1e-5f, 0.1f, true, "test_bn_params_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> params = layer.parameters();
 
@@ -478,7 +478,7 @@ TEST_F(BatchNormLayerTest, ParameterCollectionWithAffine) {
 TEST_F(BatchNormLayerTest, ParameterCollectionWithoutAffine) {
   BatchNormLayer<float> layer(16, 1e-5f, 0.1f, false, "test_bn_params_no_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> params = layer.parameters();
 
@@ -488,7 +488,7 @@ TEST_F(BatchNormLayerTest, ParameterCollectionWithoutAffine) {
 TEST_F(BatchNormLayerTest, GradientCollectionWithAffine) {
   BatchNormLayer<float> layer(16, 1e-5f, 0.1f, true, "test_bn_grads_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
@@ -498,7 +498,7 @@ TEST_F(BatchNormLayerTest, GradientCollectionWithAffine) {
 TEST_F(BatchNormLayerTest, GradientCollectionWithoutAffine) {
   BatchNormLayer<float> layer(16, 1e-5f, 0.1f, false, "test_bn_grads_no_affine");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   std::vector<Tensor<float> *> grads = layer.gradients();
 
@@ -510,7 +510,7 @@ TEST_F(BatchNormLayerTest, GradientCollectionWithoutAffine) {
 TEST_F(BatchNormLayerTest, EdgeCaseSmallBatch) {
   BatchNormLayer<float> layer(3, 1e-5f, 0.1f, false, "test_bn_small_batch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({1, 3, 4, 4}, cpu_device_);
@@ -529,7 +529,7 @@ TEST_F(BatchNormLayerTest, EdgeCaseSmallBatch) {
 TEST_F(BatchNormLayerTest, EdgeCaseLargeEpsilon) {
   BatchNormLayer<float> layer(2, 1e-1f, 0.1f, false, "test_bn_large_epsilon");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -545,7 +545,7 @@ TEST_F(BatchNormLayerTest, EdgeCaseLargeEpsilon) {
 TEST_F(BatchNormLayerTest, EdgeCaseSmallSpatialSize) {
   BatchNormLayer<float> layer(4, 1e-5f, 0.1f, true, "test_bn_small_spatial");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({4, 4, 1, 1}, cpu_device_);
@@ -566,7 +566,7 @@ TEST_F(BatchNormLayerTest, EdgeCaseSmallSpatialSize) {
 TEST_F(BatchNormLayerTest, EdgeCaseLargeValues) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_large_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -588,7 +588,7 @@ TEST_F(BatchNormLayerTest, EdgeCaseLargeValues) {
 TEST_F(BatchNormLayerTest, EdgeCaseNegativeValues) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, true, "test_bn_negative");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -609,7 +609,7 @@ TEST_F(BatchNormLayerTest, EdgeCaseNegativeValues) {
 TEST_F(BatchNormLayerTest, NumericalStabilitySmallValues) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, false, "test_bn_small_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);
@@ -625,7 +625,7 @@ TEST_F(BatchNormLayerTest, NumericalStabilitySmallValues) {
 TEST_F(BatchNormLayerTest, NumericalStabilityMixedValues) {
   BatchNormLayer<float> layer(2, 1e-5f, 0.1f, true, "test_bn_mixed");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
   layer.set_training(true);
 
   Tensor<float> input({2, 2, 4, 4}, cpu_device_);

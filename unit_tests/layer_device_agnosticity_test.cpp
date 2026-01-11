@@ -125,8 +125,8 @@ TEST_F(LayerIntegrationTest, Conv2DLayerForwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Copy weights from CPU to GPU to ensure identical parameters
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -173,8 +173,8 @@ TEST_F(LayerIntegrationTest, Conv2DLayerBackwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Copy weights from CPU to GPU
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -240,8 +240,8 @@ TEST_F(LayerIntegrationTest, Conv2DLayerStridedConvolution) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Sync weights
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -285,8 +285,8 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Sync weights and biases
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -320,8 +320,8 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Sync weights
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -371,8 +371,8 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Sync weights
   *gpu_layer.parameters()[0] = cpu_layer.parameters()[0]->to_device(gpu_device_);
@@ -421,8 +421,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerForwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Create input
   Tensor<float> input({batch_size, channels, input_h, input_w}, cpu_device_);
@@ -457,8 +457,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerBackwardBasic) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Create input
   Tensor<float> input({batch_size, channels, input_h, input_w}, cpu_device_);
@@ -504,8 +504,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerWithPadding) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Create input
   Tensor<float> input({batch_size, channels, input_h, input_w}, cpu_device_);
@@ -553,8 +553,8 @@ TEST_F(LayerIntegrationTest, MaxPool2DLayerNonSquare) {
   cpu_layer.set_device(cpu_device_);
   gpu_layer.set_device(gpu_device_);
 
-  cpu_layer.initialize();
-  gpu_layer.initialize();
+  cpu_layer.init();
+  gpu_layer.init();
 
   // Create input
   Tensor<float> input({batch_size, channels, input_h, input_w}, cpu_device_);
@@ -596,8 +596,8 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
 
   cpu_conv.set_device(cpu_device_);
   cpu_pool.set_device(cpu_device_);
-  cpu_conv.initialize();
-  cpu_pool.initialize();
+  cpu_conv.init();
+  cpu_pool.init();
 
   // GPU pipeline
   Conv2DLayer<float> gpu_conv(in_channels, out_channels, 3, 3, 1, 1, 1, 1, true, "gpu_conv");
@@ -605,8 +605,8 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
 
   gpu_conv.set_device(gpu_device_);
   gpu_pool.set_device(gpu_device_);
-  gpu_conv.initialize();
-  gpu_pool.initialize();
+  gpu_conv.init();
+  gpu_pool.init();
 
   // Sync conv weights
   *gpu_conv.parameters()[0] = cpu_conv.parameters()[0]->to_device(gpu_device_);
@@ -668,8 +668,8 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
 
   cpu_conv.set_device(cpu_device_);
   cpu_dense.set_device(cpu_device_);
-  cpu_conv.initialize();
-  cpu_dense.initialize();
+  cpu_conv.init();
+  cpu_dense.init();
 
   // GPU pipeline
   Conv2DLayer<float> gpu_conv(in_channels, out_channels, 3, 3, 1, 1, 1, 1, false, "gpu_conv");
@@ -677,8 +677,8 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
 
   gpu_conv.set_device(gpu_device_);
   gpu_dense.set_device(gpu_device_);
-  gpu_conv.initialize();
-  gpu_dense.initialize();
+  gpu_conv.init();
+  gpu_dense.init();
 
   // Sync weights
   *gpu_conv.parameters()[0] = cpu_conv.parameters()[0]->to_device(gpu_device_);

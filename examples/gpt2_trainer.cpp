@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
   auto model = create_gpt2(seq_len, vocab_size);
 
   model.set_device(device_type);
-  model.initialize();
+  model.init();
   model.enable_profiling(true);
 
   model.print_summary({batch_size, seq_len});

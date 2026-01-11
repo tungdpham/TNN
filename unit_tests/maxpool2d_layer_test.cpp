@@ -192,7 +192,7 @@ protected:
 TEST_F(MaxPool2DLayerTest, BasicForwardPass) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -217,7 +217,7 @@ TEST_F(MaxPool2DLayerTest, BasicForwardPass) {
 TEST_F(MaxPool2DLayerTest, ForwardPassWithStride) {
   MaxPool2DLayer<float> layer(3, 3, 1, 1, 0, 0, "test_maxpool_stride");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 5, 5}, cpu_device_);
   float *input_data = input.data();
@@ -236,7 +236,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassWithStride) {
 TEST_F(MaxPool2DLayerTest, ForwardPassWithPadding) {
   MaxPool2DLayer<float> layer(3, 3, 1, 1, 1, 1, "test_maxpool_padding");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -256,7 +256,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassWithPadding) {
 TEST_F(MaxPool2DLayerTest, ForwardPassMultiChannel) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -277,7 +277,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassMultiChannel) {
 TEST_F(MaxPool2DLayerTest, ForwardPassMultiBatch) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -296,7 +296,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassMultiBatch) {
 TEST_F(MaxPool2DLayerTest, ForwardPassNonSquarePooling) {
   MaxPool2DLayer<float> layer(3, 2, 2, 2, 0, 0, "test_maxpool_nonsquare");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 6, 4}, cpu_device_);
   float *input_data = input.data();
@@ -314,7 +314,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassNonSquarePooling) {
 TEST_F(MaxPool2DLayerTest, ForwardPassUniformValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_uniform");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   input.fill(5.0f);
@@ -336,7 +336,7 @@ TEST_F(MaxPool2DLayerTest, ForwardPassUniformValues) {
 TEST_F(MaxPool2DLayerTest, BasicBackwardPass) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_backward");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -364,7 +364,7 @@ TEST_F(MaxPool2DLayerTest, BasicBackwardPass) {
 TEST_F(MaxPool2DLayerTest, BackwardPassWithPadding) {
   MaxPool2DLayer<float> layer(3, 3, 1, 1, 1, 1, "test_maxpool_backward_pad");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -389,7 +389,7 @@ TEST_F(MaxPool2DLayerTest, BackwardPassWithPadding) {
 TEST_F(MaxPool2DLayerTest, BackwardPassMultiChannel) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multichannel");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 2, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -415,7 +415,7 @@ TEST_F(MaxPool2DLayerTest, BackwardPassMultiChannel) {
 TEST_F(MaxPool2DLayerTest, BackwardPassMultiBatch) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_backward_multibatch");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({2, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -441,7 +441,7 @@ TEST_F(MaxPool2DLayerTest, BackwardPassMultiBatch) {
 TEST_F(MaxPool2DLayerTest, BackwardPassVariableGradient) {
   MaxPool2DLayer<float> layer(2, 2, 1, 1, 0, 0, "test_maxpool_backward_var");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 3, 3}, cpu_device_);
   float *input_data = input.data();
@@ -469,7 +469,7 @@ TEST_F(MaxPool2DLayerTest, BackwardPassVariableGradient) {
 TEST_F(MaxPool2DLayerTest, BackwardPassGradientRouting) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_maxpool_grad_routing");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -578,7 +578,7 @@ TEST_F(MaxPool2DLayerTest, Clone) {
 TEST_F(MaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
   MaxPool2DLayer<float> layer(4, 4, 1, 1, 0, 0, "test_global_maxpool");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -598,7 +598,7 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
 TEST_F(MaxPool2DLayerTest, EdgeCaseZeroGradient) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   input.fill(1.0f);
@@ -624,7 +624,7 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseZeroGradient) {
 TEST_F(MaxPool2DLayerTest, EdgeCaseLargeValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_large_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -643,7 +643,7 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseLargeValues) {
 TEST_F(MaxPool2DLayerTest, EdgeCaseNegativeValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_negative_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -668,7 +668,7 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseNegativeValues) {
 TEST_F(MaxPool2DLayerTest, EdgeCaseMixedSignValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_mixed_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -689,7 +689,7 @@ TEST_F(MaxPool2DLayerTest, EdgeCaseMixedSignValues) {
 TEST_F(MaxPool2DLayerTest, NumericalStabilitySmallValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_small_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -708,7 +708,7 @@ TEST_F(MaxPool2DLayerTest, NumericalStabilitySmallValues) {
 TEST_F(MaxPool2DLayerTest, BackwardNumericalStability) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_backward_stability");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -732,7 +732,7 @@ TEST_F(MaxPool2DLayerTest, BackwardNumericalStability) {
 TEST_F(MaxPool2DLayerTest, NumericalStabilityExtremeValues) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_extreme_values");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   Tensor<float> input({1, 1, 4, 4}, cpu_device_);
   float *input_data = input.data();
@@ -755,7 +755,7 @@ TEST_F(MaxPool2DLayerTest, NumericalStabilityExtremeValues) {
 TEST_F(MaxPool2DLayerTest, MultipleForwardBackwardPasses) {
   MaxPool2DLayer<float> layer(2, 2, 2, 2, 0, 0, "test_multiple_passes");
   layer.set_device(cpu_device_);
-  layer.initialize();
+  layer.init();
 
   // First pass
   Tensor<float> input1({1, 1, 4, 4}, cpu_device_);

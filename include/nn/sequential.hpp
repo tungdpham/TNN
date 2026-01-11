@@ -166,9 +166,9 @@ public:
     }
   }
 
-  void initialize() {
+  void init() {
     for (auto &layer : layers_) {
-      layer->initialize();
+      layer->init();
     }
   }
 
@@ -702,11 +702,11 @@ public:
   }
 
   /**
-   * @brief Returns the relative forward complexity (in FLOPs) for each layer given an input
+   * @brief Returns the relative forward flops (in FLOPs) for each layer given an input
    * shape.
    * @param input_shape The shape of the input tensor as a vector of sizes.
    */
-  std::vector<uint64_t> forward_complexity(const std::vector<size_t> &input_shape) const {
+  std::vector<uint64_t> forward_flops(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
       return {};
     }
@@ -715,8 +715,8 @@ public:
     std::vector<size_t> current_shape = input_shape;
 
     for (const auto &layer : layers_) {
-      uint64_t layer_complexity = layer->forward_complexity(current_shape);
-      layer_complexities.push_back(layer_complexity);
+      uint64_t layer_flops = layer->forward_flops(current_shape);
+      layer_complexities.push_back(layer_flops);
       current_shape = layer->compute_output_shape(current_shape);
     }
 
@@ -724,12 +724,12 @@ public:
   }
 
   /**
-   * @brief Returns the relative forward complexity (in FLOPs) for each layer in the specified
+   * @brief Returns the relative forward flops (in FLOPs) for each layer in the specified
    * partition
    * @param input_shape The shape of the input tensor as a vector of sizes.
    */
-  std::vector<uint64_t> forward_complexity(const std::vector<size_t> &input_shape,
-                                           const Partition &part) const {
+  std::vector<uint64_t> forward_flops(const std::vector<size_t> &input_shape,
+                                      const Partition &part) const {
     if (layers_.empty()) {
       return {};
     }
@@ -742,8 +742,8 @@ public:
     std::vector<size_t> current_shape = input_shape;
 
     for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      uint64_t layer_complexity = layers_[i]->forward_complexity(current_shape);
-      layer_complexities.push_back(layer_complexity);
+      uint64_t layer_flops = layers_[i]->forward_flops(current_shape);
+      layer_complexities.push_back(layer_flops);
       current_shape = layers_[i]->compute_output_shape(current_shape);
     }
 
@@ -751,11 +751,11 @@ public:
   }
 
   /**
-   * @brief Returns the relative backward complexity (in FLOPs) for each layer given a gradient
+   * @brief Returns the relative backward flops (in FLOPs) for each layer given a gradient
    * shape.
    * @param input_shape The shape of the gradient tensor as a vector of sizes.
    */
-  std::vector<uint64_t> backward_complexity(const std::vector<size_t> &input_shape) const {
+  std::vector<uint64_t> backward_flops(const std::vector<size_t> &input_shape) const {
     if (layers_.empty()) {
       return {};
     }
@@ -764,8 +764,8 @@ public:
     std::vector<size_t> current_shape = input_shape;
 
     for (auto &layer : layers_) {
-      uint64_t layer_complexity = layer->backward_complexity(current_shape);
-      layer_complexities.push_back(layer_complexity);
+      uint64_t layer_flops = layer->backward_flops(current_shape);
+      layer_complexities.push_back(layer_flops);
       current_shape = layer->compute_output_shape(current_shape);
     }
 
@@ -773,13 +773,13 @@ public:
   }
 
   /**
-   * @brief Returns the relative backward complexity (in FLOPs) for each layer in the specified
+   * @brief Returns the relative backward flops (in FLOPs) for each layer in the specified
    * partition
    * @param input_shape The shape of the gradient tensor as a vector of sizes.
    * @param part The partition specifying the range of layers.
    */
-  std::vector<uint64_t> backward_complexity(const std::vector<size_t> &input_shape,
-                                            const Partition &part) const {
+  std::vector<uint64_t> backward_flops(const std::vector<size_t> &input_shape,
+                                       const Partition &part) const {
     if (layers_.empty()) {
       return {};
     }
@@ -792,8 +792,8 @@ public:
     std::vector<size_t> current_shape = input_shape;
 
     for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      uint64_t layer_complexity = layers_[i]->backward_complexity(current_shape);
-      layer_complexities.push_back(layer_complexity);
+      uint64_t layer_flops = layers_[i]->backward_flops(current_shape);
+      layer_complexities.push_back(layer_flops);
       current_shape = layers_[i]->compute_output_shape(current_shape);
     }
 
@@ -815,8 +815,8 @@ public:
     std::cout << "Model Summary: " << name_ << "\n";
     std::cout << std::string(100, '=') << "\n";
     std::cout << std::left << std::setw(20) << "Layer (Type)" << std::setw(20) << "Input Shape"
-              << std::setw(20) << "Output Shape" << std::setw(20) << "Forward Complexity"
-              << std::setw(20) << "Backward Complexity" << "\n";
+              << std::setw(20) << "Output Shape" << std::setw(20) << "Forward Flops"
+              << std::setw(20) << "Backward Flops" << "\n";
 
     std::vector<size_t> current_shape = input_shape;
     for (size_t i = 0; i < layers_.size(); ++i) {
@@ -843,8 +843,8 @@ public:
       output_shape_str += ")";
       std::cout << std::setw(20) << output_shape_str;
 
-      std::cout << std::setw(20) << layer->forward_complexity(current_shape) << std::setw(20)
-                << layer->backward_complexity(current_shape) << "\n";
+      std::cout << std::setw(20) << layer->forward_flops(current_shape) << std::setw(20)
+                << layer->backward_flops(current_shape) << "\n";
       current_shape = layer->compute_output_shape(current_shape);
     }
     std::cout << std::string(100, '-') << "\n";
@@ -856,7 +856,7 @@ public:
    * binary format.
    * @param path The base path to save the model (without file extension).
    */
-  void save_to_file(const std::string &path) const {
+  void save_to_file(const std::string &path) {
     // Create directory if it doesn't exist
     auto dir_path = std::filesystem::path(path).parent_path();
     if (!dir_path.empty() && !std::filesystem::exists(dir_path)) {
@@ -876,30 +876,9 @@ public:
     if (!weights_file.is_open()) {
       throw std::runtime_error("Could not create weights file: " + path + ".bin");
     }
-    for (const auto &layer : layers_) {
-      if (layer->has_parameters()) {
-        auto params = const_cast<Layer<T> *>(layer.get())->parameters();
-        for (const auto &param : params) {
-          param->save(weights_file);
-        }
-      }
-    }
-    weights_file.close();
-  }
-
-  void load_weights_file(const std::string &path) {
-    std::ifstream weights_file(path, std::ios::binary);
-    if (!weights_file.is_open()) {
-      throw std::runtime_error("Could not open weights file: " + path);
-    }
-    const Device *target_device = device_ ? device_ : &getCPU();
     for (auto &layer : layers_) {
-      layer->initialize();
       if (layer->has_parameters()) {
-        auto params = layer->parameters();
-        for (auto &param : params) {
-          *param = Tensor<T>::load(weights_file, target_device);
-        }
+        layer->save_state(weights_file);
       }
     }
     weights_file.close();
@@ -923,9 +902,11 @@ public:
     config_file.close();
 
     Sequential<T> model = load_from_config(config_json);
-    if (device != nullptr) {
-      model.set_device(device);
+    if (device == nullptr) {
+      throw std::runtime_error("Device pointer is null in from_file");
     }
+    model.set_device(device);
+    model.init();
 
     std::ifstream weights_file(path + ".bin", std::ios::binary);
     if (!weights_file.is_open()) {
@@ -933,11 +914,7 @@ public:
     }
     for (auto &layer : model.layers_) {
       if (layer->has_parameters()) {
-        layer->initialize();
-        auto params = layer->parameters();
-        for (auto &param : params) {
-          *param = Tensor<T>::load(weights_file, device);
-        }
+        layer->load_state(weights_file);
       }
     }
     weights_file.close();

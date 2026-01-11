@@ -26,7 +26,7 @@ TEST(FullAttentionBlockTest, ForwardPassCPU) {
   input.fill_random_uniform(-1.0f, 1.0f);
 
   auto attention = std::make_unique<FullAttentionBlock<float>>(embed_dim, num_heads, "attn");
-  attention->initialize();
+  attention->init();
 
   Tensor<float> output;
   attention->forward(input, output);

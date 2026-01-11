@@ -25,15 +25,13 @@ DenseLayer<T>::DenseLayer(size_t input_features, size_t output_features, bool us
     : ParameterizedLayer<T>(name), input_features_(input_features),
       output_features_(output_features), use_bias_(use_bias) {}
 
-template <typename T> void DenseLayer<T>::initialize_params() {
+template <typename T> void DenseLayer<T>::init_params() {
   weights_ = Tensor<T>({output_features_, input_features_}, this->device_);
   weight_gradients_ = Tensor<T>({output_features_, input_features_}, this->device_);
-  weights_.fill(T(0));
   weight_gradients_.fill(T(0));
   if (use_bias_) {
     bias_ = Tensor<T>({output_features_}, this->device_);
     bias_gradients_ = Tensor<T>({output_features_}, this->device_);
-    bias_.fill(T(0));
     bias_gradients_.fill(T(0));
   }
   T fan_in = static_cast<T>(input_features_);
@@ -56,11 +54,7 @@ template <typename T> void DenseLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
-  }
-
+void DenseLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   const std::vector<size_t> &in_shape = input.shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
@@ -103,12 +97,8 @@ void DenseLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t mi
 }
 
 template <typename T>
-void DenseLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                             size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error(
-        "Layer parameters not initialized. Call initialize() before backward.");
-  }
+void DenseLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                  size_t micro_batch_id) {
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
 
   if (it_input == micro_batch_inputs_.end()) {
@@ -362,20 +352,6 @@ uint64_t DenseLayer<T>::backward_flops(const std::vector<size_t> &input_shape) c
   uint64_t input_grad_flops = 2ULL * batch_size * output_features_ * input_features_;
 
   return weight_grad_flops + bias_grad_flops + input_grad_flops;
-}
-
-template <typename T>
-uint64_t DenseLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t DenseLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T> size_t DenseLayer<T>::cached_memory_bytes() const {

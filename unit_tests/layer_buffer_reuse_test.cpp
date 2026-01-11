@@ -27,7 +27,7 @@ TEST(LayerBufferReuseTest, Conv2DConsistentOutput) {
   auto layer = std::make_unique<Conv2DLayer<float>>(in_channels, out_channels, 3, 3, 1, 1, 1, 1,
                                                     true, "test_conv");
   layer->set_device(&getCPU());
-  layer->initialize();
+  layer->init();
 
   // Create input
   Tensor<float> input({batch_size, in_channels, input_h, input_w}, &getCPU());
@@ -61,7 +61,7 @@ TEST(LayerBufferReuseTest, DenseConsistentOutput) {
   auto layer =
       std::make_unique<DenseLayer<float>>(input_features, output_features, true, "test_dense");
   layer->set_device(&getCPU());
-  layer->initialize();
+  layer->init();
 
   // Create input
   Tensor<float> input({batch_size, input_features, 1, 1}, &getCPU());
@@ -194,7 +194,7 @@ TEST(LayerBufferReuseTest, DenseMultipleEpochs) {
   auto layer =
       std::make_unique<DenseLayer<float>>(input_features, output_features, true, "test_dense");
   layer->set_device(&getCPU());
-  layer->initialize();
+  layer->init();
 
   // Create input
   Tensor<float> input({batch_size, input_features, 1, 1}, &getCPU());
@@ -231,7 +231,7 @@ TEST(LayerBufferReuseTest, Conv2DMultipleEpochs) {
   auto layer = std::make_unique<Conv2DLayer<float>>(in_channels, out_channels, 3, 3, 1, 1, 0, 0,
                                                     true, "test_conv");
   layer->set_device(&getCPU());
-  layer->initialize();
+  layer->init();
 
   // Create input
   Tensor<float> input({batch_size, in_channels, input_h, input_w}, &getCPU());

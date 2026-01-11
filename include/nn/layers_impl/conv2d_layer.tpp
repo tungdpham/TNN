@@ -44,7 +44,7 @@ template <typename T> Conv2DLayer<T>::~Conv2DLayer() {
 #endif
 }
 
-template <typename T> void Conv2DLayer<T>::initialize_params() {
+template <typename T> void Conv2DLayer<T>::init_params() {
   weights_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
   weight_gradients_ = Tensor<T>({out_channels_, in_channels_, kernel_h_, kernel_w_}, this->device_);
   weight_gradients_.fill(T(0));
@@ -85,11 +85,8 @@ template <typename T> void Conv2DLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void Conv2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error("Conv2DLayer must be initialized before forward pass.");
-  }
-
+void Conv2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                  size_t micro_batch_id) {
   std::vector<size_t> shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NCHW)");
@@ -121,11 +118,8 @@ void Conv2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t m
 }
 
 template <typename T>
-void Conv2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                              size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error("Conv2DLayer must be initialized before backward pass.");
-  }
+void Conv2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                   size_t micro_batch_id) {
   const Tensor<T> *current_gradient = &gradient;
   Tensor<T> device_gradient;
   if (gradient.device() != this->device_) {
@@ -658,18 +652,6 @@ uint64_t Conv2DLayer<T>::backward_flops(const std::vector<size_t> &input_shape) 
   uint64_t bias_grad_flops = use_bias_ ? (batch_size * out_channels_ * output_h * output_w) : 0;
 
   return weight_grad_flops + input_grad_flops + bias_grad_flops;
-}
-
-template <typename T>
-uint64_t Conv2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t Conv2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template <typename T> size_t Conv2DLayer<T>::cached_memory_bytes() const {

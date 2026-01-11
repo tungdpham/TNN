@@ -48,7 +48,7 @@ int main() {
     auto model = create_vit_tiny_imagenet();
 
     model.set_device(device_type);
-    model.initialize();
+    model.init();
 
     auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f, 1e-4f);
     auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();

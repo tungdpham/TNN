@@ -8,7 +8,7 @@ using namespace std;
 signed main() {
   Conv2DLayer<float> conv_layer(3, 64, 3, 3, 1, 1, 1, 1, true, "conv2d_test");
   conv_layer.set_device(&getGPU());
-  conv_layer.initialize();
+  conv_layer.init();
 
   Tensor<float> output;
   for (int i = 0; i < 10; ++i) {

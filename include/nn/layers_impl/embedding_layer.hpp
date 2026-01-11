@@ -77,7 +77,7 @@ public:
   EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding")
       : ParameterizedLayer<T>(name), vocab_size_(vocab_size), embed_dim_(embed_dim) {}
 
-  void initialize_params() override {
+  void init_params() override {
     // weight shape: [vocab_size, embed_dim]
     weight_ = Tensor<T>({vocab_size_, embed_dim_}, this->device_);
     grad_weight_ = Tensor<T>({vocab_size_, embed_dim_}, this->device_);
@@ -92,7 +92,8 @@ public:
 
   void set_training(bool training) override { this->is_training_ = training; }
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
+private:
+  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
     const Tensor<T> *current = &input;
     Tensor<T> device_input;
     if (input.device() != this->device_) {
@@ -122,8 +123,8 @@ public:
                          vocab_size_, embed_dim_, vocab_size_, "default");
   }
 
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override {
+  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                     size_t micro_batch_id = 0) override {
     auto it = micro_batch_inputs_.find(micro_batch_id);
     if (it == micro_batch_inputs_.end()) {
       throw std::runtime_error("EmbeddingLayer::backward: No cached input for micro_batch_id " +
@@ -147,12 +148,14 @@ public:
                           num_tokens, vocab_size_, embed_dim_, vocab_size_, "default");
   }
 
+protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override { params.push_back(&weight_); }
 
   void collect_gradients(std::vector<Tensor<T> *> &grads) override {
     grads.push_back(&grad_weight_);
   }
 
+public:
   void clear_gradients() override {
     if (this->initialized_) {
       grad_weight_.fill(T(0));
@@ -164,12 +167,6 @@ public:
     out.push_back(embed_dim_);
     return out;
   }
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override {
-    return 0; // Memory bound
-  }
-
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override { return 0; }
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }

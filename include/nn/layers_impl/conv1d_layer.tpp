@@ -27,7 +27,7 @@ Conv1DLayer<T>::Conv1DLayer(size_t in_channels, size_t out_channels, size_t kern
 
 template <typename T> Conv1DLayer<T>::~Conv1DLayer() {}
 
-template <typename T> void Conv1DLayer<T>::initialize_params() {
+template <typename T> void Conv1DLayer<T>::init_params() {
   weights_ = Tensor<T>({out_channels_, in_channels_, 1, kernel_size_}, this->device_);
   weight_gradients_ = Tensor<T>({out_channels_, in_channels_, 1, kernel_size_}, this->device_);
   weight_gradients_.fill(T(0));
@@ -62,11 +62,8 @@ template <typename T> void Conv1DLayer<T>::initialize_params() {
 }
 
 template <typename T>
-void Conv1DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error("Conv1DLayer must be initialized before forward pass.");
-  }
-
+void Conv1DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                  size_t micro_batch_id) {
   const auto &shape = input.shape();
   if (shape.size() != 3) {
     throw std::invalid_argument("Conv1D: Input tensor must be 3-dimensional (NCL)");
@@ -96,16 +93,11 @@ void Conv1DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t m
 
   temp_output_buffer_.ensure(out_channels_ * output_size);
 
-  // Use im2col with H=1
   im2col_task_ = im2col(input, col_buffer, 1, kernel_size_, 1, stride_, 0, padding_);
 
   forward_task_ = compute_conv_forward(col_buffer, weights_.data_ptr(), temp_output_buffer_,
                                        output_size, kernel_elements, out_channels_, "default");
 
-  // Output from forward is CNHW-like, where H=1. We need [N, C, L].
-  // But wait, compute_conv_forward returns [C, N*L].
-  // nchw_to_cnhw and back should handle it.
-  // Actually, ops::cnhw_to_nchw works for [C, N, 1, W] -> [N, C, 1, W] which is [N, C, W].
   ops::cnhw_to_nchw(temp_output_buffer_, output.data_ptr(), batch_size, out_channels_, 1,
                     output_len);
 
@@ -116,8 +108,8 @@ void Conv1DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t m
 }
 
 template <typename T>
-void Conv1DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                              size_t micro_batch_id) {
+void Conv1DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                   size_t micro_batch_id) {
   const auto &input_shape = micro_batch_input_shapes_[micro_batch_id];
   size_t batch_size = input_shape[0];
   size_t input_len = input_shape[2];
@@ -260,15 +252,15 @@ Conv1DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) con
 }
 
 template <typename T>
-uint64_t Conv1DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
+uint64_t Conv1DLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   size_t batch_size = input_shape[0];
   size_t output_len = (input_shape[2] + 2 * padding_ - kernel_size_) / stride_ + 1;
   return 2 * (uint64_t)batch_size * out_channels_ * in_channels_ * kernel_size_ * output_len;
 }
 
 template <typename T>
-uint64_t Conv1DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return 3 * forward_complexity(input_shape);
+uint64_t Conv1DLayer<T>::backward_flops(const std::vector<size_t> &input_shape) const {
+  return 3 * forward_flops(input_shape);
 }
 
 template <typename T> LayerConfig Conv1DLayer<T>::get_config() const {
@@ -301,11 +293,9 @@ template <typename T> void Conv1DLayer<T>::collect_gradients(std::vector<Tensor<
 }
 
 template <typename T> void Conv1DLayer<T>::clear_gradients() {
-  if (this->initialized_) {
-    weight_gradients_.fill(T(0));
-    if (use_bias_)
-      bias_gradients_.fill(T(0));
-  }
+  weight_gradients_.fill(T(0));
+  if (use_bias_)
+    bias_gradients_.fill(T(0));
 }
 
 template <typename T> size_t Conv1DLayer<T>::cached_memory_bytes() const {

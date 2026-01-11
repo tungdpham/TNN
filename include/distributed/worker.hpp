@@ -274,7 +274,7 @@ protected:
       } else {
         this->model_->set_device(DeviceType::CPU);
       }
-      this->model_->initialize();
+      this->model_->init();
       this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
       this->model_->enable_profiling(true);
       std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';

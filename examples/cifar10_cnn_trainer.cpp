@@ -80,7 +80,7 @@ int main() {
                      .build();
 
     model.set_device(device_type);
-    model.initialize();
+    model.init();
 
     auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 

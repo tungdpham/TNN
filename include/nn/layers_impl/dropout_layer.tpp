@@ -28,7 +28,8 @@ DropoutLayer<T>::DropoutLayer(T dropout_rate, const std::string &name)
 }
 
 template <typename T>
-void DropoutLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void DropoutLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                   size_t micro_batch_id) {
   if (!this->is_training_) {
     output.ensure(input.shape());
     ops::copy(input.data_ptr(), output.data_ptr(), input.size());
@@ -56,8 +57,8 @@ void DropoutLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t 
 }
 
 template <typename T>
-void DropoutLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                               size_t micro_batch_id) {
+void DropoutLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                    size_t micro_batch_id) {
   if (!this->is_training_) {
     grad_input.ensure(gradient.shape());
     ops::copy(gradient.data_ptr(), grad_input.data_ptr(), gradient.size());
@@ -158,19 +159,6 @@ uint64_t DropoutLayer<T>::backward_flops(const std::vector<size_t> &input_shape)
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 
   return num_elements;
-}
-
-template <typename T>
-uint64_t DropoutLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t DropoutLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 template class DropoutLayer<float>;

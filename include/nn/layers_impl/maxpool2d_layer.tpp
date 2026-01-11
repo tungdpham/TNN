@@ -30,7 +30,8 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
+void MaxPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
+                                     size_t micro_batch_id) {
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
   if (input.device() != this->device_) {
@@ -71,8 +72,8 @@ void MaxPool2DLayer<T>::forward(const Tensor<T> &input, Tensor<T> &output, size_
 }
 
 template <typename T>
-void MaxPool2DLayer<T>::backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                                 size_t micro_batch_id) {
+void MaxPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+                                      size_t micro_batch_id) {
   auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
   auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
@@ -251,20 +252,6 @@ uint64_t MaxPool2DLayer<T>::backward_flops(const std::vector<size_t> &input_shap
   // Each output gradient element gets routed to exactly one input position
   // This is essentially a scatter operation with minimal computation
   return batch_size * channels * output_h * output_w;
-}
-
-template <typename T>
-uint64_t MaxPool2DLayer<T>::forward_complexity(const std::vector<size_t> &input_shape) const {
-  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
-  return static_cast<uint64_t>(
-      std::min(forward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
-}
-
-template <typename T>
-uint64_t MaxPool2DLayer<T>::backward_complexity(const std::vector<size_t> &input_shape) const {
-  // Return relative complexity for scheduling/profiling - using FLOP count as proxy
-  return static_cast<uint64_t>(
-      std::min(backward_flops(input_shape), static_cast<uint64_t>(UINT64_MAX)));
 }
 
 // Explicit template instantiations
