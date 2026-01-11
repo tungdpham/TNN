@@ -21,8 +21,14 @@ void compute_embedding_forward(const T *input_data, const T *weight_data, T *out
       idx = 0;
     }
 
-    const T *w_row = weight_data + idx * embed_dim;
     T *out_row = output_data + i * embed_dim;
+
+    if (padding_idx < vocab_size && idx == padding_idx) {
+      std::memset(out_row, 0, embed_dim * sizeof(T));
+      continue;
+    }
+
+    const T *w_row = weight_data + idx * embed_dim;
     std::memcpy(out_row, w_row, embed_dim * sizeof(T));
   }
 }

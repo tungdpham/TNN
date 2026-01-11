@@ -33,7 +33,9 @@ AvgPool2DLayer<T>::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 template <typename T>
 void AvgPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                      size_t micro_batch_id) {
-
+  if (input.dims() != 4) {
+    throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
+  }
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
   if (input.device() != this->device_) {
@@ -42,9 +44,6 @@ void AvgPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
   }
 
   const auto &shape = current->shape();
-  if (shape.size() != 4) {
-    throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
-  }
   const size_t batch_size = shape[0];
   const size_t channels = shape[1];
   const size_t input_h = shape[2];
@@ -64,6 +63,9 @@ void AvgPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
 template <typename T>
 void AvgPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                       size_t micro_batch_id) {
+  if (gradient.dims() != 4) {
+    throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
+  }
   auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
@@ -84,13 +86,11 @@ void AvgPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
   const auto &grad_shape = current_gradient->shape();
-  if (grad_shape.size() != 4) {
-    throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
-  }
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
   grad_input.ensure({batch_size, channels, input_h, input_w}, this->device_);
+  grad_input.fill(T(0));
 
   compute_avg_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
                             channels, input_h, input_w, output_h, output_w, "default");

@@ -29,7 +29,6 @@ protected:
   virtual void init_params() = 0;
   virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  bool initialized_ = false;
 };
 } // namespace tnn
 

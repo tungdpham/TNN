@@ -91,13 +91,13 @@ int main(int argc, char **argv) {
 
   model.print_summary({batch_size, seq_len});
 
-  auto optimizer = OptimizerFactory<float>::create_adam(0.0001f, 0.9f, 0.95f, 1e-8f, 0.1f);
+  auto optimizer = OptimizerFactory<float>::create_adam(0.0006f, 0.9f, 0.95f, 1e-8f, 0.1f);
 
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
 
   optimizer->attach(model.parameters(), model.gradients());
 
-  size_t max_steps = 20000;
+  size_t max_steps = Env::get<size_t>("MAX_STEPS", 1000);
   size_t step = 0;
 
   Tensor<float> raw_input, raw_target, one_hot_target;

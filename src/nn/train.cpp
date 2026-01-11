@@ -94,6 +94,7 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
     total_corrects += corrects;
 
     loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
+
     model.backward(loss_gradient, backward_output);
 
     optimizer.update();

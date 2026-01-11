@@ -45,6 +45,8 @@ public:
     return input_shape;
   }
 
+  void clear_gradients() override;
+
 protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;

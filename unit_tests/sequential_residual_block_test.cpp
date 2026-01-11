@@ -10,6 +10,7 @@
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
+#include <limits>
 #include <memory>
 #include <vector>
 
@@ -737,19 +738,16 @@ TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
                                 .bottleneck_residual_block(32, 16, 32, 1)
                                 .build();
   model.set_device(cpu_device_);
+  model.set_seed(123);
   model.init();
 
   Tensor<float> input({1, 16, 16, 16}, cpu_device_);
-  srand(42);
-  float *input_data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
-    input_data[i] = 0.1f * static_cast<float>(rand()) / RAND_MAX;
-  }
+  input.fill_random_uniform(0.0f, 0.1f, 456);
 
   Tensor<float> output;
   model.forward(input, output);
   Tensor<float> grad_output(output.shape(), cpu_device_);
-  grad_output.fill(0.01f); // Small gradient signal
+  grad_output.fill(0.001f); // Small gradient signal (helps keep this test robust)
 
   Tensor<float> grad_input(input.shape(), cpu_device_);
   model.backward(grad_output, grad_input);

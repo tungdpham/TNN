@@ -79,12 +79,4 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
                  std::unique_ptr<Loss<T>> loss_function, std::unique_ptr<Scheduler<T>> scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
-template <typename T>
-void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train_loader,
-                            RegressionDataLoader<T> &test_loader,
-                            std::unique_ptr<Optimizer<T>> optimizer,
-                            std::unique_ptr<Loss<T>> loss_function,
-                            std::unique_ptr<Scheduler<T>> scheduler,
-                            const TrainingConfig &config = TrainingConfig());
-
 } // namespace tnn

@@ -13,7 +13,8 @@ namespace embedding {
 
 template <typename T>
 __global__ void embedding_forward_kernel(const T *input, const T *weight, T *output,
-                                         size_t num_indices, size_t vocab_size, size_t embed_dim) {
+                                         size_t num_indices, size_t vocab_size, size_t embed_dim,
+                                         size_t padding_idx) {
   size_t tid = blockIdx.x * blockDim.x + threadIdx.x;
   if (tid >= num_indices * embed_dim)
     return;
@@ -24,6 +25,11 @@ __global__ void embedding_forward_kernel(const T *input, const T *weight, T *out
   size_t vocab_idx = static_cast<size_t>(input[token_idx]);
   if (vocab_idx >= vocab_size)
     vocab_idx = 0;
+
+  if (padding_idx < vocab_size && vocab_idx == padding_idx) {
+    output[tid] = T(0);
+    return;
+  }
 
   output[tid] = weight[vocab_idx * embed_dim + dim_idx];
 }
@@ -36,7 +42,7 @@ void compute_embedding_forward(const T *input_data, const T *weight_data, T *out
   int blockSize = 256;
   int numBlocks = (total_elements + blockSize - 1) / blockSize;
   embedding_forward_kernel<<<numBlocks, blockSize, 0, stream>>>(
-      input_data, weight_data, output_data, num_indices, vocab_size, embed_dim);
+      input_data, weight_data, output_data, num_indices, vocab_size, embed_dim, padding_idx);
 }
 
 template <typename T>

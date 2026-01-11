@@ -508,7 +508,7 @@ inline Sequential<float> create_vit_tiny_imagenet() {
   constexpr size_t embed_dim = 256;
   constexpr size_t num_heads = 4;
   constexpr size_t mlp_ratio = 4;
-  constexpr size_t depth = 1;
+  constexpr size_t depth = 2;
   constexpr size_t num_classes = 200;
   constexpr size_t num_patches = (64 / patch_size) * (64 / patch_size);
   constexpr size_t seq_len = num_patches + 1;
@@ -517,13 +517,14 @@ inline Sequential<float> create_vit_tiny_imagenet() {
   builder.input({3, 64, 64})
       .conv2d(embed_dim, patch_size, patch_size, patch_size, patch_size, 0, 0, true, "patch_embed")
       .flatten(2, "flatten_patches")
+      .transpose("transpose_patches")
       .class_token(embed_dim)
       .positional_embedding(embed_dim, seq_len)
       .dropout(0.1f);
 
   for (size_t i = 0; i < depth; ++i) {
     builder.residual(LayerBuilder<float>()
-                         .input({embed_dim, seq_len, 1})
+                         .input({seq_len, embed_dim})
                          .layernorm(1e-5f, true, "ln_attn")
                          .full_attention(embed_dim, num_heads)
                          .dropout(0.1f)
@@ -531,20 +532,20 @@ inline Sequential<float> create_vit_tiny_imagenet() {
                      {}, "linear", "encoder_" + std::to_string(i) + "_attn");
 
     builder.residual(LayerBuilder<float>()
-                         .input({embed_dim, seq_len, 1})
+                         .input({seq_len, embed_dim})
                          .layernorm(1e-5f, true, "ln_mlp")
-                         .conv2d(embed_dim * mlp_ratio, 1, 1)
+                         .dense(embed_dim * mlp_ratio, false, "fc1")
                          .activation("gelu")
                          .dropout(0.1f)
-                         .conv2d(embed_dim, 1, 1)
+                         .dense(embed_dim, false, "fc2")
                          .dropout(0.1f)
                          .build(),
                      {}, "linear", "encoder_" + std::to_string(i) + "_mlp");
   }
 
-  builder.layernorm(1e-5f, true, "ln_final");
-  builder.slice(2, 0, 1, "extract_cls_token");
-  builder.dense(num_classes, true, "head");
+  builder.layernorm(1e-5f, true, "ln_final")
+      .flatten(1, "flatten_seq")
+      .dense(num_classes, true, "head");
 
   auto model = builder.build();
 

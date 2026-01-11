@@ -29,6 +29,8 @@ public:
   PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
                            const std::string &name = "pos_embedding");
 
+  void clear_gradients() override;
+
   void init_params() override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;

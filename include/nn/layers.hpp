@@ -36,6 +36,11 @@ template <typename T> class ClassTokenLayer;
 template <typename T> class PositionalEmbeddingLayer;
 template <typename T> class EmbeddingLayer;
 template <typename T> class CausalAttentionBlock;
+template <typename T> class FullAttentionBlock;
+template <typename T> class FlashAttentionBlock;
+template <typename T> class ResidualBlock;
+template <typename T> class SliceLayer;
+template <typename T> class TransposeLayer;
 
 } // namespace tnn
 
@@ -60,6 +65,7 @@ template <typename T> class CausalAttentionBlock;
 #include "layers_impl/maxpool2d_layer.hpp"
 #include "layers_impl/positional_embedding_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
+#include "layers_impl/transpose_layer.hpp"
 
 namespace tnn {
 template <typename T = float> class LayerFactory {
@@ -224,7 +230,8 @@ public:
     register_layer("embedding", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
       size_t vocab_size = config.get<size_t>("vocab_size");
       size_t embed_dim = config.get<size_t>("embed_dim");
-      return std::make_unique<EmbeddingLayer<T>>(vocab_size, embed_dim, config.name);
+      size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));
+      return std::make_unique<EmbeddingLayer<T>>(vocab_size, embed_dim, config.name, padding_idx);
     });
 
     register_layer("causal_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -291,6 +298,10 @@ public:
 
       return std::make_unique<ResidualBlock<T>>(std::move(main_layers), std::move(shortcut_layers),
                                                 activation, config.name);
+    });
+
+    register_layer("transpose", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
+      return std::make_unique<TransposeLayer<T>>(config.name);
     });
   }
 
@@ -551,9 +562,11 @@ public:
     return *this;
   }
 
-  LayerBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "") {
+  LayerBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "",
+                          size_t padding_idx = static_cast<size_t>(-1)) {
     auto layer = std::make_unique<EmbeddingLayer<T>>(
-        vocab_size, embed_dim, name.empty() ? "embedding_" + std::to_string(layers_.size()) : name);
+        vocab_size, embed_dim, name.empty() ? "embedding_" + std::to_string(layers_.size()) : name,
+        padding_idx);
     layers_.push_back(std::move(layer));
     return *this;
   }
@@ -562,6 +575,13 @@ public:
     auto layer = std::make_unique<CausalAttentionBlock<T>>(
         embed_dim, num_heads,
         name.empty() ? "causal_attention_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &transpose(const std::string &name = "") {
+    auto layer = std::make_unique<TransposeLayer<T>>(
+        name.empty() ? "transpose_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }

@@ -487,26 +487,22 @@ public:
   }
 
   T min() const {
-    if (device_type() != DeviceType::CPU) {
-      throw std::runtime_error("Min operation is only supported on CPU tensors");
-    }
-    T min_value = data_.get()[0];
-    for (size_t i = 1; i < data_size_; ++i) {
-      if (data_.get()[i] < min_value) {
-        min_value = data_.get()[i];
+    Tensor<T> cpu_tensor = to_cpu();
+    T min_value = cpu_tensor.data_.get()[0];
+    for (size_t i = 1; i < cpu_tensor.data_size_; ++i) {
+      if (cpu_tensor.data_.get()[i] < min_value) {
+        min_value = cpu_tensor.data_.get()[i];
       }
     }
     return min_value;
   }
 
   T max() const {
-    if (device_type() != DeviceType::CPU) {
-      throw std::runtime_error("Max operation is only supported on CPU tensors");
-    }
-    T max_value = data_.get()[0];
-    for (size_t i = 1; i < data_size_; ++i) {
-      if (data_.get()[i] > max_value) {
-        max_value = data_.get()[i];
+    Tensor<T> cpu_tensor = to_cpu();
+    T max_value = cpu_tensor.data_.get()[0];
+    for (size_t i = 1; i < cpu_tensor.data_size_; ++i) {
+      if (cpu_tensor.data_.get()[i] > max_value) {
+        max_value = cpu_tensor.data_.get()[i];
       }
     }
     return max_value;

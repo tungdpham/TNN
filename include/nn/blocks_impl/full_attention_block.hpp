@@ -8,16 +8,19 @@
 
 #include "device/task.hpp"
 #include "math/cpu/gemm.hpp"
+#include "nn/blocks_impl/cpu/permute_heads.hpp"
+#include "nn/blocks_impl/cpu/softmax.hpp"
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 #ifdef USE_CUDA
 #include "math/cuda/gemm.hpp"
+#include "nn/blocks_impl/cuda/permute_heads.hpp"
+#include "nn/blocks_impl/cuda/softmax.hpp"
 #endif
 #ifdef USE_CUDNN
 #include "device/cuda/cuda_context.hpp"
-#include "nn/blocks_impl/cuda/cudnn_attention_ops.hpp"
 #endif
-#include "nn/layers_impl/conv2d_layer.hpp"
+#include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <cmath>
@@ -34,60 +37,15 @@ private:
   size_t num_heads_;
   size_t head_dim_;
 
-  std::unique_ptr<Conv2DLayer<T>> q_proj_;
-  std::unique_ptr<Conv2DLayer<T>> k_proj_;
-  std::unique_ptr<Conv2DLayer<T>> v_proj_;
-  std::unique_ptr<Conv2DLayer<T>> out_proj_;
+  std::unique_ptr<DenseLayer<T>> q_proj_;
+  std::unique_ptr<DenseLayer<T>> k_proj_;
+  std::unique_ptr<DenseLayer<T>> v_proj_;
+  std::unique_ptr<DenseLayer<T>> out_proj_;
 
-  std::unordered_map<size_t, Tensor<T>> q_, k_, v_;
-  std::unordered_map<size_t, Tensor<T>> scores_;
-
-  void softmax_last_dim(Tensor<T> &input) {
-    if (input.is_on_gpu()) {
-#ifdef USE_CUDNN
-      auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
-      if (!cuda_context) {
-        throw std::runtime_error("Failed to get CUDA context");
-      }
-      const auto &shape = input.shape();
-      size_t total_rows = shape[0] * shape[2];
-      size_t cols = shape[3];
-
-      auto &input_ptr = input.data_ptr();
-
-      create_gpu_task("default", cuda::cudnn_attn::softmax_forward<T>,
-                      cuda_context->getCudnnHandle(), input_ptr.get(), input_ptr.get(), total_rows,
-                      cols);
-#else
-      throw std::runtime_error("AttentionBlock: GPU Softmax requires cuDNN.");
-#endif
-    } else {
-      T *data = input.data_ptr().get();
-      const auto &shape = input.shape();
-      size_t total_rows = shape[0] * shape[2];
-      size_t cols = shape[3];
-
-      for (size_t i = 0; i < total_rows; ++i) {
-        T *row = data + i * cols;
-        T max_val = row[0];
-        for (size_t j = 1; j < cols; ++j) {
-          if (row[j] > max_val)
-            max_val = row[j];
-        }
-
-        T sum = 0;
-        for (size_t j = 0; j < cols; ++j) {
-          row[j] = std::exp(row[j] - max_val);
-          sum += row[j];
-        }
-
-        T inv_sum = 1.0f / std::max(sum, static_cast<T>(1e-8));
-        for (size_t j = 0; j < cols; ++j) {
-          row[j] *= inv_sum;
-        }
-      }
-    }
-  }
+  std::unordered_map<size_t, Tensor<T>> q_cache_;
+  std::unordered_map<size_t, Tensor<T>> k_cache_;
+  std::unordered_map<size_t, Tensor<T>> v_cache_;
+  std::unordered_map<size_t, Tensor<T>> scores_cache_;
 
 public:
   FullAttentionBlock(size_t embed_dim, size_t num_heads, const std::string &name = "attention")
@@ -98,14 +56,10 @@ public:
     }
     head_dim_ = embed_dim / num_heads;
 
-    q_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_q");
-    k_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_k");
-    v_proj_ =
-        std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true, name + "_v");
-    out_proj_ = std::make_unique<Conv2DLayer<T>>(embed_dim, embed_dim, 1, 1, 1, 1, 0, 0, true,
-                                                 name + "_out");
+    q_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_q");
+    k_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_k");
+    v_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_v");
+    out_proj_ = std::make_unique<DenseLayer<T>>(embed_dim, embed_dim, true, name + "_out");
   }
 
   void init_params() override {
@@ -132,15 +86,19 @@ public:
   }
 
   void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    const auto &shape = input.shape();
-    size_t batch_size = shape[0];
-    size_t H = shape[2];
-    size_t W = shape[3];
-    size_t L = H * W;
+    if (input.dims() != 3) {
+      throw std::runtime_error(
+          "FullAttentionBlock: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
+    }
+    if (input.dimension(2) != embed_dim_) {
+      throw std::runtime_error("FullAttentionBlock: Input embed_dim does not match layer config");
+    }
+    size_t batch_size = input.dimension(0);
+    size_t L = input.dimension(1);
 
-    Tensor<T> &q = q_[micro_batch_id];
-    Tensor<T> &k = k_[micro_batch_id];
-    Tensor<T> &v = v_[micro_batch_id];
+    Tensor<T> &q = q_cache_[micro_batch_id];
+    Tensor<T> &k = k_cache_[micro_batch_id];
+    Tensor<T> &v = v_cache_[micro_batch_id];
 
     q_proj_->forward(input, q, micro_batch_id);
     k_proj_->forward(input, k, micro_batch_id);
@@ -151,45 +109,99 @@ public:
     size_t N = L;
     size_t K_dim = head_dim_;
 
-    Tensor<T> &scores = scores_[micro_batch_id];
+    Tensor<T> &scores = scores_cache_[micro_batch_id];
     scores.ensure({batch_count, 1, L, L}, this->device_);
 
     T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
     T beta = 0.0f;
 
-    auto q_ptr = q.data_ptr().get();
-    auto k_ptr = k.data_ptr().get();
-    auto v_ptr = v.data_ptr().get();
     auto s_ptr = scores.data_ptr().get();
 
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;
 
+    // Permute Q, K, V: (Batch, Seq, Heads, Dim) -> (Batch, Heads, Seq, Dim)
+    PooledTensor<T> q_perm_buf = this->get_buffer(q.shape());
+    Tensor<T> &q_perm = q_perm_buf.get();
+    PooledTensor<T> k_perm_buf = this->get_buffer(k.shape());
+    Tensor<T> &k_perm = k_perm_buf.get();
+    PooledTensor<T> v_perm_buf = this->get_buffer(v.shape());
+    Tensor<T> &v_perm = v_perm_buf.get();
+
+    auto q_perm_ptr = q_perm.data_ptr().get();
+    auto k_perm_ptr = k_perm.data_ptr().get();
+    auto v_perm_ptr = v_perm.data_ptr().get();
+
     if (this->device_->device_type() == DeviceType::CPU) {
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, q_ptr, k_ptr, s_ptr, M, N, K_dim,
-                      true, false, alpha, beta, batch_count, head_size, head_size, score_size);
+      create_cpu_task("default", cpu::permute_heads<T>, q.data_ptr().get(), q_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, k.data_ptr().get(), k_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, v.data_ptr().get(), v_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+
+      // Scores = Q * K^T
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, q_perm_ptr, k_perm_ptr, s_ptr, M, N,
+                      K_dim, false, true, alpha, beta, batch_count, head_size, head_size,
+                      score_size);
+      create_cpu_task("default", cpu::softmax_forward<T>, s_ptr, s_ptr, batch_count * L, L);
     }
 #ifdef USE_CUDA
     else if (this->device_->device_type() == DeviceType::GPU) {
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr, k_ptr, s_ptr, M, N, K_dim,
-                      true, false, alpha, beta, batch_count, head_size, head_size, score_size);
+      create_gpu_task("default", cuda::permute_heads<T>, q.data_ptr().get(), q_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, k.data_ptr().get(), k_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, v.data_ptr().get(), v_perm_ptr, batch_size,
+                      L, num_heads_, head_dim_);
+
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_perm_ptr, k_perm_ptr, s_ptr, M, N,
+                      K_dim, false, true, alpha, beta, batch_count, head_size, head_size,
+                      score_size);
+
+#ifdef USE_CUDNN
+      auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
+      if (!cuda_context) {
+        throw std::runtime_error("Failed to get CUDA context");
+      }
+      create_gpu_task("default", cuda::softmax_forward<T>, cuda_context->getCudnnHandle(), s_ptr,
+                      s_ptr, batch_count * L, L);
+#else
+      throw std::runtime_error("AttentionBlock: GPU Softmax requires cuDNN.");
+#endif
     }
 #endif
 
-    softmax_last_dim(scores);
+    PooledTensor<T> attn_out_perm_buf = this->get_buffer(q.shape());
+    Tensor<T> &attn_out_perm = attn_out_perm_buf.get();
+    auto out_perm_ptr = attn_out_perm.data_ptr().get();
 
-    PooledTensor<T> attn_out_buffer = this->get_buffer({batch_size, embed_dim_, H, W});
-    Tensor<T> &attn_out = attn_out_buffer.get();
-    auto out_ptr = attn_out.data_ptr().get();
-
+    // AttnOut = Scores * V
     if (this->device_->device_type() == DeviceType::CPU) {
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, v_ptr, s_ptr, out_ptr, head_dim_, L,
-                      L, false, true, 1.0f, 0.0f, batch_count, head_size, score_size, head_size);
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, s_ptr, v_perm_ptr, out_perm_ptr, L,
+                      head_dim_, L, false, false, 1.0f, 0.0f, batch_count, score_size, head_size,
+                      head_size);
     }
 #ifdef USE_CUDA
     else if (this->device_->device_type() == DeviceType::GPU) {
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, v_ptr, s_ptr, out_ptr, head_dim_, L,
-                      L, false, true, 1.0f, 0.0f, batch_count, head_size, score_size, head_size);
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, s_ptr, v_perm_ptr, out_perm_ptr, L,
+                      head_dim_, L, false, false, 1.0f, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+    }
+#endif
+
+    PooledTensor<T> attn_out_buffer = this->get_buffer({batch_size, L, embed_dim_});
+    Tensor<T> &attn_out = attn_out_buffer.get();
+
+    // Permute back: (Batch, Heads, Seq, Dim) -> (Batch, Seq, Heads, Dim)
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::permute_heads<T>, out_perm_ptr, attn_out.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
+    }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::permute_heads<T>, out_perm_ptr, attn_out.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
     }
 #endif
 
@@ -198,10 +210,15 @@ public:
 
   void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                      size_t micro_batch_id = 0) override {
-    Tensor<T> &q = q_[micro_batch_id];
-    Tensor<T> &k = k_[micro_batch_id];
-    Tensor<T> &v = v_[micro_batch_id];
-    Tensor<T> &scores = scores_[micro_batch_id];
+    if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
+      throw std::runtime_error("FullAttentionBlock: Cache not found for micro_batch_id");
+    }
+    Tensor<T> &q = q_cache_[micro_batch_id];
+    Tensor<T> &k = k_cache_[micro_batch_id];
+    Tensor<T> &v = v_cache_[micro_batch_id];
+    Tensor<T> &scores = scores_cache_[micro_batch_id];
+
+    grad_input.ensure(q.shape(), this->device_);
 
     PooledTensor<T> grad_attn_out_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_attn_out = grad_attn_out_buffer.get();
@@ -209,10 +226,129 @@ public:
 
     const auto &q_shape = q.shape();
     size_t batch_size = q_shape[0];
-    size_t L = q_shape[2] * q_shape[3];
+    size_t L = q_shape[1];
+
+    // Re-permute Q, K, V for backward
+    PooledTensor<T> q_perm_buf = this->get_buffer(q.shape());
+    Tensor<T> &q_perm = q_perm_buf.get();
+    PooledTensor<T> k_perm_buf = this->get_buffer(k.shape());
+    Tensor<T> &k_perm = k_perm_buf.get();
+    PooledTensor<T> v_perm_buf = this->get_buffer(v.shape());
+    Tensor<T> &v_perm = v_perm_buf.get();
+
+    // Permute grad_attn_out
+    PooledTensor<T> grad_attn_out_perm_buf = this->get_buffer(q.shape());
+    Tensor<T> &grad_attn_out_perm = grad_attn_out_perm_buf.get();
+
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::permute_heads<T>, q.data_ptr().get(), q_perm.data_ptr().get(),
+                      batch_size, L, num_heads_, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, k.data_ptr().get(), k_perm.data_ptr().get(),
+                      batch_size, L, num_heads_, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, v.data_ptr().get(), v_perm.data_ptr().get(),
+                      batch_size, L, num_heads_, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, grad_attn_out.data_ptr().get(),
+                      grad_attn_out_perm.data_ptr().get(), batch_size, L, num_heads_, head_dim_);
+    }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::permute_heads<T>, q.data_ptr().get(),
+                      q_perm.data_ptr().get(), batch_size, L, num_heads_, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, k.data_ptr().get(),
+                      k_perm.data_ptr().get(), batch_size, L, num_heads_, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, v.data_ptr().get(),
+                      v_perm.data_ptr().get(), batch_size, L, num_heads_, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, grad_attn_out.data_ptr().get(),
+                      grad_attn_out_perm.data_ptr().get(), batch_size, L, num_heads_, head_dim_);
+    }
+#endif
+
     size_t batch_count = batch_size * num_heads_;
     size_t head_size = head_dim_ * L;
     size_t score_size = L * L;
+
+    // Buffers for permuted gradients
+    PooledTensor<T> grad_q_perm_buf = this->get_buffer(q.shape());
+    Tensor<T> &grad_q_perm = grad_q_perm_buf.get();
+    PooledTensor<T> grad_k_perm_buf = this->get_buffer(k.shape());
+    Tensor<T> &grad_k_perm = grad_k_perm_buf.get();
+    PooledTensor<T> grad_v_perm_buf = this->get_buffer(v.shape());
+    Tensor<T> &grad_v_perm = grad_v_perm_buf.get();
+    PooledTensor<T> grad_scores_buffer = this->get_buffer(scores.shape());
+    Tensor<T> &grad_scores = grad_scores_buffer.get();
+
+    auto g_v_ptr = grad_v_perm.data_ptr().get();
+    auto g_out_ptr = grad_attn_out_perm.data_ptr().get();
+    auto s_ptr = scores.data_ptr().get();
+    auto g_s_ptr = grad_scores.data_ptr().get();
+    auto v_ptr = v_perm.data_ptr().get();
+    auto q_ptr = q_perm.data_ptr().get();
+    auto k_ptr = k_perm.data_ptr().get();
+    auto g_q_ptr = grad_q_perm.data_ptr().get();
+    auto g_k_ptr = grad_k_perm.data_ptr().get();
+
+    // dV = S^T * dOut
+    // dScores = dOut * V^T
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, s_ptr, g_out_ptr, g_v_ptr, L,
+                      head_dim_, L, true, false, 1.0f, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
+                      head_dim_, false, true, 1.0f, 0.0f, batch_count, head_size, head_size,
+                      score_size);
+    }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, s_ptr, g_out_ptr, g_v_ptr, L,
+                      head_dim_, L, true, false, 1.0f, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
+                      head_dim_, false, true, 1.0f, 0.0f, batch_count, head_size, head_size,
+                      score_size);
+    }
+#endif
+
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::softmax_backward<T>, s_ptr, g_s_ptr, g_s_ptr, batch_count * L,
+                      L);
+    }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+#ifdef USE_CUDNN
+      auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
+      if (!cuda_context) {
+        throw std::runtime_error("Failed to get CUDA context");
+      }
+      create_gpu_task("default", cuda::softmax_backward<T>, cuda_context->getCudnnHandle(), s_ptr,
+                      g_s_ptr, g_s_ptr, batch_count * L, L);
+#else
+      throw std::runtime_error("AttentionBlock: GPU Softmax requires cuDNN.");
+#endif
+    }
+#endif
+
+    T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
+
+    // dK = dScores^T * Q
+    // dQ = dScores * K
+    if (this->device_->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_s_ptr, q_ptr, g_k_ptr, L,
+                      head_dim_, L, true, false, alpha, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_s_ptr, k_ptr, g_q_ptr, L,
+                      head_dim_, L, false, false, alpha, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+    }
+#ifdef USE_CUDA
+    else if (this->device_->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_s_ptr, q_ptr, g_k_ptr, L,
+                      head_dim_, L, true, false, alpha, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_s_ptr, k_ptr, g_q_ptr, L,
+                      head_dim_, L, false, false, alpha, 0.0f, batch_count, score_size, head_size,
+                      head_size);
+    }
+#endif
 
     PooledTensor<T> grad_q_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_q = grad_q_buffer.get();
@@ -220,119 +356,64 @@ public:
     Tensor<T> &grad_k = grad_k_buffer.get();
     PooledTensor<T> grad_v_buffer = this->get_buffer(v.shape());
     Tensor<T> &grad_v = grad_v_buffer.get();
-    PooledTensor<T> grad_scores_buffer = this->get_buffer(scores.shape());
-    Tensor<T> &grad_scores = grad_scores_buffer.get();
 
-    auto g_v_ptr = grad_v.data_ptr().get();
-    auto g_out_ptr = grad_attn_out.data_ptr().get();
-    auto s_ptr = scores.data_ptr().get();
-    auto g_s_ptr = grad_scores.data_ptr().get();
-    auto v_ptr = v.data_ptr().get();
-    auto q_ptr = q.data_ptr().get();
-    auto k_ptr = k.data_ptr().get();
-    auto g_q_ptr = grad_q.data_ptr().get();
-    auto g_k_ptr = grad_k.data_ptr().get();
-
+    // Permute grads back: (B, H, L, D) -> (B, L, H, D)
     if (this->device_->device_type() == DeviceType::CPU) {
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_out_ptr, s_ptr, g_v_ptr, head_dim_,
-                      L, L, false, false, 1.0f, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
-                      head_dim_, true, false, 1.0f, 0.0f, batch_count, head_size, head_size,
-                      score_size);
+      create_cpu_task("default", cpu::permute_heads<T>, g_q_ptr, grad_q.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, g_k_ptr, grad_k.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
+      create_cpu_task("default", cpu::permute_heads<T>, g_v_ptr, grad_v.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
     }
 #ifdef USE_CUDA
     else if (this->device_->device_type() == DeviceType::GPU) {
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_out_ptr, s_ptr, g_v_ptr,
-                      head_dim_, L, L, false, false, 1.0f, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, g_out_ptr, v_ptr, g_s_ptr, L, L,
-                      head_dim_, true, false, 1.0f, 0.0f, batch_count, head_size, head_size,
-                      score_size);
+      create_gpu_task("default", cuda::permute_heads<T>, g_q_ptr, grad_q.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, g_k_ptr, grad_k.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
+      create_gpu_task("default", cuda::permute_heads<T>, g_v_ptr, grad_v.data_ptr().get(),
+                      batch_size, num_heads_, L, head_dim_);
     }
 #endif
 
-    if (this->device_->device_type() == DeviceType::GPU) {
-#ifdef USE_CUDNN
-      auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
-      if (!cuda_context) {
-        throw std::runtime_error("Failed to get CUDA context");
-      }
-      create_gpu_task("default", cuda::cudnn_attn::softmax_backward<T>,
-                      cuda_context->getCudnnHandle(), s_ptr, g_s_ptr, g_s_ptr, batch_count * L, L);
-#else
-      throw std::runtime_error("AttentionBlock: GPU Softmax requires cuDNN.");
-#endif
-    } else {
-      softmax_backward_cpu(scores, grad_scores, grad_scores);
-    }
-
-    T alpha = 1.0f / std::sqrt(static_cast<T>(head_dim_));
-
-    if (this->device_->device_type() == DeviceType::CPU) {
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, k_ptr, g_s_ptr, g_q_ptr, head_dim_,
-                      L, L, false, true, alpha, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-      create_cpu_task("default", cpu::gemm_strided_batched<T>, q_ptr, g_s_ptr, g_k_ptr, head_dim_,
-                      L, L, false, false, alpha, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-    }
-#ifdef USE_CUDA
-    else if (this->device_->device_type() == DeviceType::GPU) {
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, k_ptr, g_s_ptr, g_q_ptr, head_dim_,
-                      L, L, false, true, alpha, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-      create_gpu_task("default", cuda::gemm_strided_batched<T>, q_ptr, g_s_ptr, g_k_ptr, head_dim_,
-                      L, L, false, false, alpha, 0.0f, batch_count, head_size, score_size,
-                      head_size);
-    }
-#endif
-
-    PooledTensor<T> grad_input_q_buffer = this->get_buffer(grad_input.shape());
+    PooledTensor<T> grad_input_q_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_input_q = grad_input_q_buffer.get();
-    PooledTensor<T> grad_input_k_buffer = this->get_buffer(grad_input.shape());
+    PooledTensor<T> grad_input_k_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_input_k = grad_input_k_buffer.get();
-    PooledTensor<T> grad_input_v_buffer = this->get_buffer(grad_input.shape());
+    PooledTensor<T> grad_input_v_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_input_v = grad_input_v_buffer.get();
 
     q_proj_->backward(grad_q, grad_input_q, micro_batch_id);
     k_proj_->backward(grad_k, grad_input_k, micro_batch_id);
     v_proj_->backward(grad_v, grad_input_v, micro_batch_id);
 
-    ops::add(grad_input_q.data_ptr(), grad_input_k.data_ptr(), grad_input.data_ptr(),
-             grad_input.size());
-    ops::add(grad_input.data_ptr(), grad_input_v.data_ptr(), grad_input.data_ptr(),
-             grad_input.size());
+    ops::add(grad_input_q.data_ptr(), grad_input_k.data_ptr(), grad_input.data_ptr(), q.size());
+    ops::add(grad_input.data_ptr(), grad_input_v.data_ptr(), grad_input.data_ptr(), q.size());
   }
 
-  void softmax_backward_cpu(const Tensor<T> &output, const Tensor<T> &grad_output,
-                            Tensor<T> &grad_input) {
-    const T *y_data = output.data_ptr().get();
-    const T *dy_data = grad_output.data_ptr().get();
-    T *dx_data = grad_input.data_ptr().get();
-
-    const auto &shape = output.shape();
-    size_t rows = shape[0] * shape[2];
-    size_t cols = shape[3];
-
-    for (size_t i = 0; i < rows; ++i) {
-      const T *y_row = y_data + i * cols;
-      const T *dy_row = dy_data + i * cols;
-      T *dx_row = dx_data + i * cols;
-
-      T dot = 0;
-      for (size_t j = 0; j < cols; ++j) {
-        dot += y_row[j] * dy_row[j];
-      }
-
-      for (size_t j = 0; j < cols; ++j) {
-        dx_row[j] = y_row[j] * (dy_row[j] - dot);
-      }
-    }
+  void clear_gradients() override {
+    q_proj_->clear_gradients();
+    k_proj_->clear_gradients();
+    v_proj_->clear_gradients();
+    out_proj_->clear_gradients();
   }
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {
+    size_t batch_size = input_shape[0];
+    size_t L = input_shape[1];
+    uint64_t flops = q_proj_->forward_flops(input_shape) + k_proj_->forward_flops(input_shape) +
+                     v_proj_->forward_flops(input_shape);
+    size_t score_ops = batch_size * num_heads_ * L * L * head_dim_ * 2;
+    size_t attn_ops = batch_size * num_heads_ * L * L * head_dim_ * 2;
+    flops += score_ops + attn_ops;
+    flops += out_proj_->forward_flops(input_shape);
+    return flops;
+  }
+
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override {
+    return forward_flops(input_shape) * 2;
+  }
 
   std::string type() const override { return "full_attention"; }
 

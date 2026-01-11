@@ -15,12 +15,12 @@ function(create_test test_name)
         tnn_lib
     )
     
-    # Discover tests automatically
-    gtest_discover_tests(${test_name})
+    gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
 endfunction()
 
 set(TEST_FILES 
     tensor_test.cpp
+    slice_ops_test.cpp
     device_manager_test.cpp
     cuda_kernels_test.cpp
     gpu_tensor_test.cpp
@@ -70,8 +70,7 @@ if(ENABLE_CUDA)
             tnn_lib
         )
         
-        # Discover tests automatically
-        gtest_discover_tests(${test_name})
+        gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
     endfunction()
 
     set(CUDA_TEST_TARGET cuda_kernels_test)

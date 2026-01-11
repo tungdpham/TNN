@@ -88,9 +88,9 @@ public:
 
   std::unique_ptr<Task> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets,
                                          Tensor<T> &gradient) override {
-    if (predictions.device() != targets.device()) {
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
       throw std::runtime_error(
-          "Predictions and targets must be on the same device for CrossEntropyLoss.");
+          "Predictions, targets, and gradient must be on the same device for CrossEntropyLoss.");
     }
     gradient.ensure(predictions.shape());
     const size_t num_classes = predictions.shape().back();
@@ -164,9 +164,9 @@ public:
 
   std::unique_ptr<Task> compute_gradient(const Tensor<T> &logits, const Tensor<T> &targets,
                                          Tensor<T> &gradient) override {
-    if (logits.device() != targets.device()) {
-      throw std::runtime_error(
-          "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
+    if (logits.device() != targets.device() || logits.device() != gradient.device()) {
+      throw std::runtime_error("Logits, targets, and gradient must be on the same device for "
+                               "LogSoftmaxCrossEntropyLoss.");
     }
     gradient.ensure(logits.shape());
     const size_t num_classes = logits.shape().back();
@@ -234,8 +234,9 @@ public:
 
   std::unique_ptr<Task> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets,
                                          Tensor<T> &gradient) override {
-    if (predictions.device() != targets.device()) {
-      throw std::runtime_error("Predictions and targets must be on the same device for MSELoss.");
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
+      throw std::runtime_error(
+          "Predictions, targets, and gradient must be on the same device for MSELoss.");
     }
     gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
@@ -299,8 +300,9 @@ public:
 
   std::unique_ptr<Task> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets,
                                          Tensor<T> &gradient) override {
-    if (predictions.device() != targets.device()) {
-      throw std::runtime_error("Predictions and targets must be on the same device for MAELoss.");
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
+      throw std::runtime_error(
+          "Predictions, targets, and gradient must be on the same device for MAELoss.");
     }
     gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];
@@ -364,8 +366,9 @@ public:
 
   std::unique_ptr<Task> compute_gradient(const Tensor<T> &predictions, const Tensor<T> &targets,
                                          Tensor<T> &gradient) override {
-    if (predictions.device() != targets.device()) {
-      throw std::runtime_error("Predictions and targets must be on the same device for HuberLoss.");
+    if (predictions.device() != targets.device() || predictions.device() != gradient.device()) {
+      throw std::runtime_error(
+          "Predictions, targets, and gradient must be on the same device for HuberLoss.");
     }
     gradient.ensure(predictions.shape());
     const size_t batch_size = predictions.shape()[0];

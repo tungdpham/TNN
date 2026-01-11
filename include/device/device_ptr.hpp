@@ -111,7 +111,6 @@ public:
     ptr_ = nullptr;
     size_ = 0;
     capacity_ = 0;
-    alignment_ = 0;
   }
 
   ~device_ptr() { reset(); }
@@ -129,7 +128,6 @@ public:
 
       other.ptr_ = nullptr;
       other.size_ = 0;
-      other.alignment_ = 0;
       other.capacity_ = 0;
     }
     return *this;
@@ -147,7 +145,6 @@ public:
     ptr_ = nullptr;
     size_ = 0;
     capacity_ = 0;
-    alignment_ = 0;
     return temp;
   }
 

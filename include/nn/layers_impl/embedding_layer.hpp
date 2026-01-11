@@ -26,6 +26,7 @@ template <typename T = float> class EmbeddingLayer : public ParameterizedLayer<T
 private:
   size_t vocab_size_;
   size_t embed_dim_;
+  size_t padding_idx_;
   Tensor<T> weight_;
   Tensor<T> grad_weight_;
   std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
@@ -74,8 +75,15 @@ private:
   }
 
 public:
-  EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding")
-      : ParameterizedLayer<T>(name), vocab_size_(vocab_size), embed_dim_(embed_dim) {}
+  EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
+                 size_t padding_idx = static_cast<size_t>(-1))
+      : ParameterizedLayer<T>(name), vocab_size_(vocab_size), embed_dim_(embed_dim) {
+    if (padding_idx == static_cast<size_t>(-1)) {
+      padding_idx_ = vocab_size_;
+    } else {
+      padding_idx_ = padding_idx;
+    }
+  }
 
   void init_params() override {
     // weight shape: [vocab_size, embed_dim]
@@ -102,13 +110,9 @@ private:
     }
 
     if (this->is_training_) {
-      auto it_input = micro_batch_inputs_.find(micro_batch_id);
-      if (it_input == micro_batch_inputs_.end()) {
-        micro_batch_inputs_[micro_batch_id] = current->clone();
-      } else {
-        it_input->second.ensure(current->shape(), this->device_);
-        ops::copy(current->data_ptr(), it_input->second.data_ptr(), current->size());
-      }
+      auto &cached_input = micro_batch_inputs_[micro_batch_id];
+      cached_input.ensure(current->shape(), this->device_);
+      ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
     }
 
     size_t num_tokens = input.size();
@@ -120,7 +124,7 @@ private:
     output.ensure(out_shape, this->device_);
 
     compute_forward_task(current->data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
-                         vocab_size_, embed_dim_, vocab_size_, "default");
+                         vocab_size_, embed_dim_, padding_idx_, "default");
   }
 
   void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
@@ -145,7 +149,7 @@ private:
     size_t num_tokens = input.size();
 
     compute_backward_task(input.data_ptr(), current_gradient->data_ptr(), grad_weight_.data_ptr(),
-                          num_tokens, vocab_size_, embed_dim_, vocab_size_, "default");
+                          num_tokens, vocab_size_, embed_dim_, padding_idx_, "default");
   }
 
 protected:
@@ -178,11 +182,12 @@ public:
     config.name = this->name_;
     config.parameters["vocab_size"] = vocab_size_;
     config.parameters["embed_dim"] = embed_dim_;
+    config.parameters["padding_idx"] = padding_idx_;
     return config;
   }
 
   std::unique_ptr<Layer<T>> clone() const override {
-    return std::make_unique<EmbeddingLayer<T>>(vocab_size_, embed_dim_, this->name_);
+    return std::make_unique<EmbeddingLayer<T>>(vocab_size_, embed_dim_, this->name_, padding_idx_);
   }
 
   size_t cached_memory_bytes() const override {

@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "nn/layers_impl/parameterized_layer.hpp"
+#include "nn/layers_impl/stateless_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
@@ -14,36 +14,26 @@
 
 namespace tnn {
 
-template <typename T = float> class ClassTokenLayer : public ParameterizedLayer<T> {
+template <typename T = float> class TransposeLayer : public StatelessLayer<T> {
 private:
-  size_t embed_dim_;
-  Tensor<T> class_token_;
-  Tensor<T> class_token_gradients_;
-
   void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
   void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
-  ClassTokenLayer(size_t embed_dim, const std::string &name = "class_token");
-
-  void init_params() override;
-
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
+  TransposeLayer(const std::string &name = "transpose");
 
   std::string type() const override;
   LayerConfig get_config() const override;
   std::unique_ptr<Layer<T>> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  void clear_gradients() override;
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
 
-protected:
-  void collect_parameters(std::vector<Tensor<T> *> &params) override;
-  void collect_gradients(std::vector<Tensor<T> *> &grads) override;
+  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
 
-#include "nn/layers_impl/class_token_layer.tpp"
+#include "nn/layers_impl/transpose_layer.tpp"

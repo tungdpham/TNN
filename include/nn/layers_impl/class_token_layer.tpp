@@ -23,8 +23,8 @@ ClassTokenLayer<T>::ClassTokenLayer(size_t embed_dim, const std::string &name)
     : ParameterizedLayer<T>(name), embed_dim_(embed_dim) {}
 
 template <typename T> void ClassTokenLayer<T>::init_params() {
-  class_token_ = Tensor<T>({1, embed_dim_, 1, 1}, this->device_);
-  class_token_gradients_ = Tensor<T>({1, embed_dim_, 1, 1}, this->device_);
+  class_token_ = Tensor<T>({embed_dim_}, this->device_);
+  class_token_gradients_ = Tensor<T>({embed_dim_}, this->device_);
 
   T fan_in = static_cast<T>(embed_dim_);
   T bound = static_cast<T>(1.0) / std::sqrt(fan_in);
@@ -40,22 +40,19 @@ template <typename T> void ClassTokenLayer<T>::init_params() {
 template <typename T>
 void ClassTokenLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                       size_t micro_batch_id) {
-  if (!this->initialized_) {
-    throw std::runtime_error("Layer parameters not initialized. Call initialize() before forward.");
+  if (input.dims() != 3) {
+    throw std::runtime_error(
+        "ClassTokenLayer: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
+  }
+  size_t batch_size = input.dimension(0);
+  size_t seq_len = input.dimension(1);
+  size_t embed_dim = input.dimension(2);
+
+  if (embed_dim != embed_dim_) {
+    throw std::runtime_error("ClassTokenLayer: Input embed_dim must match layer embed_dim");
   }
 
-  const auto &shape = input.shape();
-  size_t batch_size = shape[0];
-  size_t channels = shape[1];
-  size_t height = shape[2];
-  size_t width = shape[3];
-  size_t len = height * width;
-
-  if (channels != embed_dim_) {
-    throw std::runtime_error("ClassTokenLayer: Input channels must match embed_dim");
-  }
-
-  output.ensure({batch_size, channels, len + 1, 1}, this->device_);
+  output.ensure({batch_size, seq_len + 1, embed_dim}, this->device_);
 
   auto &out_ptr = output.data_ptr();
   const auto &in_ptr = input.data_ptr();
@@ -63,12 +60,12 @@ void ClassTokenLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
 
   if (this->device_->device_type() == DeviceType::CPU) {
     create_cpu_task("default", cpu::class_token_forward<T>, in_ptr.get(), token_ptr.get(),
-                    out_ptr.get(), batch_size, channels, len);
+                    out_ptr.get(), batch_size, seq_len, embed_dim);
   } else {
 #ifdef USE_CUDA
     // Use create_gpu_task to ensure correct flow/stream usage, consistent with other layers
     create_gpu_task("default", cuda::class_token_forward<T>, in_ptr.get(), token_ptr.get(),
-                    out_ptr.get(), batch_size, channels, len);
+                    out_ptr.get(), batch_size, seq_len, embed_dim);
 #else
     throw std::runtime_error("CUDA support for ClassTokenLayer not implemented");
 #endif
@@ -78,13 +75,16 @@ void ClassTokenLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
 template <typename T>
 void ClassTokenLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                        size_t micro_batch_id) {
-  const auto &shape = gradient.shape();
-  size_t batch_size = shape[0];
-  size_t channels = shape[1];
-  size_t len_plus_1 = shape[2];
-  size_t len = len_plus_1 - 1;
+  if (gradient.dims() != 3) {
+    throw std::runtime_error(
+        "ClassTokenLayer: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");
+  }
+  size_t batch_size = gradient.dimension(0);
+  size_t seq_len_plus_1 = gradient.dimension(1);
+  size_t embed_dim = gradient.dimension(2);
+  size_t seq_len = seq_len_plus_1 - 1;
 
-  grad_input.ensure({batch_size, channels, len, 1}, this->device_);
+  grad_input.ensure({batch_size, seq_len, embed_dim}, this->device_);
 
   const auto &grad_ptr = gradient.data_ptr();
   auto &grad_in_ptr = grad_input.data_ptr();
@@ -92,15 +92,19 @@ void ClassTokenLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &gra
 
   if (this->device_->device_type() == DeviceType::CPU) {
     create_cpu_task("default", cpu::class_token_backward<T>, grad_ptr.get(), grad_in_ptr.get(),
-                    token_grad_ptr.get(), batch_size, channels, len);
+                    token_grad_ptr.get(), batch_size, seq_len, embed_dim);
   } else {
 #ifdef USE_CUDA
     create_gpu_task("default", cuda::class_token_backward<T>, grad_ptr.get(), grad_in_ptr.get(),
-                    token_grad_ptr.get(), batch_size, channels, len);
+                    token_grad_ptr.get(), batch_size, seq_len, embed_dim);
 #else
     throw std::runtime_error("CUDA support for ClassTokenLayer not implemented");
 #endif
   }
+}
+
+template <typename T> void ClassTokenLayer<T>::clear_gradients() {
+  class_token_gradients_.fill(T(0));
 }
 
 template <typename T>
@@ -129,17 +133,13 @@ template <typename T> std::unique_ptr<Layer<T>> ClassTokenLayer<T>::clone() cons
 template <typename T>
 std::vector<size_t>
 ClassTokenLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) const {
-  if (input_shape.size() != 4) {
-    throw std::invalid_argument("ClassTokenLayer expects 4D input including batch size");
+  if (input_shape.size() < 3) {
+    throw std::runtime_error("ClassTokenLayer: Input shape must have at least 3 dimensions");
   }
-
-  // input_shape: [N, C, H, W]
-  // output_shape: [N, C, H*W + 1, 1]
-  size_t N = input_shape[0];
-  size_t C = input_shape[1];
-  size_t H = input_shape[2];
-  size_t W = input_shape[3];
-  return {N, C, H * W + 1, 1};
+  size_t batch_size = input_shape[0];
+  size_t seq_len = input_shape[1];
+  size_t embed_dim = input_shape[2];
+  return {batch_size, seq_len + 1, embed_dim};
 }
 
 template <typename T>

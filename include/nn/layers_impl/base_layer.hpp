@@ -39,6 +39,9 @@ public:
   Layer() : mem_pool_(&getDefaultMemPool<T>()) { this->device_ = &getCPU(); }
   virtual ~Layer() = default;
 
+  /*
+   * Initialize the layer (e.g., allocate params, gradients, temp buffers, etc.)
+   */
   void init() {
     if (initialized_) {
       return;
@@ -93,7 +96,7 @@ public:
     this->initialized_ = true;
   }
 
-  virtual void clear_gradients() {}
+  virtual void clear_gradients() = 0;
 
   virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;
   virtual uint64_t backward_flops(const std::vector<size_t> &input_shape) const = 0;
@@ -138,7 +141,6 @@ protected:
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
   mutable std::map<std::string, float> perf_timers_; // For profiling layer's internal performance
-  // buffers for storing intermediate results per micro-batch
   MemPool<T> *mem_pool_;
   const Device *device_;
   std::string name_;

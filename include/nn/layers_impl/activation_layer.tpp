@@ -21,7 +21,6 @@ ActivationLayer<T>::ActivationLayer(std::unique_ptr<EWActivationFunction<T>> act
 template <typename T>
 void ActivationLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                       size_t micro_batch_id) {
-
   const Tensor<T> *current = &input;
   Tensor<T> device_input;
   if (input.device() != this->device_) {

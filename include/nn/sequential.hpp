@@ -15,6 +15,8 @@
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 
+#include "cuda/error_handler.hpp"
+
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
@@ -488,8 +490,8 @@ public:
     }
     const Device *input_device = input.device();
     compute_max_size(input.shape());
-    temp_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
-    output_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
+    temp_buffer_.ensure({max_size_}, this->device_);
+    output_buffer_.ensure({max_size_}, this->device_);
     const Tensor<T> *current = &input;
     for (size_t i = 0; i < layers_.size(); ++i) {
       try {
@@ -551,18 +553,18 @@ public:
     }
 
     const Device *grad_device = gradient.device();
-    temp_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
-    output_buffer_.ensure({max_size_, 1, 1, 1}, this->device_);
+    temp_buffer_.ensure({max_size_}, this->device_);
+    output_buffer_.ensure({max_size_}, this->device_);
     const Tensor<T> *current_gradient = &gradient;
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         auto start_time = std::chrono::high_resolution_clock::now();
-
         layers_[i]->backward(*current_gradient, output_buffer_, micro_batch_id);
         std::swap(temp_buffer_, output_buffer_);
         current_gradient = &temp_buffer_;
 
         // cudaDeviceSynchronize(); // DEBUG
+        // CUDA_CHECK(cudaGetLastError());
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
             std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
@@ -1458,10 +1460,11 @@ public:
     return *this;
   }
 
-  SequentialBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "") {
-    layer_builder_.embedding(vocab_size, embed_dim,
-                             name.empty() ? "embedding_" + std::to_string(model_.layer_size())
-                                          : name);
+  SequentialBuilder &embedding(size_t vocab_size, size_t embed_dim, const std::string &name = "",
+                               size_t padding_idx = static_cast<size_t>(-1)) {
+    layer_builder_.embedding(
+        vocab_size, embed_dim,
+        name.empty() ? "embedding_" + std::to_string(model_.layer_size()) : name, padding_idx);
     return *this;
   }
 
@@ -1484,6 +1487,12 @@ public:
     layer_builder_.positional_embedding(
         embed_dim, seq_length,
         name.empty() ? "positional_embedding_" + std::to_string(model_.layer_size()) : name);
+    return *this;
+  }
+
+  SequentialBuilder &transpose(const std::string &name = "") {
+    layer_builder_.transpose(name.empty() ? "transpose_" + std::to_string(model_.layer_size())
+                                          : name);
     return *this;
   }
 
