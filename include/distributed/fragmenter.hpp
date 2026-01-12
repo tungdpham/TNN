@@ -3,6 +3,8 @@
 #include "distributed/buffer_pool.hpp"
 #include "packet.hpp"
 #include <cstdint>
+#include <mutex>
+#include <sys/types.h>
 #include <unordered_map>
 
 namespace tnn {
@@ -20,12 +22,12 @@ public:
   Fragmenter &operator=(const Fragmenter &) = delete;
 
   Fragmenter(Fragmenter &&other) {
-    cur_msg_serial_id_ = other.cur_msg_serial_id_.load();
+    std::lock_guard<std::mutex> msg_lock(other.message_states_mutex_);
     message_states_ = std::move(other.message_states_);
   }
   Fragmenter &operator=(Fragmenter &&other) {
     if (this != &other) {
-      cur_msg_serial_id_ = other.cur_msg_serial_id_.load();
+      std::lock_guard<std::mutex> msg_lock(other.message_states_mutex_);
       message_states_ = std::move(other.message_states_);
     }
     return *this;
@@ -33,6 +35,7 @@ public:
 
   template <typename BufferType>
   std::vector<PacketHeader> get_headers(BufferType &buffer, uint32_t num_packets) {
+    size_t serial_id = cur_serial_id_.fetch_add(1);
     if (num_packets == 0) {
       throw std::invalid_argument("Number of packets must be greater than 0");
     }
@@ -44,11 +47,10 @@ public:
       header.length = i == num_packets - 1 ? buffer.size() - i * packet_size : packet_size;
       header.msg_length = buffer.size();
       header.packet_offset = i * packet_size;
-      header.msg_serial_id = cur_msg_serial_id_;
+      header.msg_serial_id = serial_id;
       header.total_packets = num_packets;
       headers.emplace_back(std::move(header));
     }
-    cur_msg_serial_id_++;
     return headers;
   }
 
@@ -134,7 +136,7 @@ public:
   }
 
 private:
-  std::atomic<uint64_t> cur_msg_serial_id_{101};              // auto increment, for sender side
+  static inline std::atomic<uint64_t> cur_serial_id_{101};    // auto increment, for sender side
   mutable std::mutex message_states_mutex_;                   // protect message_states_
   std::unordered_map<uint64_t, MessageState> message_states_; // for receiver side
 };

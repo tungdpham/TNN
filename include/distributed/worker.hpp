@@ -240,12 +240,18 @@ protected:
       // do nothing;
       break;
     }
+    case CommandType::HANDSHAKE_ACK: {
+      // do nothing;
+      break;
+    }
     case CommandType::SHUTDOWN:
       std::cout << "Stage " << id_ << " received SHUTDOWN command. Stopping." << std::endl;
       this->stop();
       break;
     default:
-      throw std::runtime_error("Unknown command type received");
+      std::cerr << "Warning: Unknown command type "
+                << static_cast<int>(message.header().command_type) << " received by stage " << id_
+                << std::endl;
       break;
     }
   }

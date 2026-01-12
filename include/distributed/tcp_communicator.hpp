@@ -35,6 +35,7 @@
 #include <system_error>
 #include <thread>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 
 namespace tnn {
@@ -124,7 +125,7 @@ public:
     try {
       std::string recipient_id = message.header().recipient_id;
 
-      async_send_buffer(recipient_id, std::move(message));
+      start_send(recipient_id, std::move(message));
     } catch (const std::exception &e) {
       std::cerr << "Send error: " << e.what() << std::endl;
     }
@@ -221,6 +222,7 @@ private:
   std::atomic<bool> is_running_;
 
   std::unordered_map<std::string, ConnectionGroup> connection_groups_;
+  std::unordered_map<std::string, std::string> alias_map_;
   std::shared_mutex connections_mutex_;
 
   void accept_connections() {
@@ -299,15 +301,18 @@ private:
   void read_message(std::shared_ptr<Connection> connection, PacketHeader packet_header) {
     uint64_t msg_serial_id = packet_header.msg_serial_id;
     uint64_t offset = packet_header.packet_offset;
-    std::string connection_id = connection->get_peer_id();
     // Get buffer pointer while holding lock, then keep it alive via shared ownership
     PooledBuffer buffer;
+    std::string connection_id;
 
     auto register_start = Clock::now();
     {
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
+      connection_id = connection->get_peer_id();
       auto it = connection_groups_.find(connection_id);
       if (it == connection_groups_.end()) {
+        std::cerr << "Connection group not found for " << connection_id << " in (" << __FILE__
+                  << ":" << __LINE__ << ")" << std::endl;
         return;
       }
       auto &connection_group = it->second;
@@ -413,7 +418,8 @@ private:
       Profiler::instance().add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
                                       "Message Deserialize", this->id_});
 
-      if (msg.header().command_type == CommandType::HANDSHAKE) {
+      if (msg.header().command_type == CommandType::HANDSHAKE ||
+          msg.header().command_type == CommandType::HANDSHAKE_ACK) {
         handle_handshake(connection, msg);
       }
 
@@ -449,56 +455,81 @@ private:
     }
   }
 
-  void async_send_buffer(const std::string &recipient_id, Message &&message) {
+  void start_send(const std::string &recipient_id, Message &&message) {
+    std::string actual_id = recipient_id;
+    {
+      std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+      auto alias_it = alias_map_.find(recipient_id);
+      if (alias_it != alias_map_.end()) {
+        actual_id = alias_it->second;
+      }
+    }
     // delegate serialization to ASIO thread
     asio::post(
-        io_context_pool_.get_io_context(), [this, recipient_id, message = std::move(message)]() {
-          auto serialize_start = Clock::now();
-          size_t msg_size = message.size();
-
-          PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-          size_t offset = 0;
-          BinarySerializer::serialize(*data_buffer, offset, message);
-
-          uint32_t packets_per_msg =
-              static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
-
-          std::vector<PacketHeader> headers;
+        io_context_pool_.get_io_context(), [this, actual_id, message = std::move(message)]() {
+          auto write_ops = get_write(actual_id, message);
           std::vector<std::shared_ptr<Connection>> connections;
-
           {
             std::shared_lock<std::shared_mutex> lock(connections_mutex_);
-            auto it = connection_groups_.find(recipient_id);
+            auto it = connection_groups_.find(actual_id);
             if (it == connection_groups_.end()) {
+              std::cerr << "Error while sending message: Connection group not found for recipient: "
+                        << actual_id << std::endl;
               return;
             }
             auto &connection_group = it->second;
-            headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
-            connections = it->second.get_connections();
+            connections = connection_group.get_connections();
           }
-
-          auto serialize_end = Clock::now();
-          Profiler::instance().add_event({EventType::COMMUNICATION, serialize_start, serialize_end,
-                                          "Message Serialize", this->id_});
-
-          if (connections.empty()) {
-            return;
-          }
-
-          // round-robin selection of connection
+          // round-robin selection of connections
           int conn_index = 0;
-          for (auto header : headers) {
+          while (!write_ops.empty()) {
+            auto write_op = std::move(write_ops.back());
+            write_ops.pop_back();
             auto connection = connections[conn_index];
-
-            connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
-
+            connection->enqueue_write(std::move(write_op));
             asio::post(connection->socket.get_executor(), [this, connection]() {
               start_async_write(connection->acquire_write(), connection);
             });
-
             conn_index = (conn_index + 1) % connections.size();
           }
         });
+  }
+
+  std::vector<WriteOperation> get_write(const std::string recipient_id, const Message &message) {
+    auto serialize_start = Clock::now();
+    size_t msg_size = message.size();
+    PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
+    size_t offset = 0;
+    BinarySerializer::serialize(*data_buffer, offset, message);
+
+    uint32_t packets_per_msg =
+        static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
+
+    std::vector<PacketHeader> headers;
+
+    {
+      std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+      auto it = connection_groups_.find(recipient_id);
+      if (it == connection_groups_.end()) {
+        std::cerr
+            << "Error while getting write operation: Connection group not found for recipient: "
+            << recipient_id << std::endl;
+        return {};
+      }
+      auto &connection_group = it->second;
+      headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
+    }
+
+    auto serialize_end = Clock::now();
+    Profiler::instance().add_event(
+        {EventType::COMMUNICATION, serialize_start, serialize_end, "Message Serialize", this->id_});
+
+    std::vector<WriteOperation> write_ops;
+    for (size_t i = 0; i < headers.size(); ++i) {
+      auto header = headers[i];
+      write_ops.emplace_back(header, data_buffer, header.packet_offset);
+    }
+    return write_ops;
   }
 
   void start_async_write(std::unique_ptr<WriteHandle> write_handle,
@@ -546,34 +577,18 @@ private:
                           MessageData(std::monostate{}));
     handshake_msg.header().sender_id = identification;
 
-    size_t msg_size = handshake_msg.size();
-    PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
-    size_t offset = 0;
-    BinarySerializer::serialize(*data_buffer, offset, handshake_msg);
+    auto write_ops = get_write(connection->get_peer_id(), handshake_msg);
 
-    uint32_t packets_per_msg = 1;
-
-    std::vector<PacketHeader> headers;
-    {
-      std::lock_guard<std::shared_mutex> lock(connections_mutex_);
-      auto it = connection_groups_.find(connection->get_peer_id());
-      if (it == connection_groups_.end()) {
-        std::cerr << "Connection group not found for handshake with " << connection->get_peer_id()
-                  << std::endl;
-        return;
-      }
-      auto &connection_group = it->second;
-      headers = connection_group.get_fragmenter().get_headers(*data_buffer, packets_per_msg);
-    }
-
-    if (headers.size() != 1) {
-      std::cerr << "Handshake message should fit in a single packet." << std::endl;
+    if (write_ops.size() > 1) {
+      std::cerr << "CRITICAL: Handshake message split into multiple packets!" << std::endl;
       return;
     }
 
-    PacketHeader header = headers[0];
-
-    connection->enqueue_write(WriteOperation(header, data_buffer, header.packet_offset));
+    while (!write_ops.empty()) {
+      auto write_op = std::move(write_ops.back());
+      write_ops.pop_back();
+      connection->enqueue_write(std::move(write_op));
+    }
 
     start_async_write(connection->acquire_write(), connection);
   }
@@ -585,20 +600,55 @@ private:
     {
       std::lock_guard<std::shared_mutex> lock(connections_mutex_);
       connection->set_peer_id(new_peer_id);
-      auto old_group_it = connection_groups_.find(old_peer_id);
-      if (old_group_it != connection_groups_.end()) {
-        auto new_group_it = connection_groups_.find(new_peer_id);
-        // if already exists, merge old into new. else rename.
-        if (new_group_it != connection_groups_.end()) {
-          new_group_it->second.add_conn(connection);
-          new_group_it->second.get_fragmenter().merge(
-              std::move(old_group_it->second.get_fragmenter()));
-          connection_groups_.erase(old_group_it);
-        } else {
-          auto node_handle = connection_groups_.extract(old_group_it);
-          node_handle.key() = new_peer_id;
-          connection_groups_.insert(std::move(node_handle));
-        }
+
+      alias_map_[old_peer_id] = new_peer_id;
+
+      std::cout << "Handshake received. Updating connection ID from " << old_peer_id << " to "
+                << new_peer_id << std::endl;
+
+      // move connection into new group, erase old one if empty
+      connection_groups_[new_peer_id].add_conn(connection);
+      connection_groups_[old_peer_id].remove_conn(connection);
+    }
+
+    if (msg.header().command_type == CommandType::HANDSHAKE && !this->id_.empty()) {
+      // send handshake ack
+      handshake_ack(connection);
+    }
+  }
+
+  void handshake_ack(std::shared_ptr<Connection> connection) {
+    Message handshake_ack_msg(MessageHeader{connection->get_peer_id(), CommandType::HANDSHAKE_ACK},
+                              MessageData(std::monostate{}));
+    handshake_ack_msg.header().sender_id = this->id_;
+
+    auto write_ops = get_write(connection->get_peer_id(), handshake_ack_msg);
+
+    if (write_ops.size() > 1) {
+      std::cerr << "CRITICAL: Handshake message split into multiple packets!" << std::endl;
+      return;
+    }
+
+    while (!write_ops.empty()) {
+      auto write_op = std::move(write_ops.back());
+      write_ops.pop_back();
+      connection->enqueue_write(std::move(write_op));
+    }
+
+    start_async_write(connection->acquire_write(), connection);
+  }
+
+private:
+  void onSetId() override {
+    // Handshake with all existing connections for them to update ID
+    for (auto &[peer_id, connection_group] : connection_groups_) {
+      std::vector<std::shared_ptr<Connection>> connections;
+      {
+        std::shared_lock<std::shared_mutex> lock(connections_mutex_);
+        connections = connection_group.get_connections();
+      }
+      for (auto &connection : connections) {
+        handshake(connection, this->id_);
       }
     }
   }
