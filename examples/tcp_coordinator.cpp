@@ -113,21 +113,6 @@ int main() {
 
   coordinator.start();
 
-  auto train_transform =
-      AugmentationBuilder<float>()
-          .random_crop(0.5f, 4)
-          .horizontal_flip(0.5f)
-          .cutout(0.5f, 8)
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
-  train_loader->set_augmentation(std::move(train_transform));
-
-  auto val_transform =
-      AugmentationBuilder<float>()
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
-  val_loader->set_augmentation(std::move(val_transform));
-
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
   thread_wrapper.execute([&coordinator, &train_loader, &val_loader, &train_config]() {

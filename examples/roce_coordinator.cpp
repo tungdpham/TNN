@@ -138,19 +138,6 @@ int main(int argc, char *argv[]) {
                      Env::get<int>("WORKER2_PORT", 8002), "rocep5s0f0", -1),
   };
 
-  auto train_transform = AugmentationBuilder<float>()
-                             .random_crop(0.5f, 4)
-                             .horizontal_flip(0.5f)
-                             .cutout(0.5f, 8)
-                             .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
-                             .build();
-  train_loader->set_augmentation(std::move(train_transform));
-
-  auto val_transform = AugmentationBuilder<float>()
-                           .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
-                           .build();
-  val_loader->set_augmentation(std::move(val_transform));
-
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 8000);
 
