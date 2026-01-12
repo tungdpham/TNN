@@ -480,6 +480,13 @@ private:
             auto &connection_group = it->second;
             connections = connection_group.get_connections();
           }
+
+          if (connections.empty()) {
+            std::cerr << "Error while sending message: No active connections for recipient: "
+                      << actual_id << std::endl;
+            return;
+          }
+
           // round-robin selection of connections
           int conn_index = 0;
           while (!write_ops.empty()) {
@@ -607,8 +614,10 @@ private:
                 << new_peer_id << std::endl;
 
       // move connection into new group, erase old one if empty
-      connection_groups_[new_peer_id].add_conn(connection);
-      connection_groups_[old_peer_id].remove_conn(connection);
+      if (new_peer_id != old_peer_id) {
+        connection_groups_[new_peer_id].add_conn(connection);
+        connection_groups_[old_peer_id].remove_conn(connection);
+      }
     }
 
     if (msg.header().command_type == CommandType::HANDSHAKE && !this->id_.empty()) {
