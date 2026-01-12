@@ -89,7 +89,9 @@ public:
     std::lock_guard<std::mutex> lock(message_states_mutex_);
     auto it = message_states_.find(msg_serial_id);
     if (it == message_states_.end()) {
-      throw std::runtime_error("Message not found");
+      std::cerr << "Error committing packet: Message ID " << msg_serial_id << " not found."
+                << std::endl;
+      return false;
     }
     MessageState &state = it->second;
     state.received_packets++;
@@ -105,34 +107,16 @@ public:
     std::lock_guard<std::mutex> lock(message_states_mutex_);
     auto it = message_states_.find(msg_serial_id);
     if (it == message_states_.end()) {
-      throw std::runtime_error("Message not found");
+      std::cerr << "Error fetching complete message: Message ID " << msg_serial_id << " not found."
+                << std::endl;
     }
     MessageState state = std::move(it->second);
     if (state.received_packets < state.total_packets) {
-      throw std::runtime_error("Message is not complete");
+      std::cerr << "Error fetching complete message: Message ID " << msg_serial_id
+                << " is not complete." << std::endl;
     }
     message_states_.erase(it);
     return state;
-  }
-
-  void merge(Fragmenter &&other) {
-    if (this == &other) {
-      return;
-    }
-    std::lock_guard<std::mutex> lock(message_states_mutex_);
-    std::lock_guard<std::mutex> other_lock(other.message_states_mutex_);
-    for (auto &pair : other.message_states_) {
-      if (message_states_.find(pair.first) != message_states_.end()) {
-        if (message_states_[pair.first].total_packets != pair.second.total_packets ||
-            message_states_[pair.first].buffer->capacity() != pair.second.buffer->capacity()) {
-          throw std::runtime_error("Cannot merge fragmenters with different message states");
-        }
-        message_states_[pair.first].received_packets += pair.second.received_packets;
-      } else {
-        message_states_[pair.first] = std::move(pair.second);
-      }
-    }
-    other.message_states_.clear();
   }
 
 private:

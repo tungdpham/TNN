@@ -41,7 +41,7 @@
 namespace tnn {
 
 constexpr uint32_t DEFAULT_IO_THREADS = 1;
-constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 8 * 1024 * 1024 + 64; // 8MB + header
+constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 16 * 1024 * 1024 + 64; // 16MB + header
 constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
 class TcpCommunicator : public Communicator {

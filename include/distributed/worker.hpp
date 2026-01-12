@@ -289,6 +289,7 @@ protected:
       setup_stage_connections(config);
       is_configured_ = true;
       Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
+      ready_msg.header().sender_id = id_;
       this->communicator_->send_message(std::move(ready_msg));
 
     } catch (const std::exception &e) {

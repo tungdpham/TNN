@@ -30,7 +30,7 @@
 
 namespace tnn {
 
-constexpr int ROCE_BUFFER_SIZE = 1024 * 1024; // 1MB
+constexpr int ROCE_BUFFER_SIZE = 16 * 1024 * 1024; // 16MB
 constexpr int ROCE_SQ_DEPTH = 128;
 constexpr int ROCE_RQ_DEPTH = 128;
 
