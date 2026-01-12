@@ -180,8 +180,8 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
   std::cout << "Validation batches: " << test_loader.num_batches() << std::endl;
 
   std::vector<size_t> data_shape = train_loader.get_data_shape();
-
-  model.print_summary({config.batch_size, data_shape[0], data_shape[1], data_shape[2]});
+  data_shape.insert(data_shape.begin(), config.batch_size); // add batch dimension
+  model.print_summary(data_shape);
 
   T best_val_accuracy = 0.0;
 

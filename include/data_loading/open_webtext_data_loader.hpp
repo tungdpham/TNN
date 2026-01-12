@@ -1,4 +1,5 @@
 #include "data_loader.hpp"
+#include "tokenizer/tokenizer.hpp"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
@@ -45,6 +46,12 @@ public:
 
     std::cout << "Total tokens in dataset: " << total_tokens_ << std::endl;
 
+    if (!tokenizer_.load("data/open-web-text/vocab.bin")) {
+      std::cerr << "Failed to load vocab from: data/open-web-text/vocab.bin" << std::endl;
+      return false;
+    }
+    vocab_size_ = tokenizer_.vocab_size();
+
     if (num_samples_ > 0) {
       dist_ = std::uniform_int_distribution<size_t>(0, num_samples_ - 1);
     }
@@ -58,7 +65,9 @@ public:
     }
 
     batch_data.resize({batch_size, context_length_});
-    batch_labels.resize({batch_size, context_length_});
+    batch_labels.resize({batch_size, context_length_, vocab_size_});
+
+    std::fill(batch_labels.data(), batch_labels.data() + batch_labels.size(), static_cast<T>(0));
 
     for (size_t b = 0; b < batch_size; ++b) {
       size_t start_pos;
@@ -71,7 +80,10 @@ public:
 
       for (size_t i = 0; i < context_length_; ++i) {
         batch_data(b, i) = static_cast<T>(mapped_data_[start_pos + i]);
-        batch_labels(b, i) = static_cast<T>(mapped_data_[start_pos + i + 1]);
+        int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
+        if (token_id >= 0 && token_id < (int)vocab_size_) {
+          batch_labels(b, i, (size_t)token_id) = static_cast<T>(1);
+        }
       }
     }
 
@@ -88,6 +100,8 @@ public:
 
   size_t size() const override { return num_samples_; }
 
+  size_t vocab_size() const { return vocab_size_; }
+
   std::vector<size_t> get_data_shape() const override { return {context_length_}; }
 
 private:
@@ -97,6 +111,8 @@ private:
   size_t total_tokens_ = 0;
   size_t num_samples_ = 0;
   size_t context_length_;
+  Tokenizer tokenizer_;
+  size_t vocab_size_ = 0;
 
   bool shuffled_ = false;
   std::uniform_int_distribution<size_t> dist_;

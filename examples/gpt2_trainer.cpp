@@ -1,4 +1,3 @@
-#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -10,35 +9,10 @@
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "ops/ops.hpp"
-#include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
 using namespace tnn;
 using namespace std;
-
-void one_hot_encode(const Tensor<float> &targets, Tensor<float> &one_hot_targets,
-                    size_t vocab_size) {
-  size_t B = targets.shape()[0];
-  size_t T_seq = targets.shape()[1];
-
-  one_hot_targets.ensure({B, T_seq, vocab_size});
-
-  float *out_ptr = one_hot_targets.data();
-  const float *in_ptr = targets.data();
-
-  std::fill(out_ptr, out_ptr + one_hot_targets.size(), 0.0f);
-
-  for (size_t b = 0; b < B; ++b) {
-    for (size_t t = 0; t < T_seq; ++t) {
-      float token_id = in_ptr[b * T_seq + t];
-      int idx = static_cast<int>(token_id);
-      if (idx >= 0 && idx < (int)vocab_size) {
-        size_t offset = b * (T_seq * vocab_size) + t * vocab_size + idx;
-        out_ptr[offset] = 1.0f;
-      }
-    }
-  }
-}
 
 int main(int argc, char **argv) {
   string data_path = "data/open-web-text/train.bin";
@@ -57,15 +31,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  Tokenizer tokenizer;
-  if (!tokenizer.load(vocab_path)) {
-    cerr << "Failed to load vocab from: " << vocab_path << endl;
-    return 1;
-  }
-
-  size_t vocab_size = tokenizer.vocab_size();
-  cout << "Using Vocab Size: " << vocab_size << endl;
-
   string device_str = Env::get<string>("DEVICE_TYPE", "CPU");
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
 
@@ -81,6 +46,9 @@ int main(int argc, char **argv) {
     cerr << "Failed to load data." << endl;
     return 1;
   }
+
+  size_t vocab_size = loader.vocab_size();
+  cout << "Using Vocab Size: " << vocab_size << endl;
   cout << "Data loaded. Total tokens: " << loader.size() + seq_len << endl;
 
   auto model = ExampleModels<float>::create("gpt2");
@@ -100,7 +68,7 @@ int main(int argc, char **argv) {
   size_t max_steps = Env::get<size_t>("MAX_STEPS", 1000);
   size_t step = 0;
 
-  Tensor<float> raw_input, raw_target, one_hot_target;
+  Tensor<float> raw_input, raw_target;
   Tensor<float> model_input(model.get_device()), device_target(model.get_device());
   Tensor<float> output(model.get_device()), loss_grad(model.get_device()),
       grad_input(model.get_device());
@@ -122,9 +90,7 @@ int main(int argc, char **argv) {
 
     ops::cd_copy(raw_input.data_ptr(), model_input.data_ptr(), raw_input.size());
 
-    one_hot_encode(raw_target, one_hot_target, vocab_size);
-
-    ops::cd_copy(one_hot_target.data_ptr(), device_target.data_ptr(), one_hot_target.size());
+    ops::cd_copy(raw_target.data_ptr(), device_target.data_ptr(), raw_target.size());
 
     model.forward(model_input, output);
 

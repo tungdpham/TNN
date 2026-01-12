@@ -57,8 +57,9 @@ signed main() {
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
+  float lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
+  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
   auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
 
   try {
