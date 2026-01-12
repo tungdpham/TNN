@@ -187,6 +187,9 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
 
   ThreadWrapper thread_wrapper({config.num_threads});
 
+  train_loader.prepare_batches(config.batch_size);
+  test_loader.prepare_batches(config.batch_size);
+
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << epoch + 1 << "/" << config.epochs << std::endl;
@@ -229,7 +232,6 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
         model.clear_profiling_data();
       }
 
-      // Step the scheduler if provided
       if (scheduler) {
         scheduler->step();
       }
@@ -237,10 +239,6 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
       if ((epoch + 1) % 5 == 0) {
         thread_wrapper.clean_buffers();
       }
-
-      // re prepare batches to reapply augmentation
-      train_loader.prepare_batches(config.batch_size);
-      test_loader.prepare_batches(config.batch_size);
 
       std::cout << get_memory_usage_kb() / 1024 << " MB of memory used." << std::endl;
     }

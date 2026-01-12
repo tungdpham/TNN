@@ -130,10 +130,11 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_l
   ThreadWrapper thread_wrapper({config.num_threads});
   coordinator.set_num_microbatches(config.num_microbatches);
 
+  train_loader.prepare_batches(config.batch_size);
+  test_loader.prepare_batches(config.batch_size);
+
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
-      train_loader.prepare_batches(config.batch_size);
-      test_loader.prepare_batches(config.batch_size);
       std::cout << "Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
       train_loader.reset();
       test_loader.reset();

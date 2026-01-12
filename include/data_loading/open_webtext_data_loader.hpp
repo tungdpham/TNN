@@ -75,7 +75,6 @@ public:
       }
     }
 
-    this->apply_augmentation(batch_data, batch_labels);
     return true;
   }
 

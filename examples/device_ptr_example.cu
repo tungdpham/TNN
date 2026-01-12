@@ -42,8 +42,6 @@ void vectorAdd(const device_ptr<float[]> &a, const device_ptr<float[]> &b,
 
 int main() {
   try {
-    cout << "=== Device Pointer Array Addition Example ===" << endl;
-
     initializeDefaultDevices();
     DeviceManager &manager = DeviceManager::getInstance();
 

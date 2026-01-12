@@ -21,6 +21,7 @@
 
 namespace tnn {
 
+// needs an overhaul
 class WiFiDataLoader {
 private:
   std::vector<std::vector<float>> features_;

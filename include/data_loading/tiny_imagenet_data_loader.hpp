@@ -403,6 +403,8 @@ public:
       }
     }
 
+    this->apply_augmentation(batch_data, batch_labels);
+
     this->current_index_ += actual_batch_size;
     return true;
   }

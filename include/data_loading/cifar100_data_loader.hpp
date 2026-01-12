@@ -182,6 +182,9 @@ public:
     } else {
       batch_labels = batched_fine_labels_[this->current_batch_index_].clone();
     }
+
+    this->apply_augmentation(batch_data, batch_labels);
+
     ++this->current_batch_index_;
 
     return true;
@@ -230,6 +233,8 @@ public:
         batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
       }
     }
+
+    this->apply_augmentation(batch_data, batch_labels);
 
     this->current_index_ += actual_batch_size;
     return true;
@@ -412,8 +417,6 @@ public:
           batch_coarse_labels(i, coarse_label, 0, 0) = static_cast<T>(1.0);
         }
       }
-
-      this->apply_augmentation(batch_data, batch_fine_labels);
 
       batched_data_.emplace_back(std::move(batch_data));
       batched_fine_labels_.emplace_back(std::move(batch_fine_labels));

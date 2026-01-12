@@ -34,25 +34,6 @@ protected:
   using BaseDataLoader<T>::current_index_;
   using BaseDataLoader<T>::batch_size_;
   using BaseDataLoader<T>::rng_;
-
-  /**
-   * Utility to copy image data to tensor with proper channel ordering
-   */
-  void copy_image_to_tensor(Tensor<T> &tensor, int batch_idx, const std::vector<T> &image_data,
-                            const std::vector<size_t> &shape) {
-    size_t channels = shape[0];
-    size_t height = shape[1];
-    size_t width = shape[2];
-
-    for (size_t c = 0; c < channels; ++c) {
-      for (size_t h = 0; h < height; ++h) {
-        for (size_t w = 0; w < width; ++w) {
-          size_t idx = c * height * width + h * width + w;
-          tensor(batch_idx, c, h, w) = image_data[idx];
-        }
-      }
-    }
-  }
 };
 
 } // namespace tnn
