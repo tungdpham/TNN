@@ -50,7 +50,10 @@ public:
 
   virtual void flush_output_messages() = 0;
 
-  void set_id(const std::string &id) { id_ = id; }
+  void set_id(const std::string &id) {
+    this->id_ = id;
+    this->onSetId();
+  }
 
   const std::string &get_id() const { return id_; }
 
@@ -202,6 +205,8 @@ protected:
   std::function<void()> message_notification_callback_;
 
   std::unordered_map<std::string, Endpoint> recipients_;
+
+  virtual void onSetId() {}
 
 private:
   std::mutex profile_mutex_;

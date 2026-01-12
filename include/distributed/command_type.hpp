@@ -71,6 +71,7 @@ enum CommandType : uint16_t {
 
   // handshake
   HANDSHAKE,
+  HANDSHAKE_ACK,
 
   _COUNT
 };
