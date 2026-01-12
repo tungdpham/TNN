@@ -128,8 +128,8 @@ int main(int argc, char *argv[]) {
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
-  auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
+  float lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
+  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
@@ -139,14 +139,14 @@ int main(int argc, char *argv[]) {
   };
 
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
-  int port = Env::get<int>("COORDINATOR_PORT", 8000);
+  int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
   RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
                               coordinator_endpoint, endpoints);
 
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({1, 1}));
+  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
 
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();

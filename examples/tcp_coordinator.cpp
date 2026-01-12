@@ -5,13 +5,11 @@
  * project root for the full license text.
  */
 #include "distributed/tcp_coordinator.hpp"
-#include "data_augmentation/augmentation.hpp"
 #include "data_loading/data_loader.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 
@@ -72,11 +70,11 @@ int main() {
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
-  auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
+  auto optimizer =
+      OptimizerFactory<float>::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
-                                                Env::get<int>("COORDINATOR_PORT", 8000));
+                                                Env::get<int>("COORDINATOR_PORT", 9000));
 
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),

@@ -19,6 +19,8 @@ void TrainingConfig::print_config() const {
   std::cout << "Training Configuration:" << std::endl;
   std::cout << "  Epochs: " << epochs << std::endl;
   std::cout << "  Batch Size: " << batch_size << std::endl;
+  std::cout << "  Max Steps: " << max_steps << std::endl;
+  std::cout << "  Initial Learning Rate: " << lr_initial << std::endl;
   std::cout << "  LR Decay Factor: " << lr_decay_factor << std::endl;
   std::cout << "  LR Decay Interval (epochs): " << lr_decay_interval << std::endl;
   std::cout << "  Progress Print Interval (batches): " << progress_print_interval << std::endl;
@@ -40,6 +42,8 @@ void TrainingConfig::load_from_env() {
   // Get training parameters from environment or use defaults
   epochs = Env::get<int>("EPOCHS", DEFAULT_EPOCH);
   batch_size = Env::get<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
+  max_steps = Env::get<uint64_t>("MAX_STEPS", -1); // -1 for no limit
+  lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
   lr_decay_factor = Env::get<float>("LR_DECAY_FACTOR", DEFAULT_LR_DECAY_FACTOR);
   lr_decay_interval = Env::get<size_t>("LR_DECAY_INTERVAL", DEFAULT_LR_DECAY_INTERVAL);
   progress_print_interval = Env::get<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
@@ -79,7 +83,8 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
   Tensor<T> predictions(model_device), backward_output(model_device);
 
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
-  while (train_loader.get_next_batch(batch_data, batch_labels)) {
+  while (train_loader.get_next_batch(batch_data, batch_labels) &&
+         (config.max_steps == -1 || num_batches < config.max_steps)) {
     ++num_batches;
     num_samples += batch_data.shape()[0];
     device_batch_data = batch_data.to_device(model_device);

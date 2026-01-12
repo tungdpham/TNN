@@ -43,6 +43,8 @@ struct TrainingConfig {
   // Trainer params
   int epochs = 10;
   size_t batch_size = 32;
+  int64_t max_steps = -1; // -1 for no limit, otherwise max number of batches per epoch
+  float lr_initial = 0.001f;
   float lr_decay_factor = 0.9f;
   size_t lr_decay_interval = 5; // in epochs
   int progress_print_interval = 100;
