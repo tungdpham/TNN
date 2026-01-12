@@ -35,8 +35,6 @@ private:
 
   std::unordered_map<size_t, Tensor<T>> pre_activation_cache_;
 
-  std::unordered_map<size_t, Tensor<T>> grad_after_activation_cache_;
-
   std::unordered_map<size_t, std::vector<size_t>> input_shape_cache_;
 
   std::string activation_type_;
@@ -171,24 +169,15 @@ public:
                                std::to_string(micro_batch_id));
     }
 
-    // Gradient through final activation
-    auto it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
-    if (it_grad_act == grad_after_activation_cache_.end()) {
-      grad_after_activation_cache_[micro_batch_id] = current_gradient->clone();
-      it_grad_act = grad_after_activation_cache_.find(micro_batch_id);
-    } else {
-      it_grad_act->second.ensure(current_gradient->shape());
-      ops::copy(current_gradient->data_ptr(), it_grad_act->second.data_ptr(),
-                current_gradient->size());
-    }
+    const Tensor<T> *grad_to_propagate = current_gradient;
+    PooledTensor<T> grad_act_pooled;
 
     if (final_activation_) {
-      final_activation_->compute_gradient(it_pre_act->second, it_grad_act->second,
-                                          it_grad_act->second);
+      grad_act_pooled = this->get_buffer(current_gradient->shape());
+      final_activation_->compute_gradient(it_pre_act->second, *current_gradient,
+                                          grad_act_pooled.get());
+      grad_to_propagate = &grad_act_pooled.get();
     }
-
-    const Tensor<T> *grad_to_propagate =
-        final_activation_ ? &it_grad_act->second : current_gradient;
 
     // Retrieve cached input shape
     auto it_input_shape = input_shape_cache_.find(micro_batch_id);
@@ -458,9 +447,6 @@ public:
       total_bytes += layer->cached_memory_bytes();
     }
     for (const auto &[_, tensor] : pre_activation_cache_) {
-      total_bytes += tensor.size() * sizeof(T);
-    }
-    for (const auto &[_, tensor] : grad_after_activation_cache_) {
       total_bytes += tensor.size() * sizeof(T);
     }
     total_bytes += Layer<T>::cached_memory_bytes();

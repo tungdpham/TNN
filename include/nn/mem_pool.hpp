@@ -60,11 +60,18 @@ private:
   std::mutex mutex_;
 };
 
+template <typename T> inline MemPool<T> &getDefaultMemPool() {
+  static MemPool<T> instance;
+  return instance;
+}
+
 template <typename T> class PooledTensor {
 public:
+  PooledTensor() { mem_pool_ = &getDefaultMemPool<T>(); }
+
   PooledTensor(MemPool<T> &mem_pool, std::vector<size_t> shape, const Device *device)
-      : mem_pool_(mem_pool) {
-    buffer_ = mem_pool_.get(shape, device);
+      : mem_pool_(&mem_pool) {
+    buffer_ = mem_pool_->get(shape, device);
   }
 
   PooledTensor(const PooledTensor &) = delete;
@@ -75,8 +82,8 @@ public:
 
   PooledTensor &operator=(PooledTensor &&other) noexcept {
     if (this != &other) {
-      if (buffer_.capacity() > 0) {
-        mem_pool_.release(std::move(buffer_));
+      if (buffer_.capacity() > 0 && mem_pool_ != nullptr) {
+        mem_pool_->release(std::move(buffer_));
       }
       buffer_ = std::move(other.buffer_);
     }
@@ -84,22 +91,16 @@ public:
   }
 
   ~PooledTensor() {
-    if (buffer_.capacity() > 0) {
-      mem_pool_.release(std::move(buffer_));
+    if (buffer_.capacity() > 0 && mem_pool_ != nullptr) {
+      mem_pool_->release(std::move(buffer_));
     }
   }
 
   Tensor<T> &get() { return buffer_; }
 
 private:
-  MemPool<T> &mem_pool_;
+  MemPool<T> *mem_pool_;
   Tensor<T> buffer_;
 };
-
-// Singleton accessor for default memory pool
-template <typename T> inline MemPool<T> &getDefaultMemPool() {
-  static MemPool<T> instance;
-  return instance;
-}
 
 } // namespace tnn
