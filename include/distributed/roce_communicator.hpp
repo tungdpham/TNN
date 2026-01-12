@@ -14,6 +14,7 @@
 #include "endpoint.hpp"
 #include <any>
 #include <cerrno>
+#include <netinet/in.h>
 
 #include <asio.hpp>
 #include <atomic>
@@ -30,7 +31,7 @@
 
 namespace tnn {
 
-constexpr int ROCE_BUFFER_SIZE = 16 * 1024 * 1024; // 16MB
+constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
 constexpr int ROCE_SQ_DEPTH = 128;
 constexpr int ROCE_RQ_DEPTH = 128;
 
@@ -68,7 +69,11 @@ private:
     std::string peer_id;
     uint32_t psn = 0;
     std::vector<std::unique_ptr<RegisteredBuffer>> recv_buffers;
-    Fragmenter fragmenter;
+    // Fragmenter fragmenter; // Removed in favor of Zero-Copy RDMA
+
+    std::mutex mutex;
+    std::unordered_map<uint64_t, PooledRoceBuffer> pending_sends;
+    std::unordered_map<uint64_t, PooledRoceBuffer> pending_receives;
 
     ~Connection() {
       if (qp) {
@@ -89,6 +94,7 @@ private:
 
   std::thread poll_thread_;
   std::atomic<bool> is_running_{false};
+  std::atomic<uint64_t> msg_serial_id_counter_{0};
 
   std::unordered_map<std::string, std::shared_ptr<Connection>> connections_;
   std::unordered_map<uint32_t, std::shared_ptr<Connection>>
@@ -175,19 +181,14 @@ public:
     size_t offset = 0;
     BinarySerializer::serialize(*data_buffer, offset, message);
 
-    size_t max_payload = ROCE_BUFFER_SIZE - sizeof(PacketHeader);
-    uint32_t num_packets = (data_buffer->size() + max_payload - 1) / max_payload;
-    if (num_packets == 0)
-      num_packets = 1;
+    uint64_t msg_id = msg_serial_id_counter_.fetch_add(1);
 
-    std::vector<PacketHeader> headers;
     std::shared_ptr<Connection> conn;
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
       auto it = connections_.find(message.header().recipient_id);
       if (it != connections_.end()) {
         conn = it->second;
-        headers = conn->fragmenter.get_headers(*data_buffer, num_packets);
       }
     }
 
@@ -202,52 +203,56 @@ public:
     if (ibv_query_qp(conn->qp, &attr, IBV_QP_STATE, &init_attr) == 0) {
       if (attr.qp_state != IBV_QPS_RTS) {
         std::cerr << "QP for " << message.header().recipient_id
-                  << " not in RTS state (state: " << attr.qp_state << "), dropping message\\n";
+                  << " not in RTS state (state: " << attr.qp_state << "), dropping message\n";
         return;
       }
     }
 
-    for (size_t i = 0; i < headers.size(); ++i) {
-      RegisteredBuffer *send_buf = nullptr;
+    // Store pending send
+    {
+      std::lock_guard<std::mutex> conn_lock(conn->mutex);
+      conn->pending_sends[msg_id] = data_buffer;
+    }
+
+    RegisteredBuffer *send_buf = nullptr;
+    {
+      std::unique_lock<std::mutex> lock(send_buffers_mutex_);
+      send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
+      send_buf = free_send_buffers_.front();
+      free_send_buffers_.pop();
+    }
+
+    send_buf->attached_context.reset(); // Clear any previous context
+
+    PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->size(), 0, 1);
+    header.msg_serial_id = msg_id;
+
+    // Copy header
+    std::memcpy(send_buf->data.data(), &header, sizeof(PacketHeader));
+
+    struct ibv_sge sge;
+    sge.addr = (uint64_t)send_buf->data.data();
+    sge.length = sizeof(PacketHeader);
+    sge.lkey = send_buf->mr->lkey;
+
+    struct ibv_send_wr wr, *bad_wr = nullptr;
+    std::memset(&wr, 0, sizeof(wr));
+    wr.wr_id = (uint64_t)send_buf;
+    wr.opcode = IBV_WR_SEND; // Standard Send for handshake
+    wr.sg_list = &sge;
+    wr.num_sge = 1;
+    wr.send_flags = IBV_SEND_SIGNALED;
+
+    if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
+      std::cerr << "Failed to post send MSG_PREPARE to " << message.header().recipient_id
+                << std::endl;
       {
-        std::unique_lock<std::mutex> lock(send_buffers_mutex_);
-        send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
-        send_buf = free_send_buffers_.front();
-        free_send_buffers_.pop();
+        std::lock_guard<std::mutex> conn_lock(conn->mutex);
+        conn->pending_sends.erase(msg_id);
       }
-
-      send_buf->attached_context = data_buffer;
-
-      // Copy header
-      std::memcpy(send_buf->data.data(), &headers[i], sizeof(PacketHeader));
-
-      struct ibv_sge sge[2];
-      sge[0].addr = (uint64_t)send_buf->data.data();
-      sge[0].length = sizeof(PacketHeader);
-      sge[0].lkey = send_buf->mr->lkey;
-
-      size_t copy_len = headers[i].length;
-      if (copy_len > 0) {
-        sge[1].addr = (uint64_t)(data_buffer->get() + headers[i].packet_offset);
-        sge[1].length = copy_len;
-        sge[1].lkey = data_buffer->get_lkey();
-      }
-
-      struct ibv_send_wr wr, *bad_wr = nullptr;
-      std::memset(&wr, 0, sizeof(wr));
-      wr.wr_id = (uint64_t)send_buf;
-      wr.opcode = IBV_WR_SEND;
-      wr.sg_list = sge;
-      wr.num_sge = (copy_len > 0) ? 2 : 1;
-      wr.send_flags = IBV_SEND_SIGNALED;
-
-      if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
-        std::cerr << "Failed to post send to " << message.header().recipient_id << std::endl;
-        send_buf->attached_context.reset();
-        std::lock_guard<std::mutex> lock(send_buffers_mutex_);
-        free_send_buffers_.push(send_buf);
-        send_buffers_cv_.notify_one();
-      }
+      std::lock_guard<std::mutex> lock(send_buffers_mutex_);
+      free_send_buffers_.push(send_buf);
+      send_buffers_cv_.notify_one();
     }
   }
 
@@ -645,6 +650,9 @@ private:
   }
 
   void poll_cq() {
+    struct WriteContext {
+      uint64_t msg_serial_id;
+    };
     struct ibv_wc wc[16];
     while (is_running_) {
       int n = ibv_poll_cq(cq_, 16, wc);
@@ -655,7 +663,7 @@ private:
       for (int i = 0; i < n; ++i) {
         if (wc[i].status != IBV_WC_SUCCESS) {
           std::cerr << "WC Error: " << ibv_wc_status_str(wc[i].status) << " for QP " << wc[i].qp_num
-                    << std::endl;
+                    << " Opcode: " << wc[i].opcode << std::endl;
           {
             std::lock_guard<std::mutex> lock(connections_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
@@ -665,14 +673,14 @@ private:
               connections_.erase(peer_id);
             }
           }
+          if (wc[i].opcode == IBV_WC_RDMA_WRITE && (wc[i].wr_id & 1)) {
+            WriteContext *ctx = (WriteContext *)(wc[i].wr_id & ~1);
+            delete ctx;
+          }
           continue;
         }
 
         if (wc[i].opcode & IBV_WC_RECV) {
-          auto *buf = (RegisteredBuffer *)wc[i].wr_id;
-          PacketHeader header;
-          std::memcpy(&header, buf->data.data(), sizeof(PacketHeader));
-
           std::shared_ptr<Connection> conn;
           {
             std::lock_guard<std::mutex> lock(connections_mutex_);
@@ -681,37 +689,154 @@ private:
               conn = it->second;
           }
 
+          auto *buf = (RegisteredBuffer *)wc[i].wr_id;
+
           if (conn) {
-            if (conn->fragmenter.message_exists(header.msg_serial_id) ||
-                header.packet_offset == 0) {
-              conn->fragmenter.register_packet(header.msg_serial_id, header);
-              auto dest_buf = conn->fragmenter.get_packet_buffer(header.msg_serial_id, header);
+            if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
+              uint32_t imm = ntohl(wc[i].imm_data);
+              PooledRoceBuffer dest_buf;
+              {
+                std::lock_guard<std::mutex> lock(conn->mutex);
+                auto it = conn->pending_receives.find(imm);
+                if (it != conn->pending_receives.end()) {
+                  dest_buf = it->second;
+                  conn->pending_receives.erase(it);
+                }
+              }
 
-              size_t payload_len = header.length;
-              std::memcpy(dest_buf->get() + header.packet_offset,
-                          buf->data.data() + sizeof(PacketHeader), payload_len);
-
-              if (conn->fragmenter.commit_packet(header.msg_serial_id, header)) {
-                // Message complete
-                MessageState state = conn->fragmenter.fetch_complete_message(header.msg_serial_id);
+              if (dest_buf) {
                 Message msg;
                 size_t offset = 0;
-                BinarySerializer::deserialize(*state.buffer, offset, msg);
-                enqueue_input_message(std::move(msg));
+                try {
+                  BinarySerializer::deserialize(*dest_buf, offset, msg);
+                  enqueue_input_message(std::move(msg));
+                } catch (const std::exception &e) {
+                  std::cerr << "Deserialization error: " << e.what() << "\n";
+                }
               }
+
+              post_recv_buffer(conn->qp, buf);
+
+            } else {
+              PacketHeader header;
+              std::memcpy(&header, buf->data.data(), sizeof(PacketHeader));
+
+              if (header.type == PacketType::MSG_PREPARE) {
+                auto dest_buf = buffer_pool_->get_buffer(header.msg_length);
+                dest_buf->resize(header.msg_length);
+
+                {
+                  std::lock_guard<std::mutex> lock(conn->mutex);
+                  conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
+                }
+
+                RegisteredBuffer *send_buf = nullptr;
+                {
+                  std::unique_lock<std::mutex> lock(send_buffers_mutex_);
+                  send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
+                  send_buf = free_send_buffers_.front();
+                  free_send_buffers_.pop();
+                }
+
+                PacketHeader ready_header(PacketType::MSG_READY_TO_WRITE, 12, 0, 0, 1);
+                ready_header.msg_serial_id = header.msg_serial_id;
+
+                std::memcpy(send_buf->data.data(), &ready_header, sizeof(PacketHeader));
+                uint64_t addr = (uint64_t)dest_buf->get();
+                uint32_t rkey = dest_buf->get_mr()->rkey;
+                std::memcpy(send_buf->data.data() + sizeof(PacketHeader), &addr, 8);
+                std::memcpy(send_buf->data.data() + sizeof(PacketHeader) + 8, &rkey, 4);
+
+                struct ibv_sge sge;
+                sge.addr = (uint64_t)send_buf->data.data();
+                sge.length = sizeof(PacketHeader) + 12;
+                sge.lkey = send_buf->mr->lkey;
+
+                struct ibv_send_wr wr, *bad_wr = nullptr;
+                std::memset(&wr, 0, sizeof(wr));
+                wr.wr_id = (uint64_t)send_buf;
+                wr.opcode = IBV_WR_SEND;
+                wr.sg_list = &sge;
+                wr.num_sge = 1;
+                wr.send_flags = IBV_SEND_SIGNALED;
+
+                if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
+                  std::cerr << "Failed to send MSG_READY\n";
+                  std::lock_guard<std::mutex> lock(send_buffers_mutex_);
+                  free_send_buffers_.push(send_buf);
+                  send_buffers_cv_.notify_one();
+                  // Should also cleanup pending_receives
+                }
+
+              } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
+                uint64_t remote_addr;
+                uint32_t rkey;
+                std::memcpy(&remote_addr, buf->data.data() + sizeof(PacketHeader), 8);
+                std::memcpy(&rkey, buf->data.data() + sizeof(PacketHeader) + 8, 4);
+
+                PooledRoceBuffer source_buf;
+                {
+                  std::lock_guard<std::mutex> lock(conn->mutex);
+                  auto it = conn->pending_sends.find(header.msg_serial_id);
+                  if (it != conn->pending_sends.end())
+                    source_buf = it->second;
+                }
+
+                if (source_buf) {
+                  struct ibv_sge sge;
+                  sge.addr = (uint64_t)source_buf->get();
+                  sge.length = source_buf->size();
+                  sge.lkey = source_buf->get_mr()->lkey;
+
+                  WriteContext *ctx = new WriteContext{header.msg_serial_id};
+
+                  struct ibv_send_wr wr, *bad_wr = nullptr;
+                  std::memset(&wr, 0, sizeof(wr));
+                  wr.wr_id = (uint64_t)ctx | 1;
+                  wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
+                  wr.sg_list = &sge;
+                  wr.num_sge = 1;
+                  wr.send_flags = IBV_SEND_SIGNALED;
+                  wr.imm_data = htonl((uint32_t)(header.msg_serial_id & 0xFFFFFFFF));
+                  wr.wr.rdma.remote_addr = remote_addr;
+                  wr.wr.rdma.rkey = rkey;
+
+                  if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
+                    std::cerr << "Failed to post RDMA write\n";
+                    delete ctx;
+                  }
+                }
+              }
+
+              post_recv_buffer(conn->qp, buf);
             }
-            // Repost recv buffer
-            post_recv_buffer(conn->qp, buf);
           } else {
             std::cerr << "Received packet from unknown QP: " << wc[i].qp_num << std::endl;
           }
 
         } else if (wc[i].opcode == IBV_WC_SEND || wc[i].opcode == IBV_WC_RDMA_WRITE) {
-          auto *buf = (RegisteredBuffer *)wc[i].wr_id;
-          buf->attached_context.reset();
-          std::lock_guard<std::mutex> lock(send_buffers_mutex_);
-          free_send_buffers_.push(buf);
-          send_buffers_cv_.notify_one();
+          if (wc[i].wr_id & 1) {
+            WriteContext *ctx = (WriteContext *)(wc[i].wr_id & ~1);
+            std::shared_ptr<Connection> conn;
+            {
+              std::lock_guard<std::mutex> lock(connections_mutex_);
+              auto it = qp_map_.find(wc[i].qp_num);
+              if (it != qp_map_.end())
+                conn = it->second;
+            }
+
+            if (conn) {
+              std::lock_guard<std::mutex> lock(conn->mutex);
+              conn->pending_sends.erase(ctx->msg_serial_id);
+            }
+            delete ctx;
+          } else {
+            auto *buf = (RegisteredBuffer *)wc[i].wr_id;
+            buf->attached_context.reset();
+            std::lock_guard<std::mutex> lock(send_buffers_mutex_);
+            free_send_buffers_.push(buf);
+            send_buffers_cv_.notify_one();
+          }
         }
       }
     }

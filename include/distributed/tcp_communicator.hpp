@@ -423,6 +423,8 @@ private:
         handle_handshake(connection, msg);
       }
 
+      msg.header().sender_id = connection->get_peer_id();
+
       this->enqueue_input_message(std::move(msg));
       start_read(connection);
     } catch (const std::exception &e) {

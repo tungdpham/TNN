@@ -188,11 +188,6 @@ protected:
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
-        auto profile_data = communicator_->get_profile_data();
-        std::cout << "Communicator profiling data:" << std::endl;
-        for (const auto &[key, value] : profile_data) {
-          std::cout << "  " << key << ": " << value << " us" << std::endl;
-        }
         Message outgoing_message(message.header().sender_id, CommandType::PROFILING_PRINTED,
                                  std::monostate{});
         outgoing_message.header().sender_id = id_;

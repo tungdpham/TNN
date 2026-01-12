@@ -15,7 +15,7 @@
 namespace tnn {
 
 inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
-                                     size_t progress_print_interval) {
+                                     const TrainingConfig &config) {
   Tensor<float> batch_data, batch_labels;
 
   size_t batch_index = 0;
@@ -42,13 +42,17 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
 
     coordinator.update_parameters();
 
-    if ((batch_index + 1) % progress_print_interval == 0) {
+    if ((batch_index + 1) % config.progress_print_interval == 0) {
       std::cout << "Async process completed in " << process_duration.count() << " microseconds"
                 << std::endl;
       std::cout << "Average Loss after " << (batch_index + 1)
                 << " batches: " << (total_loss / (batch_index + 1)) << std::endl;
       std::cout << "Batch " << batch_index + 1 << "/"
                 << train_loader.size() / train_loader.get_batch_size() << std::endl;
+      if (config.profiler_type != ProfilerType::NONE) {
+        coordinator.print_profiling();
+      }
+      coordinator.clear_profiling_data();
     }
     ++batch_index;
   }
@@ -140,7 +144,7 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_l
       test_loader.reset();
       train_loader.shuffle();
 
-      train_semi_async_epoch(coordinator, train_loader, config.progress_print_interval);
+      train_semi_async_epoch(coordinator, train_loader, config);
 
       validate_semi_async_epoch(coordinator, test_loader);
 
