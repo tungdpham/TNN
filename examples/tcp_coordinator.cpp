@@ -6,8 +6,7 @@
  */
 #include "distributed/tcp_coordinator.hpp"
 #include "data_augmentation/augmentation.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
+#include "data_loading/data_loader.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -23,21 +22,58 @@
 using namespace tnn;
 using namespace std;
 
-constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
-constexpr float EPSILON = 1e-7f;
-
 int main() {
-  auto model = create_resnet9_cifar10();
-
-  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
-
-  float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
+  ExampleModels<float>::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
   train_config.print_config();
 
-  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+  // Prioritize loading existing model, else create from available ones
+  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
+  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+
+  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
+  const auto &device = DeviceManager::getInstance().getDevice(device_type);
+
+  Sequential<float> model;
+  if (!model_path.empty()) {
+    cout << "Loading model from: " << model_path << endl;
+    model = Sequential<float>::from_file(model_path, &device); // automatically init
+  } else {
+    cout << "Creating model: " << model_name << endl;
+    try {
+      model = ExampleModels<float>::create(model_name);
+    } catch (const std::exception &e) {
+      cerr << "Error creating model: " << e.what() << endl;
+      cout << "Available models are: ";
+      for (const auto &name : ExampleModels<float>::available_models()) {
+        cout << name << "\n";
+      }
+      cout << endl;
+      return 1;
+    }
+    model.set_device(&device);
+    model.init();
+  }
+
+  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  if (dataset_name.empty()) {
+    throw std::runtime_error("DATASET_NAME environment variable is not set!");
+  }
+  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  auto [train_loader, val_loader] = DataLoaderFactory<float>::create(dataset_name, dataset_path);
+  if (!train_loader || !val_loader) {
+    cerr << "Failed to create data loaders for model: " << model_name << endl;
+    return 1;
+  }
+
+  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+
+  auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
+  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
+  auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 8000));
@@ -55,17 +91,16 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  NetworkCoordinator coordinator("coordinator", move(model), move(optimizer), coordinator_endpoint,
-                                 endpoints);
+  NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
+                                 coordinator_endpoint, endpoints);
 
   unique_ptr<Partitioner<float>> partitioner =
       make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
 
-  coordinator.set_partitioner(move(partitioner));
+  coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
-  auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-  coordinator.set_loss_function(move(loss_function));
+  coordinator.set_loss_function(std::move(criterion));
   cout << "Deploying stages to remote endpoints." << endl;
   for (const auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
@@ -78,10 +113,6 @@ int main() {
 
   coordinator.start();
 
-  CIFAR10DataLoader<float> train_loader, test_loader;
-
-  CIFAR10DataLoader<float>::create("./data", train_loader, test_loader);
-
   auto train_transform =
       AugmentationBuilder<float>()
           .random_crop(0.5f, 4)
@@ -89,18 +120,18 @@ int main() {
           .cutout(0.5f, 8)
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  train_loader.set_augmentation(move(train_transform));
+  train_loader->set_augmentation(std::move(train_transform));
 
   auto val_transform =
       AugmentationBuilder<float>()
           .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
           .build();
-  test_loader.set_augmentation(move(val_transform));
+  val_loader->set_augmentation(std::move(val_transform));
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
-  thread_wrapper.execute([&coordinator, &train_loader, &test_loader, &train_config]() {
-    train_model(coordinator, train_loader, test_loader, train_config);
+  thread_wrapper.execute([&coordinator, &train_loader, &val_loader, &train_config]() {
+    train_model(coordinator, *train_loader, *val_loader, train_config);
   });
 
   coordinator.stop();

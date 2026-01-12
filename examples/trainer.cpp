@@ -1,0 +1,73 @@
+#include "data_loading/data_loader.hpp"
+#include "device/device_manager.hpp"
+#include "nn/example_models.hpp"
+#include "nn/train.hpp"
+#include "utils/env.hpp"
+#include <memory>
+
+using namespace std;
+using namespace tnn;
+
+signed main() {
+  ExampleModels<float>::register_defaults();
+
+  TrainingConfig train_config;
+  train_config.load_from_env();
+  train_config.print_config();
+
+  // Prioritize loading existing model, else create from available ones
+  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
+  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+
+  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
+  const auto &device = DeviceManager::getInstance().getDevice(device_type);
+
+  Sequential<float> model;
+  if (!model_path.empty()) {
+    cout << "Loading model from: " << model_path << endl;
+    model = Sequential<float>::from_file(model_path, &device); // automatically init
+  } else {
+    cout << "Creating model: " << model_name << endl;
+    try {
+      model = ExampleModels<float>::create(model_name);
+    } catch (const std::exception &e) {
+      cerr << "Error creating model: " << e.what() << endl;
+      cout << "Available models are: ";
+      for (const auto &name : ExampleModels<float>::available_models()) {
+        cout << name << "\n";
+      }
+      cout << endl;
+      return 1;
+    }
+    model.set_device(&device);
+    model.init();
+  }
+
+  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  if (dataset_name.empty()) {
+    throw std::runtime_error("DATASET_NAME environment variable is not set!");
+  }
+  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  auto [train_loader, val_loader] = DataLoaderFactory<float>::create(dataset_name, dataset_path);
+  if (!train_loader || !val_loader) {
+    cerr << "Failed to create data loaders for model: " << model_name << endl;
+    return 1;
+  }
+
+  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+
+  auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
+  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
+  auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
+
+  try {
+    train_model(model, *train_loader, *val_loader, std::move(optimizer), std::move(criterion),
+                std::move(scheduler), train_config);
+  } catch (const std::exception &e) {
+    cerr << "Training failed: " << e.what() << endl;
+    return 1;
+  }
+
+  return 0;
+}

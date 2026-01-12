@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
   }
   cout << "Data loaded. Total tokens: " << loader.size() + seq_len << endl;
 
-  auto model = create_gpt2(seq_len, vocab_size);
+  auto model = ExampleModels<float>::create("gpt2");
 
   model.set_device(device_type);
   model.init();

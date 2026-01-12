@@ -174,39 +174,32 @@ protected:
 };
 
 /**
- * Factory function to create appropriate data loader based on dataset type
+ * A pair of data loaders for training and validation/testing
  */
-template <typename T = float>
-std::unique_ptr<BaseDataLoader<T>> create_data_loader(const std::string &dataset_type) {
-
-  return nullptr;
-}
+template <typename T = float> struct DataLoaderPair {
+  std::unique_ptr<BaseDataLoader<T>> train;
+  std::unique_ptr<BaseDataLoader<T>> val;
+};
 
 /**
- * Utility functions for common data loading operations
+ * Factory class for creating data loaders by string name
  */
-namespace tnn {
-/**
- * Split dataset into train/validation sets
- */
-template <typename T>
-std::pair<std::vector<size_t>, std::vector<size_t>>
-train_val_split(size_t dataset_size, float val_ratio = 0.2f, unsigned int seed = 42) {
-  std::vector<size_t> indices(dataset_size);
-  std::iota(indices.begin(), indices.end(), 0);
+template <typename T = float> class DataLoaderFactory {
+public:
+  /**
+   * Create a pair of data loaders (train and val) for a given dataset type
+   * @param dataset_type Type of dataset (e.g., "mnist", "cifar10", "cifar100", "tiny_imagenet")
+   * @param dataset_path Path to the dataset directory or file
+   * @return DataLoaderPair containing the created loaders
+   */
+  static DataLoaderPair<T> create(const std::string &dataset_type, const std::string &dataset_path);
 
-  std::mt19937 rng(seed);
-  std::shuffle(indices.begin(), indices.end(), rng);
-
-  size_t val_size = static_cast<size_t>(dataset_size * val_ratio);
-  size_t train_size = dataset_size - val_size;
-
-  std::vector<size_t> train_indices(indices.begin(), indices.begin() + train_size);
-  std::vector<size_t> val_indices(indices.begin() + train_size, indices.end());
-
-  return {train_indices, val_indices};
-}
-
-} // namespace tnn
+  /**
+   * Get list of available dataset types
+   */
+  static std::vector<std::string> available_loaders() {
+    return {"mnist", "cifar10", "cifar100", "tiny_imagenet"};
+  }
+};
 
 } // namespace tnn

@@ -15,8 +15,6 @@
 #include "nn/mem_pool.hpp"
 #include "ops/ops.hpp"
 
-#include "cuda/error_handler.hpp"
-
 #include <chrono>
 #include <cstddef>
 #include <filesystem>

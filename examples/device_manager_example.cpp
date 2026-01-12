@@ -10,14 +10,11 @@ int main() {
   try {
     cout << "=== Device Manager Example ===" << endl;
 
-    // Initialize default devices
     cout << "Initializing devices..." << endl;
     initializeDefaultDevices();
 
-    // Get device manager instance
     DeviceManager &manager = DeviceManager::getInstance();
 
-    // List all available devices
     vector<string> device_ids = manager.getAvailableDeviceIDs();
     cout << "Found " << device_ids.size() << " device(s):" << endl;
 
@@ -27,25 +24,22 @@ int main() {
            << " (Type: " << (device.device_type() == DeviceType::CPU ? "CPU" : "GPU") << ")"
            << endl;
 
-      // Show memory information
       size_t total_mem = device.getTotalMemory();
       size_t avail_mem = device.getAvailableMemory();
       cout << "    Memory - Total: " << total_mem / (1024 * 1024) << " MB, "
            << "Available: " << avail_mem / (1024 * 1024) << " MB" << endl;
     }
 
-    // Test allocation on CPU device (ID 0)
     if (manager.hasDevice(0)) {
       cout << "Testing allocation on CPU device..." << endl;
       const Device &cpu_device = manager.getDevice(0);
 
-      size_t test_size = 1024 * 1024; // 1 MB
+      size_t test_size = 1024 * 1024;
       void *ptr = cpu_device.allocateMemory(test_size);
 
       if (ptr != nullptr) {
         cout << "  Successfully allocated " << test_size << " bytes" << endl;
 
-        // Test memory access (CPU only)
         memset(ptr, 0xAA, test_size);
         char *char_ptr = static_cast<char *>(ptr);
         if (char_ptr[0] == (char)0xAA && char_ptr[test_size - 1] == (char)0xAA) {
@@ -61,15 +55,14 @@ int main() {
       }
     }
 
-    // Test allocation on GPU device (if available)
     bool found_gpu = false;
     for (const string &device_id : device_ids) {
-      if (device_id > "0") { // Assuming GPU devices have IDs greater than 0
+      if (device_id > "0") {
         const Device &device = manager.getDevice(device_id);
         if (device.device_type() == DeviceType::GPU) {
           cout << "Testing allocation on GPU device " << device_id << "..." << endl;
 
-          size_t test_size = 1024 * 1024 * 1024; // 1 GB
+          size_t test_size = 1024 * 1024 * 1024;
           void *ptr = device.allocateMemory(test_size);
 
           if (ptr != nullptr) {
@@ -88,8 +81,6 @@ int main() {
     if (!found_gpu) {
       cout << "No GPU devices available for testing" << endl;
     }
-
-    cout << "=== Example completed successfully ===" << endl;
 
   } catch (const exception &e) {
     cerr << "Error: " << e.what() << endl;
