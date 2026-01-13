@@ -310,13 +310,6 @@ template <typename T> void DenseLayer<T>::collect_gradients(std::vector<Tensor<T
   }
 }
 
-template <typename T> void DenseLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0));
-  if (use_bias_) {
-    bias_gradients_.fill(T(0));
-  }
-}
-
 template <typename T>
 std::unique_ptr<Layer<T>> DenseLayer<T>::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");

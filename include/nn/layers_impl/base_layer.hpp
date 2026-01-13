@@ -96,8 +96,6 @@ public:
     this->initialized_ = true;
   }
 
-  virtual void clear_gradients() = 0;
-
   virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;
   virtual uint64_t backward_flops(const std::vector<size_t> &input_shape) const = 0;
 

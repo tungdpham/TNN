@@ -147,10 +147,6 @@ void PositionalEmbeddingLayer<T>::backward_impl(const Tensor<T> &gradient, Tenso
   }
 }
 
-template <typename T> void PositionalEmbeddingLayer<T>::clear_gradients() {
-  pos_embedding_gradients_.fill(T(0));
-}
-
 template <typename T>
 uint64_t PositionalEmbeddingLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   return 0;

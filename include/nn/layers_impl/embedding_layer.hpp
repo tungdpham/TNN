@@ -160,12 +160,6 @@ protected:
   }
 
 public:
-  void clear_gradients() override {
-    if (this->initialized_) {
-      grad_weight_.fill(T(0));
-    }
-  }
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
     std::vector<size_t> out = input_shape;
     out.push_back(embed_dim_);

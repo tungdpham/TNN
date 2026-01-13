@@ -37,8 +37,6 @@ public:
   std::unique_ptr<Layer<T>> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  void clear_gradients() override;
-
 protected:
   void collect_parameters(std::vector<Tensor<T> *> &params) override;
   void collect_gradients(std::vector<Tensor<T> *> &grads) override;

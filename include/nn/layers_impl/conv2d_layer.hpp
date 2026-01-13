@@ -163,8 +163,6 @@ public:
 
   size_t cached_memory_bytes() const override;
 
-  void clear_gradients() override;
-
 protected:
   void init_params() override;
   void collect_parameters(std::vector<Tensor<T> *> &params) override;

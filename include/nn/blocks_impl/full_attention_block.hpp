@@ -96,13 +96,20 @@ public:
     size_t batch_size = input.dimension(0);
     size_t L = input.dimension(1);
 
+    const Tensor<T> *current_input = &input;
+    Tensor<T> device_input;
+    if (input.device() != this->device_) {
+      device_input = input.to_device(this->get_device());
+      current_input = &device_input;
+    }
+
     Tensor<T> &q = q_cache_[micro_batch_id];
     Tensor<T> &k = k_cache_[micro_batch_id];
     Tensor<T> &v = v_cache_[micro_batch_id];
 
-    q_proj_->forward(input, q, micro_batch_id);
-    k_proj_->forward(input, k, micro_batch_id);
-    v_proj_->forward(input, v, micro_batch_id);
+    q_proj_->forward(*current_input, q, micro_batch_id);
+    k_proj_->forward(*current_input, k, micro_batch_id);
+    v_proj_->forward(*current_input, v, micro_batch_id);
 
     size_t batch_count = batch_size * num_heads_;
     size_t M = L;
@@ -213,6 +220,13 @@ public:
     if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
       throw std::runtime_error("FullAttentionBlock: Cache not found for micro_batch_id");
     }
+    const Tensor<T> *current_gradient = &gradient;
+    Tensor<T> device_gradient;
+    if (gradient.device() != this->device_) {
+      device_gradient = gradient.to_device(this->get_device());
+      current_gradient = &device_gradient;
+    }
+
     Tensor<T> &q = q_cache_[micro_batch_id];
     Tensor<T> &k = k_cache_[micro_batch_id];
     Tensor<T> &v = v_cache_[micro_batch_id];
@@ -222,7 +236,7 @@ public:
 
     PooledTensor<T> grad_attn_out_buffer = this->get_buffer(q.shape());
     Tensor<T> &grad_attn_out = grad_attn_out_buffer.get();
-    out_proj_->backward(gradient, grad_attn_out, micro_batch_id);
+    out_proj_->backward(*current_gradient, grad_attn_out, micro_batch_id);
 
     const auto &q_shape = q.shape();
     size_t batch_size = q_shape[0];
@@ -390,13 +404,6 @@ public:
 
     ops::add(grad_input_q.data_ptr(), grad_input_k.data_ptr(), grad_input.data_ptr(), q.size());
     ops::add(grad_input.data_ptr(), grad_input_v.data_ptr(), grad_input.data_ptr(), q.size());
-  }
-
-  void clear_gradients() override {
-    q_proj_->clear_gradients();
-    k_proj_->clear_gradients();
-    v_proj_->clear_gradients();
-    out_proj_->clear_gradients();
   }
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override {

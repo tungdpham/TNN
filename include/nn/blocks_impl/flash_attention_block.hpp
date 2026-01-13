@@ -398,13 +398,6 @@ public:
     ops::add(temp_ptr, dv_in_ptr, grad_in_ptr, size, "default");
   }
 
-  void clear_gradients() override {
-    q_proj_->clear_gradients();
-    k_proj_->clear_gradients();
-    v_proj_->clear_gradients();
-    out_proj_->clear_gradients();
-  }
-
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
 

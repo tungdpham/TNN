@@ -126,13 +126,6 @@ void LayerNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
   }
 }
 
-template <typename T> void LayerNormLayer<T>::clear_gradients() {
-  if (affine_) {
-    gamma_gradients_.fill(T(0));
-    beta_gradients_.fill(T(0));
-  }
-}
-
 template <typename T>
 uint64_t LayerNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   if (input_shape.size() < 2)

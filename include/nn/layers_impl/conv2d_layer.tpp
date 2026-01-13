@@ -595,13 +595,6 @@ template <typename T> void Conv2DLayer<T>::collect_gradients(std::vector<Tensor<
   }
 }
 
-template <typename T> void Conv2DLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0));
-  if (use_bias_) {
-    bias_gradients_.fill(T(0));
-  }
-}
-
 template <typename T>
 uint64_t Conv2DLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   assert(input_shape.size() == 4 && "Input shape must be 4D");

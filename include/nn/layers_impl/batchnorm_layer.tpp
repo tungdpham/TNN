@@ -423,13 +423,6 @@ std::unique_ptr<Layer<T>> BatchNormLayer<T>::create_from_config(const LayerConfi
   return std::make_unique<BatchNormLayer<T>>(num_features, epsilon, momentum, affine, config.name);
 }
 
-template <typename T> void BatchNormLayer<T>::clear_gradients() {
-  if (affine_) {
-    gamma_gradients_.fill(T(0));
-    beta_gradients_.fill(T(0));
-  }
-}
-
 template <typename T>
 uint64_t BatchNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   size_t num_elements =

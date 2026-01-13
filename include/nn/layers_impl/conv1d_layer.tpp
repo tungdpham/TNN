@@ -291,12 +291,6 @@ template <typename T> void Conv1DLayer<T>::collect_gradients(std::vector<Tensor<
     grads.push_back(&bias_gradients_);
 }
 
-template <typename T> void Conv1DLayer<T>::clear_gradients() {
-  weight_gradients_.fill(T(0));
-  if (use_bias_)
-    bias_gradients_.fill(T(0));
-}
-
 template <typename T> size_t Conv1DLayer<T>::cached_memory_bytes() const {
   size_t total = 0;
   for (const auto &kv : micro_batch_col_buffers_) {

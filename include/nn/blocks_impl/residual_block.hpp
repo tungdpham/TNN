@@ -252,15 +252,6 @@ public:
     }
   }
 
-  void clear_gradients() override {
-    for (auto &layer : main_path_) {
-      layer->clear_gradients();
-    }
-    for (auto &layer : shortcut_path_) {
-      layer->clear_gradients();
-    }
-  }
-
   bool has_parameters() const override {
     for (const auto &layer : main_path_) {
       if (layer->has_parameters())

@@ -220,13 +220,6 @@ std::unique_ptr<Layer<T>> GroupNormLayer<T>::create_from_config(const LayerConfi
                                              config.name);
 }
 
-template <typename T> void GroupNormLayer<T>::clear_gradients() {
-  if (affine_) {
-    gamma_gradients_.fill(T(0));
-    beta_gradients_.fill(T(0));
-  }
-}
-
 template <typename T>
 uint64_t GroupNormLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   size_t num_elements =

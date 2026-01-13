@@ -20,9 +20,6 @@ public:
   std::vector<Tensor<T> *> parameters() override { return {}; }
   std::vector<Tensor<T> *> gradients() override { return {}; }
   bool has_parameters() const override { return false; }
-  void clear_gradients() override {
-    // no-op
-  }
 
 private:
   void init_impl() override {

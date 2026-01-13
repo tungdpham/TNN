@@ -103,10 +103,6 @@ void ClassTokenLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &gra
   }
 }
 
-template <typename T> void ClassTokenLayer<T>::clear_gradients() {
-  class_token_gradients_.fill(T(0));
-}
-
 template <typename T>
 uint64_t ClassTokenLayer<T>::forward_flops(const std::vector<size_t> &input_shape) const {
   return 0;
