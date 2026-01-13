@@ -5,6 +5,7 @@
 #endif
 #include "dgemm.hpp"
 #include "sgemm.hpp"
+#include <stdexcept>
 #include <type_traits>
 #include <vector>
 
@@ -29,6 +30,32 @@ void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const si
     static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
                   "Unsupported data type for gemm. Only float and double are supported.");
   }
+#endif
+}
+
+template <typename T>
+void gemm_strided_batched_ex(const T *A, const T *B, T *C, const size_t M, const size_t N,
+                             const size_t K, const bool trans_A, const bool trans_B, const T alpha,
+                             const T beta, const size_t batch_count, const size_t stride_A,
+                             const size_t stride_B, const size_t stride_C, const size_t lda,
+                             const size_t ldb, const size_t ldc) {
+#ifdef USE_MKL
+  std::vector<const T *> a_ptrs(batch_count);
+  std::vector<const T *> b_ptrs(batch_count);
+  std::vector<T *> c_ptrs(batch_count);
+  for (size_t i = 0; i < batch_count; ++i) {
+    a_ptrs[i] = A + i * stride_A;
+    b_ptrs[i] = B + i * stride_B;
+    c_ptrs[i] = C + i * stride_C;
+  }
+  char transa = trans_A ? 'T' : 'N';
+  char transb = trans_B ? 'T' : 'N';
+  mkl::gemm_batch(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
+                  static_cast<MKL_INT>(K), alpha, a_ptrs.data(), static_cast<MKL_INT>(lda),
+                  b_ptrs.data(), static_cast<MKL_INT>(ldb), beta, c_ptrs.data(),
+                  static_cast<MKL_INT>(ldc), static_cast<MKL_INT>(batch_count));
+#else
+  throw std::runtime_error("gemm_strided_batched_ex requires MKL");
 #endif
 }
 

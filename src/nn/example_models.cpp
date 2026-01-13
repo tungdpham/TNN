@@ -332,7 +332,7 @@ Sequential<float> create_tiny_imagenet_vit() {
     builder.residual(LayerBuilder<float>()
                          .input({seq_len, embed_dim})
                          .layernorm(1e-5f, true, "ln_attn")
-                         .full_attention(embed_dim, num_heads)
+                         .flash_attention(embed_dim, num_heads, false, "attn")
                          .dropout(0.1f)
                          .build(),
                      {}, "linear", "encoder_" + std::to_string(i) + "_attn");
@@ -350,6 +350,7 @@ Sequential<float> create_tiny_imagenet_vit() {
   }
 
   builder.layernorm(1e-5f, true, "ln_final")
+      .slice(1, 0, 1, "extract_cls")
       .flatten(1, "flatten_seq")
       .dense(num_classes, true, "head");
 
@@ -373,7 +374,7 @@ Sequential<float> create_gpt2() {
       .dropout(dropout);
 
   for (size_t i = 0; i < layers; ++i) {
-    builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, "gelu");
+    builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
   }
 
   builder.layernorm(1e-5f, true, "ln_f").dense(vocab_size, true, "head");

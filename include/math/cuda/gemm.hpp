@@ -40,6 +40,13 @@ void gemm_strided_batched(const T *A, const T *B, T *C, const size_t M, const si
                           const T beta, const size_t batch_count, const size_t stride_A,
                           const size_t stride_B, const size_t stride_C, cudaStream_t stream);
 
+template <typename T>
+void gemm_strided_batched_ex(const T *A, const T *B, T *C, const size_t M, const size_t N,
+                             const size_t K, const bool trans_A, const bool trans_B, const T alpha,
+                             const T beta, const size_t batch_count, const size_t stride_A,
+                             const size_t stride_B, const size_t stride_C, const size_t lda,
+                             const size_t ldb, const size_t ldc, cudaStream_t stream);
+
 } // namespace cuda
 
 } // namespace tnn

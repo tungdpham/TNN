@@ -1404,7 +1404,8 @@ public:
    *   2. x = x + Dropout(Projection(Activation(Expansion(LayerNorm(x)))))
    */
   SequentialBuilder &gpt_block(size_t embed_dim, size_t num_heads, size_t ffn_dim,
-                               T dropout_rate = T(0.1), const std::string &activation_fn = "gelu",
+                               T dropout_rate = T(0.1), bool is_causal = false,
+                               const std::string &activation_fn = "gelu",
                                const std::string &name = "") {
     std::string valid_name =
         name.empty() ? "gpt_block_" + std::to_string(model_.layer_size()) : name;
@@ -1416,7 +1417,7 @@ public:
     auto attn_main = LayerBuilder<T>()
                          .input(batchless_shape)
                          .layernorm(1e-5f, true, "ln_1")
-                         .causal_attention(embed_dim, num_heads, "attn")
+                         .flash_attention(embed_dim, num_heads, is_causal, "attn")
                          .dropout(dropout_rate)
                          .build();
 
@@ -1439,18 +1440,18 @@ public:
     return *this;
   }
 
-  SequentialBuilder &full_attention(size_t embed_dim, size_t num_heads,
+  SequentialBuilder &full_attention(size_t embed_dim, size_t num_heads, bool causal = false,
                                     const std::string &name = "") {
     layer_builder_.full_attention(
-        embed_dim, num_heads,
+        embed_dim, num_heads, causal,
         name.empty() ? "full_attention_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 
-  SequentialBuilder &flash_attention(size_t embed_dim, size_t num_heads,
+  SequentialBuilder &flash_attention(size_t embed_dim, size_t num_heads, bool causal = false,
                                      const std::string &name = "") {
     layer_builder_.flash_attention(
-        embed_dim, num_heads,
+        embed_dim, num_heads, causal,
         name.empty() ? "flash_attention_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
@@ -1460,14 +1461,6 @@ public:
     layer_builder_.embedding(
         vocab_size, embed_dim,
         name.empty() ? "embedding_" + std::to_string(model_.layer_size()) : name, padding_idx);
-    return *this;
-  }
-
-  SequentialBuilder &causal_attention(size_t embed_dim, size_t num_heads,
-                                      const std::string &name = "") {
-    layer_builder_.causal_attention(
-        embed_dim, num_heads,
-        name.empty() ? "causal_attention_" + std::to_string(model_.layer_size()) : name);
     return *this;
   }
 

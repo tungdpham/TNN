@@ -16,7 +16,7 @@ namespace cpu {
 
 template <typename T>
 void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, size_t head_dim,
-                             size_t seq_len) {
+                             size_t seq_len, bool is_causal = true) {
   const size_t Br = 64;
   const size_t Bc = 64;
   size_t D = head_dim;
@@ -64,6 +64,18 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
 
         T scale = 1.0f / std::sqrt(static_cast<T>(D));
         cpu::gemm(Q_block.data(), K_block.data(), S_ij.data(), br, bc, D, true, false, scale, 0.0f);
+
+        if (is_causal) {
+          for (size_t r = 0; r < br; ++r) {
+            size_t global_r = i + r;
+            for (size_t c = 0; c < bc; ++c) {
+              size_t global_c = j + c;
+              if (global_c > global_r) {
+                S_ij[r * bc + c] = -INFINITY;
+              }
+            }
+          }
+        }
 
         std::fill(m_block.begin(), m_block.end(), -INFINITY);
 

@@ -45,10 +45,8 @@ template <typename T> class TransposeLayer;
 } // namespace tnn
 
 // Wrapper to include all layer implementations
-#include "blocks_impl/causal_attention_block.hpp"
 #include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/full_attention_block.hpp"
-#include "blocks_impl/residual_block.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
 #include "layers_impl/base_layer.hpp"
@@ -218,13 +216,15 @@ public:
     register_layer("full_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
       size_t embed_dim = config.get<size_t>("embed_dim");
       size_t num_heads = config.get<size_t>("num_heads");
-      return std::make_unique<FullAttentionBlock<T>>(embed_dim, num_heads, config.name);
+      bool is_causal = config.get<bool>("is_causal", false);
+      return std::make_unique<FullAttentionBlock<T>>(embed_dim, num_heads, is_causal, config.name);
     });
 
     register_layer("flash_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
       size_t embed_dim = config.get<size_t>("embed_dim");
       size_t num_heads = config.get<size_t>("num_heads");
-      return std::make_unique<FlashAttentionBlock<T>>(embed_dim, num_heads, config.name);
+      bool is_causal = config.get<bool>("is_causal", false);
+      return std::make_unique<FlashAttentionBlock<T>>(embed_dim, num_heads, is_causal, config.name);
     });
 
     register_layer("embedding", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -232,12 +232,6 @@ public:
       size_t embed_dim = config.get<size_t>("embed_dim");
       size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));
       return std::make_unique<EmbeddingLayer<T>>(vocab_size, embed_dim, config.name, padding_idx);
-    });
-
-    register_layer("causal_attention", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
-      size_t embed_dim = config.get<size_t>("embed_dim");
-      size_t num_heads = config.get<size_t>("num_heads");
-      return std::make_unique<CausalAttentionBlock<T>>(embed_dim, num_heads, config.name);
     });
 
     register_layer("residual_block", [](const LayerConfig &config) -> std::unique_ptr<Layer<T>> {
@@ -546,17 +540,19 @@ public:
     return *this;
   }
 
-  LayerBuilder &full_attention(size_t embed_dim, size_t num_heads, const std::string &name = "") {
+  LayerBuilder &full_attention(size_t embed_dim, size_t num_heads, bool is_causal = false,
+                               const std::string &name = "") {
     auto layer = std::make_unique<FullAttentionBlock<T>>(
-        embed_dim, num_heads,
+        embed_dim, num_heads, is_causal,
         name.empty() ? "full_attention_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
 
-  LayerBuilder &flash_attention(size_t embed_dim, size_t num_heads, const std::string &name = "") {
+  LayerBuilder &flash_attention(size_t embed_dim, size_t num_heads, bool is_causal = false,
+                                const std::string &name = "") {
     auto layer = std::make_unique<FlashAttentionBlock<T>>(
-        embed_dim, num_heads,
+        embed_dim, num_heads, is_causal,
         name.empty() ? "flash_attention_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -567,14 +563,6 @@ public:
     auto layer = std::make_unique<EmbeddingLayer<T>>(
         vocab_size, embed_dim, name.empty() ? "embedding_" + std::to_string(layers_.size()) : name,
         padding_idx);
-    layers_.push_back(std::move(layer));
-    return *this;
-  }
-
-  LayerBuilder &causal_attention(size_t embed_dim, size_t num_heads, const std::string &name = "") {
-    auto layer = std::make_unique<CausalAttentionBlock<T>>(
-        embed_dim, num_heads,
-        name.empty() ? "causal_attention_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }

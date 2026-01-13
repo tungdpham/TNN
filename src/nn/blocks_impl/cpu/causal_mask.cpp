@@ -16,8 +16,24 @@ template <typename T> void fill_causal_mask(T *mask, size_t batch_count, size_t 
   }
 }
 
+template <typename T> void apply_causal_mask(T *scores, size_t batch_count, size_t L, T neg_inf) {
+  for (size_t b = 0; b < batch_count; ++b) {
+    // Each batch (head) has an LxL matrix
+    T *batch_scores = scores + b * L * L;
+    for (size_t i = 0; i < L; ++i) {
+      for (size_t j = i + 1; j < L; ++j) {
+        // Upper triangle where j > i
+        batch_scores[i * L + j] = neg_inf;
+      }
+    }
+  }
+}
+
 template void fill_causal_mask<float>(float *mask, size_t batch_count, size_t L, float neg_inf);
 template void fill_causal_mask<double>(double *mask, size_t batch_count, size_t L, double neg_inf);
+template void apply_causal_mask<float>(float *scores, size_t batch_count, size_t L, float neg_inf);
+template void apply_causal_mask<double>(double *scores, size_t batch_count, size_t L,
+                                        double neg_inf);
 
 } // namespace cpu
 } // namespace tnn
