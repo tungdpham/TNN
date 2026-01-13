@@ -13,7 +13,6 @@
 #include "ops/ops.hpp"
 #include "tensor/tensor_ops.hpp"
 #include <cmath>
-#include <iostream>
 #include <stdexcept>
 #include <vector>
 

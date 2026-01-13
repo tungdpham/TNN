@@ -8,7 +8,6 @@
 
 #include <cassert>
 #include <cstddef>
-#include <cstdint>
 
 #ifdef USE_TBB
 #include <tbb/blocked_range.h>

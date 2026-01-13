@@ -9,7 +9,6 @@
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 #include "nn/layers_impl/cuda/slice_ops.hpp"
 #include "nn/layers_impl/slice_layer.hpp"
-#include <algorithm>
 #include <stdexcept>
 
 namespace tnn {
