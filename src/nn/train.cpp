@@ -74,31 +74,27 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
 
   double total_loss = 0.0;
   double total_corrects = 0.0;
-  int num_samples = 0;
+  size_t cur_samples = 0;
   int num_batches = 0;
   const Device *model_device = model.get_device();
 
-  Tensor<T> device_batch_data(model_device), device_batch_labels(model_device),
-      loss_gradient(model_device);
-  Tensor<T> predictions(model_device), backward_output(model_device);
-
+  Tensor<T> loss_gradient;
+  Tensor<T> predictions, backward_output(model_device);
   std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
   while (train_loader.get_next_batch(batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     ++num_batches;
-    num_samples += batch_data.shape()[0];
-    device_batch_data = batch_data.to_device(model_device);
-    model.forward(device_batch_data, predictions);
-    device_batch_labels = batch_labels.to_device(model_device);
+    cur_samples += batch_data.dimension(0);
+    model.forward(batch_data, predictions);
 
     T loss;
-    loss_function.compute_loss(predictions, device_batch_labels, loss);
-    int corrects = compute_class_corrects(predictions, device_batch_labels);
+    loss_function.compute_loss(predictions, batch_labels, loss);
+    int corrects = compute_class_corrects(predictions, batch_labels);
 
     total_loss += loss;
     total_corrects += corrects;
 
-    loss_function.compute_gradient(predictions, device_batch_labels, loss_gradient);
+    loss_function.compute_gradient(predictions, batch_labels, loss_gradient);
 
     model.backward(loss_gradient, backward_output);
 
@@ -116,7 +112,7 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
                 << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)
-                << (total_corrects * 100.0 / num_samples) << "%" << std::endl;
+                << (total_corrects * 100.0 / cur_samples) << "%" << std::endl;
     }
     if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
       model.clear_profiling();
@@ -125,7 +121,7 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
   std::cout << std::endl;
 
   const T avg_train_loss = static_cast<T>(total_loss / num_batches);
-  const T avg_train_accuracy = static_cast<T>(total_corrects / num_samples);
+  const T avg_train_accuracy = static_cast<T>(total_corrects / cur_samples);
 
   return {avg_train_loss, avg_train_accuracy};
 }

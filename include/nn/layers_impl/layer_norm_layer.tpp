@@ -95,6 +95,13 @@ void LayerNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
 
+  const Tensor<T> *current_gradient = &gradient;
+  Tensor<T> device_gradient;
+  if (gradient.device() != this->device_) {
+    device_gradient = gradient.to_device(this->device_);
+    current_gradient = &device_gradient;
+  }
+
   const Tensor<T> &input = micro_batch_inputs_[micro_batch_id];
 
   const auto &shape = input.shape();
@@ -112,12 +119,12 @@ void LayerNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
   T *beta_grad_ptr = affine_ ? beta_gradients_.data() : nullptr;
 
   if (this->device_->device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::layer_norm::layer_norm_backward<T>, gradient.data(),
+    create_cpu_task("default", cpu::layer_norm::layer_norm_backward<T>, current_gradient->data(),
                     input.data(), gamma_ptr, grad_input.data(), gamma_grad_ptr, beta_grad_ptr,
                     batch_size, channels, epsilon_);
   } else {
 #ifdef USE_CUDA
-    create_gpu_task("default", cuda::layer_norm::layer_norm_backward<T>, gradient.data(),
+    create_gpu_task("default", cuda::layer_norm::layer_norm_backward<T>, current_gradient->data(),
                     input.data(), gamma_ptr, grad_input.data(), gamma_grad_ptr, beta_grad_ptr,
                     batch_size, channels, epsilon_);
 #else
