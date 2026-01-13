@@ -36,14 +36,7 @@ template <typename T> void PositionalEmbeddingLayer<T>::init_params() {
 template <typename T>
 void PositionalEmbeddingLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                                size_t micro_batch_id) {
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
-  const auto &shape = current->shape();
+  const auto &shape = input.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayer: Input tensor must be at least 2D");
   }
@@ -65,7 +58,7 @@ void PositionalEmbeddingLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T>
   output.ensure(shape, this->device_);
 
   auto &out_ptr = output.data_ptr();
-  auto &in_ptr = current->data_ptr();
+  auto &in_ptr = input.data_ptr();
   auto &pos_ptr = pos_embedding_.data_ptr();
 
   size_t sample_size = seq_len_ * embed_dim_;
@@ -92,14 +85,7 @@ void PositionalEmbeddingLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T>
 template <typename T>
 void PositionalEmbeddingLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                                 size_t micro_batch_id) {
-  const Tensor<T> *current_grad = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_grad = &device_gradient;
-  }
-
-  const auto &shape = current_grad->shape();
+  const auto &shape = gradient.shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
   }
@@ -127,9 +113,9 @@ void PositionalEmbeddingLayer<T>::backward_impl(const Tensor<T> &gradient, Tenso
   grad_input.ensure(shape, this->device_);
 
   // grad_input = gradient
-  ops::copy(current_grad->data_ptr(), grad_input.data_ptr(), current_grad->size());
+  ops::copy(gradient.data_ptr(), grad_input.data_ptr(), gradient.size());
 
-  const auto &grad_ptr = current_grad->data_ptr();
+  const auto &grad_ptr = gradient.data_ptr();
   auto &pos_grad_ptr = pos_embedding_gradients_.data_ptr();
 
   for (size_t i = 0; i < batch_size; ++i) {

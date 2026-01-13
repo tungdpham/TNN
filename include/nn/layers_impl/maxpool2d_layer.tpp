@@ -32,14 +32,7 @@ MaxPool2DLayer<T>::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
 template <typename T>
 void MaxPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                      size_t micro_batch_id) {
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
-  const auto &shape = current->shape();
+  const auto &shape = input.shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -63,7 +56,7 @@ void MaxPool2DLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
   mask_indices.ensure(total_outputs, this->device_);
 
   // Pass raw input pointer + padding params (implicit padding)
-  forward_task_ = compute_max_pool_forward(current->data_ptr(), output.data_ptr(), batch_size,
+  forward_task_ = compute_max_pool_forward(input.data_ptr(), output.data_ptr(), batch_size,
                                            channels, input_h, input_w, output_h, output_w,
                                            micro_batch_mask_indices_[micro_batch_id], "default");
 }
@@ -83,13 +76,6 @@ void MaxPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
                              std::to_string(micro_batch_id));
   }
 
-  const Tensor<T> *current_gradient = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_gradient = &device_gradient;
-  }
-
   const device_ptr<size_t[]> &mask_indices = it_mask->second;
   const std::vector<size_t> &input_shape = it_shape->second;
 
@@ -97,7 +83,7 @@ void MaxPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
   const size_t channels = input_shape[1];
   const size_t input_h = input_shape[2];
   const size_t input_w = input_shape[3];
-  const auto &grad_shape = current_gradient->shape();
+  const auto &grad_shape = gradient.shape();
   if (grad_shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
@@ -108,9 +94,8 @@ void MaxPool2DLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad
 
   grad_input.fill(T(0));
 
-  backward_task_ =
-      compute_max_pool_backward(current_gradient->data_ptr(), grad_input.data_ptr(), batch_size,
-                                channels, output_h, output_w, mask_indices, "default");
+  backward_task_ = compute_max_pool_backward(gradient.data_ptr(), grad_input.data_ptr(), batch_size,
+                                             channels, output_h, output_w, mask_indices, "default");
 }
 
 template <typename T>

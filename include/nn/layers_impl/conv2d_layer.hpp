@@ -50,12 +50,12 @@ private:
   std::unique_ptr<Task> col2im_task_;
   std::unique_ptr<Task> bias_grad_task_;
 
-  void def_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+  void def_forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id);
+  void def_backward(const Tensor<T> &current_gradient, Tensor<T> &grad_input,
                     size_t micro_batch_id);
 
-  void cudnn_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+  void cudnn_forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id);
+  void cudnn_backward(const Tensor<T> &current_gradient, Tensor<T> &grad_input,
                       size_t micro_batch_id);
 
 #ifdef USE_CUDNN

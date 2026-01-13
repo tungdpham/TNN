@@ -129,9 +129,20 @@ void *CPUContext::allocateAlignedMemory(size_t size, size_t alignment) {
 #ifdef _WIN32
   return _aligned_malloc(size, alignment);
 #else
+#ifndef USE_CUDA
   // POSIX aligned_alloc requires size to be a multiple of alignment
   size_t adjusted_size = ((size + alignment - 1) / alignment) * alignment;
   return std::aligned_alloc(alignment, adjusted_size);
+#else
+  void *ptr = nullptr;
+  cudaError_t err = cudaMallocHost(&ptr, size);
+  if (err != cudaSuccess) {
+    throw std::runtime_error("Failed to allocate pinned host memory: " +
+                             std::string(cudaGetErrorString(err)));
+  }
+  return ptr;
+  (void)alignment; // Unused parameter
+#endif
 #endif
 }
 
@@ -139,7 +150,15 @@ void CPUContext::deallocateAlignedMemory(void *ptr) {
 #ifdef _WIN32
   _aligned_free(ptr);
 #else
+#ifndef USE_CUDA
   std::free(ptr);
+#else
+  cudaError_t err = cudaFreeHost(ptr);
+  if (err != cudaSuccess) {
+    throw std::runtime_error("Failed to free pinned host memory: " +
+                             std::string(cudaGetErrorString(err)));
+  }
+#endif
 #endif
 }
 

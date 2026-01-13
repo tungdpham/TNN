@@ -102,17 +102,10 @@ public:
 
 private:
   void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    const Tensor<T> *current = &input;
-    Tensor<T> device_input;
-    if (input.device() != this->device_) {
-      device_input = input.to_device(this->device_);
-      current = &device_input;
-    }
-
     if (this->is_training_) {
       auto &cached_input = micro_batch_inputs_[micro_batch_id];
-      cached_input.ensure(current->shape(), this->device_);
-      ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
+      cached_input.ensure(input.shape(), this->device_);
+      ops::copy(input.data_ptr(), cached_input.data_ptr(), input.size());
     }
 
     size_t num_tokens = input.size();
@@ -123,7 +116,7 @@ private:
     out_shape.push_back(embed_dim_);
     output.ensure(out_shape, this->device_);
 
-    compute_forward_task(current->data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
+    compute_forward_task(input.data_ptr(), weight_.data_ptr(), output.data_ptr(), num_tokens,
                          vocab_size_, embed_dim_, padding_idx_, "default");
   }
 
@@ -134,12 +127,6 @@ private:
       throw std::runtime_error("EmbeddingLayer::backward: No cached input for micro_batch_id " +
                                std::to_string(micro_batch_id));
     }
-    const Tensor<T> *current_gradient = &gradient;
-    Tensor<T> device_gradient;
-    if (gradient.device() != this->device_) {
-      device_gradient = gradient.to_device(this->device_);
-      current_gradient = &device_gradient;
-    }
 
     const Tensor<T> &input = it->second;
 
@@ -148,7 +135,7 @@ private:
 
     size_t num_tokens = input.size();
 
-    compute_backward_task(input.data_ptr(), current_gradient->data_ptr(), grad_weight_.data_ptr(),
+    compute_backward_task(input.data_ptr(), gradient.data_ptr(), grad_weight_.data_ptr(),
                           num_tokens, vocab_size_, embed_dim_, padding_idx_, "default");
   }
 

@@ -61,7 +61,13 @@ public:
                 << std::endl;
       return;
     }
-    forward_impl(input, output, micro_batch_id);
+    const Tensor<T> *current = &input;
+    PooledTensor<T> device_input = this->get_buffer(input.shape());
+    if (input.device() != this->device_) {
+      ops::cd_copy(input.data_ptr(), device_input.get().data_ptr(), input.size());
+      current = &device_input.get();
+    }
+    forward_impl(*current, output, micro_batch_id);
   }
 
   void backward(const Tensor<T> &gradient, Tensor<T> &grad_input, size_t micro_batch_id = 0) {
@@ -70,7 +76,13 @@ public:
                 << std::endl;
       return;
     }
-    backward_impl(gradient, grad_input, micro_batch_id);
+    const Tensor<T> *current_gradient = &gradient;
+    PooledTensor<T> device_gradient = this->get_buffer(gradient.shape());
+    if (gradient.device() != this->device_) {
+      ops::cd_copy(gradient.data_ptr(), device_gradient.get().data_ptr(), gradient.size());
+      current_gradient = &device_gradient.get();
+    }
+    backward_impl(*current_gradient, grad_input, micro_batch_id);
   }
 
   virtual std::vector<Tensor<T> *> parameters() { return {}; }

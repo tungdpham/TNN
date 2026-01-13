@@ -91,18 +91,11 @@ public:
   }
 
   void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override {
-    const Tensor<T> *current_input = &input;
-    Tensor<T> device_input;
-    if (input.device() != this->device_) {
-      device_input = input.to_device(this->get_device());
-      current_input = &device_input;
-    }
-
     // Cache input shape for backward pass
-    input_shape_cache_[micro_batch_id] = current_input->shape();
+    input_shape_cache_[micro_batch_id] = input.shape();
 
     size_t max_size = 0;
-    std::vector<size_t> current_shape = current_input->shape();
+    std::vector<size_t> current_shape = input.shape();
     for (auto &layer : main_path_) {
       auto layer_shape = layer->compute_output_shape(current_shape);
       size_t layer_size =
@@ -117,7 +110,7 @@ public:
     Tensor<T> &main_output = main_output_buffer.get();
 
     // Main path: F(x)
-    const Tensor<T> *main_path = current_input;
+    const Tensor<T> *main_path = &input;
     for (auto &layer : main_path_) {
       layer->forward(*main_path, temp, micro_batch_id);
       std::swap(temp, main_output);
@@ -128,7 +121,7 @@ public:
     Tensor<T> &shortcut_output = shortcut_output_buffer.get();
 
     // Shortcut path: x or projection(x)
-    const Tensor<T> *shortcut_path = current_input;
+    const Tensor<T> *shortcut_path = &input;
     for (auto &layer : shortcut_path_) {
       layer->forward(*shortcut_path, temp, micro_batch_id);
       std::swap(temp, shortcut_output);
@@ -156,12 +149,6 @@ public:
 
   void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                      size_t micro_batch_id = 0) override {
-    const Tensor<T> *current_gradient = &gradient;
-    Tensor<T> device_gradient;
-    if (gradient.device() != this->device_) {
-      device_gradient = gradient.to_device(this->device_);
-      current_gradient = &device_gradient;
-    }
 
     auto it_pre_act = pre_activation_cache_.find(micro_batch_id);
     if (final_activation_ && it_pre_act == pre_activation_cache_.end()) {
@@ -169,12 +156,12 @@ public:
                                std::to_string(micro_batch_id));
     }
 
-    const Tensor<T> *grad_to_propagate = current_gradient;
+    const Tensor<T> *grad_to_propagate = &gradient;
     PooledTensor<T> grad_act_pooled;
 
     if (final_activation_) {
-      grad_act_pooled = this->get_buffer(current_gradient->shape());
-      final_activation_->compute_gradient(it_pre_act->second, *current_gradient,
+      grad_act_pooled = this->get_buffer(gradient.shape());
+      final_activation_->compute_gradient(it_pre_act->second, *grad_to_propagate,
                                           grad_act_pooled.get());
       grad_to_propagate = &grad_act_pooled.get();
     }

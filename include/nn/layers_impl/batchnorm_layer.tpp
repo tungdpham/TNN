@@ -69,79 +69,64 @@ void BatchNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     throw std::invalid_argument("BatchNorm: Input channels must match num_features");
   }
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_forward(current, output, micro_batch_id);
+    cudnn_forward(input, output, micro_batch_id);
   } else
 #endif
   {
-    def_forward(current, output, micro_batch_id);
+    def_forward(input, output, micro_batch_id);
   }
 }
 
 template <typename T>
 void BatchNormLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                       size_t micro_batch_id) {
-  const Tensor<T> *current_gradient = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_gradient = &device_gradient;
-  }
-
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_backward(current_gradient, grad_input, micro_batch_id);
+    cudnn_backward(gradient, grad_input, micro_batch_id);
   } else
 #endif
   {
-    def_backward(current_gradient, grad_input, micro_batch_id);
+    def_backward(gradient, grad_input, micro_batch_id);
   }
 }
 
 template <typename T>
-void BatchNormLayer<T>::def_forward(const Tensor<T> *current, Tensor<T> &output,
+void BatchNormLayer<T>::def_forward(const Tensor<T> &input, Tensor<T> &output,
                                     size_t micro_batch_id) {
   size_t batch_size, channels, spatial_size;
-  batch_size = current->dimension(0);
-  channels = current->dimension(1);
-  spatial_size = current->stride(1);
+  batch_size = input.dimension(0);
+  channels = input.dimension(1);
+  spatial_size = input.stride(1);
 
   if (num_features_ != channels) {
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  output.ensure(current->shape(), this->device_);
+  output.ensure(input.shape(), this->device_);
 
   device_ptr<T[]> &norm_cache = micro_batch_normalized_[micro_batch_id];
   device_ptr<T[]> &batch_inv_std = micro_batch_inv_std_[micro_batch_id];
   device_ptr<T[]> &batch_mean_fixed = batch_mean_fixed_[micro_batch_id];
 
-  norm_cache.ensure(current->size(), this->device_);
+  norm_cache.ensure(input.size(), this->device_);
   batch_inv_std.ensure(num_features_, this->device_);
   batch_mean_fixed.ensure(num_features_, this->device_);
 
   if (this->is_training_) {
-    forward_task_ = run_forward_fused(current->data_ptr(), batch_mean_fixed_[micro_batch_id],
-                                      micro_batch_inv_std_[micro_batch_id],
-                                      running_mean_.data_ptr(), running_var_.data_ptr(),
-                                      gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
-                                      norm_cache, batch_size, channels, spatial_size, "default");
+    forward_task_ = run_forward_fused(
+        input.data_ptr(), batch_mean_fixed_[micro_batch_id], micro_batch_inv_std_[micro_batch_id],
+        running_mean_.data_ptr(), running_var_.data_ptr(), gamma_.data_ptr(), beta_.data_ptr(),
+        output.data_ptr(), norm_cache, batch_size, channels, spatial_size, "default");
   } else {
     forward_task_ =
-        compute_inference_output(*current, output, batch_size, channels, spatial_size, "default");
+        compute_inference_output(input, output, batch_size, channels, spatial_size, "default");
   }
 }
 
 template <typename T>
-void BatchNormLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+void BatchNormLayer<T>::def_backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                      size_t micro_batch_id) {
   auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
 
@@ -156,30 +141,29 @@ void BatchNormLayer<T>::def_backward(const Tensor<T> *current_gradient, Tensor<T
                              std::to_string(micro_batch_id));
   }
 
-  const size_t batch_size = current_gradient->dimension(0);
-  const size_t channels = current_gradient->dimension(1);
-  const size_t spatial_size = current_gradient->stride(1);
+  const size_t batch_size = gradient.dimension(0);
+  const size_t channels = gradient.dimension(1);
+  const size_t spatial_size = gradient.stride(1);
 
-  grad_input.ensure(current_gradient->shape(), this->device_);
-
+  grad_input.ensure(gradient.shape(), this->device_);
   backward_task_ =
-      run_backward_fused(current_gradient->data_ptr(), it_normalized->second, it_inv_std->second,
+      run_backward_fused(gradient.data_ptr(), it_normalized->second, it_inv_std->second,
                          gamma_.data_ptr(), gamma_gradients_.data_ptr(), beta_gradients_.data_ptr(),
                          grad_input.data_ptr(), batch_size, channels, spatial_size, "default");
 }
 
 #ifdef USE_CUDNN
 template <typename T>
-void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &output,
+void BatchNormLayer<T>::cudnn_forward(const Tensor<T> &input, Tensor<T> &output,
                                       size_t micro_batch_id) {
-  const size_t batch_size = current->dimension(0);
-  const size_t channels = current->dimension(1);
-  const size_t spatial_size = current->stride(1);
+  const size_t batch_size = input.dimension(0);
+  const size_t channels = input.dimension(1);
+  const size_t spatial_size = input.stride(1);
   if (num_features_ != channels) {
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  output.ensure(current->shape(), this->device_);
+  output.ensure(input.shape(), this->device_);
 
   // check if we need to (re)initialize cuDNN handle
   bool dimensions_changed =
@@ -214,8 +198,8 @@ void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &outpu
 
   if (this->is_training_) {
     Tensor<T> &cached_input = micro_batch_inputs_cache_[micro_batch_id];
-    cached_input.ensure(current->shape(), this->device_);
-    ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
+    cached_input.ensure(input.shape(), this->device_);
+    ops::copy(input.data_ptr(), cached_input.data_ptr(), input.size());
   }
 
   device_ptr<T[]> &batch_inv_std = micro_batch_inv_std_[micro_batch_id];
@@ -226,21 +210,21 @@ void BatchNormLayer<T>::cudnn_forward(const Tensor<T> *current, Tensor<T> &outpu
   if (this->is_training_) {
     forward_task_ =
         create_gpu_task("default", cuda::cudnn_batchnorm::run_forward_training<T>, cudnn_handle_,
-                        current->data_ptr().get(), gamma_.data_ptr().get(), beta_.data_ptr().get(),
+                        input.data_ptr().get(), gamma_.data_ptr().get(), beta_.data_ptr().get(),
                         output.data_ptr().get(), running_mean_.data_ptr().get(),
                         running_var_.data_ptr().get(), batch_mean_fixed.get(), batch_inv_std.get(),
                         static_cast<double>(epsilon_), static_cast<double>(momentum_));
   } else {
     forward_task_ =
         create_gpu_task("default", cuda::cudnn_batchnorm::run_forward_inference<T>, cudnn_handle_,
-                        current->data_ptr().get(), gamma_.data_ptr().get(), beta_.data_ptr().get(),
+                        input.data_ptr().get(), gamma_.data_ptr().get(), beta_.data_ptr().get(),
                         running_mean_.data_ptr().get(), running_var_.data_ptr().get(),
                         output.data_ptr().get(), static_cast<double>(epsilon_));
   }
 }
 
 template <typename T>
-void BatchNormLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
+void BatchNormLayer<T>::cudnn_backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
                                        size_t micro_batch_id) {
   auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
   if (it_input_cache == micro_batch_inputs_cache_.end()) {
@@ -258,12 +242,12 @@ void BatchNormLayer<T>::cudnn_backward(const Tensor<T> *current_gradient, Tensor
         std::to_string(micro_batch_id));
   }
 
-  grad_input.ensure(current_gradient->shape(), this->device_);
+  grad_input.ensure(gradient.shape(), this->device_);
 
   backward_task_ = create_gpu_task(
       "default", cuda::cudnn_batchnorm::run_backward<T>, cudnn_handle_,
-      it_input_cache->second.data_ptr().get(), current_gradient->data_ptr().get(),
-      gamma_.data_ptr().get(), grad_input.data_ptr().get(), gamma_gradients_.data_ptr().get(),
+      it_input_cache->second.data_ptr().get(), gradient.data_ptr().get(), gamma_.data_ptr().get(),
+      grad_input.data_ptr().get(), gamma_gradients_.data_ptr().get(),
       beta_gradients_.data_ptr().get(), it_batch_mean_fixed->second.get(),
       it_batch_inv_std_fixed->second.get(), static_cast<double>(epsilon_));
 }

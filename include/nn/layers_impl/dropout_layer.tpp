@@ -36,19 +36,12 @@ void DropoutLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     return;
   }
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
   Tensor<T> &mask = micro_batch_masks_[micro_batch_id];
-  mask.ensure(current->shape(), this->device_);
+  mask.ensure(input.shape(), this->device_);
 
-  output.ensure(current->shape(), this->device_);
+  output.ensure(input.shape(), this->device_);
 
-  auto forward_task = compute_dropout_forward(*current, output, mask);
+  auto forward_task = compute_dropout_forward(input, output, mask);
 }
 
 template <typename T>
@@ -60,13 +53,6 @@ void DropoutLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_i
     return;
   }
 
-  const Tensor<T> *current_gradient = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_gradient = &device_gradient;
-  }
-
   auto it_mask = micro_batch_masks_.find(micro_batch_id);
   if (it_mask == micro_batch_masks_.end()) {
     throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
@@ -74,9 +60,9 @@ void DropoutLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_i
   }
   const Tensor<T> &mask = it_mask->second;
 
-  grad_input.ensure(current_gradient->shape(), this->device_);
+  grad_input.ensure(gradient.shape(), this->device_);
 
-  ops::mul(current_gradient->data_ptr(), mask.data_ptr(), grad_input.data_ptr(), grad_input.size());
+  ops::mul(gradient.data_ptr(), mask.data_ptr(), grad_input.data_ptr(), grad_input.size());
 }
 
 template <typename T>

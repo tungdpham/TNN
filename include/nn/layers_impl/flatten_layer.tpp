@@ -20,17 +20,10 @@ void FlattenLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
                                    size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
-  std::vector<size_t> output_shape = compute_output_shape(current->shape());
+  std::vector<size_t> output_shape = compute_output_shape(input.shape());
   output.ensure(output_shape);
 
-  ops::copy(current->data_ptr(), output.data_ptr(), current->size());
+  ops::copy(input.data_ptr(), output.data_ptr(), input.size());
 }
 
 template <typename T>
@@ -43,15 +36,8 @@ void FlattenLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_i
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  const Tensor<T> *current_grad = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_grad = &device_gradient;
-  }
-
   grad_input.ensure(original_shape);
-  ops::copy(current_grad->data_ptr(), grad_input.data_ptr(), current_grad->size());
+  ops::copy(gradient.data_ptr(), grad_input.data_ptr(), gradient.size());
 }
 
 template <typename T> std::string FlattenLayer<T>::type() const { return "flatten"; }

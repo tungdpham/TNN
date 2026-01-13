@@ -68,22 +68,14 @@ void DenseLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output, size
     throw std::invalid_argument("Input feature size mismatch in DenseLayer");
   }
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
   Tensor<T> &cached_input = micro_batch_inputs_[micro_batch_id];
-  cached_input.ensure(current->shape(), this->device_);
-  ops::copy(current->data_ptr(), cached_input.data_ptr(), current->size());
-
+  cached_input.ensure(input.shape(), this->device_);
+  ops::copy(input.data_ptr(), cached_input.data_ptr(), input.size());
   std::vector<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
   output.ensure(out_shape, this->device_);
 
-  forward_task_ = compute_dense_forward(current->data_ptr(), weights_.data_ptr(), output.data_ptr(),
+  forward_task_ = compute_dense_forward(input.data_ptr(), weights_.data_ptr(), output.data_ptr(),
                                         batch_size, input_features_, output_features_, "default");
 
   if (use_bias_) {
@@ -114,24 +106,17 @@ void DenseLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_inp
 
   grad_input.ensure(last_input.shape(), this->device_);
 
-  const Tensor<T> *current_grad = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_grad = &device_gradient;
-  }
-
-  weight_grad_task_ = compute_weight_gradients(last_input.data_ptr(), current_grad->data_ptr(),
+  weight_grad_task_ = compute_weight_gradients(last_input.data_ptr(), gradient.data_ptr(),
                                                weight_gradients_.data_ptr(), batch_size,
                                                input_features_, output_features_, "default");
 
   if (use_bias_) {
-    bias_grad_task_ = compute_bias_gradients(current_grad->data_ptr(), bias_gradients_.data_ptr(),
+    bias_grad_task_ = compute_bias_gradients(gradient.data_ptr(), bias_gradients_.data_ptr(),
                                              batch_size, output_features_, "default");
   }
 
   input_grad_task_ =
-      compute_input_gradients(current_grad->data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
+      compute_input_gradients(gradient.data_ptr(), weights_.data_ptr(), grad_input.data_ptr(),
                               batch_size, input_features_, output_features_, "default");
 }
 

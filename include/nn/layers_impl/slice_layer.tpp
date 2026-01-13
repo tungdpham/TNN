@@ -21,28 +21,21 @@ template <typename T>
 void SliceLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input.shape();
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
-  std::vector<size_t> output_shape = compute_output_shape(current->shape());
+  std::vector<size_t> output_shape = compute_output_shape(input.shape());
   output.ensure(output_shape, this->device_);
 
-  if (current->device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::slice::slice_forward<T>, current->data_ptr().get(),
-                    output.data_ptr().get(), current->shape(), axis_, start_, length_);
+  if (input.device_type() == DeviceType::CPU) {
+    create_cpu_task("default", cpu::slice::slice_forward<T>, input.data_ptr().get(),
+                    output.data_ptr().get(), input.shape(), axis_, start_, length_);
   }
 #ifdef USE_CUDA
-  else if (current->device_type() == DeviceType::GPU) {
-    create_gpu_task("default", cuda::slice::slice_forward<T>, current->data_ptr().get(),
-                    output.data_ptr().get(), current->shape(), axis_, start_, length_);
+  else if (input.device_type() == DeviceType::GPU) {
+    create_gpu_task("default", cuda::slice::slice_forward<T>, input.data_ptr().get(),
+                    output.data_ptr().get(), input.shape(), axis_, start_, length_);
   }
 #endif
   else {
-    if (current->device_type() == DeviceType::GPU) {
+    if (input.device_type() == DeviceType::GPU) {
       throw std::runtime_error("SliceLayer: GPU execution requires building with USE_CUDA");
     }
     throw std::runtime_error("SliceLayer: Unsupported device type");
@@ -58,27 +51,20 @@ void SliceLayer<T>::backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_inp
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  const Tensor<T> *current_grad = &gradient;
-  Tensor<T> device_gradient;
-  if (gradient.device() != this->device_) {
-    device_gradient = gradient.to_device(this->device_);
-    current_grad = &device_gradient;
-  }
-
   grad_input.ensure(original_shape, this->device_);
 
-  if (current_grad->device_type() == DeviceType::CPU) {
-    create_cpu_task("default", cpu::slice::slice_backward<T>, current_grad->data_ptr().get(),
+  if (gradient.device_type() == DeviceType::CPU) {
+    create_cpu_task("default", cpu::slice::slice_backward<T>, gradient.data_ptr().get(),
                     grad_input.data_ptr().get(), original_shape, axis_, start_, length_);
   }
 #ifdef USE_CUDA
-  else if (current_grad->device_type() == DeviceType::GPU) {
-    create_gpu_task("default", cuda::slice::slice_backward<T>, current_grad->data_ptr().get(),
+  else if (gradient.device_type() == DeviceType::GPU) {
+    create_gpu_task("default", cuda::slice::slice_backward<T>, gradient.data_ptr().get(),
                     grad_input.data_ptr().get(), original_shape, axis_, start_, length_);
   }
 #endif
   else {
-    if (current_grad->device_type() == DeviceType::GPU) {
+    if (gradient.device_type() == DeviceType::GPU) {
       throw std::runtime_error("SliceLayer: GPU execution requires building with USE_CUDA");
     }
     throw std::runtime_error("SliceLayer: Unsupported device type");

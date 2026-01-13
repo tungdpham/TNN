@@ -566,7 +566,7 @@ template <typename T> void cuda_h2d_copy(const T *a, T *c, size_t size, cudaStre
 template <typename T> void cuda_d2h_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
   if (size == 0)
     return;
-  cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyDeviceToHost, stream);
+  cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyDeviceToHost);
   cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
 }
 

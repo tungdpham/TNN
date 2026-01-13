@@ -55,25 +55,18 @@ void GroupNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
 
-  const Tensor<T> *current = &input;
-  Tensor<T> device_input;
-  if (input.device() != this->device_) {
-    device_input = input.to_device(this->device_);
-    current = &device_input;
-  }
-
-  size_t batch_size = current->dimension(0);
-  size_t channels = current->dimension(1);
-  size_t spatial_size = current->stride(1);
+  size_t batch_size = input.dimension(0);
+  size_t channels = input.dimension(1);
+  size_t spatial_size = input.stride(1);
 
   if (num_channels_ != channels) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
 
-  output.ensure(current->shape());
+  output.ensure(input.shape());
 
   device_ptr<T[]> &norm = micro_batch_normalized_[micro_batch_id];
-  norm.ensure(current->size(), this->device_);
+  norm.ensure(input.size(), this->device_);
 
   device_ptr<T[]> &mean = group_mean_[micro_batch_id];
   mean.ensure(batch_size * num_groups_, this->device_);
@@ -82,12 +75,11 @@ void GroupNormLayer<T>::forward_impl(const Tensor<T> &input, Tensor<T> &output,
   inv_std.ensure(batch_size * num_groups_, this->device_);
 
   std::unique_ptr<Task> fwd_task;
-  fwd_task = run_forward_fused(
-      current->data_ptr(), group_mean_[micro_batch_id], micro_batch_inv_std_[micro_batch_id],
-      gamma_.data_ptr(), beta_.data_ptr(), output.data_ptr(),
-      micro_batch_normalized_[micro_batch_id], batch_size, channels, spatial_size, "default");
+  fwd_task =
+      run_forward_fused(input.data_ptr(), mean, inv_std, gamma_.data_ptr(), beta_.data_ptr(),
+                        output.data_ptr(), norm, batch_size, channels, spatial_size, "default");
 
-  micro_batch_inputs_[micro_batch_id] = current->clone();
+  micro_batch_inputs_[micro_batch_id] = input.clone();
 }
 
 template <typename T>

@@ -56,14 +56,12 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  void def_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
-                    size_t micro_batch_id);
+  void def_forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id);
+  void def_backward(const Tensor<T> &gradient, Tensor<T> &grad_input, size_t micro_batch_id);
 
 #ifdef USE_CUDNN
-  void cudnn_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
-                      size_t micro_batch_id);
+  void cudnn_forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id);
+  void cudnn_backward(const Tensor<T> &gradient, Tensor<T> &grad_input, size_t micro_batch_id);
 #endif
 
   std::unique_ptr<Task> compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
