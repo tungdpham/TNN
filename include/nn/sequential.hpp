@@ -486,7 +486,6 @@ public:
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
     }
-    const Device *input_device = input.device();
     compute_max_size(input.shape());
     temp_buffer_.ensure({max_size_}, this->device_);
     output_buffer_.ensure({max_size_}, this->device_);
@@ -517,7 +516,7 @@ public:
     }
 
     auto sync_start = std::chrono::high_resolution_clock::now();
-    Flow *def_flow = input_device->getFlow("default");
+    Flow *def_flow = this->device_->getFlow("default");
     def_flow->synchronize();
     auto sync_end = std::chrono::high_resolution_clock::now();
     auto sync_duration =
@@ -549,8 +548,6 @@ public:
     if (layers_.empty()) {
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
-
-    const Device *grad_device = gradient.device();
     temp_buffer_.ensure({max_size_}, this->device_);
     output_buffer_.ensure({max_size_}, this->device_);
     const Tensor<T> *current_gradient = &gradient;
@@ -579,7 +576,7 @@ public:
     }
 
     auto sync_start = std::chrono::high_resolution_clock::now();
-    Flow *def_flow = grad_device->getFlow("default");
+    Flow *def_flow = this->device_->getFlow("default");
     def_flow->synchronize();
     auto sync_end = std::chrono::high_resolution_clock::now();
     auto sync_duration =
