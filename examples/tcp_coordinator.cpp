@@ -98,7 +98,6 @@ int main() {
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
-  coordinator.set_loss_function(std::move(criterion));
   cout << "Deploying stages to remote endpoints." << endl;
   for (const auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
@@ -113,8 +112,8 @@ int main() {
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
-  thread_wrapper.execute([&coordinator, &train_loader, &val_loader, &train_config]() {
-    train_model(coordinator, *train_loader, *val_loader, train_config);
+  thread_wrapper.execute([&coordinator, &train_loader, &val_loader, &criterion, &train_config]() {
+    train_model(coordinator, *train_loader, *val_loader, criterion, train_config);
   });
 
   coordinator.stop();

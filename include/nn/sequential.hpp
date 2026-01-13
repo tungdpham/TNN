@@ -257,7 +257,7 @@ public:
   /**
    * @brief Clears all recorded profiling data.
    */
-  void clear_profiling_data() {
+  void clear_profiling() {
     {
       std::lock_guard<std::mutex> forward_lock(forward_times_mutex_);
       forward_times_microseconds_.clear();

@@ -49,13 +49,8 @@ public:
     initialize_topology();
   }
 
-  void set_partitioner(std::unique_ptr<Partitioner<float>> tnn) { partitioner_ = std::move(tnn); }
-
-  void set_loss_function(std::unique_ptr<Loss<float>> loss) {
-    if (!loss) {
-      throw std::invalid_argument("Loss function cannot be null");
-    }
-    loss_function_ = std::move(loss);
+  void set_partitioner(std::unique_ptr<Partitioner<float>> partitioner) {
+    partitioner_ = std::move(partitioner);
   }
 
   int num_stages() const { return num_stages_; }
@@ -80,29 +75,23 @@ public:
 
   void start() {
     for (const auto &stage_name : this->stage_names_) {
-      Message start_msg(stage_name, CommandType::TRAIN_MODE, std::monostate{});
+      Message start_msg("coordinator", stage_name, CommandType::TRAIN_MODE, std::monostate{});
       this->coordinator_comm_->send_message(std::move(start_msg));
     }
-
-    // message_thread_ = std::thread(&Coordinator::message_loop, this);
-
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
 
   void stop() {
     for (const auto &stage_name : this->stage_names_) {
       std::cout << "Stopping stage " << stage_name << std::endl;
-      Message stop_msg(stage_name, CommandType::SHUTDOWN, std::monostate{});
+      Message stop_msg("coordinator", stage_name, CommandType::SHUTDOWN, std::monostate{});
       this->coordinator_comm_->send_message(std::move(stop_msg));
     }
     should_stop_ = true;
-
     message_notification_cv_.notify_all();
-
     if (message_thread_.joinable()) {
       message_thread_.join();
     }
-
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
@@ -116,7 +105,9 @@ public:
 
   void set_training(bool training) {
     for (const auto &stage_name : this->stage_names_) {
-      Message mode_msg(stage_name, training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
+      Message mode_msg("coordinator", stage_name,
+                       training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE,
+                       std::monostate{});
       this->coordinator_comm_->send_message(std::move(mode_msg));
     }
   }
@@ -131,13 +122,12 @@ public:
       throw std::runtime_error("No stages available for processing");
     }
 
-    const std::string &first_stage = this->stage_names_[0];
+    const std::string &first_stage = this->stage_names_.front();
 
     PooledJob<float> job = JobPool<float>::instance().get_job(input.size());
     job->micro_batch_id = microbatch_id;
     job->data = std::move(input);
-    Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
-    forward_msg.header().sender_id = "coordinator";
+    Message forward_msg("coordinator", first_stage, CommandType::FORWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(forward_msg));
   }
@@ -157,44 +147,15 @@ public:
     PooledJob<float> job = JobPool<float>::instance().get_job(gradient.size());
     job->micro_batch_id = microbatch_id;
     job->data = std::move(gradient);
-    Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
-    backward_msg.header().sender_id = "coordinator";
+    Message backward_msg("coordinator", last_stage, CommandType::BACKWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(backward_msg));
   }
 
-  /**
-   * @brief Computes the loss given predictions and targets using the model's loss function.
-   * @param predictions The predicted output tensor.
-   * @param targets The target output tensor.
-   * @return The computed loss value.
-   */
-  float compute_loss(const Tensor<float> &predictions, const Tensor<float> &targets) {
-    if (!loss_function_) {
-      throw std::runtime_error("Loss function is not set in the coordinator");
-    }
-    float loss = 0.0f;
-    loss_function_->compute_loss(predictions, targets, loss);
-    return loss;
-  }
-
-  /**
-   * @brief Computes gradient of the loss with respect to predictions using the model's loss
-   * function.
-   */
-  Tensor<float> compute_gradient(const Tensor<float> &predictions, const Tensor<float> &targets) {
-    if (!loss_function_) {
-      throw std::runtime_error("Loss function is not set in the coordinator");
-    }
-    Tensor<float> gradient;
-    loss_function_->compute_gradient(predictions, targets, gradient);
-    return gradient;
-  }
-
   void update_parameters() {
     for (const auto &stage_name : this->stage_names_) {
-      Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
-      update_msg.header().sender_id = "coordinator";
+      Message update_msg("coordinator", stage_name, CommandType::UPDATE_PARAMETERS,
+                         std::monostate{});
       this->coordinator_comm_->send_message(std::move(update_msg));
     }
 
@@ -202,67 +163,6 @@ public:
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
     }
-  }
-
-  bool send_params(const std::string &stage_id, const Partition &partition) {
-    try {
-      throw new std::runtime_error("Not implemented yet");
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to send parameters to stage " << stage_id << ": " << e.what() << '\n';
-      return false;
-    }
-  }
-
-  /**
-   * @brief Intelligently sends parameters only to stages that need them based on partition
-   * changes.
-   * @param old_partitions The previous partition configuration
-   * @param new_partitions The new partition configuration
-   * @return true if all necessary parameters were sent successfully, false otherwise
-   */
-  bool send_updated_parameters(const std::vector<Partition> &old_partitions,
-                               const std::vector<Partition> &new_partitions) {
-    if (old_partitions.size() != new_partitions.size() ||
-        new_partitions.size() != stage_names_.size()) {
-      std::cerr << "Partition size mismatch in send_updated_parameters\n";
-      return false;
-    }
-
-    std::vector<std::future<bool>> param_futures;
-
-    for (size_t i = 0; i < stage_names_.size(); ++i) {
-      const std::string &stage_name = stage_names_[i];
-      const auto &old_partition = old_partitions[i];
-      const auto &new_partition = new_partitions[i];
-
-      // Check if this stage's partition actually changed
-      bool partition_changed = (old_partition.start_layer != new_partition.start_layer ||
-                                old_partition.end_layer != new_partition.end_layer);
-
-      if (partition_changed) {
-        std::cout << "Partition changed for stage " << stage_name << ": ["
-                  << old_partition.start_layer << "," << old_partition.end_layer << ") -> ["
-                  << new_partition.start_layer << "," << new_partition.end_layer << ")\n";
-
-        auto future = std::async(std::launch::async, [this, stage_name, new_partition]() {
-          return this->send_params(stage_name, new_partition);
-        });
-        param_futures.push_back(std::move(future));
-      } else {
-        std::cout << "No partition change for stage " << stage_name
-                  << ", skipping parameter update\n";
-      }
-    }
-
-    // Wait for all parameter transfers to complete
-    bool all_params_sent = true;
-    for (auto &future : param_futures) {
-      if (!future.get()) {
-        all_params_sent = false;
-      }
-    }
-
-    return all_params_sent;
   }
 
   /**
@@ -292,7 +192,8 @@ public:
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
   float async_process_batch(std::vector<Tensor<float>> &microbatch_inputs,
-                            std::vector<Tensor<float>> &microbatch_labels) {
+                            std::vector<Tensor<float>> &microbatch_labels,
+                            const std::unique_ptr<Loss<float>> &criterion) {
     if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
         microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
@@ -323,10 +224,10 @@ public:
           Tensor<float> &predictions = job->data;
           Tensor<float> &targets = microbatch_labels[job->micro_batch_id];
           float loss = 0.0f;
-          loss_function_->compute_loss(predictions, targets, loss);
+          criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
           Tensor<float> gradient;
-          loss_function_->compute_gradient(predictions, targets, gradient);
+          criterion->compute_gradient(predictions, targets, gradient);
           this->backward(std::move(gradient), job->micro_batch_id);
         }
       }
@@ -351,8 +252,8 @@ public:
    */
   void print_profiling() {
     for (const auto &stage_name : this->stage_names_) {
-      Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
-      profiling_msg.header().sender_id = "coordinator";
+      Message profiling_msg("coordinator", stage_name, CommandType::PRINT_PROFILING,
+                            std::monostate{});
       this->coordinator_comm_->send_message(std::move(profiling_msg));
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
@@ -367,8 +268,7 @@ public:
   void start_profiling() {
     Profiler::instance().init_start_time(Clock::now());
     for (const auto &stage_name : this->stage_names_) {
-      Message start_msg(stage_name, CommandType::START_PROFILING, std::monostate{});
-      start_msg.header().sender_id = "coordinator";
+      Message start_msg("coordinator", stage_name, CommandType::START_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(start_msg));
     }
     bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
@@ -382,8 +282,8 @@ public:
    */
   void fetch_profiling() {
     for (const auto &stage_name : this->stage_names_) {
-      Message report_msg(stage_name, CommandType::REPORT_PROFILING, std::monostate{});
-      report_msg.header().sender_id = "coordinator";
+      Message report_msg("coordinator", stage_name, CommandType::REPORT_PROFILING,
+                         std::monostate{});
       this->coordinator_comm_->send_message(std::move(report_msg));
     }
     bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
@@ -432,9 +332,9 @@ public:
   /**
    * @brief Requests all stages to clear their profiling data.
    */
-  void clear_profiling_data() {
+  void clear_profiling() {
     for (const auto &stage_name : this->stage_names_) {
-      Message clear_msg(stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
+      Message clear_msg("coordinator", stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(clear_msg));
     }
   }
@@ -444,12 +344,13 @@ public:
    * weights.
    * @return true if all parameters were collected successfully, false otherwise
    */
-  bool collect_current_parameters() {
+  bool collect_params() {
     std::cout << "Collecting current parameters from all stages...\n";
 
     // Request parameters from all stages
     for (const auto &stage_name : this->stage_names_) {
-      Message params_request_msg(stage_name, CommandType::SEND_PARAMS, std::monostate{});
+      Message params_request_msg("coordinator", stage_name, CommandType::SEND_PARAMS,
+                                 std::monostate{});
       this->coordinator_comm_->send_message(std::move(params_request_msg));
     }
 
@@ -471,18 +372,10 @@ public:
     }
 
     try {
-
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Error updating model parameters: " << e.what() << "\n";
       return false;
-    }
-  }
-
-  void request_status_from_all_stages() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message status_msg(stage_name, CommandType::STATUS_REQUEST, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(status_msg));
     }
   }
 
@@ -593,12 +486,9 @@ private:
   bool deploy_stage_config(const std::string &stage_id, const StageConfig &config) {
     try {
       std::string config_json = config.to_json().dump();
-      auto config_msg = Message(stage_id, CommandType::CONFIG_TRANSFER, config_json);
-
+      auto config_msg = Message("coordinator", stage_id, CommandType::CONFIG_TRANSFER, config_json);
       this->coordinator_comm_->send_message(std::move(config_msg));
-
       std::cout << "Sent configuration to stage " << stage_id << '\n';
-
       return true;
     } catch (const std::exception &e) {
       std::cout << "Failed to deploy config to stage " << stage_id << ": " << e.what() << '\n';
@@ -616,7 +506,6 @@ protected:
   Sequential<float> model_;
   std::unique_ptr<Optimizer<float>> optimizer_;
   std::unique_ptr<Communicator> coordinator_comm_;
-  std::unique_ptr<Loss<float>> loss_function_;
   std::unique_ptr<Partitioner<float>> partitioner_;
   Endpoint coordinator_endpoint_;
 

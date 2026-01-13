@@ -139,13 +139,13 @@ int main(int argc, char *argv[]) {
   cout << "Peer port: " << cfg.peer_port << endl;
   cout << "Worker threads: " << cfg.num_threads << endl;
 
-  TcpCommunicator communicator(cfg.host + ":" + to_string(cfg.port),
-                               Endpoint::tcp(cfg.host, cfg.port), cfg.num_threads);
+  TcpCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), cfg.num_threads);
 
   communicator.start_server();
 
-  while (!communicator.connect(cfg.peer_host + ":" + to_string(cfg.peer_port),
-                               Endpoint::tcp(cfg.peer_host, cfg.peer_port))) {
+  string local_endpoint = cfg.host + ":" + to_string(cfg.port);
+  string peer_endpoint = cfg.peer_host + ":" + to_string(cfg.peer_port);
+  while (!communicator.connect(peer_endpoint, Endpoint::tcp(cfg.peer_host, cfg.peer_port))) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }
@@ -158,8 +158,7 @@ int main(int argc, char *argv[]) {
     PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
     job->micro_batch_id = 0;
     job->data = std::move(tensor);
-    Message message(cfg.peer_host + ":" + to_string(cfg.peer_port), CommandType::FORWARD_JOB,
-                    std::move(job));
+    Message message(local_endpoint, peer_endpoint, CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message));
   }
 

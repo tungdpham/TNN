@@ -14,12 +14,10 @@
 
 #include "communicator.hpp"
 #include "job.hpp"
-#include "load_tracker.hpp"
 #include "message.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
-#include "utils/hardware_info.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -35,20 +33,15 @@ namespace tnn {
 class Worker {
 public:
   explicit Worker(std::unique_ptr<Sequential<float>> model,
-                  std::unique_ptr<Communicator> communicator, const std::string &name = "")
-      : model_(std::move(model)), communicator_(std::move(communicator)), id_(name),
-        should_stop_(true) {}
+                  std::unique_ptr<Communicator> communicator)
+      : model_(std::move(model)), communicator_(std::move(communicator)), should_stop_(true) {}
 
   virtual ~Worker() { stop(); }
 
 protected:
   Worker(bool use_gpu)
-      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), id_(""), should_stop_(true),
-        is_configured_(false) {
-    if (!cpu_info_.initialize()) {
-      std::cerr << "Failed to initialize CPU information" << std::endl;
-    }
-  }
+      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), should_stop_(true),
+        is_configured_(false) {}
 
 public:
   virtual void start() {
@@ -113,12 +106,7 @@ protected:
       Profiler::instance().add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
       output->micro_batch_id = forward_job->micro_batch_id;
-
-      // recycle input message
-      message.data() = MessageData(std::move(output));
-      message.header() = MessageHeader{"next_stage", CommandType::FORWARD_JOB};
-      message.header().sender_id = id_;
-
+      message = Message(id_, "next_stage", CommandType::FORWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
@@ -129,14 +117,8 @@ protected:
       auto backward_end = std::chrono::system_clock::now();
       Profiler::instance().add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-
       output->micro_batch_id = backward_job->micro_batch_id;
-
-      // recycle input message
-      message.data() = MessageData(std::move(output));
-      message.header() = MessageHeader{"prev_stage", CommandType::BACKWARD_JOB};
-      message.header().sender_id = id_;
-
+      message = Message(id_, "prev_stage", CommandType::BACKWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::UPDATE_PARAMETERS: {
@@ -147,8 +129,7 @@ protected:
       auto update_end = std::chrono::system_clock::now();
       Profiler::instance().add_event(
           {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
-      Message response("coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
-      response.header().sender_id = id_;
+      Message response(id_, "coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       communicator_->send_message(std::move(response));
     } break;
     case CommandType::TRAIN_MODE:
@@ -172,25 +153,20 @@ protected:
       break;
     case CommandType::START_PROFILING: {
       Profiler::instance().init_start_time(std::chrono::system_clock::now());
-      Message response(message.header().sender_id, CommandType::PROFILING_STARTED,
-                       std::monostate{});
-      response.header().sender_id = id_;
+      Message response(id_, message.header().sender_id, CommandType::PROFILING_STARTED);
       communicator_->send_message(std::move(response));
       break;
     }
     case CommandType::REPORT_PROFILING: {
-      Message response(message.header().sender_id, CommandType::PROFILING_REPORTED,
+      Message response(id_, message.header().sender_id, CommandType::PROFILING_REPORTED,
                        Profiler::instance());
-      response.header().sender_id = id_;
       communicator_->send_message(std::move(response));
       break;
     }
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_summary();
-        Message outgoing_message(message.header().sender_id, CommandType::PROFILING_PRINTED,
-                                 std::monostate{});
-        outgoing_message.header().sender_id = id_;
+        Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_PRINTED);
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
@@ -198,10 +174,8 @@ protected:
       break;
     case CommandType::CLEAR_PROFILING:
       if (model_) {
-        model_->clear_profiling_data();
-        Message outgoing_message(message.header().sender_id, CommandType::PROFILING_CLEARED,
-                                 std::monostate{});
-        outgoing_message.header().sender_id = id_;
+        model_->clear_profiling();
+        Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_CLEARED);
         communicator_->send_message(std::move(outgoing_message));
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
@@ -217,12 +191,11 @@ protected:
     }
     case CommandType::SEND_PARAMS: {
       try {
-
+        // serialize and encode parameters
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
-        Message error_msg(message.header().sender_id, CommandType::ERROR_REPORT, error_text);
-        error_msg.header().sender_id = id_;
+        Message error_msg(id_, message.header().sender_id, CommandType::ERROR_REPORT, error_text);
         communicator_->send_message(std::move(error_msg));
       }
       break;
@@ -283,14 +256,13 @@ protected:
       // setup connections
       setup_stage_connections(config);
       is_configured_ = true;
-      Message ready_msg("coordinator", CommandType::CONFIG_RECEIVED, true);
-      ready_msg.header().sender_id = id_;
+      Message ready_msg(id_, "coordinator", CommandType::CONFIG_RECEIVED, true);
       this->communicator_->send_message(std::move(ready_msg));
 
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
       std::string error_text = std::string("Configuration failed: ") + e.what();
-      Message error_msg("coordinator", CommandType::ERROR_REPORT, error_text);
+      Message error_msg(id_, "coordinator", CommandType::ERROR_REPORT, error_text);
       this->communicator_->send_message(std::move(error_msg));
     }
   }
@@ -309,15 +281,9 @@ protected:
   std::string id_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
-  std::vector<StageConfig> stage_configs_;
 
   std::mutex message_available_mutex_;
   std::condition_variable message_available_cv_;
-
-  HardwareInfo cpu_info_;
-  LoadTracker load_tracker_;
-  uint32_t update_interval = 10000;
-  std::thread monitoring_thread_;
 };
 
 } // namespace tnn

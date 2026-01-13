@@ -13,7 +13,8 @@
 namespace tnn {
 class InProcessCommunicator : public Communicator {
 public:
-  InProcessCommunicator(const std::string &id) : Communicator(id), shutdown_flag_(false) {
+  InProcessCommunicator(const std::string &id) : shutdown_flag_(false) {
+    this->set_id(id);
     delivery_thread_ = std::thread(&InProcessCommunicator::delivery_loop, this);
   }
 

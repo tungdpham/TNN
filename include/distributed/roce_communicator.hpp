@@ -115,7 +115,7 @@ private:
 
 public:
   explicit RoceCommunicator(const std::string &id, const Endpoint &endpoint)
-      : Communicator(id), acceptor_(io_context_) {
+      : Communicator(), acceptor_(io_context_) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
       port_ = endpoint.get_parameter<int>("port");

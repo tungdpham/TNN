@@ -19,7 +19,7 @@ signed main() {
   PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
   job->micro_batch_id = microbatch_id;
   job->data = std::move(tensor);
-  Message message("coordinator", CommandType::FORWARD_JOB, std::move(job));
+  Message message("worker", "coordinator", CommandType::FORWARD_JOB, std::move(job));
 
   ThreadWrapper thread_wrapper({16});
 

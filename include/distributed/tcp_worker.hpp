@@ -33,8 +33,8 @@ public:
   explicit TCPWorker(int listen_port, bool use_gpu, size_t io_threads = 1)
       : Worker(use_gpu), listen_port_(listen_port), io_threads_(io_threads) {
 
-    auto communicator = std::make_unique<TcpCommunicator>(
-        this->id_, Endpoint::tcp("localhost", listen_port_), io_threads_);
+    auto communicator =
+        std::make_unique<TcpCommunicator>(Endpoint::tcp("localhost", listen_port_), io_threads_);
 
     communicator->start_server();
 

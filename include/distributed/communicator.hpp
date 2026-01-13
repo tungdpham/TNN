@@ -30,7 +30,7 @@ private:
   std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
-  Communicator(std::string id) : id_(std::move(id)) {}
+  Communicator() {}
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);

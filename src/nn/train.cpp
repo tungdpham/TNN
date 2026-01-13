@@ -119,7 +119,7 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
                 << (total_corrects * 100.0 / num_samples) << "%" << std::endl;
     }
     if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-      model.clear_profiling_data();
+      model.clear_profiling();
     }
   }
   std::cout << std::endl;
@@ -234,7 +234,7 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
       std::cout << std::string(60, '=') << std::endl;
 
       if (model.is_profiling_enabled()) {
-        model.clear_profiling_data();
+        model.clear_profiling();
       }
 
       if (scheduler) {

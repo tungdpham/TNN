@@ -46,16 +46,16 @@ constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
 class TcpCommunicator : public Communicator {
 public:
-  explicit TcpCommunicator(const std::string &id, const Endpoint &endpoint,
-                           size_t num_io_threads = DEFAULT_IO_THREADS,
+  explicit TcpCommunicator(const Endpoint &endpoint, size_t num_io_threads = DEFAULT_IO_THREADS,
                            uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT,
                            uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE)
-      : Communicator(id), num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
-        io_context_pool_(num_io_threads_), acceptor_(io_context_pool_.get_acceptor_io_context()),
+      : num_io_threads_(num_io_threads > 0 ? num_io_threads : 1), io_context_pool_(num_io_threads_),
+        acceptor_(io_context_pool_.get_acceptor_io_context()),
         skts_per_endpoint_(skts_per_endpoint), max_packet_size_(max_packet_size) {
     try {
       host_ = endpoint.get_parameter<std::string>("host");
       port_ = endpoint.get_parameter<int>("port");
+      this->set_id(host_ + ":" + std::to_string(port_));
     } catch (const std::exception &e) {
       std::cerr << "TcpCommunicator initialization error: " << e.what() << std::endl;
       throw;
@@ -582,9 +582,7 @@ private:
   }
 
   void handshake(std::shared_ptr<Connection> connection, std::string identification) {
-    Message handshake_msg(MessageHeader{connection->get_peer_id(), CommandType::HANDSHAKE},
-                          MessageData(std::monostate{}));
-    handshake_msg.header().sender_id = identification;
+    Message handshake_msg(identification, connection->get_peer_id(), CommandType::HANDSHAKE);
 
     auto write_ops = get_write(connection->get_peer_id(), handshake_msg);
 
@@ -619,6 +617,18 @@ private:
       if (new_peer_id != old_peer_id) {
         connection_groups_[new_peer_id].add_conn(connection);
         connection_groups_[old_peer_id].remove_conn(connection);
+
+        if (connection_groups_[old_peer_id].get_connections().empty()) {
+          connection_groups_.erase(old_peer_id);
+
+          // remap all aliases if any
+          for (auto &[alias, target_id] : alias_map_) {
+            if (target_id == old_peer_id) {
+              std::cout << "Remapping alias from " << alias << " to " << new_peer_id << std::endl;
+              target_id = new_peer_id;
+            }
+          }
+        }
       }
     }
 
@@ -629,9 +639,7 @@ private:
   }
 
   void handshake_ack(std::shared_ptr<Connection> connection) {
-    Message handshake_ack_msg(MessageHeader{connection->get_peer_id(), CommandType::HANDSHAKE_ACK},
-                              MessageData(std::monostate{}));
-    handshake_ack_msg.header().sender_id = this->id_;
+    Message handshake_ack_msg(this->id_, connection->get_peer_id(), CommandType::HANDSHAKE_ACK);
 
     auto write_ops = get_write(connection->get_peer_id(), handshake_ack_msg);
 

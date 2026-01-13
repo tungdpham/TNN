@@ -17,7 +17,7 @@ namespace tnn {
 class InProcessWorker : public Worker {
 public:
   InProcessWorker(std::unique_ptr<Communicator> communicator)
-      : Worker(nullptr, std::move(communicator), "") {}
+      : Worker(nullptr, std::move(communicator)) {}
 };
 
 class InProcessCoordinator : public Coordinator {

@@ -11,10 +11,12 @@
 #include "nn/accuracy.hpp"
 #include "nn/train.hpp"
 #include "threading/thread_wrapper.hpp"
+#include <memory>
 
 namespace tnn {
 
 inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
+                                     const std::unique_ptr<Loss<float>> &criterion,
                                      const TrainingConfig &config) {
   Tensor<float> batch_data, batch_labels;
 
@@ -35,7 +37,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
-    total_loss += coordinator.async_process_batch(micro_batch_inputs, micro_batch_labels);
+    total_loss +=
+        coordinator.async_process_batch(micro_batch_inputs, micro_batch_labels, criterion);
     auto process_end = std::chrono::high_resolution_clock::now();
     auto process_duration =
         std::chrono::duration_cast<std::chrono::microseconds>(process_end - process_start);
@@ -52,7 +55,7 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();
       }
-      coordinator.clear_profiling_data();
+      coordinator.clear_profiling();
     }
     ++batch_index;
   }
@@ -65,7 +68,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
 }
 
 inline Result validate_semi_async_epoch(Coordinator &coordinator,
-                                        BaseDataLoader<float> &test_loader) {
+                                        BaseDataLoader<float> &test_loader,
+                                        const std::unique_ptr<Loss<float>> &criterion) {
   Tensor<float> batch_data, batch_labels;
   float total_val_loss = 0.0f;
   float total_val_correct = 0.0f;
@@ -101,12 +105,13 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
       }
     }
 
-    auto val_loss = 0.0f;
-    auto val_correct = 0.0f;
+    float val_loss = 0.0f;
+    float val_correct = 0.0f;
 
     for (auto &job : forward_jobs) {
-      val_loss +=
-          coordinator.compute_loss((*job)->data, micro_batch_labels[(*job)->micro_batch_id]);
+      float loss = 0.0f;
+      criterion->compute_loss((*job)->data, micro_batch_labels[(*job)->micro_batch_id], loss);
+      val_loss += loss;
       val_correct +=
           compute_class_corrects((*job)->data, micro_batch_labels[(*job)->micro_batch_id]);
     }
@@ -129,6 +134,7 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
 
 inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
                         BaseDataLoader<float> &test_loader,
+                        const std::unique_ptr<Loss<float>> &criterion,
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
@@ -144,9 +150,9 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_l
       test_loader.reset();
       train_loader.shuffle();
 
-      train_semi_async_epoch(coordinator, train_loader, config);
+      train_semi_async_epoch(coordinator, train_loader, criterion, config);
 
-      validate_semi_async_epoch(coordinator, test_loader);
+      validate_semi_async_epoch(coordinator, test_loader, criterion);
 
       coordinator.fetch_profiling();
     }

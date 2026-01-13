@@ -151,7 +151,6 @@ int main(int argc, char *argv[]) {
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
-  coordinator.set_loss_function(std::move(criterion));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  Worker expected at " << ep.to_json().dump(4) << std::endl;
@@ -163,7 +162,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    train_model(coordinator, *train_loader, *val_loader, train_config);
+    train_model(coordinator, *train_loader, *val_loader, criterion, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
