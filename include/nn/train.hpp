@@ -70,15 +70,15 @@ struct Result {
 // Classification training functions
 template <typename T>
 Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimizer<T> &optimizer,
-                   Loss<T> &loss_function, const TrainingConfig &config = TrainingConfig());
+                   Loss<T> &criterion, const TrainingConfig &config = TrainingConfig());
 
 template <typename T>
-Result validate_model(Sequential<T> &model, BaseDataLoader<T> &test_loader, Loss<T> &loss_function);
+Result validate_model(Sequential<T> &model, BaseDataLoader<T> &test_loader, Loss<T> &criterion);
 
 template <typename T>
 void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                 BaseDataLoader<T> &test_loader, std::unique_ptr<Optimizer<T>> optimizer,
-                 std::unique_ptr<Loss<T>> loss_function, std::unique_ptr<Scheduler<T>> scheduler,
+                 BaseDataLoader<T> &test_loader, std::unique_ptr<Optimizer<T>> &optimizer,
+                 std::unique_ptr<Loss<T>> &criterion, std::unique_ptr<Scheduler<T>> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
 } // namespace tnn

@@ -126,7 +126,7 @@ model.set_optimizer(std::move(optimizer));
 ```cpp
 // Create and set loss function
 auto loss = LossFactory<float>::create_crossentropy(epsilon); // e.g., 1e-15f
-model.set_loss_function(std::move(loss));
+model.set_criterion(std::move(loss));
 ```
 
 ### Training Mode Control
@@ -147,11 +147,11 @@ for (int epoch = 0; epoch < num_epochs; ++epoch) {
         Tensor<float> predictions = model.forward(batch_data);
         
         // Compute loss (for monitoring)
-        float loss = model.loss_function()->compute_loss(predictions, batch_labels);
+        float loss = model.criterion()->compute_loss(predictions, batch_labels);
         
         // Backward pass
         Tensor<float> loss_gradient = 
-            model.loss_function()->compute_gradient(predictions, batch_labels);
+            model.criterion()->compute_gradient(predictions, batch_labels);
         model.backward(loss_gradient);
         
         // Update parameters
@@ -246,7 +246,7 @@ auto optimizer = std::make_unique<Adam<float>>(0.001f, 0.9f, 0.999f, 1e-8f);
 model.set_optimizer(std::move(optimizer));
 
 auto loss = LossFactory<float>::create_crossentropy(1e-15f);
-model.set_loss_function(std::move(loss));
+model.set_criterion(std::move(loss));
 
 // Enable profiling (optional)
 model.enable_profiling(true);

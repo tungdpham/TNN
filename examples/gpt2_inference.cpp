@@ -13,7 +13,7 @@ using namespace tnn;
 using namespace std;
 
 int main(int argc, char **argv) {
-  string model_path = "model_snapshots/gpt2_model";
+  string model_path = "model_snapshots/gpt2";
   string vocab_path = "data/open-web-text/vocab.bin";
   string data_path = "data/open-web-text/train.bin";
 

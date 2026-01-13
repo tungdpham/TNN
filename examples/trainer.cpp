@@ -63,8 +63,7 @@ signed main() {
   auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
 
   try {
-    train_model(model, *train_loader, *val_loader, std::move(optimizer), std::move(criterion),
-                std::move(scheduler), train_config);
+    train_model(model, *train_loader, *val_loader, optimizer, criterion, scheduler, train_config);
   } catch (const std::exception &e) {
     cerr << "Training failed: " << e.what() << endl;
     return 1;
