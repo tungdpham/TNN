@@ -163,8 +163,6 @@ public:
 
   Tensor<T> &operator=(Tensor<T> &&other) noexcept {
     if (this != &other) {
-      data_.reset();
-
       device_ = other.device_;
       shape_ = std::move(other.shape_);
       data_ = std::move(other.data_);

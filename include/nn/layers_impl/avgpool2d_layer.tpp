@@ -170,12 +170,6 @@ AvgPool2DLayer<T>::compute_output_shape(const std::vector<size_t> &input_shape) 
   size_t padded_h = input_shape[2] + 2 * pad_h_;
   size_t padded_w = input_shape[3] + 2 * pad_w_;
 
-  // Handle case where pool size is larger than input (global average pooling)
-  if (padded_h < pool_h_ || padded_w < pool_w_) {
-    // For global average pooling, output is 1x1
-    return {batch_size, channels, 1, 1};
-  }
-
   size_t output_h = (padded_h - pool_h_) / stride_h_ + 1;
   size_t output_w = (padded_w - pool_w_) / stride_w_ + 1;
 
