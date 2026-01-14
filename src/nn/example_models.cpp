@@ -332,7 +332,7 @@ Sequential<float> create_tiny_imagenet_vit() {
     builder.residual(LayerBuilder<float>()
                          .input({seq_len, embed_dim})
                          .layernorm(1e-5f, true, "ln_attn")
-                         .flash_attention(embed_dim, num_heads, false, "attn")
+                         .attention(embed_dim, num_heads, false, "attn")
                          .dropout(0.1f)
                          .build(),
                      {}, "linear", "encoder_" + std::to_string(i) + "_attn");

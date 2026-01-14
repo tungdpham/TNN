@@ -42,7 +42,7 @@ set(TEST_FILES
     batchnorm_layer_test.cpp
     groupnorm_layer_test.cpp
     job_pool_test.cpp
-    full_attention_block_test.cpp
+    attention_block_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)

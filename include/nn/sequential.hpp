@@ -1417,7 +1417,7 @@ public:
     auto attn_main = LayerBuilder<T>()
                          .input(batchless_shape)
                          .layernorm(1e-5f, true, "ln_1")
-                         .flash_attention(embed_dim, num_heads, is_causal, "attn")
+                         .attention(embed_dim, num_heads, is_causal, "attn")
                          .dropout(dropout_rate)
                          .build();
 
@@ -1440,19 +1440,11 @@ public:
     return *this;
   }
 
-  SequentialBuilder &full_attention(size_t embed_dim, size_t num_heads, bool causal = false,
-                                    const std::string &name = "") {
-    layer_builder_.full_attention(
-        embed_dim, num_heads, causal,
-        name.empty() ? "full_attention_" + std::to_string(model_.layer_size()) : name);
-    return *this;
-  }
-
-  SequentialBuilder &flash_attention(size_t embed_dim, size_t num_heads, bool causal = false,
-                                     const std::string &name = "") {
-    layer_builder_.flash_attention(
-        embed_dim, num_heads, causal,
-        name.empty() ? "flash_attention_" + std::to_string(model_.layer_size()) : name);
+  SequentialBuilder &attention(size_t embed_dim, size_t num_heads, bool causal = false,
+                               const std::string &name = "") {
+    layer_builder_.attention(embed_dim, num_heads, causal,
+                             name.empty() ? "attention_" + std::to_string(model_.layer_size())
+                                          : name);
     return *this;
   }
 
