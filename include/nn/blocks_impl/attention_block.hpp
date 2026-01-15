@@ -49,7 +49,7 @@ private:
 
 public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
-                 const std::string &name = "attention_block")
+                 const std::string &name = "flash_attention")
       : ParameterizedLayer<T>(name), embed_dim_(embed_dim), num_heads_(num_heads),
         is_causal_(is_causal) {
 
@@ -111,9 +111,16 @@ public:
       T *s_ptr = scores_buffer.get().data_ptr().get();
 
       // Q * K^T -> S
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, q_raw, k_raw, s_ptr, L, L,
-                      head_dim_, false, true, alpha, static_cast<T>(0.0), batch_count, head_dim_,
-                      head_dim_, L * L, embed_dim_, embed_dim_, L);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto q_b = q_raw + b * (L * embed_dim_);
+        auto k_b = k_raw + b * (L * embed_dim_);
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, q_b, k_b, s_b, L, L, head_dim_,
+                        false, true, alpha, static_cast<T>(0.0), num_heads_, head_dim_, head_dim_,
+                        L * L,                      // Strides: A(head_dim), B(head_dim), C(L*L)
+                        embed_dim_, embed_dim_, L); // LDs: A(embed), B(embed), C(L)
+      }
 
       if (is_causal_) {
         create_cpu_task("default", cpu::apply_causal_mask<T>, s_ptr, batch_count, L,
@@ -124,9 +131,16 @@ public:
       create_cpu_task("default", cpu::softmax_forward<T>, s_ptr, s_ptr, batch_count * L, L);
 
       // S * V -> Out
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, s_ptr, v_raw, att_out_ptr, L,
-                      head_dim_, L, false, false, static_cast<T>(1.0), static_cast<T>(0.0),
-                      batch_count, L * L, head_dim_, head_dim_, L, embed_dim_, embed_dim_);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+        auto v_b = v_raw + b * (L * embed_dim_);
+        auto out_b = att_out_ptr + b * (L * embed_dim_);
+
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, s_b, v_b, out_b, L, head_dim_,
+                        L, false, false, static_cast<T>(1.0), static_cast<T>(0.0), num_heads_,
+                        L * L, head_dim_, head_dim_, // Strides: S(L*L), V(head_dim), O(head_dim)
+                        L, embed_dim_, embed_dim_);  // LDs: S(L), V(embed), O(embed)
+      }
     }
 #ifdef USE_CUDA
     else if (this->device_->device_type() == DeviceType::GPU) {
@@ -150,11 +164,15 @@ public:
       size_t stride_k = head_dim_;
       size_t stride_s = L * L;
 
-      size_t total_gemm_batches = batch_size * num_heads_;
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto q_ptr_b = q_raw + b * (seq_len * num_heads_ * head_dim_);
+        auto k_ptr_b = k_raw + b * (seq_len * num_heads_ * head_dim_);
+        auto s_ptr_b = s_ptr + b * (num_heads_ * L * L);
 
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, q_raw, k_raw, s_ptr, L, L,
-                      head_dim_, false, true, alpha, beta, total_gemm_batches, stride_q, stride_k,
-                      stride_s, lda_q, ldb_k, ldc_s);
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, q_ptr_b, k_ptr_b, s_ptr_b, L,
+                        L, head_dim_, false, true, alpha, beta, num_heads_, stride_q, stride_k,
+                        stride_s, lda_q, ldb_k, ldc_s);
+      }
 
       if (is_causal_) {
         create_gpu_task("default", cuda::apply_causal_mask<T>, s_ptr, batch_count, L,
@@ -179,9 +197,15 @@ public:
       size_t stride_v2 = head_dim_;
       size_t stride_o2 = head_dim_;
 
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, s_ptr, v_raw, att_out_ptr, L,
-                      head_dim_, L, false, false, 1.0f, 0.0f, total_gemm_batches, stride_s2,
-                      stride_v2, stride_o2, lda_s2, ldb_v2, ldc_o2);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto s_ptr_b = s_ptr + b * (num_heads_ * L * L);
+        auto v_ptr_b = v_raw + b * (seq_len * num_heads_ * head_dim_);
+        auto out_ptr_b = att_out_ptr + b * (seq_len * num_heads_ * head_dim_);
+
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, s_ptr_b, v_ptr_b, out_ptr_b, L,
+                        head_dim_, L, false, false, 1.0f, 0.0f, num_heads_, stride_s2, stride_v2,
+                        stride_o2, lda_s2, ldb_v2, ldc_o2);
+      }
     }
 #endif
 
@@ -236,9 +260,16 @@ public:
       T *da_ptr = da_buf.get().data_ptr().get(); // dS_in
 
       // Recompute S = Q * K^T
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, q_raw, k_raw, s_ptr, L, L,
-                      head_dim_, false, true, alpha, static_cast<T>(0.0), batch_count, head_dim_,
-                      head_dim_, L * L, embed_dim_, embed_dim_, L);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto q_b = q_raw + b * (L * embed_dim_);
+        auto k_b = k_raw + b * (L * embed_dim_);
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, q_b, k_b, s_b, L, L, head_dim_,
+                        false, true, alpha, static_cast<T>(0.0), num_heads_, head_dim_, head_dim_,
+                        L * L,                      // Strides
+                        embed_dim_, embed_dim_, L); // LDs
+      }
 
       if (is_causal_) {
         create_cpu_task("default", cpu::apply_causal_mask<T>, s_ptr, batch_count, L,
@@ -248,15 +279,25 @@ public:
       // softmax(S)
       create_cpu_task("default", cpu::softmax_forward<T>, s_ptr, s_ptr, batch_count * L, L);
 
-      // dV = S^T * dOut
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, s_ptr, d_out_raw, dv_ptr, L,
-                      head_dim_, L, true, false, static_cast<T>(1.0), static_cast<T>(0.0),
-                      batch_count, L * L, head_dim_, head_dim_, L, embed_dim_, embed_dim_);
+      // gradient computations
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+        auto dout_b = d_out_raw + b * (L * embed_dim_);
+        auto v_b = v_raw + b * (L * embed_dim_);
 
-      // dS_out = dOut * V^T
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, d_out_raw, v_raw, ds_ptr, L, L,
-                      head_dim_, false, true, static_cast<T>(1.0), static_cast<T>(0.0), batch_count,
-                      head_dim_, head_dim_, L * L, embed_dim_, embed_dim_, L);
+        auto dv_b = dv_ptr + b * (L * embed_dim_);
+        auto ds_b = ds_ptr + b * (num_heads_ * L * L);
+
+        // dV = S^T * dOut
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, s_b, dout_b, dv_b, L, head_dim_,
+                        L, true, false, static_cast<T>(1.0), static_cast<T>(0.0), num_heads_, L * L,
+                        head_dim_, head_dim_, L, embed_dim_, embed_dim_);
+
+        // dS_out = dOut * V^T
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, dout_b, v_b, ds_b, L, L,
+                        head_dim_, false, true, static_cast<T>(1.0), static_cast<T>(0.0),
+                        num_heads_, head_dim_, head_dim_, L * L, embed_dim_, embed_dim_, L);
+      }
 
       // dS_in = SoftmaxBackward(dS_out, S)
       create_cpu_task("default", cpu::softmax_backward<T>, s_ptr, ds_ptr, da_ptr, batch_count * L,
@@ -267,15 +308,23 @@ public:
                         static_cast<T>(0.0));
       }
 
-      // dQ = dS_in * K
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, da_ptr, k_raw, dq_ptr, L,
-                      head_dim_, L, false, false, alpha, static_cast<T>(0.0), batch_count, L * L,
-                      head_dim_, head_dim_, L, embed_dim_, embed_dim_);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto da_b = da_ptr + b * (num_heads_ * L * L);
+        auto k_b = k_raw + b * (L * embed_dim_);
+        auto q_b = q_raw + b * (L * embed_dim_);
+        auto dq_b = dq_ptr + b * (L * embed_dim_);
+        auto dk_b = dk_ptr + b * (L * embed_dim_);
 
-      // dK = dS_in^T * Q
-      create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, da_ptr, q_raw, dk_ptr, L,
-                      head_dim_, L, true, false, alpha, static_cast<T>(0.0), batch_count, L * L,
-                      head_dim_, head_dim_, L, embed_dim_, embed_dim_);
+        // dQ = dS_in * K
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, da_b, k_b, dq_b, L, head_dim_,
+                        L, false, false, alpha, static_cast<T>(0.0), num_heads_, L * L, head_dim_,
+                        head_dim_, L, embed_dim_, embed_dim_);
+
+        // dK = dS_in^T * Q
+        create_cpu_task("default", cpu::gemm_strided_batched_ex<T>, da_b, q_b, dk_b, L, head_dim_,
+                        L, true, false, alpha, static_cast<T>(0.0), num_heads_, L * L, head_dim_,
+                        head_dim_, L, embed_dim_, embed_dim_);
+      }
     }
 #ifdef USE_CUDA
     else if (this->device_->device_type() == DeviceType::GPU) {
@@ -287,13 +336,20 @@ public:
       auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
 #endif
 
-      // recompute S (Q * K^T)
+      // recompute S (Q * K^T) using strided GEMM
       PooledTensor<T> scores_buffer = this->get_buffer({batch_count, L, L});
       T *s_ptr = scores_buffer.get().data_ptr().get();
 
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, q_raw, k_raw, s_ptr, L, L,
-                      head_dim_, false, true, alpha, 0.0f, batch_count, head_dim_, head_dim_, L * L,
-                      embed_dim_, embed_dim_, L);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto q_b = q_raw + b * (L * embed_dim_);
+        auto k_b = k_raw + b * (L * embed_dim_);
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, q_b, k_b, s_b, L, L, head_dim_,
+                        false, true, alpha, 0.0f, num_heads_, head_dim_, head_dim_,
+                        L * L,                      // Strides
+                        embed_dim_, embed_dim_, L); // LDs: H*D, H*D, L
+      }
 
       if (is_causal_) {
         create_gpu_task("default", cuda::apply_causal_mask<T>, s_ptr, batch_count, L,
@@ -307,17 +363,29 @@ public:
       throw std::runtime_error("AttentionBlock requires CUDNN for Softmax on GPU");
 #endif
 
-      // dV = S^T * dOut
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, s_ptr, d_out_raw, dv_ptr, L,
-                      head_dim_, L, true, false, 1.0f, 0.0f, batch_count, L * L, head_dim_,
-                      head_dim_, L, embed_dim_, embed_dim_);
+      // dV = S^T * dOut (Writing directly to dv_ptr in L,H,D layout)
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto s_b = s_ptr + b * (num_heads_ * L * L);
+        auto dout_b = d_out_raw + b * (L * embed_dim_);
+        auto dv_b = dv_ptr + b * (L * embed_dim_);
+
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, s_b, dout_b, dv_b, L,
+                        head_dim_, L, true, false, 1.0f, 0.0f, num_heads_, L * L, head_dim_,
+                        head_dim_, L, embed_dim_, embed_dim_);
+      }
 
       // dS = dOut * V^T
       PooledTensor<T> ds_buffer = this->get_buffer({batch_count, L, L});
       T *ds_ptr = ds_buffer.get().data_ptr().get();
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, d_out_raw, v_raw, ds_ptr, L, L,
-                      head_dim_, false, true, 1.0f, 0.0f, batch_count, head_dim_, head_dim_, L * L,
-                      embed_dim_, embed_dim_, L);
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto dout_b = d_out_raw + b * (L * embed_dim_);
+        auto v_b = v_raw + b * (L * embed_dim_);
+        auto ds_b = ds_ptr + b * (num_heads_ * L * L);
+
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, dout_b, v_b, ds_b, L, L,
+                        head_dim_, false, true, 1.0f, 0.0f, num_heads_, head_dim_, head_dim_, L * L,
+                        embed_dim_, embed_dim_, L);
+      }
 
       // Backward Softmax
       PooledTensor<T> da_buffer = this->get_buffer({batch_count, L, L});
@@ -334,15 +402,25 @@ public:
                         static_cast<T>(0.0));
       }
 
-      // dQ = dA * K
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, da_ptr, k_raw, dq_ptr, L,
-                      head_dim_, L, false, false, alpha, 0.0f, batch_count, L * L, head_dim_,
-                      head_dim_, L, embed_dim_, embed_dim_);
+      // dQ = dA * K and dK = dA^T * Q
+      // (Similar logic as dV, writing directly to dq_ptr and dk_ptr with embed_dim_ strides)
+      for (size_t b = 0; b < batch_size; ++b) {
+        auto da_b = da_ptr + b * (num_heads_ * L * L);
+        auto k_b = k_raw + b * (L * embed_dim_);
+        auto q_b = q_raw + b * (L * embed_dim_);
+        auto dq_b = dq_ptr + b * (L * embed_dim_);
+        auto dk_b = dk_ptr + b * (L * embed_dim_);
 
-      // dK = dA^T * Q
-      create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, da_ptr, q_raw, dk_ptr, L,
-                      head_dim_, L, true, false, alpha, 0.0f, batch_count, L * L, head_dim_,
-                      head_dim_, L, embed_dim_, embed_dim_);
+        // dQ
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, da_b, k_b, dq_b, L, head_dim_,
+                        L, false, false, alpha, 0.0f, num_heads_, L * L, head_dim_, head_dim_, L,
+                        embed_dim_, embed_dim_);
+
+        // dK
+        create_gpu_task("default", cuda::gemm_strided_batched_ex<T>, da_b, q_b, dk_b, L, head_dim_,
+                        L, true, false, alpha, 0.0f, num_heads_, L * L, head_dim_, head_dim_, L,
+                        embed_dim_, embed_dim_);
+      }
     }
 #endif
 
@@ -374,7 +452,7 @@ public:
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
 
-  std::string type() const override { return "attention_block"; }
+  std::string type() const override { return "flash_attention"; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
