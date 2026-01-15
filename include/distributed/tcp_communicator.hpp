@@ -610,9 +610,6 @@ private:
 
       alias_map_[old_peer_id] = new_peer_id;
 
-      std::cout << "Handshake received. Updating connection ID from " << old_peer_id << " to "
-                << new_peer_id << std::endl;
-
       // move connection into new group, erase old one if empty
       if (new_peer_id != old_peer_id) {
         connection_groups_[new_peer_id].add_conn(connection);
@@ -624,7 +621,6 @@ private:
           // remap all aliases if any
           for (auto &[alias, target_id] : alias_map_) {
             if (target_id == old_peer_id) {
-              std::cout << "Remapping alias from " << alias << " to " << new_peer_id << std::endl;
               target_id = new_peer_id;
             }
           }
