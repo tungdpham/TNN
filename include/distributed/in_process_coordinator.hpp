@@ -22,8 +22,8 @@ public:
 
 class InProcessCoordinator : public Coordinator {
 public:
-  InProcessCoordinator(const std::string &id, Sequential<float> model,
-                       std::unique_ptr<Optimizer<float>> optimizer, const size_t num_stages)
+  InProcessCoordinator(const std::string &id, Sequential model,
+                       std::unique_ptr<Optimizer> optimizer, const size_t num_stages)
       : Coordinator(std::move(model), std::move(optimizer)) {
     // Initialize in-process communicator for the coordinator
     this->coordinator_comm_ = std::make_unique<InProcessCommunicator>(id);

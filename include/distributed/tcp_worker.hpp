@@ -20,7 +20,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs.
  */
-template <typename T = float> class TCPWorker : public Worker {
+class TCPWorker : Worker {
 public:
   /**
    * @brief Constructor with optional thread affinity configuration

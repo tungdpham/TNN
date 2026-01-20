@@ -14,13 +14,13 @@ struct NaivePartitionerConfig {
   }
 };
 
-template <typename T> class NaivePartitioner : public Partitioner<T> {
+class NaivePartitioner : public Partitioner {
   // Simple naive partitioning strategy that divides layers evenly among partitions
 public:
   NaivePartitioner(const NaivePartitionerConfig &config) : config_(config) {}
   ~NaivePartitioner() = default;
 
-  std::vector<Partition> get_partitions(const std::vector<Layer<T> *> &layers_) override {
+  std::vector<Partition> get_partitions(const std::vector<Layer *> &layers_) override {
     size_t num_partitions = config_.weights.size();
     if (num_partitions < 1) {
       throw std::invalid_argument("Number of partitions must be at least 1");

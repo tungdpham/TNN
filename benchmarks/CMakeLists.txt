@@ -8,6 +8,7 @@ function(create_math_benchmark target_name source_file)
         tnn_tensor 
         tnn_matrix 
         tnn_utils
+        tnn_logging
     )
 
     if(ENABLE_CUDA)
@@ -18,6 +19,6 @@ endfunction()
 create_default(serialization_benchmark serialization_benchmark.cpp)
 create_default(tcp_communicator_benchmark tcp_communicator_benchmark.cpp)
 create_math_benchmark(gemm_benchmark gemm_benchmark.cpp)
-create_math_benchmark(tensor_ops_benchmark tensor_ops_benchmark.cpp)
 create_math_benchmark(conv2d_benchmark conv2d_benchmark.cpp)
 create_math_benchmark(copy_benchmark copy_benchmark.cpp)
+create_math_benchmark(pipeline_benchmark pipeline_benchmark.cpp)

@@ -33,8 +33,6 @@ if(ENABLE_DEBUG)
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
-include(Dependencies)
-
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(IBVERBS REQUIRED libibverbs)
 
@@ -53,7 +51,11 @@ endif()
 
 if(ENABLE_CUDA)
     include(FindCUDA)
+    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 endif()
+
+include(Dependencies)
 
 # Compiler flags
 include(CompilerFlags)

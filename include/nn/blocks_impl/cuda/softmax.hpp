@@ -12,7 +12,6 @@
 namespace tnn {
 namespace cuda {
 
-// Computes Softmax along the last dimension [rows, cols] -> cols.
 template <typename T>
 void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t rows, size_t cols,
                      cudaStream_t stream);

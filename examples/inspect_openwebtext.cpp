@@ -1,4 +1,5 @@
 #include "data_loading/open_webtext_data_loader.hpp"
+#include "tensor/tensor.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include <iostream>
 
@@ -21,7 +22,7 @@ int main(int argc, char **argv) {
   std::cout << "Attempting to load: " << file_path << std::endl;
 
   size_t context_length = 1024;
-  OpenWebTextDataLoader<float> loader(context_length);
+  OpenWebTextDataLoader loader(context_length);
 
   if (!loader.load_data(file_path)) {
     std::cerr << "Failed to load data. Make sure '" << file_path << "' exists." << std::endl;
@@ -37,15 +38,16 @@ int main(int argc, char **argv) {
 
   std::cout << "Total samples available: " << loader.size() << std::endl;
 
-  Tensor<float> batch_data;
-  Tensor<float> batch_labels;
   size_t batch_size = 16;
+
+  Tensor batch_data = make_tensor<float>({batch_size, context_length});
+  Tensor batch_labels = make_tensor<float>({batch_size, context_length});
 
   // Get the first batch
   if (loader.get_batch(batch_size, batch_data, batch_labels)) {
     std::vector<int> tokens;
     for (size_t i = 0; i < context_length; ++i) {
-      int token_id = static_cast<int>(batch_data(0, i));
+      int token_id = static_cast<int>(batch_data->at<float>({0, i}));
       tokens.push_back(token_id);
       std::cout << token_id << " ";
 

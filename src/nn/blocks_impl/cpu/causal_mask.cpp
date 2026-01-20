@@ -2,6 +2,7 @@
  * Copyright (c) 2025 Tung D. Pham
  */
 #include "nn/blocks_impl/cpu/causal_mask.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -31,9 +32,11 @@ template <typename T> void apply_causal_mask(T *scores, size_t batch_count, size
 
 template void fill_causal_mask<float>(float *mask, size_t batch_count, size_t L, float neg_inf);
 template void fill_causal_mask<double>(double *mask, size_t batch_count, size_t L, double neg_inf);
+template void fill_causal_mask<fp16>(fp16 *mask, size_t batch_count, size_t L, fp16 neg_inf);
 template void apply_causal_mask<float>(float *scores, size_t batch_count, size_t L, float neg_inf);
 template void apply_causal_mask<double>(double *scores, size_t batch_count, size_t L,
                                         double neg_inf);
+template void apply_causal_mask<fp16>(fp16 *scores, size_t batch_count, size_t L, fp16 neg_inf);
 
 } // namespace cpu
 } // namespace tnn

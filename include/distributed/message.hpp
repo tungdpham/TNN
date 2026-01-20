@@ -7,18 +7,16 @@
 #pragma once
 
 #include "command_type.hpp"
-#include "distributed/job_pool.hpp"
 #include "job.hpp"
 #include "profiling/profiler.hpp"
-#include "tensor/tensor.hpp"
+#include "type/type.hpp"
 #include <arpa/inet.h>
 #include <cstring>
 #include <string>
 #include <variant>
-#include <vector>
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, Profiler>;
+using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler>;
 
 struct MessageHeader {
   std::string recipient_id; // ID of the recipient stage
@@ -76,15 +74,14 @@ struct MessageData {
     if (std::holds_alternative<std::monostate>(payload)) {
       // No additional size for monostate
 
-    } else if (std::holds_alternative<PooledJob<float>>(payload)) {
-      const auto &job = std::get<PooledJob<float>>(payload);
+    } else if (std::holds_alternative<Job>(payload)) {
+      const auto &job = std::get<Job>(payload);
       size += sizeof(uint64_t); // micro_batch_id
       size += sizeof(uint64_t); // shape size (uint64_t in serialization)
       size +=
-          job->data.shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
+          job.data->shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
       // No size prefix for tensor data itself
-      size += job->data.size() * sizeof(float); // data
-
+      size += job.data->size() * get_dtype_size(job.data->data_type()); // data
     } else if (std::holds_alternative<std::string>(payload)) {
       const auto &str = std::get<std::string>(payload);
       size += sizeof(uint64_t); // string length (uint64_t in serialization)

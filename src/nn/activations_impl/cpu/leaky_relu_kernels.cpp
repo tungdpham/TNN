@@ -1,6 +1,7 @@
 #include "nn/activations_impl/cpu/leaky_relu_kernels.hpp"
 
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -18,15 +19,14 @@ void leaky_relu_gradient(const T *input, const T *grad_output, T *grad_input, si
   });
 }
 
-template void leaky_relu<float>(const float *input, float *output, size_t size,
-                                float negative_slope);
-template void leaky_relu<double>(const double *input, double *output, size_t size,
-                                 double negative_slope);
-
-template void leaky_relu_gradient<float>(const float *input, const float *grad_output,
-                                         float *grad_input, size_t size, float negative_slope);
-template void leaky_relu_gradient<double>(const double *input, const double *grad_output,
-                                          double *grad_input, size_t size, double negative_slope);
+#define INSTANTIATE_LEAKY_RELU(T)                                                                  \
+  template void leaky_relu<T>(const T *input, T *output, size_t size, T negative_slope);           \
+  template void leaky_relu_gradient<T>(const T *input, const T *grad_output, T *grad_input,        \
+                                       size_t size, T negative_slope);
+INSTANTIATE_LEAKY_RELU(fp16)
+INSTANTIATE_LEAKY_RELU(float)
+INSTANTIATE_LEAKY_RELU(double)
+#undef INSTANTIATE_LEAKY_RELU
 
 } // namespace cpu
 } // namespace tnn

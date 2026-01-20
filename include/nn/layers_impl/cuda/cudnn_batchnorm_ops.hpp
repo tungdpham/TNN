@@ -1,50 +1,41 @@
-/*
- * Copyright (c) 2025 Tung D. Pham
- *
- * This software is licensed under the MIT License. See the LICENSE file in the
- * project root for the full license text.
- */
 #pragma once
 
 #ifdef USE_CUDNN
-#include <cuda_runtime.h>
+#include "nn/layers_impl/common/batchnorm.hpp"
+#include "type/type.hpp"
 #include <cudnn.h>
+#include <cudnn_graph.h>
 
 namespace tnn {
 namespace cuda {
 namespace cudnn_batchnorm {
 
-struct BatchNormHandle {
-  cudnnHandle_t cudnn_handle;
-  cudnnTensorDescriptor_t input_descriptor;
-  cudnnTensorDescriptor_t output_descriptor;
-  cudnnTensorDescriptor_t bn_scale_bias_mean_var_descriptor;
-};
+struct feHandle_t;
 
-template <typename T> cudnnDataType_t get_cudnn_data_type();
+cudnnDataType_t get_cudnn_data_type(DType_t dtype);
 
-BatchNormHandle *initialize_batchnorm_handle(cudnnHandle_t shared_handle, size_t batch_size,
-                                             size_t channels, size_t spatial_size,
-                                             cudnnDataType_t data_type);
-void destroy_batchnorm_handle(BatchNormHandle *handle);
+feHandle_t *initialize_fe_handle(cudnnHandle_t shared_handle, cudnnDataType_t data_type,
+                                 BatchNormStats &stats);
 
-template <typename T>
-void run_forward_training(BatchNormHandle *handle, const T *input, const T *bnScale,
-                          const T *bnBias, T *output, T *running_mean, T *running_var, T *save_mean,
-                          T *save_inv_var, double epsilon, double exponential_average_factor,
-                          cudaStream_t stream);
+void destroy_fe_handle(feHandle_t *handle);
 
-template <typename T>
-void run_forward_inference(BatchNormHandle *handle, const T *input, const T *bnScale,
-                           const T *bnBias, const T *estimated_mean, const T *estimated_var,
-                           T *output, double epsilon, cudaStream_t stream);
+void run_forward_training(feHandle_t *handle, const BatchNormStats &stats, const void *input,
+                          const void *gamma, const void *beta, void *output,
+                          void *prev_running_mean, void *prev_running_var, void *next_running_mean,
+                          void *next_running_var, void *batch_mean, void *batch_invar,
+                          void *workspace, cudaStream_t stream);
 
-template <typename T>
-void run_backward(BatchNormHandle *handle, const T *input, const T *grad_output, const T *bnScale,
-                  T *grad_input, T *grad_bnScale, T *grad_bnBias, const T *save_mean,
-                  const T *save_inv_var, double epsilon, cudaStream_t stream);
+void run_forward_inference(feHandle_t *handle, const BatchNormStats &stats, const void *input,
+                           const void *gamma, const void *beta, void *saved_mean, void *saved_invar,
+                           void *output, void *workspace, cudaStream_t stream);
+
+void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *input,
+                  const void *grad_output, const void *gamma, void *grad_input, void *grad_gamma,
+                  void *grad_beta, const void *batch_mean, const void *batch_invar, void *workspace,
+                  cudaStream_t stream);
 
 } // namespace cudnn_batchnorm
 } // namespace cuda
 } // namespace tnn
+
 #endif

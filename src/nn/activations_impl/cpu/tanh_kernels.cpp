@@ -1,29 +1,34 @@
 #include "nn/activations_impl/cpu/tanh_kernels.hpp"
 
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 #include <cmath>
 
 namespace tnn {
 namespace cpu {
 template <typename T> void tanh(const T *input, T *output, size_t size) {
-  parallel_for<size_t>(0, size, [&](size_t i) { output[i] = std::tanh(input[i]); });
+  parallel_for<size_t>(0, size, [&](size_t i) {
+    output[i] = static_cast<T>(std::tanh(static_cast<double>(input[i])));
+  });
 }
 
 template <typename T>
 void tanh_gradient(const T *input, const T *grad_output, T *grad_input, size_t size) {
   parallel_for<size_t>(0, size, [&](size_t i) {
-    T tanh_val = std::tanh(input[i]);
-    grad_input[i] = grad_output[i] * (T(1) - tanh_val * tanh_val);
+    double tanh_val = std::tanh(static_cast<double>(input[i]));
+    grad_input[i] =
+        static_cast<T>(static_cast<double>(grad_output[i]) * (1.0 - tanh_val * tanh_val));
   });
 }
 
-template void tanh<float>(const float *input, float *output, size_t size);
-template void tanh<double>(const double *input, double *output, size_t size);
+#define INSTANTIATE_TANH(T)                                                                        \
+  template void tanh<T>(const T *input, T *output, size_t size);                                   \
+  template void tanh_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size);
 
-template void tanh_gradient<float>(const float *input, const float *grad_output, float *grad_input,
-                                   size_t size);
-template void tanh_gradient<double>(const double *input, const double *grad_output,
-                                    double *grad_input, size_t size);
+INSTANTIATE_TANH(fp16)
+INSTANTIATE_TANH(float)
+INSTANTIATE_TANH(double)
+#undef INSTANTIATE_TANH
 
 } // namespace cpu
 } // namespace tnn

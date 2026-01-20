@@ -2,6 +2,7 @@
  * Copyright (c) 2025 Tung D. Pham
  */
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
+#include "type/type.hpp"
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
@@ -42,6 +43,9 @@ template void permute_heads<float>(const float *input, float *output, size_t B, 
                                    size_t D, cudaStream_t stream);
 template void permute_heads<double>(const double *input, double *output, size_t B, size_t L,
                                     size_t H, size_t D, cudaStream_t stream);
+
+template void permute_heads<fp16>(const fp16 *input, fp16 *output, size_t B, size_t L, size_t H,
+                                  size_t D, cudaStream_t stream);
 
 } // namespace cuda
 } // namespace tnn

@@ -37,11 +37,24 @@ FetchContent_Declare(
     GIT_TAG v1.15.0
 )
 
+# Configure spdlog to use external fmt library
+set(SPDLOG_FMT_EXTERNAL ON CACHE BOOL "" FORCE)
+
+# cuDNN frontend
+FetchContent_Declare(
+    cudnn_frontend
+    GIT_REPOSITORY https://github.com/NVIDIA/cudnn-frontend.git
+    GIT_TAG main
+)
+set(CUDNN_FRONTEND_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(CUDNN_FRONTEND_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(CUDNN_FRONTEND_BUILD_PYTHON_BINDINGS OFF CACHE BOOL "" FORCE)
+
 # For Windows: Prevent overriding the parent project's compiler/linker settings
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 
 # Make the dependencies available
-FetchContent_MakeAvailable(asio nlohmann_json googletest stb spdlog )
+FetchContent_MakeAvailable(asio nlohmann_json googletest stb spdlog cudnn_frontend)
 
 # Add global compile definitions for ASIO
 add_compile_definitions(ASIO_STANDALONE)

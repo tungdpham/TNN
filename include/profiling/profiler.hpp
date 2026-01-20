@@ -13,11 +13,6 @@ public:
   Profiler() = default;
   ~Profiler() = default;
 
-  static Profiler &instance() {
-    static Profiler instance;
-    return instance;
-  }
-
   Profiler(const Profiler &other) {
     std::lock_guard<std::mutex> other_lock(other.event_mutex_);
     std::lock_guard<std::mutex> this_lock(event_mutex_);
@@ -88,6 +83,11 @@ public:
     profiler_start_time_ = time;
   }
 
+  void reset() {
+    std::lock_guard<std::mutex> lock(event_mutex_);
+    events_.clear();
+  }
+
   Clock::time_point start_time() const {
     std::lock_guard<std::mutex> lock(start_mutex_);
     return profiler_start_time_;
@@ -99,4 +99,32 @@ private:
   mutable std::mutex start_mutex_;
   Clock::time_point profiler_start_time_;
 };
+
+class GlobalProfiler {
+  static Profiler global_profiler_;
+
+public:
+  static Profiler &get_profiler() { return global_profiler_; }
+
+  static void reset_profiler() { global_profiler_ = Profiler(); }
+
+  static void merge_profiler(const Profiler &profiler) { global_profiler_.merge(profiler); }
+
+  static void init_start_time(Clock::time_point time) { global_profiler_.init_start_time(time); }
+
+  static Clock::time_point start_time() { return global_profiler_.start_time(); }
+
+  static void add_event(const Event &event) { global_profiler_.add_event(event); }
+
+  static void sort_events(std::function<bool(const Event &a, const Event &b)> comp =
+                              [](const Event &a, const Event &b) {
+                                return a.start_time == b.start_time ? a.end_time > b.end_time
+                                                                    : a.start_time < b.start_time;
+                              }) {
+    global_profiler_.sort(comp);
+  }
+
+  static std::vector<Event> get_events() { return global_profiler_.get_events(); }
+};
+
 } // namespace tnn

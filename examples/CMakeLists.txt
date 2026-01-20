@@ -1,7 +1,6 @@
 # Examples
 create_default(hardware_info_example hardware_info_example.cpp)
 create_default(device_manager_example device_manager_example.cpp)
-create_cuda(device_ptr_example device_ptr_example.cu)
 
 # Network executables
 create_default(tcp_worker tcp_worker.cpp)
@@ -18,3 +17,7 @@ create_default(trainer trainer.cpp)
 
 # Inference executables
 create_default(gpt2_inference gpt2_inference.cpp)
+
+# Test executables
+create_default(fp16_test fp16_test.cpp)
+create_default(correctness_test correctness_test.cpp)

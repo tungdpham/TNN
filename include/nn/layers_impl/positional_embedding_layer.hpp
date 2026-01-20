@@ -14,22 +14,33 @@
 
 namespace tnn {
 
-template <typename T = float> class PositionalEmbeddingLayer : public ParameterizedLayer<T> {
+class PositionalEmbeddingLayer : public ParameterizedLayer {
 private:
   size_t embed_dim_;
   size_t seq_len_;
-  Tensor<T> pos_embedding_;
-  Tensor<T> pos_embedding_gradients_;
+  Tensor pos_embedding_;
+  Tensor pos_embedding_gradients_;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> add_positional_embedding(const Tensor &input, Tensor &output,
+                                                 const Tensor &pos_embedding,
+                                                 const std::string &flow_id) const;
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> accumulate_pos_gradients(const Tensor &gradient,
+                                                 Tensor &pos_embedding_gradients,
+                                                 const std::string &flow_id) const;
+
+  void init_params() override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
+  void collect_parameters(std::vector<Tensor> &params) override;
+  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
                            const std::string &name = "pos_embedding");
-
-  void init_params() override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -38,15 +49,9 @@ public:
 
   LayerConfig get_config() const override;
 
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-
-protected:
-  void collect_parameters(std::vector<Tensor<T> *> &params) override;
-  void collect_gradients(std::vector<Tensor<T> *> &grads) override;
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/positional_embedding_layer.tpp"

@@ -5,6 +5,8 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cpu/embedding_ops.hpp"
+
+#include "type/type.hpp"
 #include <cstring>
 
 namespace tnn {
@@ -56,10 +58,16 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
   }
 }
 
-template void compute_embedding_forward<float>(const float *, const float *, float *, size_t,
-                                               size_t, size_t, size_t);
-template void compute_embedding_backward<float>(const float *, const float *, float *, size_t,
-                                                size_t, size_t, size_t);
+#define INSTANTIATE_EMBEDDING(T)                                                                   \
+  template void compute_embedding_forward<T>(const T *, const T *, T *, size_t, size_t, size_t,    \
+                                             size_t);                                              \
+                                                                                                   \
+  template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t,   \
+                                              size_t);
+INSTANTIATE_EMBEDDING(fp16)
+INSTANTIATE_EMBEDDING(float)
+INSTANTIATE_EMBEDDING(double)
+#undef INSTANTIATE_EMBEDDING
 
 } // namespace embedding
 } // namespace cpu

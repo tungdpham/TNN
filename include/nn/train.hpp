@@ -13,6 +13,7 @@
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
+#include "type/type.hpp"
 
 #ifdef USE_TBB
 #include <tbb/info.h>
@@ -41,6 +42,7 @@ constexpr int64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on lapto
 
 struct TrainingConfig {
   // Trainer params
+  DType_t dtype = DType_t::FP32;
   int epochs = 10;
   size_t batch_size = 32;
   int64_t max_steps = -1; // -1 for no limit, otherwise max number of batches per epoch
@@ -63,22 +65,19 @@ struct TrainingConfig {
 };
 
 struct Result {
-  float avg_loss = 0.0f;
-  float avg_accuracy = -1.0f;
+  double avg_loss = 0.0f;
+  double avg_accuracy = -1.0f;
 };
 
-// Classification training functions
-template <typename T>
-Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimizer<T> &optimizer,
-                   Loss<T> &criterion, const TrainingConfig &config = TrainingConfig());
+Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &optimizer,
+                   Loss &criterion, const TrainingConfig &config = TrainingConfig());
 
-template <typename T>
-Result validate_model(Sequential<T> &model, BaseDataLoader<T> &test_loader, Loss<T> &criterion);
+Result validate_model(Sequential &model, BaseDataLoader &test_loader, Loss &criterion,
+                      TrainingConfig &config);
 
-template <typename T>
-void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                 BaseDataLoader<T> &test_loader, std::unique_ptr<Optimizer<T>> &optimizer,
-                 std::unique_ptr<Loss<T>> &criterion, std::unique_ptr<Scheduler<T>> &scheduler,
+void train_model(Sequential &model, BaseDataLoader &train_loader, BaseDataLoader &test_loader,
+                 std::unique_ptr<Optimizer> &optimizer, std::unique_ptr<Loss> &criterion,
+                 std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
 } // namespace tnn

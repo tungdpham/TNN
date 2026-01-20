@@ -5,100 +5,86 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cpu/maxpool_ops.hpp"
+#include "type/type.hpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <limits>
-
-#include "threading/thread_handler.hpp"
 
 namespace tnn {
 namespace cpu {
-namespace maxpool {
+
 template <typename T>
-void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_size,
-                              size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                              size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                              size_t stride_w, size_t pad_h, size_t pad_w,
-                              device_ptr<size_t[]> &mask_indices) {
-  const T MIN_VALUE = std::numeric_limits<T>::lowest();
+void maxpool_forward(const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,
+                     size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
+                     size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
+                     size_t output_w) {
+  // NHWC format: [batch, height, width, channels]
+  for (size_t b = 0; b < batch_size; ++b) {
+    for (size_t oh = 0; oh < output_h; ++oh) {
+      for (size_t ow = 0; ow < output_w; ++ow) {
+        for (size_t c = 0; c < channels; ++c) {
+          float max_val = -std::numeric_limits<float>::infinity();
+          int max_idx = -1;
 
-  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const size_t input_offset = (n * channels + c) * input_h * input_w;
-    const size_t output_offset = (n * channels + c) * output_h * output_w;
+          // Calculate input coordinates
+          int h_start = static_cast<int>(oh * stride_h) - static_cast<int>(pad_h);
+          int w_start = static_cast<int>(ow * stride_w) - static_cast<int>(pad_w);
+          int h_end = std::min(h_start + static_cast<int>(pool_h), static_cast<int>(height));
+          int w_end = std::min(w_start + static_cast<int>(pool_w), static_cast<int>(width));
+          h_start = std::max(h_start, 0);
+          w_start = std::max(w_start, 0);
 
-    for (size_t out_h = 0; out_h < output_h; ++out_h) {
-      for (size_t out_w = 0; out_w < output_w; ++out_w) {
-
-        long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
-        long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
-        long h_end = h_start + pool_h;
-        long w_end = w_start + pool_w;
-
-        long h_start_valid = std::max(0L, h_start);
-        long w_start_valid = std::max(0L, w_start);
-        long h_end_valid = std::min(static_cast<long>(input_h), h_end);
-        long w_end_valid = std::min(static_cast<long>(input_w), w_end);
-
-        T max_val = MIN_VALUE;
-        size_t max_idx = 0;
-
-        for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
-          for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
-
-            const size_t cur_input_idx = input_offset + ih * input_w + iw;
-            T val = input_data[cur_input_idx];
-
-            if (val > max_val) {
-              max_val = val;
-              max_idx = cur_input_idx;
+          // Find maximum value in the pooling window
+          for (int h = h_start; h < h_end; ++h) {
+            for (int w = w_start; w < w_end; ++w) {
+              size_t input_idx = ((b * height + h) * width + w) * channels + c;
+              float val = static_cast<float>(input[input_idx]);
+              if (val > max_val) {
+                max_val = val;
+                max_idx = static_cast<int>(input_idx);
+              }
             }
           }
-        }
 
-        const size_t out_idx = output_offset + out_h * output_w + out_w;
-        output_data[out_idx] = max_val;
-        mask_indices.get()[out_idx] = max_idx;
+          // Store maximum value and index
+          size_t output_idx = ((b * output_h + oh) * output_w + ow) * channels + c;
+          output[output_idx] = static_cast<T>(max_val);
+          mask_indices[output_idx] = max_idx;
+        }
       }
     }
-  });
+  }
 }
 
 template <typename T>
-void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
-                               size_t channels, size_t output_h, size_t output_w,
-                               const device_ptr<size_t[]> &mask_indices) {
-  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    const size_t output_offset = (n * channels + c) * output_h * output_w;
-
-    for (size_t i = 0; i < output_h * output_w; ++i) {
-      const size_t out_idx = output_offset + i;
-      const size_t input_idx = mask_indices.get()[out_idx];
-      grad_input_data[input_idx] += gradient_data[out_idx];
+void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indices,
+                      size_t batch_size, size_t channels, size_t output_h, size_t output_w) {
+  // NHWC format: [batch, height, width, channels]
+  size_t total_outputs = batch_size * output_h * output_w * channels;
+  for (size_t i = 0; i < total_outputs; ++i) {
+    int max_idx = mask_indices[i];
+    if (max_idx >= 0) {
+      grad_input[max_idx] = static_cast<T>(static_cast<float>(grad_input[max_idx]) +
+                                           static_cast<float>(grad_output[i]));
     }
-  });
+  }
 }
 
-template void compute_max_pool_forward<float>(const float *input_data, float *output_data,
-                                              size_t batch_size, size_t channels, size_t input_h,
-                                              size_t input_w, size_t output_h, size_t output_w,
-                                              size_t pool_h, size_t pool_w, size_t stride_h,
-                                              size_t stride_w, size_t pad_h, size_t pad_w,
-                                              device_ptr<size_t[]> &mask_indices);
-template void compute_max_pool_forward<double>(const double *input_data, double *output_data,
-                                               size_t batch_size, size_t channels, size_t input_h,
-                                               size_t input_w, size_t output_h, size_t output_w,
-                                               size_t pool_h, size_t pool_w, size_t stride_h,
-                                               size_t stride_w, size_t pad_h, size_t pad_w,
-                                               device_ptr<size_t[]> &mask_indices);
+#define INSTANTIATE_MAXPOOL(T)                                                                     \
+  template void maxpool_forward<T>(                                                                \
+      const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,              \
+      size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,                \
+      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);              \
+  template void maxpool_backward<T>(const T *grad_output, T *grad_input, const int *mask_indices,  \
+                                    size_t batch_size, size_t channels, size_t output_h,           \
+                                    size_t output_w);
 
-template void compute_max_pool_backward<float>(const float *gradient_data, float *grad_input_data,
-                                               size_t batch_size, size_t channels, size_t output_h,
-                                               size_t output_w,
-                                               const device_ptr<size_t[]> &mask_indices);
-template void compute_max_pool_backward<double>(const double *gradient_data,
-                                                double *grad_input_data, size_t batch_size,
-                                                size_t channels, size_t output_h, size_t output_w,
-                                                const device_ptr<size_t[]> &mask_indices);
+INSTANTIATE_MAXPOOL(fp16)
+INSTANTIATE_MAXPOOL(float)
+INSTANTIATE_MAXPOOL(double)
 
-} // namespace maxpool
+#undef INSTANTIATE_MAXPOOL
+
 } // namespace cpu
 } // namespace tnn

@@ -2,9 +2,10 @@
 
 #ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
-#endif
+#else
 #include "dgemm.hpp"
 #include "sgemm.hpp"
+#endif
 #include <stdexcept>
 #include <type_traits>
 #include <vector>
@@ -16,11 +17,15 @@ template <typename T>
 void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
           const bool trans_A, const bool trans_B, const T alpha, const T beta) {
 #ifdef USE_MKL
-  char transa = trans_A ? 'T' : 'N';
-  char transb = trans_B ? 'T' : 'N';
-  mkl::gemm(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
-            static_cast<MKL_INT>(K), alpha, A, static_cast<MKL_INT>(trans_A ? M : K), B,
-            static_cast<MKL_INT>(trans_B ? K : N), beta, C, static_cast<MKL_INT>(N));
+  if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+    char transa = trans_A ? 'T' : 'N';
+    char transb = trans_B ? 'T' : 'N';
+    mkl::gemm(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
+              static_cast<MKL_INT>(K), alpha, A, static_cast<MKL_INT>(trans_A ? M : K), B,
+              static_cast<MKL_INT>(trans_B ? K : N), beta, C, static_cast<MKL_INT>(N));
+  } else {
+    throw std::runtime_error("Unsupported data type for GEMM on CPU/MKL");
+  }
 #else
   if constexpr (std::is_same<T, float>::value) {
     sgemm(A, B, C, M, N, K, trans_A, trans_B, alpha, beta);
@@ -40,20 +45,29 @@ void gemm_strided_batched_ex(const T *A, const T *B, T *C, const size_t M, const
                              const size_t stride_B, const size_t stride_C, const size_t lda,
                              const size_t ldb, const size_t ldc) {
 #ifdef USE_MKL
-  std::vector<const T *> a_ptrs(batch_count);
-  std::vector<const T *> b_ptrs(batch_count);
-  std::vector<T *> c_ptrs(batch_count);
-  for (size_t i = 0; i < batch_count; ++i) {
-    a_ptrs[i] = A + i * stride_A;
-    b_ptrs[i] = B + i * stride_B;
-    c_ptrs[i] = C + i * stride_C;
+  if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+    std::vector<const T *> a_ptrs(batch_count);
+    std::vector<const T *> b_ptrs(batch_count);
+    std::vector<T *> c_ptrs(batch_count);
+    for (size_t i = 0; i < batch_count; ++i) {
+      a_ptrs[i] = A + i * stride_A;
+      b_ptrs[i] = B + i * stride_B;
+      c_ptrs[i] = C + i * stride_C;
+    }
+    char transa = trans_A ? 'T' : 'N';
+    char transb = trans_B ? 'T' : 'N';
+    mkl::gemm_batch(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
+                    static_cast<MKL_INT>(K), alpha, a_ptrs.data(), static_cast<MKL_INT>(lda),
+                    b_ptrs.data(), static_cast<MKL_INT>(ldb), beta, c_ptrs.data(),
+                    static_cast<MKL_INT>(ldc), static_cast<MKL_INT>(batch_count));
+  } else {
+    for (size_t i = 0; i < batch_count; ++i) {
+      const T *curr_A = A + i * stride_A;
+      const T *curr_B = B + i * stride_B;
+      T *curr_C = C + i * stride_C;
+      gemm(curr_A, curr_B, curr_C, M, N, K, trans_A, trans_B, alpha, beta);
+    }
   }
-  char transa = trans_A ? 'T' : 'N';
-  char transb = trans_B ? 'T' : 'N';
-  mkl::gemm_batch(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
-                  static_cast<MKL_INT>(K), alpha, a_ptrs.data(), static_cast<MKL_INT>(lda),
-                  b_ptrs.data(), static_cast<MKL_INT>(ldb), beta, c_ptrs.data(),
-                  static_cast<MKL_INT>(ldc), static_cast<MKL_INT>(batch_count));
 #else
   throw std::runtime_error("gemm_strided_batched_ex requires MKL");
 #endif
@@ -65,21 +79,30 @@ void gemm_strided_batched(const T *A, const T *B, T *C, const size_t M, const si
                           const T beta, const size_t batch_count, const size_t stride_A,
                           const size_t stride_B, const size_t stride_C) {
 #ifdef USE_MKL
-  std::vector<const T *> a_ptrs(batch_count);
-  std::vector<const T *> b_ptrs(batch_count);
-  std::vector<T *> c_ptrs(batch_count);
-  for (size_t i = 0; i < batch_count; ++i) {
-    a_ptrs[i] = A + i * stride_A;
-    b_ptrs[i] = B + i * stride_B;
-    c_ptrs[i] = C + i * stride_C;
+  if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
+    std::vector<const T *> a_ptrs(batch_count);
+    std::vector<const T *> b_ptrs(batch_count);
+    std::vector<T *> c_ptrs(batch_count);
+    for (size_t i = 0; i < batch_count; ++i) {
+      a_ptrs[i] = A + i * stride_A;
+      b_ptrs[i] = B + i * stride_B;
+      c_ptrs[i] = C + i * stride_C;
+    }
+    char transa = trans_A ? 'T' : 'N';
+    char transb = trans_B ? 'T' : 'N';
+    mkl::gemm_batch(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
+                    static_cast<MKL_INT>(K), alpha, a_ptrs.data(),
+                    static_cast<MKL_INT>(trans_A ? M : K), b_ptrs.data(),
+                    static_cast<MKL_INT>(trans_B ? K : N), beta, c_ptrs.data(),
+                    static_cast<MKL_INT>(N), static_cast<MKL_INT>(batch_count));
+  } else {
+    for (size_t i = 0; i < batch_count; ++i) {
+      const T *curr_A = A + i * stride_A;
+      const T *curr_B = B + i * stride_B;
+      T *curr_C = C + i * stride_C;
+      gemm(curr_A, curr_B, curr_C, M, N, K, trans_A, trans_B, alpha, beta);
+    }
   }
-  char transa = trans_A ? 'T' : 'N';
-  char transb = trans_B ? 'T' : 'N';
-  mkl::gemm_batch(transa, transb, static_cast<MKL_INT>(M), static_cast<MKL_INT>(N),
-                  static_cast<MKL_INT>(K), alpha, a_ptrs.data(),
-                  static_cast<MKL_INT>(trans_A ? M : K), b_ptrs.data(),
-                  static_cast<MKL_INT>(trans_B ? K : N), beta, c_ptrs.data(),
-                  static_cast<MKL_INT>(N), static_cast<MKL_INT>(batch_count));
 #else
   for (size_t i = 0; i < batch_count; ++i) {
     const T *curr_A = A + i * stride_A;

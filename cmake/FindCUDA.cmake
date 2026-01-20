@@ -85,6 +85,10 @@ endif()
 if(CUDA_ARCH_NUMBER)
     set(CMAKE_CUDA_ARCHITECTURES ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA target architectures" FORCE)
     set(CUDA_ARCH_NUMBER ${CUDA_ARCH_NUMBER} CACHE STRING "CUDA architecture number" FORCE)
+    enable_language(CUDA)
+    add_compile_definitions(USE_CUDA)
+    set(CMAKE_CUDA_STANDARD 20)
+    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
     set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
     set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_LIBRARIES 0)
     set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_OBJECTS 0)
@@ -95,11 +99,6 @@ if(CUDA_ARCH_NUMBER)
     message(STATUS "CUDA flags: ${CMAKE_CUDA_FLAGS}")
     message(STATUS "CUDA release flags: ${CMAKE_CUDA_FLAGS_RELEASE}")
     message(STATUS "CUDA debug flags: ${CMAKE_CUDA_FLAGS_DEBUG}")
-
-    enable_language(CUDA)
-    add_compile_definitions(USE_CUDA)
-    set(CMAKE_CUDA_STANDARD 20)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 endif()
 
 # Auto-detect and enable cuDNN if available
@@ -108,6 +107,7 @@ if(NOT DEFINED ENABLE_CUDNN OR ENABLE_CUDNN)
     find_library(CUDNN_LIBRARY cudnn
         HINTS ${CUDAToolkit_LIBRARY_DIR}
         PATHS /usr/local/cuda/lib64 /usr/lib/x86_64-linux-gnu
+        /usr/include/x86_64-linux-gnu
     )
     
     if(CUDNN_LIBRARY)
@@ -117,6 +117,17 @@ if(NOT DEFINED ENABLE_CUDNN OR ENABLE_CUDNN)
         set_target_properties(CUDA::cudnn PROPERTIES
             IMPORTED_LOCATION ${CUDNN_LIBRARY}
         )
+        
+        if(CUDNN_INCLUDE_DIR)
+            file(READ "${CUDNN_INCLUDE_DIR}/cudnn_version.h" CUDNN_H_CONTENTS)
+            string(REGEX MATCH "#define CUDNN_MAJOR ([0-9]+)" _ "${CUDNN_H_CONTENTS}")
+            set(CUDNN_MAJOR_VERSION ${CMAKE_MATCH_1})
+            string(REGEX MATCH "#define CUDNN_MINOR ([0-9]+)" _ "${CUDNN_H_CONTENTS}")
+            set(CUDNN_MINOR_VERSION ${CMAKE_MATCH_1})
+        endif()
+
+        message(STATUS "cuDNN MAJOR version: ${CUDNN_MAJOR_VERSION}")
+        message(STATUS "cuDNN MINOR version: ${CUDNN_MINOR_VERSION}")
     else()
         message(STATUS "cuDNN library not found.")
         set(ENABLE_CUDNN OFF CACHE BOOL "Enable cuDNN support (requires CUDA)" FORCE)

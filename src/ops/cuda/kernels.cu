@@ -1,25 +1,36 @@
 #include "ops/cuda/kernels.hpp"
+#include "type/type.hpp"
 
 #ifdef USE_CUDA
 
 #include "cuda/error_handler.hpp"
-#include <algorithm>
 #include <cstdint>
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
 #include <device_launch_parameters.h>
 #include <type_traits>
 
 namespace tnn {
+namespace ops {
 namespace cuda {
 
 constexpr int BLOCK_SIZE = 256;
 constexpr int WARP_SIZE = 32;
-constexpr int TILE_DIM = 32;
 
 inline int get_num_blocks(size_t size) { return (size + BLOCK_SIZE - 1) / BLOCK_SIZE; }
 
 template <typename T> struct VectorizedTrait;
+
+template <> struct VectorizedTrait<int> {
+  using type = int4;
+  static constexpr int size = 4;
+};
+
+template <> struct VectorizedTrait<fp16> {
+  using type = half2;
+  static constexpr int size = 2;
+};
 
 template <> struct VectorizedTrait<float> {
   using type = float4;
@@ -29,6 +40,15 @@ template <> struct VectorizedTrait<float> {
 template <> struct VectorizedTrait<double> {
   using type = double2;
   static constexpr int size = 2;
+};
+
+struct UInt64Vec {
+  unsigned long x;
+};
+
+template <> struct VectorizedTrait<unsigned long> {
+  using type = UInt64Vec;
+  static constexpr int size = 1;
 };
 
 namespace functors {
@@ -60,6 +80,9 @@ template <typename T> struct Greater {
 };
 
 template <typename T> struct FMAdd;
+template <> struct FMAdd<fp16> {
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, c); }
+};
 template <> struct FMAdd<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(a, b, c); }
 };
@@ -68,6 +91,9 @@ template <> struct FMAdd<double> {
 };
 
 template <typename T> struct FMSub;
+template <> struct FMSub<fp16> {
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, __hneg(c)); }
+};
 template <> struct FMSub<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(a, b, -c); }
 };
@@ -76,6 +102,9 @@ template <> struct FMSub<double> {
 };
 
 template <typename T> struct FNMAdd;
+template <> struct FNMAdd<fp16> {
+  __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(__hneg(a), b, c); }
+};
 template <> struct FNMAdd<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(-a, b, c); }
 };
@@ -84,10 +113,19 @@ template <> struct FNMAdd<double> {
 };
 
 template <typename T> struct Sqrt {
-  __device__ T operator()(T a) const { return sqrt(a); }
+  __device__ T operator()(T a) const { return sqrtf((float)a); }
+};
+template <> struct Sqrt<fp16> {
+  __device__ fp16 operator()(fp16 a) const { return hsqrt(a); }
 };
 template <> struct Sqrt<float> {
   __device__ float operator()(float a) const { return sqrtf(a); }
+};
+template <> struct Sqrt<double> {
+  __device__ double operator()(double a) const { return sqrt(a); }
+};
+template <> struct Sqrt<unsigned long> {
+  __device__ unsigned long operator()(unsigned long a) const { return sqrtf((float)a); }
 };
 
 template <typename T> struct Rsqrt {
@@ -104,11 +142,17 @@ template <typename T> struct Rcp {
 template <typename T> struct Abs {
   __device__ T operator()(T a) const { return abs(a); }
 };
+template <> struct Abs<fp16> {
+  __device__ fp16 operator()(fp16 a) const { return __habs(a); }
+};
 template <> struct Abs<float> {
   __device__ float operator()(float a) const { return fabsf(a); }
 };
 template <> struct Abs<double> {
   __device__ double operator()(double a) const { return fabs(a); }
+};
+template <> struct Abs<unsigned long> {
+  __device__ unsigned long operator()(unsigned long a) const { return a; }
 };
 
 template <typename T> struct AddScalar {
@@ -162,14 +206,16 @@ __global__ void binary_op_kernel(const T *__restrict__ a, const T *__restrict__ 
     VecT va = reinterpret_cast<const VecT *>(a)[idx];
     VecT vb = reinterpret_cast<const VecT *>(b)[idx];
     VecT vc;
-    if constexpr (std::is_same<T, float>::value) {
+    if constexpr (VectorizedTrait<T>::size == 4) {
       vc.x = op(va.x, vb.x);
       vc.y = op(va.y, vb.y);
       vc.z = op(va.z, vb.z);
       vc.w = op(va.w, vb.w);
-    } else {
+    } else if constexpr (VectorizedTrait<T>::size == 2) {
       vc.x = op(va.x, vb.x);
       vc.y = op(va.y, vb.y);
+    } else if constexpr (VectorizedTrait<T>::size == 1) {
+      vc.x = op(va.x, vb.x);
     }
     reinterpret_cast<VecT *>(c)[idx] = vc;
   }
@@ -186,18 +232,20 @@ template <typename T, typename Func>
 __global__ void unary_op_kernel(const T *__restrict__ a, T *__restrict__ c, size_t size, Func op) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   using VecT = typename VectorizedTrait<T>::type;
-  constexpr int vec_size = VectorizedTrait<T>::size;
+  constexpr size_t vec_size = size_t(VectorizedTrait<T>::size);
   if (idx * vec_size + vec_size <= size) {
     VecT va = reinterpret_cast<const VecT *>(a)[idx];
     VecT vc;
-    if constexpr (std::is_same<T, float>::value) {
+    if constexpr (vec_size == 4) {
       vc.x = op(va.x);
       vc.y = op(va.y);
       vc.z = op(va.z);
       vc.w = op(va.w);
-    } else {
+    } else if constexpr (vec_size == 2) {
       vc.x = op(va.x);
       vc.y = op(va.y);
+    } else if constexpr (vec_size == 1) {
+      vc.x = op(va.x);
     }
     reinterpret_cast<VecT *>(c)[idx] = vc;
   }
@@ -220,48 +268,6 @@ template <typename T> __global__ void axpy_kernel(T alpha, const T *x, T *y, siz
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size)
     y[idx] += alpha * x[idx];
-}
-
-template <typename T>
-__global__ void transpose_2d_kernel(const T *input, T *output, size_t rows, size_t cols) {
-  __shared__ T tile[TILE_DIM][TILE_DIM + 1];
-  int x = blockIdx.x * TILE_DIM + threadIdx.x;
-  int y = blockIdx.y * TILE_DIM + threadIdx.y;
-
-  if (y < rows && x < cols) {
-    tile[threadIdx.y][threadIdx.x] = input[y * cols + x];
-  }
-  __syncthreads();
-
-  x = blockIdx.y * TILE_DIM + threadIdx.x;
-  y = blockIdx.x * TILE_DIM + threadIdx.y;
-
-  if (y < cols && x < rows) {
-    output[y * rows + x] = tile[threadIdx.x][threadIdx.y];
-  }
-}
-
-template <typename T>
-__global__ void nchw_cnhw_transpose_tiled(const T *__restrict__ input, T *__restrict__ output,
-                                          int N, int C, int HW) {
-  __shared__ T tile[TILE_DIM][TILE_DIM + 1];
-  int x = blockIdx.x * TILE_DIM + threadIdx.x;
-  int y = blockIdx.y * TILE_DIM + threadIdx.y;
-
-  for (int k = 0; k < HW; ++k) {
-    if (y < N && x < C) {
-      size_t in_idx = (size_t)y * (C * HW) + (size_t)x * HW + k;
-      tile[threadIdx.y][threadIdx.x] = input[in_idx];
-    }
-    __syncthreads();
-    int n_out = blockIdx.y * TILE_DIM + threadIdx.x;
-    int c_out = blockIdx.x * TILE_DIM + threadIdx.y;
-    if (n_out < N && c_out < C) {
-      size_t out_idx = (size_t)c_out * (N * HW) + (size_t)n_out * HW + k;
-      output[out_idx] = tile[threadIdx.x][threadIdx.y];
-    }
-    __syncthreads();
-  }
 }
 
 template <typename T> __inline__ __device__ T warp_reduce_sum(T val) {
@@ -299,7 +305,7 @@ __global__ void reduce_kernel(const T *a, const T *b, T scalar, T *result, size_
     shared[warp] = (double)sum;
   __syncthreads();
 
-  sum = (threadIdx.x < blockDim.x / WARP_SIZE) ? (T)shared[lane] : 0;
+  sum = (threadIdx.x < blockDim.x / WARP_SIZE) ? (T)shared[lane] : (T)0;
   if (warp == 0)
     sum = warp_reduce_sum(sum);
 
@@ -307,23 +313,18 @@ __global__ void reduce_kernel(const T *a, const T *b, T scalar, T *result, size_
     result[blockIdx.x] = sum;
 }
 
-__global__ void fill_random_uniform_kernel(float *data, size_t size, float min_val, float max_val,
+template <typename T>
+__global__ void fill_random_uniform_kernel(T *data, size_t size, T min_val, T max_val,
                                            unsigned long long seed) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     curandStatePhilox4_32_10_t state;
     curand_init(seed, idx, 0, &state);
-    data[idx] = min_val + curand_uniform(&state) * (max_val - min_val);
-  }
-}
-
-__global__ void fill_random_uniform_kernel(double *data, size_t size, double min_val,
-                                           double max_val, unsigned long long seed) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx < size) {
-    curandStatePhilox4_32_10_t state;
-    curand_init(seed, idx, 0, &state);
-    data[idx] = min_val + curand_uniform_double(&state) * (max_val - min_val);
+    if constexpr (std::is_same<T, double>::value) {
+      data[idx] = min_val + curand_uniform_double(&state) * (max_val - min_val);
+    } else {
+      data[idx] = min_val + (T)curand_uniform(&state) * (max_val - min_val);
+    }
   }
 }
 
@@ -335,12 +336,14 @@ __global__ void fill_random_normal_kernel(T *data, size_t size, T mean, T stddev
   curand_init(seed, idx, 0, &state);
 
   for (size_t i = idx; i < size; i += blockDim.x * gridDim.x) {
-
     if constexpr (std::is_same<T, float>::value) {
       float val = curand_normal(&state);
       data[i] = mean + stddev * val;
-    } else {
+    } else if constexpr (std::is_same<T, double>::value) {
       double val = curand_normal_double(&state);
+      data[i] = mean + stddev * val;
+    } else if constexpr (std::is_same<T, fp16>::value) {
+      fp16 val = curand_normal(&state);
       data[i] = mean + stddev * val;
     }
   }
@@ -391,7 +394,7 @@ void dispatch_binary(const T *a, const T *b, T *c, size_t size, cudaStream_t str
     int blocks = get_num_blocks(size);
     binary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
   }
-  cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "binary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -408,7 +411,7 @@ void dispatch_unary(const T *a, T *c, size_t size, cudaStream_t stream, Func op)
     int blocks = get_num_blocks(size);
     unary_op_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, c, size, op);
   }
-  cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "unary_op", __FILE__, __LINE__);
 }
 
 template <typename T, typename Func>
@@ -424,7 +427,7 @@ void dispatch_ternary(const T *a, const T *b, T *c, size_t size, cudaStream_t st
     return;
   int blocks = get_num_blocks(size);
   ternary_op_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, c, size, op);
-  cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "ternary_op", __FILE__, __LINE__);
 }
 
 template <typename T, int Mode>
@@ -441,14 +444,26 @@ T dispatch_reduce(const T *a, const T *b, T scalar, size_t size, cudaStream_t st
   cudaMemcpyAsync(h_partial, d_partial, blocks * sizeof(T), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 
-  T result = 0;
+  // Use double precision for accumulation to avoid overflow/underflow with fp16
+  double result = 0.0;
   for (int i = 0; i < blocks; ++i)
-    result += h_partial[i];
+    result += static_cast<double>(h_partial[i]);
 
   delete[] h_partial;
   cudaFree(d_partial);
-  cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
-  return result;
+  tnn::cuda::checkCudaError(cudaGetLastError(), "reduction", __FILE__, __LINE__);
+
+  // For fp16, clamp the result to avoid overflow when converting back
+  if constexpr (std::is_same<T, fp16>::value) {
+    // fp16 max value is approximately 65504
+    const double fp16_max = 65504.0;
+    if (result > fp16_max)
+      result = fp16_max;
+    if (result < -fp16_max)
+      result = -fp16_max;
+  }
+
+  return static_cast<T>(result);
 }
 
 template <typename T>
@@ -520,7 +535,7 @@ void cuda_mul_add_scalar(const T *a, T mul, T add, T *c, size_t size, cudaStream
 template <typename T> void cuda_axpy(T alpha, const T *x, T *y, size_t size, cudaStream_t stream) {
   int blocks = get_num_blocks(size);
   axpy_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(alpha, x, y, size);
-  cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "axpy", __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_sqrt(const T *a, T *c, size_t size, cudaStream_t stream) {
@@ -529,11 +544,11 @@ template <typename T> void cuda_sqrt(const T *a, T *c, size_t size, cudaStream_t
 template <typename T> void cuda_abs(const T *a, T *c, size_t size, cudaStream_t stream) {
   dispatch_unary(a, c, size, stream, functors::Abs<T>());
 }
-void cuda_rsqrt(const float *a, float *c, size_t size, cudaStream_t stream) {
-  dispatch_unary(a, c, size, stream, functors::Rsqrt<float>());
+template <typename T> void cuda_rsqrt(const T *a, T *c, size_t size, cudaStream_t stream) {
+  dispatch_unary(a, c, size, stream, functors::Rsqrt<T>());
 }
-void cuda_rcp(const float *a, float *c, size_t size, cudaStream_t stream) {
-  dispatch_unary(a, c, size, stream, functors::Rcp<float>());
+template <typename T> void cuda_rcp(const float *a, float *c, size_t size, cudaStream_t stream) {
+  dispatch_unary(a, c, size, stream, functors::Rcp<T>());
 }
 
 template <typename T>
@@ -553,21 +568,21 @@ template <typename T> void cuda_copy(const T *a, T *c, size_t size, cudaStream_t
   if (size == 0)
     return;
   cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyDeviceToDevice, stream);
-  cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_h2d_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
   if (size == 0)
     return;
   cudaMemcpyAsync(c, a, size * sizeof(T), cudaMemcpyHostToDevice, stream);
-  cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "h2d_copy", __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_d2h_copy(const T *a, T *c, size_t size, cudaStream_t stream) {
   if (size == 0)
     return;
   cudaMemcpy(c, a, size * sizeof(T), cudaMemcpyDeviceToHost);
-  cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "d2h_copy", __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStream_t stream) {
@@ -575,41 +590,14 @@ template <typename T> void cuda_set_scalar(T *c, T scalar, size_t size, cudaStre
     return;
   int blocks = get_num_blocks(size);
   set_scalar_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(c, scalar, size);
-  cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "set_scalar", __FILE__, __LINE__);
 }
 
 template <typename T> void cuda_zero(T *c, size_t size, cudaStream_t stream) {
   if (size == 0)
     return;
   cudaMemsetAsync(c, 0, size * sizeof(T), stream);
-  cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
-}
-
-template <typename T>
-void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cudaStream_t stream) {
-  if (rows == 0 || cols == 0)
-    return;
-  dim3 block(TILE_DIM, TILE_DIM);
-  dim3 grid((cols + TILE_DIM - 1) / TILE_DIM, (rows + TILE_DIM - 1) / TILE_DIM);
-  transpose_2d_kernel<<<grid, block, 0, stream>>>(input, output, rows, cols);
-  cuda::checkCudaError(cudaGetLastError(), "transpose_2d", __FILE__, __LINE__);
-}
-
-template <typename T>
-void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
-                       cudaStream_t stream) {
-  if (n == 0 || c == 0 || h == 0 || w == 0)
-    return;
-  dim3 grid((c + TILE_DIM - 1) / TILE_DIM, (n + TILE_DIM - 1) / TILE_DIM);
-  dim3 block(TILE_DIM, TILE_DIM);
-  nchw_cnhw_transpose_tiled<<<grid, block, 0, stream>>>(input, output, n, c, h * w);
-  cuda::checkCudaError(cudaGetLastError(), "nchw_to_cnhw", __FILE__, __LINE__);
-}
-
-template <typename T>
-void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
-                       cudaStream_t stream) {
-  cuda_nchw_to_cnhw(input, output, c, n, h, w, stream);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "zero", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -619,7 +607,7 @@ void cuda_fill_random_uniform(T *data, size_t size, T min_val, T max_val, unsign
     return;
   int blocks = get_num_blocks(size);
   fill_random_uniform_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, min_val, max_val, seed);
-  cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "fill_random_uniform", __FILE__, __LINE__);
 }
 
 template <typename T>
@@ -629,7 +617,7 @@ void cuda_fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned lo
     return;
   int blocks = get_num_blocks(size);
   fill_random_normal_kernel<T><<<blocks, BLOCK_SIZE, 0, stream>>>(data, size, mean, stddev, seed);
-  cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "fill_random_normal", __FILE__, __LINE__);
 }
 
 template <typename T> T cuda_sum(const T *a, size_t size, cudaStream_t stream) {
@@ -657,7 +645,9 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
   template void cuda_min<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
   template void cuda_max<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
   template void cuda_equal<T>(const T *, const T *, T *, size_t, cudaStream_t);                    \
-  template void cuda_greater<T>(const T *, const T *, T *, size_t, cudaStream_t);                  \
+  template void cuda_greater<T>(const T *, const T *, T *, size_t, cudaStream_t);
+
+#define INSTANTIATE_FUSED(T)                                                                       \
   template void cuda_fmadd<T>(const T *, const T *, T *, size_t, cudaStream_t);                    \
   template void cuda_fmsub<T>(const T *, const T *, T *, size_t, cudaStream_t);                    \
   template void cuda_fnmadd<T>(const T *, const T *, T *, size_t, cudaStream_t);
@@ -683,11 +673,6 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
   template void cuda_d2h_copy<T>(const T *, T *, size_t, cudaStream_t);                            \
   template void cuda_set_scalar<T>(T *, T, size_t, cudaStream_t);                                  \
   template void cuda_zero<T>(T *, size_t, cudaStream_t);                                           \
-  template void cuda_transpose_2d<T>(const T *, T *, size_t, size_t, cudaStream_t);                \
-  template void cuda_nchw_to_cnhw<T>(const T *, T *, size_t, size_t, size_t, size_t,               \
-                                     cudaStream_t);                                                \
-  template void cuda_cnhw_to_nchw<T>(const T *, T *, size_t, size_t, size_t, size_t,               \
-                                     cudaStream_t);                                                \
   template void cuda_fill_random_uniform<T>(T *, size_t, T, T, unsigned long long, cudaStream_t);  \
   template void cuda_fill_random_normal<T>(T *, size_t, T, T, unsigned long long, cudaStream_t);   \
   template T cuda_sum<T>(const T *, size_t, cudaStream_t);                                         \
@@ -695,16 +680,51 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
   template T cuda_norm_squared<T>(const T *, size_t, cudaStream_t);                                \
   template T cuda_sum_squared_diff<T>(const T *, T, size_t, cudaStream_t);
 
+// Integer-specific binary operations (excluding FMA operations)
+#define INSTANTIATE_BIN_INT(T)                                                                     \
+  template void cuda_add<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_sub<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_mul<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_div<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_min<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_max<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \
+  template void cuda_equal<T>(const T *, const T *, T *, size_t, cudaStream_t);                    \
+  template void cuda_greater<T>(const T *, const T *, T *, size_t, cudaStream_t);
+
+INSTANTIATE_BIN(fp16)
 INSTANTIATE_BIN(float)
 INSTANTIATE_BIN(double)
+INSTANTIATE_BIN(int)
+INSTANTIATE_BIN(unsigned long)
+
+// FMA operations may not support all types
+INSTANTIATE_FUSED(fp16)
+INSTANTIATE_FUSED(float)
+INSTANTIATE_FUSED(double)
+
+INSTANTIATE_SCALAR(fp16)
 INSTANTIATE_SCALAR(float)
 INSTANTIATE_SCALAR(double)
+INSTANTIATE_SCALAR(int)
+INSTANTIATE_SCALAR(unsigned long)
+
+INSTANTIATE_UNARY(fp16)
 INSTANTIATE_UNARY(float)
 INSTANTIATE_UNARY(double)
+INSTANTIATE_UNARY(int)
+INSTANTIATE_UNARY(unsigned long)
+
+INSTANTIATE_UTILS(fp16)
 INSTANTIATE_UTILS(float)
 INSTANTIATE_UTILS(double)
+INSTANTIATE_UTILS(int)
+INSTANTIATE_UTILS(unsigned long)
+
+#undef INSTANTIATE_BIN
+#undef INSTANTIATE_BIN_INT
 
 } // namespace cuda
+} // namespace ops
 } // namespace tnn
 
 #endif

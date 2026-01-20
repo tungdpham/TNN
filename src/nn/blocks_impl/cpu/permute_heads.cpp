@@ -3,6 +3,7 @@
  */
 #include "nn/blocks_impl/cpu/permute_heads.hpp"
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -39,6 +40,8 @@ template void permute_heads<float>(const float *input, float *output, size_t B, 
                                    size_t D);
 template void permute_heads<double>(const double *input, double *output, size_t B, size_t L,
                                     size_t H, size_t D);
+template void permute_heads<fp16>(const fp16 *input, fp16 *output, size_t B, size_t L, size_t H,
+                                  size_t D);
 
 } // namespace cpu
 } // namespace tnn

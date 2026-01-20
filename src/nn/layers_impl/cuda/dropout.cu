@@ -6,6 +6,7 @@
  */
 #include "nn/layers_impl/cuda/dropout_ops.hpp"
 
+#include "type/type.hpp"
 #include <algorithm>
 #include <ctime>
 #include <cuda_runtime.h>
@@ -115,7 +116,7 @@ __global__ void compute_dropout_forward_kernel(const T *input_data, T *output_da
   for (size_t i = idx; i < total_elements; i += stride) {
     float rand_val = curand_uniform(&state);
 
-    if (rand_val < dropout_rate) {
+    if (rand_val < static_cast<float>(dropout_rate)) {
       mask_data[i] = T(0);
       output_data[i] = T(0);
     } else {
@@ -151,14 +152,14 @@ void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, 
   }
 }
 
-template void compute_dropout_forward<float>(const float *input_data, float *output_data,
-                                             float *mask_data, size_t batch_size, size_t channels,
-                                             size_t spatial_size, float dropout_rate,
-                                             cudaStream_t stream);
-template void compute_dropout_forward<double>(const double *input_data, double *output_data,
-                                              double *mask_data, size_t batch_size, size_t channels,
-                                              size_t spatial_size, double dropout_rate,
-                                              cudaStream_t stream);
+#define INSTANTIATE_DROPOUT(T)                                                                     \
+  template void compute_dropout_forward<T>(                                                        \
+      const T *input_data, T *output_data, T *mask_data, size_t batch_size, size_t channels,       \
+      size_t spatial_size, T dropout_rate, cudaStream_t stream);
+INSTANTIATE_DROPOUT(fp16)
+INSTANTIATE_DROPOUT(float)
+INSTANTIATE_DROPOUT(double)
+#undef INSTANTIATE_DROPOUT
 
 } // namespace dropout
 } // namespace cuda

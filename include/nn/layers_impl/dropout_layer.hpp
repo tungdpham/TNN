@@ -17,34 +17,33 @@
 
 namespace tnn {
 
-template <typename T = float> class DropoutLayer : public StatelessLayer<T> {
+class DropoutLayer : public StatelessLayer {
 private:
-  T dropout_rate_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_masks_;
+  float dropout_rate_;
+  std::unordered_map<size_t, Tensor> micro_batch_masks_;
   mutable std::mt19937 generator_;
 
-  std::unique_ptr<Task> compute_dropout_forward(const Tensor<T> &input, Tensor<T> &output,
-                                                Tensor<T> &mask);
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> compute_dropout_forward(const Tensor &input, Tensor &output, Tensor &mask,
+                                                const std::string &flow_id) const;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
-  explicit DropoutLayer(T dropout_rate, const std::string &name = "dropout");
+  explicit DropoutLayer(float dropout_rate, const std::string &name = "dropout");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
   std::string type() const override;
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/dropout_layer.tpp"

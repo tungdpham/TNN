@@ -9,80 +9,9 @@
 
 namespace tnn {
 
-template <typename T> class device_ptr {
-  static_assert(std::is_trivially_copyable_v<T>, "Type T must be trivially copyable.");
-
+class device_ptr {
 public:
-  // Constructors
-  explicit device_ptr(T *ptr = nullptr, const Device *device = nullptr)
-      : ptr_(ptr), device_(device) {}
-
-  device_ptr(device_ptr &&other) noexcept : ptr_(other.ptr_), device_(other.device_) {
-    other.ptr_ = nullptr;
-  }
-
-  device_ptr(const device_ptr &) = delete;
-
-  void reset() {
-    if (ptr_) {
-      if (device_) {
-        device_->deallocateMemory(static_cast<void *>(ptr_));
-      } else {
-        throw std::runtime_error(
-            "Attempting to deallocate device memory without associated device.");
-      }
-    }
-    ptr_ = nullptr;
-    device_ = nullptr;
-  }
-
-  ~device_ptr() { reset(); }
-
-  device_ptr &operator=(device_ptr &&other) noexcept {
-    if (this != &other) {
-      reset();
-
-      ptr_ = other.ptr_;
-      device_ = other.device_;
-
-      other.ptr_ = nullptr;
-    }
-    return *this;
-  }
-
-  device_ptr &operator=(const device_ptr &) = delete;
-
-  T *release() {
-    T *temp = ptr_;
-    ptr_ = nullptr;
-    device_ = nullptr;
-    return temp;
-  }
-
-  T *get() const { return ptr_; }
-  const Device *getDevice() const { return device_; }
-
-  DeviceType device_type() const {
-    if (!device_) {
-      throw std::runtime_error("No associated device to get device type from.");
-    }
-    return device_->device_type();
-  }
-
-  explicit operator bool() const { return ptr_ != nullptr; }
-
-private:
-  T *ptr_;
-  const Device *device_;
-};
-
-// template specialization for arrays
-template <typename T> class device_ptr<T[]> {
-  static_assert(std::is_trivially_copyable_v<T>,
-                "Type T must be trivially copyable for array elements.");
-
-public:
-  explicit device_ptr(T *ptr = nullptr, const Device *device = nullptr, size_t count = 0,
+  explicit device_ptr(void *ptr = nullptr, const Device *device = nullptr, size_t count = 0,
                       size_t alignment = 32)
       : ptr_(ptr), device_(device), size_(count), capacity_(count), alignment_(alignment) {}
 
@@ -95,18 +24,14 @@ public:
     other.ptr_ = nullptr;
     other.size_ = 0;
     other.capacity_ = 0;
+    other.alignment_ = 32;
   }
 
   device_ptr(const device_ptr &) = delete;
 
-  void reset() {
-    if (ptr_) {
-      if (device_) {
-        device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
-      } else {
-        throw std::runtime_error(
-            "Attempting to deallocate device memory without associated device.");
-      }
+  void reset() noexcept {
+    if (ptr_ && device_) {
+      device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
     }
     ptr_ = nullptr;
     size_ = 0;
@@ -140,16 +65,16 @@ public:
 
   device_ptr &operator=(const device_ptr &) = delete;
 
-  T *release() {
-    T *temp = ptr_;
+  void *release() {
+    void *temp = ptr_;
     ptr_ = nullptr;
     size_ = 0;
     capacity_ = 0;
     return temp;
   }
 
-  T *get() { return ptr_; }
-  const T *get() const { return ptr_; }
+  template <typename T> T *get() { return static_cast<T *>(ptr_); }
+  template <typename T> const T *get() const { return static_cast<const T *>(ptr_); }
 
   const Device *getDevice() const { return device_; }
 
@@ -164,10 +89,10 @@ public:
 
   size_t capacity() const { return capacity_; }
 
-  size_t getAlignment() const { return alignment_; }
+  size_t alignment() const { return alignment_; }
 
   void resize(size_t new_size) {
-    T *new_ptr = static_cast<T *>(device_->allocateAlignedMemory(sizeof(T) * new_size, alignment_));
+    void *new_ptr = device_->allocateAlignedMemory(new_size, alignment_);
     if (!new_ptr) {
       throw std::runtime_error("device_ptr: Bad Alloc");
     }
@@ -192,56 +117,46 @@ public:
   explicit operator bool() const { return ptr_ != nullptr; }
 
 private:
-  T *ptr_;
+  void *ptr_;
   const Device *device_;
   size_t size_;
   size_t capacity_;
   size_t alignment_;
 };
 
-template <typename T> device_ptr<T> make_ptr(Device *device) {
-  static_assert(std::is_trivially_copyable_v<T>, "Type T must be all device-compatible.");
-
-  if (!device) {
-    throw std::invalid_argument("Device cannot be null when making pointer");
-  }
-
-  T *ptr = static_cast<T *>(device->allocateMemory(sizeof(T)));
-  if (!ptr) {
-    throw std::runtime_error("Bad Alloc");
-  }
-
-  return device_ptr<T>(ptr, device);
-}
-
 template <typename T>
-typename std::enable_if<std::is_array<T>::value, device_ptr<T>>::type
-make_array_ptr(const Device *device, size_t count, size_t alignment = 64) {
+device_ptr make_dptr_t(const Device *device, size_t count, size_t alignment = 64) {
   using ElementT = typename std::remove_extent<T>::type;
-
   static_assert(std::is_trivially_copyable_v<ElementT>,
                 "Array element type must be trivially copyable.");
-
   if (!device) {
     throw std::invalid_argument("Device cannot be null when making array pointer");
   }
-
   if (count == 0) {
-    return device_ptr<T>(nullptr, device, 0);
+    return device_ptr(nullptr, device, 0);
   }
-
-  ElementT *ptr =
-      static_cast<ElementT *>(device->allocateAlignedMemory(sizeof(ElementT) * count, alignment));
+  void *ptr = device->allocateAlignedMemory(sizeof(ElementT) * count, alignment);
   if (!ptr) {
     throw std::runtime_error("Bad Alloc");
   }
-
-  return device_ptr<T>(ptr, device, count);
+  return device_ptr(ptr, device, count);
 }
 
-template <typename T>
-typename std::enable_if<std::is_array<T>::value, device_ptr<T>>::type
-to_cpu(const device_ptr<T> &src_ptr) {
+inline device_ptr make_dptr(const Device *device, size_t byte_size, size_t alignment = 64) {
+  if (!device) {
+    throw std::invalid_argument("Device cannot be null when making device pointer");
+  }
+  if (byte_size == 0)
+    return device_ptr(nullptr, device, 0);
+
+  void *ptr = device->allocateAlignedMemory(byte_size, alignment);
+  if (!ptr) {
+    throw std::runtime_error("Bad Alloc");
+  }
+  return device_ptr(ptr, device, byte_size);
+}
+
+template <typename T> device_ptr to_cpu(const device_ptr &src_ptr) {
   if (!src_ptr.getDevice()) {
     throw std::runtime_error("No associated device to perform to_cpu()");
   }
@@ -249,22 +164,20 @@ to_cpu(const device_ptr<T> &src_ptr) {
   if (src_ptr.device_type() == DeviceType::CPU) {
     // Already on CPU, create a copy
     const Device &cpu_device = getCPU();
-    auto cpu_ptr = make_array_ptr<T>(&cpu_device, src_ptr.getCount(), src_ptr.getAlignment());
-    cpu_device.copyToHost(cpu_ptr.get(), src_ptr.get(),
-                          sizeof(typename std::remove_extent<T>::type) * src_ptr.getCount());
+    auto cpu_ptr = make_dptr_t<T>(&cpu_device, src_ptr.size(), src_ptr.alignment());
+    cpu_device.copyToHost(cpu_ptr.template get<T>(), src_ptr.template get<T>(),
+                          sizeof(typename std::remove_extent<T>::type) * src_ptr.size());
     return cpu_ptr;
   }
 
   const Device &cpu_device = getCPU();
-  auto cpu_ptr = make_array_ptr<T>(&cpu_device, src_ptr.getCount(), src_ptr.getAlignment());
-  cpu_device.copyToHost(cpu_ptr.get(), src_ptr.get(),
-                        sizeof(typename std::remove_extent<T>::type) * src_ptr.getCount());
+  auto cpu_ptr = make_dptr_t<T>(&cpu_device, src_ptr.size(), src_ptr.alignment());
+  cpu_device.copyToHost(cpu_ptr.template get<T>(), src_ptr.template get<T>(),
+                        sizeof(typename std::remove_extent<T>::type) * src_ptr.size());
   return cpu_ptr;
 }
 
-template <typename T>
-typename std::enable_if<std::is_array<T>::value, device_ptr<T>>::type
-to_gpu(const device_ptr<T> &src_ptr, int gpu_id = 0) {
+template <typename T> device_ptr to_gpu(const device_ptr &src_ptr, int gpu_id = 0) {
   if (!src_ptr.getDevice()) {
     throw std::runtime_error("No associated device to perform to_gpu()");
   }
@@ -272,16 +185,16 @@ to_gpu(const device_ptr<T> &src_ptr, int gpu_id = 0) {
   if (src_ptr.device_type() == DeviceType::GPU) {
     // Already on GPU, create a copy
     const Device &gpu_device = getGPU(gpu_id);
-    auto gpu_ptr = make_array_ptr<T>(&gpu_device, src_ptr.getCount(), src_ptr.getAlignment());
-    gpu_device.copyToDevice(gpu_ptr.get(), src_ptr.get(),
-                            sizeof(typename std::remove_extent<T>::type) * src_ptr.getCount());
+    auto gpu_ptr = make_dptr_t<T>(&gpu_device, src_ptr.size(), src_ptr.alignment());
+    gpu_device.copyToDevice(gpu_ptr.template get<T>(), src_ptr.template get<T>(),
+                            sizeof(typename std::remove_extent<T>::type) * src_ptr.size());
     return gpu_ptr;
   }
 
   const Device &gpu_device = getGPU(gpu_id);
-  auto gpu_ptr = make_array_ptr<T>(&gpu_device, src_ptr.getCount(), src_ptr.getAlignment());
-  gpu_device.copyToDevice(gpu_ptr.get(), src_ptr.get(),
-                          sizeof(typename std::remove_extent<T>::type) * src_ptr.getCount());
+  auto gpu_ptr = make_dptr_t<T>(&gpu_device, src_ptr.size(), src_ptr.alignment());
+  gpu_device.copyToDevice(gpu_ptr.template get<T>(), src_ptr.template get<T>(),
+                          sizeof(typename std::remove_extent<T>::type) * src_ptr.size());
   return gpu_ptr;
 }
 

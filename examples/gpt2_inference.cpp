@@ -5,7 +5,9 @@
 #include <vector>
 
 #include "data_loading/open_webtext_data_loader.hpp"
+#include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
+#include "tensor/tensor.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
@@ -30,19 +32,30 @@ int main(int argc, char **argv) {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 
-  auto model = Sequential<float>::from_file(model_path,
-                                            device_type == DeviceType::GPU ? &getGPU() : &getCPU());
+  // Create model using ExampleModels or load from file
+  Sequential model("gpt2");
+  const Device &device = device_type == DeviceType::GPU ? getGPU() : getCPU();
+  // Try to load from file, otherwise create from ExampleModels
+  try {
+    model.load_from_file(model_path, device);
+  } catch (const std::exception &e) {
+    cerr << "Could not load from file, trying ExampleModels: " << e.what() << endl;
+    auto layer_ptr = ExampleModels::create("gpt2");
+    model = std::move(*dynamic_cast<Sequential *>(layer_ptr.release()));
+    model.set_device(device);
+    model.init();
+  }
   model.set_training(false);
 
   size_t seq_len = 512;
 
-  OpenWebTextDataLoader<float> loader(seq_len);
+  OpenWebTextDataLoader loader(seq_len);
   if (!loader.load_data(data_path)) {
     cerr << "Could not load data for prompt from: " << data_path << endl;
     return 1;
   }
 
-  Tensor<float> raw_input, raw_target;
+  Tensor raw_input, raw_target;
   loader.shuffle();
   if (!loader.get_batch(1, raw_input, raw_target)) {
     cerr << "Failed to get a batch from data loader." << endl;
@@ -52,7 +65,7 @@ int main(int argc, char **argv) {
   size_t prompt_len = 30;
   vector<int> current_tokens;
   for (size_t i = 0; i < prompt_len; ++i) {
-    current_tokens.push_back(static_cast<int>(raw_input(0, i)));
+    current_tokens.push_back(static_cast<int>(raw_input->at<float>({0, i})));
   }
 
   cout << "\n[PROMPT]: " << tokenizer.decode(current_tokens) << endl;
@@ -60,26 +73,27 @@ int main(int argc, char **argv) {
 
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
-    Tensor<float> model_input({1, seq_len});
-    std::fill(model_input.data(), model_input.data() + model_input.size(), 0.0f);
+    Tensor model_input = make_tensor<float>({1, seq_len});
+    std::fill(model_input->data_as<float>(), model_input->data_as<float>() + model_input->size(),
+              0.0f);
 
     size_t tokens_to_use = std::min(current_tokens.size(), seq_len);
     size_t start_token_idx = current_tokens.size() - tokens_to_use;
 
     for (size_t j = 0; j < tokens_to_use; ++j) {
-      model_input(0, j) = static_cast<float>(current_tokens[start_token_idx + j]);
+      model_input->at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
     }
 
-    Tensor<float> output;
+    Tensor output;
     model.forward(model_input, output);
 
     // Transfer output to CPU for sampling
-    Tensor<float> cpu_output = output.to_cpu();
+    Tensor cpu_output = output->to_cpu();
 
     size_t vocab_size = tokenizer.vocab_size();
     size_t last_step_idx = tokens_to_use - 1;
 
-    const float *logits = cpu_output.data() + (last_step_idx * vocab_size);
+    const float *logits = cpu_output->data_as<float>() + (last_step_idx * vocab_size);
 
     // Check for NaNs
     if (std::isnan(logits[0])) {

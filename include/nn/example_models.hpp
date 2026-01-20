@@ -6,21 +6,29 @@
  */
 #pragma once
 
+#include "nn/layers_impl/base_layer.hpp"
 #include "nn/sequential.hpp"
+#include <memory>
 
 namespace tnn {
 
-template <typename T = float> class ExampleModels {
+class ExampleModels {
 private:
-  static std::unordered_map<std::string, Sequential<T>> creators_;
+  static std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(DType_t)>> creators_;
 
 public:
-  static void register_model(const Sequential<T> &model) { creators_[model.name()] = model; }
+  static void register_model(const Sequential &model) {
+    auto model_clone = std::shared_ptr<Layer>(model.clone());
+    std::string model_name = model.name();
+    creators_[model_name] = [model_ptr = std::move(model_clone)](DType_t) {
+      return model_ptr->clone();
+    };
+  }
 
-  static Sequential<T> create(const std::string &name) {
+  static std::unique_ptr<Layer> create(const std::string &name, DType_t io_dtype_ = DType_t::FP32) {
     auto it = creators_.find(name);
     if (it != creators_.end()) {
-      return it->second;
+      return it->second(io_dtype_);
     }
     throw std::invalid_argument("Unknown model: " + name);
   }

@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "device/device_ptr.hpp"
 #include "device/task.hpp"
 #include "stateless_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -18,7 +17,7 @@
 
 namespace tnn {
 
-template <typename T = float> class MaxPool2DLayer : public StatelessLayer<T> {
+class MaxPool2DLayer : public StatelessLayer {
 private:
   size_t pool_h_;
   size_t pool_w_;
@@ -27,28 +26,40 @@ private:
   size_t pad_h_;
   size_t pad_w_;
 
-  std::unordered_map<size_t, device_ptr<size_t[]>> micro_batch_mask_indices_;
+  std::unordered_map<size_t, Tensor> micro_batch_mask_indices_;
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
 
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  std::unique_ptr<Task> compute_max_pool_forward(const device_ptr<T[]> &input_data,
-                                                 device_ptr<T[]> &output_data, size_t batch_size,
-                                                 size_t channels, size_t input_h, size_t input_w,
-                                                 size_t output_h, size_t output_w,
-                                                 device_ptr<size_t[]> &mask_indices,
+  template <typename Compute_T>
+  std::unique_ptr<Task>
+  compute_max_pool_forward_impl(const Tensor &input_data, Tensor &output_data, size_t batch_size,
+                                size_t height, size_t width, size_t channels, size_t output_h,
+                                size_t output_w, Tensor &mask_indices,
+                                const std::string &flow_id) const;
+
+  std::unique_ptr<Task> compute_max_pool_forward(const Tensor &input_data, Tensor &output_data,
+                                                 size_t batch_size, size_t height, size_t width,
+                                                 size_t channels, size_t output_h, size_t output_w,
+                                                 Tensor &mask_indices,
                                                  const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_max_pool_backward(const device_ptr<T[]> &gradient_data,
-                                                  device_ptr<T[]> &grad_input_data,
-                                                  size_t batch_size, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const device_ptr<size_t[]> &mask_indices,
+  template <typename Compute_T>
+  std::unique_ptr<Task> compute_max_pool_backward_impl(const Tensor &gradient_data,
+                                                       Tensor &grad_input_data, size_t batch_size,
+                                                       size_t channels, size_t output_h,
+                                                       size_t output_w, const Tensor &mask_indices,
+                                                       const std::string &flow_id) const;
+
+  std::unique_ptr<Task> compute_max_pool_backward(const Tensor &gradient_data,
+                                                  Tensor &grad_input_data, size_t batch_size,
+                                                  size_t channels, size_t output_h, size_t output_w,
+                                                  const Tensor &mask_indices,
                                                   const std::string &flow_id) const;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
@@ -60,13 +71,11 @@ public:
 
   std::string type() const override;
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/maxpool2d_layer.tpp"

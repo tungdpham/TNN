@@ -13,7 +13,7 @@
 namespace tnn {
 namespace cuda {
 template <typename T>
-void im2col(const Tensor<T> &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
+void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
             size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
             cudaStream_t stream = 0);
 
@@ -23,30 +23,26 @@ void col2im(const T *col_data, T *result_data, size_t batch_size, size_t channel
             size_t pad_h, size_t pad_w, cudaStream_t stream = 0);
 
 template <typename T>
-void pad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w, T value = T(0),
+void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T value = T(0),
          cudaStream_t stream = 0);
 
 template <typename T>
-void unpad(const Tensor<T> &input, Tensor<T> &result, size_t pad_h, size_t pad_w,
+void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
            cudaStream_t stream = 0);
 
 template <typename T>
-void crop(const Tensor<T> &input, Tensor<T> &result, const size_t start_h, const size_t start_w,
+void crop(const Tensor &input, Tensor &result, const size_t start_h, const size_t start_w,
           const size_t end_h, const size_t end_w, cudaStream_t stream = 0);
 
 template <typename T>
-void slice_batch(const Tensor<T> &input, Tensor<T> &result, size_t start_batch, size_t end_batch,
+void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t end_batch,
                  cudaStream_t stream = 0);
 
 template <typename T>
-void slice_channels(const Tensor<T> &input, Tensor<T> &result, size_t start_ch, size_t end_ch,
-                    cudaStream_t stream = 0);
-
-template <typename T>
-void split(const Tensor<T> &input, std::vector<Tensor<T>> &results, size_t num_splits,
+void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
            cudaStream_t stream = 0);
 
-template <typename T> void apply_softmax(Tensor<T> &input, cudaStream_t stream = 0);
+template <typename T> void apply_softmax(Tensor &input, cudaStream_t stream = 0);
 
 } // namespace cuda
 

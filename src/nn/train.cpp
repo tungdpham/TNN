@@ -7,6 +7,7 @@
 
 #include "nn/train.hpp"
 #include "nn/accuracy.hpp"
+#include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"
@@ -64,38 +65,42 @@ void TrainingConfig::load_from_env() {
   device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
 }
 
-template <typename T>
-Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimizer<T> &optimizer,
-                   Loss<T> &criterion, const TrainingConfig &config) {
+Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &optimizer,
+                   Loss &criterion, const TrainingConfig &config) {
   auto train_start = std::chrono::high_resolution_clock::now();
-  Tensor<T> batch_data, batch_labels;
+  Tensor batch_data = make_tensor_from_dtype(config.dtype),
+         batch_labels = make_tensor_from_dtype(config.dtype);
   std::cout << "Starting training epoch..." << std::endl;
   model.set_training(true);
-  train_loader.shuffle();
+  // train_loader.shuffle();
   train_loader.reset();
 
-  double total_loss = 0.0;
+  float total_loss = 0.0;
   double total_corrects = 0.0;
   size_t cur_samples = 0;
   int num_batches = 0;
   const Device *model_device = model.get_device();
 
-  Tensor<T> loss_gradient;
-  Tensor<T> predictions, backward_output(model_device);
-  std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
-  while (train_loader.get_next_batch(batch_data, batch_labels) &&
+  Tensor device_labels = make_tensor_from_dtype(config.dtype, {1}, model_device);
+  Tensor loss_gradient = make_tensor_from_dtype(config.dtype, {1}, model_device);
+  Tensor predictions = make_tensor_from_dtype(config.dtype, {1}, model_device),
+         backward_output = make_tensor_from_dtype(config.dtype, {1}, model_device);
+
+  std::cout << "Training batches: " << train_loader.size() << std::endl;
+  while (train_loader.get_batch(config.batch_size, batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     ++num_batches;
-    cur_samples += batch_data.dimension(0);
+    cur_samples += batch_data->dimension(0);
+    device_labels = batch_labels->to_device(model_device);
     model.forward(batch_data, predictions);
 
-    T loss;
-    criterion.compute_loss(predictions, batch_labels, loss);
+    float loss;
+    criterion.compute_loss(predictions, device_labels, loss);
 
     total_loss += loss;
-    total_corrects += compute_class_corrects(predictions, batch_labels);
+    total_corrects += compute_class_corrects(predictions, device_labels);
 
-    criterion.compute_gradient(predictions, batch_labels, loss_gradient);
+    criterion.compute_gradient(predictions, device_labels, loss_gradient);
 
     model.backward(loss_gradient, backward_output);
 
@@ -105,24 +110,20 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
 
     if (num_batches % config.progress_print_interval == 0) {
       if (model.is_profiling_enabled()) {
-        if (config.print_layer_profiling)
-          model.print_layers_profiling_info();
-        if (config.print_layer_memory_usage)
-          model.print_cache_memory_summary();
-        model.print_profiling_summary();
+        model.print_profiling_info();
       }
       std::cout << "Batch ID: " << num_batches << ", Batch's Loss: " << std::fixed
                 << std::setprecision(4) << loss << ", Cumulative Accuracy: " << std::setprecision(2)
                 << (total_corrects * 100.0 / cur_samples) << "%" << std::endl;
     }
     if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-      model.clear_profiling();
+      model.reset_profiling_info();
     }
   }
   std::cout << std::endl;
 
-  const T avg_train_loss = static_cast<T>(total_loss / num_batches);
-  const T avg_train_accuracy = static_cast<T>(total_corrects / cur_samples);
+  const double avg_train_loss = total_loss / num_batches;
+  const double avg_train_accuracy = total_corrects / cur_samples;
 
   auto train_end = std::chrono::high_resolution_clock::now();
   auto train_epoch_duration =
@@ -131,9 +132,10 @@ Result train_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader, Optimi
   return {avg_train_loss, avg_train_accuracy};
 }
 
-template <typename T>
-Result validate_model(Sequential<T> &model, BaseDataLoader<T> &val_loader, Loss<T> &criterion) {
-  Tensor<T> batch_data, batch_labels;
+Result validate_model(Sequential &model, BaseDataLoader &val_loader, Loss &criterion,
+                      const TrainingConfig &config) {
+  Tensor batch_data = make_tensor_from_dtype(config.dtype),
+         batch_labels = make_tensor_from_dtype(config.dtype);
 
   model.set_training(false);
   val_loader.reset();
@@ -144,33 +146,32 @@ Result validate_model(Sequential<T> &model, BaseDataLoader<T> &val_loader, Loss<
   int val_batches = 0;
   const Device *model_device = model.get_device();
 
-  Tensor<T> device_batch_data(model_device), device_batch_labels(model_device);
-  Tensor<T> predictions(model_device);
-  while (val_loader.get_next_batch(batch_data, batch_labels)) {
-    model.forward(batch_data.to_device(model_device), predictions);
+  Tensor device_batch_labels = make_tensor_from_dtype(config.dtype, {}, model_device);
+  Tensor predictions = make_tensor_from_dtype(config.dtype, {}, model_device);
 
-    device_batch_labels = batch_labels.to_device(model_device);
-    T loss;
+  while (val_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
+    model.forward(batch_data, predictions);
+
+    device_batch_labels = batch_labels->to_device(model_device);
+    float loss;
     criterion.compute_loss(predictions, device_batch_labels, loss);
     val_loss += loss;
     val_corrects += compute_class_corrects(predictions, device_batch_labels);
     ++val_batches;
   }
 
-  const T avg_val_loss = static_cast<T>(val_loss / val_batches);
-  const T avg_val_accuracy = static_cast<T>(val_corrects / val_loader.size());
+  const double avg_val_loss = val_loss / val_batches;
+  const double avg_val_accuracy = val_corrects / val_loader.size();
 
   return {avg_val_loss, avg_val_accuracy};
 }
 
-template <typename T>
-void train_val(Sequential<T> &model, BaseDataLoader<T> &train_loader, BaseDataLoader<T> &val_loader,
-               const std::unique_ptr<Optimizer<T>> &optimizer,
-               const std::unique_ptr<Loss<T>> &criterion,
-               const std::unique_ptr<Scheduler<T>> &scheduler, const TrainingConfig &config) {
+void train_val(Sequential &model, BaseDataLoader &train_loader, BaseDataLoader &val_loader,
+               std::unique_ptr<Optimizer> &optimizer, const std::unique_ptr<Loss> &criterion,
+               const std::unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   ThreadWrapper thread_wrapper({config.num_threads});
 
-  T best_val_accuracy = 0.0;
+  double best_val_accuracy = 0.0;
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -181,15 +182,21 @@ void train_val(Sequential<T> &model, BaseDataLoader<T> &train_loader, BaseDataLo
           train_epoch(model, train_loader, *optimizer, *criterion, config);
 
       // validation phrase
-      auto [avg_val_loss, avg_val_accuracy] = validate_model(model, val_loader, *criterion);
+      auto [avg_val_loss, avg_val_accuracy] = validate_model(model, val_loader, *criterion, config);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
         std::cout << "New best validation accuracy: " << std::fixed << std::setprecision(2)
                   << best_val_accuracy * 100.0 << "%" << std::endl;
         try {
-          model.save_to_file("model_snapshots/" + model.name());
-          std::cout << "Model saved to " << "model_snapshots/" + model.name() << std::endl;
+          std::string filepath = "model_snapshots/" + model.name();
+          std::ofstream file(filepath, std::ios::binary);
+          if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath);
+          }
+          model.save_state(file);
+          file.close();
+          std::cout << "Model saved to " << filepath << std::endl;
         } catch (const std::exception &e) {
           std::cerr << "Error saving model: " << e.what() << std::endl;
         }
@@ -206,7 +213,7 @@ void train_val(Sequential<T> &model, BaseDataLoader<T> &train_loader, BaseDataLo
       std::cout << std::string(60, '=') << std::endl;
 
       if (model.is_profiling_enabled()) {
-        model.clear_profiling();
+        model.reset_profiling_info();
       }
 
       if (scheduler) {
@@ -222,36 +229,32 @@ void train_val(Sequential<T> &model, BaseDataLoader<T> &train_loader, BaseDataLo
   });
 }
 
-template <typename T>
-void train_step(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                const std::unique_ptr<Optimizer<T>> &optimizer,
-                const std::unique_ptr<Loss<T>> &criterion,
-                const std::unique_ptr<Scheduler<T>> &scheduler, const TrainingConfig &config) {
+void train_step(Sequential &model, BaseDataLoader &train_loader,
+                const std::unique_ptr<Optimizer> &optimizer, const std::unique_ptr<Loss> &criterion,
+                const std::unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   ThreadWrapper thread_wrapper({config.num_threads});
 
-  Tensor<T> batch_data, batch_labels;
+  Tensor batch_data, batch_labels;
   std::cout << "Starting training epoch..." << std::endl;
   model.set_training(true);
   train_loader.shuffle();
   train_loader.reset();
 
-  double total_loss = 0.0;
   const Device *model_device = model.get_device();
 
-  Tensor<T> loss_gradient;
-  Tensor<T> predictions, backward_output(model_device);
+  Tensor loss_gradient = make_tensor<float>({1}, model_device);
+  Tensor predictions = make_tensor<float>({1}, model_device);
+  Tensor backward_output = make_tensor<float>({1}, model_device);
 
   thread_wrapper.execute([&]() -> void {
     for (int steps = 0; steps < config.max_steps; ++steps) {
-      if (!train_loader.get_next_batch(batch_data, batch_labels)) {
+      if (!train_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
         break;
       }
       model.forward(batch_data, predictions);
 
-      T loss;
+      float loss;
       criterion->compute_loss(predictions, batch_labels, loss);
-
-      total_loss += loss;
 
       criterion->compute_gradient(predictions, batch_labels, loss_gradient);
 
@@ -262,40 +265,37 @@ void train_step(Sequential<T> &model, BaseDataLoader<T> &train_loader,
 
       if (steps % config.progress_print_interval == 0) {
         if (model.is_profiling_enabled()) {
-          if (config.print_layer_profiling)
-            model.print_layers_profiling_info();
-          if (config.print_layer_memory_usage)
-            model.print_cache_memory_summary();
-          model.print_profiling_summary();
+          model.print_profiling_info();
         }
         std::cout << "Batch ID: " << steps << ", Batch's Loss: " << std::fixed
                   << std::setprecision(4) << loss << std::endl;
       }
       if (model.is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-        model.clear_profiling();
+        model.reset_profiling_info();
       }
     }
 
     // save model
     try {
-      model.save_to_file("model_snapshots/" + model.name());
-      std::cout << "Model saved to " << "model_snapshots/" + model.name() << std::endl;
+      std::string filepath = "model_snapshots/" + model.name();
+      std::ofstream file(filepath, std::ios::binary);
+      if (!file.is_open()) {
+        throw std::runtime_error("Failed to open file: " + filepath);
+      }
+      model.save_state(file);
+      file.close();
+      std::cout << "Model saved to " << filepath << std::endl;
     } catch (const std::exception &e) {
       std::cerr << "Error saving model: " << e.what() << std::endl;
     }
   });
 }
 
-template <typename T>
-void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                 BaseDataLoader<T> &val_loader, std::unique_ptr<Optimizer<T>> &optimizer,
-                 std::unique_ptr<Loss<T>> &criterion, std::unique_ptr<Scheduler<T>> &scheduler,
-                 const TrainingConfig &config) {
+void train_model(Sequential &model, BaseDataLoader &train_loader, BaseDataLoader &val_loader,
+                 std::unique_ptr<Optimizer> &optimizer, std::unique_ptr<Loss> &criterion,
+                 std::unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   optimizer->attach(model.parameters(), model.gradients());
-  Tensor<T> batch_data, batch_labels;
-
-  train_loader.prepare_batches(config.batch_size);
-  val_loader.prepare_batches(config.batch_size);
+  Tensor batch_data, batch_labels;
 
   if (config.profiler_type == ProfilerType::NONE) {
     model.enable_profiling(false);
@@ -304,8 +304,8 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
     model.enable_profiling(true);
   }
 
-  std::cout << "Training batches: " << train_loader.num_batches() << std::endl;
-  std::cout << "Validation batches: " << val_loader.num_batches() << std::endl;
+  std::cout << "Training batches: " << train_loader.size() << std::endl;
+  std::cout << "Validation batches: " << val_loader.size() << std::endl;
 
   std::vector<size_t> data_shape = train_loader.get_data_shape();
   data_shape.insert(data_shape.begin(), config.batch_size); // add batch dimension
@@ -319,19 +319,5 @@ void train_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
     train_step(model, train_loader, optimizer, criterion, scheduler, config);
   }
 }
-
-template Result train_epoch<float>(Sequential<float> &model, BaseDataLoader<float> &train_loader,
-                                   Optimizer<float> &optimizer, Loss<float> &criterion,
-                                   const TrainingConfig &config);
-
-template Result validate_model<float>(Sequential<float> &model, BaseDataLoader<float> &val_loader,
-                                      Loss<float> &criterion);
-
-template void train_model<float>(Sequential<float> &model, BaseDataLoader<float> &train_loader,
-                                 BaseDataLoader<float> &val_loader,
-                                 std::unique_ptr<Optimizer<float>> &optimizer,
-                                 std::unique_ptr<Loss<float>> &criterion,
-                                 std::unique_ptr<Scheduler<float>> &scheduler,
-                                 const TrainingConfig &config);
 
 } // namespace tnn

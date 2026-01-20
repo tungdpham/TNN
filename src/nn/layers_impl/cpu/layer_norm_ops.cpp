@@ -1,6 +1,8 @@
 #include "nn/layers_impl/cpu/layer_norm_ops.hpp"
+
+#include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 #include <cmath>
-#include <vector>
 
 namespace tnn {
 namespace cpu {
@@ -19,14 +21,14 @@ void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta
       T val = input[base_idx + c];
       sum += val;
     }
-    T mean = sum / channels;
+    T mean = sum / static_cast<T>(channels);
 
     for (size_t c = 0; c < channels; ++c) {
       T val = input[base_idx + c];
       sq_sum += (val - mean) * (val - mean);
     }
-    T var = sq_sum / channels;
-    T inv_std = 1.0 / std::sqrt(var + epsilon);
+    T var = sq_sum / static_cast<T>(channels);
+    T inv_std = T(1) / static_cast<T>(std::sqrt(static_cast<double>(var + epsilon)));
 
     for (size_t c = 0; c < channels; ++c) {
       size_t idx = base_idx + c;
@@ -55,13 +57,13 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
       T val = input[base_idx + c];
       sum += val;
     }
-    T mean = sum / channels;
+    T mean = sum / static_cast<T>(channels);
     for (size_t c = 0; c < channels; ++c) {
       T val = input[base_idx + c];
       sq_sum += (val - mean) * (val - mean);
     }
-    T var = sq_sum / channels;
-    T inv_std = 1.0 / std::sqrt(var + epsilon);
+    T var = sq_sum / static_cast<T>(channels);
+    T inv_std = T(1) / static_cast<T>(std::sqrt(static_cast<double>(var + epsilon)));
 
     T sum_grad_normalized = 0;
     T sum_grad_gamma_normalized = 0;
@@ -83,7 +85,7 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
       sum_grad_gamma_normalized += dx_hat;
     }
 
-    T factor = inv_std / channels;
+    T factor = inv_std / static_cast<T>(channels);
     for (size_t c = 0; c < channels; ++c) {
       size_t idx = base_idx + c;
       T val = input[idx];
@@ -92,27 +94,23 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
       T go = grad_output[idx];
       T dx_hat = go * g;
 
-      grad_input[idx] = factor * (channels * dx_hat - sum_grad_gamma_normalized -
+      grad_input[idx] = factor * (static_cast<T>(channels) * dx_hat - sum_grad_gamma_normalized -
                                   normalized * sum_grad_normalized);
     }
   }
 }
 
-template void layer_norm_forward<float>(const float *input, float *output, const float *gamma,
-                                        const float *beta, size_t batch_size, size_t channels,
-                                        float epsilon);
-template void layer_norm_forward<double>(const double *input, double *output, const double *gamma,
-                                         const double *beta, size_t batch_size, size_t channels,
-                                         double epsilon);
-
-template void layer_norm_backward<float>(const float *grad_output, const float *input,
-                                         const float *gamma, float *grad_input, float *grad_gamma,
-                                         float *grad_beta, size_t batch_size, size_t channels,
-                                         float epsilon);
-template void layer_norm_backward<double>(const double *grad_output, const double *input,
-                                          const double *gamma, double *grad_input,
-                                          double *grad_gamma, double *grad_beta, size_t batch_size,
-                                          size_t channels, double epsilon);
+#define INSTANTIATE_LAYER_NORM(T)                                                                  \
+  template void layer_norm_forward<T>(const T *input, T *output, const T *gamma, const T *beta,    \
+                                      size_t batch_size, size_t channels, T epsilon);              \
+                                                                                                   \
+  template void layer_norm_backward<T>(const T *grad_output, const T *input, const T *gamma,       \
+                                       T *grad_input, T *grad_gamma, T *grad_beta,                 \
+                                       size_t batch_size, size_t channels, T epsilon);
+INSTANTIATE_LAYER_NORM(fp16)
+INSTANTIATE_LAYER_NORM(float)
+INSTANTIATE_LAYER_NORM(double)
+#undef INSTANTIATE_LAYER_NORM
 
 } // namespace layer_norm
 } // namespace cpu

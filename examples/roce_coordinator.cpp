@@ -1,5 +1,5 @@
 #include "distributed/roce_coordinator.hpp"
-#include "data_loading/cifar100_data_loader.hpp"
+#include "data_loading/legacy/data_loader_factory.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/optimizers.hpp"
@@ -11,6 +11,7 @@
 #include <vector>
 
 using namespace tnn;
+using namespace tnn::legacy;
 using namespace std;
 
 struct Config {
@@ -79,7 +80,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  ExampleModels<float>::register_defaults();
+  ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -93,24 +94,25 @@ int main(int argc, char *argv[]) {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
 
-  Sequential<float> model;
+  Sequential model(model_name);
   if (!model_path.empty()) {
     cout << "Loading model from: " << model_path << endl;
-    model = Sequential<float>::from_file(model_path, &device); // automatically init
+    model.load_from_file(model_path, device);
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      model = ExampleModels<float>::create(model_name);
+      auto layer_ptr = ExampleModels::create(model_name);
+      model = std::move(*dynamic_cast<Sequential *>(layer_ptr.release()));
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
-      for (const auto &name : ExampleModels<float>::available_models()) {
+      for (const auto &name : ExampleModels::available_models()) {
         cout << name << "\n";
       }
       cout << endl;
       return 1;
     }
-    model.set_device(&device);
+    model.set_device(device);
     model.init();
   }
 
@@ -119,7 +121,7 @@ int main(int argc, char *argv[]) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
   string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
-  auto [train_loader, val_loader] = DataLoaderFactory<float>::create(dataset_name, dataset_path);
+  auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;
@@ -127,9 +129,9 @@ int main(int argc, char *argv[]) {
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
-  auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
-  float lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
-  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  float lr_initial = Env::get("LR_INITIAL", 0.001f);
+  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
@@ -146,7 +148,7 @@ int main(int argc, char *argv[]) {
                               coordinator_endpoint, endpoints);
 
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = std::make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
 
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();

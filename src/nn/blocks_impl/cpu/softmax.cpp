@@ -6,9 +6,9 @@
  */
 #include "nn/blocks_impl/cpu/softmax.hpp"
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 #include <algorithm>
 #include <cmath>
-#include <vector>
 
 namespace tnn {
 namespace cpu {
@@ -24,18 +24,17 @@ template <typename T> void softmax_forward(const T *input, T *output, size_t row
         max_val = row_in[j];
     }
 
-    // Safety check for all -INFINITY or NaN
-    if (std::isinf(max_val) && max_val < 0)
-      max_val = 0;
+    if (std::isinf(static_cast<float>(max_val)) && max_val < T(0))
+      max_val = T(0);
 
     T sum = 0;
     for (size_t j = 0; j < cols; ++j) {
-      T val = std::exp(row_in[j] - max_val);
+      T val = std::exp(static_cast<float>(row_in[j]) - static_cast<float>(max_val));
       row_out[j] = val;
       sum += val;
     }
 
-    T inv_sum = 1.0f / std::max(sum, static_cast<T>(1e-8));
+    T inv_sum = T(1.0) / std::max(sum, static_cast<T>(1e-8));
     for (size_t j = 0; j < cols; ++j) {
       row_out[j] *= inv_sum;
     }
@@ -62,14 +61,16 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
   });
 }
 
-template void softmax_forward<float>(const float *input, float *output, size_t rows, size_t cols);
-template void softmax_backward<float>(const float *output, const float *grad_output,
-                                      float *grad_input, size_t rows, size_t cols);
+#define INSTANTIATE_SOFTMAX(T)                                                                     \
+  template void softmax_forward<T>(const T *input, T *output, size_t rows, size_t cols);           \
+                                                                                                   \
+  template void softmax_backward<T>(const T *output, const T *grad_output, T *grad_input,          \
+                                    size_t rows, size_t cols);
 
-template void softmax_forward<double>(const double *input, double *output, size_t rows,
-                                      size_t cols);
-template void softmax_backward<double>(const double *output, const double *grad_output,
-                                       double *grad_input, size_t rows, size_t cols);
+INSTANTIATE_SOFTMAX(float)
+INSTANTIATE_SOFTMAX(double)
+INSTANTIATE_SOFTMAX(fp16)
+#undef INSTANTIATE_SOFTMAX
 
 } // namespace cpu
 } // namespace tnn

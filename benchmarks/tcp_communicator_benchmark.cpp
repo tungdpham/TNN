@@ -1,4 +1,3 @@
-#include "distributed/job_pool.hpp"
 #include "distributed/message.hpp"
 #include "distributed/tcp_communicator.hpp"
 #include "tensor/tensor.hpp"
@@ -153,11 +152,11 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   for (int i = 0; i < 4; i++) {
-    Tensor<float> tensor({128, 512, 16, 16});
-    tensor.fill_random_normal(0.0f, .2f, 12345);
-    PooledJob<float> job = JobPool<float>::instance().get_job(tensor.size());
-    job->micro_batch_id = 0;
-    job->data = std::move(tensor);
+    Tensor tensor = make_tensor<float>({128, 512, 16, 16});
+    tensor->fill_random_normal(0.0f, .2f, 12345);
+    Job job;
+    job.micro_batch_id = 0;
+    job.data = std::move(tensor);
     Message message(local_endpoint, peer_endpoint, CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message));
   }

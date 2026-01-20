@@ -11,16 +11,16 @@
 namespace tnn {
 enum JobType { FORWARD, BACKWARD };
 
-template <typename T = float> struct Job {
-  Tensor<T> data;
+struct Job {
+  Tensor data;
   size_t micro_batch_id;
 
   Job() : data(), micro_batch_id(0) {}
 
-  Job(Tensor<T> &&d, size_t mb_id) : data(std::move(d)), micro_batch_id(mb_id) {}
+  Job(Tensor &&d, size_t mb_id) : data(std::move(d)), micro_batch_id(mb_id) {}
 
   Job(const Job &other) {
-    data = other.data.clone();
+    data = other.data->clone();
     micro_batch_id = other.micro_batch_id;
   }
 
@@ -28,7 +28,7 @@ template <typename T = float> struct Job {
 
   Job &operator=(const Job &other) {
     if (this != &other) {
-      data = other.data.clone();
+      data = other.data->clone();
       micro_batch_id = other.micro_batch_id;
     }
     return *this;

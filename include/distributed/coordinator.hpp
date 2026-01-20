@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "distributed/job_pool.hpp"
 #include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -15,6 +14,7 @@
 #include "communicator.hpp"
 #include "partitioner/partitioner.hpp"
 #include "profiling/event.hpp"
+#include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 
 #include <atomic>
@@ -31,7 +31,7 @@ namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer)
+  Coordinator(Sequential model, std::unique_ptr<Optimizer> optimizer)
       : model_(std::move(model)), optimizer_(std::move(optimizer)) {}
 
   virtual ~Coordinator() {
@@ -49,7 +49,7 @@ public:
     initialize_topology();
   }
 
-  void set_partitioner(std::unique_ptr<Partitioner<float>> partitioner) {
+  void set_partitioner(std::unique_ptr<Partitioner> partitioner) {
     partitioner_ = std::move(partitioner);
   }
 
@@ -117,16 +117,16 @@ public:
    * @param input The input tensor to be processed.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void forward(Tensor<float> &&input, size_t microbatch_id) {
+  void forward(Tensor &&input, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &first_stage = this->stage_names_.front();
 
-    PooledJob<float> job = JobPool<float>::instance().get_job(input.size());
-    job->micro_batch_id = microbatch_id;
-    job->data = std::move(input);
+    Job job;
+    job.micro_batch_id = microbatch_id;
+    job.data = std::move(input);
     Message forward_msg("coordinator", first_stage, CommandType::FORWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(forward_msg));
@@ -137,16 +137,16 @@ public:
    * @param gradient The gradient tensor to be backpropagated.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void backward(Tensor<float> &&gradient, size_t microbatch_id) {
+  void backward(Tensor &&gradient, size_t microbatch_id) {
     if (this->stage_names_.empty()) {
       throw std::runtime_error("No stages available for processing");
     }
 
     const std::string &last_stage = this->stage_names_.back();
 
-    PooledJob<float> job = JobPool<float>::instance().get_job(gradient.size());
-    job->micro_batch_id = microbatch_id;
-    job->data = std::move(gradient);
+    Job job;
+    job.micro_batch_id = microbatch_id;
+    job.data = std::move(gradient);
     Message backward_msg("coordinator", last_stage, CommandType::BACKWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(backward_msg));
@@ -191,9 +191,9 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  float async_process_batch(std::vector<Tensor<float>> &microbatch_inputs,
-                            std::vector<Tensor<float>> &microbatch_labels,
-                            const std::unique_ptr<Loss<float>> &criterion) {
+  float async_process_batch(std::vector<Tensor> &microbatch_inputs,
+                            std::vector<Tensor> &microbatch_labels,
+                            const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
         microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
@@ -217,18 +217,18 @@ public:
           this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
-        if (forward_msg.has_type<PooledJob<float>>()) {
+        if (forward_msg.has_type<Job>()) {
           ++processed_microbatches_;
 
-          PooledJob<float> &job = forward_msg.get<PooledJob<float>>();
-          Tensor<float> &predictions = job->data;
-          Tensor<float> &targets = microbatch_labels[job->micro_batch_id];
+          Job &job = forward_msg.get<Job>();
+          Tensor &predictions = job.data;
+          Tensor &targets = microbatch_labels[job.micro_batch_id];
           float loss = 0.0f;
           criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
-          Tensor<float> gradient;
+          Tensor gradient;
           criterion->compute_gradient(predictions, targets, gradient);
-          this->backward(std::move(gradient), job->micro_batch_id);
+          this->backward(std::move(gradient), job.micro_batch_id);
         }
       }
     }
@@ -266,7 +266,7 @@ public:
    * @brief Requests all stages to start profiling.
    */
   void start_profiling() {
-    Profiler::instance().init_start_time(Clock::now());
+    GlobalProfiler::init_start_time(Clock::now());
     for (const auto &stage_name : this->stage_names_) {
       Message start_msg("coordinator", stage_name, CommandType::START_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(start_msg));
@@ -294,7 +294,7 @@ public:
     std::vector<Message> profiling_messages =
         this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
-    auto &aggregator = Profiler::instance();
+    auto &aggregator = GlobalProfiler::get_profiler();
     for (const auto &msg : profiling_messages) {
       if (msg.has_type<Profiler>()) {
         const Profiler &profiler = msg.get<Profiler>();
@@ -463,7 +463,7 @@ private:
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
       config.stage_id = this->stage_names_[i];
-      config.model_config = splitted_model[i].get_config();
+      config.model_config = splitted_model[i].get_config().to_json();
       config.optimizer_config = optimizer_->get_config().to_json();
       config.model_config["name"] = this->stage_names_[i];
       config.coordinator_endpoint = coordinator_endpoint_;
@@ -503,10 +503,10 @@ protected:
   bool should_stop_ = true;
 
   // Components of the coordinator
-  Sequential<float> model_;
-  std::unique_ptr<Optimizer<float>> optimizer_;
+  Sequential model_;
+  std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Communicator> coordinator_comm_;
-  std::unique_ptr<Partitioner<float>> partitioner_;
+  std::unique_ptr<Partitioner> partitioner_;
   Endpoint coordinator_endpoint_;
 
   std::atomic<bool> is_deployed_ = false;

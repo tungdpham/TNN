@@ -2,6 +2,7 @@
  * Copyright (c) 2025 Tung D. Pham
  */
 #include "nn/blocks_impl/cuda/causal_mask.hpp"
+#include "type/type.hpp"
 #include <cuda_runtime.h>
 
 namespace tnn {
@@ -57,10 +58,14 @@ template void fill_causal_mask<float>(float *mask, size_t batch_count, size_t L,
                                       cudaStream_t stream);
 template void fill_causal_mask<double>(double *mask, size_t batch_count, size_t L, double neg_inf,
                                        cudaStream_t stream);
+template void fill_causal_mask<fp16>(fp16 *mask, size_t batch_count, size_t L, fp16 neg_inf,
+                                     cudaStream_t stream);
 template void apply_causal_mask<float>(float *scores, size_t batch_count, size_t L, float neg_inf,
                                        cudaStream_t stream);
 template void apply_causal_mask<double>(double *scores, size_t batch_count, size_t L,
                                         double neg_inf, cudaStream_t stream);
+template void apply_causal_mask<fp16>(fp16 *scores, size_t batch_count, size_t L, fp16 neg_inf,
+                                      cudaStream_t stream);
 
 } // namespace cuda
 } // namespace tnn

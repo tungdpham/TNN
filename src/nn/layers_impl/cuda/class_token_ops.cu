@@ -5,6 +5,8 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cuda/class_token_ops.hpp"
+
+#include "type/type.hpp"
 #include <cstdio>
 #include <cuda_runtime.h>
 
@@ -104,19 +106,18 @@ void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, si
       <<<blocks, threads, 0, stream>>>(grad_output, grad_token, batch_size, seq_len, embed_dim);
 }
 
-template void class_token_forward<float>(const float *input, const float *token, float *output,
-                                         size_t batch_size, size_t seq_len, size_t embed_dim,
-                                         cudaStream_t stream);
-template void class_token_backward<float>(const float *grad_output, float *grad_input,
-                                          float *grad_token, size_t batch_size, size_t channels,
-                                          size_t spatial_size, cudaStream_t stream);
+#define INSTANTIATE_CLASS_TOKEN(T)                                                                 \
+  template void class_token_forward<T>(const T *input, const T *token, T *output,                  \
+                                       size_t batch_size, size_t seq_len, size_t embed_dim,        \
+                                       cudaStream_t stream);                                       \
+  template void class_token_backward<T>(const T *grad_output, T *grad_input, T *grad_token,        \
+                                        size_t batch_size, size_t seq_len, size_t embed_dim,       \
+                                        cudaStream_t stream);
 
-template void class_token_forward<double>(const double *input, const double *token, double *output,
-                                          size_t batch_size, size_t channels, size_t spatial_size,
-                                          cudaStream_t stream);
-template void class_token_backward<double>(const double *grad_output, double *grad_input,
-                                           double *grad_token, size_t batch_size, size_t channels,
-                                           size_t spatial_size, cudaStream_t stream);
+INSTANTIATE_CLASS_TOKEN(fp16)
+INSTANTIATE_CLASS_TOKEN(float)
+INSTANTIATE_CLASS_TOKEN(double)
+#undef INSTANTIATE_CLASS_TOKEN
 
 } // namespace cuda
 } // namespace tnn

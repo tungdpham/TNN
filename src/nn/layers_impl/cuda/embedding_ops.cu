@@ -5,6 +5,8 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cuda/embedding_ops.hpp"
+
+#include "type/type.hpp"
 #include <cuda_runtime.h>
 
 namespace tnn {
@@ -78,10 +80,16 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
       input_data, gradient_data, weight_grad_data, num_indices, vocab_size, embed_dim, padding_idx);
 }
 
-template void compute_embedding_forward<float>(const float *, const float *, float *, size_t,
-                                               size_t, size_t, size_t, cudaStream_t);
-template void compute_embedding_backward<float>(const float *, const float *, float *, size_t,
-                                                size_t, size_t, size_t, cudaStream_t);
+#define INSTANTIATE_EMBEDDING(T)                                                                   \
+  template void compute_embedding_forward<T>(const T *, const T *, T *, size_t, size_t, size_t,    \
+                                             size_t, cudaStream_t);                                \
+                                                                                                   \
+  template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t,   \
+                                              size_t, cudaStream_t);
+INSTANTIATE_EMBEDDING(fp16)
+INSTANTIATE_EMBEDDING(float)
+INSTANTIATE_EMBEDDING(double)
+#undef INSTANTIATE_EMBEDDING
 
 } // namespace embedding
 } // namespace cuda

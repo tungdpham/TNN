@@ -7,9 +7,50 @@
 
 namespace tnn {
 
-template <typename T = float> class OpenWebTextDataLoader : public BaseDataLoader<T> {
+class OpenWebTextDataLoader : public BaseDataLoader {
+private:
+  DType_t dtype_ = DType_t::FP32;
+  size_t context_length_;
+
+  template <typename T>
+  bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
+    if (this->current_index_ + batch_size > num_samples_) {
+      return false;
+    }
+
+    batch_data = make_tensor<T>({batch_size, context_length_});
+    batch_labels = make_tensor<T>({batch_size, context_length_, vocab_size_});
+
+    auto typed_batch_data = tensor_cast<T>(batch_data);
+    auto typed_batch_labels = tensor_cast<T>(batch_labels);
+
+    T *label_ptr = static_cast<T *>(typed_batch_labels->data());
+    std::fill(label_ptr, label_ptr + batch_labels->size(), static_cast<T>(0));
+
+    for (size_t b = 0; b < batch_size; ++b) {
+      size_t start_pos;
+      if (shuffled_) {
+        start_pos = dist_(this->rng_);
+        this->current_index_++;
+      } else {
+        start_pos = this->current_index_++;
+      }
+
+      for (size_t i = 0; i < context_length_; ++i) {
+        (*typed_batch_data)({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
+        int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
+        if (token_id >= 0 && token_id < (int)vocab_size_) {
+          (*typed_batch_labels)({b, i, (size_t)token_id}) = static_cast<T>(1);
+        }
+      }
+    }
+
+    return true;
+  }
+
 public:
-  OpenWebTextDataLoader(size_t context_length) : context_length_(context_length) {}
+  OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32)
+      : dtype_(dtype), context_length_(context_length) {}
 
   ~OpenWebTextDataLoader() {
     if (mapped_data_ != MAP_FAILED && mapped_data_ != nullptr) {
@@ -59,39 +100,8 @@ public:
     return true;
   }
 
-  bool get_batch(size_t batch_size, Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
-    if (this->current_index_ + batch_size > num_samples_) {
-      return false;
-    }
-
-    batch_data.resize({batch_size, context_length_});
-    batch_labels.resize({batch_size, context_length_, vocab_size_});
-
-    std::fill(batch_labels.data(), batch_labels.data() + batch_labels.size(), static_cast<T>(0));
-
-    for (size_t b = 0; b < batch_size; ++b) {
-      size_t start_pos;
-      if (shuffled_) {
-        start_pos = dist_(this->rng_);
-        this->current_index_++;
-      } else {
-        start_pos = this->current_index_++;
-      }
-
-      for (size_t i = 0; i < context_length_; ++i) {
-        batch_data(b, i) = static_cast<T>(mapped_data_[start_pos + i]);
-        int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
-        if (token_id >= 0 && token_id < (int)vocab_size_) {
-          batch_labels(b, i, (size_t)token_id) = static_cast<T>(1);
-        }
-      }
-    }
-
-    return true;
-  }
-
-  bool get_next_batch(Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
-    return get_batch(this->batch_size_, batch_data, batch_labels);
+  bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
+    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   void reset() override { this->current_index_ = 0; }
@@ -110,7 +120,6 @@ private:
   size_t file_size_ = 0;
   size_t total_tokens_ = 0;
   size_t num_samples_ = 0;
-  size_t context_length_;
   Tokenizer tokenizer_;
   size_t vocab_size_ = 0;
 

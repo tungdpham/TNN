@@ -10,7 +10,6 @@
 #include "worker.hpp"
 #include <iostream>
 #include <memory>
-#include <string>
 
 namespace tnn {
 
@@ -20,7 +19,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs using RDMA.
  */
-template <typename T = float> class RoceWorker : public Worker {
+class RoceWorker : Worker {
 public:
   /**
    * @brief Constructor for RoCE worker

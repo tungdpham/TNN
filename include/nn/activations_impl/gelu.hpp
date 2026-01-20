@@ -9,17 +9,22 @@
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-template <typename T = float> class GELU : public EWActivationFunction<T> {
+class GELU : public ActivationFunction {
 public:
-  std::unique_ptr<Task> apply(const Tensor<T> &input, Tensor<T> &output) const override;
-  std::unique_ptr<Task> compute_gradient(const Tensor<T> &input, const Tensor<T> &grad_output,
-                                         Tensor<T> &grad_input) const override;
+  std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
+  std::unique_ptr<Task> compute_gradient(const Tensor &input, const Tensor &grad_output,
+                                         Tensor &grad_input) const override;
 
   std::string name() const override { return "gelu"; }
-  std::unique_ptr<EWActivationFunction<T>> clone() const override {
-    return std::make_unique<GELU<T>>();
-  }
+  std::unique_ptr<ActivationFunction> clone() const override { return std::make_unique<GELU>(); }
+
+private:
+  template <typename Compute_T>
+  std::unique_ptr<Task> apply_impl(const Tensor &input, Tensor &output,
+                                   const std::string &flow_id) const;
+
+  template <typename Compute_T>
+  std::unique_ptr<Task> compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
+                                              Tensor &grad_input, const std::string &flow_id) const;
 };
 } // namespace tnn
-
-#include "nn/activations_impl/gelu.tpp"

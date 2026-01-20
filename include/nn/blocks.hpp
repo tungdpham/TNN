@@ -7,12 +7,11 @@
 
 namespace tnn {
 
-template <typename T = float>
-std::unique_ptr<ResidualBlock<T>> residual_block(std::vector<std::unique_ptr<Layer<T>>> main_path,
-                                                 std::vector<std::unique_ptr<Layer<T>>> shortcut,
-                                                 const std::string &activation_name = "relu",
-                                                 const std::string &name = "") {
-  return std::make_unique<ResidualBlock<T>>(
+inline std::unique_ptr<ResidualBlock> residual_block(std::vector<std::unique_ptr<Layer>> main_path,
+                                                     std::vector<std::unique_ptr<Layer>> shortcut,
+                                                     const std::string &activation_name = "relu",
+                                                     const std::string &name = "") {
+  return std::make_unique<ResidualBlock>(
       std::move(main_path), std::move(shortcut), activation_name,
       name.empty() ? "residual_block_" + std::to_string(main_path.size()) : name);
 }

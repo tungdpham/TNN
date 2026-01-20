@@ -17,17 +17,17 @@
 
 namespace tnn {
 
-template <typename T = float> class ActivationLayer : public StatelessLayer<T> {
+class ActivationLayer : public StatelessLayer {
 private:
-  std::unique_ptr<EWActivationFunction<T>> activation_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
+  std::unique_ptr<ActivationFunction> activation_;
+  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
-  explicit ActivationLayer(std::unique_ptr<EWActivationFunction<T>> activation,
+  explicit ActivationLayer(std::unique_ptr<ActivationFunction> activation,
                            const std::string &name = "activation");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
@@ -35,10 +35,8 @@ public:
 
   std::string type() const override;
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/activation_layer.tpp"

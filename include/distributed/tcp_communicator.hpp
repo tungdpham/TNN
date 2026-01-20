@@ -322,7 +322,7 @@ private:
       buffer = fragmenter.get_packet_buffer(msg_serial_id, packet_header);
     }
     auto register_end = Clock::now();
-    Profiler::instance().add_event(
+    GlobalProfiler::add_event(
         {EventType::COMMUNICATION, register_start, register_end, "Packet Register", this->id_});
 
     if (offset + packet_header.length > buffer->size()) {
@@ -344,7 +344,7 @@ private:
                 return;
               }
               auto read_end = Clock::now();
-              Profiler::instance().add_event(
+              GlobalProfiler::add_event(
                   {EventType::COMMUNICATION, read_start, read_end, "Packet Read", this->id_});
 
               // Check if message is complete
@@ -415,8 +415,8 @@ private:
       BinarySerializer::deserialize(*state.buffer, offset, msg);
 
       auto deserialize_end = Clock::now();
-      Profiler::instance().add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
-                                      "Message Deserialize", this->id_});
+      GlobalProfiler::add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
+                                 "Message Deserialize", this->id_});
 
       if (msg.header().command_type == CommandType::HANDSHAKE ||
           msg.header().command_type == CommandType::HANDSHAKE_ACK) {
@@ -530,7 +530,7 @@ private:
     }
 
     auto serialize_end = Clock::now();
-    Profiler::instance().add_event(
+    GlobalProfiler::add_event(
         {EventType::COMMUNICATION, serialize_start, serialize_end, "Message Serialize", this->id_});
 
     std::vector<WriteOperation> write_ops;
@@ -575,8 +575,8 @@ private:
                           return;
                         }
                         auto write_end = Clock::now();
-                        Profiler::instance().add_event({EventType::COMMUNICATION, write_start,
-                                                        write_end, "Packet Write", this->id_});
+                        GlobalProfiler::add_event({EventType::COMMUNICATION, write_start, write_end,
+                                                   "Packet Write", this->id_});
                         start_async_write(std::move(write_handle), connection);
                       });
   }

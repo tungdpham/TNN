@@ -2,7 +2,6 @@
 
 #include "dkernels.hpp"
 #include "skernels.hpp"
-#include "threading/thread_handler.hpp"
 #include <cmath>
 #include <cstddef>
 #include <random>
@@ -11,8 +10,6 @@
 namespace tnn {
 namespace ops {
 namespace cpu {
-
-// These declarations provide a clean interface T, where T is numeric type (e.g float, double).
 
 template <typename T> void add(const T *a, const T *b, T *c, size_t size) {
   if constexpr (std::is_same_v<T, float>) {
@@ -408,9 +405,17 @@ void fill_random_uniform(T *data, size_t size, T min_val, T max_val, unsigned lo
     dp::fill_random_uniform(data, size, min_val, max_val, seed);
   } else {
     std::mt19937_64 rng(seed);
-    std::uniform_real_distribution<T> dist(min_val, max_val);
-    for (size_t i = 0; i < size; ++i) {
-      data[i] = dist(rng);
+    if constexpr (std::is_floating_point_v<T>) {
+      std::uniform_real_distribution<T> dist(min_val, max_val);
+      for (size_t i = 0; i < size; ++i) {
+        data[i] = dist(rng);
+      }
+    } else {
+      std::uniform_real_distribution<float> dist(static_cast<float>(min_val),
+                                                 static_cast<float>(max_val));
+      for (size_t i = 0; i < size; ++i) {
+        data[i] = static_cast<T>(dist(rng));
+      }
     }
   }
 }
@@ -423,67 +428,19 @@ void fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned long lo
     dp::fill_random_normal(data, size, mean, stddev, seed);
   } else {
     std::mt19937_64 rng(seed);
-    std::normal_distribution<T> dist(mean, stddev);
-    for (size_t i = 0; i < size; ++i) {
-      data[i] = dist(rng);
-    }
-  }
-}
-
-template <typename T>
-void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols,
-                  bool multi_threaded = true) {
-  if (multi_threaded) {
-    const size_t block_size = 64;
-    parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
-                    [&](size_t i_block, size_t j_block) {
-                      const size_t start_row = i_block * block_size;
-                      const size_t start_col = j_block * block_size;
-                      const size_t end_row = std::min(start_row + block_size, rows);
-                      const size_t end_col = std::min(start_col + block_size, cols);
-                      for (size_t i = start_row; i < end_row; ++i) {
-                        for (size_t j = start_col; j < end_col; ++j) {
-                          dst[j * rows + i] = src[i * cols + j];
-                        }
-                      }
-                    });
-    return;
-  } else {
-    const size_t block_size = 64;
-    for (size_t i_block = 0; i_block < (rows + block_size - 1) / block_size; ++i_block) {
-      for (size_t j_block = 0; j_block < (cols + block_size - 1) / block_size; ++j_block) {
-        const size_t start_row = i_block * block_size;
-        const size_t start_col = j_block * block_size;
-        const size_t end_row = std::min(start_row + block_size, rows);
-        const size_t end_col = std::min(start_col + block_size, cols);
-        for (size_t i = start_row; i < end_row; ++i) {
-          for (size_t j = start_col; j < end_col; ++j) {
-            dst[j * rows + i] = src[i * cols + j];
-          }
-        }
+    if constexpr (std::is_floating_point_v<T>) {
+      std::normal_distribution<T> dist(mean, stddev);
+      for (size_t i = 0; i < size; ++i) {
+        data[i] = dist(rng);
+      }
+    } else {
+      // For types like fp16 that are not standard floating point
+      std::normal_distribution<float> dist(static_cast<float>(mean), static_cast<float>(stddev));
+      for (size_t i = 0; i < size; ++i) {
+        data[i] = static_cast<T>(dist(rng));
       }
     }
   }
-}
-
-template <typename T>
-void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
-                  size_t width) {
-  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    std::copy(&src[n * channels * height * width + c * height * width],
-              &src[n * channels * height * width + c * height * width + height * width],
-              &dst[c * batch_size * height * width + n * height * width]);
-  });
-}
-
-template <typename T>
-void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
-                  size_t width) {
-  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
-    std::copy(&src[c * batch_size * height * width + n * height * width],
-              &src[c * batch_size * height * width + n * height * width + height * width],
-              &dst[n * channels * height * width + c * height * width]);
-  });
 }
 
 } // namespace cpu

@@ -7,6 +7,7 @@
 #include "nn/layers_impl/cpu/groupnorm_ops.hpp"
 
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 #include <cmath>
 
 namespace tnn {
@@ -51,7 +52,7 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
     }
 
     T var = var_sum * inv_group_size;
-    inv_std[group_idx] = T(1) / std::sqrt(var + epsilon);
+    inv_std[group_idx] = T(1) / static_cast<T>(std::sqrt(static_cast<double>(var + epsilon)));
   });
 
   parallel_for_2d(N, C, [&](size_t n, size_t c) {
@@ -163,24 +164,18 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
   });
 }
 
-template void run_forward_fused<float>(const float *input, float *mean, float *inv_std,
-                                       const float *gamma, const float *beta, float *output,
-                                       float *norm_cache, size_t N, size_t C, size_t S,
-                                       size_t num_groups, float epsilon, bool affine);
-template void run_forward_fused<double>(const double *input, double *mean, double *inv_std,
-                                        const double *gamma, const double *beta, double *output,
-                                        double *norm_cache, size_t N, size_t C, size_t S,
-                                        size_t num_groups, double epsilon, bool affine);
-
-template void run_backward_fused<float>(const float *grad_output, const float *norm_input,
-                                        const float *inv_std, const float *gamma, float *d_gamma,
-                                        float *d_beta, float *grad_input, size_t N, size_t C,
-                                        size_t S, size_t num_groups, bool affine);
-template void run_backward_fused<double>(const double *grad_output, const double *norm_input,
-                                         const double *inv_std, const double *gamma,
-                                         double *d_gamma, double *d_beta, double *grad_input,
-                                         size_t N, size_t C, size_t S, size_t num_groups,
-                                         bool affine);
+#define INSTANTIATE_GROUPNORM(T)                                                                   \
+  template void run_forward_fused<T>(const T *input, T *mean, T *inv_std, const T *gamma,          \
+                                     const T *beta, T *output, T *norm_cache, size_t N, size_t C,  \
+                                     size_t S, size_t num_groups, T epsilon, bool affine);         \
+                                                                                                   \
+  template void run_backward_fused<T>(                                                             \
+      const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma, T *d_gamma,     \
+      T *d_beta, T *grad_input, size_t N, size_t C, size_t S, size_t num_groups, bool affine);
+INSTANTIATE_GROUPNORM(fp16)
+INSTANTIATE_GROUPNORM(float)
+INSTANTIATE_GROUPNORM(double)
+#undef INSTANTIATE_GROUPNORM
 
 } // namespace groupnorm
 } // namespace cpu

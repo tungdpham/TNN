@@ -7,18 +7,19 @@
 #pragma once
 
 #include "coordinator.hpp"
-#include "distributed/job_pool.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/train.hpp"
+#include "tensor/tensor.hpp"
+#include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
 #include <memory>
 
 namespace tnn {
 
-inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
-                                     const std::unique_ptr<Loss<float>> &criterion,
+inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader &train_loader,
+                                     const std::unique_ptr<Loss> &criterion,
                                      const TrainingConfig &config) {
-  Tensor<float> batch_data, batch_labels;
+  Tensor batch_data, batch_labels;
 
   size_t batch_index = 0;
 
@@ -28,12 +29,14 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
 
   coordinator.set_training(true);
 
-  while (train_loader.get_next_batch(batch_data, batch_labels)) {
+  while (train_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
-    std::vector<Tensor<float>> micro_batch_inputs;
-    split(batch_data, micro_batch_inputs, coordinator.num_microbatches());
-    std::vector<Tensor<float>> micro_batch_labels;
-    split(batch_labels, micro_batch_labels, coordinator.num_microbatches());
+    std::vector<Tensor> micro_batch_inputs;
+    DISPATCH_AUTO_T(TensorOps::split, batch_data, micro_batch_inputs,
+                    coordinator.num_microbatches());
+    std::vector<Tensor> micro_batch_labels;
+    DISPATCH_AUTO_T(TensorOps::split, batch_labels, micro_batch_labels,
+                    coordinator.num_microbatches());
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
@@ -50,8 +53,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
                 << std::endl;
       std::cout << "Average Loss after " << (batch_index + 1)
                 << " batches: " << (total_loss / (batch_index + 1)) << std::endl;
-      std::cout << "Batch " << batch_index + 1 << "/"
-                << train_loader.size() / train_loader.get_batch_size() << std::endl;
+      std::cout << "Batch " << batch_index + 1 << "/" << train_loader.size() / config.batch_size
+                << std::endl;
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();
       }
@@ -67,22 +70,24 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader<fl
   return {total_loss / batch_index, -1.0f};
 }
 
-inline Result validate_semi_async_epoch(Coordinator &coordinator,
-                                        BaseDataLoader<float> &test_loader,
-                                        const std::unique_ptr<Loss<float>> &criterion) {
-  Tensor<float> batch_data, batch_labels;
+inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader &test_loader,
+                                        const std::unique_ptr<Loss> &criterion,
+                                        const TrainingConfig &config) {
+  Tensor batch_data, batch_labels;
   float total_val_loss = 0.0f;
   float total_val_correct = 0.0f;
   int val_batches = 0;
 
   coordinator.set_training(false);
 
-  while (test_loader.get_next_batch(batch_data, batch_labels)) {
-    std::vector<Tensor<float>> micro_batch_inputs;
-    split(batch_data, micro_batch_inputs, coordinator.num_microbatches());
+  while (test_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
+    std::vector<Tensor> micro_batch_inputs;
+    DISPATCH_AUTO_T(TensorOps::split, batch_data, micro_batch_inputs,
+                    coordinator.num_microbatches());
 
-    std::vector<Tensor<float>> micro_batch_labels;
-    split(batch_labels, micro_batch_labels, coordinator.num_microbatches());
+    std::vector<Tensor> micro_batch_labels;
+    DISPATCH_AUTO_T(TensorOps::split, batch_labels, micro_batch_labels,
+                    coordinator.num_microbatches());
 
     for (size_t i = 0; i < micro_batch_inputs.size(); ++i) {
       coordinator.forward(std::move(micro_batch_inputs[i]), i);
@@ -98,26 +103,25 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
           ", expected: " + std::to_string(coordinator.num_microbatches()));
     }
 
-    std::vector<PooledJob<float> *> forward_jobs;
+    std::vector<Job *> forward_jobs;
     for (auto &message : all_messages) {
       if (message.header().command_type == CommandType::FORWARD_JOB) {
-        forward_jobs.push_back(&message.get<PooledJob<float>>());
+        forward_jobs.push_back(&message.get<Job>());
       }
     }
 
-    float val_loss = 0.0f;
-    float val_correct = 0.0f;
+    double val_loss = 0.0;
+    double val_correct = 0.0;
 
     for (auto &job : forward_jobs) {
       float loss = 0.0f;
-      criterion->compute_loss((*job)->data, micro_batch_labels[(*job)->micro_batch_id], loss);
+      criterion->compute_loss(job->data, micro_batch_labels[job->micro_batch_id], loss);
       val_loss += loss;
-      val_correct +=
-          compute_class_corrects((*job)->data, micro_batch_labels[(*job)->micro_batch_id]);
+      val_correct += compute_class_corrects(job->data, micro_batch_labels[job->micro_batch_id]);
     }
     // Normalize loss by number of microbatches to match training loss semantics
     if (coordinator.num_microbatches() > 0) {
-      val_loss /= static_cast<float>(coordinator.num_microbatches());
+      val_loss /= static_cast<double>(coordinator.num_microbatches());
     }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
@@ -128,20 +132,15 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
   std::cout << "Average Validation Loss: " << (total_val_loss / val_batches)
             << ", Average Validation Accuracy: "
             << (total_val_correct / test_loader.size()) * 100.0f << "%" << std::endl;
-  return {static_cast<float>(total_val_loss / val_batches),
-          static_cast<float>((total_val_correct / test_loader.size()) * 100.0f)};
+  return {total_val_loss / val_batches, (total_val_correct / test_loader.size()) * 100.0f};
 }
 
-inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_loader,
-                        BaseDataLoader<float> &test_loader,
-                        const std::unique_ptr<Loss<float>> &criterion,
+inline void train_model(Coordinator &coordinator, BaseDataLoader &train_loader,
+                        BaseDataLoader &test_loader, const std::unique_ptr<Loss> &criterion,
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
   coordinator.set_num_microbatches(config.num_microbatches);
-
-  train_loader.prepare_batches(config.batch_size);
-  test_loader.prepare_batches(config.batch_size);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
@@ -152,7 +151,7 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader<float> &train_l
 
       train_semi_async_epoch(coordinator, train_loader, criterion, config);
 
-      validate_semi_async_epoch(coordinator, test_loader, criterion);
+      validate_semi_async_epoch(coordinator, test_loader, criterion, config);
 
       coordinator.fetch_profiling();
     }

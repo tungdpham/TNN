@@ -9,6 +9,7 @@
 #include "math/gemm.hpp"
 #include "ops/ops.hpp"
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -57,45 +58,28 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
   });
 }
 
-template void compute_dense_forward<float>(const float *input_data, const float *weight_data,
-                                           float *output_data, const size_t batch_size,
-                                           const size_t input_features,
-                                           const size_t output_features);
-template void compute_dense_forward<double>(const double *input_data, const double *weight_data,
-                                            double *output_data, const size_t batch_size,
-                                            const size_t input_features,
-                                            const size_t output_features);
-
-template void compute_weight_gradients<float>(const float *input_data, const float *gradient_data,
-                                              float *weight_grad_data, const size_t batch_size,
-                                              const size_t input_features,
-                                              const size_t output_features);
-template void compute_weight_gradients<double>(const double *input_data,
-                                               const double *gradient_data,
-                                               double *weight_grad_data, const size_t batch_size,
-                                               const size_t input_features,
-                                               const size_t output_features);
-
-template void compute_input_gradients<float>(const float *gradient_data, const float *weight_data,
-                                             float *grad_input_data, const size_t batch_size,
-                                             const size_t input_features,
-                                             const size_t output_features);
-template void compute_input_gradients<double>(const double *gradient_data,
-                                              const double *weight_data, double *grad_input_data,
-                                              const size_t batch_size, const size_t input_features,
-                                              const size_t output_features);
-
-template void compute_bias_gradients<float>(const float *current_grad_data,
-                                            float *bias_gradient_data, const size_t batch_size,
-                                            const size_t output_features);
-template void compute_bias_gradients<double>(const double *current_grad_data,
-                                             double *bias_gradient_data, const size_t batch_size,
-                                             const size_t output_features);
-
-template void add_bias_vector<float>(float *output_data, const float *bias_data,
-                                     const size_t batch_size, const size_t output_features);
-template void add_bias_vector<double>(double *output_data, const double *bias_data,
-                                      const size_t batch_size, const size_t output_features);
+#define INSTANTIATE_DENSE(T)                                                                       \
+  template void compute_dense_forward<T>(                                                          \
+      const T *input_data, const T *weight_data, T *output_data, const size_t batch_size,          \
+      const size_t input_features, const size_t output_features);                                  \
+                                                                                                   \
+  template void compute_weight_gradients<T>(                                                       \
+      const T *input_data, const T *gradient_data, T *weight_grad_data, const size_t batch_size,   \
+      const size_t input_features, const size_t output_features);                                  \
+                                                                                                   \
+  template void compute_input_gradients<T>(                                                        \
+      const T *gradient_data, const T *weight_data, T *grad_input_data, const size_t batch_size,   \
+      const size_t input_features, const size_t output_features);                                  \
+                                                                                                   \
+  template void compute_bias_gradients<T>(const T *current_grad_data, T *bias_gradient_data,       \
+                                          const size_t batch_size, const size_t output_features);  \
+                                                                                                   \
+  template void add_bias_vector<T>(T * output_data, const T *bias_data, const size_t batch_size,   \
+                                   const size_t output_features);
+INSTANTIATE_DENSE(fp16)
+INSTANTIATE_DENSE(float)
+INSTANTIATE_DENSE(double)
+#undef INSTANTIATE_DENSE
 } // namespace dense
 } // namespace cpu
 } // namespace tnn

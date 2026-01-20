@@ -9,17 +9,15 @@
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-template <typename T = float> class Linear : public EWActivationFunction<T> {
+class Linear : public ActivationFunction {
 public:
-  std::unique_ptr<Task> apply(const Tensor<T> &input, Tensor<T> &output) const override;
+  std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
 
-  std::unique_ptr<Task> compute_gradient(const Tensor<T> &input, const Tensor<T> &grad_output,
-                                         Tensor<T> &grad_input) const override;
+  std::unique_ptr<Task> compute_gradient(const Tensor &input, const Tensor &grad_output,
+                                         Tensor &grad_input) const override;
 
   std::string name() const override;
-  std::unique_ptr<EWActivationFunction<T>> clone() const override;
+  std::unique_ptr<ActivationFunction> clone() const override;
 };
 
 } // namespace tnn
-
-#include "nn/activations_impl/linear.tpp"

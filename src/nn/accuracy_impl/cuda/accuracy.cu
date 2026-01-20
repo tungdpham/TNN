@@ -6,13 +6,15 @@
  */
 
 #include "nn/accuracy_impl/cuda/accuracy.hpp"
+#include "type/type.hpp"
 #include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
 namespace accuracy {
 
-__global__ void compute_class_accuracy_kernel(const float *predictions, const float *targets,
+template <typename T>
+__global__ void compute_class_accuracy_kernel(const T *predictions, const T *targets,
                                               int *correct_count, const size_t batch_size,
                                               const size_t num_classes) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -20,9 +22,9 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
     return;
 
   int pred_class = 0;
-  float max_pred = predictions[idx * num_classes];
+  float max_pred = static_cast<float>(predictions[idx * num_classes]);
   for (size_t j = 1; j < num_classes; ++j) {
-    const float pred_val = predictions[idx * num_classes + j];
+    const float pred_val = static_cast<float>(predictions[idx * num_classes + j]);
     if (pred_val > max_pred) {
       max_pred = pred_val;
       pred_class = static_cast<int>(j);
@@ -31,7 +33,7 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
 
   int true_class = -1;
   for (size_t j = 0; j < num_classes; ++j) {
-    if (targets[idx * num_classes + j] > 0.5f) {
+    if (static_cast<float>(targets[idx * num_classes + j]) > 0.5f) {
       true_class = static_cast<int>(j);
       break;
     }
@@ -42,7 +44,8 @@ __global__ void compute_class_accuracy_kernel(const float *predictions, const fl
   }
 }
 
-__global__ void compute_class_corrects_kernel(const float *predictions, const float *targets,
+template <typename T>
+__global__ void compute_class_corrects_kernel(const T *predictions, const T *targets,
                                               int *correct_count, const size_t batch_size,
                                               const size_t num_classes, float threshold) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -50,9 +53,9 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
     return;
 
   int pred_class = 0;
-  float max_pred = predictions[idx * num_classes];
+  float max_pred = static_cast<float>(predictions[idx * num_classes]);
   for (size_t j = 1; j < num_classes; ++j) {
-    const float pred_val = predictions[idx * num_classes + j];
+    const float pred_val = static_cast<float>(predictions[idx * num_classes + j]);
     if (pred_val > max_pred) {
       max_pred = pred_val;
       pred_class = static_cast<int>(j);
@@ -61,7 +64,7 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
 
   int true_class = -1;
   for (size_t j = 0; j < num_classes; ++j) {
-    if (targets[idx * num_classes + j] > threshold) {
+    if (static_cast<float>(targets[idx * num_classes + j]) > threshold) {
       true_class = static_cast<int>(j);
       break;
     }
@@ -72,8 +75,9 @@ __global__ void compute_class_corrects_kernel(const float *predictions, const fl
   }
 }
 
-float compute_class_accuracy(const float *predictions, const float *targets,
-                             const size_t batch_size, const size_t num_classes) {
+template <typename T>
+float compute_class_accuracy(const T *predictions, const T *targets, const size_t batch_size,
+                             const size_t num_classes) {
   int *d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
   cudaMemset(d_correct_count, 0, sizeof(int));
@@ -81,8 +85,8 @@ float compute_class_accuracy(const float *predictions, const float *targets,
   int block_size = 256;
   int grid_size = (batch_size + block_size - 1) / block_size;
 
-  compute_class_accuracy_kernel<<<grid_size, block_size>>>(predictions, targets, d_correct_count,
-                                                           batch_size, num_classes);
+  compute_class_accuracy_kernel<T>
+      <<<grid_size, block_size>>>(predictions, targets, d_correct_count, batch_size, num_classes);
 
   int h_correct_count;
   cudaMemcpy(&h_correct_count, d_correct_count, sizeof(int), cudaMemcpyDeviceToHost);
@@ -91,7 +95,8 @@ float compute_class_accuracy(const float *predictions, const float *targets,
   return static_cast<float>(h_correct_count) / static_cast<float>(batch_size);
 }
 
-int compute_class_corrects(const float *predictions, const float *targets, const size_t batch_size,
+template <typename T>
+int compute_class_corrects(const T *predictions, const T *targets, const size_t batch_size,
                            const size_t num_classes, float threshold) {
   int *d_correct_count;
   cudaMalloc(&d_correct_count, sizeof(int));
@@ -100,8 +105,8 @@ int compute_class_corrects(const float *predictions, const float *targets, const
   int block_size = 256;
   int grid_size = (batch_size + block_size - 1) / block_size;
 
-  compute_class_corrects_kernel<<<grid_size, block_size>>>(predictions, targets, d_correct_count,
-                                                           batch_size, num_classes, threshold);
+  compute_class_corrects_kernel<T><<<grid_size, block_size>>>(predictions, targets, d_correct_count,
+                                                              batch_size, num_classes, threshold);
 
   int h_correct_count;
   cudaMemcpy(&h_correct_count, d_correct_count, sizeof(int), cudaMemcpyDeviceToHost);
@@ -109,6 +114,19 @@ int compute_class_corrects(const float *predictions, const float *targets, const
 
   return h_correct_count;
 }
+
+template float compute_class_accuracy<float>(const float *, const float *, const size_t,
+                                             const size_t);
+template float compute_class_accuracy<double>(const double *, const double *, const size_t,
+                                              const size_t);
+template float compute_class_accuracy<fp16>(const fp16 *, const fp16 *, const size_t, const size_t);
+
+template int compute_class_corrects<float>(const float *, const float *, const size_t, const size_t,
+                                           float);
+template int compute_class_corrects<double>(const double *, const double *, const size_t,
+                                            const size_t, float);
+template int compute_class_corrects<fp16>(const fp16 *, const fp16 *, const size_t, const size_t,
+                                          float);
 
 } // namespace accuracy
 } // namespace cuda

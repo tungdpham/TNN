@@ -9,7 +9,6 @@
 #include "data_augmentation/augmentation.hpp"
 #include "tensor/tensor.hpp"
 #include <algorithm>
-#include <iostream>
 #include <memory>
 #include <numeric>
 #include <random>
@@ -22,7 +21,7 @@ namespace tnn {
  * Abstract base class for all data loaders
  * Provides common interface and functionality for training neural networks
  */
-template <typename T = float> class BaseDataLoader {
+class BaseDataLoader {
 public:
   virtual ~BaseDataLoader() = default;
 
@@ -34,21 +33,13 @@ public:
   virtual bool load_data(const std::string &source) = 0;
 
   /**
-   * Get the next batch of data
-   * @param batch_data Output tensor for features/input data
-   * @param batch_labels Output tensor for labels/targets
-   * @return true if batch was retrieved, false if no more data
-   */
-  virtual bool get_next_batch(Tensor<T> &batch_data, Tensor<T> &batch_labels) = 0;
-
-  /**
    * Get a specific batch size
    * @param batch_size Number of samples per batch
    * @param batch_data Output tensor for features/input data
    * @param batch_labels Output tensor for labels/targets
    * @return true if batch was retrieved, false if no more data
    */
-  virtual bool get_batch(size_t batch_size, Tensor<T> &batch_data, Tensor<T> &batch_labels) = 0;
+  virtual bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) = 0;
 
   /**
    * Reset iterator to beginning of dataset
@@ -66,46 +57,14 @@ public:
   virtual size_t size() const = 0;
 
   /**
-   * Prepare batches for efficient training
-   * @param batch_size Size of each batch
-   */
-  virtual void prepare_batches(size_t batch_size) {
-    if (size() == 0) {
-      std::cerr << "Warning: Cannot prepare batches - no data loaded" << std::endl;
-      return;
-    }
-
-    batch_size_ = batch_size;
-    batches_prepared_ = true;
-    current_batch_index_ = 0;
-
-    std::cout << "Preparing batches with size " << batch_size << " for " << size() << " samples..."
-              << std::endl;
-  }
-
-  /**
-   * Get number of batches when using prepared batches
-   */
-  virtual size_t num_batches() const {
-    if (!batches_prepared_ || size() == 0)
-      return 0;
-    return (size() + batch_size_ - 1) / batch_size_;
-  }
-
-  /**
-   * Check if batches are prepared
-   */
-  virtual bool are_batches_prepared() const { return batches_prepared_; }
-
-  /**
-   * Get current batch size
-   */
-  virtual int get_batch_size() const { return static_cast<int>(batch_size_); }
-
-  /**
    * Get data shape
    */
   virtual std::vector<size_t> get_data_shape() const = 0;
+
+  /**
+   * Print data statistics for debugging
+   */
+  virtual void print_data_stats() const {}
 
   /**
    * Set random seed for reproducible shuffling
@@ -118,19 +77,7 @@ public:
   std::mt19937 &get_rng() { return rng_; }
   const std::mt19937 &get_rng() const { return rng_; }
 
-  /**
-   * Set augmentation strategy
-   * @param aug Unique pointer to augmentation strategy (takes ownership)
-   *
-   * This allows clean separation between data loading and augmentation.
-   * Different datasets can use different augmentation strategies without
-   * coupling the augmentation logic to the data loader.
-   *
-   * Example usage:
-   *   auto aug = std::make_unique<CIFAR10Augmentation<float>>(0.1f, true);
-   *   loader.set_augmentation(std::move(aug));
-   */
-  void set_augmentation(std::unique_ptr<AugmentationStrategy<T>> aug) {
+  void set_augmentation(std::unique_ptr<AugmentationStrategy> aug) {
     augmentation_ = std::move(aug);
   }
 
@@ -146,17 +93,14 @@ public:
 
 protected:
   size_t current_index_ = 0;
-  size_t current_batch_index_ = 0;
-  size_t batch_size_ = 32;
-  bool batches_prepared_ = false;
   mutable std::mt19937 rng_{std::random_device{}()};
-  std::unique_ptr<AugmentationStrategy<T>> augmentation_;
+  std::unique_ptr<AugmentationStrategy> augmentation_;
 
   /**
    * Apply augmentation to batch if augmentation strategy is set
    * Called internally by derived classes after loading batch data
    */
-  void apply_augmentation(Tensor<T> &batch_data, Tensor<T> &batch_labels) {
+  void apply_augmentation(Tensor &batch_data, Tensor &batch_labels) {
     if (augmentation_) {
       augmentation_->apply(batch_data, batch_labels);
     }
@@ -170,35 +114,6 @@ protected:
     std::iota(indices.begin(), indices.end(), 0);
     std::shuffle(indices.begin(), indices.end(), rng_);
     return indices;
-  }
-};
-
-/**
- * A pair of data loaders for training and validation/testing
- */
-template <typename T = float> struct DataLoaderPair {
-  std::unique_ptr<BaseDataLoader<T>> train;
-  std::unique_ptr<BaseDataLoader<T>> val;
-};
-
-/**
- * Factory class for creating data loaders by string name
- */
-template <typename T = float> class DataLoaderFactory {
-public:
-  /**
-   * Create a pair of data loaders (train and val) for a given dataset type
-   * @param dataset_type Type of dataset (e.g., "mnist", "cifar10", "cifar100", "tiny_imagenet")
-   * @param dataset_path Path to the dataset directory or file
-   * @return DataLoaderPair containing the created loaders
-   */
-  static DataLoaderPair<T> create(const std::string &dataset_type, const std::string &dataset_path);
-
-  /**
-   * Get list of available dataset types
-   */
-  static std::vector<std::string> available_loaders() {
-    return {"mnist", "cifar10", "cifar100", "tiny_imagenet"};
   }
 };
 

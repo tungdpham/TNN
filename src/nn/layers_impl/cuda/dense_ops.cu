@@ -6,48 +6,13 @@
  */
 #include "nn/layers_impl/cuda/dense_ops.hpp"
 
-#include <cublas_v2.h>
+#include "math/cuda/gemm.hpp"
+#include "type/type.hpp"
 #include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
 namespace dense {
-
-static cublasHandle_t get_cublas_handle() {
-  static cublasHandle_t handle = nullptr;
-  if (!handle) {
-    cublasCreate(&handle);
-  }
-  return handle;
-}
-
-template <typename T>
-void cublas_gemm(const T *A, const T *B, T *C, int m, int n, int k, bool transA, bool transB,
-                 T alpha, T beta, cudaStream_t stream);
-
-template <>
-void cublas_gemm<float>(const float *A, const float *B, float *C, int m, int n, int k, bool transA,
-                        bool transB, float alpha, float beta, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  cublasSgemm(handle, opB, opA, n, m, k, &alpha, B, transB ? k : n, A, transA ? m : k, &beta, C, n);
-}
-
-template <>
-void cublas_gemm<double>(const double *A, const double *B, double *C, int m, int n, int k,
-                         bool transA, bool transB, double alpha, double beta, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  cublasDgemm(handle, opB, opA, n, m, k, &alpha, B, transB ? k : n, A, transA ? m : k, &beta, C, n);
-}
 
 template <typename T>
 __global__ void add_bias_kernel(T *output_data, const T *bias_data, size_t batch_size,
@@ -100,9 +65,8 @@ void compute_dense_forward(const T *input_data, const T *weight_data, T *output_
                            const size_t batch_size, const size_t input_features,
                            const size_t output_features, cudaStream_t stream) {
 
-  cublas_gemm(input_data, weight_data, output_data, static_cast<int>(batch_size),
-              static_cast<int>(output_features), static_cast<int>(input_features), false, true,
-              T(1.0f), T(0.0f), stream);
+  tnn::cuda::gemm(input_data, weight_data, output_data, batch_size, output_features, input_features,
+                  false, true, T(1.0f), T(0.0f), stream);
 }
 
 template <typename T>
@@ -110,18 +74,16 @@ void compute_weight_gradients(const T *input_data, const T *gradient_data, T *we
                               const size_t batch_size, const size_t input_features,
                               const size_t output_features, cudaStream_t stream) {
 
-  cublas_gemm(gradient_data, input_data, weight_grad_data, static_cast<int>(output_features),
-              static_cast<int>(input_features), static_cast<int>(batch_size), true, false, T(1.0f),
-              T(1.0f), stream);
+  tnn::cuda::gemm(gradient_data, input_data, weight_grad_data, output_features, input_features,
+                  batch_size, true, false, T(1.0f), T(1.0f), stream);
 }
 
 template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *grad_input_data,
                              const size_t batch_size, const size_t input_features,
                              const size_t output_features, cudaStream_t stream) {
-  cublas_gemm(gradient_data, weight_data, grad_input_data, static_cast<int>(batch_size),
-              static_cast<int>(input_features), static_cast<int>(output_features), false, false,
-              T(1.0f), T(0.0f), stream);
+  tnn::cuda::gemm(gradient_data, weight_data, grad_input_data, batch_size, input_features,
+                  output_features, false, false, T(1.0f), T(0.0f), stream);
 }
 
 template <typename T>
@@ -146,50 +108,29 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
   add_bias_kernel<<<num_blocks, threads_per_block, 0, stream>>>(output_data, bias_data, batch_size,
                                                                 output_features);
 }
-
-template void compute_dense_forward<float>(const float *input_data, const float *weight_data,
-                                           float *output_data, const size_t batch_size,
-                                           const size_t input_features,
-                                           const size_t output_features, cudaStream_t stream);
-template void compute_dense_forward<double>(const double *input_data, const double *weight_data,
-                                            double *output_data, const size_t batch_size,
-                                            const size_t input_features,
-                                            const size_t output_features, cudaStream_t stream);
-
-template void compute_weight_gradients<float>(const float *input_data, const float *gradient_data,
-                                              float *weight_grad_data, const size_t batch_size,
-                                              const size_t input_features,
-                                              const size_t output_features, cudaStream_t stream);
-template void compute_weight_gradients<double>(const double *input_data,
-                                               const double *gradient_data,
-                                               double *weight_grad_data, const size_t batch_size,
-                                               const size_t input_features,
-                                               const size_t output_features, cudaStream_t stream);
-
-template void compute_input_gradients<float>(const float *gradient_data, const float *weight_data,
-                                             float *grad_input_data, const size_t batch_size,
-                                             const size_t input_features,
-                                             const size_t output_features, cudaStream_t stream);
-template void compute_input_gradients<double>(const double *gradient_data,
-                                              const double *weight_data, double *grad_input_data,
-                                              const size_t batch_size, const size_t input_features,
-                                              const size_t output_features, cudaStream_t stream);
-
-template void compute_bias_gradients<float>(const float *current_grad_data,
-                                            const float *bias_gradient_data,
-                                            const size_t batch_size, const size_t output_features,
-                                            cudaStream_t stream);
-template void compute_bias_gradients<double>(const double *current_grad_data,
-                                             const double *bias_gradient_data,
-                                             const size_t batch_size, const size_t output_features,
-                                             cudaStream_t stream);
-
-template void add_bias_vector<float>(float *output_data, const float *bias_data,
-                                     const size_t batch_size, const size_t output_features,
-                                     cudaStream_t stream);
-template void add_bias_vector<double>(double *output_data, const double *bias_data,
-                                      const size_t batch_size, const size_t output_features,
-                                      cudaStream_t stream);
+#define INSTANTIATE_DENSE(T)                                                                       \
+  template void compute_dense_forward<T>(                                                          \
+      const T *input_data, const T *weight_data, T *output_data, const size_t batch_size,          \
+      const size_t input_features, const size_t output_features, cudaStream_t stream);             \
+                                                                                                   \
+  template void compute_weight_gradients<T>(                                                       \
+      const T *input_data, const T *gradient_data, T *weight_grad_data, const size_t batch_size,   \
+      const size_t input_features, const size_t output_features, cudaStream_t stream);             \
+                                                                                                   \
+  template void compute_input_gradients<T>(                                                        \
+      const T *gradient_data, const T *weight_data, T *grad_input_data, const size_t batch_size,   \
+      const size_t input_features, const size_t output_features, cudaStream_t stream);             \
+                                                                                                   \
+  template void compute_bias_gradients<T>(const T *current_grad_data, const T *bias_gradient_data, \
+                                          const size_t batch_size, const size_t output_features,   \
+                                          cudaStream_t stream);                                    \
+                                                                                                   \
+  template void add_bias_vector<T>(T * output_data, const T *bias_data, const size_t batch_size,   \
+                                   const size_t output_features, cudaStream_t stream);
+INSTANTIATE_DENSE(fp16)
+INSTANTIATE_DENSE(float)
+INSTANTIATE_DENSE(double)
+#undef INSTANTIATE_DENSE
 } // namespace dense
 } // namespace cuda
 } // namespace tnn

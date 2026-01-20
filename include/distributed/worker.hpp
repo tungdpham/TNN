@@ -6,9 +6,8 @@
  */
 #pragma once
 
-#include "device/device_type.hpp"
+#include "device/device_manager.hpp"
 #include "distributed/command_type.hpp"
-#include "distributed/job_pool.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 
@@ -32,8 +31,7 @@ namespace tnn {
 
 class Worker {
 public:
-  explicit Worker(std::unique_ptr<Sequential<float>> model,
-                  std::unique_ptr<Communicator> communicator)
+  explicit Worker(std::unique_ptr<Sequential> model, std::unique_ptr<Communicator> communicator)
       : model_(std::move(model)), communicator_(std::move(communicator)), should_stop_(true) {}
 
   virtual ~Worker() { stop(); }
@@ -99,25 +97,25 @@ protected:
     switch (message.header().command_type) {
     case CommandType::FORWARD_JOB: {
       auto forward_start = std::chrono::system_clock::now();
-      const PooledJob<float> &forward_job = message.get<PooledJob<float>>();
-      PooledJob<float> output = JobPool<float>::instance().get_job(forward_job->data.size());
-      this->model_->forward(forward_job->data, output->data, forward_job->micro_batch_id);
+      const Job &forward_job = message.get<Job>();
+      Job output;
+      this->model_->forward(forward_job.data, output.data, forward_job.micro_batch_id);
       auto forward_end = std::chrono::system_clock::now();
-      Profiler::instance().add_event(
+      GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-      output->micro_batch_id = forward_job->micro_batch_id;
+      output.micro_batch_id = forward_job.micro_batch_id;
       message = Message(id_, "next_stage", CommandType::FORWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
       auto backward_start = std::chrono::system_clock::now();
-      const PooledJob<float> &backward_job = message.get<PooledJob<float>>();
-      PooledJob<float> output = JobPool<float>::instance().get_job(backward_job->data.size());
-      this->model_->backward(backward_job->data, output->data, backward_job->micro_batch_id);
+      const Job &backward_job = message.get<Job>();
+      Job output;
+      this->model_->backward(backward_job.data, output.data, backward_job.micro_batch_id);
       auto backward_end = std::chrono::system_clock::now();
-      Profiler::instance().add_event(
+      GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-      output->micro_batch_id = backward_job->micro_batch_id;
+      output.micro_batch_id = backward_job.micro_batch_id;
       message = Message(id_, "prev_stage", CommandType::BACKWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
@@ -127,7 +125,7 @@ protected:
       this->optimizer_->update();
       this->optimizer_->clear_gradients();
       auto update_end = std::chrono::system_clock::now();
-      Profiler::instance().add_event(
+      GlobalProfiler::add_event(
           {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
       Message response(id_, "coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
       communicator_->send_message(std::move(response));
@@ -152,20 +150,20 @@ protected:
       }
       break;
     case CommandType::START_PROFILING: {
-      Profiler::instance().init_start_time(std::chrono::system_clock::now());
+      GlobalProfiler::init_start_time(std::chrono::system_clock::now());
       Message response(id_, message.header().sender_id, CommandType::PROFILING_STARTED);
       communicator_->send_message(std::move(response));
       break;
     }
     case CommandType::REPORT_PROFILING: {
       Message response(id_, message.header().sender_id, CommandType::PROFILING_REPORTED,
-                       Profiler::instance());
+                       GlobalProfiler::get_profiler());
       communicator_->send_message(std::move(response));
       break;
     }
     case CommandType::PRINT_PROFILING:
       if (model_) {
-        model_->print_profiling_summary();
+        model_->print_profiling_info();
         Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_PRINTED);
         communicator_->send_message(std::move(outgoing_message));
       } else {
@@ -174,7 +172,7 @@ protected:
       break;
     case CommandType::CLEAR_PROFILING:
       if (model_) {
-        model_->clear_profiling();
+        model_->reset_profiling_info();
         Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_CLEARED);
         communicator_->send_message(std::move(outgoing_message));
       } else {
@@ -239,19 +237,17 @@ protected:
       this->set_id(config.stage_id);
 
       // setup model, optimizer
-      this->model_ = std::make_unique<Sequential<float>>(
-          Sequential<float>::load_from_config(config.model_config));
+      this->model_ = std::make_unique<Sequential>(config.model_config);
       OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
-      this->optimizer_ = OptimizerFactory<float>::create_from_config(optimizer_config);
+      this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
       if (use_gpu_) {
-        this->model_->set_device(DeviceType::GPU);
+        this->model_->set_device(getGPU());
       } else {
-        this->model_->set_device(DeviceType::CPU);
+        this->model_->set_device(getCPU());
       }
       this->model_->init();
       this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
       this->model_->enable_profiling(true);
-      std::cout << "Created model with " << this->model_->layer_size() << " layers" << '\n';
 
       // setup connections
       setup_stage_connections(config);
@@ -274,8 +270,8 @@ protected:
   }
 
   bool use_gpu_;
-  std::unique_ptr<Sequential<float>> model_;
-  std::unique_ptr<Optimizer<float>> optimizer_;
+  std::unique_ptr<Sequential> model_;
+  std::unique_ptr<Optimizer> optimizer_;
   std::shared_ptr<Communicator> communicator_;
 
   std::string id_;

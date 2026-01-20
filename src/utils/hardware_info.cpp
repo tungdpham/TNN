@@ -243,7 +243,7 @@ bool HardwareInfo::init_core_topology() {
     std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buffer(
         bufferSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
 
-    if (GetLogicalProcessorInformation(buffer.data(), &bufferSize)) {
+    if (GetLogicalProcessorInformation(buffer->data_as<T>(), &bufferSize)) {
       int physical_core_count = 0;
       int hyperthreading_count = 0;
 

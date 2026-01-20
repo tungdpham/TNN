@@ -14,12 +14,12 @@
 
 namespace tnn {
 
-template <typename T = float> class ParameterizedLayer : public Layer<T> {
+class ParameterizedLayer : public Layer {
 public:
   explicit ParameterizedLayer(const std::string &name = "") { this->name_ = name; }
 
-  std::vector<Tensor<T> *> parameters() override;
-  std::vector<Tensor<T> *> gradients() override;
+  std::vector<Tensor> parameters() override;
+  std::vector<Tensor> gradients() override;
   bool has_parameters() const override { return true; }
 
 private:
@@ -27,9 +27,7 @@ private:
 
 protected:
   virtual void init_params() = 0;
-  virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
-  virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
+  virtual void collect_parameters(std::vector<Tensor> &params) = 0;
+  virtual void collect_gradients(std::vector<Tensor> &grads) = 0;
 };
 } // namespace tnn
-
-#include "nn/layers_impl/parameterized_layer.tpp"

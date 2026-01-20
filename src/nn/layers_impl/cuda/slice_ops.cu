@@ -5,6 +5,8 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cuda/slice_ops.hpp"
+
+#include "type/type.hpp"
 #include <vector>
 
 #ifdef USE_CUDA
@@ -106,19 +108,18 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
       gradient, grad_input, outer_size, inner_size, axis_size, start, length, total_elements);
 }
 
-template void slice_forward<float>(const float *input, float *output,
-                                   const std::vector<size_t> &input_shape, size_t axis,
-                                   size_t start, size_t length, cudaStream_t stream);
-template void slice_forward<double>(const double *input, double *output,
-                                    const std::vector<size_t> &input_shape, size_t axis,
-                                    size_t start, size_t length, cudaStream_t stream);
-
-template void slice_backward<float>(const float *gradient, float *grad_input,
-                                    const std::vector<size_t> &input_shape, size_t axis,
-                                    size_t start, size_t length, cudaStream_t stream);
-template void slice_backward<double>(const double *gradient, double *grad_input,
-                                     const std::vector<size_t> &input_shape, size_t axis,
-                                     size_t start, size_t length, cudaStream_t stream);
+#define INSTANTIATE_SLICE(T)                                                                       \
+  template void slice_forward<T>(const T *input, T *output,                                        \
+                                 const std::vector<size_t> &input_shape, size_t axis,              \
+                                 size_t start, size_t length, cudaStream_t stream);                \
+                                                                                                   \
+  template void slice_backward<T>(const T *gradient, T *grad_input,                                \
+                                  const std::vector<size_t> &input_shape, size_t axis,             \
+                                  size_t start, size_t length, cudaStream_t stream);
+INSTANTIATE_SLICE(fp16)
+INSTANTIATE_SLICE(float)
+INSTANTIATE_SLICE(double)
+#undef INSTANTIATE_SLICE
 
 } // namespace slice
 } // namespace cuda

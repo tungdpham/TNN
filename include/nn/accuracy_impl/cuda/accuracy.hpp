@@ -13,11 +13,13 @@ namespace cuda {
 namespace accuracy {
 
 // Compute class accuracy
-float compute_class_accuracy(const float *predictions, const float *targets,
-                             const size_t batch_size, const size_t num_classes);
+template <typename T>
+float compute_class_accuracy(const T *predictions, const T *targets, const size_t batch_size,
+                             const size_t num_classes);
 
 // Compute class corrects
-int compute_class_corrects(const float *predictions, const float *targets, const size_t batch_size,
+template <typename T>
+int compute_class_corrects(const T *predictions, const T *targets, const size_t batch_size,
                            const size_t num_classes, float threshold = 0.5f);
 
 } // namespace accuracy

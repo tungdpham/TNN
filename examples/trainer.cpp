@@ -1,4 +1,4 @@
-#include "data_loading/data_loader.hpp"
+#include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/train.hpp"
@@ -9,7 +9,7 @@ using namespace std;
 using namespace tnn;
 
 signed main() {
-  ExampleModels<float>::register_defaults();
+  ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -23,44 +23,45 @@ signed main() {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
 
-  Sequential<float> model;
-  if (!model_path.empty()) {
-    cout << "Loading model from: " << model_path << endl;
-    model = Sequential<float>::from_file(model_path, &device); // automatically init
-  } else {
-    cout << "Creating model: " << model_name << endl;
-    try {
-      model = ExampleModels<float>::create(model_name);
-    } catch (const std::exception &e) {
-      cerr << "Error creating model: " << e.what() << endl;
-      cout << "Available models are: ";
-      for (const auto &name : ExampleModels<float>::available_models()) {
-        cout << name << "\n";
-      }
-      cout << endl;
-      return 1;
-    }
-    model.set_device(&device);
-    model.init();
-  }
-
   string dataset_name = Env::get<std::string>("DATASET_NAME", "");
   if (dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
   string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
-  auto [train_loader, val_loader] = DataLoaderFactory<float>::create(dataset_name, dataset_path);
+  auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;
   }
 
+  Sequential model(model_name);
+  if (!model_path.empty()) {
+    cout << "Loading model from: " << model_path << endl;
+    model.load_from_file(model_path, device);
+  } else {
+    cout << "Creating model: " << model_name << endl;
+    try {
+      auto layer_ptr = ExampleModels::create(model_name);
+      model = std::move(*dynamic_cast<Sequential *>(layer_ptr.release()));
+    } catch (const std::exception &e) {
+      cerr << "Error creating model: " << e.what() << endl;
+      cout << "Available models are: ";
+      for (const auto &name : ExampleModels::available_models()) {
+        cout << name << "\n";
+      }
+      cout << endl;
+      return 1;
+    }
+    model.set_device(device);
+    model.init();
+  }
+
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
-  float lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
-  auto criterion = LossFactory<float>::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
-  auto scheduler = SchedulerFactory<float>::create_step_lr(optimizer.get(), 10, 0.1f);
+  float lr_initial = Env::get("LR_INITIAL", 0.001f);
+  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), 10, 0.1f);
 
   try {
     train_model(model, *train_loader, *val_loader, optimizer, criterion, scheduler, train_config);

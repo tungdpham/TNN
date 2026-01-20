@@ -1,4 +1,5 @@
 #include "nn/activations_impl/cuda/elu_kernels.hpp"
+#include "type/type.hpp"
 
 #ifdef USE_CUDA
 
@@ -66,6 +67,45 @@ void elu_gradient<double>(const double *input, const double *grad_output, double
   const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
   elu_gradient_kernel_double<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output, grad_input,
                                                                    size, alpha);
+}
+
+__global__ void elu_half_scalar_kernel(const fp16 *input, fp16 *output, size_t size, fp16 alpha) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    fp16 zero = __float2half(0.0f);
+    if (__hgt(input[idx], zero)) {
+      output[idx] = input[idx];
+    } else {
+      output[idx] = __hmul(alpha, (hexp(input[idx]) - __float2half(1.0f)));
+    }
+  }
+}
+
+__global__ void elu_gradient_half_scalar_kernel(const fp16 *input, const fp16 *grad_output,
+                                                fp16 *grad_input, size_t size, fp16 alpha) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    fp16 zero = __float2half(0.0f);
+    if (__hgt(input[idx], zero)) {
+      grad_input[idx] = grad_output[idx];
+    } else {
+      grad_input[idx] = __hmul(grad_output[idx], __hmul(alpha, hexp(input[idx])));
+    }
+  }
+}
+
+template <>
+void elu<fp16>(const fp16 *input, fp16 *output, size_t size, fp16 alpha, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  elu_half_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, output, size, alpha);
+}
+
+template <>
+void elu_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 *grad_input, size_t size,
+                        fp16 alpha, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  elu_gradient_half_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                        grad_input, size, alpha);
 }
 
 } // namespace cuda

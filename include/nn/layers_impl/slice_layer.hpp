@@ -15,31 +15,39 @@
 
 namespace tnn {
 
-template <typename T = float> class SliceLayer : public StatelessLayer<T> {
+class SliceLayer : public StatelessLayer {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
   size_t axis_;
   size_t start_;
   size_t length_;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> slice_forward(const Tensor &input, Tensor &output,
+                                      const std::string &flow_id) const;
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> slice_backward(const Tensor &gradient, Tensor &grad_input,
+                                       const std::vector<size_t> &original_shape,
+                                       const std::string &flow_id) const;
+
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
   SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice");
+  ~SliceLayer() override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
   std::string type() const override;
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/slice_layer.tpp"

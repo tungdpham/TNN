@@ -1,6 +1,9 @@
-#include "math/cpu/gemm.hpp"
+#include "math/cpu/sgemm.hpp"
 #include "matrix/matrix.hpp"
 #include "utils/misc.hpp"
+#ifdef USE_TBB
+#include <tbb/task_arena.h>
+#endif
 #ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
 #endif

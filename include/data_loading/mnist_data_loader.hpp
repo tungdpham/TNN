@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "image_data_loader.hpp"
+#include "data_loading/image_data_loader.hpp"
 #include "tensor/tensor.hpp"
 
 #include <algorithm>
@@ -27,34 +27,21 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 } // namespace mnist_constants
 
 namespace tnn {
-
 /**
  * Enhanced MNIST data loader for CSV format adapted for CNN (2D images)
- * Extends ImageDataLoader for proper inheritance
+ * NHWC format: (Batch, Height, Width, Channels)
+ * Works with type-erased Tensors
  */
-template <typename T = float> class MNISTDataLoader : public ImageDataLoader<T> {
+class MNISTDataLoader : public ImageDataLoader {
 private:
-  std::vector<std::vector<T>> data_;
+  std::vector<std::vector<float>> data_;
   std::vector<int> labels_;
 
-  std::vector<Tensor<T>> batched_data_;
-  std::vector<Tensor<T>> batched_labels_;
-  bool batches_prepared_;
+  std::vector<Tensor> batched_data_;
+  std::vector<Tensor> batched_labels_;
+  DType_t dtype_ = DType_t::FP32;
 
-public:
-  MNISTDataLoader() : ImageDataLoader<T>(), batches_prepared_(false) {
-    data_.reserve(60000);
-    labels_.reserve(60000);
-  }
-
-  virtual ~MNISTDataLoader() = default;
-
-  /**
-   * Load MNIST data from CSV file
-   * @param source Path to CSV file (train.csv or test.csv)
-   * @return true if successful, false otherwise
-   */
-  bool load_data(const std::string &source) override {
+  template <typename T> bool load_data_impl(const std::string &source) {
     std::ifstream file{source};
     if (!file.is_open()) {
       std::cerr << "Error: Could not open file " << source << std::endl;
@@ -80,11 +67,11 @@ public:
         continue;
       labels_.push_back(std::stoi(cell));
 
-      std::vector<T> row;
+      std::vector<float> row;
       row.reserve(mnist_constants::IMAGE_SIZE);
 
       while (std::getline(ss, cell, ',')) {
-        row.push_back(static_cast<T>(std::stod(cell) / mnist_constants::NORMALIZATION_FACTOR));
+        row.push_back(static_cast<float>(std::stod(cell) / mnist_constants::NORMALIZATION_FACTOR));
       }
 
       if (row.size() != mnist_constants::IMAGE_SIZE) {
@@ -101,60 +88,36 @@ public:
     return !data_.empty();
   }
 
-  /**
-   * Get the next batch of data using pre-computed batches
-   */
-  bool get_next_batch(Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
-    if (!batches_prepared_) {
-      std::cerr << "Error: Batches not prepared! Call prepare_batches() first." << std::endl;
-      return false;
-    }
-
-    if (this->current_batch_index_ >= batched_data_.size()) {
-      return false;
-    }
-
-    batch_data = batched_data_[this->current_batch_index_].clone();
-    batch_labels = batched_labels_[this->current_batch_index_].clone();
-
-    this->apply_augmentation(batch_data, batch_labels);
-
-    ++this->current_batch_index_;
-
-    return true;
-  }
-
-  /**
-   * Get a specific batch size (supports both pre-computed and on-demand
-   * batches)
-   */
-  bool get_batch(size_t batch_size, Tensor<T> &batch_data, Tensor<T> &batch_labels) override {
-
-    if (batches_prepared_ && batch_size == this->batch_size_) {
-      return get_next_batch(batch_data, batch_labels);
-    }
-
+  template <typename T>
+  bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
     if (this->current_index_ >= data_.size()) {
       return false;
     }
 
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data = Tensor<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
-                            mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+    // NHWC format: (Batch, Height, Width, Channels)
+    batch_data = make_tensor<T>({actual_batch_size, mnist_constants::IMAGE_HEIGHT,
+                                 mnist_constants::IMAGE_WIDTH, mnist_constants::NUM_CHANNELS});
 
-    batch_labels = Tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
-    batch_labels.fill(static_cast<T>(0.0));
+    batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES});
+    batch_labels->fill(0.0);
+
+    auto typed_batch_data = tensor_cast<T>(batch_data);
+    auto typed_batch_labels = tensor_cast<T>(batch_labels);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
-      std::copy(image_data.begin(), image_data.end(),
-                &batch_data(i, 0, 0, 0)); // Direct copy for efficiency
+      // NHWC indexing: (batch, height, width, channel)
+      for (size_t j = 0; j < mnist_constants::IMAGE_SIZE; ++j) {
+        (*typed_batch_data)({i, j / mnist_constants::IMAGE_WIDTH, j % mnist_constants::IMAGE_WIDTH,
+                             0}) = static_cast<T>(image_data[j]);
+      }
 
-      const int label = labels_[this->current_index_ + i];
+      const size_t label = labels_[this->current_index_ + i];
       if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-        batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
+        (*typed_batch_labels)({i, label}) = static_cast<T>(1.0);
       }
     }
 
@@ -164,55 +127,54 @@ public:
     return true;
   }
 
+public:
+  MNISTDataLoader(DType_t dtype = DType_t::FP32) : ImageDataLoader(), dtype_(dtype) {
+    data_.reserve(60000);
+    labels_.reserve(60000);
+  }
+
+  virtual ~MNISTDataLoader() = default;
+
+  /**
+   * Load MNIST data from CSV file
+   * @param source Path to CSV file (train.csv or test.csv)
+   * @return true if successful, false otherwise
+   */
+  bool load_data(const std::string &source) override {
+    DISPATCH_ON_DTYPE(dtype_, T, return load_data_impl<T>(source));
+  }
+
+  bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
+    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+  }
+
   /**
    * Reset iterator to beginning of dataset
    */
-  void reset() override {
-    this->current_index_ = 0;
-    this->current_batch_index_ = 0;
-  }
+  void reset() override { this->current_index_ = 0; }
 
   /**
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (!batches_prepared_) {
-      if (data_.empty())
-        return;
+    if (data_.empty())
+      return;
 
-      std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
+    std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
-      std::vector<std::vector<T>> shuffled_data;
-      std::vector<int> shuffled_labels;
-      shuffled_data.reserve(data_.size());
-      shuffled_labels.reserve(labels_.size());
+    std::vector<std::vector<float>> shuffled_data;
+    std::vector<int> shuffled_labels;
+    shuffled_data.reserve(data_.size());
+    shuffled_labels.reserve(labels_.size());
 
-      for (const auto &idx : indices) {
-        shuffled_data.emplace_back(std::move(data_[idx]));
-        shuffled_labels.emplace_back(labels_[idx]);
-      }
-
-      data_ = std::move(shuffled_data);
-      labels_ = std::move(shuffled_labels);
-      this->current_index_ = 0;
-
-    } else {
-      std::vector<size_t> indices = this->generate_shuffled_indices(batched_data_.size());
-
-      std::vector<Tensor<T>> shuffled_data;
-      std::vector<Tensor<T>> shuffled_labels;
-      shuffled_data.reserve(batched_data_.size());
-      shuffled_labels.reserve(batched_labels_.size());
-
-      for (const auto &idx : indices) {
-        shuffled_data.emplace_back(std::move(batched_data_[idx]));
-        shuffled_labels.emplace_back(std::move(batched_labels_[idx]));
-      }
-
-      batched_data_ = std::move(shuffled_data);
-      batched_labels_ = std::move(shuffled_labels);
-      this->current_batch_index_ = 0;
+    for (const auto &idx : indices) {
+      shuffled_data.emplace_back(std::move(data_[idx]));
+      shuffled_labels.emplace_back(labels_[idx]);
     }
+
+    data_ = std::move(shuffled_data);
+    labels_ = std::move(shuffled_labels);
+    this->current_index_ = 0;
   }
 
   /**
@@ -221,11 +183,11 @@ public:
   size_t size() const override { return data_.size(); }
 
   /**
-   * Get image dimensions (channels, height, width)
+   * Get image dimensions (height, width, channels) for NHWC format
    */
   std::vector<size_t> get_data_shape() const override {
-    return {mnist_constants::NUM_CHANNELS, mnist_constants::IMAGE_HEIGHT,
-            mnist_constants::IMAGE_WIDTH};
+    return {mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH,
+            mnist_constants::NUM_CHANNELS};
   }
 
   /**
@@ -237,95 +199,57 @@ public:
    * Get class names for MNIST (digits 0-9)
    */
   std::vector<std::string> get_class_names() const override {
-    std::vector<std::string> names;
-    names.reserve(mnist_constants::NUM_CLASSES);
-    for (int i = 0; i < static_cast<int>(mnist_constants::NUM_CLASSES); ++i) {
-      names.push_back("digit_" + std::to_string(i));
-    }
-    return names;
+    return {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9"};
   }
 
   /**
-   * Pre-compute all batches for efficient training
+   * Get data statistics for debugging
    */
-  void prepare_batches(size_t batch_size) override {
+  void print_data_stats() const override {
     if (data_.empty()) {
-      std::cerr << "Warning: No data loaded, cannot prepare batches!" << std::endl;
+      std::cout << "No data loaded" << std::endl;
       return;
     }
 
-    this->batch_size_ = batch_size;
-    this->batches_prepared_ = true;
-    batched_data_.clear();
-    batched_labels_.clear();
-
-    const size_t num_samples = data_.size();
-    const size_t num_batches = (num_samples + batch_size - 1) / batch_size;
-
-    batched_data_.reserve(num_batches);
-    batched_labels_.reserve(num_batches);
-
-    std::cout << "Preparing " << num_batches << " batches of size " << batch_size << std::endl;
-
-    for (size_t batch_idx = 0; batch_idx < num_batches; ++batch_idx) {
-      const size_t start_idx = batch_idx * batch_size;
-      const size_t end_idx = std::min(start_idx + batch_size, num_samples);
-      const size_t actual_batch_size = end_idx - start_idx;
-      assert(actual_batch_size > 0);
-
-      Tensor<T> batch_data(std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CHANNELS,
-                                               mnist_constants::IMAGE_HEIGHT,
-                                               mnist_constants::IMAGE_WIDTH});
-
-      Tensor<T> batch_labels(
-          std::vector<size_t>{actual_batch_size, mnist_constants::NUM_CLASSES, 1, 1});
-      batch_labels.fill(T(0.0));
-
-      for (size_t i = 0; i < actual_batch_size; ++i) {
-        const size_t sample_idx = start_idx + i;
-        const auto &image_data = data_[sample_idx];
-
-        std::copy(image_data.begin(), image_data.end(), &batch_data(i, 0, 0, 0));
-
-        const int label = labels_[sample_idx];
-        if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
-          batch_labels(i, label, 0, 0) = static_cast<T>(1.0);
-        }
+    std::vector<int> label_counts(mnist_constants::NUM_CLASSES, 0);
+    for (const auto &label : labels_) {
+      if (label >= 0 && label < static_cast<int>(mnist_constants::NUM_CLASSES)) {
+        label_counts[label]++;
       }
-
-      batched_data_.emplace_back(std::move(batch_data));
-      batched_labels_.emplace_back(std::move(batch_labels));
     }
 
-    this->current_batch_index_ = 0;
-    batches_prepared_ = true;
-    std::cout << "Batch preparation completed!" << std::endl;
-    std::cout << "Prepared " << batched_data_.size() << " batches " << "of size " << batch_size
-              << " each." << std::endl;
+    std::cout << "MNIST Dataset Statistics (NHWC format):" << std::endl;
+    std::cout << "Total samples: " << data_.size() << std::endl;
+    std::cout << "Image shape: " << mnist_constants::IMAGE_HEIGHT << "x"
+              << mnist_constants::IMAGE_WIDTH << "x" << mnist_constants::NUM_CHANNELS << std::endl;
+    std::cout << "Class distribution:" << std::endl;
+
+    auto class_names = get_class_names();
+    for (int i = 0; i < static_cast<int>(mnist_constants::NUM_CLASSES); ++i) {
+      std::cout << "  Digit " << class_names[i] << ": " << label_counts[i] << " samples"
+                << std::endl;
+    }
+
+    if (!data_.empty()) {
+      float min_val = *std::min_element(data_[0].begin(), data_[0].end());
+      float max_val = *std::max_element(data_[0].begin(), data_[0].end());
+      float sum = std::accumulate(data_[0].begin(), data_[0].end(), 0.0f);
+      float mean = sum / static_cast<float>(data_[0].size());
+
+      std::cout << "Pixel value range: [" << min_val << ", " << max_val << "]" << std::endl;
+      std::cout << "First image mean pixel value: " << mean << std::endl;
+    }
   }
 
-  /**
-   * Get number of batches when using prepared batches
-   */
-  size_t num_batches() const override {
-    return batches_prepared_ ? batched_data_.size() : BaseDataLoader<T>::num_batches();
-  }
-
-  /**
-   * Check if batches are prepared
-   */
-  bool are_batches_prepared() const override { return batches_prepared_; }
-
-  static void create(std::string data_path, MNISTDataLoader<T> &train_loader,
-                     MNISTDataLoader<T> &test_loader) {
-    if (!train_loader.load_data(data_path + "/mnist/train.csv")) {
+  static void create(const std::string &data_path, MNISTDataLoader &train_loader,
+                     MNISTDataLoader &test_loader) {
+    if (!train_loader.load_data(data_path + "/mnist_train.csv")) {
       throw std::runtime_error("Failed to load training data!");
     }
 
-    if (!test_loader.load_data(data_path + "/mnist/test.csv")) {
+    if (!test_loader.load_data(data_path + "/mnist_test.csv")) {
       throw std::runtime_error("Failed to load test data!");
     }
   }
 };
-
 } // namespace tnn

@@ -14,16 +14,23 @@
 
 namespace tnn {
 
-template <typename T = float> class StatelessLayer : public Layer<T> {
+class StatelessLayer : public Layer {
 public:
   explicit StatelessLayer(const std::string &name = "") { this->name_ = name; }
-  std::vector<Tensor<T> *> parameters() override { return {}; }
-  std::vector<Tensor<T> *> gradients() override { return {}; }
+  std::vector<Tensor> parameters() override { return {}; }
+  std::vector<Tensor> gradients() override { return {}; }
   bool has_parameters() const override { return false; }
 
 private:
+  // Stateless layers do not need initialization
   void init_impl() override {
     (void)this; // no-op
+  }
+
+  // stateless layers don't have params so device change don't really matter but there may be
+  // special cases.
+  void on_set_device(const Device &device) override {
+    (void)device; // no-op
   }
 };
 

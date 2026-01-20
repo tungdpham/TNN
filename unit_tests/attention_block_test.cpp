@@ -21,17 +21,17 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
   size_t L = 10;
 
   // Input shape: [batch, L, embed_dim]
-  Tensor<float> input({batch_size, L, embed_dim}, &getCPU());
-  input.fill_random_uniform(-1.0f, 1.0f);
+  Tensor input = make_tensor<float>({batch_size, L, embed_dim}, &getCPU());
+  input->fill_random_uniform(-1.0f, 1.0f);
 
-  auto attention = std::make_unique<AttentionBlock<float>>(embed_dim, num_heads, "attn");
+  auto attention = std::make_unique<AttentionBlock>(embed_dim, num_heads, "attn");
   attention->init();
 
-  Tensor<float> output;
+  Tensor output;
   attention->forward(input, output);
 
   // Check output shape
-  auto output_shape = output.shape();
+  auto output_shape = output->shape();
   EXPECT_EQ(output_shape.size(), 3);
   EXPECT_EQ(output_shape[0], batch_size);
   EXPECT_EQ(output_shape[1], L);
@@ -39,10 +39,8 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
 }
 
 TEST(AttentionBlockTest, BuilderTest) {
-  LayerBuilder<float> builder;
-  builder
-      .input({10, 64}) // L, embed_dim
-      .attention(64, 4);
+  LayerBuilder builder;
+  builder.input({10, 64}).attention(64, 4);
 
   auto layers = builder.build();
   EXPECT_EQ(layers.size(), 1);

@@ -23,7 +23,7 @@ template <typename T = float> struct Matrix {
 private:
   size_t rows_, cols_;
   const Device *device_;
-  device_ptr<T[]> data_;
+  device_ptr data_;
 
   static constexpr size_t MKL_ALIGNMENT = 64;
   static constexpr size_t AVX2_ALIGNMENT = 32;
@@ -32,7 +32,7 @@ private:
     if (count == 0)
       return;
 
-    data_ = make_array_ptr<T[]>(device_, count, MKL_ALIGNMENT);
+    data_ = make_dptr_t<T[]>(device_, count, MKL_ALIGNMENT);
   }
 
 public:
@@ -43,11 +43,11 @@ public:
     allocate_aligned(rows_ * cols_);
   }
 
-  Matrix(size_t rows, size_t cols, const device_ptr<T[]> &data, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, const device_ptr &data, const Device *device = &getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
-    if (data.get() != nullptr) {
-      ops::copy(data, data_, rows_ * cols_);
+    if (data.get<T>() != nullptr) {
+      ops::copy<T>(data, data_, rows_ * cols_);
     }
   }
 
@@ -56,7 +56,7 @@ public:
     this->cols_ = other.cols_;
     this->device_ = other.device_;
     allocate_aligned(rows_ * cols_);
-    ops::copy(other.data_, data_, rows_ * cols_);
+    ops::copy<T>(other.data_, data_, rows_ * cols_);
   }
 
   Matrix(Matrix<T> &&other) noexcept
@@ -83,8 +83,8 @@ public:
 
   ~Matrix() {}
 
-  const T *data() const { return data_.get(); }
-  T *data() { return data_.get(); }
+  const T *data() const { return data_.get<T>(); }
+  T *data() { return data_.get<T>(); }
 
   void fill(T value) { ops::set_scalar(data_, value, rows_ * cols_); }
 
@@ -95,7 +95,7 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::add(data_, other.data_, result.data_, size);
+    ops::add<T>(data_, other.data_, result.data_, size);
     return result;
   }
 
@@ -105,7 +105,7 @@ public:
     }
     size_t size = rows_ * cols_;
 
-    ops::add(data_, other.data_, data_, size);
+    ops::add<T>(data_, other.data_, data_, size);
     return *this;
   }
 
@@ -116,7 +116,7 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::sub(data_, other.data_, result.data_, size);
+    ops::sub<T>(data_, other.data_, result.data_, size);
     return result;
   }
 
@@ -126,7 +126,7 @@ public:
     }
     size_t size = rows_ * cols_;
 
-    ops::sub(data_, other.data_, data_, size);
+    ops::sub<T>(data_, other.data_, data_, size);
 
     return *this;
   }
@@ -175,7 +175,7 @@ public:
     Matrix<T> result(rows_, other.cols_);
     result.fill(0.0);
 
-    ops::mul(data_, other.data_, result.data_, size());
+    ops::mul<T>(data_, other.data_, result.data_, size());
     return result;
   }
 

@@ -35,9 +35,8 @@ public:
    * @param gid_index GID index for RoCE
    * @param endpoints The list of worker endpoints
    */
-  RoceCoordinator(const std::string &id, Sequential<float> model,
-                  std::unique_ptr<Optimizer<float>> optimizer, Endpoint coordinator_endpoint,
-                  const std::vector<Endpoint> &endpoints = {})
+  RoceCoordinator(const std::string &id, Sequential model, std::unique_ptr<Optimizer> optimizer,
+                  Endpoint coordinator_endpoint, const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), std::move(optimizer)) {
 
     // Initialize coordinator and remote endpoints

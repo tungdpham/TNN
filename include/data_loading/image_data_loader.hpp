@@ -8,7 +8,7 @@ namespace tnn {
  * Provides common functionality for image-based datasets like MNIST, CIFAR,
  * etc.
  */
-template <typename T = float> class ImageDataLoader : public BaseDataLoader<T> {
+class ImageDataLoader : public BaseDataLoader {
 public:
   virtual ~ImageDataLoader() = default;
 
@@ -31,9 +31,8 @@ public:
   }
 
 protected:
-  using BaseDataLoader<T>::current_index_;
-  using BaseDataLoader<T>::batch_size_;
-  using BaseDataLoader<T>::rng_;
+  using BaseDataLoader::current_index_;
+  using BaseDataLoader::rng_;
 };
 
 } // namespace tnn

@@ -10,10 +10,4 @@
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 
-namespace tnn {
-/**
- * Template instantiations for commonly used types. Uncomment as needed.
- */
-template struct Job<float>;
-
-} // namespace tnn
+namespace tnn {} // namespace tnn

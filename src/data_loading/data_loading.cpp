@@ -7,21 +7,19 @@
 
 #include "data_loading/cifar100_data_loader.hpp"
 #include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/data_loader.hpp"
+#include "data_loading/data_loader_factory.hpp"
 #include "data_loading/mnist_data_loader.hpp"
 #include "data_loading/open_webtext_data_loader.hpp"
 #include "data_loading/tiny_imagenet_data_loader.hpp"
 
 namespace tnn {
-
-template <typename T>
-DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
-                                               const std::string &dataset_path) {
-  DataLoaderPair<T> pair;
+DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
+                                         const std::string &dataset_path) {
+  DataLoaderPair pair;
 
   if (dataset_type == "mnist") {
-    auto train = std::make_unique<MNISTDataLoader<T>>();
-    auto val = std::make_unique<MNISTDataLoader<T>>();
+    auto train = std::make_unique<MNISTDataLoader>();
+    auto val = std::make_unique<MNISTDataLoader>();
 
     if (train->load_data(dataset_path + "/train.csv") ||
         train->load_data(dataset_path + "/mnist_train.csv")) {
@@ -33,8 +31,8 @@ DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
       pair.val = std::move(val);
     }
   } else if (dataset_type == "cifar10") {
-    auto train = std::make_unique<CIFAR10DataLoader<T>>();
-    auto val = std::make_unique<CIFAR10DataLoader<T>>();
+    auto train = std::make_unique<CIFAR10DataLoader>();
+    auto val = std::make_unique<CIFAR10DataLoader>();
 
     std::vector<std::string> train_files = {
         dataset_path + "/data_batch_1.bin", dataset_path + "/data_batch_2.bin",
@@ -49,8 +47,8 @@ DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
       pair.val = std::move(val);
     }
   } else if (dataset_type == "cifar100") {
-    auto train = std::make_unique<CIFAR100DataLoader<T>>();
-    auto val = std::make_unique<CIFAR100DataLoader<T>>();
+    auto train = std::make_unique<CIFAR100DataLoader>();
+    auto val = std::make_unique<CIFAR100DataLoader>();
 
     if (train->load_data(dataset_path + "/train.bin")) {
       pair.train = std::move(train);
@@ -60,8 +58,8 @@ DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
       pair.val = std::move(val);
     }
   } else if (dataset_type == "tiny_imagenet") {
-    auto train = std::make_unique<TinyImageNetDataLoader<T>>();
-    auto val = std::make_unique<TinyImageNetDataLoader<T>>();
+    auto train = std::make_unique<TinyImageNetDataLoader>();
+    auto val = std::make_unique<TinyImageNetDataLoader>();
 
     if (train->load_data(dataset_path, true)) {
       pair.train = std::move(train);
@@ -71,8 +69,8 @@ DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
       pair.val = std::move(val);
     }
   } else if (dataset_type == "open_webtext") {
-    auto train = std::make_unique<OpenWebTextDataLoader<T>>(512);
-    auto val = std::make_unique<OpenWebTextDataLoader<T>>(512);
+    auto train = std::make_unique<OpenWebTextDataLoader>(512);
+    auto val = std::make_unique<OpenWebTextDataLoader>(512);
 
     if (train->load_data(dataset_path + "/train.bin")) {
       pair.train = std::move(train);
@@ -94,20 +92,4 @@ DataLoaderPair<T> DataLoaderFactory<T>::create(const std::string &dataset_type,
 
   return pair;
 }
-
-template class DataLoaderFactory<float>;
-template class DataLoaderFactory<double>;
-
-template class BaseDataLoader<float>;
-template class BaseDataLoader<double>;
-
-template class MNISTDataLoader<float>;
-template class MNISTDataLoader<double>;
-
-template class CIFAR10DataLoader<float>;
-template class CIFAR10DataLoader<double>;
-
-template class CIFAR100DataLoader<float>;
-template class CIFAR100DataLoader<double>;
-
 } // namespace tnn

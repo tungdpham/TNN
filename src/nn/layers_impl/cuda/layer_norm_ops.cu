@@ -6,6 +6,7 @@
  */
 #include "nn/layers_impl/cuda/layer_norm_ops.hpp"
 
+#include "type/type.hpp"
 #include <cmath>
 #include <cuda_runtime.h>
 
@@ -59,7 +60,7 @@ __global__ void layer_norm_forward_kernel(const T *input, T *output, const T *ga
     sq_sum += diff * diff;
   }
   const T var = sq_sum / static_cast<T>(channels);
-  const T inv_std = T(1) / sqrt(var + epsilon);
+  const T inv_std = T(1) / static_cast<T>(sqrt(static_cast<double>(var + epsilon)));
 
   for (size_t c = 0; c < channels; ++c) {
     const T norm = (x[c] - mean) * inv_std;
@@ -91,7 +92,7 @@ __global__ void layer_norm_backward_kernel(const T *grad_output, const T *input,
     sq_sum += diff * diff;
   }
   const T var = sq_sum / static_cast<T>(channels);
-  const T inv_std = T(1) / sqrt(var + epsilon);
+  const T inv_std = T(1) / static_cast<T>(sqrt(static_cast<double>(var + epsilon)));
 
   // For input gradient
   T sum_dl_dnorm = T(0);
@@ -152,21 +153,18 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
       grad_output, input, gamma, grad_input, grad_gamma, grad_beta, channels, epsilon);
 }
 
-template void layer_norm_forward<float>(const float *input, float *output, const float *gamma,
-                                        const float *beta, size_t batch_size, size_t channels,
-                                        float epsilon, cudaStream_t stream);
-template void layer_norm_backward<float>(const float *grad_output, const float *input,
-                                         const float *gamma, float *grad_input, float *grad_gamma,
-                                         float *grad_beta, size_t batch_size, size_t channels,
-                                         float epsilon, cudaStream_t stream);
-
-template void layer_norm_forward<double>(const double *input, double *output, const double *gamma,
-                                         const double *beta, size_t batch_size, size_t channels,
-                                         double epsilon, cudaStream_t stream);
-template void layer_norm_backward<double>(const double *grad_output, const double *input,
-                                          const double *gamma, double *grad_input,
-                                          double *grad_gamma, double *grad_beta, size_t batch_size,
-                                          size_t channels, double epsilon, cudaStream_t stream);
+#define INSTANTIATE_LAYER_NORM(T)                                                                  \
+  template void layer_norm_forward<T>(const T *input, T *output, const T *gamma, const T *beta,    \
+                                      size_t batch_size, size_t channels, T epsilon,               \
+                                      cudaStream_t stream);                                        \
+                                                                                                   \
+  template void layer_norm_backward<T>(                                                            \
+      const T *grad_output, const T *input, const T *gamma, T *grad_input, T *grad_gamma,          \
+      T *grad_beta, size_t batch_size, size_t channels, T epsilon, cudaStream_t stream);
+INSTANTIATE_LAYER_NORM(fp16)
+INSTANTIATE_LAYER_NORM(float)
+INSTANTIATE_LAYER_NORM(double)
+#undef INSTANTIATE_LAYER_NORM
 
 } // namespace layer_norm
 } // namespace cuda

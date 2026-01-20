@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "device/device_ptr.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
 
@@ -17,44 +16,46 @@
 
 namespace tnn {
 
-template <typename T = float> class GroupNormLayer : public ParameterizedLayer<T> {
+class GroupNormLayer : public ParameterizedLayer {
 private:
   size_t num_groups_;
   size_t num_channels_;
-  T epsilon_;
+  float epsilon_;
   bool affine_;
 
-  Tensor<T> gamma_;
-  Tensor<T> beta_;
-  Tensor<T> gamma_gradients_;
-  Tensor<T> beta_gradients_;
+  Tensor gamma_;
+  Tensor beta_;
+  Tensor gamma_gradients_;
+  Tensor beta_gradients_;
 
-  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_;
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_normalized_;
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
-  std::unordered_map<size_t, device_ptr<T[]>> group_mean_;
+  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
+  std::unordered_map<size_t, Tensor> micro_batch_normalized_;
+  std::unordered_map<size_t, Tensor> micro_batch_inv_std_;
+  std::unordered_map<size_t, Tensor> group_mean_;
 
-  std::unique_ptr<Task> run_forward_fused(const device_ptr<T[]> &input, device_ptr<T[]> &group_mean,
-                                          device_ptr<T[]> &group_inv_std,
-                                          const device_ptr<T[]> &gamma, const device_ptr<T[]> &beta,
-                                          device_ptr<T[]> &output, device_ptr<T[]> &norm_cache,
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> run_forward_fused(const Tensor &input, Tensor &group_mean,
+                                          Tensor &group_inv_std, const Tensor &gamma,
+                                          const Tensor &beta, Tensor &output, Tensor &norm_cache,
                                           size_t batch_size, size_t channels, size_t spatial_size,
-                                          const std::string &flow_id = "default");
+                                          const std::string &flow_id = "default") const;
 
-  std::unique_ptr<Task> run_backward_fused(const device_ptr<T[]> &grad_output,
-                                           const device_ptr<T[]> &norm_input,
-                                           const device_ptr<T[]> &inv_std,
-                                           const device_ptr<T[]> &gamma, device_ptr<T[]> &d_gamma,
-                                           device_ptr<T[]> &d_beta, device_ptr<T[]> &grad_input,
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> run_backward_fused(const Tensor &grad_output, const Tensor &norm_input,
+                                           const Tensor &inv_std, const Tensor &gamma,
+                                           Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
                                            size_t batch_size, size_t channels, size_t spatial_size,
-                                           const std::string &flow_id = "default");
+                                           const std::string &flow_id = "default") const;
 
-  void forward_impl(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor<T> &gradient, Tensor<T> &grad_input,
+  void init_params() override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
+  void collect_parameters(std::vector<Tensor> &params) override;
+  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  explicit GroupNormLayer(size_t num_groups, size_t num_channels, T epsilon = T(1e-5),
+  explicit GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f,
                           bool affine = true, const std::string &name = "groupnorm");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
@@ -62,17 +63,10 @@ public:
 
   std::string type() const override;
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
-
-protected:
-  void init_params() override;
-  void collect_parameters(std::vector<Tensor<T> *> &params) override;
-  void collect_gradients(std::vector<Tensor<T> *> &grads) override;
+  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn
-
-#include "nn/layers_impl/groupnorm_layer.tpp"

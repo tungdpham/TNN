@@ -1,11 +1,13 @@
 #pragma once
 
 #include "device/device_manager.hpp"
+#include "device/mem_pool.hpp"
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
+#include "type/type.hpp"
 #include <concepts>
 #include <cstdint>
 #include <sys/types.h>
@@ -45,15 +47,17 @@ concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t 
 
 class BinarySerializer {
 public:
-  template <Buffer BufferType, typename T = float>
-  static void serialize(BufferType &buffer, size_t &offset, const Tensor<T> &tensor) {
-    std::vector<size_t> shape = tensor.shape();
+  template <Buffer BufferType>
+  static void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
+    DType_t dtype = tensor->data_type();
+    buffer.write(offset, dtype);
+    std::vector<size_t> shape = tensor->shape();
     uint64_t shape_size = static_cast<uint64_t>(shape.size());
     buffer.write(offset, shape_size);
     for (size_t dim : shape) {
       buffer.write(offset, static_cast<uint64_t>(dim));
     }
-    buffer.write(offset, tensor.data(), tensor.size());
+    DISPATCH_ON_DTYPE(dtype, T, buffer.write(offset, tensor->data_as<T>(), tensor->size()));
   }
 
   template <Buffer BufferType>
@@ -101,10 +105,10 @@ public:
     buffer.write(offset, data.payload_type);
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
-    } else if (std::holds_alternative<PooledJob<float>>(data.payload)) {
-      const auto &job = std::get<PooledJob<float>>(data.payload);
-      buffer.write(offset, static_cast<uint64_t>(job->micro_batch_id));
-      serialize<BufferType, float>(buffer, offset, job->data);
+    } else if (std::holds_alternative<Job>(data.payload)) {
+      const auto &job = std::get<Job>(data.payload);
+      buffer.write(offset, static_cast<uint64_t>(job.micro_batch_id));
+      serialize(buffer, offset, job.data);
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
       buffer.write(offset, str);
@@ -155,25 +159,32 @@ public:
     header.command_type = static_cast<CommandType>(cmd_type);
   }
 
-  template <Buffer BufferType, typename T = float>
-  static void deserialize(const BufferType &buffer, size_t &offset, Tensor<T> &tensor) {
+  template <Buffer BufferType>
+  static void deserialize(const BufferType &buffer, size_t &offset, Tensor &tensor) {
+    size_t dtype_size;
+    DType_t dtype;
+    uint32_t dtype_value;
+    buffer.template read<uint32_t>(offset, dtype_value);
+    dtype = static_cast<DType_t>(dtype_value);
+    dtype_size = get_dtype_size(dtype);
     uint64_t shape_size;
     buffer.read(offset, shape_size);
     std::vector<uint64_t> shape(shape_size);
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    tensor.ensure(shape, &getCPU());
-    if (tensor.size() > 0) {
-      buffer.read(offset, tensor.data(), tensor.size());
-      offset += tensor.size() * sizeof(T);
+    tensor = make_pooled_tensor_from_dtype(
+        global_mem_pool(), dtype, std::vector<size_t>(shape.begin(), shape.end()), &getCPU());
+    if (tensor->size() > 0) {
+      DISPATCH_ON_DTYPE(dtype, T, buffer.read(offset, tensor->data_as<T>(), tensor->size()));
+      offset += tensor->size() * dtype_size;
     }
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, PooledJob<float> &job) {
-    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job->micro_batch_id));
-    deserialize(buffer, offset, job->data);
+  static void deserialize(const BufferType &buffer, size_t &offset, Job &job) {
+    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job.micro_batch_id));
+    deserialize(buffer, offset, job.data);
   }
 
   template <Buffer BufferType>
@@ -227,9 +238,8 @@ public:
     case variant_index<PayloadType, std::monostate>(): // std::monostate
       data.payload = std::monostate{};
       break;
-    case variant_index<PayloadType, PooledJob<float>>(): { // Job<float>
-      PooledJob<float> job =
-          JobPool<float>::instance().get_job((buffer.size() - offset) / sizeof(float));
+    case variant_index<PayloadType, Job>(): { // Job
+      Job job;
       deserialize(buffer, offset, job);
       data.payload = std::move(job);
     } break;

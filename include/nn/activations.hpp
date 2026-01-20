@@ -24,19 +24,18 @@
 #include "activations_impl/tanh.hpp"
 
 namespace tnn {
-template <typename T = float> class ActivationFactory {
+class ActivationFactory {
 private:
-  static std::unordered_map<std::string, std::function<std::unique_ptr<EWActivationFunction<T>>()>>
+  static std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction>()>>
       creators_;
 
 public:
-  static void
-  register_activation(const std::string &name,
-                      std::function<std::unique_ptr<EWActivationFunction<T>>()> creator) {
+  static void register_activation(const std::string &name,
+                                  std::function<std::unique_ptr<ActivationFunction>()> creator) {
     creators_[name] = creator;
   }
 
-  static std::unique_ptr<EWActivationFunction<T>> create(const std::string &name) {
+  static std::unique_ptr<ActivationFunction> create(const std::string &name) {
     auto it = creators_.find(name);
     if (it != creators_.end()) {
       return it->second();
@@ -46,13 +45,13 @@ public:
 
   static void register_defaults() {
     register_activation("none", []() { return nullptr; });
-    register_activation("relu", []() { return std::make_unique<ReLU<T>>(); });
-    register_activation("leaky_relu", []() { return std::make_unique<LeakyReLU<T>>(T(0.01)); });
-    register_activation("sigmoid", []() { return std::make_unique<Sigmoid<T>>(); });
-    register_activation("linear", []() { return std::make_unique<Linear<T>>(); });
-    register_activation("tanh", []() { return std::make_unique<Tanh<T>>(); });
-    register_activation("elu", []() { return std::make_unique<ELU<T>>(); });
-    register_activation("gelu", []() { return std::make_unique<GELU<T>>(); });
+    register_activation("relu", []() { return std::make_unique<ReLU>(); });
+    register_activation("leaky_relu", []() { return std::make_unique<LeakyReLU>(0.01); });
+    register_activation("sigmoid", []() { return std::make_unique<Sigmoid>(); });
+    register_activation("linear", []() { return std::make_unique<Linear>(); });
+    register_activation("tanh", []() { return std::make_unique<Tanh>(); });
+    register_activation("elu", []() { return std::make_unique<ELU>(); });
+    register_activation("gelu", []() { return std::make_unique<GELU>(); });
   }
 
   static std::vector<std::string> get_available_activations() {
@@ -64,8 +63,7 @@ public:
   }
 };
 
-template <typename T>
-std::unordered_map<std::string, std::function<std::unique_ptr<EWActivationFunction<T>>()>>
-    ActivationFactory<T>::creators_;
+inline std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction>()>>
+    ActivationFactory::creators_;
 
 } // namespace tnn

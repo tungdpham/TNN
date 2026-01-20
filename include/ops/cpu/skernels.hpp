@@ -7,7 +7,6 @@ namespace tnn {
 namespace ops {
 namespace cpu {
 namespace fp {
-// Single-precision AVX2 Implementations
 #ifdef __AVX2__
 
 // Basic Arithmetic (Float)

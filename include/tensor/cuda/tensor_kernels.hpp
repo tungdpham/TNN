@@ -33,10 +33,16 @@ void cuda_crop(const T *input, T *output, size_t batch_size, size_t channels, si
                size_t width, size_t start_h, size_t start_w, size_t new_height, size_t new_width,
                cudaStream_t stream);
 
-// Softmax operation
 template <typename T>
-void cuda_softmax(T *data, size_t batch_size, size_t num_classes, size_t height, size_t width,
-                  cudaStream_t stream);
+void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cudaStream_t stream);
+
+template <typename T>
+void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+                       cudaStream_t stream);
+
+template <typename T>
+void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+                       cudaStream_t stream);
 
 } // namespace cuda
 } // namespace tnn
