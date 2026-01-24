@@ -1,6 +1,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 #include <memory>
@@ -59,8 +60,12 @@ signed main() {
 
   float lr_initial = Env::get("LR_INITIAL", 0.001f);
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
-  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), 10, 0.1f);
+  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-5f, 1e-3f, true);
+  // auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), 10, 0.1f);
+  size_t max_steps = train_config.max_steps > 0 ? train_config.max_steps
+                                                : train_loader->size() / train_config.batch_size;
+  auto scheduler = SchedulerFactory::create_warmup_cosine(
+      optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
 
   try {
     train_model(model, *train_loader, *val_loader, optimizer, criterion, scheduler, train_config);
