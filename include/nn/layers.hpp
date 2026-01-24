@@ -403,7 +403,7 @@ public:
   }
 
   LayerBuilder &batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
-                          bool use_relu = false, const std::string &name = "") {
+                          const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 2) {
@@ -413,7 +413,7 @@ public:
     size_t num_features = current_shape.back();
 
     auto layer = std::make_unique<BatchNormLayer>(
-        num_features, epsilon, momentum, affine, use_relu,
+        num_features, epsilon, momentum, affine, false,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;

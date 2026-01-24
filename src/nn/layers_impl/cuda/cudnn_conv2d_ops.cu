@@ -105,12 +105,12 @@ static void build_fwd_graph(feHandle_t *handle, ConvolutionStats &stats) {
   auto X = graph->tensor(fe::graph::Tensor_attributes()
                              .set_name("X")
                              .set_dim({n, c, h, w})
-                             .set_stride({c * h * w, 1, w * c, c}));
+                             .set_stride({h * w * c, 1, w * c, c}));
 
   auto W = graph->tensor(fe::graph::Tensor_attributes()
                              .set_name("W")
                              .set_dim({k, c, r, s})
-                             .set_stride({c * r * s, 1, s * c, c}));
+                             .set_stride({r * s * c, 1, s * c, c}));
 
   auto conv_options =
       fe::graph::Conv_fprop_attributes()
@@ -177,12 +177,12 @@ static void build_dgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   auto DY = graph->tensor(fe::graph::Tensor_attributes()
                               .set_name("DY")
                               .set_dim({n, k, p, q})
-                              .set_stride({k * p * q, 1, q * k, k}));
+                              .set_stride({p * q * k, 1, q * k, k}));
 
   auto W = graph->tensor(fe::graph::Tensor_attributes()
                              .set_name("W")
                              .set_dim({k, c, r, s})
-                             .set_stride({c * r * s, 1, s * c, c}));
+                             .set_stride({r * s * c, 1, s * c, c}));
 
   auto dgrad_options =
       fe::graph::Conv_dgrad_attributes()
@@ -193,7 +193,7 @@ static void build_dgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
 
   auto DX = graph->conv_dgrad(DY, W, dgrad_options);
   DX->set_dim({n, c, h, w})
-      .set_stride({c * h * w, 1, w * c, c})
+      .set_stride({h * w * c, 1, w * c, c})
       .set_data_type(io_type)
       .set_output(true);
 
@@ -235,12 +235,12 @@ static void build_wgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   auto X = graph->tensor(fe::graph::Tensor_attributes()
                              .set_name("X")
                              .set_dim({n, c, h, w})
-                             .set_stride({c * h * w, 1, w * c, c}));
+                             .set_stride({h * w * c, 1, w * c, c}));
 
   auto DY = graph->tensor(fe::graph::Tensor_attributes()
                               .set_name("DY")
                               .set_dim({n, k, p, q})
-                              .set_stride({k * p * q, 1, q * k, k}));
+                              .set_stride({p * q * k, 1, q * k, k}));
 
   auto wgrad_options =
       fe::graph::Conv_wgrad_attributes()
@@ -252,7 +252,7 @@ static void build_wgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   auto DW = graph->conv_wgrad(DY, X, wgrad_options);
   DW->set_output(true)
       .set_dim({k, c, r, s})
-      .set_stride({c * r * s, 1, s * c, c})
+      .set_stride({r * s * c, 1, s * c, c})
       .set_data_type(io_type);
 
   ensure_ok(graph->validate(), "conv_wgrad validate");
@@ -288,7 +288,7 @@ static void build_bgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   auto DY = graph->tensor(fe::graph::Tensor_attributes()
                               .set_name("DY")
                               .set_dim({n, k, p, q})
-                              .set_stride({k * p * q, 1, q * k, k}));
+                              .set_stride({p * q * k, 1, q * k, k}));
 
   // Bias gradient is the sum of DY over N, H, and W dimensions
   auto reduction_options = fe::graph::Reduction_attributes().set_mode(fe::ReductionMode_t::ADD);

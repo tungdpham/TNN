@@ -3,9 +3,11 @@
 #include "device/device_ptr.hpp"
 
 #include <cstddef>
-#include <iostream>
 #include <map>
 #include <mutex>
+#ifndef NDEBUG
+#include <iostream>
+#endif
 
 namespace tnn {
 
@@ -34,8 +36,10 @@ public:
       }
       ++it;
     }
+#ifndef NDEBUG
     if (size > 0)
       std::cout << "MemPool: Allocating new tensor of size " << size << " bytes.\n";
+#endif
 
     return make_dptr(device, size);
   }

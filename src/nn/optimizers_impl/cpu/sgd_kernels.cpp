@@ -7,6 +7,7 @@
 #include "nn/optimizers_impl/cpu/sgd_kernels.hpp"
 
 #include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -15,7 +16,9 @@ namespace sgd {
 template <typename T>
 void update_sgd(T *params_data, const T *grads_data, const size_t size, const float learning_rate) {
 
-  parallel_for<size_t>(0, size, [&](size_t i) { params_data[i] -= learning_rate * grads_data[i]; });
+  parallel_for<size_t>(0, size, [&](size_t i) {
+    params_data[i] -= learning_rate * static_cast<float>(grads_data[i]);
+  });
 }
 
 template <typename T>
@@ -23,22 +26,22 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
                          const float learning_rate, const float momentum) {
 
   parallel_for<size_t>(0, size, [&](size_t i) {
-    velocity_data[i] = momentum * velocity_data[i] - learning_rate * grads_data[i];
+    velocity_data[i] = momentum * static_cast<float>(velocity_data[i]) -
+                       learning_rate * static_cast<float>(grads_data[i]);
     params_data[i] += velocity_data[i];
   });
 }
 
-template void update_sgd<float>(float *params_data, const float *grads_data, const size_t size,
-                                const float learning_rate);
-template void update_sgd<double>(double *params_data, const double *grads_data, const size_t size,
-                                 const float learning_rate);
-
-template void update_sgd_momentum<float>(float *params_data, const float *grads_data,
-                                         float *velocity_data, const size_t size,
-                                         const float learning_rate, const float momentum);
-template void update_sgd_momentum<double>(double *params_data, const double *grads_data,
-                                          double *velocity_data, const size_t size,
-                                          const float learning_rate, const float momentum);
+#define INSTANTIATE_SGD(T)                                                                         \
+  template void update_sgd<T>(T * params_data, const T *grads_data, const size_t size,             \
+                              const float learning_rate);                                          \
+  template void update_sgd_momentum<T>(T * params_data, const T *grads_data, T *velocity_data,     \
+                                       const size_t size, const float learning_rate,               \
+                                       const float momentum);
+INSTANTIATE_SGD(fp16)
+INSTANTIATE_SGD(float)
+INSTANTIATE_SGD(double)
+#undef INSTANTIATE_SGD
 
 } // namespace sgd
 } // namespace cpu

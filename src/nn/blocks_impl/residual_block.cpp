@@ -90,6 +90,7 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
 
   size_t max_size = 0;
   std::vector<size_t> current_shape = input->shape();
+  max_size = std::max(max_size, input->size());
   for (auto &layer : main_path_) {
     auto layer_shape = layer->compute_output_shape(current_shape);
     size_t layer_size =
@@ -143,12 +144,10 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   }
 
   Tensor grad_to_propagate = gradient;
-  Tensor grad_act_pooled;
 
   if (final_activation_) {
-    grad_act_pooled = this->get_buffer(gradient->shape(), gradient->data_type());
-    final_activation_->compute_gradient(it_pre_act->second, grad_to_propagate, grad_act_pooled);
-    grad_to_propagate = grad_act_pooled;
+    grad_to_propagate = this->get_buffer(it_pre_act->second->shape(), gradient->data_type());
+    final_activation_->compute_gradient(it_pre_act->second, gradient, grad_to_propagate);
   }
 
   auto it_input_shape = input_shape_cache_.find(micro_batch_id);
@@ -159,6 +158,9 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
 
   size_t max_size = 0;
   std::vector<size_t> current_shape = it_input_shape->second;
+  size_t input_size =
+      std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
+  max_size = std::max(max_size, input_size);
   for (auto &layer : main_path_) {
     auto layer_shape = layer->compute_output_shape(current_shape);
     size_t layer_size =
@@ -186,7 +188,7 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   }
 
   grad_input->ensure(main_grad->shape(), this->device_);
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, current_grad, shortcut_grad, grad_input,
+  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_grad, shortcut_grad, grad_input,
                               grad_input->size());
 }
 

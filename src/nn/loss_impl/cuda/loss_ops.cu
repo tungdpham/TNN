@@ -119,7 +119,9 @@ __global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *ta
 }
 
 template <typename T>
-__global__ void batch_max_kernel(const T *logits, T *max_vals, const size_t num_classes) {
+__global__ void batch_max_kernel(const T *logits,
+                                 typename TypeTraits<T>::ComputePrecision *max_vals,
+                                 const size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t idx = blockIdx.x;
   size_t b = idx;
@@ -148,19 +150,20 @@ __global__ void batch_max_kernel(const T *logits, T *max_vals, const size_t num_
   }
 
   if (threadIdx.x == 0) {
-    max_vals[idx] = static_cast<T>(shared_max[0]);
+    max_vals[idx] = shared_max[0];
   }
 }
 
 template <typename T>
-__global__ void batch_sumexp_kernel(const T *logits, const T *max_vals, T *sum_vals,
-                                    const size_t num_classes) {
+__global__ void
+batch_sumexp_kernel(const T *logits, const typename TypeTraits<T>::ComputePrecision *max_vals,
+                    typename TypeTraits<T>::ComputePrecision *sum_vals, const size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t idx = blockIdx.x;
   size_t b = idx;
   size_t base_ptr = b * num_classes;
 
-  ComputeT instance_max = static_cast<ComputeT>(max_vals[idx]);
+  ComputeT instance_max = max_vals[idx];
   ComputeT thread_sum = ComputeT(0);
 
   for (size_t c = threadIdx.x; c < num_classes; c += blockDim.x) {
@@ -180,14 +183,16 @@ __global__ void batch_sumexp_kernel(const T *logits, const T *max_vals, T *sum_v
   }
 
   if (threadIdx.x == 0) {
-    sum_vals[idx] = static_cast<T>(shared_sum[0]);
+    sum_vals[idx] = shared_sum[0];
   }
 }
 
 template <typename T>
-__global__ void logsoftmax_crossentropy_gradient_kernel_optimized(
-    const T *logits, const T *targets, T *gradient, const T *max_vals, const T *sum_vals,
-    const size_t total_elements, const size_t num_classes, T inv_total_instances) {
+__global__ void logsoftmax_crossentropy_gradient_kernel(
+    const T *logits, const T *targets, T *gradient,
+    const typename TypeTraits<T>::ComputePrecision *max_vals,
+    const typename TypeTraits<T>::ComputePrecision *sum_vals, const size_t total_elements,
+    const size_t num_classes, typename TypeTraits<T>::ComputePrecision inv_total_instances) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx >= total_elements)
@@ -195,12 +200,12 @@ __global__ void logsoftmax_crossentropy_gradient_kernel_optimized(
 
   size_t b = idx / num_classes;
 
-  ComputeT max_logit = static_cast<ComputeT>(max_vals[b]);
-  ComputeT sum_exp = static_cast<ComputeT>(sum_vals[b]);
+  ComputeT max_logit = max_vals[b];
+  ComputeT sum_exp = sum_vals[b];
 
   ComputeT softmax_prob = expf(static_cast<ComputeT>(logits[idx]) - max_logit) / sum_exp;
-  gradient[idx] = static_cast<T>((softmax_prob - static_cast<ComputeT>(targets[idx])) *
-                                 static_cast<ComputeT>(inv_total_instances));
+  gradient[idx] =
+      static_cast<T>((softmax_prob - static_cast<ComputeT>(targets[idx])) * inv_total_instances);
 }
 
 template <typename T>
@@ -483,13 +488,15 @@ template <typename T>
 void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
                                               const size_t batch_size, const size_t num_classes,
                                               cudaStream_t stream) {
+  using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
-  T inv_total_instances = static_cast<T>(1.0) / static_cast<T>(total_instances);
+  ComputeT inv_total_instances =
+      static_cast<ComputeT>(1.0) / static_cast<ComputeT>(total_instances);
 
-  T *d_max_vals;
-  T *d_sum_vals;
-  cudaMallocAsync(&d_max_vals, total_instances * sizeof(T), stream);
-  cudaMallocAsync(&d_sum_vals, total_instances * sizeof(T), stream);
+  ComputeT *d_max_vals;
+  ComputeT *d_sum_vals;
+  cudaMallocAsync(&d_max_vals, total_instances * sizeof(ComputeT), stream);
+  cudaMallocAsync(&d_sum_vals, total_instances * sizeof(ComputeT), stream);
 
   batch_max_kernel<T><<<total_instances, 256, 0, stream>>>(logits, d_max_vals, num_classes);
 
@@ -501,10 +508,9 @@ void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets,
   int threads_per_block = 256;
   int num_blocks = (total_elements + threads_per_block - 1) / threads_per_block;
 
-  logsoftmax_crossentropy_gradient_kernel_optimized<T>
-      <<<num_blocks, threads_per_block, 0, stream>>>(logits, targets, gradient, d_max_vals,
-                                                     d_sum_vals, total_elements, num_classes,
-                                                     inv_total_instances);
+  logsoftmax_crossentropy_gradient_kernel<T><<<num_blocks, threads_per_block, 0, stream>>>(
+      logits, targets, gradient, d_max_vals, d_sum_vals, total_elements, num_classes,
+      inv_total_instances);
 
   cudaFreeAsync(d_max_vals, stream);
   cudaFreeAsync(d_sum_vals, stream);

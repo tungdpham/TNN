@@ -276,20 +276,20 @@ template <typename T> __inline__ __device__ T warp_reduce_sum(T val) {
   return val;
 }
 
-template <typename T, int Mode>
-__global__ void reduce_kernel(const T *a, const T *b, T scalar, T *result, size_t size) {
-  T sum = 0;
+template <typename T, typename AccT, int Mode>
+__global__ void reduce_kernel(const T *a, const T *b, AccT scalar, AccT *result, size_t size) {
+  AccT sum = AccT(0);
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t stride = blockDim.x * gridDim.x;
 
   for (size_t i = idx; i < size; i += stride) {
-    T val = (T)0;
+    AccT val = AccT(0);
     if constexpr (Mode == 0) {
-      val = a[i];
+      val = static_cast<AccT>(a[i]);
     } else if constexpr (Mode == 1) {
-      val = a[i] * b[i];
+      val = static_cast<AccT>(a[i]) * static_cast<AccT>(b[i]);
     } else if constexpr (Mode == 2) {
-      T diff = a[i] - scalar;
+      AccT diff = static_cast<AccT>(a[i]) - scalar;
       val = diff * diff;
     }
     sum += val;
@@ -297,15 +297,15 @@ __global__ void reduce_kernel(const T *a, const T *b, T scalar, T *result, size_
 
   sum = warp_reduce_sum(sum);
 
-  static __shared__ double shared[WARP_SIZE];
+  static __shared__ AccT shared[WARP_SIZE];
   int lane = threadIdx.x % WARP_SIZE;
   int warp = threadIdx.x / WARP_SIZE;
 
   if (lane == 0)
-    shared[warp] = (double)sum;
+    shared[warp] = sum;
   __syncthreads();
 
-  sum = (threadIdx.x < blockDim.x / WARP_SIZE) ? (T)shared[lane] : (T)0;
+  sum = (threadIdx.x < blockDim.x / WARP_SIZE) ? shared[lane] : AccT(0);
   if (warp == 0)
     sum = warp_reduce_sum(sum);
 
@@ -436,12 +436,15 @@ T dispatch_reduce(const T *a, const T *b, T scalar, size_t size, cudaStream_t st
     return (T)0;
   int blocks = std::min(get_num_blocks(size), 1024);
 
-  T *d_partial;
-  cudaMalloc(&d_partial, blocks * sizeof(T));
-  reduce_kernel<T, Mode><<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, scalar, d_partial, size);
+  using AccT = std::conditional_t<std::is_same<T, fp16>::value, float, T>;
 
-  T *h_partial = new T[blocks];
-  cudaMemcpyAsync(h_partial, d_partial, blocks * sizeof(T), cudaMemcpyDeviceToHost, stream);
+  AccT *d_partial;
+  cudaMalloc(&d_partial, blocks * sizeof(AccT));
+  reduce_kernel<T, AccT, Mode>
+      <<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, static_cast<AccT>(scalar), d_partial, size);
+
+  AccT *h_partial = new AccT[blocks];
+  cudaMemcpyAsync(h_partial, d_partial, blocks * sizeof(AccT), cudaMemcpyDeviceToHost, stream);
   cudaStreamSynchronize(stream);
 
   // Use double precision for accumulation to avoid overflow/underflow with fp16

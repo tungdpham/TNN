@@ -137,33 +137,8 @@ public:
     auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
-      const size_t size = params[i]->size();
-
-      if (params[i]->device_type() == DeviceType::CPU) {
-        if (momentum_ > 0.0f) {
-          create_cpu_task("default", cpu::sgd::update_sgd_momentum<float>,
-                          params[i]->data_as<float>(), grads[i]->data_as<float>(),
-                          velocities_[i]->data_as<float>(), size, this->learning_rate_, momentum_);
-        } else {
-          create_cpu_task("default", cpu::sgd::update_sgd<float>, params[i]->data_as<float>(),
-                          grads[i]->data_as<float>(), size, this->learning_rate_);
-        }
-      }
-#ifdef USE_CUDA
-      else if (params[i]->device_type() == DeviceType::GPU) {
-        if (momentum_ > 0.0f) {
-          create_gpu_task("default", cuda::sgd::update_sgd_momentum<float>,
-                          params[i]->data_as<float>(), grads[i]->data_as<float>(),
-                          velocities_[i]->data_as<float>(), size, this->learning_rate_, momentum_);
-        } else {
-          create_gpu_task("default", cuda::sgd::update_sgd<float>, params[i]->data_as<float>(),
-                          grads[i]->data_as<float>(), size, this->learning_rate_);
-        }
-      }
-#endif
-      else {
-        throw std::runtime_error("Unsupported device type for SGD optimizer");
-      }
+      DISPATCH_ON_DTYPE(params[i]->data_type(), T,
+                        update_impl<T>(params[i], grads[i], velocities_[i]));
     }
   }
 
@@ -198,6 +173,36 @@ protected:
 private:
   float momentum_;
   std::vector<Tensor> velocities_;
+
+  template <typename T> void update_impl(Tensor &param, Tensor &grad, Tensor &velocity) {
+    const size_t size = param->size();
+
+    if (param->device_type() == DeviceType::CPU) {
+      if (momentum_ > 0.0f) {
+        create_cpu_task("default", cpu::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+                        grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+                        momentum_);
+      } else {
+        create_cpu_task("default", cpu::sgd::update_sgd<T>, param->data_as<T>(), grad->data_as<T>(),
+                        size, this->learning_rate_);
+      }
+    }
+#ifdef USE_CUDA
+    else if (param->device_type() == DeviceType::GPU) {
+      if (momentum_ > 0.0f) {
+        create_gpu_task("default", cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+                        grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+                        momentum_);
+      } else {
+        create_gpu_task("default", cuda::sgd::update_sgd<T>, param->data_as<T>(),
+                        grad->data_as<T>(), size, this->learning_rate_);
+      }
+    }
+#endif
+    else {
+      throw std::runtime_error("Unsupported device type for SGD optimizer");
+    }
+  }
 };
 
 class Adam : public Optimizer {
@@ -218,27 +223,9 @@ public:
     const float bias_correction2 = 1.0f - std::pow(beta2_, static_cast<float>(t_));
 
     for (size_t i = 0; i < params.size(); ++i) {
-      const size_t size = params[i]->size();
-
-      if (params[i]->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", cpu::adam::update_adam<float>, params[i]->data_as<float>(),
-                        grads[i]->data_as<float>(), m_[i]->data_as<float>(),
-                        v_[i]->data_as<float>(), size, this->learning_rate_, beta1_, beta2_,
-                        epsilon_, bias_correction1, bias_correction2, weight_decay_,
-                        decouple_weight_decay_);
-      }
-#ifdef USE_CUDA
-      else if (params[i]->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::adam::update_adam<float>, params[i]->data_as<float>(),
-                        grads[i]->data_as<float>(), m_[i]->data_as<float>(),
-                        v_[i]->data_as<float>(), size, this->learning_rate_, beta1_, beta2_,
-                        epsilon_, bias_correction1, bias_correction2, weight_decay_,
-                        decouple_weight_decay_);
-      }
-#endif
-      else {
-        throw std::runtime_error("Unsupported device type for Adam optimizer");
-      }
+      DISPATCH_ON_DTYPE(
+          params[i]->data_type(), T,
+          update_impl<T>(params[i], grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }
   }
 
@@ -286,6 +273,29 @@ private:
   unsigned long t_;
   std::vector<Tensor> m_;
   std::vector<Tensor> v_;
+
+  template <typename T>
+  void update_impl(Tensor &param, Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
+                   float bias_correction2) {
+    const size_t size = param->size();
+    if (param->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::adam::update_adam<T>, param->data_as<T>(), grad->data_as<T>(),
+                      m->data_as<T>(), v->data_as<T>(), size, this->learning_rate_, beta1_, beta2_,
+                      epsilon_, bias_correction1, bias_correction2, weight_decay_,
+                      decouple_weight_decay_);
+    }
+#ifdef USE_CUDA
+    else if (param->device_type() == DeviceType::GPU) {
+      create_gpu_task("default", cuda::adam::update_adam<T>, param->data_as<T>(),
+                      grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
+                      this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                      bias_correction2, weight_decay_, decouple_weight_decay_);
+    }
+#endif
+    else {
+      throw std::runtime_error("Unsupported device type for Adam optimizer");
+    }
+  }
 };
 
 class OptimizerFactory {

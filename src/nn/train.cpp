@@ -72,7 +72,7 @@ Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &o
          batch_labels = make_tensor_from_dtype(config.dtype);
   std::cout << "Starting training epoch..." << std::endl;
   model.set_training(true);
-  // train_loader.shuffle();
+  train_loader.shuffle();
   train_loader.reset();
 
   float total_loss = 0.0;

@@ -639,7 +639,6 @@ public:
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size != data_size_) {
-      data_.reset();
       data_ = allocate_data(device(), new_size);
       data_size_ = new_size;
     }
