@@ -334,7 +334,6 @@ public:
 
     for (const auto &layer_json : layers_json) {
       LayerConfig layer_config = LayerConfig::from_json(layer_json);
-      std::cout << "Creating layer from config: " << layer_config.to_json().dump(2) << std::endl;
       auto layer = LayerFactory::create(layer_config);
       layers.push_back(std::move(layer));
     }
