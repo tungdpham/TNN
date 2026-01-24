@@ -23,8 +23,6 @@ cudnnDataType_t get_cudnn_data_type(DType_t dtype) {
     return CUDNN_DATA_FLOAT;
   case DType_t::FP64:
     return CUDNN_DATA_DOUBLE;
-  case DType_t::BF16:
-    return CUDNN_DATA_BFLOAT16;
   default:
     throw std::runtime_error("Unsupported data type for conv2d");
   }

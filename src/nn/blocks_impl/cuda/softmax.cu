@@ -54,8 +54,6 @@ template <> inline cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_
 
 template <> inline cudnnDataType_t get_cudnn_data_type<fp16>() { return CUDNN_DATA_HALF; }
 
-template <> inline cudnnDataType_t get_cudnn_data_type<bf16>() { return CUDNN_DATA_BFLOAT16; }
-
 struct SoftmaxKey {
   size_t rows = 0;
   size_t cols = 0;
@@ -353,33 +351,15 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
   ensure_ok(status, "softmax backward execute");
 }
 
-template void softmax_forward<float>(cudnnHandle_t handle, const float *input, float *output,
-                                     size_t rows, size_t cols, cudaStream_t stream);
-
-template void softmax_forward<double>(cudnnHandle_t handle, const double *input, double *output,
-                                      size_t rows, size_t cols, cudaStream_t stream);
-
-template void softmax_forward<fp16>(cudnnHandle_t handle, const fp16 *input, fp16 *output,
-                                    size_t rows, size_t cols, cudaStream_t stream);
-
-template void softmax_forward<bf16>(cudnnHandle_t handle, const bf16 *input, bf16 *output,
-                                    size_t rows, size_t cols, cudaStream_t stream);
-
-template void softmax_backward<float>(cudnnHandle_t handle, const float *output,
-                                      const float *grad_output, float *grad_input, size_t rows,
-                                      size_t cols, cudaStream_t stream);
-
-template void softmax_backward<double>(cudnnHandle_t handle, const double *output,
-                                       const double *grad_output, double *grad_input, size_t rows,
-                                       size_t cols, cudaStream_t stream);
-
-template void softmax_backward<fp16>(cudnnHandle_t handle, const fp16 *output,
-                                     const fp16 *grad_output, fp16 *grad_input, size_t rows,
-                                     size_t cols, cudaStream_t stream);
-
-template void softmax_backward<bf16>(cudnnHandle_t handle, const bf16 *output,
-                                     const bf16 *grad_output, bf16 *grad_input, size_t rows,
-                                     size_t cols, cudaStream_t stream);
+#define INSTANTIATE_SOFTMAX(T)                                                                     \
+  template void softmax_forward<T>(cudnnHandle_t handle, const T *input, T *output, size_t rows,   \
+                                   size_t cols, cudaStream_t stream);                              \
+  template void softmax_backward<T>(cudnnHandle_t handle, const T *output, const T *grad_output,   \
+                                    T *grad_input, size_t rows, size_t cols, cudaStream_t stream);
+INSTANTIATE_SOFTMAX(fp16);
+INSTANTIATE_SOFTMAX(float);
+INSTANTIATE_SOFTMAX(double);
+#undef INSTANTIATE_SOFTMAX
 
 } // namespace cuda
 } // namespace tnn
