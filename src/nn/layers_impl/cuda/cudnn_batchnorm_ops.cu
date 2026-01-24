@@ -155,7 +155,6 @@ static void build_fwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   auto next_running_var = outputs[4];
 
   if (stats.use_relu) {
-    std::cout << "Fusing ReLU into BatchNorm forward graph." << std::endl;
     Y = graph->pointwise(Y,
                          fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_FWD));
   }

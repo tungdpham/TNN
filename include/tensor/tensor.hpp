@@ -828,15 +828,7 @@ inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_na
     break;
   }
   case DType_t::FP16: {
-    fp16 *data_ptr = tensor->data_as<fp16>();
-    size_t total_elements = tensor->size();
-    for (size_t i = 0; i < total_elements; ++i) {
-      if (__hisnan(data_ptr[i]) || __hisinf(data_ptr[i])) {
-        std::cerr << "TypedTensor " << tensor_name << " contains NaN or Inf at index " << i
-                  << std::endl;
-        return;
-      }
-    }
+    throw std::runtime_error("check_nan_and_inf not implemented for FP16 tensors");
     break;
   }
   default:
