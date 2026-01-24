@@ -5,7 +5,7 @@ You should have these dependencies for the main programs installed before buildi
 
 ### Install Required Packages
 ```bash
-sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev
+sudo apt install build-essential g++ make cmake git libtbb-dev wget libnuma-dev libibverbs-dev libfmt-dev
 ```
 
 ### Install Intel MKL (Recommended for CPU usage)
@@ -20,7 +20,7 @@ sudo apt install intel-oneapi-mkl-devel
 source /opt/intel/oneapi/setvars.sh
 ```
 
-### Install CUDA and cuDNN
+### Install CUDA (13.0) and cuDNN (9.17+)
 For installing these two dependencies, you need to follow the guide from NVIDIA page.
 
 ## Build Instructions
