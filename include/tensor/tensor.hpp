@@ -27,6 +27,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -94,8 +95,18 @@ public:
     return data_as<U>()[index];
   }
 
-  template <typename U> U *data_as() { return static_cast<U *>(data()); }
-  template <typename U> const U *data_as() const { return static_cast<const U *>(data()); }
+  template <typename U> U *data_as() {
+    if (this->data_type() != dtype_of<U>()) {
+      throw std::runtime_error("Tensor data type mismatch in data_as()");
+    }
+    return static_cast<U *>(data());
+  }
+  template <typename U> const U *data_as() const {
+    if (this->data_type() != dtype_of<U>()) {
+      throw std::runtime_error("Tensor data type mismatch in data_as()");
+    }
+    return static_cast<const U *>(data());
+  }
   virtual void *data() = 0;
   virtual const void *data() const = 0;
 
@@ -769,6 +780,12 @@ public:
       return DType_t::FP64;
     } else if (std::is_same<T, fp16>::value) {
       return DType_t::FP16;
+    } else if (std::is_same<T, int32_t>::value) {
+      return DType_t::INT32_T;
+    } else if (std::is_same<T, int64_t>::value) {
+      return DType_t::INT64_T;
+    } else if (std::is_same<T, size_t>::value) {
+      return DType_t::SIZE_T;
     } else {
       throw std::runtime_error("Unsupported data type for TypedTensor");
     }
@@ -833,6 +850,109 @@ inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_na
   default:
     throw std::runtime_error("Unsupported data type for check_nan_and_inf");
   }
+}
+
+// Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
+inline void print_data_distribution(const Tensor &tensor) {
+  if (!tensor) {
+    std::cerr << "Cannot print distribution of null tensor" << std::endl;
+    return;
+  }
+
+  // Move to CPU for analysis
+  Tensor cpu_tensor = tensor->to_cpu();
+  DType_t dtype = cpu_tensor->data_type();
+
+  // Define ranges: 2^-32 to 2^32
+  constexpr int min_exp = -32;
+  constexpr int max_exp = 32;
+  constexpr int num_buckets = max_exp - min_exp + 1;
+
+  // buckets[0] = values < 2^-32 (including zeros)
+  // buckets[1..num_buckets] = values in [2^exp, 2^(exp+1))
+  // buckets[num_buckets+1] = values >= 2^32
+  std::vector<size_t> buckets(num_buckets + 2, 0);
+
+  auto process_data = [&]<typename T>() {
+    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(cpu_tensor);
+    if (!typed_tensor) {
+      throw std::runtime_error("Failed to cast tensor in print_data_distribution");
+    }
+
+    T *data = typed_tensor->data_ptr().template get<T>();
+    size_t size = typed_tensor->size();
+
+    for (size_t i = 0; i < size; ++i) {
+      T val = data[i];
+      double abs_val = std::abs(static_cast<double>(val));
+
+      if (abs_val == 0.0 || abs_val < std::pow(2.0, min_exp)) {
+        buckets[0]++;
+      } else if (abs_val >= std::pow(2.0, max_exp + 1)) {
+        buckets[num_buckets + 1]++;
+      } else {
+        // Find which power of 2 bucket this falls into
+        double log2_val = std::log2(abs_val);
+        int exp = static_cast<int>(std::floor(log2_val));
+
+        // Clamp to valid range (should already be in range)
+        exp = std::max(min_exp, std::min(max_exp, exp));
+        int bucket_idx = exp - min_exp + 1;
+        buckets[bucket_idx]++;
+      }
+    }
+  };
+
+  switch (dtype) {
+  case DType_t::FP32:
+    process_data.template operator()<float>();
+    break;
+  case DType_t::FP64:
+    process_data.template operator()<double>();
+    break;
+  case DType_t::FP16:
+    process_data.template operator()<fp16>();
+    break;
+  default:
+    std::cerr << "Unsupported data type for print_data_distribution" << std::endl;
+    return;
+  }
+
+  // Print distribution
+  size_t total = cpu_tensor->size();
+  std::cout << "\nData Distribution (shape " << cpu_tensor->shape_str() << ", " << total
+            << " elements):\n";
+  std::cout << std::setw(20) << "Range" << std::setw(15) << "Count" << std::setw(15)
+            << "Percentage\n";
+  std::cout << std::string(50, '-') << "\n";
+
+  // Zero/very small values
+  if (buckets[0] > 0) {
+    double pct = 100.0 * buckets[0] / total;
+    std::cout << std::setw(20) << "< 2^-32 (or zero)" << std::setw(15) << buckets[0]
+              << std::setw(14) << std::fixed << std::setprecision(2) << pct << "%\n";
+  }
+
+  // Regular buckets - only show non-empty buckets
+  for (int exp = min_exp; exp <= max_exp; ++exp) {
+    int bucket_idx = exp - min_exp + 1;
+    if (buckets[bucket_idx] > 0) {
+      double pct = 100.0 * buckets[bucket_idx] / total;
+      std::ostringstream range;
+      range << "[2^" << exp << ", 2^" << (exp + 1) << ")";
+      std::cout << std::setw(20) << range.str() << std::setw(15) << buckets[bucket_idx]
+                << std::setw(14) << std::fixed << std::setprecision(2) << pct << "%\n";
+    }
+  }
+
+  // Very large values
+  if (buckets[num_buckets + 1] > 0) {
+    double pct = 100.0 * buckets[num_buckets + 1] / total;
+    std::cout << std::setw(20) << ">= 2^33" << std::setw(15) << buckets[num_buckets + 1]
+              << std::setw(14) << std::fixed << std::setprecision(2) << pct << "%\n";
+  }
+
+  std::cout << std::endl;
 }
 
 template <typename T>

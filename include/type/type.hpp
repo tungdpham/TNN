@@ -43,12 +43,15 @@ template <> struct TypeTraits<fp64> {
   using HigherPrecision = fp64;
 };
 
-enum class DType_t : uint32_t { BYTE, FP16, FP32, FP64, UNKNOWN };
+enum class DType_t : uint32_t { BYTE, FP16, FP32, FP64, INT32_T, INT64_T, SIZE_T, UNKNOWN };
 
 template <typename T> constexpr DType_t dtype_of() { return DType_t::UNKNOWN; }
 template <> constexpr DType_t dtype_of<fp16>() { return DType_t::FP16; }
 template <> constexpr DType_t dtype_of<float>() { return DType_t::FP32; }
 template <> constexpr DType_t dtype_of<double>() { return DType_t::FP64; }
+template <> constexpr DType_t dtype_of<int32_t>() { return DType_t::INT32_T; }
+template <> constexpr DType_t dtype_of<int64_t>() { return DType_t::INT64_T; }
+template <> constexpr DType_t dtype_of<size_t>() { return DType_t::SIZE_T; }
 
 inline float dtype_eps(DType_t dtype) {
   switch (dtype) {
@@ -73,6 +76,12 @@ inline size_t get_dtype_size(DType_t dtype) {
     return sizeof(fp32);
   case DType_t::FP64:
     return sizeof(fp64);
+  case DType_t::INT32_T:
+    return sizeof(int32_t);
+  case DType_t::INT64_T:
+    return sizeof(int64_t);
+  case DType_t::SIZE_T:
+    return sizeof(size_t);
   default:
     throw std::runtime_error("Unknown data type for get_dtype_size");
   }

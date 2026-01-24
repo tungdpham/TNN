@@ -48,7 +48,7 @@ void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
 
   cublasGemmEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb, A,
                CudaType<A_T>::type, lda, &beta, C, CudaType<C_T>::type, ldc,
-               CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+               CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
 }
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -67,7 +67,7 @@ void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M,
   cublasGemmStridedBatchedEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb,
                              strideB, A, CudaType<A_T>::type, lda, strideA, &beta, C,
                              CudaType<C_T>::type, ldc, strideC, batch_count,
-                             CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+                             CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
 }
 
 #define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                          \
