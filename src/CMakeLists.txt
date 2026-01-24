@@ -220,7 +220,7 @@ target_include_directories(tnn_nn PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading tnn_type)
-target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json)
+target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)
 endif()

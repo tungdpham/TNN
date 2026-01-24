@@ -709,13 +709,13 @@ public:
 
   double mean() const override {
     T sum = ops::sum<T>(data_, data_size_);
-    return static_cast<double>(sum / static_cast<T>(data_size_));
+    return static_cast<double>(sum / static_cast<T>((double)data_size_));
   }
 
   double variance() const override {
     T m = static_cast<T>(mean());
     T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
-    return static_cast<double>(sum_sq_diff / static_cast<T>(data_size_));
+    return static_cast<double>(sum_sq_diff / static_cast<T>((double)data_size_));
   }
 
   void print_data() const override {
