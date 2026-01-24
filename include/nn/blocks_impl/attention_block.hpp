@@ -60,10 +60,16 @@ public:
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-  std::string type() const override;
+
+  static constexpr const char *TYPE_NAME = "attention_block";
+  std::string type() const override { return TYPE_NAME; }
+
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+
+public:
+  static std::unique_ptr<AttentionBlock> create_from_config(const LayerConfig &config);
 
 protected:
   void collect_parameters(std::vector<Tensor> &params) override;

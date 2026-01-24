@@ -17,6 +17,8 @@ struct Job {
 
   Job() : data(), micro_batch_id(0) {}
 
+  Job(Tensor d, size_t mb_id) : data(d), micro_batch_id(mb_id) {}
+
   Job(Tensor &&d, size_t mb_id) : data(std::move(d)), micro_batch_id(mb_id) {}
 
   Job(const Job &other) {

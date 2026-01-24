@@ -21,3 +21,4 @@ create_default(gpt2_inference gpt2_inference.cpp)
 # Test executables
 create_default(fp16_test fp16_test.cpp)
 create_default(correctness_test correctness_test.cpp)
+create_default(sequential_test sequential_test.cpp)

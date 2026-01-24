@@ -193,11 +193,10 @@ uint64_t PositionalEmbeddingLayer::backward_flops(const std::vector<size_t> &inp
   return 0;
 }
 
-std::string PositionalEmbeddingLayer::type() const { return "pos_embedding"; }
-
 LayerConfig PositionalEmbeddingLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["embed_dim"] = embed_dim_;
   config.parameters["seq_len"] = seq_len_;
   return config;
@@ -218,6 +217,13 @@ void PositionalEmbeddingLayer::collect_parameters(std::vector<Tensor> &params) {
 
 void PositionalEmbeddingLayer::collect_gradients(std::vector<Tensor> &grads) {
   grads.push_back(pos_embedding_gradients_);
+}
+
+std::unique_ptr<PositionalEmbeddingLayer>
+PositionalEmbeddingLayer::create_from_config(const LayerConfig &config) {
+  size_t embed_dim = config.get<size_t>("embed_dim");
+  size_t seq_len = config.get<size_t>("seq_len");
+  return std::make_unique<PositionalEmbeddingLayer>(embed_dim, seq_len, config.name);
 }
 
 } // namespace tnn

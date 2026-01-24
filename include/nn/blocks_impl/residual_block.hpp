@@ -66,9 +66,11 @@ public:
 
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override;
+  static constexpr const char *TYPE_NAME = "residual_block";
+  std::string type() const override { return TYPE_NAME; }
 
   LayerConfig get_config() const override;
+  static std::unique_ptr<ResidualBlock> create_from_config(const LayerConfig &config);
 
   std::unique_ptr<Layer> clone() const override;
 

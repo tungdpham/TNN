@@ -47,17 +47,21 @@ public:
   explicit LayerNormLayer(size_t normalized_shape, float epsilon = 1e-5f, bool affine = true,
                           const std::string &name = "layer_norm");
 
+  static constexpr const char *TYPE_NAME = "layer_norm";
   void init_params() override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override { return "layer_norm"; }
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override {
     return input_shape;
   }
+
+public:
+  static std::unique_ptr<LayerNormLayer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn

@@ -75,6 +75,8 @@ private:
                      size_t micro_batch_id = 0) override;
 
 public:
+  static constexpr const char *TYPE_NAME = "conv2d";
+
   Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
               size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
               bool use_bias = true, const std::string &name = "conv2d");
@@ -84,13 +86,13 @@ public:
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<Conv2DLayer> create_from_config(const LayerConfig &config);
 
   size_t cached_memory_bytes() const override;
 };

@@ -71,6 +71,16 @@ class TransposeLayer;
 #include "layers_impl/transpose_layer.hpp"
 
 namespace tnn {
+
+// Concept to ensure LayerType has TYPE_NAME and create_from_config
+template <typename T>
+concept HasLayerTypeName = requires {
+  { T::TYPE_NAME } -> std::convertible_to<const char *>;
+  {
+    T::create_from_config(std::declval<const LayerConfig &>())
+  } -> std::convertible_to<std::unique_ptr<Layer>>;
+};
+
 class LayerFactory {
 private:
   static std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(const LayerConfig &)>>
@@ -82,6 +92,12 @@ public:
     creators_[type] = creator;
   }
 
+  template <HasLayerTypeName LayerType> static void register_layer_type() {
+    register_layer(LayerType::TYPE_NAME, [](const LayerConfig &config) -> std::unique_ptr<Layer> {
+      return LayerType::create_from_config(config);
+    });
+  }
+
   static std::unique_ptr<Layer> create(const std::string &type, const LayerConfig &config) {
     auto it = creators_.find(type);
     if (it != creators_.end()) {
@@ -91,225 +107,35 @@ public:
   }
 
   static std::unique_ptr<Layer> create(const LayerConfig &config) {
-    return create(config.get<std::string>("type"), config);
+    return create(config.type, config);
   }
 
   static void register_defaults() {
-    register_layer("dense", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t input_features = config.get<size_t>("input_features");
-      size_t output_features = config.get<size_t>("output_features");
-      bool use_bias = config.get<bool>("use_bias", true);
-
-      return std::make_unique<DenseLayer>(input_features, output_features, use_bias, config.name);
-    });
-
-    register_layer("activation", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      std::string activation_name = config.get<std::string>("activation");
-      auto factory = ActivationFactory();
-      factory.register_defaults();
-      auto activation = factory.create(activation_name);
-      if (!activation) {
-        throw std::invalid_argument("Failed to create activation: " + activation_name);
-      }
-      return std::make_unique<ActivationLayer>(std::move(activation), config.name);
-    });
-
-    register_layer("conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t in_channels = config.get<size_t>("in_channels");
-      size_t out_channels = config.get<size_t>("out_channels");
-      size_t kernel_h = config.get<size_t>("kernel_h");
-      size_t kernel_w = config.get<size_t>("kernel_w");
-      size_t stride_h = config.get<size_t>("stride_h", 1);
-      size_t stride_w = config.get<size_t>("stride_w", 1);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-      bool use_bias = config.get<bool>("use_bias", true);
-
-      return std::make_unique<Conv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
-                                           stride_w, pad_h, pad_w, use_bias, config.name);
-    });
-
-    register_layer("maxpool2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t pool_h = config.get<size_t>("pool_h");
-      size_t pool_w = config.get<size_t>("pool_w");
-      size_t stride_h = config.get<size_t>("stride_h", 0);
-      size_t stride_w = config.get<size_t>("stride_w", 0);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-
-      return std::make_unique<MaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                              config.name);
-    });
-
-    register_layer("avgpool2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t pool_h = config.get<size_t>("pool_h");
-      size_t pool_w = config.get<size_t>("pool_w");
-      size_t stride_h = config.get<size_t>("stride_h", 0);
-      size_t stride_w = config.get<size_t>("stride_w", 0);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-
-      return std::make_unique<AvgPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
-                                              config.name);
-    });
-
-    register_layer("batchnorm", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t num_features = config.get<size_t>("num_features");
-      float epsilon = config.get<float>("epsilon", 1e-5f);
-      float momentum = config.get<float>("momentum", 0.1f);
-      bool affine = config.get<bool>("affine", true);
-      bool use_relu = config.get<bool>("use_relu", false);
-      return std::make_unique<BatchNormLayer>(num_features, epsilon, momentum, affine, use_relu,
-                                              config.name);
-    });
-
-    register_layer("legacy_conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t in_channels = config.get<size_t>("in_channels");
-      size_t out_channels = config.get<size_t>("out_channels");
-      size_t kernel_h = config.get<size_t>("kernel_h");
-      size_t kernel_w = config.get<size_t>("kernel_w");
-      size_t stride_h = config.get<size_t>("stride_h", 1);
-      size_t stride_w = config.get<size_t>("stride_w", 1);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-      bool use_bias = config.get<bool>("use_bias", true);
-
-      return std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, kernel_h, kernel_w,
-                                                 stride_h, stride_w, pad_h, pad_w, use_bias,
-                                                 config.name);
-    });
-
-    register_layer("legacy_maxpool2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t pool_h = config.get<size_t>("pool_h");
-      size_t pool_w = config.get<size_t>("pool_w");
-      size_t stride_h = config.get<size_t>("stride_h", 0);
-      size_t stride_w = config.get<size_t>("stride_w", 0);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-
-      return std::make_unique<LegacyMaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h,
-                                                    pad_w, config.name);
-    });
-
-    register_layer("legacy_avgpool2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t pool_h = config.get<size_t>("pool_h");
-      size_t pool_w = config.get<size_t>("pool_w");
-      size_t stride_h = config.get<size_t>("stride_h", 0);
-      size_t stride_w = config.get<size_t>("stride_w", 0);
-      size_t pad_h = config.get<size_t>("pad_h", 0);
-      size_t pad_w = config.get<size_t>("pad_w", 0);
-
-      return std::make_unique<LegacyAvgPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h,
-                                                    pad_w, config.name);
-    });
-
-    register_layer("legacy_batchnorm", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t num_features = config.get<size_t>("num_features");
-      float epsilon = config.get<float>("epsilon", 1e-5f);
-      float momentum = config.get<float>("momentum", 0.1f);
-      bool affine = config.get<bool>("affine", true);
-      return std::make_unique<LegacyBatchNormLayer>(num_features, epsilon, momentum, affine,
-                                                    config.name);
-    });
-
-    register_layer("dropout", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      float dropout_rate = config.get<float>("dropout_rate");
-      return std::make_unique<DropoutLayer>(dropout_rate, config.name);
-    });
-
-    register_layer("groupnorm", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t num_groups = config.get<size_t>("num_groups");
-      size_t num_channels = config.get<size_t>("num_channels");
-      float epsilon = config.get<float>("epsilon", 1e-5f);
-      bool affine = config.get<bool>("affine", true);
-      return std::make_unique<GroupNormLayer>(num_groups, num_channels, epsilon, affine,
-                                              config.name);
-    });
-
-    register_layer("layer_norm", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t normalized_shape = config.get<size_t>("normalized_shape");
-      float epsilon = config.get<float>("epsilon", 1e-5f);
-      bool affine = config.get<bool>("affine", true);
-      return std::make_unique<LayerNormLayer>(normalized_shape, epsilon, affine, config.name);
-    });
-
-    register_layer("flatten", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      return FlattenLayer::create_from_config(config);
-    });
-
-    register_layer("class_token", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t embed_dim = config.get<size_t>("embed_dim");
-      return std::make_unique<ClassTokenLayer>(embed_dim, config.name);
-    });
-
-    register_layer("pos_embedding", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t embed_dim = config.get<size_t>("embed_dim");
-      size_t seq_len = config.get<size_t>("seq_len");
-      return std::make_unique<PositionalEmbeddingLayer>(embed_dim, seq_len, config.name);
-    });
-
-    register_layer("slice", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      return SliceLayer::create_from_config(config);
-    });
-
-    register_layer("embedding", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t vocab_size = config.get<size_t>("vocab_size");
-      size_t embed_dim = config.get<size_t>("embed_dim");
-      size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));
-      return std::make_unique<EmbeddingLayer>(vocab_size, embed_dim, config.name, padding_idx);
-    });
-
-    register_layer("residual_block", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      std::string activation = config.get<std::string>("activation", "relu");
-      bool has_projection = config.get<bool>("has_projection", false);
-      std::string main_path_str = config.get<std::string>("main_path", std::string("[]"));
-      std::string shortcut_path_str = config.get<std::string>("shortcut_path", std::string("[]"));
-
-      nlohmann::json main_json = nlohmann::json::parse(main_path_str);
-      nlohmann::json shortcut_json = nlohmann::json::parse(shortcut_path_str);
-
-      LayerFactory sub_factory;
-      sub_factory.register_defaults();
-
-      std::vector<std::unique_ptr<Layer>> main_layers;
-      for (const auto &sub : main_json) {
-        LayerConfig sub_cfg = LayerConfig::from_json(sub);
-        std::string sub_type = sub.value("type", "");
-        main_layers.push_back(sub_factory.create(sub_type, sub_cfg));
-      }
-
-      std::vector<std::unique_ptr<Layer>> shortcut_layers;
-      if (has_projection) {
-        for (const auto &sub : shortcut_json) {
-          LayerConfig sub_cfg = LayerConfig::from_json(sub);
-          std::string sub_type = sub.value("type", "");
-          shortcut_layers.push_back(sub_factory.create(sub_type, sub_cfg));
-        }
-      }
-
-      return std::make_unique<ResidualBlock>(std::move(main_layers), std::move(shortcut_layers),
-                                             activation, config.name);
-    });
-
-    register_layer("attention_block", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      size_t embed_dim = config.get<size_t>("embed_dim");
-      size_t num_heads = config.get<size_t>("num_heads");
-      bool is_causal = config.get<bool>("is_causal", false);
-      return std::make_unique<AttentionBlock>(embed_dim, num_heads, is_causal, config.name);
-    });
-
-    register_layer("flash_attention_block",
-                   [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-                     size_t embed_dim = config.get<size_t>("embed_dim");
-                     size_t num_heads = config.get<size_t>("num_heads");
-                     bool is_causal = config.get<bool>("is_causal", false);
-                     return std::make_unique<FlashAttentionBlock>(embed_dim, num_heads, is_causal,
-                                                                  config.name);
-                   });
-
-    register_layer("transpose", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
-      return std::make_unique<TransposeLayer>(config.name);
-    });
+    register_layer_type<DenseLayer>();
+    register_layer_type<ActivationLayer>();
+    register_layer_type<Conv2DLayer>();
+    register_layer_type<MaxPool2DLayer>();
+    register_layer_type<AvgPool2DLayer>();
+    register_layer_type<BatchNormLayer>();
+    register_layer_type<LegacyConv2DLayer>();
+    register_layer_type<LegacyMaxPool2DLayer>();
+    register_layer_type<LegacyAvgPool2DLayer>();
+    register_layer_type<LegacyBatchNormLayer>();
+    register_layer_type<DropoutLayer>();
+    register_layer_type<GroupNormLayer>();
+    register_layer_type<LayerNormLayer>();
+    register_layer_type<FlattenLayer>();
+    register_layer_type<ClassTokenLayer>();
+    register_layer_type<PositionalEmbeddingLayer>();
+    register_layer_type<SliceLayer>();
+    register_layer_type<EmbeddingLayer>();
+    register_layer_type<ResidualBlock>();
+    register_layer_type<AttentionBlock>();
+    register_layer_type<FlashAttentionBlock>();
+    register_layer_type<TransposeLayer>();
+    register_layer_type<ResidualBlock>();
+    register_layer_type<AttentionBlock>();
+    register_layer_type<FlashAttentionBlock>();
   }
 
   static std::vector<std::string> available_types() {

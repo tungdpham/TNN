@@ -171,11 +171,10 @@ uint64_t EmbeddingLayer::forward_flops(const std::vector<size_t> &input_shape) c
 
 uint64_t EmbeddingLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
-std::string EmbeddingLayer::type() const { return "embedding"; }
-
 LayerConfig EmbeddingLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["vocab_size"] = vocab_size_;
   config.parameters["embed_dim"] = embed_dim_;
   config.parameters["padding_idx"] = padding_idx_;
@@ -194,6 +193,13 @@ size_t EmbeddingLayer::cached_memory_bytes() const {
   }
   total_bytes += Layer::cached_memory_bytes();
   return total_bytes;
+}
+
+std::unique_ptr<EmbeddingLayer> EmbeddingLayer::create_from_config(const LayerConfig &config) {
+  size_t vocab_size = config.get<size_t>("vocab_size");
+  size_t embed_dim = config.get<size_t>("embed_dim");
+  size_t padding_idx = config.get<size_t>("padding_idx", static_cast<size_t>(-1));
+  return std::make_unique<EmbeddingLayer>(vocab_size, embed_dim, config.name, padding_idx);
 }
 
 } // namespace tnn

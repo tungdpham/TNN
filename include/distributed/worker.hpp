@@ -17,6 +17,7 @@
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
+#include "tensor/tensor.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -98,24 +99,30 @@ protected:
     case CommandType::FORWARD_JOB: {
       auto forward_start = std::chrono::system_clock::now();
       const Job &forward_job = message.get<Job>();
-      Job output;
-      this->model_->forward(forward_job.data, output.data, forward_job.micro_batch_id);
+      Tensor output_tensor = make_pooled_tensor_from_dtype(
+          global_mem_pool(), forward_job.data->data_type(),
+          this->model_->compute_output_shape(forward_job.data->shape()), model_->get_device());
+      this->model_->forward(forward_job.data, output_tensor, forward_job.micro_batch_id);
+      Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
+      Job output(cpu_output_tensor, forward_job.micro_batch_id);
       auto forward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-      output.micro_batch_id = forward_job.micro_batch_id;
       message = Message(id_, "next_stage", CommandType::FORWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
     case CommandType::BACKWARD_JOB: {
       auto backward_start = std::chrono::system_clock::now();
       const Job &backward_job = message.get<Job>();
-      Job output;
-      this->model_->backward(backward_job.data, output.data, backward_job.micro_batch_id);
+      Tensor output_tensor =
+          make_pooled_tensor_from_dtype(global_mem_pool(), backward_job.data->data_type(),
+                                        backward_job.data->shape(), model_->get_device());
+      this->model_->backward(backward_job.data, output_tensor, backward_job.micro_batch_id);
+      Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
+      Job output(cpu_output_tensor, backward_job.micro_batch_id);
       auto backward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-      output.micro_batch_id = backward_job.micro_batch_id;
       message = Message(id_, "prev_stage", CommandType::BACKWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message));
     } break;
@@ -237,7 +244,8 @@ protected:
       this->set_id(config.stage_id);
 
       // setup model, optimizer
-      this->model_ = std::make_unique<Sequential>(config.model_config);
+      LayerConfig model_config = LayerConfig::from_json(config.model_config);
+      this->model_ = Sequential::create_from_config(model_config);
       OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
       this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
       if (use_gpu_) {

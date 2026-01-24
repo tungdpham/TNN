@@ -39,7 +39,7 @@ signed main() {
   int mismatch_count = 0;
   for (size_t i = 0; i < full_attn_output->size(); ++i) {
     if (abs((float)(full_attn_data[i] - flash_attn_data[i])) > 1e-3) {
-      printf("Mismatch at index %d: full %f vs flash %f\n", i, (float)full_attn_data[i],
+      printf("Mismatch at index %zu: full %f vs flash %f\n", i, (float)full_attn_data[i],
              (float)flash_attn_data[i]);
       ++mismatch_count;
     }

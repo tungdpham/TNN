@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/activation_layer.hpp"
+#include "nn/activations.hpp"
 namespace tnn {
 
 ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
@@ -35,11 +36,10 @@ void ActivationLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   activation_->compute_gradient(input, gradient, grad_input);
 }
 
-std::string ActivationLayer::type() const { return "activation"; }
-
 LayerConfig ActivationLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["activation"] = activation_->name();
   return config;
 }
@@ -65,6 +65,13 @@ uint64_t ActivationLayer::backward_flops(const std::vector<size_t> &input_shape)
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 
   return 2 * num_elements;
+}
+
+std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const LayerConfig &config) {
+  std::string activation_name = config.get<std::string>("activation", "relu");
+  ActivationFactory::register_defaults();
+  auto activation = ActivationFactory::create(activation_name);
+  return std::make_unique<ActivationLayer>(std::move(activation), config.name);
 }
 
 } // namespace tnn

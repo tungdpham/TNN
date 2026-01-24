@@ -188,11 +188,11 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   }
 }
 
-std::string GroupNormLayer::type() const { return "groupnorm"; }
 
 LayerConfig GroupNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["num_groups"] = num_groups_;
   config.parameters["num_channels"] = num_channels_;
   config.parameters["epsilon"] = epsilon_;
@@ -224,7 +224,7 @@ void GroupNormLayer::collect_gradients(std::vector<Tensor> &grads) {
   }
 }
 
-std::unique_ptr<Layer> GroupNormLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<GroupNormLayer> GroupNormLayer::create_from_config(const LayerConfig &config) {
   size_t num_groups = config.get<size_t>("num_groups");
   size_t num_channels = config.get<size_t>("num_channels");
   float epsilon = config.get<float>("epsilon", 1e-5f);

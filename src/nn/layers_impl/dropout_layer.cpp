@@ -98,11 +98,10 @@ std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const Tensor &input,
   return nullptr;
 }
 
-std::string DropoutLayer::type() const { return "dropout"; }
-
 LayerConfig DropoutLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["dropout_rate"] = dropout_rate_;
   return config;
 }
@@ -116,7 +115,7 @@ DropoutLayer::compute_output_shape(const std::vector<size_t> &input_shape) const
   return input_shape;
 }
 
-std::unique_ptr<Layer> DropoutLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<DropoutLayer> DropoutLayer::create_from_config(const LayerConfig &config) {
   float dropout_rate = config.get<float>("dropout_rate");
   return std::make_unique<DropoutLayer>(dropout_rate, config.name);
 }

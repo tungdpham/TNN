@@ -34,11 +34,11 @@ void FlattenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   gradient->copy_to(grad_input);
 }
 
-std::string FlattenLayer::type() const { return "flatten"; }
 
 LayerConfig FlattenLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["start_dim"] = start_dim_;
   config.parameters["end_dim"] = end_dim_;
   return config;
@@ -82,7 +82,7 @@ FlattenLayer::compute_output_shape(const std::vector<size_t> &input_shape) const
   return output_shape;
 }
 
-std::unique_ptr<Layer> FlattenLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<FlattenLayer> FlattenLayer::create_from_config(const LayerConfig &config) {
   int start_dim = config.get<int>("start_dim", 1);
   int end_dim = config.get<int>("end_dim", -1);
   return std::make_unique<FlattenLayer>(start_dim, end_dim, config.name);

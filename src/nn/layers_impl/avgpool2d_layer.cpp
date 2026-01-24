@@ -147,11 +147,11 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward(const Tensor &gr
   return nullptr;
 }
 
-std::string AvgPool2DLayer::type() const { return "avgpool2d"; }
 
 LayerConfig AvgPool2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["pool_h"] = pool_h_;
   config.parameters["pool_w"] = pool_w_;
   config.parameters["stride_h"] = stride_h_;
@@ -184,7 +184,7 @@ AvgPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) con
   return {batch_size, output_h, output_w, channels};
 }
 
-std::unique_ptr<Layer> AvgPool2DLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<AvgPool2DLayer> AvgPool2DLayer::create_from_config(const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");

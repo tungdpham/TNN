@@ -26,6 +26,7 @@ namespace tnn {
 
 struct LayerConfig {
   std::string name;
+  std::string type;
   std::unordered_map<std::string, std::any> parameters;
 
   template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
@@ -43,27 +44,34 @@ struct LayerConfig {
   nlohmann::json to_json() const {
     nlohmann::json j;
     j["name"] = name;
+    j["type"] = type;
+    nlohmann::json param_json;
     for (const auto &[key, value] : parameters) {
       if (value.type() == typeid(size_t)) {
-        j[key] = std::any_cast<size_t>(value);
+        param_json[key] = std::any_cast<size_t>(value);
       } else if (value.type() == typeid(float)) {
-        j[key] = std::any_cast<float>(value);
+        param_json[key] = std::any_cast<float>(value);
       } else if (value.type() == typeid(bool)) {
-        j[key] = std::any_cast<bool>(value);
+        param_json[key] = std::any_cast<bool>(value);
       } else if (value.type() == typeid(std::string)) {
-        j[key] = std::any_cast<std::string>(value);
+        param_json[key] = std::any_cast<std::string>(value);
+      } else if (value.type() == typeid(nlohmann::json)) {
+        param_json[key] = std::any_cast<nlohmann::json>(value);
       } else if (value.type() == typeid(std::vector<nlohmann::json>)) {
-        j[key] = std::any_cast<std::vector<nlohmann::json>>(value);
+        param_json[key] = std::any_cast<std::vector<nlohmann::json>>(value);
       }
     }
+    j["parameters"] = param_json;
     return j;
   }
 
   static LayerConfig from_json(const nlohmann::json &j) {
     LayerConfig config;
     config.name = j.value("name", "");
+    config.type = j.value("type", "");
+    nlohmann::json param_json = j.value("parameters", nlohmann::json::object());
     if (j.contains("parameters")) {
-      for (const auto &[key, value] : j["parameters"].items()) {
+      for (const auto &[key, value] : param_json.items()) {
         if (value.is_number_integer()) {
           config.parameters[key] = value.template get<size_t>();
         } else if (value.is_number_float()) {
@@ -72,6 +80,8 @@ struct LayerConfig {
           config.parameters[key] = value.template get<bool>();
         } else if (value.is_string()) {
           config.parameters[key] = value.template get<std::string>();
+        } else if (value.is_array() || value.is_object()) {
+          config.parameters[key] = value;
         }
       }
     }

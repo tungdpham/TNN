@@ -55,18 +55,20 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  explicit GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f,
-                          bool affine = true, const std::string &name = "groupnorm");
+  static constexpr const char *TYPE_NAME = "groupnorm";
+
+  GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
+                 const std::string &name = "groupnorm");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<GroupNormLayer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn

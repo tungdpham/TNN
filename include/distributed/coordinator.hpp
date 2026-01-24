@@ -16,6 +16,7 @@
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
+#include "tensor/tensor.hpp"
 
 #include <atomic>
 #include <chrono>
@@ -226,7 +227,9 @@ public:
           float loss = 0.0f;
           criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
-          Tensor gradient;
+          Tensor gradient =
+              make_pooled_tensor_from_dtype(global_mem_pool(), predictions->data_type(),
+                                            predictions->shape(), predictions->device());
           criterion->compute_gradient(predictions, targets, gradient);
           this->backward(std::move(gradient), job.micro_batch_id);
         }

@@ -164,11 +164,10 @@ uint64_t FlashAttentionBlock::backward_flops(const std::vector<size_t> &input_sh
   return 0;
 }
 
-std::string FlashAttentionBlock::type() const { return "flash_attention_block"; }
-
 LayerConfig FlashAttentionBlock::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["embed_dim"] = embed_dim_;
   config.parameters["num_heads"] = num_heads_;
   return config;
@@ -203,6 +202,14 @@ void FlashAttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
   grads.insert(grads.end(), v_grads.begin(), v_grads.end());
   auto out_grads = out_proj_->gradients();
   grads.insert(grads.end(), out_grads.begin(), out_grads.end());
+}
+
+std::unique_ptr<FlashAttentionBlock>
+FlashAttentionBlock::create_from_config(const LayerConfig &config) {
+  size_t embed_dim = config.get<size_t>("embed_dim");
+  size_t num_heads = config.get<size_t>("num_heads");
+  bool is_causal = config.get<bool>("is_causal", true);
+  return std::make_unique<FlashAttentionBlock>(embed_dim, num_heads, is_causal, config.name);
 }
 
 } // namespace tnn

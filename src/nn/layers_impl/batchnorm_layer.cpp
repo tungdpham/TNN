@@ -294,11 +294,11 @@ BatchNormLayer::backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, Batc
   return nullptr;
 }
 
-std::string BatchNormLayer::type() const { return "batchnorm"; }
 
 LayerConfig BatchNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["num_features"] = num_features_;
   config.parameters["epsilon"] = epsilon_;
   config.parameters["momentum"] = momentum_;
@@ -354,7 +354,7 @@ void BatchNormLayer::collect_gradients(std::vector<Tensor> &grads) {
   }
 }
 
-std::unique_ptr<Layer> BatchNormLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<BatchNormLayer> BatchNormLayer::create_from_config(const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");

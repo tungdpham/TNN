@@ -59,19 +59,21 @@ private:
                      size_t micro_batch_id = 0) override;
 
 public:
+  static constexpr const char *TYPE_NAME = "legacy_avgpool2d";
+
   LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                        size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<Layer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<LegacyAvgPool2DLayer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn

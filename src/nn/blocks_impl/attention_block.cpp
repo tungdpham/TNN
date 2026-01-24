@@ -133,11 +133,10 @@ uint64_t AttentionBlock::forward_flops(const std::vector<size_t> &input_shape) c
 
 uint64_t AttentionBlock::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
-std::string AttentionBlock::type() const { return "attention_block"; }
-
 LayerConfig AttentionBlock::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["embed_dim"] = embed_dim_;
   config.parameters["num_heads"] = num_heads_;
   return config;
@@ -371,6 +370,13 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     throw std::runtime_error("Unsupported device type for compute_attention_backward.");
   }
   return nullptr;
+}
+
+std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerConfig &config) {
+  size_t embed_dim = config.get<size_t>("embed_dim");
+  size_t num_heads = config.get<size_t>("num_heads");
+  bool is_causal = config.get<bool>("is_causal", true);
+  return std::make_unique<AttentionBlock>(embed_dim, num_heads, is_causal, config.name);
 }
 
 } // namespace tnn

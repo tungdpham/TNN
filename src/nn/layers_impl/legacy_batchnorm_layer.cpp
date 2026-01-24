@@ -237,11 +237,11 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_backward_fused(
   return nullptr;
 }
 
-std::string LegacyBatchNormLayer::type() const { return "legacy_batchnorm"; }
 
 LayerConfig LegacyBatchNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["num_features"] = num_features_;
   config.parameters["epsilon"] = epsilon_;
   config.parameters["momentum"] = momentum_;
@@ -296,7 +296,8 @@ void LegacyBatchNormLayer::collect_gradients(std::vector<Tensor> &grads) {
   }
 }
 
-std::unique_ptr<Layer> LegacyBatchNormLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LegacyBatchNormLayer>
+LegacyBatchNormLayer::create_from_config(const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");

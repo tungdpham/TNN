@@ -167,11 +167,11 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward(
   return nullptr;
 }
 
-std::string LegacyAvgPool2DLayer::type() const { return "legacy_avgpool2d"; }
 
 LayerConfig LegacyAvgPool2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["pool_h"] = pool_h_;
   config.parameters["pool_w"] = pool_w_;
   config.parameters["stride_h"] = stride_h_;
@@ -204,7 +204,8 @@ LegacyAvgPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shap
   return {batch_size, channels, output_h, output_w};
 }
 
-std::unique_ptr<Layer> LegacyAvgPool2DLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LegacyAvgPool2DLayer>
+LegacyAvgPool2DLayer::create_from_config(const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");

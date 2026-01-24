@@ -146,11 +146,10 @@ uint64_t ClassTokenLayer::forward_flops(const std::vector<size_t> &input_shape) 
 
 uint64_t ClassTokenLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
-std::string ClassTokenLayer::type() const { return "class_token"; }
-
 LayerConfig ClassTokenLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["embed_dim"] = embed_dim_;
   return config;
 }
@@ -176,6 +175,11 @@ void ClassTokenLayer::collect_parameters(std::vector<Tensor> &params) {
 
 void ClassTokenLayer::collect_gradients(std::vector<Tensor> &grads) {
   grads.push_back(class_token_gradients_);
+}
+
+std::unique_ptr<ClassTokenLayer> ClassTokenLayer::create_from_config(const LayerConfig &config) {
+  size_t embed_dim = config.get<size_t>("embed_dim");
+  return std::make_unique<ClassTokenLayer>(embed_dim, config.name);
 }
 
 } // namespace tnn

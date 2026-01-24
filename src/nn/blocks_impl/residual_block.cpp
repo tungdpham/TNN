@@ -7,6 +7,7 @@
 
 #include "nn/blocks_impl/residual_block.hpp"
 #include "nn/activations.hpp"
+#include "nn/layers.hpp"
 #include "tensor/ops.hpp"
 
 #include <algorithm>
@@ -290,39 +291,17 @@ uint64_t ResidualBlock::backward_flops(const std::vector<size_t> &input_shape) c
   return main_complexity + shortcut_complexity + add_complexity;
 }
 
-std::string ResidualBlock::type() const { return "residual_block"; }
-
 LayerConfig ResidualBlock::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["activation"] = activation_type_;
   config.parameters["has_projection"] = (!shortcut_path_.empty());
 
   nlohmann::json main_array = nlohmann::json::array();
   for (const auto &layer : main_path_) {
     LayerConfig sub_cfg = layer->get_config();
-    nlohmann::json sub_json;
-    sub_json["type"] = layer->type();
-    sub_json["name"] = sub_cfg.name;
-    sub_json["parameters"] = nlohmann::json::object();
-    for (const auto &[k, v] : sub_cfg.parameters) {
-      try {
-        if (auto *int_ptr = std::any_cast<int>(&v)) {
-          sub_json["parameters"][k] = *int_ptr;
-        } else if (auto *size_ptr = std::any_cast<size_t>(&v)) {
-          sub_json["parameters"][k] = *size_ptr;
-        } else if (auto *float_ptr = std::any_cast<float>(&v)) {
-          sub_json["parameters"][k] = *float_ptr;
-        } else if (auto *double_ptr = std::any_cast<double>(&v)) {
-          sub_json["parameters"][k] = *double_ptr;
-        } else if (auto *bool_ptr = std::any_cast<bool>(&v)) {
-          sub_json["parameters"][k] = *bool_ptr;
-        } else if (auto *string_ptr = std::any_cast<std::string>(&v)) {
-          sub_json["parameters"][k] = *string_ptr;
-        }
-      } catch (const std::bad_any_cast &) {
-      }
-    }
+    nlohmann::json sub_json = sub_cfg.to_json();
     main_array.push_back(sub_json);
   }
 
@@ -331,26 +310,7 @@ LayerConfig ResidualBlock::get_config() const {
     LayerConfig sub_cfg = layer->get_config();
     nlohmann::json sub_json;
     sub_json["type"] = layer->type();
-    sub_json["name"] = sub_cfg.name;
-    sub_json["parameters"] = nlohmann::json::object();
-    for (const auto &[k, v] : sub_cfg.parameters) {
-      try {
-        if (auto *int_ptr = std::any_cast<int>(&v)) {
-          sub_json["parameters"][k] = *int_ptr;
-        } else if (auto *size_ptr = std::any_cast<size_t>(&v)) {
-          sub_json["parameters"][k] = *size_ptr;
-        } else if (auto *float_ptr = std::any_cast<float>(&v)) {
-          sub_json["parameters"][k] = *float_ptr;
-        } else if (auto *double_ptr = std::any_cast<double>(&v)) {
-          sub_json["parameters"][k] = *double_ptr;
-        } else if (auto *bool_ptr = std::any_cast<bool>(&v)) {
-          sub_json["parameters"][k] = *bool_ptr;
-        } else if (auto *string_ptr = std::any_cast<std::string>(&v)) {
-          sub_json["parameters"][k] = *string_ptr;
-        }
-      } catch (const std::bad_any_cast &) {
-      }
-    }
+    sub_json["name"] = sub_cfg.to_json();
     shortcut_array.push_back(sub_json);
   }
 
@@ -395,6 +355,31 @@ size_t ResidualBlock::cached_memory_bytes() const {
   }
   total_bytes += Layer::cached_memory_bytes();
   return total_bytes;
+}
+
+std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConfig &config) {
+  // Note: ResidualBlock configuration is complex and typically reconstructed from Sequential
+  // This is a simplified version that assumes empty paths
+  std::vector<std::unique_ptr<Layer>> main_path;
+  std::vector<std::unique_ptr<Layer>> shortcut_path;
+  std::vector<nlohmann::json> main_json =
+      nlohmann::json::parse(config.get<std::string>("main_path"));
+  for (const auto &layer_json : main_json) {
+    LayerConfig layer_config = LayerConfig::from_json(layer_json);
+    auto layer = LayerFactory::create(layer_config);
+    main_path.push_back(std::move(layer));
+  }
+  std::vector<nlohmann::json> shortcut_json =
+      nlohmann::json::parse(config.get<std::string>("shortcut_path"));
+  for (const auto &layer_json : shortcut_json) {
+    LayerConfig layer_config = LayerConfig::from_json(layer_json);
+    auto layer = LayerFactory::create(layer_config);
+    shortcut_path.push_back(std::move(layer));
+  }
+
+  std::string activation = config.get<std::string>("activation", "relu");
+  return std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut_path), activation,
+                                         config.name);
 }
 
 } // namespace tnn

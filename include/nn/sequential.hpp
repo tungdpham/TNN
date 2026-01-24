@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "nn/layers.hpp"
 #include "nn/layers_impl/base_layer.hpp"
 #include "profiling/event.hpp"
 #include "tensor/tensor.hpp"
@@ -145,6 +146,8 @@ public:
     this->name_ = name;
     layers_ = std::move(layers);
   }
+
+  static constexpr const char *type_name = "sequential";
 
   Sequential(const Sequential &) = delete;
   Sequential &operator=(const Sequential &) = delete;
@@ -303,17 +306,39 @@ public:
     return false;
   }
 
-  std::string type() const override { return "sequential"; }
+  std::string type() const override { return type_name; }
 
   LayerConfig get_config() const override {
     LayerConfig config;
     config.name = name_;
-    std::vector<nlohmann::json> layers_config;
+    config.type = type_name;
+    std::vector<nlohmann::json> layers_config = nlohmann::json::array();
     for (const auto &layer : layers_) {
-      layers_config.push_back(layer->get_config().to_json());
+      auto layer_config = layer->get_config();
+      layers_config.push_back(layer_config.to_json());
     }
     config.parameters["layers"] = layers_config;
     return config;
+  }
+
+  static std::unique_ptr<Sequential> create_from_config(const LayerConfig &config) {
+    std::vector<std::unique_ptr<Layer>> layers;
+    std::cout << "Creating Sequential layer from config: " << config.to_json().dump(2) << std::endl;
+    // Get the layers as nlohmann::json first, then convert to vector
+    nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
+    LayerFactory::register_defaults();
+
+    if (!layers_json.is_array()) {
+      throw std::runtime_error("Expected 'layers' to be an array in Sequential config");
+    }
+
+    for (const auto &layer_json : layers_json) {
+      LayerConfig layer_config = LayerConfig::from_json(layer_json);
+      std::cout << "Creating layer from config: " << layer_config.to_json().dump(2) << std::endl;
+      auto layer = LayerFactory::create(layer_config);
+      layers.push_back(std::move(layer));
+    }
+    return std::make_unique<Sequential>(config.name, std::move(layers));
   }
 
   std::unique_ptr<Layer> clone() const override {

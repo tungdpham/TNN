@@ -50,7 +50,7 @@ public:
   template <Buffer BufferType>
   static void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
     DType_t dtype = tensor->data_type();
-    buffer.write(offset, dtype);
+    buffer.template write<uint32_t>(offset, static_cast<uint32_t>(dtype));
     std::vector<size_t> shape = tensor->shape();
     uint64_t shape_size = static_cast<uint64_t>(shape.size());
     buffer.write(offset, shape_size);

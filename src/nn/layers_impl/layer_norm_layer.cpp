@@ -190,6 +190,7 @@ uint64_t LayerNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
 LayerConfig LayerNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["normalized_shape"] = normalized_shape_;
   config.parameters["epsilon"] = epsilon_;
   config.parameters["affine"] = affine_;
@@ -212,6 +213,13 @@ void LayerNormLayer::collect_gradients(std::vector<Tensor> &grads) {
     grads.push_back(gamma_gradients_);
     grads.push_back(beta_gradients_);
   }
+}
+
+std::unique_ptr<LayerNormLayer> LayerNormLayer::create_from_config(const LayerConfig &config) {
+  size_t normalized_shape = config.get<size_t>("normalized_shape");
+  float epsilon = config.get<float>("epsilon", 1e-5f);
+  bool affine = config.get<bool>("affine", true);
+  return std::make_unique<LayerNormLayer>(normalized_shape, epsilon, affine, config.name);
 }
 
 } // namespace tnn

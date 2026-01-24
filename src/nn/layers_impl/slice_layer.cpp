@@ -117,11 +117,11 @@ std::vector<size_t> SliceLayer::compute_output_shape(const std::vector<size_t> &
   return output_shape;
 }
 
-std::string SliceLayer::type() const { return "slice"; }
 
 LayerConfig SliceLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["axis"] = (int)axis_;
   config.parameters["start"] = (int)start_;
   config.parameters["length"] = (int)length_;
@@ -132,7 +132,7 @@ std::unique_ptr<Layer> SliceLayer::clone() const {
   return std::make_unique<SliceLayer>(axis_, start_, length_, this->name_);
 }
 
-std::unique_ptr<Layer> SliceLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<SliceLayer> SliceLayer::create_from_config(const LayerConfig &config) {
   size_t axis = (size_t)config.get<int>("axis", 0);
   size_t start = (size_t)config.get<int>("start", 0);
   size_t length = (size_t)config.get<int>("length", 1);

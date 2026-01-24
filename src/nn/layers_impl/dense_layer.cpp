@@ -283,11 +283,10 @@ std::unique_ptr<Task> DenseLayer::add_bias_vector(Tensor &output, const Tensor &
   return nullptr;
 }
 
-std::string DenseLayer::type() const { return "dense"; }
-
 LayerConfig DenseLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["input_features"] = input_features_;
   config.parameters["output_features"] = output_features_;
   config.parameters["use_bias"] = use_bias_;
@@ -322,7 +321,7 @@ void DenseLayer::collect_gradients(std::vector<Tensor> &grads) {
   }
 }
 
-std::unique_ptr<Layer> DenseLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<DenseLayer> DenseLayer::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");
   size_t output_features = config.get<size_t>("output_features");
   bool use_bias = config.get<bool>("use_bias");

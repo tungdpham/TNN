@@ -4,8 +4,8 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/blocks_impl/cpu/permute_heads.hpp"
 #include "nn/layers_impl/transpose_layer.hpp"
+#include "nn/blocks_impl/cpu/permute_heads.hpp"
 #ifdef USE_CUDA
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #endif
@@ -80,11 +80,11 @@ TransposeLayer::compute_output_shape(const std::vector<size_t> &input_shape) con
   return {input_shape[0], input_shape[2], input_shape[1]};
 }
 
-std::string TransposeLayer::type() const { return "transpose"; }
 
 LayerConfig TransposeLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   return config;
 }
 
@@ -92,7 +92,7 @@ std::unique_ptr<Layer> TransposeLayer::clone() const {
   return std::make_unique<TransposeLayer>(this->name_);
 }
 
-std::unique_ptr<Layer> TransposeLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<TransposeLayer> TransposeLayer::create_from_config(const LayerConfig &config) {
   return std::make_unique<TransposeLayer>(config.name);
 }
 

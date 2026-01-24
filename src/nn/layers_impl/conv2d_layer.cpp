@@ -280,11 +280,11 @@ void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
                                  input_w, output_h, output_w, "default");
 }
 
-std::string Conv2DLayer::type() const { return "conv2d"; }
 
 LayerConfig Conv2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
+  config.type = this->type();
   config.parameters["in_channels"] = in_channels_;
   config.parameters["out_channels"] = out_channels_;
   config.parameters["kernel_h"] = kernel_h_;
@@ -375,6 +375,20 @@ size_t Conv2DLayer::cached_memory_bytes() const {
   }
   total_bytes += input_cache_bytes;
   return total_bytes;
+}
+
+std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &config) {
+  size_t in_channels = config.get<size_t>("in_channels");
+  size_t out_channels = config.get<size_t>("out_channels");
+  size_t kernel_h = config.get<size_t>("kernel_h");
+  size_t kernel_w = config.get<size_t>("kernel_w");
+  size_t stride_h = config.get<size_t>("stride_h", 1);
+  size_t stride_w = config.get<size_t>("stride_w", 1);
+  size_t pad_h = config.get<size_t>("pad_h", 0);
+  size_t pad_w = config.get<size_t>("pad_w", 0);
+  bool use_bias = config.get<bool>("use_bias", true);
+  return std::make_unique<Conv2DLayer>(in_channels, out_channels, kernel_h, kernel_w, stride_h,
+                                       stride_w, pad_h, pad_w, use_bias, config.name);
 }
 
 } // namespace tnn

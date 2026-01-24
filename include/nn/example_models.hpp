@@ -6,9 +6,7 @@
  */
 #pragma once
 
-#include "nn/layers_impl/base_layer.hpp"
 #include "nn/sequential.hpp"
-#include <memory>
 
 namespace tnn {
 
