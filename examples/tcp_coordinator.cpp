@@ -5,7 +5,7 @@
  * project root for the full license text.
  */
 #include "distributed/tcp_coordinator.hpp"
-#include "data_loading/legacy/data_loader_factory.hpp"
+#include "data_loading/data_loader_factory.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/sequential.hpp"
@@ -18,7 +18,6 @@
 #include <vector>
 
 using namespace tnn;
-using namespace tnn::legacy;
 using namespace std;
 
 int main() {
