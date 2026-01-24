@@ -38,29 +38,33 @@ private:
   Tensor bias_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> conv2d_forward_task(const Tensor &input, Tensor &output,
-                                            const Tensor &weights, const Tensor &bias,
-                                            Tensor &workspace, size_t batch_size, size_t input_h,
-                                            size_t input_w, size_t output_h, size_t output_w,
-                                            const std::string &flow_id) const;
+  std::unique_ptr<Task>
+  conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
+                      const Tensor &input, Tensor &output, const Tensor &weights,
+                      const Tensor &bias, Tensor &workspace, size_t batch_size, size_t input_h,
+                      size_t input_w, size_t output_h, size_t output_w,
+                      const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_weights_and_bias_task(
-      const Tensor &input, const Tensor &gradient, Tensor &weight_gradients, Tensor &bias_gradients,
-      Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-      size_t output_w, const std::string &flow_id) const;
+      cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const Tensor &input,
+      const Tensor &gradient, Tensor &weight_gradients, Tensor &bias_gradients, Tensor &workspace,
+      size_t batch_size, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
+      const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
-  conv2d_backward_data_task(const Tensor &gradient, const Tensor &weights, Tensor &grad_input,
+  conv2d_backward_data_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
+                            const Tensor &gradient, const Tensor &weights, Tensor &grad_input,
                             Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w,
                             size_t output_h, size_t output_w, const std::string &flow_id) const;
 
   void cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
   void cudnn_backward(const Tensor &current_gradient, Tensor &grad_input, size_t micro_batch_id);
 
-  ConvolutionStats stats_;
-  cuda::cudnn_conv2d::feHandle_t *fe_handle = nullptr;
+  std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
+  std::unordered_map<size_t, ConvolutionStats> stats_cache;
+  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
   std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
 
   void init_params() override;

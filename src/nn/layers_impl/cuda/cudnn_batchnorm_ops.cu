@@ -21,7 +21,8 @@ namespace fe = cudnn_frontend;
 
 struct feHandle_t {
   cudnnHandle_t cudnn_handle;
-  cudnnDataType_t data_type;
+  cudnnDataType_t io_data_type;
+  cudnnDataType_t compute_type;
   std::shared_ptr<fe::KernelCache> kernel_cache;
 
   std::shared_ptr<fe::graph::Graph> fwd_graph;
@@ -104,8 +105,8 @@ static void build_fwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   const int64_t c = static_cast<int64_t>(stats.channels);
   const int64_t h = static_cast<int64_t>(stats.height);
   const int64_t w = static_cast<int64_t>(stats.width);
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -155,6 +156,12 @@ static void build_fwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   auto next_running_mean = outputs[3];
   auto next_running_var = outputs[4];
 
+  if (stats.use_relu) {
+    std::cout << "Fusing ReLU into BatchNorm forward graph." << std::endl;
+    Y = graph->pointwise(Y,
+                         fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_FWD));
+  }
+
   Y->set_output(true).set_data_type(io_type);
   saved_mean->set_output(true).set_data_type(compute_type);
   saved_invar->set_output(true).set_data_type(compute_type);
@@ -192,8 +199,8 @@ static void build_inf_graph(feHandle_t *handle, BatchNormStats &stats) {
   const int64_t c = static_cast<int64_t>(stats.channels);
   const int64_t h = static_cast<int64_t>(stats.height);
   const int64_t w = static_cast<int64_t>(stats.width);
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -230,32 +237,26 @@ static void build_inf_graph(feHandle_t *handle, BatchNormStats &stats) {
                                      .set_stride({c, 1, c, c})
                                      .set_data_type(compute_type));
 
-  // For inference, we apply the normalization manually using the saved stats
   // Y = scale * (X - mean) / sqrt(var + epsilon) + bias
-
-  // Compute inverse standard deviation: 1 / sqrt(var + epsilon)
   auto epsilon_tensor = graph->tensor(static_cast<float>(stats.epsilon));
   auto var_plus_eps =
       graph->pointwise(saved_var, epsilon_tensor,
                        fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::ADD));
   auto inv_std = graph->pointwise(
       var_plus_eps, fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RSQRT));
-
-  // X - mean
   auto x_minus_mean = graph->pointwise(
       X, saved_mean, fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::SUB));
-
-  // (X - mean) * inv_std
   auto normalized = graph->pointwise(
       x_minus_mean, inv_std, fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::MUL));
-
-  // scale * normalized
   auto scaled = graph->pointwise(
       normalized, scale, fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::MUL));
-
-  // scaled + bias
   auto Y = graph->pointwise(scaled, bias,
                             fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::ADD));
+
+  if (stats.use_relu) {
+    Y = graph->pointwise(Y,
+                         fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_FWD));
+  }
 
   Y->set_output(true).set_data_type(io_type);
 
@@ -288,8 +289,8 @@ static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   const int64_t h = static_cast<int64_t>(stats.height);
   const int64_t w = static_cast<int64_t>(stats.width);
 
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -367,11 +368,12 @@ static void rebuild_graphs(feHandle_t *handle, BatchNormStats &stats) {
   build_bwd_graph(handle, stats);
 }
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t data_type,
-                                 BatchNormStats &stats) {
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_type, BatchNormStats &stats) {
   feHandle_t *fe_handle = new feHandle_t();
   fe_handle->cudnn_handle = cudnn_handle;
-  fe_handle->data_type = data_type;
+  fe_handle->io_data_type = io_data_type;
+  fe_handle->compute_type = compute_type;
   fe_handle->kernel_cache = std::make_shared<fe::KernelCache>();
   rebuild_graphs(fe_handle, stats);
   return fe_handle;

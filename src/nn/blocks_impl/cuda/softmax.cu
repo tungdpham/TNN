@@ -81,6 +81,8 @@ struct SoftmaxHandle {
   size_t cols = 0;
   cudnnDataType_t data_type = CUDNN_DATA_FLOAT;
 
+  bool use_legacy = false;
+
   std::shared_ptr<fe::KernelCache> kernel_cache;
 
   std::shared_ptr<fe::graph::Graph> fwd_graph;
@@ -125,8 +127,7 @@ static void build_forward_graph(SoftmaxHandle *handle) {
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
       .set_intermediate_data_type(compute_type)
-      .set_compute_data_type(compute_type)
-      .set_kernel_cache(handle->kernel_cache);
+      .set_compute_data_type(compute_type);
 
   std::vector<int64_t> dim = {rows, 1, 1, cols};
   std::vector<int64_t> stride = {cols, cols, cols, 1};
@@ -278,8 +279,12 @@ static SoftmaxHandle *get_softmax_handle(cudnnHandle_t cudnn_handle, size_t rows
   handle->data_type = data_type;
   handle->kernel_cache = std::make_shared<fe::KernelCache>();
 
-  build_forward_graph(handle.get());
-  build_backward_graph(handle.get());
+  try {
+    build_forward_graph(handle.get());
+    build_backward_graph(handle.get());
+  } catch (const std::exception &) {
+    handle->use_legacy = true;
+  }
 
   auto *ptr = handle.get();
   cache.emplace(key, std::move(handle));
@@ -291,6 +296,19 @@ void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t row
                      cudaStream_t stream) {
   auto *softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
   cudnnSetStream(handle, stream);
+
+  if (softmax_handle->use_legacy) {
+    cudnnTensorDescriptor_t desc;
+    cudnnCreateTensorDescriptor(&desc);
+    cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW, get_cudnn_data_type<T>(),
+                               static_cast<int>(rows), static_cast<int>(cols), 1, 1);
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+    cudnnSoftmaxForward(handle, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_INSTANCE, &alpha, desc,
+                        input, &beta, desc, output);
+    cudnnDestroyTensorDescriptor(desc);
+    return;
+  }
 
   ensure_workspace(&softmax_handle->fwd_workspace_ptr, &softmax_handle->fwd_workspace_capacity,
                    softmax_handle->fwd_workspace);
@@ -308,6 +326,19 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
                       size_t rows, size_t cols, cudaStream_t stream) {
   auto *softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
   cudnnSetStream(handle, stream);
+
+  if (softmax_handle->use_legacy) {
+    cudnnTensorDescriptor_t desc;
+    cudnnCreateTensorDescriptor(&desc);
+    cudnnSetTensor4dDescriptor(desc, CUDNN_TENSOR_NCHW, get_cudnn_data_type<T>(),
+                               static_cast<int>(rows), static_cast<int>(cols), 1, 1);
+    const float alpha = 1.0f;
+    const float beta = 0.0f;
+    cudnnSoftmaxBackward(handle, CUDNN_SOFTMAX_ACCURATE, CUDNN_SOFTMAX_MODE_INSTANCE, &alpha, desc,
+                         output, desc, grad_output, &beta, desc, grad_input);
+    cudnnDestroyTensorDescriptor(desc);
+    return;
+  }
 
   ensure_workspace(&softmax_handle->bwd_workspace_ptr, &softmax_handle->bwd_workspace_capacity,
                    softmax_handle->bwd_workspace);

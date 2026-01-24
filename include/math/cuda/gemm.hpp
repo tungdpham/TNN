@@ -13,39 +13,19 @@
 namespace tnn {
 namespace cuda {
 
-/**
- * @brief CUDA-accelerated General Matrix Multiplication (GEMM)
- *
- * Performs scaled matrix multiplication: C = alpha * A * B (or their transposes)
- * All matrices are assumed to be in row-major order.
- *
- * @tparam T Data type (float or double)
- * @param A Pointer to matrix A on device memory
- * @param B Pointer to matrix B on device memory
- * @param C Pointer to result matrix C on device memory
- * @param M Number of rows in A (or A^T if trans_A is true)
- * @param N Number of columns in B (or B^T if trans_B is true)
- * @param K Number of columns in A / rows in B (or vice versa with transpose)
- * @param alpha Scalar multiplier for the matrix product
- * @param trans_A Whether to transpose A
- * @param trans_B Whether to transpose B
- */
-template <typename T>
-void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const size_t K,
-          const bool trans_A, const bool trans_B, const T alpha, const T beta, cudaStream_t stream);
+template <typename A_T, typename B_T, typename C_T, typename Compute_T>
+void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,
+             const bool transpose_A, const bool transpose_B, const Compute_T alpha,
+             const Compute_T beta, const size_t lda, const size_t ldb, const size_t ldc,
+             cudaStream_t stream);
 
-template <typename T>
-void gemm_strided_batched(const T *A, const T *B, T *C, const size_t M, const size_t N,
-                          const size_t K, const bool trans_A, const bool trans_B, const T alpha,
-                          const T beta, const size_t batch_count, const size_t stride_A,
-                          const size_t stride_B, const size_t stride_C, cudaStream_t stream);
-
-template <typename T>
-void gemm_strided_batched_ex(const T *A, const T *B, T *C, const size_t M, const size_t N,
-                             const size_t K, const bool trans_A, const bool trans_B, const T alpha,
-                             const T beta, const size_t batch_count, const size_t stride_A,
-                             const size_t stride_B, const size_t stride_C, const size_t lda,
-                             const size_t ldb, const size_t ldc, cudaStream_t stream);
+template <typename A_T, typename B_T, typename C_T, typename Compute_T>
+void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
+                             const size_t K, const bool transpose_A, const bool transpose_B,
+                             const Compute_T alpha, const Compute_T beta, const size_t lda,
+                             const size_t ldb, const size_t ldc, const size_t strideA,
+                             const size_t strideB, const size_t strideC, const size_t batch_count,
+                             cudaStream_t stream);
 
 } // namespace cuda
 

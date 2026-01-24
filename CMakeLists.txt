@@ -51,8 +51,6 @@ endif()
 
 if(ENABLE_CUDA)
     include(FindCUDA)
-    set(CMAKE_CUDA_STANDARD 20)
-    set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 endif()
 
 include(Dependencies)

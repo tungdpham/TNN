@@ -12,8 +12,7 @@ using namespace std;
 
 signed main() {
   Conv2DLayer conv_layer(3, 64, 3, 3, 1, 1, 1, 1, true, "conv2d_test");
-  BatchNormLayer batchnorm_layer(64, 1e-5f, true, "batchnorm_test");
-  ActivationLayer activation_layer(std::make_unique<ReLU>(), "ReLU");
+  BatchNormLayer batchnorm_layer(64, 1e-5f, 0.1, true, true, "batchnorm_test");
   MaxPool2DLayer maxpool_layer(2, 2, 2, 2, 0, 0, "maxpool_test");
 
   conv_layer.set_device(getGPU());
@@ -24,10 +23,6 @@ signed main() {
   batchnorm_layer.set_training(true);
   batchnorm_layer.init();
 
-  activation_layer.set_device(getGPU());
-  activation_layer.set_training(true);
-  activation_layer.init();
-
   maxpool_layer.set_device(getGPU());
   maxpool_layer.set_training(true);
   maxpool_layer.init();
@@ -36,13 +31,11 @@ signed main() {
   input->fill_random_normal(0.5f, 0.2f, 676767);
   Tensor conv2d_output = make_tensor<float>({128, 224, 224, 64}, &getGPU());
   Tensor batchnorm_output = make_tensor<float>({128, 224, 224, 64}, &getGPU());
-  Tensor activation_output = make_tensor<float>({128, 224, 224, 64}, &getGPU());
   Tensor maxpool_output = make_tensor<float>({128, 112, 112, 64}, &getGPU());
   // cold pass
   conv_layer.forward(input, conv2d_output);
   batchnorm_layer.forward(conv2d_output, batchnorm_output);
-  activation_layer.forward(batchnorm_output, activation_output);
-  maxpool_layer.forward(activation_output, maxpool_output);
+  maxpool_layer.forward(batchnorm_output, maxpool_output);
   Flow *flow = getGPU().getFlow("default");
   flow->synchronize();
 
@@ -53,7 +46,6 @@ signed main() {
     auto pass_start = std::chrono::high_resolution_clock::now();
     conv_layer.forward(input, conv2d_output);
     batchnorm_layer.forward(conv2d_output, batchnorm_output);
-    activation_layer.forward(batchnorm_output, activation_output);
     maxpool_layer.forward(batchnorm_output, maxpool_output);
     Flow *flow = getGPU().getFlow("default");
     flow->synchronize();

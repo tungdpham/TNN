@@ -76,8 +76,10 @@ template <typename T>
 void compute_conv_forward(const T *col_data, const T *weight_data, T *output_data,
                           const size_t output_size, const size_t kernel_size,
                           const size_t out_channels, cudaStream_t stream) {
-  cuda::gemm<T>(weight_data, col_data, output_data, out_channels, output_size, kernel_size, false,
-                false, T(1.0), T(0.0), stream);
+
+  cuda::gemm_ex<T, T, T>(col_data, weight_data, output_data, out_channels, output_size, kernel_size,
+                         false, false, T(1.0), T(0.0), kernel_size, kernel_size, output_size,
+                         stream);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -86,8 +88,10 @@ template <typename T>
 void compute_weight_gradients(const T *col_data, const T *gradient_data, T *weight_grad_data,
                               const size_t output_size, const size_t kernel_size,
                               const size_t out_channels, cudaStream_t stream) {
-  cuda::gemm<T>(gradient_data, col_data, weight_grad_data, out_channels, kernel_size, output_size,
-                false, true, T(1.0), T(1.0), stream);
+
+  cuda::gemm_ex<T, T, T>(col_data, gradient_data, weight_grad_data, out_channels, kernel_size,
+                         output_size, false, true, T(1.0), T(1.0), output_size, output_size,
+                         kernel_size, stream);
 
   cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
 }
@@ -96,8 +100,10 @@ template <typename T>
 void compute_input_gradients(const T *gradient_data, const T *weight_data, T *col_grad_data,
                              const size_t output_size, const size_t kernel_size,
                              const size_t out_channels, cudaStream_t stream) {
-  cuda::gemm<T>(weight_data, gradient_data, col_grad_data, kernel_size, output_size, out_channels,
-                true, false, T(1.0), T(0.0), stream);
+
+  cuda::gemm_ex<T, T, T>(gradient_data, weight_data, col_grad_data, kernel_size, output_size,
+                         out_channels, true, false, T(1.0), T(0.0), out_channels, out_channels,
+                         output_size, stream);
 }
 
 template <typename T>

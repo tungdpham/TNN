@@ -2,7 +2,6 @@
 
 #ifdef USE_CUDNN
 
-#include <cstddef>
 #include <cudnn.h>
 
 #include "nn/layers_impl/common/conv2d.hpp"
@@ -18,8 +17,8 @@ struct feHandle_t;
 
 cudnnDataType_t get_cudnn_data_type(DType_t dtype);
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t data_type,
-                                 ConvolutionStats &stats);
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, ConvolutionStats &stats);
 
 void destroy_fe_handle(feHandle_t *handle);
 

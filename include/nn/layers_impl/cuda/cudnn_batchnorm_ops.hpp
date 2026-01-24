@@ -14,8 +14,8 @@ struct feHandle_t;
 
 cudnnDataType_t get_cudnn_data_type(DType_t dtype);
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t shared_handle, cudnnDataType_t data_type,
-                                 BatchNormStats &stats);
+feHandle_t *initialize_fe_handle(cudnnHandle_t shared_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, BatchNormStats &stats);
 
 void destroy_fe_handle(feHandle_t *handle);
 

@@ -137,7 +137,7 @@ TEST(LayerBufferReuseTest, FlattenConsistentOutput) {
   const size_t h = 4;
   const size_t w = 4;
 
-  auto layer = std::make_unique<FlattenLayer>(1, "test_flatten");
+  auto layer = std::make_unique<FlattenLayer>(1, -1, "test_flatten");
   layer->set_device(getCPU());
 
   Tensor input = make_tensor<float>({batch_size, channels, h, w}, &getCPU());

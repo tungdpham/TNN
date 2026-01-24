@@ -22,17 +22,17 @@ std::unique_ptr<Layer> create_mnist_cnn(DType_t io_dtype_ = DType_t::FP32) {
                     .input({28, 28, 1})
                     .dtype(io_dtype_)
                     .conv2d(8, 5, 5, 1, 1, 0, 0, false, "conv1")
-                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
-                    .activation("relu", "relu1")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, true, "bn1")
+                    // .activation("relu", "relu1")
                     .maxpool2d(3, 3, 3, 3, 0, 0, "pool1")
                     .conv2d(16, 1, 1, 1, 1, 0, 0, false, "conv2_1x1")
-                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2_1x1")
-                    .activation("relu", "relu2")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, true, "bn2_1x1")
+                    // .activation("relu", "relu2")
                     .conv2d(48, 5, 5, 1, 1, 0, 0, false, "conv3")
-                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn3")
-                    .activation("relu", "relu3")
+                    .batchnorm(dtype_eps(io_dtype_), 0.1f, true, true, "bn3")
+                    // .activation("relu", "relu3")
                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(10, true, "output")
                     .build();
   return std::make_unique<Sequential>("mnist_cnn", std::move(layers));
@@ -75,7 +75,7 @@ std::unique_ptr<Layer> create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn9")
                     .activation("relu", "relu9")
                     .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(512, true, "fc0")
                     .activation("relu", "relu10")
                     .dense(10, true, "fc1")
@@ -112,7 +112,7 @@ std::unique_ptr<Layer> create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32)
                     .basic_residual_block(512, 512, 1, "res_block5")
                     // Classification head
                     .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool") // 4x4 -> 1x1
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(10, true, "output")
                     .build();
   return std::make_unique<Sequential>("cifar10_resnet9", std::move(layers));
@@ -140,7 +140,7 @@ std::unique_ptr<Layer> create_cifar100_resnet18(DType_t io_dtype_ = DType_t::FP3
                     .basic_residual_block(512, 512, 1, "layer4_block2")
                     // Global average pooling and classifier
                     .avgpool2d(2, 2, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(100, true, "fc")
                     .build();
   return std::make_unique<Sequential>("cifar100_resnet18", std::move(layers));
@@ -172,7 +172,7 @@ std::unique_ptr<Layer> create_cifar100_wrn16_8(DType_t io_dtype_ = DType_t::FP32
                     .activation("relu", "relu_final")
                     // Global average pooling: 8x8 -> 1x1
                     .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(100, true, "fc")
                     .build();
 
@@ -201,7 +201,7 @@ std::unique_ptr<Layer> create_tiny_imagenet_resnet18(DType_t io_dtype_ = DType_t
                     .basic_residual_block(512, 512, 1, "layer4_block2")
                     // Global average pooling and classifier
                     .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(200, true, "fc")
                     .build();
   return std::make_unique<Sequential>("tiny_imagenet_resnet18", std::move(layers));
@@ -233,7 +233,7 @@ std::unique_ptr<Layer> create_tiny_imagenet_wrn16_8(DType_t io_dtype_ = DType_t:
                     .activation("relu", "relu_final")
                     // Global average pooling: 8x8 -> 1x1
                     .avgpool2d(8, 8, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(200, true, "fc")
                     .build();
 
@@ -270,7 +270,7 @@ std::unique_ptr<Layer> create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t
                     .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
                     // Global average pooling and classifier
                     .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(200, true, "fc")
                     .build();
   return std::make_unique<Sequential>("tiny_imagenet_resnet50", std::move(layers));
@@ -306,7 +306,7 @@ std::unique_ptr<Layer> create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP3
                     .bottleneck_residual_block(2048, 512, 2048, 1, "layer4_block3")
                     // Global average pooling and classifier
                     .avgpool2d(7, 7, 1, 1, 0, 0, "avgpool")
-                    .flatten(1, "flatten")
+                    .flatten(1, -1, "flatten")
                     .dense(1000, true, "fc")
                     .build();
   return std::make_unique<Sequential>("imagenet_resnet50", std::move(layers));
@@ -326,8 +326,7 @@ std::unique_ptr<Layer> create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP3
   builder.input({64, 64, 3})
       .dtype(io_dtype_)
       .conv2d(embed_dim, patch_size, patch_size, patch_size, patch_size, 0, 0, true, "patch_embed")
-      .flatten(2, "flatten_patches")
-      .transpose("transpose_patches")
+      .flatten(1, 2, "flatten_patches") // Flatten dims 1-2 (H, W), keep dim 3 (C)
       .class_token(embed_dim)
       .positional_embedding(embed_dim, seq_len)
       .dropout(0.1f);
@@ -355,9 +354,10 @@ std::unique_ptr<Layer> create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP3
                            {}, "linear", "encoder_" + std::to_string(i) + "_mlp");
   }
 
-  builder.layernorm(dtype_eps(io_dtype_), true, "ln_final")
-      .slice(1, 0, 1, "extract_cls")
-      .flatten(1, "flatten_seq")
+  builder
+      .layernorm(dtype_eps(io_dtype_), true, "ln_final")
+      // .slice(1, 0, 1, "extract_cls")
+      .flatten(1, -1, "flatten_seq")
       .dense(num_classes, true, "head");
 
   auto layers = builder.build();
@@ -390,6 +390,31 @@ std::unique_ptr<Layer> create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   return std::make_unique<Sequential>("gpt2", std::move(layers));
 }
 
+std::unique_ptr<Layer> create_flash_gpt2(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t seq_len = 512;
+  constexpr size_t vocab_size = 50257;
+  constexpr size_t embed_dim = 768;
+  constexpr size_t num_heads = 12;
+  constexpr size_t num_layers = 12;
+  constexpr float dropout = 0.1f;
+
+  LayerBuilder builder;
+  builder.input({seq_len})
+      .dtype(io_dtype_)
+      .embedding(vocab_size, embed_dim, "token_embed")
+      .positional_embedding(embed_dim, seq_len, "pos_embed")
+      .dropout(dropout);
+
+  for (size_t i = 0; i < num_layers; ++i) {
+    builder.flash_gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
+  }
+
+  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+
+  auto layers = builder.build();
+  return std::make_unique<Sequential>("flash_gpt2", std::move(layers));
+}
+
 // Register all models
 void ExampleModels::register_defaults() {
   // MNIST
@@ -413,6 +438,7 @@ void ExampleModels::register_defaults() {
 
   // GPT-2
   register_model(*static_cast<Sequential *>(create_gpt2().get()));
+  register_model(*static_cast<Sequential *>(create_flash_gpt2().get()));
 }
 
 } // namespace tnn

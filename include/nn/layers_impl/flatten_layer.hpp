@@ -20,13 +20,14 @@ class FlattenLayer : public StatelessLayer {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
   int start_dim_;
+  int end_dim_;
 
   void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
   void backward_impl(const Tensor &gradient, Tensor &grad_input,
                      size_t micro_batch_id = 0) override;
 
 public:
-  explicit FlattenLayer(int start_dim = 1, const std::string &name = "flatten");
+  explicit FlattenLayer(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -42,4 +43,3 @@ public:
 };
 
 } // namespace tnn
-

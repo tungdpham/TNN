@@ -4,6 +4,4 @@ CompileFlags:
     - -ferror-limit=0
   Remove:
     - -forward-unknown-to-host-compiler
-    - --options-file
     - --generate-code=*
-    - --compiler-options

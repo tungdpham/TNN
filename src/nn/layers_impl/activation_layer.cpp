@@ -17,12 +17,6 @@ ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
 
 void ActivationLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
   if (this->is_training_) {
-    // Tensor &cached_input = micro_batch_inputs_[micro_batch_id];
-    // if (!cached_input) {
-    //   cached_input = make_tensor<float>(input->shape(), this->device_);
-    // }
-    // cached_input->ensure(input->shape(), this->device_);
-    // input->copy_to(cached_input);
     micro_batch_inputs_[micro_batch_id] = input;
   }
 

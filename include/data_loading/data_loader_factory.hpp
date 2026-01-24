@@ -23,7 +23,8 @@ public:
    * @param dataset_path Path to the dataset directory or file
    * @return DataLoaderPair containing the created loaders
    */
-  static DataLoaderPair create(const std::string &dataset_type, const std::string &dataset_path);
+  static DataLoaderPair create(const std::string &dataset_type, const std::string &dataset_path,
+                               DType_t io_dtype_ = DType_t::FP32);
 
   /**
    * Get list of available dataset types

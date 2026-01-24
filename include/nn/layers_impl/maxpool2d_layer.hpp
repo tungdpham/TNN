@@ -32,7 +32,7 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  template <typename Compute_T>
+  template <typename IO_T>
   std::unique_ptr<Task>
   compute_max_pool_forward_impl(const Tensor &input_data, Tensor &output_data, size_t batch_size,
                                 size_t height, size_t width, size_t channels, size_t output_h,
@@ -45,7 +45,7 @@ private:
                                                  Tensor &mask_indices,
                                                  const std::string &flow_id) const;
 
-  template <typename Compute_T>
+  template <typename IO_T>
   std::unique_ptr<Task> compute_max_pool_backward_impl(const Tensor &gradient_data,
                                                        Tensor &grad_input_data, size_t batch_size,
                                                        size_t channels, size_t output_h,

@@ -10,7 +10,6 @@
 #include "profiling/event.hpp"
 #include "tensor/tensor.hpp"
 
-#include "cuda/error_handler.hpp"
 #include <cstddef>
 #include <fmt/core.h>
 #include <iomanip>
@@ -54,6 +53,36 @@ protected:
     }
   }
 
+  void on_set_io_dtype(DType_t dtype) override {
+    for (auto &layer : layers_) {
+      layer->set_io_dtype(dtype);
+    }
+  }
+
+  void on_set_param_dtype(DType_t dtype) override {
+    for (auto &layer : layers_) {
+      layer->set_param_dtype(dtype);
+    }
+  }
+
+  void on_set_compute_dtype(DType_t dtype) override {
+    for (auto &layer : layers_) {
+      layer->set_compute_dtype(dtype);
+    }
+  }
+
+  void on_set_device(const Device &device) override {
+    for (auto &layer : layers_) {
+      layer->set_device(device);
+    }
+  }
+
+  void on_set_training(bool training) override {
+    for (auto &layer : layers_) {
+      layer->set_training(training);
+    }
+  }
+
   void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override {
     if (layers_.empty()) {
       throw std::runtime_error("Cannot forward through empty sequential model");
@@ -88,15 +117,14 @@ protected:
       throw std::runtime_error("Cannot backward through empty sequential model");
     }
     auto start = Clock::now();
-    const Tensor *current_gradient = &gradient;
-    Tensor temp_output = this->get_buffer({max_size_}, gradient->data_type());
-    Tensor temp = this->get_buffer({max_size_}, gradient->data_type());
+    Tensor current_gradient = gradient;
+    grad_input = this->get_buffer({max_size_}, gradient->data_type());
     for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
       try {
         auto start = Clock::now();
-        layers_[i]->backward(*current_gradient, temp, micro_batch_id);
-        std::swap(temp, temp_output);
-        current_gradient = &temp_output;
+        // no need to renew buffer since backward doesn't cache inputs
+        layers_[i]->backward(current_gradient, grad_input, micro_batch_id);
+        std::swap(current_gradient, grad_input);
         auto end = Clock::now();
         this->profiler_.add_event(
             Event{EventType::COMPUTE, start, end, layers_[i]->name() + " backward"});
@@ -105,24 +133,9 @@ protected:
                                  layers_[i]->type() + "): " + e.what());
       }
     }
-
-    grad_input->ensure((*current_gradient)->shape());
-    (*current_gradient)->copy_to(grad_input);
     this->device_->getFlow("default")->synchronize();
     auto end = Clock::now();
     this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential backward"});
-  }
-
-  void on_set_device(const Device &device) override {
-    for (auto &layer : layers_) {
-      layer->set_device(device);
-    }
-  }
-
-  void on_set_training(bool training) override {
-    for (auto &layer : layers_) {
-      layer->set_training(training);
-    }
   }
 
 public:

@@ -768,7 +768,7 @@ public:
       return DType_t::FP32;
     } else if (std::is_same<T, double>::value) {
       return DType_t::FP64;
-    } else if (std::is_same<T, uint16_t>::value) {
+    } else if (std::is_same<T, fp16>::value) {
       return DType_t::FP16;
     } else {
       throw std::runtime_error("Unsupported data type for TypedTensor");
@@ -812,6 +812,36 @@ void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_n
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
   check_nan_and_inf(data, total_elements, tensor_name);
+}
+
+inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
+  DType_t dtype = tensor->data_type();
+  switch (dtype) {
+  case DType_t::FP32: {
+    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<float>>(tensor);
+    check_nan_and_inf<float>(*typed_tensor, tensor_name);
+    break;
+  }
+  case DType_t::FP64: {
+    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<double>>(tensor);
+    check_nan_and_inf<double>(*typed_tensor, tensor_name);
+    break;
+  }
+  case DType_t::FP16: {
+    fp16 *data_ptr = tensor->data_as<fp16>();
+    size_t total_elements = tensor->size();
+    for (size_t i = 0; i < total_elements; ++i) {
+      if (__hisnan(data_ptr[i]) || __hisinf(data_ptr[i])) {
+        std::cerr << "TypedTensor " << tensor_name << " contains NaN or Inf at index " << i
+                  << std::endl;
+        return;
+      }
+    }
+    break;
+  }
+  default:
+    throw std::runtime_error("Unsupported data type for check_nan_and_inf");
+  }
 }
 
 template <typename T>

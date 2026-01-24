@@ -34,6 +34,9 @@ private:
   std::string activation_type_;
 
   void init_params() override;
+  void on_set_io_dtype(DType_t dtype) override;
+  void on_set_param_dtype(DType_t dtype) override;
+  void on_set_compute_dtype(DType_t dtype) override;
   void on_set_training(bool training) override;
   void on_set_device(const Device &device) override;
   void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;

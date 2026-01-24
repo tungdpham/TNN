@@ -57,8 +57,35 @@ void ResidualBlock::init_params() {
   }
 }
 
+void ResidualBlock::on_set_io_dtype(DType_t dtype) {
+  for (auto &layer : main_path_) {
+    layer->set_io_dtype(dtype);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_io_dtype(dtype);
+  }
+}
+
+void ResidualBlock::on_set_param_dtype(DType_t dtype) {
+  for (auto &layer : main_path_) {
+    layer->set_param_dtype(dtype);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_param_dtype(dtype);
+  }
+}
+
+void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
+  for (auto &layer : main_path_) {
+    layer->set_compute_dtype(dtype);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_compute_dtype(dtype);
+  }
+}
+
 void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
-  // Cache input shape for backward pass
+
   input_shape_cache_[micro_batch_id] = input->shape();
 
   size_t max_size = 0;
@@ -71,31 +98,25 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
     current_shape = layer_shape;
   }
 
-  // Main path: F(x)
-  const Tensor *main_path = &input;
-  Tensor main_output = this->get_buffer({max_size});
-  Tensor temp_output_main = this->get_buffer({max_size});
+  Tensor current_input = input;
+  Tensor main_output = input;
   for (auto &layer : main_path_) {
-    layer->forward(*main_path, temp_output_main, micro_batch_id);
-    std::swap(main_output, temp_output_main);
-    main_path = &main_output;
+    main_output = this->get_buffer(layer->compute_output_shape(current_input->shape()));
+    layer->forward(current_input, main_output, micro_batch_id);
+    current_input = main_output;
   }
 
-  // Shortcut path: x or projection(x)
-  const Tensor *shortcut_path = &input;
-  Tensor shortcut_output = this->get_buffer({max_size});
-  Tensor temp_output_shortcut = this->get_buffer({max_size});
+  current_input = input;
+  Tensor shortcut_output = input;
   for (auto &layer : shortcut_path_) {
-    layer->forward(*shortcut_path, temp_output_shortcut, micro_batch_id);
-    std::swap(shortcut_output, temp_output_shortcut);
-    shortcut_path = &shortcut_output;
+    shortcut_output = this->get_buffer(layer->compute_output_shape(current_input->shape()));
+    layer->forward(current_input, shortcut_output, micro_batch_id);
+    current_input = shortcut_output;
   }
 
-  // Residual connection: F(x) + x
-  output->ensure((*main_path)->shape(), this->device_);
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, *main_path, *shortcut_path, output, output->size());
+  output->ensure(main_output->shape(), this->device_);
+  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_output, shortcut_output, output, output->size());
 
-  // Cache pre-activation output for backward pass
   if (this->is_training_) {
     Tensor &pre_act = pre_activation_cache_[micro_batch_id];
     if (pre_act == nullptr) {
@@ -128,14 +149,12 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
     grad_to_propagate = &grad_act_pooled;
   }
 
-  // Retrieve cached input shape
   auto it_input_shape = input_shape_cache_.find(micro_batch_id);
   if (it_input_shape == input_shape_cache_.end()) {
     throw std::runtime_error("No cached input shape found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
 
-  // Calculate maximum buffer size needed
   size_t max_size = 0;
   std::vector<size_t> current_shape = it_input_shape->second;
   for (auto &layer : main_path_) {
@@ -146,7 +165,6 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
     current_shape = layer_shape;
   }
 
-  // Backward through main path
   const Tensor *grad_main = grad_to_propagate;
   Tensor grad_output_main = this->get_buffer({max_size});
   Tensor temp_grad_main = this->get_buffer({max_size});
@@ -156,7 +174,6 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
     grad_main = &grad_output_main;
   }
 
-  // Backward through shortcut
   const Tensor *grad_shortcut = grad_to_propagate;
   Tensor grad_output_shortcut = this->get_buffer({max_size});
   Tensor temp_grad_shortcut = this->get_buffer({max_size});
@@ -240,7 +257,6 @@ uint64_t ResidualBlock::forward_flops(const std::vector<size_t> &input_shape) co
     shortcut_shape = layer->compute_output_shape(shortcut_shape);
   }
 
-  // Add complexity for element-wise addition (use output shape after main path transformations)
   size_t add_complexity = 1;
   for (size_t dim : current_shape) {
     add_complexity *= dim;
@@ -264,7 +280,6 @@ uint64_t ResidualBlock::backward_flops(const std::vector<size_t> &input_shape) c
     shortcut_shape = layer->compute_output_shape(shortcut_shape);
   }
 
-  // Add complexity for gradient summation (use output shape after main path transformations)
   size_t add_complexity = 1;
   for (size_t dim : current_shape) {
     add_complexity *= dim;
@@ -281,7 +296,6 @@ LayerConfig ResidualBlock::get_config() const {
   config.parameters["activation"] = activation_type_;
   config.parameters["has_projection"] = (!shortcut_path_.empty());
 
-  // Serialize main_path layers
   nlohmann::json main_array = nlohmann::json::array();
   for (const auto &layer : main_path_) {
     LayerConfig sub_cfg = layer->get_config();
@@ -310,7 +324,6 @@ LayerConfig ResidualBlock::get_config() const {
     main_array.push_back(sub_json);
   }
 
-  // Serialize shortcut_path layers
   nlohmann::json shortcut_array = nlohmann::json::array();
   for (const auto &layer : shortcut_path_) {
     LayerConfig sub_cfg = layer->get_config();
@@ -339,7 +352,6 @@ LayerConfig ResidualBlock::get_config() const {
     shortcut_array.push_back(sub_json);
   }
 
-  // Store serialized arrays as strings in parameters map
   config.parameters["main_path"] = main_array.dump();
   config.parameters["shortcut_path"] = shortcut_array.dump();
 

@@ -2,6 +2,7 @@
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/train.hpp"
+#include "type/type.hpp"
 #include "utils/env.hpp"
 
 using namespace std;
@@ -41,6 +42,7 @@ signed main() {
       return 1;
     }
     model.set_device(device);
+    model.set_io_dtype(DType_t::FP16);
     model.init();
   }
 
@@ -49,7 +51,8 @@ signed main() {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
   }
   string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
-  auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
+  auto [train_loader, val_loader] =
+      DataLoaderFactory::create(dataset_name, dataset_path, DType_t::FP16);
   if (!train_loader || !val_loader) {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;

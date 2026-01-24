@@ -1,4 +1,3 @@
-#include "cuda/error_handler.hpp"
 #include "math/cuda/gemm.hpp"
 
 #include "type/type.hpp"
@@ -15,161 +14,99 @@ cublasHandle_t get_cublas_handle() {
   return handle;
 }
 
-template <>
-void gemm<fp16>(const fp16 *A, const fp16 *B, fp16 *C, const size_t M, const size_t N,
-                const size_t K, const bool trans_A, const bool trans_B, const fp16 alpha,
-                const fp16 beta, cudaStream_t stream) {
+template <typename T> struct CudaType;
+template <> struct CudaType<fp16> {
+  static constexpr cudaDataType_t type = CUDA_R_16F;
+};
+template <> struct CudaType<float> {
+  static constexpr cudaDataType_t type = CUDA_R_32F;
+};
+template <> struct CudaType<double> {
+  static constexpr cudaDataType_t type = CUDA_R_64F;
+};
+
+template <typename T> struct CublasComputeType;
+template <> struct CublasComputeType<fp16> {
+  static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_16F;
+};
+template <> struct CublasComputeType<float> {
+  static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_32F;
+};
+template <> struct CublasComputeType<double> {
+  static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_64F;
+};
+
+template <typename A_T, typename B_T, typename C_T, typename Compute_T>
+void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,
+             const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,
+             const size_t lda, const size_t ldb, const size_t ldc, cudaStream_t stream) {
   cublasHandle_t handle = get_cublas_handle();
   cublasSetStream(handle, stream);
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  cublasHgemm(handle, opB, opA, N, M, K, &alpha, B, trans_B ? K : N, A, trans_A ? M : K, &beta, C,
-              N);
+  cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
+  cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
+
+  cublasGemmEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb, A,
+               CudaType<A_T>::type, lda, &beta, C, CudaType<C_T>::type, ldc,
+               CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
-template <>
-void gemm<float>(const float *A, const float *B, float *C, const size_t M, const size_t N,
-                 const size_t K, const bool trans_A, const bool trans_B, const float alpha,
-                 const float beta, cudaStream_t stream) {
+template <typename A_T, typename B_T, typename C_T, typename Compute_T>
+void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
+                             const size_t K, const bool transA, const bool transB,
+                             const Compute_T alpha, const Compute_T beta, const size_t lda,
+                             const size_t ldb, const size_t ldc, const size_t strideA,
+                             const size_t strideB, const size_t strideC, const size_t batch_count,
+                             cudaStream_t stream) {
   cublasHandle_t handle = get_cublas_handle();
-
   cublasSetStream(handle, stream);
 
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
+  cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
+  cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  cublasSgemm(handle, opB, opA, N, M, K, &alpha, B, trans_B ? K : N, A, trans_A ? M : K, &beta, C,
-              N);
-
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
+  cublasGemmStridedBatchedEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb,
+                             strideB, A, CudaType<A_T>::type, lda, strideA, &beta, C,
+                             CudaType<C_T>::type, ldc, strideC, batch_count,
+                             CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
 }
 
-template <>
-void gemm<double>(const double *A, const double *B, double *C, const size_t M, const size_t N,
-                  const size_t K, const bool trans_A, const bool trans_B, const double alpha,
-                  const double beta, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
+#define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                          \
+  template void gemm_ex<A_T, B_T, C_T, Compute_T>(                                                 \
+      const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,          \
+      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,           \
+      const size_t lda, const size_t ldb, const size_t ldc, cudaStream_t stream);                  \
+  template void gemm_strided_batched_ex<A_T, B_T, C_T, Compute_T>(                                 \
+      const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,          \
+      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,           \
+      const size_t lda, const size_t ldb, const size_t ldc, const size_t strideA,                  \
+      const size_t strideB, const size_t strideC, const size_t batch_count, cudaStream_t stream);
 
-  cublasSetStream(handle, stream);
+#define INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, COMPUTE_T)                                  \
+  INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, COMPUTE_T)
 
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
+#define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)                                                   \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)                                             \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float)                                            \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, double)
 
-  cublasDgemm(handle, opB, opA, N, M, K, &alpha, B, trans_B ? K : N, A, trans_A ? M : K, &beta, C,
-              N);
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
+#define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)                                                        \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)                                                        \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float)                                                       \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, double)
 
-template <>
-void gemm_strided_batched<float>(const float *A, const float *B, float *C, const size_t M,
-                                 const size_t N, const size_t K, const bool trans_A,
-                                 const bool trans_B, const float alpha, const float beta,
-                                 const size_t batch_count, const size_t stride_A,
-                                 const size_t stride_B, const size_t stride_C,
-                                 cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
+#define INSTANTIATE_CUBLAS_GEMM_A(A_T)                                                             \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)                                                             \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, float)                                                            \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, double)
 
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  cublasSgemmStridedBatched(handle, opB, opA, N, M, K, &alpha, B, trans_B ? K : N, stride_B, A,
-                            trans_A ? M : K, stride_A, &beta, C, N, stride_C, batch_count);
-
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
-
-template <>
-void gemm_strided_batched_ex<float>(const float *A, const float *B, float *C, const size_t M,
-                                    const size_t N, const size_t K, const bool trans_A,
-                                    const bool trans_B, const float alpha, const float beta,
-                                    const size_t batch_count, const size_t stride_A,
-                                    const size_t stride_B, const size_t stride_C, const size_t lda,
-                                    const size_t ldb, const size_t ldc, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  size_t lda_val = lda ? lda : (trans_A ? M : K);
-  size_t ldb_val = ldb ? ldb : (trans_B ? K : N);
-  size_t ldc_val = ldc ? ldc : N;
-
-  cublasSgemmStridedBatched(handle, opB, opA, N, M, K, &alpha, B, ldb_val, stride_B, A, lda_val,
-                            stride_A, &beta, C, ldc_val, stride_C, batch_count);
-
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
-
-template <>
-void gemm_strided_batched<double>(const double *A, const double *B, double *C, const size_t M,
-                                  const size_t N, const size_t K, const bool trans_A,
-                                  const bool trans_B, const double alpha, const double beta,
-                                  const size_t batch_count, const size_t stride_A,
-                                  const size_t stride_B, const size_t stride_C,
-                                  cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  cublasDgemmStridedBatched(handle, opB, opA, N, M, K, &alpha, B, trans_B ? K : N, stride_B, A,
-                            trans_A ? M : K, stride_A, &beta, C, N, stride_C, batch_count);
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
-
-template <>
-void gemm_strided_batched_ex<double>(const double *A, const double *B, double *C, const size_t M,
-                                     const size_t N, const size_t K, const bool trans_A,
-                                     const bool trans_B, const double alpha, const double beta,
-                                     const size_t batch_count, const size_t stride_A,
-                                     const size_t stride_B, const size_t stride_C, const size_t lda,
-                                     const size_t ldb, const size_t ldc, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  size_t lda_val = lda ? lda : (trans_A ? M : K);
-  size_t ldb_val = ldb ? ldb : (trans_B ? K : N);
-  size_t ldc_val = ldc ? ldc : N;
-
-  cublasDgemmStridedBatched(handle, opB, opA, N, M, K, &alpha, B, ldb_val, stride_B, A, lda_val,
-                            stride_A, &beta, C, ldc_val, stride_C, batch_count);
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
-
-template <>
-void gemm_strided_batched_ex<fp16>(const fp16 *A, const fp16 *B, fp16 *C, const size_t M,
-                                   const size_t N, const size_t K, const bool trans_A,
-                                   const bool trans_B, const fp16 alpha, const fp16 beta,
-                                   const size_t batch_count, const size_t stride_A,
-                                   const size_t stride_B, const size_t stride_C, const size_t lda,
-                                   const size_t ldb, const size_t ldc, cudaStream_t stream) {
-  cublasHandle_t handle = get_cublas_handle();
-
-  cublasSetStream(handle, stream);
-
-  cublasOperation_t opA = trans_A ? CUBLAS_OP_T : CUBLAS_OP_N;
-  cublasOperation_t opB = trans_B ? CUBLAS_OP_T : CUBLAS_OP_N;
-
-  size_t lda_val = lda ? lda : (trans_A ? M : K);
-  size_t ldb_val = ldb ? ldb : (trans_B ? K : N);
-  size_t ldc_val = ldc ? ldc : N;
-
-  cublasHgemmStridedBatched(handle, opB, opA, N, M, K, &alpha, B, ldb_val, stride_B, A, lda_val,
-                            stride_A, &beta, C, ldc_val, stride_C, batch_count);
-
-  cuda::checkCudaError(cudaGetLastError(), __func__, __FILE__, __LINE__);
-}
+INSTANTIATE_CUBLAS_GEMM_A(fp16)
+INSTANTIATE_CUBLAS_GEMM_A(float)
+INSTANTIATE_CUBLAS_GEMM_A(double)
+#undef INSTANTIATE_CUBLAS_GEMM_A
+#undef INSTANTIATE_CUBLAS_GEMM_B
+#undef INSTANTIATE_CUBLAS_GEMM_C
+#undef INSTANTIATE_CUBLAS_GEMM_COMPUTE
+#undef INSTANTIATE_CUBLAS_GEMM
 
 } // namespace cuda
 } // namespace tnn

@@ -81,10 +81,10 @@ Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &o
   int num_batches = 0;
   const Device *model_device = model.get_device();
 
-  Tensor device_labels = make_tensor_from_dtype(config.dtype, {1}, model_device);
-  Tensor loss_gradient = make_tensor_from_dtype(config.dtype, {1}, model_device);
-  Tensor predictions = make_tensor_from_dtype(config.dtype, {1}, model_device),
-         backward_output = make_tensor_from_dtype(config.dtype, {1}, model_device);
+  Tensor device_labels = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
+  Tensor loss_gradient = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
+  Tensor predictions = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device),
+         backward_output = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
 
   std::cout << "Training batches: " << train_loader.size() << std::endl;
   while (train_loader.get_batch(config.batch_size, batch_data, batch_labels) &&
@@ -92,6 +92,7 @@ Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &o
     ++num_batches;
     cur_samples += batch_data->dimension(0);
     device_labels = batch_labels->to_device(model_device);
+
     model.forward(batch_data, predictions);
 
     float loss;
@@ -134,8 +135,8 @@ Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &o
 
 Result validate_model(Sequential &model, BaseDataLoader &val_loader, Loss &criterion,
                       const TrainingConfig &config) {
-  Tensor batch_data = make_tensor_from_dtype(config.dtype),
-         batch_labels = make_tensor_from_dtype(config.dtype);
+  Tensor batch_data = make_tensor_from_dtype(model.get_io_dtype()),
+         batch_labels = make_tensor_from_dtype(model.get_io_dtype());
 
   model.set_training(false);
   val_loader.reset();
@@ -146,8 +147,8 @@ Result validate_model(Sequential &model, BaseDataLoader &val_loader, Loss &crite
   int val_batches = 0;
   const Device *model_device = model.get_device();
 
-  Tensor device_batch_labels = make_tensor_from_dtype(config.dtype, {}, model_device);
-  Tensor predictions = make_tensor_from_dtype(config.dtype, {}, model_device);
+  Tensor device_batch_labels = make_tensor_from_dtype(model.get_io_dtype(), {}, model_device);
+  Tensor predictions = make_tensor_from_dtype(model.get_io_dtype(), {}, model_device);
 
   while (val_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     model.forward(batch_data, predictions);
@@ -242,21 +243,23 @@ void train_step(Sequential &model, BaseDataLoader &train_loader,
 
   const Device *model_device = model.get_device();
 
-  Tensor loss_gradient = make_tensor<float>({1}, model_device);
-  Tensor predictions = make_tensor<float>({1}, model_device);
-  Tensor backward_output = make_tensor<float>({1}, model_device);
+  Tensor loss_gradient = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
+  Tensor device_labels = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
+  Tensor predictions = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
+  Tensor backward_output = make_tensor_from_dtype(model.get_io_dtype(), {1}, model_device);
 
   thread_wrapper.execute([&]() -> void {
     for (int steps = 0; steps < config.max_steps; ++steps) {
       if (!train_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
         break;
       }
+      device_labels = batch_labels->to_device(model_device);
       model.forward(batch_data, predictions);
 
       float loss;
-      criterion->compute_loss(predictions, batch_labels, loss);
+      criterion->compute_loss(predictions, device_labels, loss);
 
-      criterion->compute_gradient(predictions, batch_labels, loss_gradient);
+      criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
       model.backward(loss_gradient, backward_output);
 

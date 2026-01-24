@@ -11,6 +11,7 @@
 
 #include "activations.hpp"
 #include "layers_impl/base_layer.hpp"
+#include "nn/blocks_impl/flash_attention_block.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -22,18 +23,22 @@ inline std::unique_ptr<ActivationFunction> create_activation(const std::string &
 class DenseLayer;
 class ActivationLayer;
 class LegacyConv2DLayer;
+class LegacyMaxPool2DLayer;
+class LegacyAvgPool2DLayer;
+class LegacyBatchNormLayer;
+class Conv2DLayer;
 class MaxPool2DLayer;
 class AvgPool2DLayer;
+class BatchNormLayer;
 class DropoutLayer;
 class FlattenLayer;
-class BatchNormLayer;
 class GroupNormLayer;
 class LayerNormLayer;
 class ClassTokenLayer;
 class PositionalEmbeddingLayer;
 class EmbeddingLayer;
 class AttentionBlock;
-class FusedAttentionBlock;
+class FlashAttentionBlock;
 class ResidualBlock;
 class SliceLayer;
 class TransposeLayer;
@@ -42,6 +47,7 @@ class TransposeLayer;
 
 // Wrapper to include all layer implementations
 #include "blocks_impl/attention_block.hpp"
+#include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
@@ -152,7 +158,9 @@ public:
       float epsilon = config.get<float>("epsilon", 1e-5f);
       float momentum = config.get<float>("momentum", 0.1f);
       bool affine = config.get<bool>("affine", true);
-      return std::make_unique<BatchNormLayer>(num_features, epsilon, momentum, affine, config.name);
+      bool use_relu = config.get<bool>("use_relu", false);
+      return std::make_unique<BatchNormLayer>(num_features, epsilon, momentum, affine, use_relu,
+                                              config.name);
     });
 
     register_layer("legacy_conv2d", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
@@ -290,6 +298,15 @@ public:
       return std::make_unique<AttentionBlock>(embed_dim, num_heads, is_causal, config.name);
     });
 
+    register_layer("flash_attention_block",
+                   [](const LayerConfig &config) -> std::unique_ptr<Layer> {
+                     size_t embed_dim = config.get<size_t>("embed_dim");
+                     size_t num_heads = config.get<size_t>("num_heads");
+                     bool is_causal = config.get<bool>("is_causal", false);
+                     return std::make_unique<FlashAttentionBlock>(embed_dim, num_heads, is_causal,
+                                                                  config.name);
+                   });
+
     register_layer("transpose", [](const LayerConfig &config) -> std::unique_ptr<Layer> {
       return std::make_unique<TransposeLayer>(config.name);
     });
@@ -386,7 +403,7 @@ public:
   }
 
   LayerBuilder &batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
-                          const std::string &name = "") {
+                          bool use_relu = false, const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 2) {
@@ -396,7 +413,7 @@ public:
     size_t num_features = current_shape.back();
 
     auto layer = std::make_unique<BatchNormLayer>(
-        num_features, epsilon, momentum, affine,
+        num_features, epsilon, momentum, affine, use_relu,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -442,7 +459,7 @@ public:
   }
 
   LayerBuilder &legacy_batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
-                                 const std::string &name = "") {
+                                 bool use_relu = false, const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 2) {
@@ -452,7 +469,7 @@ public:
     size_t num_features = current_shape[1];
 
     auto layer = std::make_unique<BatchNormLayer>(
-        num_features, epsilon, momentum, affine,
+        num_features, epsilon, momentum, affine, use_relu,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -528,9 +545,9 @@ public:
     return *this;
   }
 
-  LayerBuilder &flatten(int start_dim = 1, const std::string &name = "") {
+  LayerBuilder &flatten(int start_dim = 1, int end_dim = -1, const std::string &name = "") {
     auto layer = std::make_unique<FlattenLayer>(
-        start_dim, name.empty() ? "flatten_" + std::to_string(layers_.size()) : name);
+        start_dim, end_dim, name.empty() ? "flatten_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
@@ -563,6 +580,15 @@ public:
     auto layer = std::make_unique<AttentionBlock>(
         embed_dim, num_heads, is_causal,
         name.empty() ? "attention_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &flash_attention(size_t embed_dim, size_t num_heads, bool is_causal = false,
+                                const std::string &name = "") {
+    auto layer = std::make_unique<FlashAttentionBlock>(
+        embed_dim, num_heads, is_causal,
+        name.empty() ? "flash_attention_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }
@@ -705,7 +731,6 @@ public:
   }
 
   /**
-   * @brief Helper function to create a GPT-style Transformer block
    * x = x + Dropout(CausalAttention(LayerNorm(x)))
    * x = x + Dropout(Projection(Activation(Expansion(LayerNorm(x)))))
    */
@@ -722,6 +747,49 @@ public:
                          .input(batchless_shape)
                          .layernorm(dtype_eps(io_dtype_), true, "ln_1")
                          .attention(embed_dim, num_heads, is_causal, "attn")
+                         .dropout(dropout_rate)
+                         .build();
+
+    auto attn_res =
+        std::make_unique<ResidualBlock>(std::move(attn_main), std::vector<std::unique_ptr<Layer>>(),
+                                        "linear", valid_name + "_attn");
+    layers_.push_back(std::move(attn_res));
+
+    // 2. Feed-Forward Sub-block (Residual)
+    auto ffn_main = LayerBuilder()
+                        .input(batchless_shape) // Input shape matches (residual preserves shape)
+                        .layernorm(dtype_eps(io_dtype_), true, "ln_2")
+                        .dense(ffn_dim, true, "mlp_fc1")
+                        .activation(activation_fn)
+                        .dense(embed_dim, true, "mlp_fc2")
+                        .dropout(dropout_rate)
+                        .build();
+
+    auto ffn_res = std::make_unique<ResidualBlock>(
+        std::move(ffn_main), std::vector<std::unique_ptr<Layer>>(), "linear", valid_name + "_ffn");
+    layers_.push_back(std::move(ffn_res));
+
+    return *this;
+  }
+
+  /**
+   * x = x + Dropout(CausalAttention(LayerNorm(x)))
+   * x = x + Dropout(Projection(Activation(Expansion(LayerNorm(x)))))
+   */
+  LayerBuilder &flash_gpt_block(size_t embed_dim, size_t num_heads, size_t ffn_dim,
+                                float dropout_rate = 0.1f, bool is_causal = false,
+                                const std::string &activation_fn = "gelu",
+                                const std::string &name = "") {
+    std::string valid_name = name.empty() ? "gpt_block_" + std::to_string(layers_.size()) : name;
+    std::vector<size_t> current_shape = get_current_shape();
+
+    std::vector<size_t> batchless_shape(current_shape.begin() + 1, current_shape.end());
+
+    // 1. Attention Sub-block (Residual)
+    auto attn_main = LayerBuilder()
+                         .input(batchless_shape)
+                         .layernorm(dtype_eps(io_dtype_), true, "ln_1")
+                         .flash_attention(embed_dim, num_heads, is_causal, "attn")
                          .dropout(dropout_rate)
                          .build();
 

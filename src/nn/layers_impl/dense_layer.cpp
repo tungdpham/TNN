@@ -87,16 +87,14 @@ void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_
 }
 
 void DenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id) {
+  if (gradient->shape().back() != output_features_) {
+    throw std::invalid_argument("Gradient feature size mismatch in DenseLayer");
+  }
   auto it_input = micro_batch_inputs_.find(micro_batch_id);
-
   if (it_input == micro_batch_inputs_.end()) {
-    for (const auto &pair : micro_batch_inputs_) {
-      std::cout << "Cached micro-batch IDs: " << pair.first << std::endl;
-    }
     throw std::runtime_error("No cached input found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
-
   const Tensor &input = it_input->second;
   const std::vector<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
@@ -123,10 +121,6 @@ std::unique_ptr<Task>
 DenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Tensor &output,
                                   size_t batch_size, size_t input_features, size_t output_features,
                                   const std::string &flow_id) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "DenseLayer mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -134,6 +128,10 @@ DenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Te
     throw std::runtime_error("DenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
   if (this->device_->device_type() == DeviceType::CPU) {
+    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
+      throw std::runtime_error(
+          "DenseLayer mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
+    }
     return create_cpu_task(flow_id, cpu::dense::compute_dense_forward<Compute_T>,
                            input->data_as<Compute_T>(), weights->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), batch_size, input_features,
@@ -141,10 +139,9 @@ DenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Te
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::compute_dense_forward<Compute_T>,
-                           input->data_as<Compute_T>(), weights->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), batch_size, input_features,
-                           output_features);
+    return create_gpu_task(flow_id, cuda::dense::compute_dense_forward_ex<IO_T, Param_T, Compute_T>,
+                           input->data_as<IO_T>(), weights->data_as<Param_T>(),
+                           output->data_as<IO_T>(), batch_size, input_features, output_features);
   }
 #endif
   else {
@@ -158,10 +155,6 @@ std::unique_ptr<Task>
 DenseLayer::compute_weight_gradients(const Tensor &input, const Tensor &gradient,
                                      Tensor &weight_grad, size_t batch_size, size_t input_features,
                                      size_t output_features, const std::string &flow_id) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "DenseLayer mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
   if (input->data_type() != dtype_of<IO_T>() || gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -169,17 +162,21 @@ DenseLayer::compute_weight_gradients(const Tensor &input, const Tensor &gradient
     throw std::runtime_error("DenseLayer weight gradient dtype mismatch with dispatch Param_T");
   }
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::dense::compute_weight_gradients<Compute_T>,
-                           input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
-                           weight_grad->data_as<Compute_T>(), batch_size, input_features,
+    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
+      throw std::runtime_error(
+          "DenseLayer mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
+    }
+    return create_cpu_task(flow_id, cpu::dense::compute_weight_gradients<IO_T>,
+                           input->data_as<IO_T>(), gradient->data_as<IO_T>(),
+                           weight_grad->data_as<IO_T>(), batch_size, input_features,
                            output_features);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::compute_weight_gradients<Compute_T>,
-                           input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
-                           weight_grad->data_as<Compute_T>(), batch_size, input_features,
-                           output_features);
+    return create_gpu_task(
+        flow_id, cuda::dense::compute_weight_gradients_ex<IO_T, Param_T, Compute_T>,
+        input->data_as<IO_T>(), gradient->data_as<IO_T>(), weight_grad->data_as<Param_T>(),
+        batch_size, input_features, output_features);
   }
 #endif
   else {
@@ -193,10 +190,6 @@ std::unique_ptr<Task>
 DenseLayer::compute_input_gradients(const Tensor &gradient, const Tensor &weights,
                                     Tensor &grad_input, size_t batch_size, size_t input_features,
                                     size_t output_features, const std::string &flow_id) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "DenseLayer mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -204,17 +197,21 @@ DenseLayer::compute_input_gradients(const Tensor &gradient, const Tensor &weight
     throw std::runtime_error("DenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::dense::compute_input_gradients<Compute_T>,
-                           gradient->data_as<Compute_T>(), weights->data_as<Compute_T>(),
-                           grad_input->data_as<Compute_T>(), batch_size, input_features,
+    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
+      throw std::runtime_error(
+          "DenseLayer mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
+    }
+    return create_cpu_task(flow_id, cpu::dense::compute_input_gradients<IO_T>,
+                           gradient->data_as<IO_T>(), weights->data_as<IO_T>(),
+                           grad_input->data_as<IO_T>(), batch_size, input_features,
                            output_features);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::compute_input_gradients<Compute_T>,
-                           gradient->data_as<Compute_T>(), weights->data_as<Compute_T>(),
-                           grad_input->data_as<Compute_T>(), batch_size, input_features,
-                           output_features);
+    return create_gpu_task(
+        flow_id, cuda::dense::compute_input_gradients_ex<IO_T, Param_T, Compute_T>,
+        gradient->data_as<IO_T>(), weights->data_as<Param_T>(), grad_input->data_as<IO_T>(),
+        batch_size, input_features, output_features);
   }
 #endif
   else {
@@ -227,10 +224,6 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task>
 DenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient, size_t batch_size,
                                    size_t output_features, const std::string &flow_id) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "DenseLayer mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
   if (gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer gradient dtype mismatch with dispatch IO_T");
   }
@@ -238,15 +231,19 @@ DenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient
     throw std::runtime_error("DenseLayer bias gradient dtype mismatch with dispatch Param_T");
   }
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::dense::compute_bias_gradients<Compute_T>,
-                           gradient->data_as<Compute_T>(), bias_gradient->data_as<Compute_T>(),
-                           batch_size, output_features);
+    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
+      throw std::runtime_error(
+          "DenseLayer mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
+    }
+    return create_cpu_task(flow_id, cpu::dense::compute_bias_gradients<IO_T>,
+                           gradient->data_as<IO_T>(), bias_gradient->data_as<IO_T>(), batch_size,
+                           output_features);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::compute_bias_gradients<Compute_T>,
-                           gradient->data_as<Compute_T>(), bias_gradient->data_as<Compute_T>(),
-                           batch_size, output_features);
+    return create_gpu_task(
+        flow_id, cuda::dense::compute_bias_gradients_ex<IO_T, Param_T, Compute_T>,
+        gradient->data_as<IO_T>(), bias_gradient->data_as<Param_T>(), batch_size, output_features);
   }
 #endif
   else {
@@ -259,10 +256,6 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayer::add_bias_vector(Tensor &output, const Tensor &bias,
                                                   size_t batch_size, size_t output_features,
                                                   const std::string &flow_id) const {
-  if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error(
-        "DenseLayer mixed dtype dispatch not implemented (io/param/compute must match).");
-  }
   if (output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer output dtype mismatch with dispatch IO_T");
   }
@@ -270,14 +263,17 @@ std::unique_ptr<Task> DenseLayer::add_bias_vector(Tensor &output, const Tensor &
     throw std::runtime_error("DenseLayer bias dtype mismatch with dispatch Param_T");
   }
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::dense::add_bias_vector<Compute_T>,
-                           output->data_as<Compute_T>(), bias->data_as<Compute_T>(), batch_size,
-                           output_features);
+    if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
+      throw std::runtime_error(
+          "DenseLayer mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
+    }
+    return create_cpu_task(flow_id, cpu::dense::add_bias_vector<IO_T>, output->data_as<IO_T>(),
+                           bias->data_as<IO_T>(), batch_size, output_features);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::add_bias_vector<Compute_T>,
-                           output->data_as<Compute_T>(), bias->data_as<Compute_T>(), batch_size,
+    return create_gpu_task(flow_id, cuda::dense::add_bias_vector_ex<IO_T, Param_T, Compute_T>,
+                           output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size,
                            output_features);
   }
 #endif

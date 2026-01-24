@@ -157,12 +157,14 @@ public:
     const Tensor *current = &input;
     Tensor device_input;
     if (input->device() != this->device_) {
-      device_input = this->get_buffer(input->shape());
+      device_input = this->get_buffer(input->shape(), input->data_type());
       input->copy_to(device_input);
       current = &device_input;
     }
     forward_impl(*current, output, micro_batch_id);
-    // this->device_->getFlow("default")->synchronize();
+#ifndef NDEBUG
+    this->device_->getFlow("default")->synchronize();
+#endif
     Clock::time_point end_time = Clock::now();
     profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
   }
@@ -188,12 +190,14 @@ public:
     const Tensor *current_gradient = &gradient;
     Tensor device_gradient;
     if (gradient->device() != this->device_) {
-      device_gradient = this->get_buffer(gradient->shape());
+      device_gradient = this->get_buffer(gradient->shape(), gradient->data_type());
       gradient->copy_to(device_gradient);
       current_gradient = &device_gradient;
     }
     backward_impl(*current_gradient, grad_input, micro_batch_id);
-    // this->device_->getFlow("default")->synchronize();
+#ifndef NDEBUG
+    this->device_->getFlow("default")->synchronize();
+#endif
     Clock::time_point end_time = Clock::now();
     profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "backward"});
   }
@@ -340,7 +344,7 @@ protected:
 
 #define DISPATCH_ON_DTYPE_TO_METHOD(method_name, ...)                                              \
   do {                                                                                             \
-    DISPATCH_ON_DTYPE(this->compute_dtype_, IO_T, method_name<IO_T>(__VA_ARGS__));                 \
+    DISPATCH_ON_DTYPE(this->io_dtype_, IO_T, method_name<IO_T>(__VA_ARGS__));                      \
   } while (0)
 
 #define DISPATCH_ON_3_DTYPES_TO_METHOD(method_name, ...)                                           \

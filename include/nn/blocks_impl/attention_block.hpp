@@ -47,6 +47,8 @@ private:
                              size_t batch_size, size_t seq_len, const std::string &flow_id);
 
   void init_params() override;
+  void on_set_io_dtype(DType_t dtype) override;
+  void on_set_param_dtype(DType_t dtype) override;
   void on_set_device(const Device &device) override;
   void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
   void backward_impl(const Tensor &gradient, Tensor &grad_input,

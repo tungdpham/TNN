@@ -28,10 +28,12 @@ private:
   float epsilon_;
   float momentum_;
   bool affine_;
+  bool use_relu_;
 
-  BatchNormStats stats_;
 #ifdef USE_CUDNN
-  cuda::cudnn_batchnorm::feHandle_t *fe_handle = nullptr;
+  std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
+  std::unordered_map<size_t, BatchNormStats> stats_cache;
+  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
 #endif
 
   Tensor gamma_;
@@ -48,20 +50,23 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
-  forward_training_task(const Tensor &input, Tensor &output, const Tensor &gamma,
+  forward_training_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
+                        const Tensor &input, Tensor &output, const Tensor &gamma,
                         const Tensor &beta, Tensor &prev_running_mean, Tensor &prev_running_var,
                         Tensor &next_running_mean, Tensor &next_running_var, Tensor &batch_mean,
                         Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> forward_inference_task(const Tensor &input, Tensor &output,
-                                               const Tensor &gamma, const Tensor &beta,
-                                               const Tensor &saved_mean, const Tensor &saved_invar,
-                                               Tensor &workspace, const std::string &flow_id) const;
+  std::unique_ptr<Task>
+  forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
+                         const Tensor &input, Tensor &output, const Tensor &gamma,
+                         const Tensor &beta, const Tensor &saved_mean, const Tensor &saved_invar,
+                         Tensor &workspace, const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> backward_task(const Tensor &gradient, const Tensor &input,
-                                      Tensor &grad_input, const Tensor &gamma,
+  std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
+                                      BatchNormStats &stats, const Tensor &gradient,
+                                      const Tensor &input, Tensor &grad_input, const Tensor &gamma,
                                       Tensor &gamma_gradients, Tensor &beta_gradients,
                                       const Tensor &batch_mean, const Tensor &batch_var,
                                       Tensor &workspace, const std::string &flow_id) const;
@@ -78,7 +83,8 @@ private:
 
 public:
   explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
-                          bool affine = true, const std::string &name = "batchnorm");
+                          bool affine = true, bool use_relu = false,
+                          const std::string &name = "batchnorm");
   ~BatchNormLayer() override;
 
   void save_state(std::ofstream &file) override;

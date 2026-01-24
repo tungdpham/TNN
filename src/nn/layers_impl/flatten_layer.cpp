@@ -9,8 +9,8 @@
 
 namespace tnn {
 
-FlattenLayer::FlattenLayer(int start_dim, const std::string &name)
-    : StatelessLayer(name), start_dim_(start_dim) {}
+FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
+    : StatelessLayer(name), start_dim_(start_dim), end_dim_(end_dim) {}
 
 void FlattenLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
   micro_batch_original_shapes_[micro_batch_id] = input->shape();
@@ -40,11 +40,12 @@ LayerConfig FlattenLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.parameters["start_dim"] = start_dim_;
+  config.parameters["end_dim"] = end_dim_;
   return config;
 }
 
 std::unique_ptr<Layer> FlattenLayer::clone() const {
-  return std::make_unique<FlattenLayer>(this->start_dim_, this->name_);
+  return std::make_unique<FlattenLayer>(this->start_dim_, this->end_dim_, this->name_);
 }
 
 std::vector<size_t>
@@ -57,25 +58,34 @@ FlattenLayer::compute_output_shape(const std::vector<size_t> &input_shape) const
 
   output_shape.push_back(input_shape[0]);
 
-  size_t flat_dim = 1;
   int start = std::max(1, start_dim_);
+  int end = (end_dim_ < 0) ? static_cast<int>(input_shape.size())
+                           : std::min(end_dim_ + 1, static_cast<int>(input_shape.size()));
 
+  // Add dimensions before start_dim
   for (int i = 1; i < start && i < static_cast<int>(input_shape.size()); ++i) {
     output_shape.push_back(input_shape[i]);
   }
 
-  for (size_t i = static_cast<size_t>(start); i < input_shape.size(); ++i) {
+  // Flatten dimensions from start_dim to end_dim
+  size_t flat_dim = 1;
+  for (int i = start; i < end; ++i) {
     flat_dim *= input_shape[i];
   }
-
   output_shape.push_back(flat_dim);
+
+  // Add dimensions after end_dim
+  for (int i = end; i < static_cast<int>(input_shape.size()); ++i) {
+    output_shape.push_back(input_shape[i]);
+  }
 
   return output_shape;
 }
 
 std::unique_ptr<Layer> FlattenLayer::create_from_config(const LayerConfig &config) {
   int start_dim = config.get<int>("start_dim", 1);
-  return std::make_unique<FlattenLayer>(start_dim, config.name);
+  int end_dim = config.get<int>("end_dim", -1);
+  return std::make_unique<FlattenLayer>(start_dim, end_dim, config.name);
 }
 
 uint64_t FlattenLayer::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }

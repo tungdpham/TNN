@@ -39,13 +39,14 @@ void permute_heads(const T *input, T *output, size_t B, size_t L, size_t H, size
                                                             total_elements);
 }
 
-template void permute_heads<float>(const float *input, float *output, size_t B, size_t L, size_t H,
-                                   size_t D, cudaStream_t stream);
-template void permute_heads<double>(const double *input, double *output, size_t B, size_t L,
-                                    size_t H, size_t D, cudaStream_t stream);
+#define INSTANTIATE_PERMUTE_HEADS(T)                                                               \
+  template void permute_heads<T>(const T *input, T *output, size_t B, size_t L, size_t H,          \
+                                 size_t D, cudaStream_t stream);
+INSTANTIATE_PERMUTE_HEADS(fp16)
+INSTANTIATE_PERMUTE_HEADS(float)
+INSTANTIATE_PERMUTE_HEADS(double)
 
-template void permute_heads<fp16>(const fp16 *input, fp16 *output, size_t B, size_t L, size_t H,
-                                  size_t D, cudaStream_t stream);
+#undef INSTANTIATE_PERMUTE_HEADS
 
 } // namespace cuda
 } // namespace tnn

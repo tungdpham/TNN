@@ -32,8 +32,8 @@ cudnnDataType_t get_cudnn_data_type(DType_t dtype) {
 
 struct feHandle_t {
   cudnnHandle_t cudnn_handle = nullptr;
-  cudnnDataType_t data_type = CUDNN_DATA_FLOAT;
-
+  cudnnDataType_t io_data_type;
+  cudnnDataType_t compute_data_type;
   std::shared_ptr<fe::KernelCache> kernel_cache;
 
   std::shared_ptr<fe::graph::Graph> fwd_graph;
@@ -94,8 +94,8 @@ static void build_fwd_graph(feHandle_t *handle, ConvolutionStats &stats) {
   const int64_t r = static_cast<int64_t>(stats.kernel_h);
   const int64_t s = static_cast<int64_t>(stats.kernel_w);
 
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -168,8 +168,8 @@ static void build_dgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   const int64_t p = static_cast<int64_t>(stats.output_h);
   const int64_t q = static_cast<int64_t>(stats.output_w);
 
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -226,8 +226,8 @@ static void build_wgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   const int64_t p = static_cast<int64_t>(stats.output_h);
   const int64_t q = static_cast<int64_t>(stats.output_w);
 
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -279,8 +279,8 @@ static void build_bgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   const int64_t p = static_cast<int64_t>(stats.output_h);
   const int64_t q = static_cast<int64_t>(stats.output_w);
 
-  auto io_type = to_fe_data_type(handle->data_type);
-  auto compute_type = to_fe_compute_type(handle->data_type);
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
   auto graph = std::make_shared<fe::graph::Graph>();
   graph->set_io_data_type(io_type)
@@ -326,11 +326,12 @@ static void rebuild_all_graphs(feHandle_t *handle, ConvolutionStats &stats) {
   }
 }
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t data_type,
-                                 ConvolutionStats &stats) {
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, ConvolutionStats &stats) {
   auto *handle = new feHandle_t();
   handle->cudnn_handle = cudnn_handle;
-  handle->data_type = data_type;
+  handle->io_data_type = io_data_type;
+  handle->compute_data_type = compute_data_type;
   handle->kernel_cache = std::make_shared<fe::KernelCache>();
 
   rebuild_all_graphs(handle, stats);
