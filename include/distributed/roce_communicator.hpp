@@ -8,8 +8,8 @@
 
 #include "communicator.hpp"
 #include "distributed/binary_serializer.hpp"
-#include "distributed/fragmenter.hpp"
 #include "distributed/packet.hpp"
+#include "distributed/roce_buffer.hpp"
 #include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
 #include <any>
@@ -31,7 +31,7 @@
 
 namespace tnn {
 
-constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
+constexpr int ROCE_BUFFER_SIZE = 2 * 1024 * 1024; // 2MB
 constexpr int ROCE_SQ_DEPTH = 128;
 constexpr int ROCE_RQ_DEPTH = 128;
 
@@ -44,36 +44,16 @@ struct RoceConnectionInfo {
 
 class RoceCommunicator : public Communicator {
 private:
-  struct RegisteredBuffer {
-    std::vector<uint8_t> data;
-    ibv_mr *mr = nullptr;
-    std::any attached_context;
-
-    RegisteredBuffer(size_t size, ibv_pd *pd) {
-      data.resize(size);
-      mr = ibv_reg_mr(pd, data.data(), size, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-      if (!mr) {
-        throw std::runtime_error("Failed to register MR");
-      }
-    }
-
-    ~RegisteredBuffer() {
-      if (mr) {
-        ibv_dereg_mr(mr);
-      }
-    }
-  };
-
   struct Connection {
     ibv_qp *qp = nullptr;
     std::string peer_id;
     uint32_t psn = 0;
-    std::vector<std::unique_ptr<RegisteredBuffer>> recv_buffers;
-    // Fragmenter fragmenter; // Removed in favor of Zero-Copy RDMA
+    std::vector<std::unique_ptr<RoceBuffer>> recv_buffers;
 
     std::mutex mutex;
     std::unordered_map<uint64_t, PooledRoceBuffer> pending_sends;
     std::unordered_map<uint64_t, PooledRoceBuffer> pending_receives;
+    std::any attached_context;
 
     ~Connection() {
       if (qp) {
@@ -102,8 +82,8 @@ private:
   std::mutex connections_mutex_;
 
   // Send buffer pool
-  std::vector<std::unique_ptr<RegisteredBuffer>> send_buffers_;
-  std::queue<RegisteredBuffer *> free_send_buffers_;
+  std::vector<std::unique_ptr<RoceBuffer>> send_buffers_;
+  std::queue<RoceBuffer *> free_send_buffers_;
   std::mutex send_buffers_mutex_;
   std::condition_variable send_buffers_cv_;
 
@@ -214,7 +194,7 @@ public:
       conn->pending_sends[msg_id] = data_buffer;
     }
 
-    RegisteredBuffer *send_buf = nullptr;
+    RoceBuffer *send_buf = nullptr;
     {
       std::unique_lock<std::mutex> lock(send_buffers_mutex_);
       send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
@@ -222,18 +202,17 @@ public:
       free_send_buffers_.pop();
     }
 
-    send_buf->attached_context.reset(); // Clear any previous context
-
     PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->size(), 0, 1);
     header.msg_serial_id = msg_id;
 
-    // Copy header
-    std::memcpy(send_buf->data.data(), &header, sizeof(PacketHeader));
+    size_t header_offset = 0;
+    send_buf->resize(sizeof(PacketHeader));
+    BinarySerializer::serialize(*send_buf, header_offset, header);
 
     struct ibv_sge sge;
-    sge.addr = (uint64_t)send_buf->data.data();
+    sge.addr = (uint64_t)send_buf->get();
     sge.length = sizeof(PacketHeader);
-    sge.lkey = send_buf->mr->lkey;
+    sge.lkey = send_buf->get_lkey();
 
     struct ibv_send_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
@@ -297,7 +276,8 @@ protected:
 
       // Initialize receive buffers for this connection
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = std::make_unique<RegisteredBuffer>(ROCE_BUFFER_SIZE, pd_);
+        auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+        buf->resize(ROCE_BUFFER_SIZE);
         post_recv_buffer(conn->qp, buf.get());
         conn->recv_buffers.push_back(std::move(buf));
       }
@@ -487,7 +467,8 @@ private:
 
   void init_send_buffers() {
     for (int i = 0; i < ROCE_SQ_DEPTH; ++i) {
-      auto buf = std::make_unique<RegisteredBuffer>(ROCE_BUFFER_SIZE, pd_);
+      auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+      buf->resize(ROCE_BUFFER_SIZE);
       free_send_buffers_.push(buf.get());
       send_buffers_.push_back(std::move(buf));
     }
@@ -632,11 +613,11 @@ private:
     }
   }
 
-  void post_recv_buffer(ibv_qp *qp, RegisteredBuffer *buf) {
+  void post_recv_buffer(ibv_qp *qp, RoceBuffer *buf) {
     struct ibv_sge sge;
-    sge.addr = (uint64_t)buf->data.data();
+    sge.addr = (uint64_t)buf->get();
     sge.length = ROCE_BUFFER_SIZE;
-    sge.lkey = buf->mr->lkey;
+    sge.lkey = buf->get_lkey();
 
     struct ibv_recv_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
@@ -689,7 +670,7 @@ private:
               conn = it->second;
           }
 
-          auto *buf = (RegisteredBuffer *)wc[i].wr_id;
+          auto *buf = (RoceBuffer *)wc[i].wr_id;
 
           if (conn) {
             if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
@@ -719,7 +700,8 @@ private:
 
             } else {
               PacketHeader header;
-              std::memcpy(&header, buf->data.data(), sizeof(PacketHeader));
+              size_t offset = 0;
+              BinarySerializer::deserialize(*buf, offset, header);
 
               if (header.type == PacketType::MSG_PREPARE) {
                 auto dest_buf = buffer_pool_->get_buffer(header.msg_length);
@@ -730,7 +712,7 @@ private:
                   conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
                 }
 
-                RegisteredBuffer *send_buf = nullptr;
+                RoceBuffer *send_buf = nullptr;
                 {
                   std::unique_lock<std::mutex> lock(send_buffers_mutex_);
                   send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
@@ -741,16 +723,18 @@ private:
                 PacketHeader ready_header(PacketType::MSG_READY_TO_WRITE, 12, 0, 0, 1);
                 ready_header.msg_serial_id = header.msg_serial_id;
 
-                std::memcpy(send_buf->data.data(), &ready_header, sizeof(PacketHeader));
+                size_t ready_offset = 0;
+                send_buf->resize(sizeof(PacketHeader) + 12);
+                BinarySerializer::serialize(*send_buf, ready_offset, ready_header);
                 uint64_t addr = (uint64_t)dest_buf->get();
                 uint32_t rkey = dest_buf->get_mr()->rkey;
-                std::memcpy(send_buf->data.data() + sizeof(PacketHeader), &addr, 8);
-                std::memcpy(send_buf->data.data() + sizeof(PacketHeader) + 8, &rkey, 4);
+                send_buf->write(ready_offset, addr);
+                send_buf->write(ready_offset, rkey);
 
                 struct ibv_sge sge;
-                sge.addr = (uint64_t)send_buf->data.data();
+                sge.addr = (uint64_t)send_buf->get();
                 sge.length = sizeof(PacketHeader) + 12;
-                sge.lkey = send_buf->mr->lkey;
+                sge.lkey = send_buf->get_lkey();
 
                 struct ibv_send_wr wr, *bad_wr = nullptr;
                 std::memset(&wr, 0, sizeof(wr));
@@ -771,8 +755,8 @@ private:
               } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
                 uint64_t remote_addr;
                 uint32_t rkey;
-                std::memcpy(&remote_addr, buf->data.data() + sizeof(PacketHeader), 8);
-                std::memcpy(&rkey, buf->data.data() + sizeof(PacketHeader) + 8, 4);
+                buf->read(offset, remote_addr);
+                buf->read(offset, rkey);
 
                 PooledRoceBuffer source_buf;
                 {
@@ -831,8 +815,7 @@ private:
             }
             delete ctx;
           } else {
-            auto *buf = (RegisteredBuffer *)wc[i].wr_id;
-            buf->attached_context.reset();
+            auto *buf = (RoceBuffer *)wc[i].wr_id;
             std::lock_guard<std::mutex> lock(send_buffers_mutex_);
             free_send_buffers_.push(buf);
             send_buffers_cv_.notify_one();
@@ -908,8 +891,8 @@ private:
                               modify_qp_to_rts(conn->qp, peer_info, my_psn);
 
                               for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-                                auto buf =
-                                    std::make_unique<RegisteredBuffer>(ROCE_BUFFER_SIZE, pd_);
+                                auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+                                buf->resize(ROCE_BUFFER_SIZE);
                                 post_recv_buffer(conn->qp, buf.get());
                                 conn->recv_buffers.push_back(std::move(buf));
                               }
