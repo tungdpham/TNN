@@ -101,8 +101,7 @@ int main(int argc, char *argv[]) {
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      auto layer_ptr = ExampleModels::create(model_name);
-      model = std::move(*dynamic_cast<Sequential *>(layer_ptr.release()));
+      model = ExampleModels::create(model_name);
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";

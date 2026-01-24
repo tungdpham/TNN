@@ -14,18 +14,16 @@ namespace tnn {
 
 class ExampleModels {
 private:
-  static std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(DType_t)>> creators_;
+  static std::unordered_map<std::string, std::function<Sequential(DType_t)>> creators_;
 
 public:
-  static void register_model(const Sequential &model) {
-    auto model_clone = std::shared_ptr<Layer>(model.clone());
+  static void register_model(std::function<Sequential(DType_t)> creator) {
+    Sequential model = creator(DType_t::FP32);
     std::string model_name = model.name();
-    creators_[model_name] = [model_ptr = std::move(model_clone)](DType_t) {
-      return model_ptr->clone();
-    };
+    creators_[model_name] = [creator](DType_t io_dtype) { return creator(io_dtype); };
   }
 
-  static std::unique_ptr<Layer> create(const std::string &name, DType_t io_dtype_ = DType_t::FP32) {
+  static Sequential create(const std::string &name, DType_t io_dtype_ = DType_t::FP32) {
     auto it = creators_.find(name);
     if (it != creators_.end()) {
       return it->second(io_dtype_);

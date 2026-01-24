@@ -40,8 +40,7 @@ int main(int argc, char **argv) {
     model.load_from_file(model_path, device);
   } catch (const std::exception &e) {
     cerr << "Could not load from file, trying ExampleModels: " << e.what() << endl;
-    auto layer_ptr = ExampleModels::create("gpt2");
-    model = std::move(*dynamic_cast<Sequential *>(layer_ptr.release()));
+    model = ExampleModels::create("gpt2");
     model.set_device(device);
     model.init();
   }

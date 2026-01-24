@@ -14,10 +14,9 @@
 namespace tnn {
 
 // Static member definitions
-std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(DType_t)>>
-    ExampleModels::creators_;
+std::unordered_map<std::string, std::function<Sequential(DType_t)>> ExampleModels::creators_;
 
-std::unique_ptr<Layer> create_mnist_cnn(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_mnist_cnn(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({28, 28, 1})
                     .dtype(io_dtype_)
@@ -35,10 +34,10 @@ std::unique_ptr<Layer> create_mnist_cnn(DType_t io_dtype_ = DType_t::FP32) {
                     .flatten(1, -1, "flatten")
                     .dense(10, true, "output")
                     .build();
-  return std::make_unique<Sequential>("mnist_cnn", std::move(layers));
+  return Sequential("mnist_cnn", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({32, 32, 3})
                     .dtype(io_dtype_)
@@ -80,10 +79,10 @@ std::unique_ptr<Layer> create_cifar10_vgg(DType_t io_dtype_ = DType_t::FP32) {
                     .activation("relu", "relu10")
                     .dense(10, true, "fc1")
                     .build();
-  return std::make_unique<Sequential>("cifar10_vgg", std::move(layers));
+  return Sequential("cifar10_vgg", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({32, 32, 3})
                     .dtype(io_dtype_)
@@ -115,10 +114,10 @@ std::unique_ptr<Layer> create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32)
                     .flatten(1, -1, "flatten")
                     .dense(10, true, "output")
                     .build();
-  return std::make_unique<Sequential>("cifar10_resnet9", std::move(layers));
+  return Sequential("cifar10_resnet9", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_cifar100_resnet18(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_cifar100_resnet18(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({32, 32, 3})
                     .dtype(io_dtype_)
@@ -143,10 +142,10 @@ std::unique_ptr<Layer> create_cifar100_resnet18(DType_t io_dtype_ = DType_t::FP3
                     .flatten(1, -1, "flatten")
                     .dense(100, true, "fc")
                     .build();
-  return std::make_unique<Sequential>("cifar100_resnet18", std::move(layers));
+  return Sequential("cifar100_resnet18", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_cifar100_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_cifar100_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
@@ -176,10 +175,10 @@ std::unique_ptr<Layer> create_cifar100_wrn16_8(DType_t io_dtype_ = DType_t::FP32
                     .dense(100, true, "fc")
                     .build();
 
-  return std::make_unique<Sequential>("cifar100_wrn16_8", std::move(layers));
+  return Sequential("cifar100_wrn16_8", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_tiny_imagenet_resnet18(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_tiny_imagenet_resnet18(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({64, 64, 3})
                     .dtype(io_dtype_)
@@ -204,10 +203,10 @@ std::unique_ptr<Layer> create_tiny_imagenet_resnet18(DType_t io_dtype_ = DType_t
                     .flatten(1, -1, "flatten")
                     .dense(200, true, "fc")
                     .build();
-  return std::make_unique<Sequential>("tiny_imagenet_resnet18", std::move(layers));
+  return Sequential("tiny_imagenet_resnet18", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_tiny_imagenet_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_tiny_imagenet_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
@@ -237,10 +236,10 @@ std::unique_ptr<Layer> create_tiny_imagenet_wrn16_8(DType_t io_dtype_ = DType_t:
                     .dense(200, true, "fc")
                     .build();
 
-  return std::make_unique<Sequential>("tiny_imagenet_wrn16_8", std::move(layers));
+  return Sequential("tiny_imagenet_wrn16_8", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({64, 64, 3})
                     .dtype(io_dtype_)
@@ -273,10 +272,10 @@ std::unique_ptr<Layer> create_tiny_imagenet_resnet50(DType_t io_dtype_ = DType_t
                     .flatten(1, -1, "flatten")
                     .dense(200, true, "fc")
                     .build();
-  return std::make_unique<Sequential>("tiny_imagenet_resnet50", std::move(layers));
+  return Sequential("tiny_imagenet_resnet50", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP32) {
   auto layers = LayerBuilder()
                     .input({3, 224, 224})
                     .dtype(io_dtype_)
@@ -309,10 +308,10 @@ std::unique_ptr<Layer> create_resnet50_imagenet(DType_t io_dtype_ = DType_t::FP3
                     .flatten(1, -1, "flatten")
                     .dense(1000, true, "fc")
                     .build();
-  return std::make_unique<Sequential>("imagenet_resnet50", std::move(layers));
+  return Sequential("imagenet_resnet50", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t patch_size = 4;
   constexpr size_t embed_dim = 256;
   constexpr size_t num_heads = 4;
@@ -362,10 +361,10 @@ std::unique_ptr<Layer> create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP3
 
   auto layers = builder.build();
 
-  return std::make_unique<Sequential>("tiny_imagenet_vit", std::move(layers));
+  return Sequential("tiny_imagenet_vit", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t seq_len = 512;
   constexpr size_t vocab_size = 50257;
   constexpr size_t embed_dim = 768;
@@ -387,10 +386,10 @@ std::unique_ptr<Layer> create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
-  return std::make_unique<Sequential>("gpt2", std::move(layers));
+  return Sequential("gpt2", std::move(layers));
 }
 
-std::unique_ptr<Layer> create_flash_gpt2(DType_t io_dtype_ = DType_t::FP32) {
+Sequential create_flash_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t seq_len = 512;
   constexpr size_t vocab_size = 50257;
   constexpr size_t embed_dim = 768;
@@ -412,33 +411,33 @@ std::unique_ptr<Layer> create_flash_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
-  return std::make_unique<Sequential>("flash_gpt2", std::move(layers));
+  return Sequential("flash_gpt2", std::move(layers));
 }
 
 // Register all models
 void ExampleModels::register_defaults() {
   // MNIST
-  register_model(*static_cast<Sequential *>(create_mnist_cnn().get()));
+  register_model(create_mnist_cnn);
 
   // CIFAR-10
-  register_model(*static_cast<Sequential *>(create_cifar10_vgg().get()));
-  register_model(*static_cast<Sequential *>(create_cifar10_resnet9().get()));
+  register_model(create_cifar10_vgg);
+  register_model(create_cifar10_resnet9);
   // CIFAR-100
-  register_model(*static_cast<Sequential *>(create_cifar100_resnet18().get()));
-  register_model(*static_cast<Sequential *>(create_cifar100_wrn16_8().get()));
+  register_model(create_cifar100_resnet18);
+  register_model(create_cifar100_wrn16_8);
 
   // Tiny ImageNet
-  register_model(*static_cast<Sequential *>(create_tiny_imagenet_resnet18().get()));
-  register_model(*static_cast<Sequential *>(create_tiny_imagenet_wrn16_8().get()));
-  register_model(*static_cast<Sequential *>(create_tiny_imagenet_resnet50().get()));
-  register_model(*static_cast<Sequential *>(create_tiny_imagenet_vit().get()));
+  register_model(create_tiny_imagenet_resnet18);
+  register_model(create_tiny_imagenet_wrn16_8);
+  register_model(create_tiny_imagenet_resnet50);
+  register_model(create_tiny_imagenet_vit);
 
   // ImageNet
-  register_model(*static_cast<Sequential *>(create_resnet50_imagenet().get()));
+  register_model(create_resnet50_imagenet);
 
   // GPT-2
-  register_model(*static_cast<Sequential *>(create_gpt2().get()));
-  register_model(*static_cast<Sequential *>(create_flash_gpt2().get()));
+  register_model(create_gpt2);
+  register_model(create_flash_gpt2);
 }
 
 } // namespace tnn
