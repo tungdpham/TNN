@@ -316,7 +316,7 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t embed_dim = 256;
   constexpr size_t num_heads = 4;
   constexpr size_t mlp_ratio = 4;
-  constexpr size_t depth = 2;
+  constexpr size_t depth = 4;
   constexpr size_t num_classes = 200;
   constexpr size_t num_patches = (64 / patch_size) * (64 / patch_size);
   constexpr size_t seq_len = num_patches + 1;
@@ -335,7 +335,7 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
                                .input({seq_len, embed_dim})
                                .dtype(io_dtype_)
                                .layernorm(dtype_eps(io_dtype_), true, "ln_attn")
-                               .attention(embed_dim, num_heads, false, "attn")
+                               //  .attention(embed_dim, num_heads, false, "attn")
                                .dropout(0.1f)
                                .build(),
                            {}, "linear", "encoder_" + std::to_string(i) + "_attn");

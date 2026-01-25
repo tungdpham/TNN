@@ -65,7 +65,7 @@ signed main() {
   size_t max_steps = train_config.max_steps > 0 ? train_config.max_steps
                                                 : train_loader->size() / train_config.batch_size;
   auto scheduler = SchedulerFactory::create_warmup_cosine(
-      optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
+      optimizer.get(), max_steps * 0.01f, max_steps * 0.1f, 0.0f, train_config.lr_initial * 0.1f);
 
   try {
     train_model(model, *train_loader, *val_loader, optimizer, criterion, scheduler, train_config);

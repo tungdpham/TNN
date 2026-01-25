@@ -9,7 +9,9 @@
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
+#ifdef USE_CUDNN
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
+#endif
 #include "type/type.hpp"
 
 #include <cmath>

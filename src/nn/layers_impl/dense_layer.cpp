@@ -7,7 +7,9 @@
 #include "nn/layers_impl/dense_layer.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/dense_ops.hpp"
+#ifdef USE_CUDA
 #include "nn/layers_impl/cuda/dense_ops.hpp"
+#endif
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "type/type.hpp"
 
