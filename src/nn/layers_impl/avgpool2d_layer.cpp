@@ -7,8 +7,9 @@
 #include "nn/layers_impl/avgpool2d_layer.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/avgpool_ops.hpp"
+#ifdef USE_CUDA
 #include "nn/layers_impl/cuda/avgpool_ops.hpp"
-
+#endif
 #include <stdexcept>
 
 namespace tnn {
@@ -90,12 +91,16 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
                                     output_data->data_as<Compute_T>(), batch_size, height, width,
                                     channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
                                     pad_w_, output_h, output_w);
-  } else if (input_data->device_type() == DeviceType::GPU) {
+  }
+#ifdef USE_CUDA
+  else if (input_data->device_type() == DeviceType::GPU) {
     cuda::avgpool_forward<Compute_T>(input_data->data_as<Compute_T>(),
                                      output_data->data_as<Compute_T>(), batch_size, height, width,
                                      channels, pool_h_, pool_w_, stride_h_, stride_w_, pad_h_,
                                      pad_w_, output_h, output_w);
-  } else {
+  }
+#endif
+  else {
     throw std::runtime_error("AvgPool2DLayer: unsupported device type");
   }
   return nullptr;
@@ -125,12 +130,16 @@ AvgPool2DLayer::compute_avg_pool_backward_impl(const Tensor &gradient_data, Tens
                                      grad_input_data->data_as<Compute_T>(), batch_size, input_h,
                                      input_w, channels, pool_h_, pool_w_, stride_h_, stride_w_,
                                      pad_h_, pad_w_, output_h, output_w);
-  } else if (gradient_data->device_type() == DeviceType::GPU) {
+  }
+#ifdef USE_CUDA
+  else if (gradient_data->device_type() == DeviceType::GPU) {
     cuda::avgpool_backward<Compute_T>(gradient_data->data_as<Compute_T>(),
                                       grad_input_data->data_as<Compute_T>(), batch_size, input_h,
                                       input_w, channels, pool_h_, pool_w_, stride_h_, stride_w_,
                                       pad_h_, pad_w_, output_h, output_w);
-  } else {
+  }
+#endif
+  else {
     throw std::runtime_error("AvgPool2DLayer: unsupported device type");
   }
   return nullptr;
@@ -146,7 +155,6 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward(const Tensor &gr
                               batch_size, input_h, input_w, channels, output_h, output_w, flow_id);
   return nullptr;
 }
-
 
 LayerConfig AvgPool2DLayer::get_config() const {
   LayerConfig config;

@@ -32,8 +32,15 @@ void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const si
   } else if constexpr (std::is_same<T, double>::value) {
     dgemm(A, B, C, M, N, K, trans_A, trans_B, alpha, beta);
   } else {
-    static_assert(std::is_same<T, float>::value || std::is_same<T, double>::value,
-                  "Unsupported data type for gemm. Only float and double are supported.");
+    for (size_t i = 0; i < M; ++i) {
+      for (size_t j = 0; j < N; ++j) {
+        T sum = static_cast<T>(0);
+        for (size_t k = 0; k < K; ++k) {
+          sum += A[i * K + k] * B[k * N + j];
+        }
+        C[i * N + j] = alpha * sum + beta * C[i * N + j];
+      }
+    }
   }
 #endif
 }

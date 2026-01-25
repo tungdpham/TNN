@@ -54,9 +54,11 @@ private:
   Tensor temp_col_grad_matrix_buffer_;
 
   ConvolutionStats stats_;
+#ifdef USE_CUDNN
   cuda::cudnn_conv2d::ConvolutionHandle *convolution_handle_ = nullptr;
   std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
   size_t max_workspace_ = 0;
+#endif
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>

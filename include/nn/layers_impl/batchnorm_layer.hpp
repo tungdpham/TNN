@@ -30,12 +30,6 @@ private:
   bool affine_;
   bool use_relu_;
 
-#ifdef USE_CUDNN
-  std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
-  std::unordered_map<size_t, BatchNormStats> stats_cache;
-  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
-#endif
-
   Tensor gamma_;
   Tensor beta_;
   Tensor gamma_gradients_;
@@ -48,6 +42,11 @@ private:
   std::unordered_map<size_t, Tensor> micro_batch_mean_;
   std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
 
+  std::unordered_map<size_t, BatchNormStats> stats_cache;
+  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
+
+#ifdef USE_CUDNN
+  std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
   forward_training_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
@@ -73,6 +72,7 @@ private:
 
   void cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
   void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id);
+#endif
 
   void init_params() override;
   void collect_parameters(std::vector<Tensor> &params) override;

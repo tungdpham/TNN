@@ -6,13 +6,13 @@
  */
 #pragma once
 
-#ifdef USE_CUDNN
-#include "cuda/cudnn_conv2d_ops.hpp"
-#include "device/task.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
-
+#ifdef USE_CUDNN
+#include "cuda/cudnn_conv2d_ops.hpp"
+#include "device/task.hpp"
+#endif
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -37,6 +37,7 @@ private:
   Tensor weight_gradients_;
   Tensor bias_gradients_;
 
+#ifdef USE_CUDNN
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
   conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
@@ -63,9 +64,10 @@ private:
   void cudnn_backward(const Tensor &current_gradient, Tensor &grad_input, size_t micro_batch_id);
 
   std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
+#endif
+  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
   std::unordered_map<size_t, ConvolutionStats> stats_cache;
   size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
 
   void init_params() override;
   void collect_parameters(std::vector<Tensor> &params) override;
@@ -98,5 +100,3 @@ public:
 };
 
 } // namespace tnn
-
-#endif

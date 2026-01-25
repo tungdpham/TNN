@@ -4,18 +4,13 @@
 #include <stdexcept>
 #ifdef USE_CUDA
 #include <cuda_fp16.h> // IWYU pragma: export
+#else
+#include "type/fp16.hpp"
 #endif
 
 namespace tnn {
 #if defined(USE_CUDA)
 typedef __half fp16;
-#else
-struct fp16 {
-  uint16_t data;
-
-  fp16() : data(0) {}
-  explicit fp16(uint16_t d) : data(d) {}
-};
 #endif
 typedef float fp32;
 typedef double fp64;

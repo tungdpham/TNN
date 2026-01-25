@@ -29,12 +29,15 @@ Conv2DLayer::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_
       pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {}
 
 Conv2DLayer::~Conv2DLayer() {
+#ifdef USE_CUDNN
   for (auto &pair : fe_handle_cache) {
     if (pair.second) {
       cuda::cudnn_conv2d::destroy_fe_handle(pair.second);
     }
   }
   fe_handle_cache.clear();
+  stats_cache.clear();
+#endif
 }
 
 void Conv2DLayer::init_params() {
@@ -110,9 +113,12 @@ void Conv2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro
     throw std::invalid_argument("Input channel size mismatch in Conv2DLayer");
   }
 
+#ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
     cudnn_forward(input, output, micro_batch_id);
-  } else {
+  } else
+#endif
+  {
     throw std::runtime_error("CPU implementation for Conv2DLayer not implemented");
   }
 }
@@ -139,13 +145,17 @@ void Conv2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size
     throw std::invalid_argument("Gradient channel size mismatch in Conv2DLayer");
   }
 
+#ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
     cudnn_backward(gradient, grad_input, micro_batch_id);
-  } else {
+  }
+#endif
+  else {
     throw std::runtime_error("CPU implementation for Conv2DLayer not implemented");
   }
 }
 
+#ifdef USE_CUDNN
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task>
 Conv2DLayer::conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
@@ -279,7 +289,7 @@ void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
                                  weights_, grad_input, cudnn_workspace, batch_size, input_h,
                                  input_w, output_h, output_w, "default");
 }
-
+#endif
 
 LayerConfig Conv2DLayer::get_config() const {
   LayerConfig config;

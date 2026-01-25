@@ -9,7 +9,6 @@
 #include "nn/layers_impl/base_layer.hpp"
 #include "nn/layers_impl/common/batchnorm.hpp"
 #include "type/type.hpp"
-#include <cudnn_graph.h>
 #ifdef USE_CUDNN
 #include "device/cuda/cuda_context.hpp"
 #include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
@@ -112,6 +111,7 @@ void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   }
 }
 
+#ifdef USE_CUDNN
 void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id) {
   const size_t batch_size = input->dimension(0);
   const size_t height = input->dimension(1);
@@ -293,7 +293,7 @@ BatchNormLayer::backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, Batc
   }
   return nullptr;
 }
-
+#endif
 
 LayerConfig BatchNormLayer::get_config() const {
   LayerConfig config;

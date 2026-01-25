@@ -7,7 +7,9 @@
 #include "nn/layers_impl/maxpool2d_layer.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/maxpool_ops.hpp"
+#ifdef USE_CUDA
 #include "nn/layers_impl/cuda/maxpool_ops.hpp"
+#endif
 #include "tensor/tensor.hpp"
 
 #include <cstddef>
@@ -105,12 +107,16 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
                                mask_indices->data_as<int>(), batch_size, height, width, channels,
                                pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, output_h,
                                output_w);
-  } else if (input_data->device_type() == DeviceType::GPU) {
+  }
+#ifdef USE_CUDA
+  else if (input_data->device_type() == DeviceType::GPU) {
     cuda::maxpool_forward<IO_T>(input_data->data_as<IO_T>(), output_data->data_as<IO_T>(),
                                 mask_indices->data_as<int>(), batch_size, height, width, channels,
                                 pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_, output_h,
                                 output_w);
-  } else {
+  }
+#endif
+  else {
     throw std::runtime_error("MaxPool2DLayer: unsupported device type");
   }
   return nullptr;
@@ -141,11 +147,15 @@ MaxPool2DLayer::compute_max_pool_backward_impl(const Tensor &gradient_data, Tens
     cpu::maxpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                                 mask_indices->data_as<int>(), batch_size, channels, output_h,
                                 output_w);
-  } else if (gradient_data->device_type() == DeviceType::GPU) {
+  }
+#ifdef USE_CUDA
+  else if (gradient_data->device_type() == DeviceType::GPU) {
     cuda::maxpool_backward<IO_T>(gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                                  mask_indices->data_as<int>(), batch_size, channels, output_h,
                                  output_w);
-  } else {
+  }
+#endif
+  else {
     throw std::runtime_error("MaxPool2DLayer: unsupported device type");
   }
   return nullptr;
@@ -161,7 +171,6 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward(const Tensor &gr
                               batch_size, channels, output_h, output_w, mask_indices, flow_id);
   return nullptr;
 }
-
 
 LayerConfig MaxPool2DLayer::get_config() const {
   LayerConfig config;
