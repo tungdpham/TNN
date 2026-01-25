@@ -157,10 +157,6 @@ public:
   std::unique_ptr<Task> compute_loss(const Tensor &logits, const Tensor &targets,
                                      float &loss) override {
     if (logits->device() != targets->device()) {
-      std::cout << "Logits device: " << logits->device()
-                << " type: " << static_cast<int>(logits->device_type()) << std::endl;
-      std::cout << "Targets device: " << targets->device()
-                << " type: " << static_cast<int>(targets->device_type()) << std::endl;
       throw std::runtime_error(
           "Logits and targets must be on the same device for LogSoftmaxCrossEntropyLoss.");
     }

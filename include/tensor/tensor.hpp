@@ -447,7 +447,7 @@ public:
 
   size_t size() const override { return data_size_; }
 
-  size_t capacity() const override { return data_.capacity(); }
+  size_t capacity() const override { return data_.capacity() / sizeof(T); }
 
   bool is_aligned(size_t alignment = 32) const override {
     return (reinterpret_cast<uintptr_t>(data_.get<T>()) % alignment) == 0;
@@ -670,7 +670,7 @@ public:
     }
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size > data_.capacity()) {
+    if (new_size * sizeof(T) > data_.capacity()) {
       data_ = allocate_data(device(), new_size);
     }
     data_size_ = new_size;

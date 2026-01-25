@@ -1,6 +1,8 @@
+#include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers_impl/base_layer.hpp"
 #include "nn/sequential.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace std;
 using namespace tnn;
@@ -16,5 +18,13 @@ signed main() {
   cout << "Deserialized model config:" << endl;
   auto deserialized_config = deserialized_model->get_config();
   cout << deserialized_config.to_json().dump(2) << endl;
+
+  Tensor input = make_tensor<float>({1, 32, 32, 3});
+  Tensor output = make_tensor<float>({1});
+  model.set_device(getGPU());
+  model.init();
+  model.forward(input, output, 0);
+
+  std::cout << "Output shape: " << output->shape_str() << std::endl;
   return 0;
 }

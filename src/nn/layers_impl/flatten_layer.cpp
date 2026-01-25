@@ -16,7 +16,7 @@ void FlattenLayer::forward_impl(const Tensor &input, Tensor &output, size_t micr
   micro_batch_original_shapes_[micro_batch_id] = input->shape();
 
   std::vector<size_t> output_shape = compute_output_shape(input->shape());
-  output->ensure(output_shape);
+  output->ensure(output_shape, input->device());
 
   input->copy_to(output);
 }
@@ -29,11 +29,14 @@ void FlattenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
                              std::to_string(micro_batch_id));
   }
   const std::vector<size_t> &original_shape = it->second;
-
-  grad_input->ensure(original_shape);
+  size_t expected_size =
+      std::accumulate(original_shape.begin(), original_shape.end(), 1, std::multiplies<size_t>());
+  if (gradient->size() != expected_size) {
+    throw std::runtime_error("Gradient size does not match original input size in FlattenLayer");
+  }
+  grad_input->ensure(original_shape, gradient->device());
   gradient->copy_to(grad_input);
 }
-
 
 LayerConfig FlattenLayer::get_config() const {
   LayerConfig config;

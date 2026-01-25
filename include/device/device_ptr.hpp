@@ -65,6 +65,7 @@ public:
 
   device_ptr &operator=(const device_ptr &) = delete;
 
+  // release ownership of the pointer
   void *release() {
     void *temp = ptr_;
     ptr_ = nullptr;
@@ -139,7 +140,7 @@ device_ptr make_dptr_t(const Device *device, size_t count, size_t alignment = 64
   if (!ptr) {
     throw std::runtime_error("Bad Alloc");
   }
-  return device_ptr(ptr, device, count);
+  return device_ptr(ptr, device, sizeof(ElementT) * count, alignment);
 }
 
 inline device_ptr make_dptr(const Device *device, size_t byte_size, size_t alignment = 64) {
@@ -153,7 +154,7 @@ inline device_ptr make_dptr(const Device *device, size_t byte_size, size_t align
   if (!ptr) {
     throw std::runtime_error("Bad Alloc");
   }
-  return device_ptr(ptr, device, byte_size);
+  return device_ptr(ptr, device, byte_size, alignment);
 }
 
 template <typename T> device_ptr to_cpu(const device_ptr &src_ptr) {
