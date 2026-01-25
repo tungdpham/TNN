@@ -139,40 +139,6 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   return {avg_train_loss, avg_train_accuracy};
 }
 
-static Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
-                             Loss &criterion, const TrainingConfig &config) {
-  Tensor batch_data = make_tensor_from_dtype(model->get_io_dtype()),
-         batch_labels = make_tensor_from_dtype(model->get_io_dtype());
-
-  model->set_training(false);
-  val_loader->reset();
-
-  cout << "Starting validation..." << endl;
-  double val_loss = 0.0;
-  double val_corrects = 0.0;
-  int val_batches = 0;
-  const Device *model_device = model->get_device();
-
-  Tensor device_batch_labels = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
-  Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
-
-  while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    model->forward(batch_data, predictions);
-
-    device_batch_labels = batch_labels->to_device(model_device);
-    float loss;
-    criterion.compute_loss(predictions, device_batch_labels, loss);
-    val_loss += loss;
-    val_corrects += compute_class_corrects(predictions, device_batch_labels);
-    ++val_batches;
-  }
-
-  const double avg_val_loss = val_loss / val_batches;
-  const double avg_val_accuracy = val_corrects / val_loader->size();
-
-  return {avg_val_loss, avg_val_accuracy};
-}
-
 static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
                       unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
                       const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
@@ -190,7 +156,7 @@ static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
           train_epoch(model, train_loader, optimizer, criterion, scheduler, config);
 
       // validation phrase
-      auto [avg_val_loss, avg_val_accuracy] = validate_model(model, val_loader, *criterion, config);
+      auto [avg_val_loss, avg_val_accuracy] = validate_model(model, val_loader, criterion, config);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
@@ -300,7 +266,7 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
 void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
                  unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
-                 unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
+                 const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config) {
   optimizer->attach(model->parameters(), model->gradients());
   Tensor batch_data, batch_labels;
@@ -326,6 +292,40 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
   } else {
     train_step(model, train_loader, optimizer, criterion, scheduler, config);
   }
+}
+
+Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
+                      const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
+  Tensor batch_data = make_tensor_from_dtype(model->get_io_dtype()),
+         batch_labels = make_tensor_from_dtype(model->get_io_dtype());
+
+  model->set_training(false);
+  val_loader->reset();
+
+  cout << "Starting validation..." << endl;
+  double val_loss = 0.0;
+  double val_corrects = 0.0;
+  int val_batches = 0;
+  const Device *model_device = model->get_device();
+
+  Tensor device_batch_labels = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
+  Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
+
+  while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
+    model->forward(batch_data, predictions);
+
+    device_batch_labels = batch_labels->to_device(model_device);
+    float loss;
+    criterion->compute_loss(predictions, device_batch_labels, loss);
+    val_loss += loss;
+    val_corrects += compute_class_corrects(predictions, device_batch_labels);
+    ++val_batches;
+  }
+
+  const double avg_val_loss = val_loss / val_batches;
+  const double avg_val_accuracy = val_corrects / val_loader->size();
+
+  return {avg_val_loss, avg_val_accuracy};
 }
 
 } // namespace tnn

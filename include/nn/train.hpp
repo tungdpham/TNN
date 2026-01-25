@@ -69,9 +69,13 @@ struct Result {
   double avg_accuracy = -1.0f;
 };
 
+Result validate_model(std::unique_ptr<Sequential> &model,
+                      std::unique_ptr<BaseDataLoader> &val_loader,
+                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config);
+
 void train_model(std::unique_ptr<Sequential> &model, std::unique_ptr<BaseDataLoader> &train_loader,
                  std::unique_ptr<BaseDataLoader> &test_loader,
-                 std::unique_ptr<Optimizer> &optimizer, std::unique_ptr<Loss> &criterion,
+                 std::unique_ptr<Optimizer> &optimizer, const std::unique_ptr<Loss> &criterion,
                  std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 

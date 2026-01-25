@@ -587,7 +587,6 @@ std::unique_ptr<Task> LegacyConv2DLayer::add_bias_to_output_impl(
   return nullptr;
 }
 
-
 LayerConfig LegacyConv2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
@@ -601,7 +600,6 @@ LayerConfig LegacyConv2DLayer::get_config() const {
   config.parameters["pad_h"] = pad_h_;
   config.parameters["pad_w"] = pad_w_;
   config.parameters["use_bias"] = use_bias_;
-  config.parameters["optimized"] = std::string("cudnn");
   return config;
 }
 

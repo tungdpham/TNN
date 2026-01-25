@@ -3,6 +3,7 @@
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
+#include "nn/loss.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -46,51 +47,19 @@ signed main() {
     }
     model = load_state<Sequential>(file, device);
     file.close();
-  } else {
-    cout << "Creating model: " << model_name << endl;
-    try {
-      Sequential temp_model = ExampleModels::create(model_name);
-      model = std::make_unique<Sequential>(std::move(temp_model));
-    } catch (const std::exception &e) {
-      cerr << "Error creating model: " << e.what() << endl;
-      cout << "Available models are: ";
-      for (const auto &name : ExampleModels::available_models()) {
-        cout << name << "\n";
-      }
-      cout << endl;
-      return 1;
-    }
-    model->set_device(device);
-    model->init();
   }
 
-  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+  cout << "Inferencing model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU")
+       << endl;
 
-  float lr_initial = Env::get("LR_INITIAL", 0.001f);
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
-  // size_t max_steps = train_config.max_steps > 0
-  //                        ? train_config.max_steps
-  //                        : train_loader->size() / train_config.batch_size * train_config.epochs;
-  // auto scheduler = SchedulerFactory::create_warmup_cosine(
-  //     optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
-
-  if (train_loader->get_data_shape().size() == 3) {
-    auto train_aug = AugmentationBuilder()
-                         .horizontal_flip(0.5f)
-                         .brightness(0.5, 0.2f)
-                         .gaussian_noise(0.4f, 0.05f)
-                         .build();
-
-    train_loader->set_augmentation(std::move(train_aug));
-  }
 
   try {
-    train_model(model, train_loader, val_loader, optimizer, criterion, scheduler, train_config);
+    auto res = validate_model(model, val_loader, criterion, train_config);
+    std::cout << "Validation Loss: " << res.avg_loss << ", Accuracy: " << res.avg_accuracy * 100.0
+              << "%" << std::endl;
   } catch (const std::exception &e) {
-    cerr << "Training failed: " << e.what() << endl;
+    cerr << "Inference failed: " << e.what() << endl;
     return 1;
   }
 

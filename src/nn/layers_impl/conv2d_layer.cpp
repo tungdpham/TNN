@@ -306,7 +306,6 @@ LayerConfig Conv2DLayer::get_config() const {
   config.parameters["pad_h"] = pad_h_;
   config.parameters["pad_w"] = pad_w_;
   config.parameters["use_bias"] = use_bias_;
-  config.parameters["optimized"] = std::string("cudnn");
   return config;
 }
 

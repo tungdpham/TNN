@@ -16,6 +16,9 @@ create_default(inspect_openwebtext inspect_openwebtext.cpp)
 create_default(trainer trainer.cpp)
 
 # Inference executables
+create_default(inferencer inferencer.cpp)
+
+# Inference executables
 create_default(gpt2_inference gpt2_inference.cpp)
 
 # Test executables

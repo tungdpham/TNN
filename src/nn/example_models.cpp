@@ -335,7 +335,7 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
                                .input({seq_len, embed_dim})
                                .dtype(io_dtype_)
                                .layernorm(dtype_eps(io_dtype_), true, "ln_attn")
-                               //  .attention(embed_dim, num_heads, false, "attn")
+                               .attention(embed_dim, num_heads, false, "attn")
                                .dropout(0.1f)
                                .build(),
                            {}, "linear", "encoder_" + std::to_string(i) + "_attn");

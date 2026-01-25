@@ -292,7 +292,6 @@ LayerConfig DenseLayer::get_config() const {
   config.parameters["input_features"] = input_features_;
   config.parameters["output_features"] = output_features_;
   config.parameters["use_bias"] = use_bias_;
-  config.parameters["optimized"] = std::string("native");
   return config;
 }
 

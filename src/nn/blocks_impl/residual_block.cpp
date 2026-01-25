@@ -296,7 +296,6 @@ LayerConfig ResidualBlock::get_config() const {
   config.name = this->name_;
   config.type = this->type();
   config.parameters["activation"] = activation_type_;
-  config.parameters["has_projection"] = (!shortcut_path_.empty());
 
   nlohmann::json main_array = nlohmann::json::array();
   for (const auto &layer : main_path_) {
@@ -308,9 +307,7 @@ LayerConfig ResidualBlock::get_config() const {
   nlohmann::json shortcut_array = nlohmann::json::array();
   for (const auto &layer : shortcut_path_) {
     LayerConfig sub_cfg = layer->get_config();
-    nlohmann::json sub_json;
-    sub_json["type"] = layer->type();
-    sub_json["name"] = sub_cfg.to_json();
+    nlohmann::json sub_json = sub_cfg.to_json();
     shortcut_array.push_back(sub_json);
   }
 
@@ -358,20 +355,16 @@ size_t ResidualBlock::cached_memory_bytes() const {
 }
 
 std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConfig &config) {
-  // Note: ResidualBlock configuration is complex and typically reconstructed from Sequential
-  // This is a simplified version that assumes empty paths
   std::vector<std::unique_ptr<Layer>> main_path;
   std::vector<std::unique_ptr<Layer>> shortcut_path;
-  std::vector<nlohmann::json> main_json =
-      nlohmann::json::parse(config.get<std::string>("main_path"));
+  nlohmann::json main_json = nlohmann::json::parse(config.get<std::string>("main_path"));
   LayerFactory::register_defaults();
   for (const auto &layer_json : main_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);
     main_path.push_back(std::move(layer));
   }
-  std::vector<nlohmann::json> shortcut_json =
-      nlohmann::json::parse(config.get<std::string>("shortcut_path"));
+  nlohmann::json shortcut_json = nlohmann::json::parse(config.get<std::string>("shortcut_path"));
   for (const auto &layer_json : shortcut_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);
