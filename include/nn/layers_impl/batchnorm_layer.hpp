@@ -37,6 +37,8 @@ private:
 
   Tensor running_mean_;
   Tensor running_var_;
+  Tensor dummy_mean_gradients_;
+  Tensor dummy_var_gradients_;
 
   std::unordered_map<size_t, Tensor> micro_batch_invar_;
   std::unordered_map<size_t, Tensor> micro_batch_mean_;
@@ -88,9 +90,6 @@ public:
   ~BatchNormLayer() override;
 
   static constexpr const char *TYPE_NAME = "batchnorm";
-
-  void save_state(std::ofstream &file) override;
-  void load_state(std::ifstream &file) override;
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

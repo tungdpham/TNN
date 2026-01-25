@@ -82,4 +82,25 @@ inline size_t get_dtype_size(DType_t dtype) {
   }
 }
 
+inline std::string dtype_to_string(DType_t dtype) {
+  switch (dtype) {
+  case DType_t::BYTE:
+    return "byte";
+  case DType_t::FP16:
+    return "fp16";
+  case DType_t::FP32:
+    return "fp32";
+  case DType_t::FP64:
+    return "fp64";
+  case DType_t::INT32_T:
+    return "int32";
+  case DType_t::INT64_T:
+    return "int64";
+  case DType_t::SIZE_T:
+    return "size_t";
+  default:
+    return "unknown";
+  }
+}
+
 } // namespace tnn

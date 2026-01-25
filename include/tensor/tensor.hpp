@@ -859,11 +859,9 @@ inline void print_data_distribution(const Tensor &tensor) {
     return;
   }
 
-  // Move to CPU for analysis
   Tensor cpu_tensor = tensor->to_cpu();
   DType_t dtype = cpu_tensor->data_type();
 
-  // Define ranges: 2^-32 to 2^32
   constexpr int min_exp = -32;
   constexpr int max_exp = 32;
   constexpr int num_buckets = max_exp - min_exp + 1;
@@ -891,11 +889,9 @@ inline void print_data_distribution(const Tensor &tensor) {
       } else if (abs_val >= std::pow(2.0, max_exp + 1)) {
         buckets[num_buckets + 1]++;
       } else {
-        // Find which power of 2 bucket this falls into
         double log2_val = std::log2(abs_val);
         int exp = static_cast<int>(std::floor(log2_val));
 
-        // Clamp to valid range (should already be in range)
         exp = std::max(min_exp, std::min(max_exp, exp));
         int bucket_idx = exp - min_exp + 1;
         buckets[bucket_idx]++;
@@ -1008,7 +1004,7 @@ template <typename T> std::shared_ptr<TypedTensor<T>> tensor_cast(const Tensor &
   return typed;
 }
 
-inline Tensor load(std::ifstream &in, const Device *device = &getCPU()) {
+inline void load_into(std::ifstream &in, Tensor &target, const Device *device = &getCPU()) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }
@@ -1023,23 +1019,22 @@ inline Tensor load(std::ifstream &in, const Device *device = &getCPU()) {
     throw std::runtime_error("Failed to read tensor shape from file");
   }
 
-  Tensor tensor = make_tensor_from_dtype(dtype, shape, device);
+  target->resize(shape, device);
+
   if (device->device_type() == DeviceType::CPU) {
-    in.read(reinterpret_cast<char *>(tensor->data()), tensor->size() * get_dtype_size(dtype));
-    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * get_dtype_size(dtype))) {
+    in.read(reinterpret_cast<char *>(target->data()), target->size() * get_dtype_size(dtype));
+    if (in.gcount() != static_cast<std::streamsize>(target->size() * get_dtype_size(dtype))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
   } else {
-    // GPU case: read into host buffer then copy to device
-    void *host_buffer = malloc(tensor->size() * get_dtype_size(dtype));
-    in.read(reinterpret_cast<char *>(host_buffer), tensor->size() * get_dtype_size(dtype));
-    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * get_dtype_size(dtype))) {
+    void *host_buffer = malloc(target->size() * get_dtype_size(dtype));
+    in.read(reinterpret_cast<char *>(host_buffer), target->size() * get_dtype_size(dtype));
+    if (in.gcount() != static_cast<std::streamsize>(target->size() * get_dtype_size(dtype))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
-    device->copyToDevice(tensor->data(), host_buffer, tensor->size() * get_dtype_size(dtype));
+    device->copyToDevice(target->data(), host_buffer, target->size() * get_dtype_size(dtype));
     free(host_buffer);
   }
-  return tensor;
 }
 
 inline Tensor operator+(const Tensor &lhs, const Tensor &rhs) {

@@ -8,6 +8,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
+#include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "threading/thread_wrapper.hpp"
@@ -35,14 +36,20 @@ int main() {
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
 
-  Sequential model(model_name);
+  std::unique_ptr<Sequential> model;
   if (!model_path.empty()) {
     cout << "Loading model from: " << model_path << endl;
-    model.load_from_file(model_path, device);
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    model = load_state<Sequential>(file, device);
+    file.close();
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      model = ExampleModels::create(model_name);
+      Sequential temp_model = ExampleModels::create(model_name);
+      model = std::make_unique<Sequential>(std::move(temp_model));
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
@@ -52,8 +59,8 @@ int main() {
       cout << endl;
       return 1;
     }
-    model.set_device(device);
-    model.init();
+    model->set_device(device);
+    model->init();
   }
 
   string dataset_name = Env::get<std::string>("DATASET_NAME", "");

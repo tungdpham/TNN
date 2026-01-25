@@ -55,6 +55,11 @@ void BatchNormLayer::init_params() {
   running_mean_->fill(0.0f);
   running_var_->fill(1.0f);
 
+  dummy_mean_gradients_ = make_param_tensor({num_features_});
+  dummy_var_gradients_ = make_param_tensor({num_features_});
+  dummy_mean_gradients_->fill(0.0f);
+  dummy_var_gradients_->fill(0.0f);
+
   this->initialized_ = true;
 }
 
@@ -317,34 +322,13 @@ BatchNormLayer::compute_output_shape(const std::vector<size_t> &input_shape) con
   return input_shape;
 }
 
-void BatchNormLayer::save_state(std::ofstream &file) {
-  if (affine_) {
-    gamma_->save(file);
-    beta_->save(file);
-  }
-  running_mean_->save(file);
-  running_var_->save(file);
-}
-
-void BatchNormLayer::load_state(std::ifstream &file) {
-  if (this->device_ == nullptr) {
-    std::cerr << "ERR: Device not set for BatchNormLayer when loading state." << std::endl;
-    return;
-  }
-  if (affine_) {
-    gamma_ = load(file, this->device_);
-    beta_ = load(file, this->device_);
-  }
-  running_mean_ = load(file, this->device_);
-  running_var_ = load(file, this->device_);
-  this->initialized_ = true;
-}
-
 void BatchNormLayer::collect_parameters(std::vector<Tensor> &params) {
   if (affine_) {
     params.push_back(gamma_);
     params.push_back(beta_);
   }
+  params.push_back(running_mean_);
+  params.push_back(running_var_);
 }
 
 void BatchNormLayer::collect_gradients(std::vector<Tensor> &grads) {
@@ -352,6 +336,8 @@ void BatchNormLayer::collect_gradients(std::vector<Tensor> &grads) {
     grads.push_back(gamma_gradients_);
     grads.push_back(beta_gradients_);
   }
+  grads.push_back(dummy_mean_gradients_);
+  grads.push_back(dummy_var_gradients_);
 }
 
 std::unique_ptr<BatchNormLayer> BatchNormLayer::create_from_config(const LayerConfig &config) {

@@ -11,6 +11,7 @@ class OpenWebTextDataLoader : public BaseDataLoader {
 private:
   DType_t dtype_ = DType_t::FP32;
   size_t context_length_;
+  int padding_token_id_ = -1; // -1 means no padding token (default behavior)
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
@@ -39,9 +40,12 @@ private:
       for (size_t i = 0; i < context_length_; ++i) {
         (*typed_batch_data)({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
         int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
-        if (token_id >= 0 && token_id < (int)vocab_size_) {
+        // Only set label if token is valid and not a padding token
+        if (token_id >= 0 && token_id < (int)vocab_size_ && token_id != padding_token_id_) {
           (*typed_batch_labels)({b, i, (size_t)token_id}) = static_cast<T>(1);
         }
+        // If token_id == padding_token_id, the label tensor remains all zeros at this position
+        // The loss function will skip this position since all target probabilities are 0
       }
     }
 
@@ -49,8 +53,9 @@ private:
   }
 
 public:
-  OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32)
-      : dtype_(dtype), context_length_(context_length) {}
+  OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32,
+                        int padding_token_id = -1)
+      : dtype_(dtype), context_length_(context_length), padding_token_id_(padding_token_id) {}
 
   ~OpenWebTextDataLoader() {
     if (mapped_data_ != MAP_FAILED && mapped_data_ != nullptr) {
@@ -111,6 +116,8 @@ public:
   size_t size() const override { return num_samples_; }
 
   size_t vocab_size() const { return vocab_size_; }
+
+  int padding_token_id() const { return padding_token_id_; }
 
   std::vector<size_t> get_data_shape() const override { return {context_length_}; }
 

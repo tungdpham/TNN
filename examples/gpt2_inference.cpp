@@ -6,6 +6,7 @@
 
 #include "data_loading/open_webtext_data_loader.hpp"
 #include "nn/example_models.hpp"
+#include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "tokenizer/tokenizer.hpp"
@@ -33,18 +34,24 @@ int main(int argc, char **argv) {
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 
   // Create model using ExampleModels or load from file
-  Sequential model("gpt2");
   const Device &device = device_type == DeviceType::GPU ? getGPU() : getCPU();
+  std::unique_ptr<Sequential> model;
   // Try to load from file, otherwise create from ExampleModels
   try {
-    model.load_from_file(model_path, device);
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    model = load_state<Sequential>(file, device);
+    file.close();
   } catch (const std::exception &e) {
     cerr << "Could not load from file, trying ExampleModels: " << e.what() << endl;
-    model = ExampleModels::create("gpt2");
-    model.set_device(device);
-    model.init();
+    Sequential temp_model = ExampleModels::create("gpt2");
+    temp_model.set_device(device);
+    temp_model.init();
+    model = std::make_unique<Sequential>(std::move(temp_model));
   }
-  model.set_training(false);
+  model->set_training(false);
 
   size_t seq_len = 512;
 
@@ -84,7 +91,7 @@ int main(int argc, char **argv) {
     }
 
     Tensor output;
-    model.forward(model_input, output);
+    model->forward(model_input, output);
 
     // Transfer output to CPU for sampling
     Tensor cpu_output = output->to_cpu();

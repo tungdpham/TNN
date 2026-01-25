@@ -32,7 +32,7 @@ namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(Sequential model, std::unique_ptr<Optimizer> optimizer)
+  Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer)
       : model_(std::move(model)), optimizer_(std::move(optimizer)) {}
 
   virtual ~Coordinator() {
@@ -451,7 +451,7 @@ private:
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    this->partitions_ = partitioner_->get_partitions(this->model_.get_layers());
+    this->partitions_ = partitioner_->get_partitions(this->model_->get_layers());
   }
 
   void initialize_topology() {
@@ -461,7 +461,7 @@ private:
     if (remote_endpoints_.size() != static_cast<size_t>(num_stages_)) {
       throw std::runtime_error("Remote endpoints size does not match number of stages");
     }
-    auto splitted_model = this->model_.split(this->partitions_);
+    auto splitted_model = this->model_->split(this->partitions_);
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
@@ -506,7 +506,7 @@ protected:
   bool should_stop_ = true;
 
   // Components of the coordinator
-  Sequential model_;
+  std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Communicator> coordinator_comm_;
   std::unique_ptr<Partitioner> partitioner_;

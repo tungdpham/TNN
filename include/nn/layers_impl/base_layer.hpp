@@ -17,6 +17,7 @@
 #include <fmt/core.h>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
@@ -216,25 +217,17 @@ public:
 
   virtual std::vector<Tensor> gradients() { return {}; }
 
-  virtual void save_state(std::ofstream &file) {
+  void save_state(std::ofstream &file) {
+    auto config = get_config();
+    nlohmann::json j = config.to_json();
+    std::string j_str = j.dump();
+    size_t j_size = j_str.size();
+    file.write(reinterpret_cast<const char *>(&j_size), sizeof(size_t));
+    file.write(j_str.c_str(), j_size);
     auto params = parameters();
     for (const auto &param : params) {
       param->save(file);
     }
-  }
-
-  virtual void load_state(std::ifstream &file) {
-    auto params = parameters();
-    for (auto &param : params) {
-      if (this->device_ == nullptr) {
-        std::cerr << "ERR: Device not set for Layer " << name_ << " when loading state."
-                  << std::endl;
-        return;
-      }
-      param = load(file, this->device_);
-      set_param_dtype(param->data_type());
-    }
-    this->initialized_ = true;
   }
 
   virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;

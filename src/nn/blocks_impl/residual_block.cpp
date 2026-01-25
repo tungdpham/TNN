@@ -364,6 +364,7 @@ std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConf
   std::vector<std::unique_ptr<Layer>> shortcut_path;
   std::vector<nlohmann::json> main_json =
       nlohmann::json::parse(config.get<std::string>("main_path"));
+  LayerFactory::register_defaults();
   for (const auto &layer_json : main_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);

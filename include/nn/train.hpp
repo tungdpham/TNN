@@ -69,13 +69,8 @@ struct Result {
   double avg_accuracy = -1.0f;
 };
 
-Result train_epoch(Sequential &model, BaseDataLoader &train_loader, Optimizer &optimizer,
-                   Loss &criterion, const TrainingConfig &config = TrainingConfig());
-
-Result validate_model(Sequential &model, BaseDataLoader &test_loader, Loss &criterion,
-                      TrainingConfig &config);
-
-void train_model(Sequential &model, BaseDataLoader &train_loader, BaseDataLoader &test_loader,
+void train_model(std::unique_ptr<Sequential> &model, std::unique_ptr<BaseDataLoader> &train_loader,
+                 std::unique_ptr<BaseDataLoader> &test_loader,
                  std::unique_ptr<Optimizer> &optimizer, std::unique_ptr<Loss> &criterion,
                  std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());

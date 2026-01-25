@@ -42,6 +42,7 @@ class FlashAttentionBlock;
 class ResidualBlock;
 class SliceLayer;
 class TransposeLayer;
+class Sequential;
 
 } // namespace tnn
 
@@ -69,6 +70,7 @@ class TransposeLayer;
 #include "layers_impl/positional_embedding_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
+#include "nn/sequential.hpp"
 
 namespace tnn {
 
@@ -136,6 +138,7 @@ public:
     register_layer_type<ResidualBlock>();
     register_layer_type<AttentionBlock>();
     register_layer_type<FlashAttentionBlock>();
+    register_layer_type<Sequential>();
   }
 
   static std::vector<std::string> available_types() {
@@ -146,6 +149,33 @@ public:
     return types;
   }
 };
+
+template <typename LayerType>
+static std::unique_ptr<LayerType> load_state(std::ifstream &file, const Device &device) {
+  size_t j_size;
+  file.read(reinterpret_cast<char *>(&j_size), sizeof(size_t));
+  std::string j_str(j_size, '\0');
+  file.read(&j_str[0], j_size);
+  nlohmann::json j = nlohmann::json::parse(j_str);
+  LayerConfig config = LayerConfig::from_json(j);
+  LayerFactory::register_defaults();
+  std::unique_ptr<Layer> base_layer = LayerFactory::create(config);
+  LayerType *raw_ptr = dynamic_cast<LayerType *>(base_layer.release());
+  if (!raw_ptr) {
+    throw std::runtime_error("Failed to cast layer to requested type");
+  }
+  std::unique_ptr<LayerType> layer(raw_ptr);
+  layer->set_device(device);
+  layer->init();
+  std::vector<Tensor> params = layer->parameters();
+  if (!params.empty()) {
+    layer->set_param_dtype(params[0]->data_type());
+  }
+  for (auto &param : params) {
+    load_into(file, param, layer->get_device());
+  }
+  return layer;
+}
 
 class LayerBuilder {
 private:

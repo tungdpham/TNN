@@ -1,6 +1,7 @@
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
+#include "nn/layers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
@@ -35,14 +36,20 @@ signed main() {
     return 1;
   }
 
-  Sequential model(model_name);
+  std::unique_ptr<Sequential> model;
   if (!model_path.empty()) {
     cout << "Loading model from: " << model_path << endl;
-    model.load_from_file(model_path, device);
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    model = load_state<Sequential>(file, device);
+    file.close();
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      model = ExampleModels::create(model_name);
+      Sequential temp_model = ExampleModels::create(model_name);
+      model = std::make_unique<Sequential>(std::move(temp_model));
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
@@ -52,8 +59,8 @@ signed main() {
       cout << endl;
       return 1;
     }
-    model.set_device(device);
-    model.init();
+    model->set_device(device);
+    model->init();
   }
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
@@ -65,10 +72,10 @@ signed main() {
   size_t max_steps = train_config.max_steps > 0 ? train_config.max_steps
                                                 : train_loader->size() / train_config.batch_size;
   auto scheduler = SchedulerFactory::create_warmup_cosine(
-      optimizer.get(), max_steps * 0.01f, max_steps * 0.1f, 0.0f, train_config.lr_initial * 0.1f);
+      optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
 
   try {
-    train_model(model, *train_loader, *val_loader, optimizer, criterion, scheduler, train_config);
+    train_model(model, train_loader, val_loader, optimizer, criterion, scheduler, train_config);
   } catch (const std::exception &e) {
     cerr << "Training failed: " << e.what() << endl;
     return 1;
