@@ -47,15 +47,13 @@ struct TrainingConfig {
   size_t batch_size = 32;
   int64_t max_steps = -1; // -1 for no limit, otherwise max number of batches per epoch
   float lr_initial = 0.001f;
-  float lr_decay_factor = 0.9f;
-  size_t lr_decay_interval = 5; // in epochs
+  int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
   int64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
   DeviceType device_type = DeviceType::CPU;
-  TrainingMode mode = TrainingMode::CLASSIFICATION;
 
   // Distributed params
   size_t num_microbatches = 2;

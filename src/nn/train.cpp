@@ -28,8 +28,7 @@ void TrainingConfig::print_config() const {
   cout << "  Batch Size: " << batch_size << endl;
   cout << "  Max Steps: " << max_steps << endl;
   cout << "  Initial Learning Rate: " << lr_initial << endl;
-  cout << "  LR Decay Factor: " << lr_decay_factor << endl;
-  cout << "  LR Decay Interval (epochs): " << lr_decay_interval << endl;
+  cout << "  Gradient Accumulation Steps: " << gradient_accumulation_steps << endl;
   cout << "  Progress Print Interval (batches): " << progress_print_interval << endl;
   cout << "  Number of Threads: " << num_threads << endl;
   cout << "  Profiler Type: "
@@ -49,8 +48,7 @@ void TrainingConfig::load_from_env() {
   batch_size = Env::get<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
   max_steps = Env::get<uint64_t>("MAX_STEPS", -1); // -1 for no limit
   lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
-  lr_decay_factor = Env::get<float>("LR_DECAY_FACTOR", DEFAULT_LR_DECAY_FACTOR);
-  lr_decay_interval = Env::get<size_t>("LR_DECAY_INTERVAL", DEFAULT_LR_DECAY_INTERVAL);
+  gradient_accumulation_steps = Env::get<int>("GRADIENT_ACCUMULATION_STEPS", 1);
   progress_print_interval = Env::get<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
   string profiler_type_str = Env::get<string>("PROFILER_TYPE", "NONE");
   if (profiler_type_str == "NORMAL") {
@@ -90,6 +88,8 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device),
          backward_output = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
 
+  int grad_accum_counter = 0;
+
   cout << "Training batches: " << train_loader->size() << endl;
   while (train_loader->get_batch(config.batch_size, batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
@@ -109,8 +109,11 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
 
     model->backward(loss_gradient, backward_output);
 
-    optimizer->update();
-    optimizer->clear_gradients();
+    if (++grad_accum_counter == config.gradient_accumulation_steps) {
+      grad_accum_counter = 0;
+      optimizer->update();
+      optimizer->clear_gradients();
+    }
 
     if (scheduler) {
       scheduler->step();
@@ -215,6 +218,8 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
   Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
   Tensor backward_output = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
 
+  int grad_accum_counter = 0;
+
   thread_wrapper.execute([&]() -> void {
     for (int steps = 0; steps < config.max_steps; ++steps) {
       if (!train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
@@ -229,8 +234,11 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
       model->backward(loss_gradient, backward_output);
 
-      optimizer->update();
-      optimizer->clear_gradients();
+      if (++grad_accum_counter == config.gradient_accumulation_steps) {
+        grad_accum_counter = 0;
+        optimizer->update();
+        optimizer->clear_gradients();
+      }
 
       if (steps % config.progress_print_interval == 0) {
         if (model->is_profiling_enabled()) {
