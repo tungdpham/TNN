@@ -86,7 +86,6 @@ void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
 }
 
 void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
-
   input_shape_cache_[micro_batch_id] = input->shape();
 
   size_t max_size = 0;
@@ -122,8 +121,8 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_output, shortcut_output, output, output->size());
 
   if (this->is_training_) {
-    Tensor &pre_act = pre_activation_cache_[micro_batch_id];
-    if (pre_act == nullptr) {
+    Tensor &pre_act = this->get_cached_tensor(micro_batch_id, "pre_activation");
+    if (!pre_act) {
       pre_act = make_io_tensor(output->shape());
     }
     pre_act->ensure(output->shape(), this->device_);
@@ -137,9 +136,8 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
 
 void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
                                   size_t micro_batch_id) {
-
-  auto it_pre_act = pre_activation_cache_.find(micro_batch_id);
-  if (final_activation_ && it_pre_act == pre_activation_cache_.end()) {
+  Tensor &pre_act = this->get_cached_tensor(micro_batch_id, "pre_activation");
+  if (final_activation_ && !pre_act) {
     throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
@@ -147,8 +145,8 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   Tensor grad_to_propagate = gradient;
 
   if (final_activation_) {
-    grad_to_propagate = this->get_buffer(it_pre_act->second->shape(), gradient->data_type());
-    final_activation_->compute_gradient(it_pre_act->second, gradient, grad_to_propagate);
+    grad_to_propagate = this->get_buffer(pre_act->shape(), gradient->data_type());
+    final_activation_->compute_gradient(pre_act, gradient, grad_to_propagate);
   }
 
   auto it_input_shape = input_shape_cache_.find(micro_batch_id);

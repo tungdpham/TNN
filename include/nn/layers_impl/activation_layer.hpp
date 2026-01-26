@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "nn/activations_impl/base_activation.hpp"
@@ -20,7 +19,6 @@ namespace tnn {
 class ActivationLayer : public StatelessLayer {
 private:
   std::unique_ptr<ActivationFunction> activation_;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
 
   void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
   void backward_impl(const Tensor &gradient, Tensor &grad_input,
@@ -40,7 +38,6 @@ public:
   static std::unique_ptr<ActivationLayer> create_from_config(const LayerConfig &config);
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

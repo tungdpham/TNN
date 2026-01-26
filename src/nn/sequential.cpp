@@ -79,6 +79,7 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   for (size_t i = 0; i < layers_.size(); ++i) {
     try {
       auto start = Clock::now();
+      output = nullptr;
       output = this->get_buffer(layers_[i]->compute_output_shape(current_input->shape()),
                                 input->data_type());
       layers_[i]->forward(current_input, output, micro_batch_id);
@@ -102,6 +103,7 @@ void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
   }
   auto start = Clock::now();
   Tensor current_gradient = gradient;
+  grad_input = nullptr;
   grad_input = this->get_buffer({max_size_}, gradient->data_type());
   for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
     try {

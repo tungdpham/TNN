@@ -56,6 +56,9 @@ public:
   void release(device_ptr &&ptr) {
     std::lock_guard<std::mutex> lock(mutex_);
     size_t byte_size = ptr.capacity();
+    if (byte_size == 0) {
+      return;
+    }
     free_blocks_.emplace(byte_size, std::move(ptr));
   }
 

@@ -18,7 +18,8 @@ ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
 
 void ActivationLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
   if (this->is_training_) {
-    micro_batch_inputs_[micro_batch_id] = input;
+    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    cached_input = input;
   }
 
   output->ensure(input->shape(), this->device_);
@@ -27,13 +28,13 @@ void ActivationLayer::forward_impl(const Tensor &input, Tensor &output, size_t m
 
 void ActivationLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
                                     size_t micro_batch_id) {
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input == micro_batch_inputs_.end()) {
-    throw std::runtime_error("Input for micro batch not found");
+  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+  if (!input) {
+    throw std::runtime_error("No cached input found for backward pass in ActivationLayer");
   }
-  const Tensor &input = it_input->second;
   grad_input->ensure(input->shape(), this->device_);
   activation_->compute_gradient(input, gradient, grad_input);
+  input = nullptr;
 }
 
 LayerConfig ActivationLayer::get_config() const {
@@ -65,14 +66,6 @@ uint64_t ActivationLayer::backward_flops(const std::vector<size_t> &input_shape)
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
 
   return 2 * num_elements;
-}
-
-size_t ActivationLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-  for (const auto &pair : micro_batch_inputs_) {
-    total_bytes += pair.second->size() * get_dtype_size(pair.second->data_type());
-  }
-  return total_bytes;
 }
 
 std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const LayerConfig &config) {

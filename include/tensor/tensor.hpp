@@ -170,12 +170,12 @@ public:
   template <typename T> static Tensor create_pooled(MemPool &mem_pool, std::vector<size_t> shape);
 
   template <typename T>
-  static Tensor create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape);
+  static Tensor create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape = {});
 
   static Tensor create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape);
 
   static Tensor create_pooled(MemPool &mem_pool, DType_t dtype,
-                              std::initializer_list<size_t> shape);
+                              std::initializer_list<size_t> shape = {});
 
   template <typename T> static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
 

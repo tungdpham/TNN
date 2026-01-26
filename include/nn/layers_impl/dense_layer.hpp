@@ -11,7 +11,6 @@
 #include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {
@@ -25,8 +24,6 @@ private:
   Tensor bias_;
   Tensor weight_gradients_;
   Tensor bias_gradients_;
-
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_dense_forward(const Tensor &input, const Tensor &weights,
@@ -78,8 +75,6 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   static std::unique_ptr<DenseLayer> create_from_config(const LayerConfig &config);
-
-  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

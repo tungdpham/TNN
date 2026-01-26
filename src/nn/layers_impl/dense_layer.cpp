@@ -67,8 +67,10 @@ void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   }
 
   if (this->is_training_) {
-    micro_batch_inputs_[micro_batch_id] = input;
+    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    cached_input = input;
   }
+
   std::vector<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
   output->ensure(out_shape, this->device_);
@@ -86,12 +88,11 @@ void DenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
   if (gradient->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in DenseLayer");
   }
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  if (it_input == micro_batch_inputs_.end()) {
+  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+  if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
-  const Tensor &input = it_input->second;
   const std::vector<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
@@ -337,15 +338,6 @@ uint64_t DenseLayer::backward_flops(const std::vector<size_t> &input_shape) cons
   uint64_t bias_grad_flops = use_bias_ ? (batch_size * output_features_) : 0;
   uint64_t input_grad_flops = 2ULL * batch_size * output_features_ * input_features_;
   return weight_grad_flops + bias_grad_flops + input_grad_flops;
-}
-
-size_t DenseLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-  for (const auto &pair : micro_batch_inputs_) {
-    size_t elem_size = get_dtype_size(pair.second->data_type());
-    total_bytes += pair.second->size() * elem_size;
-  }
-  return total_bytes;
 }
 
 } // namespace tnn

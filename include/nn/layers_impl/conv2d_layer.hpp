@@ -65,7 +65,6 @@ private:
 
   std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
 #endif
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
   std::unordered_map<size_t, ConvolutionStats> stats_cache;
   size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
 
@@ -95,8 +94,6 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   static std::unique_ptr<Conv2DLayer> create_from_config(const LayerConfig &config);
-
-  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

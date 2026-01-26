@@ -293,7 +293,16 @@ public:
     return total;
   }
 
-  virtual size_t cached_memory_bytes() const { return 0; }
+  virtual size_t cached_memory_bytes() const {
+    size_t total = 0;
+    for (auto &[key, tensor] : cached_tensors_) {
+      if (tensor) {
+        size_t dtype_size = get_dtype_size(tensor->data_type());
+        total += tensor->capacity() * dtype_size;
+      }
+    }
+    return total;
+  }
 
   void reset_profiling_info() { profiler_.reset(); }
 
@@ -337,16 +346,8 @@ protected:
     return Tensor::create(compute_dtype_, shape, this->device_);
   }
 
-  Tensor &get_cached_tensor(size_t mb_id, const std::string &key, const std::vector<size_t> &shape,
-                            DType_t dtype = DType_t::FP32) {
+  Tensor &get_cached_tensor(size_t mb_id, const std::string &key) {
     auto aggregate_key = std::to_string(mb_id) + key;
-    auto it = cached_tensors_.find(aggregate_key);
-    if (it != cached_tensors_.end()) {
-      it->second->ensure(shape, this->device_);
-      return it->second;
-    }
-    Tensor tensor = Tensor::create(dtype, shape, this->device_);
-    cached_tensors_[aggregate_key] = std::move(tensor);
     return cached_tensors_[aggregate_key];
   }
 

@@ -154,11 +154,12 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   round_workspace_size(current_stats);
 
   if (this->is_training_) {
-    micro_batch_inputs_cache_[micro_batch_id] = input;
+    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    cached_input = input;
   }
 
-  Tensor &batch_invar = micro_batch_invar_[micro_batch_id];
-  Tensor &batch_mean = micro_batch_mean_[micro_batch_id];
+  Tensor &batch_invar = this->get_cached_tensor(micro_batch_id, "batch_invar");
+  Tensor &batch_mean = this->get_cached_tensor(micro_batch_id, "batch_mean");
   if (batch_invar == nullptr) {
     batch_invar = make_io_tensor({num_features_});
   }
@@ -185,22 +186,21 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
 
 void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
                                     size_t micro_batch_id) {
-  auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
-  if (it_input_cache == micro_batch_inputs_cache_.end()) {
+  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+  if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID in BatchNormLayer: " +
                              std::to_string(micro_batch_id));
   }
 
-  auto it_batch_mean = micro_batch_mean_.find(micro_batch_id);
-  auto it_batch_invar = micro_batch_invar_.find(micro_batch_id);
-
-  if (it_batch_mean == micro_batch_mean_.end() || it_batch_invar == micro_batch_invar_.end()) {
+  Tensor &batch_mean = this->get_cached_tensor(micro_batch_id, "batch_mean");
+  Tensor &batch_invar = this->get_cached_tensor(micro_batch_id, "batch_invar");
+  if (!batch_mean || !batch_invar) {
     throw std::runtime_error(
         "No cached batch statistics found for micro-batch ID in BatchNormLayer: " +
         std::to_string(micro_batch_id));
   }
 
-  const auto &input_shape = it_input_cache->second->shape();
+  const auto &input_shape = input->shape();
   const size_t batch_size = input_shape[0];
   const size_t height = input_shape[1];
   const size_t width = input_shape[2];
@@ -215,10 +215,13 @@ void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
       {(current_stats.bwd_workspace_size + io_dtype_size - 1) / io_dtype_size}, io_dtype_);
   grad_input->ensure(gradient->shape(), this->device_);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient,
-                                 it_input_cache->second, grad_input, gamma_, gamma_gradients_,
-                                 beta_gradients_, it_batch_mean->second, it_batch_invar->second,
-                                 workspace, "default");
+  DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, input,
+                                 grad_input, gamma_, gamma_gradients_, beta_gradients_, batch_mean,
+                                 batch_invar, workspace, "default");
+
+  input = nullptr;
+  batch_mean = nullptr;
+  batch_invar = nullptr;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -371,27 +374,6 @@ uint64_t BatchNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
   uint64_t param_grad_flops = affine_ ? (2 * batch_size * spatial_size * num_features_) : 0;
   uint64_t input_grad_flops = 9 * num_elements;
   return param_grad_flops + input_grad_flops;
-}
-
-size_t BatchNormLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-  size_t input_cache_size = 0;
-  for (const auto &pair : micro_batch_inputs_cache_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    input_cache_size += pair.second->size() * dtype_size;
-  }
-  size_t inv_std_cache_size = 0;
-  for (const auto &pair : micro_batch_invar_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    inv_std_cache_size += pair.second->size() * dtype_size;
-  }
-  size_t mean_cache_size = 0;
-  for (const auto &pair : micro_batch_mean_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    mean_cache_size += pair.second->size() * dtype_size;
-  }
-  total_bytes += input_cache_size + inv_std_cache_size + mean_cache_size;
-  return total_bytes;
 }
 
 } // namespace tnn

@@ -14,7 +14,6 @@
 #include <cmath>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {
@@ -30,10 +29,6 @@ private:
   std::unique_ptr<DenseLayer> k_proj_;
   std::unique_ptr<DenseLayer> v_proj_;
   std::unique_ptr<DenseLayer> out_proj_;
-
-  std::unordered_map<size_t, Tensor> q_cache_;
-  std::unordered_map<size_t, Tensor> k_cache_;
-  std::unordered_map<size_t, Tensor> v_cache_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_attention_forward(const Tensor &q, const Tensor &k, const Tensor &v,
@@ -67,9 +62,6 @@ public:
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t cached_memory_bytes() const override;
-
-public:
   static std::unique_ptr<AttentionBlock> create_from_config(const LayerConfig &config);
 
 protected:

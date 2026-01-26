@@ -69,10 +69,10 @@ void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mi
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
-  Tensor &q = q_cache_[micro_batch_id];
-  Tensor &k = k_cache_[micro_batch_id];
-  Tensor &v = v_cache_[micro_batch_id];
-  if (q == nullptr) {
+  Tensor &q = this->get_cached_tensor(micro_batch_id, "q");
+  Tensor &k = this->get_cached_tensor(micro_batch_id, "k");
+  Tensor &v = this->get_cached_tensor(micro_batch_id, "v");
+  if (!q) {
     q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
     k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
     v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
@@ -93,12 +93,9 @@ void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mi
 
 void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
                                    size_t micro_batch_id) {
-  if (q_cache_.find(micro_batch_id) == q_cache_.end()) {
-    throw std::runtime_error("AttentionBlock: Cache not found for micro_batch_id");
-  }
-  Tensor &q = q_cache_[micro_batch_id];
-  Tensor &k = k_cache_[micro_batch_id];
-  Tensor &v = v_cache_[micro_batch_id];
+  Tensor &q = this->get_cached_tensor(micro_batch_id, "q");
+  Tensor &k = this->get_cached_tensor(micro_batch_id, "k");
+  Tensor &v = this->get_cached_tensor(micro_batch_id, "v");
 
   Tensor d_attn_out = this->get_buffer(gradient->shape(), io_dtype_);
   out_proj_->backward(gradient, d_attn_out, micro_batch_id);
@@ -128,6 +125,10 @@ void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
 
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, dq_in, dk_in, temp, size, "default");
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, temp, dv_in, grad_input, size, "default");
+
+  q = nullptr;
+  k = nullptr;
+  v = nullptr;
 }
 
 uint64_t AttentionBlock::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }
@@ -172,23 +173,6 @@ void AttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
   grads.insert(grads.end(), v_grads.begin(), v_grads.end());
   auto out_grads = out_proj_->gradients();
   grads.insert(grads.end(), out_grads.begin(), out_grads.end());
-}
-
-size_t AttentionBlock::cached_memory_bytes() const {
-  size_t total = 0;
-  for (const auto &pair : q_cache_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    total += pair.second->capacity() * dtype_size;
-  }
-  for (const auto &pair : k_cache_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    total += pair.second->capacity() * dtype_size;
-  }
-  for (const auto &pair : v_cache_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    total += pair.second->capacity() * dtype_size;
-  }
-  return total;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

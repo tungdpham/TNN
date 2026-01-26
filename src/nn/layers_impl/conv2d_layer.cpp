@@ -9,6 +9,7 @@
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 #endif
@@ -242,7 +243,8 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micr
   Tensor cudnn_workspace = this->get_buffer({workspace_elements});
 
   if (this->is_training_) {
-    micro_batch_inputs_cache_[micro_batch_id] = input;
+    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    cached_input = input;
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_forward_task, fe_handle, current_stats, input, output,
@@ -252,13 +254,13 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micr
 
 void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
                                  size_t micro_batch_id) {
-  auto it_input_cache = micro_batch_inputs_cache_.find(micro_batch_id);
-  if (it_input_cache == micro_batch_inputs_cache_.end()) {
+  Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+  if (!cached_input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " +
                              std::to_string(micro_batch_id));
   }
 
-  const auto &input_shape = it_input_cache->second->shape();
+  const auto &input_shape = cached_input->shape();
   const size_t batch_size = input_shape[0];
   const size_t input_h = input_shape[1];
   const size_t input_w = input_shape[2];
@@ -280,16 +282,18 @@ void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
   size_t workspace_elements = (max_backward_workspace + io_dtype_size - 1) / io_dtype_size;
   Tensor cudnn_workspace = this->get_buffer({workspace_elements});
 
-  const Tensor &cached_input = it_input_cache->second;
+  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
-                                 cached_input, gradient, weight_gradients_, bias_gradients_,
+                                 input, gradient, weight_gradients_, bias_gradients_,
                                  cudnn_workspace, batch_size, input_h, input_w, output_h, output_w,
                                  "default");
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_data_task, fe_handle, current_stats, gradient,
                                  weights_, grad_input, cudnn_workspace, batch_size, input_h,
                                  input_w, output_h, output_w, "default");
+
+  input = nullptr;
 }
 #endif
 
@@ -376,16 +380,6 @@ uint64_t Conv2DLayer::backward_flops(const std::vector<size_t> &input_shape) con
   // bias gradients: reduction across batch and spatial dimensions (1 FLOP per add)
   uint64_t bias_grad_flops = use_bias_ ? (batch_size * out_channels_ * output_h * output_w) : 0;
   return weight_grad_flops + input_grad_flops + bias_grad_flops;
-}
-
-size_t Conv2DLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-  size_t input_cache_bytes = 0;
-  for (const auto &pair : micro_batch_inputs_cache_) {
-    input_cache_bytes += pair.second->size() * get_dtype_size(pair.second->data_type());
-  }
-  total_bytes += input_cache_bytes;
-  return total_bytes;
 }
 
 std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &config) {

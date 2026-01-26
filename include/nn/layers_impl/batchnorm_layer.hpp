@@ -40,10 +40,6 @@ private:
   Tensor dummy_mean_gradients_;
   Tensor dummy_var_gradients_;
 
-  std::unordered_map<size_t, Tensor> micro_batch_invar_;
-  std::unordered_map<size_t, Tensor> micro_batch_mean_;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
-
   std::unordered_map<size_t, BatchNormStats> stats_cache;
   size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
 
@@ -99,7 +95,6 @@ public:
   static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

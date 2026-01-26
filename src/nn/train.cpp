@@ -85,10 +85,10 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
 
   MemPool &mem_pool = MemPool::instance(*model_device);
 
-  Tensor device_labels = Tensor::create_pooled(mem_pool, config.dtype, {1});
-  Tensor loss_gradient = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1});
-  Tensor predictions = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1}),
-         backward_output = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1});
+  Tensor device_labels = Tensor::create_pooled(mem_pool, config.dtype);
+  Tensor loss_gradient = Tensor::create_pooled(mem_pool, model->get_io_dtype());
+  Tensor predictions = Tensor::create_pooled(mem_pool, model->get_io_dtype()),
+         backward_output = Tensor::create_pooled(mem_pool, model->get_io_dtype());
 
   int grad_accum_counter = 0;
 
@@ -123,21 +123,6 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
       if (model->is_profiling_enabled()) {
         model->print_profiling_info();
       }
-      size_t cached_bytes = model->cached_memory_bytes();
-      cout << "Current cached memory usage: " << fixed << setprecision(2)
-           << (cached_bytes / (1024.0 * 1024.0)) << " MB" << endl;
-      size_t params_bytes = model->nbytes_params();
-      cout << "Current model parameters memory usage: " << fixed << setprecision(2)
-           << (params_bytes / (1024.0 * 1024.0)) << " MB" << endl;
-      size_t mem_pool_bytes = MemPool::instance(*model->get_device()).cached_bytes();
-      cout << "Global memory pool usage: " << fixed << setprecision(2)
-           << (mem_pool_bytes / (1024.0 * 1024.0)) << " MB" << endl;
-      cout << "Predictions byte size: "
-           << predictions->capacity() * get_dtype_size(predictions->data_type()) << " bytes"
-           << endl;
-      cout << "Backward output byte size: "
-           << backward_output->capacity() * get_dtype_size(backward_output->data_type()) << " bytes"
-           << endl;
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
            << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
            << "%" << endl;
@@ -319,8 +304,9 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  Tensor batch_data = Tensor::create(model->get_io_dtype()),
-         batch_labels = Tensor::create(model->get_io_dtype());
+  MemPool &mem_pool = MemPool::instance(*model->get_device());
+  Tensor batch_data = Tensor::create_pooled(mem_pool, model->get_io_dtype()),
+         batch_labels = Tensor::create_pooled(mem_pool, model->get_io_dtype());
 
   model->set_training(false);
   val_loader->reset();
