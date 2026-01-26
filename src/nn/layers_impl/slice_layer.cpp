@@ -18,23 +18,23 @@ SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::stri
 
 SliceLayer::~SliceLayer() = default;
 
-void SliceLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
-  micro_batch_original_shapes_[micro_batch_id] = input->shape();
+void SliceLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+  micro_batch_original_shapes_[mb_id] = input->shape();
 
   std::vector<size_t> output_shape = compute_output_shape(input->shape());
-  output->ensure(output_shape, this->device_);
+  output->ensure(output_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, "default");
 }
 
-void SliceLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id) {
-  auto it = micro_batch_original_shapes_.find(micro_batch_id);
+void SliceLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
   }
   const std::vector<size_t> &original_shape = it->second;
 
-  grad_input->ensure(original_shape, this->device_);
+  grad_input->ensure(original_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, gradient, grad_input, original_shape, "default");
 }
@@ -116,7 +116,6 @@ std::vector<size_t> SliceLayer::compute_output_shape(const std::vector<size_t> &
   output_shape[axis_] = length_;
   return output_shape;
 }
-
 
 LayerConfig SliceLayer::get_config() const {
   LayerConfig config;

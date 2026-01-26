@@ -11,7 +11,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {
@@ -28,11 +27,6 @@ private:
   Tensor gamma_gradients_;
   Tensor beta_gradients_;
 
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
-  std::unordered_map<size_t, Tensor> micro_batch_normalized_;
-  std::unordered_map<size_t, Tensor> micro_batch_inv_std_;
-  std::unordered_map<size_t, Tensor> group_mean_;
-
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_forward_fused(const Tensor &input, Tensor &group_mean,
                                           Tensor &group_inv_std, const Tensor &gamma,
@@ -48,9 +42,8 @@ private:
                                            const std::string &flow_id = "default") const;
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

@@ -63,42 +63,41 @@ void AttentionBlock::on_set_device(const Device &device) {
   out_proj_->set_device(device);
 }
 
-void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   const auto &input_shape = input->shape();
 
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
-  Tensor &q = this->get_cached_tensor(micro_batch_id, "q");
-  Tensor &k = this->get_cached_tensor(micro_batch_id, "k");
-  Tensor &v = this->get_cached_tensor(micro_batch_id, "v");
+  Tensor &q = this->get_cached_tensor(mb_id, "q");
+  Tensor &k = this->get_cached_tensor(mb_id, "k");
+  Tensor &v = this->get_cached_tensor(mb_id, "v");
   if (!q) {
     q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
     k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
     v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
   }
 
-  q_proj_->forward(input, q, micro_batch_id);
-  k_proj_->forward(input, k, micro_batch_id);
-  v_proj_->forward(input, v, micro_batch_id);
+  q_proj_->forward(input, q, mb_id);
+  k_proj_->forward(input, k, mb_id);
+  v_proj_->forward(input, v, mb_id);
 
   Tensor attn_out = this->get_buffer(input_shape, io_dtype_);
-  attn_out->ensure(input_shape, this->device_);
+  attn_out->ensure(input_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_attention_forward, q, k, v, attn_out, batch_size, seq_len,
                                  "default");
 
-  out_proj_->forward(attn_out, output, micro_batch_id);
+  out_proj_->forward(attn_out, output, mb_id);
 }
 
-void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
-  Tensor &q = this->get_cached_tensor(micro_batch_id, "q");
-  Tensor &k = this->get_cached_tensor(micro_batch_id, "k");
-  Tensor &v = this->get_cached_tensor(micro_batch_id, "v");
+void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &q = this->get_cached_tensor(mb_id, "q");
+  Tensor &k = this->get_cached_tensor(mb_id, "k");
+  Tensor &v = this->get_cached_tensor(mb_id, "v");
 
   Tensor d_attn_out = this->get_buffer(gradient->shape(), io_dtype_);
-  out_proj_->backward(gradient, d_attn_out, micro_batch_id);
+  out_proj_->backward(gradient, d_attn_out, mb_id);
 
   const auto &q_shape = q->shape();
   size_t batch_size = q_shape[0];
@@ -114,11 +113,11 @@ void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   Tensor dq_in = this->get_buffer(q->shape(), io_dtype_);
   Tensor dk_in = this->get_buffer(k->shape(), io_dtype_);
   Tensor dv_in = this->get_buffer(v->shape(), io_dtype_);
-  q_proj_->backward(dq, dq_in, micro_batch_id);
-  k_proj_->backward(dk, dk_in, micro_batch_id);
-  v_proj_->backward(dv, dv_in, micro_batch_id);
+  q_proj_->backward(dq, dq_in, mb_id);
+  k_proj_->backward(dk, dk_in, mb_id);
+  v_proj_->backward(dv, dv_in, mb_id);
 
-  grad_input->ensure(dq_in->shape(), this->device_);
+  grad_input->ensure(dq_in->shape());
   size_t size = dq_in->size();
 
   Tensor temp = this->get_buffer(dq_in->shape(), io_dtype_);

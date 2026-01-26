@@ -30,8 +30,7 @@ LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyMaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output,
-                                        size_t micro_batch_id) {
+void LegacyMaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
@@ -41,37 +40,36 @@ void LegacyMaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output,
   const size_t input_h = shape[2];
   const size_t input_w = shape[3];
 
-  micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels, input_h, input_w};
+  micro_batch_input_shapes_[mb_id] = {batch_size, channels, input_h, input_w};
 
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
   output->ensure({batch_size, channels, output_h, output_w});
 
-  Tensor &mask_indices = micro_batch_mask_indices_[micro_batch_id];
+  Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
   if (mask_indices == nullptr)
     mask_indices = Tensor::create<size_t>({batch_size, channels, output_h, output_w});
   else {
-    mask_indices->ensure({batch_size, channels, output_h, output_w}, this->device_);
+    mask_indices->ensure({batch_size, channels, output_h, output_w});
   }
 
   compute_max_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
-                           output_w, micro_batch_mask_indices_[micro_batch_id], "default");
+                           output_w, micro_batch_mask_indices_[mb_id], "default");
 }
 
-void LegacyMaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                         size_t micro_batch_id) {
-  auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
-  auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
+void LegacyMaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  auto it_mask = micro_batch_mask_indices_.find(mb_id);
+  auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_mask == micro_batch_mask_indices_.end()) {
     throw std::runtime_error("No cached mask found for micro-batch ID in LegacyMaxPool2DLayer: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
   if (it_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error(
         "No cached input shape found for micro-batch ID in LegacyMaxPool2DLayer: " +
-        std::to_string(micro_batch_id));
+        std::to_string(mb_id));
   }
 
   const Tensor &mask_indices = it_mask->second;

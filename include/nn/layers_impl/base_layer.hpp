@@ -148,7 +148,7 @@ public:
     srand_seed_ = seed;
   }
 
-  void forward(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) {
+  void forward(const Tensor &input, Tensor &output, size_t mb_id = 0) {
     if (!initialized_) {
       std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before forward."
                 << std::endl;
@@ -173,7 +173,11 @@ public:
       input->copy_to(device_input);
       current = &device_input;
     }
-    forward_impl(*current, output, micro_batch_id);
+    if (output->device() != this->device_) {
+      throw std::runtime_error("Layer " + name_ +
+                               " output tensor device does not match layer device.");
+    }
+    forward_impl(*current, output, mb_id);
 #ifndef NDEBUG
     this->device_->getFlow("default")->synchronize();
 #endif
@@ -181,7 +185,7 @@ public:
     profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
   }
 
-  void backward(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id = 0) {
+  void backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) {
     if (!initialized_) {
       std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before backward."
                 << std::endl;
@@ -206,7 +210,11 @@ public:
       gradient->copy_to(device_gradient);
       current_gradient = &device_gradient;
     }
-    backward_impl(*current_gradient, grad_input, micro_batch_id);
+    if (grad_input->device() != this->device_) {
+      throw std::runtime_error("Layer " + name_ +
+                               " grad_input tensor device does not match layer device.");
+    }
+    backward_impl(*current_gradient, grad_input, mb_id);
 #ifndef NDEBUG
     this->device_->getFlow("default")->synchronize();
 #endif
@@ -329,9 +337,8 @@ protected:
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
   virtual void init_impl() = 0;
-  virtual void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) = 0;
-  virtual void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                             size_t micro_batch_id = 0) = 0;
+  virtual void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) = 0;
+  virtual void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) = 0;
 
   // helpers
   Tensor make_param_tensor(std::vector<size_t> shape) {

@@ -172,7 +172,7 @@ static std::unique_ptr<LayerType> load_state(std::ifstream &file, const Device &
     layer->set_param_dtype(params[0]->data_type());
   }
   for (auto &param : params) {
-    Tensor::load_into(file, param, layer->get_device());
+    Tensor::load_into(file, param);
   }
   return layer;
 }

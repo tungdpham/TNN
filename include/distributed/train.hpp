@@ -115,9 +115,9 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader
 
     for (auto &job : forward_jobs) {
       float loss = 0.0f;
-      criterion->compute_loss(job->data, micro_batch_labels[job->micro_batch_id], loss);
+      criterion->compute_loss(job->data, micro_batch_labels[job->mb_id], loss);
       val_loss += loss;
-      val_correct += compute_class_corrects(job->data, micro_batch_labels[job->micro_batch_id]);
+      val_correct += compute_class_corrects(job->data, micro_batch_labels[job->mb_id]);
     }
     // Normalize loss by number of microbatches to match training loss semantics
     if (coordinator.num_microbatches() > 0) {

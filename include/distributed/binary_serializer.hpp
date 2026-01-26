@@ -107,7 +107,7 @@ public:
       // No additional data to write
     } else if (std::holds_alternative<Job>(data.payload)) {
       const auto &job = std::get<Job>(data.payload);
-      buffer.write(offset, static_cast<uint64_t>(job.micro_batch_id));
+      buffer.write(offset, static_cast<uint64_t>(job.mb_id));
       serialize(buffer, offset, job.data);
     } else if (std::holds_alternative<std::string>(data.payload)) {
       const auto &str = std::get<std::string>(data.payload);
@@ -183,7 +183,7 @@ public:
 
   template <Buffer BufferType>
   static void deserialize(const BufferType &buffer, size_t &offset, Job &job) {
-    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job.micro_batch_id));
+    buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job.mb_id));
     deserialize(buffer, offset, job.data);
   }
 

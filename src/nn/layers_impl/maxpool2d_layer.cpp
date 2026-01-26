@@ -31,7 +31,7 @@ MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::runtime_error("MaxPool2DLayer: input must be 4D (NHWC format)");
@@ -41,28 +41,27 @@ void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
   const size_t input_w = shape[2];
   const size_t channels = shape[3];
 
-  micro_batch_input_shapes_[micro_batch_id] = {batch_size, input_h, input_w, channels};
+  micro_batch_input_shapes_[mb_id] = {batch_size, input_h, input_w, channels};
 
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
   output->ensure({batch_size, output_h, output_w, channels});
 
-  Tensor &mask_indices = micro_batch_mask_indices_[micro_batch_id];
+  Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
   if (mask_indices == nullptr)
     mask_indices = Tensor::create<int>({batch_size, output_h, output_w, channels}, this->device_);
   else {
-    mask_indices->ensure({batch_size, output_h, output_w, channels}, this->device_);
+    mask_indices->ensure({batch_size, output_h, output_w, channels});
   }
 
   compute_max_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
-                           output_w, micro_batch_mask_indices_[micro_batch_id], "default");
+                           output_w, micro_batch_mask_indices_[mb_id], "default");
 }
 
-void MaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
-  auto it_mask = micro_batch_mask_indices_.find(micro_batch_id);
-  auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
+void MaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  auto it_mask = micro_batch_mask_indices_.find(mb_id);
+  auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_mask == micro_batch_mask_indices_.end()) {
     throw std::runtime_error("MaxPool2DLayer: forward must be called before backward");

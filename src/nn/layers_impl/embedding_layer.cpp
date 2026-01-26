@@ -41,13 +41,13 @@ void EmbeddingLayer::init_params() {
   grad_weight_->fill(0);
 }
 
-void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    auto &cached_input = micro_batch_inputs_[micro_batch_id];
+    auto &cached_input = micro_batch_inputs_[mb_id];
     if (!cached_input) {
       cached_input = Tensor::create(input->data_type(), input->shape(), this->device_);
     } else {
-      cached_input->ensure(input->shape(), this->device_);
+      cached_input->ensure(input->shape());
     }
     input->copy_to(cached_input);
   }
@@ -58,23 +58,22 @@ void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
 
   std::vector<size_t> out_shape = input->shape();
   out_shape.push_back(embed_dim_);
-  output->ensure(out_shape, this->device_);
+  output->ensure(out_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_forward_impl, input, weight_, output, num_tokens,
                                  vocab_size_, embed_dim_, padding_idx_, "default");
 }
 
-void EmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
-  auto it = micro_batch_inputs_.find(micro_batch_id);
+void EmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  auto it = micro_batch_inputs_.find(mb_id);
   if (it == micro_batch_inputs_.end()) {
-    throw std::runtime_error("EmbeddingLayer::backward: No cached input for micro_batch_id " +
-                             std::to_string(micro_batch_id));
+    throw std::runtime_error("EmbeddingLayer::backward: No cached input for mb_id " +
+                             std::to_string(mb_id));
   }
 
   const Tensor &input = it->second;
 
-  grad_input->ensure(input->shape(), this->device_);
+  grad_input->ensure(input->shape());
   grad_input->fill(0);
 
   size_t num_tokens = input->size();

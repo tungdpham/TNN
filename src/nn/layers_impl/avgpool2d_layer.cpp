@@ -28,7 +28,7 @@ AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void AvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void AvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: input must be 4D (NHWC format)");
   }
@@ -39,23 +39,22 @@ void AvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
   const size_t input_w = shape[2];
   const size_t channels = shape[3];
 
-  micro_batch_input_shapes_[micro_batch_id] = {batch_size, input_h, input_w, channels};
+  micro_batch_input_shapes_[mb_id] = {batch_size, input_h, input_w, channels};
 
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, channels}, this->device_);
+  output->ensure({batch_size, output_h, output_w, channels});
 
   compute_avg_pool_forward(input, output, batch_size, input_h, input_w, channels, output_h,
                            output_w, "default");
 }
 
-void AvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
+void AvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: gradient must be 4D (NHWC format)");
   }
-  auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
+  auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error("AvgPool2DLayer: forward must be called before backward");
@@ -70,7 +69,7 @@ void AvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  grad_input->ensure({batch_size, input_h, input_w, channels}, this->device_);
+  grad_input->ensure({batch_size, input_h, input_w, channels});
   grad_input->fill(0);
 
   compute_avg_pool_backward(gradient, grad_input, batch_size, input_h, input_w, channels, output_h,

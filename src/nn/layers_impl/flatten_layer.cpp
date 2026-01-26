@@ -12,21 +12,20 @@ namespace tnn {
 FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
     : StatelessLayer(name), start_dim_(start_dim), end_dim_(end_dim) {}
 
-void FlattenLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
-  micro_batch_original_shapes_[micro_batch_id] = input->shape();
+void FlattenLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+  micro_batch_original_shapes_[mb_id] = input->shape();
 
   std::vector<size_t> output_shape = compute_output_shape(input->shape());
-  output->ensure(output_shape, input->device());
+  output->ensure(output_shape);
 
   input->copy_to(output);
 }
 
-void FlattenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                 size_t micro_batch_id) {
-  auto it = micro_batch_original_shapes_.find(micro_batch_id);
+void FlattenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
   const std::vector<size_t> &original_shape = it->second;
   size_t expected_size =
@@ -34,7 +33,7 @@ void FlattenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   if (gradient->size() != expected_size) {
     throw std::runtime_error("Gradient size does not match original input size in FlattenLayer");
   }
-  grad_input->ensure(original_shape, gradient->device());
+  grad_input->ensure(original_shape);
   gradient->copy_to(grad_input);
 }
 

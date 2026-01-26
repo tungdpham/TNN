@@ -85,8 +85,8 @@ void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
   }
 }
 
-void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
-  input_shape_cache_[micro_batch_id] = input->shape();
+void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+  input_shape_cache_[mb_id] = input->shape();
 
   size_t max_size = 0;
   std::vector<size_t> current_shape = input->shape();
@@ -104,7 +104,7 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
   for (auto &layer : main_path_) {
     main_output = this->get_buffer(layer->compute_output_shape(current_input->shape()),
                                    current_input->data_type());
-    layer->forward(current_input, main_output, micro_batch_id);
+    layer->forward(current_input, main_output, mb_id);
     current_input = main_output;
   }
 
@@ -113,19 +113,19 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
   for (auto &layer : shortcut_path_) {
     shortcut_output = this->get_buffer(layer->compute_output_shape(current_input->shape()),
                                        current_input->data_type());
-    layer->forward(current_input, shortcut_output, micro_batch_id);
+    layer->forward(current_input, shortcut_output, mb_id);
     current_input = shortcut_output;
   }
 
-  output->ensure(main_output->shape(), this->device_);
+  output->ensure(main_output->shape());
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_output, shortcut_output, output, output->size());
 
   if (this->is_training_) {
-    Tensor &pre_act = this->get_cached_tensor(micro_batch_id, "pre_activation");
+    Tensor &pre_act = this->get_cached_tensor(mb_id, "pre_activation");
     if (!pre_act) {
       pre_act = make_io_tensor(output->shape());
     }
-    pre_act->ensure(output->shape(), this->device_);
+    pre_act->ensure(output->shape());
     output->copy_to(pre_act);
   }
 
@@ -134,12 +134,11 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mic
   }
 }
 
-void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                  size_t micro_batch_id) {
-  Tensor &pre_act = this->get_cached_tensor(micro_batch_id, "pre_activation");
+void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &pre_act = this->get_cached_tensor(mb_id, "pre_activation");
   if (final_activation_ && !pre_act) {
     throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
 
   Tensor grad_to_propagate = gradient;
@@ -149,10 +148,10 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
     final_activation_->compute_gradient(pre_act, gradient, grad_to_propagate);
   }
 
-  auto it_input_shape = input_shape_cache_.find(micro_batch_id);
+  auto it_input_shape = input_shape_cache_.find(mb_id);
   if (it_input_shape == input_shape_cache_.end()) {
     throw std::runtime_error("No cached input shape found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
 
   size_t max_size = 0;
@@ -172,7 +171,7 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   Tensor main_grad = grad_to_propagate;
   for (int i = static_cast<int>(main_path_.size()) - 1; i >= 0; --i) {
     main_grad = this->get_buffer({max_size}, current_grad->data_type());
-    main_path_[i]->backward(current_grad, main_grad, micro_batch_id);
+    main_path_[i]->backward(current_grad, main_grad, mb_id);
     current_grad = main_grad;
   }
 
@@ -181,12 +180,12 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
   if (!shortcut_path_.empty()) {
     for (int i = static_cast<int>(shortcut_path_.size()) - 1; i >= 0; --i) {
       shortcut_grad = this->get_buffer({max_size}, current_grad->data_type());
-      shortcut_path_[i]->backward(current_grad, shortcut_grad, micro_batch_id);
+      shortcut_path_[i]->backward(current_grad, shortcut_grad, mb_id);
       current_grad = shortcut_grad;
     }
   }
 
-  grad_input->ensure(main_grad->shape(), this->device_);
+  grad_input->ensure(main_grad->shape());
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_grad, shortcut_grad, grad_input,
                               grad_input->size());
 }

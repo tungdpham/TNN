@@ -106,7 +106,7 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const Tensor &gradient, Ten
   return nullptr;
 }
 
-void ClassTokenLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void ClassTokenLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayer: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
@@ -119,14 +119,13 @@ void ClassTokenLayer::forward_impl(const Tensor &input, Tensor &output, size_t m
     throw std::runtime_error("ClassTokenLayer: Input embed_dim must match layer embed_dim");
   }
 
-  output->ensure({batch_size, seq_len + 1, embed_dim}, this->device_);
+  output->ensure({batch_size, seq_len + 1, embed_dim});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(forward_task, input, output, class_token_, batch_size, seq_len,
                                  embed_dim, "default");
 }
 
-void ClassTokenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                    size_t micro_batch_id) {
+void ClassTokenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayer: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");
@@ -136,7 +135,7 @@ void ClassTokenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   size_t embed_dim = gradient->dimension(2);
   size_t seq_len = seq_len_plus_1 - 1;
 
-  grad_input->ensure({batch_size, seq_len, embed_dim}, this->device_);
+  grad_input->ensure({batch_size, seq_len, embed_dim});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, gradient, grad_input, class_token_gradients_,
                                  class_token_, batch_size, seq_len, embed_dim, "default");

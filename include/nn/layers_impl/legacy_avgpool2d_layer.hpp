@@ -54,9 +54,8 @@ private:
                                                   size_t output_h, size_t output_w,
                                                   const std::string &flow_id) const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "legacy_avgpool2d";

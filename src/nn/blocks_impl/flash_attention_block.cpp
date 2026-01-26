@@ -66,7 +66,7 @@ void FlashAttentionBlock::on_set_device(const Device &device) {
   out_proj_->set_device(device);
 }
 
-void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   const auto &input_shape = input->shape();
   if (input_shape.size() != 3) {
     throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E)");
@@ -91,9 +91,9 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
     throw std::runtime_error("FlashAttentionBlock SDPA requires FP16 io_dtype");
   }
 
-  Tensor &q = q_cache_[micro_batch_id];
-  Tensor &k = k_cache_[micro_batch_id];
-  Tensor &v = v_cache_[micro_batch_id];
+  Tensor &q = q_cache_[mb_id];
+  Tensor &k = k_cache_[mb_id];
+  Tensor &v = v_cache_[mb_id];
 
   if (q == nullptr) {
     q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
@@ -101,9 +101,9 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
     v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
   }
 
-  q_proj_->forward(input, q, micro_batch_id);
-  k_proj_->forward(input, k, micro_batch_id);
-  v_proj_->forward(input, v, micro_batch_id);
+  q_proj_->forward(input, q, mb_id);
+  k_proj_->forward(input, k, mb_id);
+  v_proj_->forward(input, v, mb_id);
 
   Tensor q_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
   Tensor k_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
@@ -149,12 +149,11 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
                     attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
-  out_proj_->forward(attn_out, output, micro_batch_id);
+  out_proj_->forward(attn_out, output, mb_id);
 #endif
 }
 
-void FlashAttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                        size_t micro_batch_id) {}
+void FlashAttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {}
 
 uint64_t FlashAttentionBlock::forward_flops(const std::vector<size_t> &input_shape) const {
   return 0;

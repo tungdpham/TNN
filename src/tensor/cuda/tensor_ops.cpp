@@ -152,7 +152,7 @@ void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t
   std::vector<size_t> new_shape = shape;
   new_shape[0] = new_batch_size;
   size_t batch_stride = input->stride(0);
-  result->resize(new_shape, input->device());
+  result = Tensor::create(input->data_type(), new_shape, input->device());
   const T *input_data = input->data_as<T>();
   T *result_data = result->data_as<T>();
 

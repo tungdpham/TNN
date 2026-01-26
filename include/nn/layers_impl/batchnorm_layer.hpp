@@ -68,16 +68,15 @@ private:
                                       const Tensor &batch_mean, const Tensor &batch_var,
                                       Tensor &workspace, const std::string &flow_id) const;
 
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id);
+  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
 #endif
 
   void init_params() override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,

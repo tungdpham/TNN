@@ -39,9 +39,8 @@ private:
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,

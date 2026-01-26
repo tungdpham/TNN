@@ -68,7 +68,7 @@ void Sequential::on_set_training(bool training) {
   }
 }
 
-void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
@@ -82,7 +82,7 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t micro_
       output = nullptr;
       output = this->get_buffer(layers_[i]->compute_output_shape(current_input->shape()),
                                 input->data_type());
-      layers_[i]->forward(current_input, output, micro_batch_id);
+      layers_[i]->forward(current_input, output, mb_id);
       current_input = output;
       auto end = Clock::now();
       this->profiler_.add_event(
@@ -97,7 +97,7 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
 }
 
-void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id) {
+void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
@@ -109,7 +109,7 @@ void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
     try {
       auto start = Clock::now();
       // no need to renew buffer since backward doesn't cache inputs
-      layers_[i]->backward(current_gradient, grad_input, micro_batch_id);
+      layers_[i]->backward(current_gradient, grad_input, mb_id);
       std::swap(current_gradient, grad_input);
       auto end = Clock::now();
       this->profiler_.add_event(

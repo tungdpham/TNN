@@ -28,8 +28,7 @@ LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output,
-                                        size_t micro_batch_id) {
+void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -40,28 +39,27 @@ void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output,
   const size_t input_h = shape[2];
   const size_t input_w = shape[3];
 
-  micro_batch_input_shapes_[micro_batch_id] = {batch_size, channels, input_h, input_w};
+  micro_batch_input_shapes_[mb_id] = {batch_size, channels, input_h, input_w};
 
   const size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, channels, output_h, output_w}, this->device_);
+  output->ensure({batch_size, channels, output_h, output_w});
 
   compute_avg_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
                            output_w, "default");
 }
 
-void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                         size_t micro_batch_id) {
+void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
-  auto it_shape = micro_batch_input_shapes_.find(micro_batch_id);
+  auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
   if (it_shape == micro_batch_input_shapes_.end()) {
     throw std::runtime_error(
         "No cached input shape found for micro-batch ID in LegacyAvgPool2DLayer: " +
-        std::to_string(micro_batch_id));
+        std::to_string(mb_id));
   }
 
   const auto &input_shape = it_shape->second;
@@ -73,7 +71,7 @@ void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_in
   const size_t output_h = grad_shape[2];
   const size_t output_w = grad_shape[3];
 
-  grad_input->ensure({batch_size, channels, input_h, input_w}, this->device_);
+  grad_input->ensure({batch_size, channels, input_h, input_w});
   grad_input->fill(0);
 
   compute_avg_pool_backward(gradient, grad_input, batch_size, channels, input_h, input_w, output_h,
@@ -166,7 +164,6 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward(
                               batch_size, channels, input_h, input_w, output_h, output_w, flow_id);
   return nullptr;
 }
-
 
 LayerConfig LegacyAvgPool2DLayer::get_config() const {
   LayerConfig config;

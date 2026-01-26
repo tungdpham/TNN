@@ -24,40 +24,39 @@ DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
   }
 }
 
-void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (!this->is_training_) {
-    output->ensure(input->shape(), this->device_);
+    output->ensure(input->shape());
     input->copy_to(output);
     return;
   }
 
-  Tensor &mask = micro_batch_masks_[micro_batch_id];
+  Tensor &mask = micro_batch_masks_[mb_id];
   if (mask == nullptr)
     mask = Tensor::create<float>(input->shape(), this->device_);
   else {
-    mask->ensure(input->shape(), this->device_);
+    mask->ensure(input->shape());
   }
-  output->ensure(input->shape(), this->device_);
+  output->ensure(input->shape());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_forward, input, output, mask, "default");
 }
 
-void DropoutLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                 size_t micro_batch_id) {
+void DropoutLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (!this->is_training_) {
-    grad_input->ensure(gradient->shape(), this->device_);
+    grad_input->ensure(gradient->shape());
     gradient->copy_to(grad_input);
     return;
   }
 
-  auto it_mask = micro_batch_masks_.find(micro_batch_id);
+  auto it_mask = micro_batch_masks_.find(mb_id);
   if (it_mask == micro_batch_masks_.end()) {
     throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
   const Tensor &mask = it_mask->second;
 
-  grad_input->ensure(gradient->shape(), this->device_);
+  grad_input->ensure(gradient->shape());
   gradient->copy_to(grad_input);
   grad_input->mul(mask);
 }

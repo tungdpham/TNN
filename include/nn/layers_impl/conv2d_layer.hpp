@@ -60,8 +60,8 @@ private:
                             Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w,
                             size_t output_h, size_t output_w, const std::string &flow_id) const;
 
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor &current_gradient, Tensor &grad_input, size_t micro_batch_id);
+  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const Tensor &current_gradient, Tensor &grad_input, size_t mb_id);
 
   std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
 #endif
@@ -71,9 +71,8 @@ private:
   void init_params() override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "conv2d";

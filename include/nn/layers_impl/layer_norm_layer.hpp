@@ -23,7 +23,6 @@ private:
   Tensor beta_;
   Tensor gamma_gradients_;
   Tensor beta_gradients_;
-  std::map<size_t, Tensor> micro_batch_inputs_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> layer_norm_forward(const Tensor &input, Tensor &output, const Tensor &gamma,
@@ -37,9 +36,8 @@ private:
                                             size_t batch_size, size_t channels,
                                             const std::string &flow_id = "default") const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

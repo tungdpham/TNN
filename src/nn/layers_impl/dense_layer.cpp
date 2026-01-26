@@ -52,7 +52,7 @@ void DenseLayer::init_params() {
   }
 }
 
-void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   const std::vector<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
@@ -67,13 +67,13 @@ void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   }
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
   std::vector<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
-  output->ensure(out_shape, this->device_);
+  output->ensure(out_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dense_forward, input, weights_, output, batch_size,
                                  input_features_, output_features_, "default");
@@ -84,14 +84,13 @@ void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   }
 }
 
-void DenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id) {
+void DenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in DenseLayer");
   }
-  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+  Tensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
-    throw std::runtime_error("No cached input found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+    throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
   const std::vector<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
@@ -99,7 +98,7 @@ void DenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
     batch_size *= in_shape[i];
   }
 
-  grad_input->ensure(input->shape(), this->device_);
+  grad_input->ensure(input->shape());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients, input, gradient, weight_gradients_,
                                  batch_size, input_features_, output_features_, "default");

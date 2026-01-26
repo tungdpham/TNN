@@ -38,12 +38,12 @@ private:
   Tensor weight_gradients_;
   Tensor bias_gradients_;
 
-  void def_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
-  void def_backward(const Tensor &current_gradient, Tensor &grad_input, size_t micro_batch_id);
+  void def_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void def_backward(const Tensor &current_gradient, Tensor &grad_input, size_t mb_id);
 
 #ifdef USE_CUDNN
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id);
+  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
 #endif
 
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
@@ -56,7 +56,6 @@ private:
   ConvolutionStats stats_;
 #ifdef USE_CUDNN
   cuda::cudnn_conv2d::ConvolutionHandle *convolution_handle_ = nullptr;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
   size_t max_workspace_ = 0;
 #endif
 
@@ -118,9 +117,8 @@ private:
 #endif
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

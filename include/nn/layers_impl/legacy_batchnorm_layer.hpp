@@ -11,7 +11,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {
@@ -33,16 +32,11 @@ private:
   Tensor dummy_mean_gradients_;
   Tensor dummy_var_gradients_;
 
-  std::unordered_map<size_t, Tensor> micro_batch_normalized_;
-  std::unordered_map<size_t, Tensor> micro_batch_inv_std_;
-  std::unordered_map<size_t, Tensor> batch_mean_fixed_;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_cache_;
-
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  void def_forward(const Tensor &input, Tensor &output, size_t micro_batch_id);
-  void def_backward(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id);
+  void def_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void def_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_inference_output_impl(const Tensor &input, Tensor &output,
@@ -57,9 +51,9 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
-  run_forward_fused(const Tensor &input, Tensor &batch_mean_fixed, Tensor &batch_inv_std,
+  run_forward_fused(const Tensor &input, Tensor &batch_mean, Tensor &batch_inv_std,
                     Tensor &running_mean, Tensor &running_var, const Tensor &gamma,
-                    const Tensor &beta, Tensor &output, Tensor &norm_cache, size_t batch_size,
+                    const Tensor &beta, Tensor &output, Tensor &norm, size_t batch_size,
                     size_t channels, size_t spatial_size, const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
@@ -70,9 +64,8 @@ private:
                                            const std::string &flow_id = "default");
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input,
-                     size_t micro_batch_id = 0) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 
@@ -91,8 +84,6 @@ public:
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<LegacyBatchNormLayer> create_from_config(const LayerConfig &config);
-
-  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

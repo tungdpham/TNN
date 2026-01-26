@@ -127,7 +127,7 @@ public:
     const std::string &first_stage = this->stage_names_.front();
 
     Job job;
-    job.micro_batch_id = microbatch_id;
+    job.mb_id = microbatch_id;
     job.data = std::move(input);
     Message forward_msg("coordinator", first_stage, CommandType::FORWARD_JOB, std::move(job));
 
@@ -147,7 +147,7 @@ public:
     const std::string &last_stage = this->stage_names_.back();
 
     Job job;
-    job.micro_batch_id = microbatch_id;
+    job.mb_id = microbatch_id;
     job.data = std::move(gradient);
     Message backward_msg("coordinator", last_stage, CommandType::BACKWARD_JOB, std::move(job));
 
@@ -224,14 +224,14 @@ public:
 
           Job &job = forward_msg.get<Job>();
           Tensor &predictions = job.data;
-          Tensor &targets = microbatch_labels[job.micro_batch_id];
+          Tensor &targets = microbatch_labels[job.mb_id];
           float loss = 0.0f;
           criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
           Tensor gradient = Tensor::create_pooled(MemPool::instance(getCPU()),
                                                   predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, targets, gradient);
-          this->backward(std::move(gradient), job.micro_batch_id);
+          this->backward(std::move(gradient), job.mb_id);
         }
       }
     }

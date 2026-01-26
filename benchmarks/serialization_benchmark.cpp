@@ -17,7 +17,7 @@ constexpr size_t microbatch_id = 2;
 signed main() {
   Tensor tensor = Tensor::create<float>({256, 512, 16, 16});
   Job job;
-  job.micro_batch_id = microbatch_id;
+  job.mb_id = microbatch_id;
   job.data = std::move(tensor);
   Message message("worker", "coordinator", CommandType::FORWARD_JOB, std::move(job));
 

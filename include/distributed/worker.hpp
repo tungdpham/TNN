@@ -103,9 +103,9 @@ protected:
       Tensor output_tensor = Tensor::create_pooled(
           MemPool::instance(*model_->get_device()), forward_job.data->data_type(),
           this->model_->compute_output_shape(forward_job.data->shape()));
-      this->model_->forward(forward_job.data, output_tensor, forward_job.micro_batch_id);
+      this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
       Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
-      Job output(cpu_output_tensor, forward_job.micro_batch_id);
+      Job output(cpu_output_tensor, forward_job.mb_id);
       auto forward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
@@ -118,9 +118,9 @@ protected:
       Tensor output_tensor =
           Tensor::create_pooled(MemPool::instance(*model_->get_device()),
                                 backward_job.data->data_type(), backward_job.data->shape());
-      this->model_->backward(backward_job.data, output_tensor, backward_job.micro_batch_id);
+      this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
       Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
-      Job output(cpu_output_tensor, backward_job.micro_batch_id);
+      Job output(cpu_output_tensor, backward_job.mb_id);
       auto backward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});

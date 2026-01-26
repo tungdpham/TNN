@@ -100,10 +100,10 @@ size_t Conv2DLayer::get_shape_hash(size_t n, size_t c, size_t h, size_t w) const
  * @tparam T
  * @param input input tensor in NHWC format
  * @param output output tensor in NHWC format
- * @param micro_batch_id micro batch id for caching input
+ * @param mb_id micro batch id for caching input
  */
 
-void Conv2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void Conv2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NHWC)");
   }
@@ -118,7 +118,7 @@ void Conv2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro
 
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_forward(input, output, micro_batch_id);
+    cudnn_forward(input, output, mb_id);
   } else
 #endif
   {
@@ -132,10 +132,10 @@ void Conv2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro
  * @tparam T
  * @param gradient upstream gradient tensor in NHWC format
  * @param grad_input output gradient tensor in NHWC format
- * @param micro_batch_id micro batch id for caching input
+ * @param mb_id micro batch id for caching input
  */
 
-void Conv2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t micro_batch_id) {
+void Conv2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::invalid_argument("Conv2D: Input tensor must be 4-dimensional (NHWC)");
   }
@@ -150,7 +150,7 @@ void Conv2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size
 
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_backward(gradient, grad_input, micro_batch_id);
+    cudnn_backward(gradient, grad_input, mb_id);
   }
 #endif
   else {
@@ -203,7 +203,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
                          use_bias_ ? bias_gradients->data() : nullptr, workspace->data());
 }
 
-void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id) {
   const size_t batch_size = input->dimension(0);
   const size_t input_h = input->dimension(1);
   const size_t input_w = input->dimension(2);
@@ -211,7 +211,7 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micr
   const size_t output_h = (input_h + 2 * pad_h_ - kernel_h_) / stride_h_ + 1;
   const size_t output_w = (input_w + 2 * pad_w_ - kernel_w_) / stride_w_ + 1;
 
-  output->ensure({batch_size, output_h, output_w, out_channels_}, this->device_);
+  output->ensure({batch_size, output_h, output_w, out_channels_});
 
   size_t shape_key = get_shape_hash(batch_size, in_channels_, input_h, input_w);
 
@@ -243,7 +243,7 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micr
   Tensor cudnn_workspace = this->get_buffer({workspace_elements});
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
@@ -252,12 +252,10 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micr
                                  output_h, output_w, "default");
 }
 
-void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
-                                 size_t micro_batch_id) {
-  Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
   if (!cached_input) {
-    throw std::runtime_error("No cached input found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+    throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
 
   const auto &input_shape = cached_input->shape();
@@ -268,7 +266,7 @@ void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
-  grad_input->ensure(input_shape, this->device_);
+  grad_input->ensure(input_shape);
 
   size_t shape_key = get_shape_hash(batch_size, in_channels_, input_h, input_w);
   cuda::cudnn_conv2d::feHandle_t *fe_handle = fe_handle_cache.at(shape_key);
@@ -282,7 +280,7 @@ void Conv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
   size_t workspace_elements = (max_backward_workspace + io_dtype_size - 1) / io_dtype_size;
   Tensor cudnn_workspace = this->get_buffer({workspace_elements});
 
-  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+  Tensor &input = this->get_cached_tensor(mb_id, "input");
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
                                  input, gradient, weight_gradients_, bias_gradients_,

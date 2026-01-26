@@ -16,23 +16,22 @@ ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
   }
 }
 
-void ActivationLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void ActivationLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
-  output->ensure(input->shape(), this->device_);
+  output->ensure(input->shape());
   activation_->apply(input, output);
 }
 
-void ActivationLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                    size_t micro_batch_id) {
-  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+void ActivationLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ActivationLayer");
   }
-  grad_input->ensure(input->shape(), this->device_);
+  grad_input->ensure(input->shape());
   activation_->compute_gradient(input, gradient, grad_input);
   input = nullptr;
 }

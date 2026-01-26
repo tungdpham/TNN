@@ -44,7 +44,7 @@ void GroupNormLayer::init_params() {
   this->initialized_ = true;
 }
 
-void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -59,20 +59,20 @@ void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
 
   output->ensure(input->shape());
 
-  Tensor &norm = micro_batch_normalized_[micro_batch_id];
+  Tensor &norm = this->get_cached_tensor(mb_id, "norm");
   if (norm == nullptr) {
     norm = make_io_tensor(input->shape());
   } else {
-    norm->ensure(input->shape(), this->device_);
+    norm->ensure(input->shape());
   }
 
-  Tensor &mean = group_mean_[micro_batch_id];
+  Tensor &mean = this->get_cached_tensor(mb_id, "mean");
   if (mean == nullptr) {
     mean = make_io_tensor({batch_size * num_groups_});
   } else {
-    mean->ensure({batch_size * num_groups_}, this->device_);
+    mean->ensure({batch_size * num_groups_});
   }
-  Tensor &inv_std = micro_batch_inv_std_[micro_batch_id];
+  Tensor &inv_std = this->get_cached_tensor(mb_id, "inv_std");
   if (inv_std == nullptr) {
     inv_std = make_io_tensor({batch_size * num_groups_});
   } else {
@@ -82,28 +82,20 @@ void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, mean, inv_std, gamma_, beta_, output,
                                  norm, batch_size, channels, spatial_size, "default");
 
-  Tensor &cached_input = micro_batch_inputs_[micro_batch_id];
-  cached_input->ensure(input->shape(), this->device_);
-  input->copy_to(cached_input);
+  if (this->is_training_) {
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    cached_input = input;
+  }
 }
 
-void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
-  auto it_input = micro_batch_inputs_.find(micro_batch_id);
-  auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
-
-  if (it_input == micro_batch_inputs_.end() || it_normalized == micro_batch_normalized_.end()) {
-    throw std::runtime_error("No cached data found for micro-batch ID in GroupNormLayer: " +
-                             std::to_string(micro_batch_id));
+void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &normalized = this->get_cached_tensor(mb_id, "norm");
+  Tensor &inv_std = this->get_cached_tensor(mb_id, "inv_std");
+  const Tensor &input = this->get_cached_tensor(mb_id, "input");
+  if (!normalized || !inv_std || !input) {
+    throw std::runtime_error("No cached tensors found for micro-batch ID in GroupNormLayer: " +
+                             std::to_string(mb_id));
   }
-
-  auto it_inv_std = micro_batch_inv_std_.find(micro_batch_id);
-  if (it_inv_std == micro_batch_inv_std_.end()) {
-    throw std::runtime_error("No cached inv_std found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
-  }
-
-  const Tensor &input = it_input->second;
 
   const size_t batch_size = input->dimension(0);
   const size_t channels = input->dimension(1);
@@ -111,9 +103,9 @@ void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
 
   grad_input->ensure(input->shape());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, it_normalized->second,
-                                 it_inv_std->second, gamma_, gamma_gradients_, beta_gradients_,
-                                 grad_input, batch_size, channels, spatial_size, "default");
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, normalized, inv_std, gamma_,
+                                 gamma_gradients_, beta_gradients_, grad_input, batch_size,
+                                 channels, spatial_size, "default");
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -187,7 +179,6 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
         grad_input->data_as<Compute_T>(), batch_size, channels, spatial_size, num_groups_, affine_);
   }
 }
-
 
 LayerConfig GroupNormLayer::get_config() const {
   LayerConfig config;

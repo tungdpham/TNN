@@ -44,8 +44,7 @@ void LegacyBatchNormLayer::init_params() {
   this->initialized_ = true;
 }
 
-void LegacyBatchNormLayer::forward_impl(const Tensor &input, Tensor &output,
-                                        size_t micro_batch_id) {
+void LegacyBatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -53,15 +52,14 @@ void LegacyBatchNormLayer::forward_impl(const Tensor &input, Tensor &output,
     throw std::invalid_argument("BatchNorm: Input channels must match num_features");
   }
 
-  def_forward(input, output, micro_batch_id);
+  def_forward(input, output, mb_id);
 }
 
-void LegacyBatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                         size_t micro_batch_id) {
-  def_backward(gradient, grad_input, micro_batch_id);
+void LegacyBatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  def_backward(gradient, grad_input, mb_id);
 }
 
-void LegacyBatchNormLayer::def_forward(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void LegacyBatchNormLayer::def_forward(const Tensor &input, Tensor &output, size_t mb_id) {
   size_t batch_size, channels, spatial_size;
   batch_size = input->dimension(0);
   channels = input->dimension(1);
@@ -71,30 +69,30 @@ void LegacyBatchNormLayer::def_forward(const Tensor &input, Tensor &output, size
     throw std::invalid_argument("BatchNorm: Input channels must match num_features.");
   }
 
-  output->ensure(input->shape(), this->device_);
+  output->ensure(input->shape());
 
-  Tensor &norm_cache = micro_batch_normalized_[micro_batch_id];
-  Tensor &batch_inv_std = micro_batch_inv_std_[micro_batch_id];
-  Tensor &batch_mean_fixed = batch_mean_fixed_[micro_batch_id];
+  Tensor &norm = this->get_cached_tensor(mb_id, "norm");
+  Tensor &batch_inv_std = this->get_cached_tensor(mb_id, "inv_std");
+  Tensor &batch_mean = this->get_cached_tensor(mb_id, "mean");
 
-  if (!norm_cache)
-    norm_cache = Tensor::create<float>({input->size()}, this->device_);
+  if (!norm)
+    norm = Tensor::create<float>({input->size()}, this->device_);
   else
-    norm_cache->ensure({input->size()}, this->device_);
+    norm->ensure({input->size()});
 
   if (!batch_inv_std)
     batch_inv_std = Tensor::create<float>({num_features_}, this->device_);
   else
-    batch_inv_std->ensure({num_features_}, this->device_);
+    batch_inv_std->ensure({num_features_});
 
-  if (!batch_mean_fixed)
-    batch_mean_fixed = Tensor::create<float>({num_features_}, this->device_);
+  if (!batch_mean)
+    batch_mean = Tensor::create<float>({num_features_}, this->device_);
   else
-    batch_mean_fixed->ensure({num_features_}, this->device_);
+    batch_mean->ensure({num_features_});
 
   if (this->is_training_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, batch_mean_fixed, batch_inv_std,
-                                   running_mean_, running_var_, gamma_, beta_, output, norm_cache,
+    DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, batch_mean, batch_inv_std,
+                                   running_mean_, running_var_, gamma_, beta_, output, norm,
                                    batch_size, channels, spatial_size, "default");
   } else {
     DISPATCH_ON_3_DTYPES_TO_METHOD(compute_inference_output_impl, input, output, batch_size,
@@ -102,29 +100,23 @@ void LegacyBatchNormLayer::def_forward(const Tensor &input, Tensor &output, size
   }
 }
 
-void LegacyBatchNormLayer::def_backward(const Tensor &gradient, Tensor &grad_input,
-                                        size_t micro_batch_id) {
-  auto it_normalized = micro_batch_normalized_.find(micro_batch_id);
+void LegacyBatchNormLayer::def_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &norm = this->get_cached_tensor(mb_id, "norm");
+  Tensor &inv_std = this->get_cached_tensor(mb_id, "inv_std");
+  Tensor &batch_mean = this->get_cached_tensor(mb_id, "mean");
 
-  if (it_normalized == micro_batch_normalized_.end()) {
-    throw std::runtime_error("No cached data found for micro-batch ID in LegacyBatchNormLayer: " +
-                             std::to_string(micro_batch_id));
-  }
-
-  auto it_inv_std = micro_batch_inv_std_.find(micro_batch_id);
-  if (it_inv_std == micro_batch_inv_std_.end()) {
-    throw std::runtime_error("No cached inv_std found for micro-batch ID: " +
-                             std::to_string(micro_batch_id));
+  if (!norm || !inv_std || !batch_mean) {
+    throw std::runtime_error("Missing cached tensors for backward pass in LegacyBatchNormLayer");
   }
 
   const size_t batch_size = gradient->dimension(0);
   const size_t channels = gradient->dimension(1);
   const size_t spatial_size = gradient->stride(1);
 
-  grad_input->ensure(gradient->shape(), this->device_);
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, it_normalized->second,
-                                 it_inv_std->second, gamma_, gamma_gradients_, beta_gradients_,
-                                 grad_input, batch_size, channels, spatial_size, "default");
+  grad_input->ensure(gradient->shape());
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, norm, inv_std, gamma_,
+                                 gamma_gradients_, beta_gradients_, grad_input, batch_size,
+                                 channels, spatial_size, "default");
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -182,26 +174,25 @@ LegacyBatchNormLayer::compute_inference_output(const Tensor &input, Tensor &outp
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayer::run_forward_fused(
-    const Tensor &input, Tensor &batch_mean_fixed, Tensor &batch_inv_std, Tensor &running_mean,
-    Tensor &running_var, const Tensor &gamma, const Tensor &beta, Tensor &output,
-    Tensor &norm_cache, size_t batch_size, size_t channels, size_t spatial_size,
-    const std::string &flow_id) {
+    const Tensor &input, Tensor &batch_mean, Tensor &batch_inv_std, Tensor &running_mean,
+    Tensor &running_var, const Tensor &gamma, const Tensor &beta, Tensor &output, Tensor &norm,
+    size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) {
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(
-        flow_id, cpu::batchnorm_nchw::run_forward_fused<IO_T>, input->data_as<IO_T>(),
-        batch_mean_fixed->data_as<float>(), batch_inv_std->data_as<float>(),
-        running_mean->data_as<float>(), running_var->data_as<float>(), gamma->data_as<float>(),
-        beta->data_as<float>(), output->data_as<IO_T>(), norm_cache->data_as<float>(), batch_size,
-        channels, spatial_size, momentum_, epsilon_, affine_);
+    return create_cpu_task(flow_id, cpu::batchnorm_nchw::run_forward_fused<IO_T>,
+                           input->data_as<IO_T>(), batch_mean->data_as<float>(),
+                           batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
+                           running_var->data_as<float>(), gamma->data_as<float>(),
+                           beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
+                           batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
-        flow_id, cuda::batchnorm_nchw::run_forward_fused<IO_T>, input->data_as<IO_T>(),
-        batch_mean_fixed->data_as<float>(), batch_inv_std->data_as<float>(),
-        running_mean->data_as<float>(), running_var->data_as<float>(), gamma->data_as<float>(),
-        beta->data_as<float>(), output->data_as<IO_T>(), norm_cache->data_as<float>(), batch_size,
-        channels, spatial_size, momentum_, epsilon_, affine_);
+    return create_gpu_task(flow_id, cuda::batchnorm_nchw::run_forward_fused<IO_T>,
+                           input->data_as<IO_T>(), batch_mean->data_as<float>(),
+                           batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
+                           running_var->data_as<float>(), gamma->data_as<float>(),
+                           beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
+                           batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
   }
 #endif
   else {
@@ -315,35 +306,6 @@ uint64_t LegacyBatchNormLayer::backward_flops(const std::vector<size_t> &input_s
   uint64_t input_grad_flops = 9 * num_elements;
 
   return param_grad_flops + input_grad_flops;
-}
-
-size_t LegacyBatchNormLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-
-  size_t normalized_cache_size = 0;
-  // Cached normalized outputs per micro-batch
-  for (const auto &pair : micro_batch_normalized_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    normalized_cache_size += pair.second->size() * dtype_size;
-  }
-
-  size_t inv_std_cache_size = 0;
-  // Cached inverse stddev per micro-batch
-  for (const auto &pair : micro_batch_inv_std_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    inv_std_cache_size += pair.second->size() * dtype_size;
-  }
-
-  size_t mean_cache_size = 0;
-  // Cached fixed batch means per micro-batch
-  for (const auto &pair : batch_mean_fixed_) {
-    size_t dtype_size = get_dtype_size(pair.second->data_type());
-    mean_cache_size += pair.second->size() * dtype_size;
-  }
-
-  total_bytes += normalized_cache_size + inv_std_cache_size + mean_cache_size;
-  total_bytes += Layer::cached_memory_bytes();
-  return total_bytes;
 }
 
 } // namespace tnn

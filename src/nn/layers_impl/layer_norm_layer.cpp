@@ -115,15 +115,10 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
   }
 }
 
-void LayerNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void LayerNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    Tensor &cached_input = micro_batch_inputs_[micro_batch_id];
-    if (cached_input == nullptr)
-      cached_input = make_io_tensor(input->shape());
-    else {
-      cached_input->ensure(input->shape(), this->device_);
-    }
-    input->copy_to(cached_input);
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    cached_input = input;
   }
   const auto &shape = input->shape();
   size_t last_dim = shape.back();
@@ -134,7 +129,7 @@ void LayerNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
                                 std::to_string(normalized_shape_) + ") in LayerNormLayer");
   }
 
-  output->ensure(shape, this->device_);
+  output->ensure(shape);
 
   size_t channels = last_dim;
   size_t batch_size = 1;
@@ -146,16 +141,14 @@ void LayerNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
                                  channels, "default");
 }
 
-void LayerNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
-  if (micro_batch_inputs_.find(micro_batch_id) == micro_batch_inputs_.end()) {
+void LayerNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &input = this->get_cached_tensor(mb_id, "input");
+  if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");
   }
 
-  const Tensor &input = micro_batch_inputs_[micro_batch_id];
-
   const auto &shape = input->shape();
-  grad_input->ensure(shape, this->device_);
+  grad_input->ensure(shape);
 
   size_t last_dim = shape.back();
   size_t channels = last_dim;

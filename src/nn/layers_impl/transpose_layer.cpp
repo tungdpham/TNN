@@ -42,7 +42,7 @@ std::unique_ptr<Task> TransposeLayer::permute(const Tensor &input, Tensor &outpu
   return nullptr;
 }
 
-void TransposeLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void TransposeLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error("TransposeLayer expects 3D input (Batch, D1, D2)");
   }
@@ -51,13 +51,12 @@ void TransposeLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
   size_t H = input->dimension(2);
   size_t D = 1;
 
-  output->ensure({B, H, L}, this->device_);
+  output->ensure({B, H, L});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, "default");
 }
 
-void TransposeLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
+void TransposeLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
   // Gradient is (B, H, L). We want (B, L, H).
   if (gradient->dims() != 3) {
     throw std::runtime_error("TransposeLayer: Gradient must be 3D");
@@ -68,7 +67,7 @@ void TransposeLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
   size_t L = gradient->dimension(2);
   size_t D = 1;
 
-  grad_input->ensure({B, L, H}, this->device_);
+  grad_input->ensure({B, L, H});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, gradient, grad_input, B, H, L, D, "default");
 }
@@ -79,7 +78,6 @@ TransposeLayer::compute_output_shape(const std::vector<size_t> &input_shape) con
     throw std::runtime_error("TransposeLayer expects 3 dims (B, D1, D2)");
   return {input_shape[0], input_shape[2], input_shape[1]};
 }
-
 
 LayerConfig TransposeLayer::get_config() const {
   LayerConfig config;

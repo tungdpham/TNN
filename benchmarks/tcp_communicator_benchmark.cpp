@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
     Tensor tensor = Tensor::create<float>({128, 512, 16, 16});
     tensor->fill_random_normal(0.0f, .2f, 12345);
     Job job;
-    job.micro_batch_id = 0;
+    job.mb_id = 0;
     job.data = std::move(tensor);
     Message message(local_endpoint, peer_endpoint, CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message));

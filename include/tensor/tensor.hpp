@@ -111,8 +111,8 @@ public:
   virtual const void *data() const = 0;
 
   // Operations
-  virtual void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) = 0;
-  virtual void ensure(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) = 0;
+  virtual void resize(const std::vector<size_t> &new_shape) = 0;
+  virtual void ensure(const std::vector<size_t> &new_shape) = 0;
   virtual void copy_to(Tensor &target) const = 0;
   virtual Tensor to_cpu() const = 0;
   virtual Tensor to_gpu(int gpu_id = 0) const = 0;
@@ -181,7 +181,7 @@ public:
 
   template <typename T> static Tensor load(std::ifstream &in, const Device *device = &getCPU());
 
-  static void load_into(std::ifstream &in, Tensor &target, const Device *device = &getCPU());
+  static void load_into(std::ifstream &in, Tensor &target);
 };
 
 /**
@@ -669,15 +669,7 @@ public:
     ops::cd_copy<T>(data_, target_typed->data_, data_size_);
   }
 
-  void resize(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) override {
-    if (new_device != nullptr && new_device != device()) {
-      data_.reset();
-      shape_ = new_shape;
-      data_size_ =
-          std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-      data_ = allocate_data(new_device, data_size_);
-      return;
-    }
+  void resize(const std::vector<size_t> &new_shape) override {
     if (new_shape == shape_) {
       return;
     }
@@ -695,14 +687,7 @@ public:
    * Similar to resize but only reallocates if the new size is larger than
    * the current allocated size. Good for caching.
    */
-  void ensure(const std::vector<size_t> &new_shape, const Device *new_device = nullptr) override {
-    if (new_device != nullptr && new_device != device()) {
-      shape_ = new_shape;
-      data_size_ =
-          std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-      data_ = allocate_data(new_device, data_size_);
-      return;
-    }
+  void ensure(const std::vector<size_t> &new_shape) override {
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size * sizeof(T) > data_.capacity()) {
@@ -1110,7 +1095,7 @@ template <typename T> inline Tensor Tensor::load(std::ifstream &in, const Device
   return tensor;
 }
 
-inline void Tensor::load_into(std::ifstream &in, Tensor &target, const Device *device) {
+inline void Tensor::load_into(std::ifstream &in, Tensor &target) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }
@@ -1125,9 +1110,9 @@ inline void Tensor::load_into(std::ifstream &in, Tensor &target, const Device *d
     throw std::runtime_error("Failed to read tensor shape from file");
   }
 
-  target->resize(shape, device);
+  target = Tensor::create(dtype, shape, target->device());
 
-  if (device->device_type() == DeviceType::CPU) {
+  if (target->device_type() == DeviceType::CPU) {
     in.read(reinterpret_cast<char *>(target->data()), target->size() * get_dtype_size(dtype));
     if (in.gcount() != static_cast<std::streamsize>(target->size() * get_dtype_size(dtype))) {
       throw std::runtime_error("Failed to read tensor data from file");
@@ -1138,7 +1123,8 @@ inline void Tensor::load_into(std::ifstream &in, Tensor &target, const Device *d
     if (in.gcount() != static_cast<std::streamsize>(target->size() * get_dtype_size(dtype))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
-    device->copyToDevice(target->data(), host_buffer, target->size() * get_dtype_size(dtype));
+    target->device()->copyToDevice(target->data(), host_buffer,
+                                   target->size() * get_dtype_size(dtype));
     free(host_buffer);
   }
 }

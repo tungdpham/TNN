@@ -76,7 +76,7 @@ struct MessageData {
 
     } else if (std::holds_alternative<Job>(payload)) {
       const auto &job = std::get<Job>(payload);
-      size += sizeof(uint64_t); // micro_batch_id
+      size += sizeof(uint64_t); // mb_id
       size += sizeof(uint64_t); // shape size (uint64_t in serialization)
       size +=
           job.data->shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)

@@ -81,9 +81,9 @@ size_t BatchNormLayer::get_shape_hash(size_t n, size_t c, size_t h, size_t w) co
  * @brief Forward pass for BatchNormLayer
  * @param input Tensor in NHWC format
  * @param output Tensor in NHWC format
- * @param micro_batch_id Micro-batch identifier for caching
+ * @param mb_id Micro-batch identifier for caching
  */
-void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() < 4) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 4 dimensions got " +
                                 std::to_string(input->dims()) + " dims");
@@ -96,7 +96,7 @@ void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
 
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_forward(input, output, micro_batch_id);
+    cudnn_forward(input, output, mb_id);
   } else
 #endif
   {
@@ -104,11 +104,10 @@ void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
   }
 }
 
-void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
-                                   size_t micro_batch_id) {
+void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
-    cudnn_backward(gradient, grad_input, micro_batch_id);
+    cudnn_backward(gradient, grad_input, mb_id);
   } else
 #endif
   {
@@ -117,7 +116,7 @@ void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
 }
 
 #ifdef USE_CUDNN
-void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t micro_batch_id) {
+void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id) {
   const size_t batch_size = input->dimension(0);
   const size_t height = input->dimension(1);
   const size_t width = input->dimension(2);
@@ -128,7 +127,7 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
                                 std::to_string(channels));
   }
 
-  output->ensure(input->shape(), this->device_);
+  output->ensure(input->shape());
 
   size_t shape_key = get_shape_hash(batch_size, channels, height, width);
 
@@ -154,12 +153,12 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   round_workspace_size(current_stats);
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(micro_batch_id, "input");
+    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
-  Tensor &batch_invar = this->get_cached_tensor(micro_batch_id, "batch_invar");
-  Tensor &batch_mean = this->get_cached_tensor(micro_batch_id, "batch_mean");
+  Tensor &batch_invar = this->get_cached_tensor(mb_id, "batch_invar");
+  Tensor &batch_mean = this->get_cached_tensor(mb_id, "batch_mean");
   if (batch_invar == nullptr) {
     batch_invar = make_io_tensor({num_features_});
   }
@@ -184,20 +183,19 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   }
 }
 
-void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
-                                    size_t micro_batch_id) {
-  Tensor &input = this->get_cached_tensor(micro_batch_id, "input");
+void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID in BatchNormLayer: " +
-                             std::to_string(micro_batch_id));
+                             std::to_string(mb_id));
   }
 
-  Tensor &batch_mean = this->get_cached_tensor(micro_batch_id, "batch_mean");
-  Tensor &batch_invar = this->get_cached_tensor(micro_batch_id, "batch_invar");
+  Tensor &batch_mean = this->get_cached_tensor(mb_id, "batch_mean");
+  Tensor &batch_invar = this->get_cached_tensor(mb_id, "batch_invar");
   if (!batch_mean || !batch_invar) {
     throw std::runtime_error(
         "No cached batch statistics found for micro-batch ID in BatchNormLayer: " +
-        std::to_string(micro_batch_id));
+        std::to_string(mb_id));
   }
 
   const auto &input_shape = input->shape();
@@ -213,7 +211,7 @@ void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input,
   size_t io_dtype_size = get_dtype_size(io_dtype_);
   Tensor workspace = this->get_buffer(
       {(current_stats.bwd_workspace_size + io_dtype_size - 1) / io_dtype_size}, io_dtype_);
-  grad_input->ensure(gradient->shape(), this->device_);
+  grad_input->ensure(gradient->shape());
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, input,
                                  grad_input, gamma_, gamma_gradients_, beta_gradients_, batch_mean,
