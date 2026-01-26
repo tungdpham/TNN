@@ -1,27 +1,28 @@
 # Examples
-create_default(hardware_info_example hardware_info_example.cpp)
-create_default(device_manager_example device_manager_example.cpp)
+create_executable(hardware_info_example.cpp LIBS tnn_nn)
+create_executable(device_manager_example.cpp LIBS tnn_nn)
 
 # Network executables
-create_default(tcp_worker tcp_worker.cpp)
-create_default(tcp_coordinator tcp_coordinator.cpp)
+create_executable(tcp_worker.cpp LIBS tnn_lib)
+create_executable(tcp_coordinator.cpp LIBS tnn_lib)
 
-create_default(roce_worker roce_worker.cpp)
-create_default(roce_coordinator roce_coordinator.cpp)
+create_executable(roce_worker.cpp LIBS tnn_lib)
+create_executable(roce_coordinator.cpp LIBS tnn_lib)
 
 # Inspection executables
-create_default(inspect_openwebtext inspect_openwebtext.cpp)
+create_executable(inspect_openwebtext.cpp LIBS tnn_nn)
 
 # Training executables
-create_default(trainer trainer.cpp)
+create_executable(trainer.cpp LIBS tnn_nn)
 
 # Inference executables
-create_default(inferencer inferencer.cpp)
+create_executable(inferencer.cpp LIBS tnn_nn)
 
 # Inference executables
-create_default(gpt2_inference gpt2_inference.cpp)
+create_executable(gpt2_inference.cpp LIBS tnn_nn)
 
 # Test executables
-create_default(fp16_test fp16_test.cpp)
-create_default(correctness_test correctness_test.cpp)
-create_default(sequential_test sequential_test.cpp)
+create_executable(fp16_test.cpp LIBS tnn_nn)
+create_executable(correctness_test.cpp LIBS tnn_nn)
+create_executable(sequential_test.cpp LIBS tnn_nn)
+create_executable(tensor_usage_test.cpp LIBS tnn_nn)

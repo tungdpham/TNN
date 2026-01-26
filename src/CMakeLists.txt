@@ -1,4 +1,5 @@
 # TNN CMakeLists.txt
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # CUDA module
 if(ENABLE_CUDA)
@@ -9,6 +10,11 @@ if(ENABLE_CUDA)
     target_include_directories(tnn_cuda PUBLIC 
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
         $<INSTALL_INTERFACE:include>
+    )
+    # enable separable compilation for CUDA device code linking
+    set_target_properties(tnn_cuda PROPERTIES 
+        CUDA_SEPARABLE_COMPILATION ON
+        CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
     target_link_libraries(tnn_cuda PUBLIC CUDA::cudart CUDA::cublas)
     if(ENABLE_CUDNN)
@@ -219,7 +225,7 @@ target_include_directories(tnn_nn PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading tnn_type)
+target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading tnn_type tnn_logging)
 target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)
@@ -266,31 +272,51 @@ target_link_libraries(tnn_distributed PUBLIC tnn_nn tnn_partitioner tnn_logging 
 target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
 target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
-# Main TNN library
-set(TNN_MODULES tnn_type tnn_device tnn_threading tnn_ops tnn_logging tnn_matrix tnn_tensor tnn_data_augmentation tnn_data_loading tnn_nn tnn_utils tnn_math tnn_distributed)
+# Main TNN library - Single SHARED library bundling all static modules
+set(TNN_MODULES tnn_type tnn_device tnn_threading tnn_ops tnn_logging tnn_matrix tnn_tensor tnn_data_augmentation tnn_data_loading tnn_nn tnn_utils tnn_math tnn_distributed tnn_profiling tnn_partitioner)
 if(ENABLE_CUDA)
     list(APPEND TNN_MODULES tnn_cuda)
 endif()
 
-add_library(tnn_lib INTERFACE)
-target_include_directories(tnn_lib INTERFACE
+# Create the main shared library with entry point source file
+add_library(tnn_lib SHARED tnn_lib.cpp)
+
+# Set library output name (libtnn.so on Linux, tnn.dll on Windows)
+set_target_properties(tnn_lib PROPERTIES
+    OUTPUT_NAME "tnn"
+    VERSION 0.1.0
+    SOVERSION 1
+)
+
+# Configure symbol visibility for cleaner API
+set_target_properties(tnn_lib PROPERTIES
+    CXX_VISIBILITY_PRESET hidden
+    VISIBILITY_INLINES_HIDDEN ON
+)
+
+# Include directories
+target_include_directories(tnn_lib PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
+
+# Link all internal static modules into the shared library
+target_link_libraries(tnn_lib PUBLIC ${TNN_MODULES})
+
+# Platform-specific system libraries
 if(NOT MSVC)
-    target_link_libraries(tnn_lib INTERFACE ${TNN_MODULES} m pthread)
-else()
-    target_link_libraries(tnn_lib INTERFACE ${TNN_MODULES})
+    target_link_libraries(tnn_lib PUBLIC m pthread)
 endif()
 
 if(WIN32)
-    target_link_libraries(tnn_lib INTERFACE ws2_32 wsock32 mswsock)
+    target_link_libraries(tnn_lib PUBLIC ws2_32 wsock32 mswsock)
     if(MINGW)
-        target_link_libraries(tnn_lib INTERFACE iphlpapi)
+        target_link_libraries(tnn_lib PUBLIC iphlpapi)
     endif()
 endif()
 
 
+# Link external dependencies to static modules
 foreach(lib ${TNN_MODULES})
     link_tbb(PUBLIC ${lib})
     link_cuda(PUBLIC ${lib})
@@ -298,7 +324,8 @@ foreach(lib ${TNN_MODULES})
     link_openmp(PUBLIC ${lib})
 endforeach()
 
-link_tbb(INTERFACE tnn_lib)
-link_cuda(INTERFACE tnn_lib)
-link_mkl(INTERFACE tnn_lib)
-link_openmp(INTERFACE tnn_lib)
+# Link external dependencies to the main shared library
+link_tbb(PUBLIC tnn_lib)
+link_cuda(PUBLIC tnn_lib)
+link_mkl(PUBLIC tnn_lib)
+link_openmp(PUBLIC tnn_lib)

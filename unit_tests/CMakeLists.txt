@@ -2,19 +2,6 @@
 
 include(GoogleTest)
 
-function(create_test test_name)
-    add_executable(${test_name} ${test_name}.cpp)
-    
-    target_link_libraries(${test_name} PRIVATE
-        gtest_main
-        gtest
-        gmock
-        tnn_lib
-    )
-    
-    gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
-endfunction()
-
 set(TEST_FILES 
     tensor_test.cpp
     slice_ops_test.cpp
@@ -43,38 +30,6 @@ set(TEST_FILES
 
 foreach(test_file IN LISTS TEST_FILES)
     get_filename_component(test_name ${test_file} NAME_WE)
-    create_test(${test_name})
+    create_executable(${test_file} LIBS tnn_lib gtest_main gtest gmock)
+    gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
 endforeach()
-
-# CUDA test (only if CUDA is enabled)
-if(ENABLE_CUDA)
-    function(create_cuda_test test_name)
-        add_executable(${test_name} ${test_name}.cpp)
-        
-        set_target_properties(${test_name} PROPERTIES 
-            CUDA_ARCHITECTURES ${DETECTED_CUDA_ARCH}
-            CUDA_STANDARD 17
-            CUDA_SEPARABLE_COMPILATION ON
-        )
-        
-        target_link_libraries(${test_name} PRIVATE
-            gtest_main
-            gtest
-            gmock
-            tnn_lib
-        )
-        
-        gtest_discover_tests(${test_name} DISCOVERY_MODE PRE_TEST)
-    endfunction()
-
-    set(CUDA_TEST_TARGET cuda_kernels_test)
-else()
-    set(CUDA_TEST_TARGET "")
-endif()
-
-add_custom_target(run_tests
-    COMMAND ${CMAKE_CTEST_COMMAND} --verbose
-    DEPENDS ${TEST_FILES}
-    ${CUDA_TEST_TARGET}
-    COMMENT "Running all unit tests"
-)
