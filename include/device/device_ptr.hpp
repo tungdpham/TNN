@@ -105,11 +105,7 @@ public:
     capacity_ = new_size;
   }
 
-  void ensure(size_t required_count, const Device *device = nullptr) {
-    if (device != nullptr && this->device_ != device) {
-      reset();
-      this->device_ = device;
-    }
+  void ensure(size_t required_count) {
     if (capacity_ < required_count) {
       resize(required_count);
     }
