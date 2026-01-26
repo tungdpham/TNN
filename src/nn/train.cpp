@@ -106,17 +106,15 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     total_corrects += compute_class_corrects(predictions, device_labels);
 
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
-
     model->backward(loss_gradient, backward_output);
 
     if (++grad_accum_counter == config.gradient_accumulation_steps) {
       grad_accum_counter = 0;
       optimizer->update();
       optimizer->clear_gradients();
-    }
-
-    if (scheduler) {
-      scheduler->step();
+      if (scheduler) {
+        scheduler->step();
+      }
     }
 
     if (num_batches % config.progress_print_interval == 0) {
@@ -238,6 +236,9 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
         grad_accum_counter = 0;
         optimizer->update();
         optimizer->clear_gradients();
+        if (scheduler) {
+          scheduler->step();
+        }
       }
 
       if (steps % config.progress_print_interval == 0) {
@@ -249,9 +250,6 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
       }
       if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
         model->reset_profiling_info();
-      }
-      if (scheduler) {
-        scheduler->step();
       }
     }
 
