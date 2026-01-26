@@ -37,7 +37,7 @@ private:
       return;
 
     const size_t batch_size = shape[0];
-    auto typed_data = tensor_cast<T>(data);
+    auto typed_data = Tensor::cast<T>(data);
     T *ptr = static_cast<T *>(typed_data->data());
 
     for (size_t b = 0; b < batch_size; ++b) {

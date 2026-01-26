@@ -33,7 +33,7 @@ void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t micr
 
   Tensor &mask = micro_batch_masks_[micro_batch_id];
   if (mask == nullptr)
-    mask = make_tensor<float>(input->shape(), this->device_);
+    mask = Tensor::create<float>(input->shape(), this->device_);
   else {
     mask->ensure(input->shape(), this->device_);
   }

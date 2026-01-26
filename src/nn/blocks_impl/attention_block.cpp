@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/blocks_impl/attention_block.hpp"
+#include "type/type.hpp"
 #ifdef USE_CUDA
 #include "device/cuda/cuda_context.hpp"
 #include "math/cuda/gemm.hpp"
@@ -171,6 +172,23 @@ void AttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
   grads.insert(grads.end(), v_grads.begin(), v_grads.end());
   auto out_grads = out_proj_->gradients();
   grads.insert(grads.end(), out_grads.begin(), out_grads.end());
+}
+
+size_t AttentionBlock::cached_memory_bytes() const {
+  size_t total = 0;
+  for (const auto &pair : q_cache_) {
+    size_t dtype_size = get_dtype_size(pair.second->data_type());
+    total += pair.second->capacity() * dtype_size;
+  }
+  for (const auto &pair : k_cache_) {
+    size_t dtype_size = get_dtype_size(pair.second->data_type());
+    total += pair.second->capacity() * dtype_size;
+  }
+  for (const auto &pair : v_cache_) {
+    size_t dtype_size = get_dtype_size(pair.second->data_type());
+    total += pair.second->capacity() * dtype_size;
+  }
+  return total;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

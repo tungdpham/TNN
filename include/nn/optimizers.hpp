@@ -163,8 +163,8 @@ protected:
       velocities_.resize(this->parameters_.size());
       for (size_t i = 0; i < this->parameters_.size(); ++i) {
         velocities_[i] =
-            make_tensor_from_dtype(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
-                                   this->parameters_[i]->device());
+            Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                           this->parameters_[i]->device());
         velocities_[i]->fill(0.0f);
       }
     }
@@ -254,11 +254,11 @@ protected:
     m_.resize(this->parameters_.size());
     v_.resize(this->parameters_.size());
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
-      m_[i] = make_tensor_from_dtype(this->parameters_[i]->data_type(),
-                                     this->parameters_[i]->shape(), this->parameters_[i]->device());
+      m_[i] = Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                             this->parameters_[i]->device());
       m_[i]->fill(0.0f);
-      v_[i] = make_tensor_from_dtype(this->parameters_[i]->data_type(),
-                                     this->parameters_[i]->shape(), this->parameters_[i]->device());
+      v_[i] = Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                             this->parameters_[i]->device());
       v_[i]->fill(0.0f);
     }
     t_ = 0;

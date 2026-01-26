@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "device/mem_pool.hpp"
 #include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -227,9 +228,8 @@ public:
           float loss = 0.0f;
           criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
-          Tensor gradient =
-              make_pooled_tensor_from_dtype(global_mem_pool(), predictions->data_type(),
-                                            predictions->shape(), predictions->device());
+          Tensor gradient = Tensor::create_pooled(MemPool::instance(getCPU()),
+                                                  predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, targets, gradient);
           this->backward(std::move(gradient), job.micro_batch_id);
         }

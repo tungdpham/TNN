@@ -15,13 +15,13 @@ signed main() {
     param->fill(1.0);
   }
 
-  Tensor input = make_tensor<float>({1, 4, 4, 3});
+  Tensor input = Tensor::create<float>({1, 4, 4, 3});
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 48; i++) {
     input_data[i] = static_cast<float>(i + 1);
   }
   Tensor device_input = input->to_device(&getGPU());
-  Tensor output = make_tensor<float>({1, 4, 4, 6}, &getGPU());
+  Tensor output = Tensor::create<float>({1, 4, 4, 6}, &getGPU());
   conv_layer.forward(device_input, output);
 
   output->print_data();

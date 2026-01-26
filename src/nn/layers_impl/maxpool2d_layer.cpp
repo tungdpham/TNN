@@ -50,7 +50,7 @@ void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mi
 
   Tensor &mask_indices = micro_batch_mask_indices_[micro_batch_id];
   if (mask_indices == nullptr)
-    mask_indices = make_tensor<int>({batch_size, output_h, output_w, channels}, this->device_);
+    mask_indices = Tensor::create<int>({batch_size, output_h, output_w, channels}, this->device_);
   else {
     mask_indices->ensure({batch_size, output_h, output_w, channels}, this->device_);
   }

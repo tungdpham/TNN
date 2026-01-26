@@ -69,7 +69,7 @@ private:
       throw std::invalid_argument("NormalizationAugmentation: unsupported number of channels");
     }
 
-    auto typed_data = tensor_cast<T>(data);
+    auto typed_data = Tensor::cast<T>(data);
     T *ptr = static_cast<T *>(typed_data->data());
 
     // Apply normalization to each image in the batch

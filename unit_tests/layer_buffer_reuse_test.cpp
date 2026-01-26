@@ -28,15 +28,15 @@ TEST(LayerBufferReuseTest, Conv2DConsistentOutput) {
   layer->set_device(getCPU());
   layer->init();
 
-  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output1 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output1 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output1, 0);
   Tensor output1_copy = output1->clone();
 
-  Tensor output2 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output2 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output2, 0);
 
   ASSERT_EQ(output1_copy->shape(), output2->shape());
@@ -55,15 +55,15 @@ TEST(LayerBufferReuseTest, DenseConsistentOutput) {
   layer->set_device(getCPU());
   layer->init();
 
-  Tensor input = make_tensor<float>({batch_size, input_features, 1, 1}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, input_features, 1, 1}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output1 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output1 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output1, 0);
   Tensor output1_copy = output1->clone();
 
-  Tensor output2 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output2 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output2, 0);
 
   ASSERT_EQ(output1_copy->shape(), output2->shape());
@@ -83,15 +83,15 @@ TEST(LayerBufferReuseTest, MaxPool2DConsistentOutput) {
   auto layer = std::make_unique<LegacyMaxPool2DLayer>(2, 2, 2, 2, 0, 0, "test_pool");
   layer->set_device(getCPU());
 
-  Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, channels, input_h, input_w}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output1 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output1 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output1, 0);
   Tensor output1_copy = output1->clone();
 
-  Tensor output2 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output2 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output2, 0);
 
   ASSERT_EQ(output1_copy->shape(), output2->shape());
@@ -113,15 +113,15 @@ TEST(LayerBufferReuseTest, ActivationConsistentOutput) {
   auto layer = std::make_unique<ActivationLayer>(std::move(activation), "test_relu");
   layer->set_device(getCPU());
 
-  Tensor input = make_tensor<float>({batch_size, channels, h, w}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, channels, h, w}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output1 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output1 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output1, 0);
   Tensor output1_copy = output1->clone();
 
-  Tensor output2 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output2 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output2, 0);
 
   ASSERT_EQ(output1_copy->shape(), output2->shape());
@@ -140,15 +140,15 @@ TEST(LayerBufferReuseTest, FlattenConsistentOutput) {
   auto layer = std::make_unique<FlattenLayer>(1, -1, "test_flatten");
   layer->set_device(getCPU());
 
-  Tensor input = make_tensor<float>({batch_size, channels, h, w}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, channels, h, w}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
-  Tensor output1 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output1 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output1, 0);
   Tensor output1_copy = output1->clone();
 
-  Tensor output2 = make_tensor<float>(output_shape, &getCPU());
+  Tensor output2 = Tensor::create<float>(output_shape, &getCPU());
   layer->forward(input, output2, 0);
 
   ASSERT_EQ(output1_copy->shape(), output2->shape());
@@ -167,13 +167,13 @@ TEST(LayerBufferReuseTest, DenseMultipleEpochs) {
   layer->set_device(getCPU());
   layer->init();
 
-  Tensor input = make_tensor<float>({batch_size, input_features, 1, 1}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, input_features, 1, 1}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
   std::vector<Tensor> outputs;
   for (int epoch = 0; epoch < 3; ++epoch) {
-    Tensor output = make_tensor<float>(output_shape, &getCPU());
+    Tensor output = Tensor::create<float>(output_shape, &getCPU());
     layer->forward(input, output, 0);
     outputs.push_back(output->clone());
   }
@@ -200,13 +200,13 @@ TEST(LayerBufferReuseTest, Conv2DMultipleEpochs) {
   layer->set_device(getCPU());
   layer->init();
 
-  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, &getCPU());
+  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, &getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = layer->compute_output_shape(input->shape());
   std::vector<Tensor> outputs;
   for (int epoch = 0; epoch < 3; ++epoch) {
-    Tensor output = make_tensor<float>(output_shape, &getCPU());
+    Tensor output = Tensor::create<float>(output_shape, &getCPU());
     layer->forward(input, output, 0);
     outputs.push_back(output->clone());
   }

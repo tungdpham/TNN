@@ -94,7 +94,7 @@ class Layer {
 public:
   Layer() {
     this->device_ = &getCPU();
-    this->mem_pool_ = &global_mem_pool();
+    this->mem_pool_ = &MemPool::instance(*device_);
   }
 
   virtual ~Layer() = default;
@@ -102,6 +102,7 @@ public:
   // Note: have to reinit after changing device
   void set_device(const Device &device) {
     device_ = &device;
+    mem_pool_ = &MemPool::instance(*device_);
     on_set_device(device);
   }
 
@@ -277,6 +278,21 @@ public:
 
   const MemPool *get_mem_pool() const { return mem_pool_; }
 
+  size_t nbytes_params() {
+    size_t total = 0;
+    auto params = this->parameters();
+    for (const auto &param : params) {
+      size_t dtype_size = get_dtype_size(param->data_type());
+      total += param->capacity() * dtype_size;
+    }
+    auto grads = this->gradients();
+    for (const auto &grad : grads) {
+      size_t dtype_size = get_dtype_size(grad->data_type());
+      total += grad->capacity() * dtype_size;
+    }
+    return total;
+  }
+
   virtual size_t cached_memory_bytes() const { return 0; }
 
   void reset_profiling_info() { profiler_.reset(); }
@@ -310,15 +326,15 @@ protected:
 
   // helpers
   Tensor make_param_tensor(std::vector<size_t> shape) {
-    return make_tensor_from_dtype(param_dtype_, shape, this->device_);
+    return Tensor::create(param_dtype_, shape, this->device_);
   }
 
   Tensor make_io_tensor(std::vector<size_t> shape) {
-    return make_tensor_from_dtype(io_dtype_, shape, this->device_);
+    return Tensor::create(io_dtype_, shape, this->device_);
   }
 
   Tensor make_compute_tensor(std::vector<size_t> shape) {
-    return make_tensor_from_dtype(compute_dtype_, shape, this->device_);
+    return Tensor::create(compute_dtype_, shape, this->device_);
   }
 
   Tensor &get_cached_tensor(size_t mb_id, const std::string &key, const std::vector<size_t> &shape,
@@ -329,7 +345,7 @@ protected:
       it->second->ensure(shape, this->device_);
       return it->second;
     }
-    Tensor tensor = make_tensor_from_dtype(dtype, shape, this->device_);
+    Tensor tensor = Tensor::create(dtype, shape, this->device_);
     cached_tensors_[aggregate_key] = std::move(tensor);
     return cached_tensors_[aggregate_key];
   }
@@ -341,7 +357,7 @@ protected:
     if (!this->device_) {
       throw std::runtime_error("Device not set for layer: " + name_);
     }
-    return make_pooled_tensor_from_dtype(*mem_pool_, dtype, shape, this->device_);
+    return Tensor::create_pooled(*mem_pool_, dtype, shape);
   }
 };
 

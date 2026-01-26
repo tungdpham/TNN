@@ -50,7 +50,7 @@ void LegacyMaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output,
 
   Tensor &mask_indices = micro_batch_mask_indices_[micro_batch_id];
   if (mask_indices == nullptr)
-    mask_indices = make_tensor<size_t>({batch_size, channels, output_h, output_w});
+    mask_indices = Tensor::create<size_t>({batch_size, channels, output_h, output_w});
   else {
     mask_indices->ensure({batch_size, channels, output_h, output_w}, this->device_);
   }
@@ -179,7 +179,6 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward(
                               batch_size, channels, output_h, output_w, mask_indices, flow_id);
   return nullptr;
 }
-
 
 LayerConfig LegacyMaxPool2DLayer::get_config() const {
   LayerConfig config;

@@ -147,13 +147,48 @@ public:
   Tensor(const std::shared_ptr<ITensor> &ptr) : std::shared_ptr<ITensor>(ptr) {}
 
   Tensor(std::shared_ptr<ITensor> &&ptr) : std::shared_ptr<ITensor>(std::move(ptr)) {}
+
+  template <typename T>
+  static Tensor create(std::vector<size_t> shape, const Device *device = &getCPU());
+
+  template <typename T>
+  static Tensor create(std::vector<size_t> shape, const device_ptr &data,
+                       const Device *device = &getCPU());
+
+  template <typename T>
+  static Tensor create(std::initializer_list<size_t> shape = {}, const Device *device = &getCPU());
+
+  template <typename T>
+  static Tensor create(std::initializer_list<size_t> shape, const device_ptr &data,
+                       const Device *device = &getCPU());
+
+  static Tensor create(DType_t dtype, std::vector<size_t> shape, const Device *device = &getCPU());
+
+  static Tensor create(DType_t dtype, std::initializer_list<size_t> shape = {},
+                       const Device *device = &getCPU());
+
+  template <typename T> static Tensor create_pooled(MemPool &mem_pool, std::vector<size_t> shape);
+
+  template <typename T>
+  static Tensor create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape);
+
+  static Tensor create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape);
+
+  static Tensor create_pooled(MemPool &mem_pool, DType_t dtype,
+                              std::initializer_list<size_t> shape);
+
+  template <typename T> static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
+
+  template <typename T> static Tensor load(std::ifstream &in, const Device *device = &getCPU());
+
+  static void load_into(std::ifstream &in, Tensor &target, const Device *device = &getCPU());
 };
 
 /**
  * @brief A tensor class dedicated for ML and DL applications.
  * @tparam T Data type (e.g., float, double, int)
  * Data layout is assumed to be row-major (C-style) by default.
- * Generic N-dimensional tensor with various utility functions. How layers interpret
+ * Generic N-dimensional tensor with various lity functions. How layers interpret
  * the dimensions is up to the layer implementation.
  */
 template <typename T = float> class TypedTensor : public ITensor {
@@ -797,12 +832,12 @@ public:
   using TypedTensor<T>::TypedTensor;
 
   // ! Do not call default TypedTensor constructor with shape as that will allocate memory
-  PooledTypedTensor(MemPool &mem_pool, std::vector<size_t> shape, const Device *dt = &getCPU())
-      : TypedTensor<T>(dt), mem_pool_(mem_pool) {
+  PooledTypedTensor(MemPool &mem_pool, std::vector<size_t> shape)
+      : TypedTensor<T>(&mem_pool.device()), mem_pool_(mem_pool) {
     this->shape_ = std::move(shape);
     this->data_size_ = std::accumulate(this->shape_.begin(), this->shape_.end(), size_t(1),
                                        std::multiplies<size_t>());
-    this->data_ = mem_pool_.get(this->data_size_ * sizeof(T), dt);
+    this->data_ = mem_pool_.get(this->data_size_ * sizeof(T));
   }
 
   ~PooledTypedTensor() override { mem_pool_.release(std::move(this->data_)); }
@@ -951,52 +986,94 @@ inline void print_data_distribution(const Tensor &tensor) {
   std::cout << std::endl;
 }
 
+// Tensor static method implementations
 template <typename T>
-Tensor make_tensor(std::vector<size_t> shape = {}, const Device *device = &getCPU()) {
+inline Tensor Tensor::create(std::vector<size_t> shape, const Device *device) {
   return std::make_shared<TypedTensor<T>>(shape, device);
 }
 
 template <typename T>
-Tensor make_tensor(std::initializer_list<size_t> shape = {}, const Device *device = &getCPU()) {
+inline Tensor Tensor::create(std::vector<size_t> shape, const device_ptr &data,
+                             const Device *device) {
+  return std::make_shared<TypedTensor<T>>(shape, data, device);
+}
+
+template <typename T>
+inline Tensor Tensor::create(std::initializer_list<size_t> shape, const Device *device) {
   return std::make_shared<TypedTensor<T>>(shape, device);
 }
 
-inline Tensor make_tensor_from_dtype(DType_t dtype, std::vector<size_t> shape = {},
-                                     const Device *device = &getCPU()) {
+template <typename T>
+inline Tensor Tensor::create(std::initializer_list<size_t> shape, const device_ptr &data,
+                             const Device *device) {
+  return std::make_shared<TypedTensor<T>>(shape, data, device);
+}
+
+inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Device *device) {
   switch (dtype) {
   case DType_t::FP32:
-    return make_tensor<float>(shape, device);
+    return create<float>(shape, device);
   case DType_t::FP64:
-    return make_tensor<double>(shape, device);
+    return create<double>(shape, device);
   case DType_t::FP16:
-    return make_tensor<fp16>(shape, device);
+    return create<fp16>(shape, device);
   default:
-    throw std::runtime_error("Unsupported data type for make_tensor_from_dtype");
+    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
+  }
+}
+
+inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
+                             const Device *device) {
+  switch (dtype) {
+  case DType_t::FP32:
+    return create<float>(shape, device);
+  case DType_t::FP64:
+    return create<double>(shape, device);
+  case DType_t::FP16:
+    return create<fp16>(shape, device);
+  default:
+    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
 }
 
 template <typename T>
-inline Tensor make_pooled_tensor(MemPool &mem_pool, std::vector<size_t> shape = {},
-                                 const Device *device = &getCPU()) {
-  return std::make_shared<PooledTypedTensor<T>>(mem_pool, shape, device);
+inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::vector<size_t> shape) {
+  return std::make_shared<PooledTypedTensor<T>>(mem_pool, shape);
 }
 
-inline Tensor make_pooled_tensor_from_dtype(MemPool &mem_pool, DType_t dtype,
-                                            std::vector<size_t> shape = {},
-                                            const Device *device = &getCPU()) {
+template <typename T>
+inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape) {
+  return std::make_shared<PooledTypedTensor<T>>(mem_pool, std::vector<size_t>(shape));
+}
+
+inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape) {
   switch (dtype) {
   case DType_t::FP32:
-    return make_pooled_tensor<float>(mem_pool, shape, device);
+    return create_pooled<float>(mem_pool, shape);
   case DType_t::FP64:
-    return make_pooled_tensor<double>(mem_pool, shape, device);
+    return create_pooled<double>(mem_pool, shape);
   case DType_t::FP16:
-    return make_pooled_tensor<fp16>(mem_pool, shape, device);
+    return create_pooled<fp16>(mem_pool, shape);
   default:
-    throw std::runtime_error("Unsupported data type for make_pooled_tensor_from_dtype");
+    throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
 }
 
-template <typename T> std::shared_ptr<TypedTensor<T>> tensor_cast(const Tensor &tensor) {
+inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype,
+                                    std::initializer_list<size_t> shape) {
+  switch (dtype) {
+  case DType_t::FP32:
+    return create_pooled<float>(mem_pool, shape);
+  case DType_t::FP64:
+    return create_pooled<double>(mem_pool, shape);
+  case DType_t::FP16:
+    return create_pooled<fp16>(mem_pool, shape);
+  default:
+    throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
+  }
+}
+
+template <typename T> inline std::shared_ptr<TypedTensor<T>> Tensor::cast(const Tensor &tensor) {
   auto typed = std::dynamic_pointer_cast<TypedTensor<T>>(tensor);
   if (!typed) {
     throw std::runtime_error("Invalid tensor type cast");
@@ -1004,7 +1081,36 @@ template <typename T> std::shared_ptr<TypedTensor<T>> tensor_cast(const Tensor &
   return typed;
 }
 
-inline void load_into(std::ifstream &in, Tensor &target, const Device *device = &getCPU()) {
+template <typename T> inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
+  if (!in.is_open()) {
+    throw std::runtime_error("File is not open for reading");
+  }
+  size_t dims;
+  in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
+  std::vector<size_t> shape(dims);
+  in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
+  if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
+    throw std::runtime_error("Failed to read tensor shape from file");
+  }
+
+  auto tensor = std::make_shared<TypedTensor<T>>(shape, device);
+  if (device->device_type() == DeviceType::CPU) {
+    in.read(reinterpret_cast<char *>(tensor->data()), tensor->size() * sizeof(T));
+    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
+      throw std::runtime_error("Failed to read tensor data from file");
+    }
+  } else {
+    std::vector<T> host_buffer(tensor->size());
+    in.read(reinterpret_cast<char *>(host_buffer.data()), tensor->size() * sizeof(T));
+    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
+      throw std::runtime_error("Failed to read tensor data from file");
+    }
+    device->copyToDevice(tensor->data(), host_buffer.data(), tensor->size() * sizeof(T));
+  }
+  return tensor;
+}
+
+inline void Tensor::load_into(std::ifstream &in, Tensor &target, const Device *device) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }
@@ -1036,7 +1142,6 @@ inline void load_into(std::ifstream &in, Tensor &target, const Device *device = 
     free(host_buffer);
   }
 }
-
 inline Tensor operator+(const Tensor &lhs, const Tensor &rhs) {
   Tensor result = lhs->clone();
   result->add(rhs);
@@ -1097,33 +1202,10 @@ inline Tensor operator*(double scalar, const Tensor &rhs) {
   return result;
 }
 
-template <typename T> Tensor load_tensor(std::ifstream &in, const Device *device = &getCPU()) {
-  if (!in.is_open()) {
-    throw std::runtime_error("File is not open for reading");
-  }
-  size_t dims;
-  in.read(reinterpret_cast<char *>(&dims), sizeof(size_t));
-  std::vector<size_t> shape(dims);
-  in.read(reinterpret_cast<char *>(shape.data()), dims * sizeof(size_t));
-  if (in.gcount() != static_cast<std::streamsize>(dims * sizeof(size_t))) {
-    throw std::runtime_error("Failed to read tensor shape from file");
-  }
-
-  auto tensor = std::make_shared<TypedTensor<T>>(shape, device);
-  if (device->device_type() == DeviceType::CPU) {
-    in.read(reinterpret_cast<char *>(tensor->data()), tensor->size() * sizeof(T));
-    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
-      throw std::runtime_error("Failed to read tensor data from file");
-    }
-  } else {
-    std::vector<T> host_buffer(tensor->size());
-    in.read(reinterpret_cast<char *>(host_buffer.data()), tensor->size() * sizeof(T));
-    if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
-      throw std::runtime_error("Failed to read tensor data from file");
-    }
-    device->copyToDevice(tensor->data(), host_buffer.data(), tensor->size() * sizeof(T));
-  }
-  return tensor;
+// Convenience wrapper for backward compatibility
+template <typename T>
+inline Tensor load_tensor(std::ifstream &in, const Device *device = &getCPU()) {
+  return Tensor::load<T>(in, device);
 }
 
 template <typename T> DType_t get_dtype_if_tensor(const T &val) {

@@ -15,9 +15,9 @@ signed main() {
   legacy_conv_layer.set_device(getGPU());
   legacy_conv_layer.init();
 
-  Tensor input = make_tensor<float>({128, 224, 224, 3}, &getGPU());
+  Tensor input = Tensor::create<float>({128, 224, 224, 3}, &getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor output = make_tensor<float>({128, 224, 224, 128}, &getGPU());
+  Tensor output = Tensor::create<float>({128, 224, 224, 128}, &getGPU());
 
   // cold pass
   conv_layer.forward(input, output);
@@ -41,9 +41,9 @@ signed main() {
   std::cout << "Conv2D Average time per forward pass: " << duration.count() / passes << " ms"
             << std::endl;
 
-  Tensor nchw_input = make_tensor<float>({128, 3, 224, 224}, &getGPU());
+  Tensor nchw_input = Tensor::create<float>({128, 3, 224, 224}, &getGPU());
   nchw_input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor nchw_output = make_tensor<float>({128, 128, 224, 224}, &getGPU());
+  Tensor nchw_output = Tensor::create<float>({128, 128, 224, 224}, &getGPU());
   // legacy conv2d benchmark
   // cold pass
   legacy_conv_layer.forward(nchw_input, nchw_output);

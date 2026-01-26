@@ -6,6 +6,7 @@
  */
 
 #include "nn/train.hpp"
+#include "device/mem_pool.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
@@ -70,8 +71,7 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
                           unique_ptr<Optimizer> &optimizer, const unique_ptr<Loss> &criterion,
                           unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   auto train_start = chrono::high_resolution_clock::now();
-  Tensor batch_data = make_tensor_from_dtype(config.dtype),
-         batch_labels = make_tensor_from_dtype(config.dtype);
+  Tensor batch_data = Tensor::create(config.dtype), batch_labels = Tensor::create(config.dtype);
   cout << "Starting training epoch..." << endl;
   model->set_training(true);
   train_loader->shuffle();
@@ -83,10 +83,12 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   int num_batches = 0;
   const Device *model_device = model->get_device();
 
-  Tensor device_labels = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
-  Tensor loss_gradient = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
-  Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device),
-         backward_output = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
+  MemPool &mem_pool = MemPool::instance(*model_device);
+
+  Tensor device_labels = Tensor::create_pooled(mem_pool, config.dtype, {1});
+  Tensor loss_gradient = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1});
+  Tensor predictions = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1}),
+         backward_output = Tensor::create_pooled(mem_pool, model->get_io_dtype(), {1});
 
   int grad_accum_counter = 0;
 
@@ -121,6 +123,21 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
       if (model->is_profiling_enabled()) {
         model->print_profiling_info();
       }
+      size_t cached_bytes = model->cached_memory_bytes();
+      cout << "Current cached memory usage: " << fixed << setprecision(2)
+           << (cached_bytes / (1024.0 * 1024.0)) << " MB" << endl;
+      size_t params_bytes = model->nbytes_params();
+      cout << "Current model parameters memory usage: " << fixed << setprecision(2)
+           << (params_bytes / (1024.0 * 1024.0)) << " MB" << endl;
+      size_t mem_pool_bytes = MemPool::instance(*model->get_device()).cached_bytes();
+      cout << "Global memory pool usage: " << fixed << setprecision(2)
+           << (mem_pool_bytes / (1024.0 * 1024.0)) << " MB" << endl;
+      cout << "Predictions byte size: "
+           << predictions->capacity() * get_dtype_size(predictions->data_type()) << " bytes"
+           << endl;
+      cout << "Backward output byte size: "
+           << backward_output->capacity() * get_dtype_size(backward_output->data_type()) << " bytes"
+           << endl;
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
            << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
            << "%" << endl;
@@ -211,10 +228,10 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
   train_loader->reset();
 
   const Device *model_device = model->get_device();
-  Tensor loss_gradient = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
-  Tensor device_labels = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
-  Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
-  Tensor backward_output = make_tensor_from_dtype(model->get_io_dtype(), {1}, model_device);
+  Tensor loss_gradient = Tensor::create(model->get_io_dtype(), {1}, model_device);
+  Tensor device_labels = Tensor::create(model->get_io_dtype(), {1}, model_device);
+  Tensor predictions = Tensor::create(model->get_io_dtype(), {1}, model_device);
+  Tensor backward_output = Tensor::create(model->get_io_dtype(), {1}, model_device);
 
   int grad_accum_counter = 0;
 
@@ -302,8 +319,8 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  Tensor batch_data = make_tensor_from_dtype(model->get_io_dtype()),
-         batch_labels = make_tensor_from_dtype(model->get_io_dtype());
+  Tensor batch_data = Tensor::create(model->get_io_dtype()),
+         batch_labels = Tensor::create(model->get_io_dtype());
 
   model->set_training(false);
   val_loader->reset();
@@ -314,8 +331,8 @@ Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
   int val_batches = 0;
   const Device *model_device = model->get_device();
 
-  Tensor device_batch_labels = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
-  Tensor predictions = make_tensor_from_dtype(model->get_io_dtype(), {}, model_device);
+  Tensor device_batch_labels = Tensor::create(model->get_io_dtype(), {}, model_device);
+  Tensor predictions = Tensor::create(model->get_io_dtype(), {}, model_device);
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     model->forward(batch_data, predictions);

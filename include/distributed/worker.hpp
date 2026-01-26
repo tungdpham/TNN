@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/device_manager.hpp"
+#include "device/mem_pool.hpp"
 #include "distributed/command_type.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -99,9 +100,9 @@ protected:
     case CommandType::FORWARD_JOB: {
       auto forward_start = std::chrono::system_clock::now();
       const Job &forward_job = message.get<Job>();
-      Tensor output_tensor = make_pooled_tensor_from_dtype(
-          global_mem_pool(), forward_job.data->data_type(),
-          this->model_->compute_output_shape(forward_job.data->shape()), model_->get_device());
+      Tensor output_tensor = Tensor::create_pooled(
+          MemPool::instance(*model_->get_device()), forward_job.data->data_type(),
+          this->model_->compute_output_shape(forward_job.data->shape()));
       this->model_->forward(forward_job.data, output_tensor, forward_job.micro_batch_id);
       Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
       Job output(cpu_output_tensor, forward_job.micro_batch_id);
@@ -115,8 +116,8 @@ protected:
       auto backward_start = std::chrono::system_clock::now();
       const Job &backward_job = message.get<Job>();
       Tensor output_tensor =
-          make_pooled_tensor_from_dtype(global_mem_pool(), backward_job.data->data_type(),
-                                        backward_job.data->shape(), model_->get_device());
+          Tensor::create_pooled(MemPool::instance(*model_->get_device()),
+                                backward_job.data->data_type(), backward_job.data->shape());
       this->model_->backward(backward_job.data, output_tensor, backward_job.micro_batch_id);
       Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
       Job output(cpu_output_tensor, backward_job.micro_batch_id);

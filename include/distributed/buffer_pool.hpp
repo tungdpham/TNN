@@ -2,7 +2,6 @@
 
 #include "tbuffer.hpp"
 #include <deque>
-#include <iostream>
 #include <memory>
 #include <mutex>
 
@@ -50,7 +49,6 @@ public:
       }
     }
 
-    // std::cout << "BufferPool Miss: Allocating new buffer of size " << min_size << std::endl;
     return PooledBuffer(new TBuffer(min_size), deleter);
   }
 

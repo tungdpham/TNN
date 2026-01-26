@@ -88,14 +88,15 @@ private:
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = make_tensor<T>({actual_batch_size, cifar10_constants::IMAGE_HEIGHT,
-                                 cifar10_constants::IMAGE_WIDTH, cifar10_constants::NUM_CHANNELS});
+    batch_data =
+        Tensor::create<T>({actual_batch_size, cifar10_constants::IMAGE_HEIGHT,
+                           cifar10_constants::IMAGE_WIDTH, cifar10_constants::NUM_CHANNELS});
 
-    batch_labels = make_tensor<T>({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
+    batch_labels = Tensor::create<T>({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = tensor_cast<T>(batch_data);
-    auto typed_batch_labels = tensor_cast<T>(batch_labels);
+    auto typed_batch_data = Tensor::cast<T>(batch_data);
+    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const std::vector<float> &image_data = data_[this->current_index_ + i];

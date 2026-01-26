@@ -54,7 +54,7 @@ private:
   void apply_crop(Tensor &data, size_t batch_idx, size_t channels, size_t height, size_t width,
                   int start_x, int start_y) {
     const size_t padded_size = width + 2 * padding_;
-    Tensor padded = make_tensor<T>(std::vector<size_t>{1, channels, padded_size, padded_size});
+    Tensor padded = Tensor::create<T>(std::vector<size_t>{1, channels, padded_size, padded_size});
 
     padded->fill(0.0);
 

@@ -27,11 +27,11 @@ signed main() {
   maxpool_layer.set_training(true);
   maxpool_layer.init();
 
-  Tensor input = make_tensor<float>({128, 224, 224, 3}, &getGPU());
+  Tensor input = Tensor::create<float>({128, 224, 224, 3}, &getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor conv2d_output = make_tensor<float>({128, 224, 224, 64}, &getGPU());
-  Tensor batchnorm_output = make_tensor<float>({128, 224, 224, 64}, &getGPU());
-  Tensor maxpool_output = make_tensor<float>({128, 112, 112, 64}, &getGPU());
+  Tensor conv2d_output = Tensor::create<float>({128, 224, 224, 64}, &getGPU());
+  Tensor batchnorm_output = Tensor::create<float>({128, 224, 224, 64}, &getGPU());
+  Tensor maxpool_output = Tensor::create<float>({128, 112, 112, 64}, &getGPU());
   // cold pass
   conv_layer.forward(input, conv2d_output);
   batchnorm_layer.forward(conv2d_output, batchnorm_output);

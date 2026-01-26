@@ -375,7 +375,11 @@ uint64_t BatchNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
 
 size_t BatchNormLayer::cached_memory_bytes() const {
   size_t total_bytes = 0;
-  size_t normalized_cache_size = 0;
+  size_t input_cache_size = 0;
+  for (const auto &pair : micro_batch_inputs_cache_) {
+    size_t dtype_size = get_dtype_size(pair.second->data_type());
+    input_cache_size += pair.second->size() * dtype_size;
+  }
   size_t inv_std_cache_size = 0;
   for (const auto &pair : micro_batch_invar_) {
     size_t dtype_size = get_dtype_size(pair.second->data_type());
@@ -386,7 +390,7 @@ size_t BatchNormLayer::cached_memory_bytes() const {
     size_t dtype_size = get_dtype_size(pair.second->data_type());
     mean_cache_size += pair.second->size() * dtype_size;
   }
-  total_bytes += normalized_cache_size + inv_std_cache_size + mean_cache_size;
+  total_bytes += input_cache_size + inv_std_cache_size + mean_cache_size;
   return total_bytes;
 }
 

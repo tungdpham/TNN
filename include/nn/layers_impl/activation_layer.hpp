@@ -40,6 +40,7 @@ public:
   static std::unique_ptr<ActivationLayer> create_from_config(const LayerConfig &config);
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  size_t cached_memory_bytes() const override;
 };
 
 } // namespace tnn

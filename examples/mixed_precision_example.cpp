@@ -9,7 +9,7 @@ using namespace tnn;
 
 int main() {
   // Create type-erased tensors
-  Tensor tensor_f32 = make_tensor<float>({2, 3}, &getCPU());
+  Tensor tensor_f32 = Tensor::create<float>({2, 3}, &getCPU());
   Tensor tensor_f64 = make_tensor<double>({2, 3}, &getCPU());
 
   // Fill with values
@@ -39,7 +39,7 @@ int main() {
   std::cout << "\nOption 1 - void* cast: First element = " << float_ptr[0] << std::endl;
 
   // Option 2: Use tensor_cast for type-safe access (RECOMMENDED)
-  auto typed_f32 = tensor_cast<float>(tensor_f32);
+  auto typed_f32 = Tensor::cast<float>(tensor_f32);
   float *typed_ptr = typed_f32->data(); // Now you have float*
   float value = (*typed_f32)(0, 0);     // Direct element access
   std::cout << "Option 2 - tensor_cast: First element = " << value << std::endl;

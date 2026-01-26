@@ -173,8 +173,8 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    tensor = make_pooled_tensor_from_dtype(
-        global_mem_pool(), dtype, std::vector<size_t>(shape.begin(), shape.end()), &getCPU());
+    tensor = Tensor::create_pooled(MemPool::instance(getCPU()), dtype,
+                                   std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       DISPATCH_ON_DTYPE(dtype, T, buffer.read(offset, tensor->data_as<T>(), tensor->size()));
       offset += tensor->size() * dtype_size;

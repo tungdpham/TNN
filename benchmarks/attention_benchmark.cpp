@@ -23,11 +23,11 @@ signed main() {
   for (size_t i = 0; i < attn_params.size(); ++i) {
     attn_params[i]->copy_to(flash_attn_params[i]);
   }
-  Tensor input = make_tensor<fp16>({16, 128, 512}, &getGPU());
+  Tensor input = Tensor::create<fp16>({16, 128, 512}, &getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor full_attn_output = make_tensor<fp16>({16, 128, 512}, &getGPU());
+  Tensor full_attn_output = Tensor::create<fp16>({16, 128, 512}, &getGPU());
 
-  Tensor flash_attn_output = make_tensor<fp16>({16, 128, 512}, &getGPU());
+  Tensor flash_attn_output = Tensor::create<fp16>({16, 128, 512}, &getGPU());
   attention_block.forward(input, full_attn_output);
   flash_attention_block.forward(input, flash_attn_output);
 

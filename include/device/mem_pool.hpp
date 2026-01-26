@@ -13,15 +13,26 @@ namespace tnn {
 
 class MemPool {
 public:
-  MemPool() = default;
+  MemPool(const Device &device) : device_(device) {}
   ~MemPool() = default;
 
   MemPool(const MemPool &) = delete;
   MemPool &operator=(const MemPool &) = delete;
 
-  device_ptr get(size_t size, const Device *device) {
+  static MemPool &instance(const Device &device) {
+    static std::mutex registry_mutex;
+    static std::map<const Device *, std::unique_ptr<MemPool>> instances;
+    std::lock_guard<std::mutex> lock(registry_mutex);
+    auto &pool = instances[&device];
+    if (!pool) {
+      pool = std::make_unique<MemPool>(device);
+    }
+    return *pool;
+  }
+
+  device_ptr get(size_t size) {
     if (size == 0) {
-      return make_dptr(device, 0);
+      return make_dptr(&device_, 0);
     }
 
     std::lock_guard<std::mutex> lock(mutex_);
@@ -29,11 +40,9 @@ public:
     auto it = free_blocks_.lower_bound(size);
 
     while (it != free_blocks_.end()) {
-      if (it->second.getDevice() == device) {
-        device_ptr block = std::move(it->second);
-        free_blocks_.erase(it);
-        return block;
-      }
+      device_ptr block = std::move(it->second);
+      free_blocks_.erase(it);
+      return block;
       ++it;
     }
 #ifndef NDEBUG
@@ -41,7 +50,7 @@ public:
       std::cout << "MemPool: Allocating new tensor of size " << size << " bytes.\n";
 #endif
 
-    return make_dptr(device, size);
+    return make_dptr(&device_, size);
   }
 
   void release(device_ptr &&ptr) {
@@ -55,14 +64,26 @@ public:
     free_blocks_.clear();
   }
 
+  size_t size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return free_blocks_.size();
+  }
+
+  size_t cached_bytes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    size_t total = 0;
+    for (const auto &pair : free_blocks_) {
+      total += pair.first;
+    }
+    return total;
+  }
+
+  const Device &device() const { return device_; }
+
 private:
   std::multimap<size_t, device_ptr> free_blocks_;
-  std::mutex mutex_;
+  const Device &device_;
+  mutable std::mutex mutex_;
 };
-
-inline MemPool &global_mem_pool() {
-  static MemPool instance;
-  return instance;
-}
 
 } // namespace tnn

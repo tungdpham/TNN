@@ -67,6 +67,14 @@ uint64_t ActivationLayer::backward_flops(const std::vector<size_t> &input_shape)
   return 2 * num_elements;
 }
 
+size_t ActivationLayer::cached_memory_bytes() const {
+  size_t total_bytes = 0;
+  for (const auto &pair : micro_batch_inputs_) {
+    total_bytes += pair.second->size() * get_dtype_size(pair.second->data_type());
+  }
+  return total_bytes;
+}
+
 std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const LayerConfig &config) {
   std::string activation_name = config.get<std::string>("activation", "relu");
   ActivationFactory::register_defaults();

@@ -97,14 +97,14 @@ private:
 
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
 
-    batch_data = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
-                                 mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
+    batch_data = Tensor::create<T>({actual_batch_size, mnist_constants::NUM_CHANNELS,
+                                    mnist_constants::IMAGE_HEIGHT, mnist_constants::IMAGE_WIDTH});
 
-    batch_labels = make_tensor<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
+    batch_labels = Tensor::create<T>({actual_batch_size, mnist_constants::NUM_CLASSES, 1UL, 1UL});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = tensor_cast<T>(batch_data);
-    auto typed_batch_labels = tensor_cast<T>(batch_labels);
+    auto typed_batch_data = Tensor::cast<T>(batch_data);
+    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];

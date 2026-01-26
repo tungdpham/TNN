@@ -67,13 +67,7 @@ void DenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t micro_
   }
 
   if (this->is_training_) {
-    Tensor &cached_input = micro_batch_inputs_[micro_batch_id];
-    if (cached_input == nullptr) {
-      cached_input = make_io_tensor(input->shape());
-    } else {
-      cached_input->ensure(input->shape(), this->device_);
-    }
-    input->copy_to(cached_input);
+    micro_batch_inputs_[micro_batch_id] = input;
   }
   std::vector<size_t> out_shape = in_shape;
   out_shape.back() = output_features_;
@@ -351,7 +345,6 @@ size_t DenseLayer::cached_memory_bytes() const {
     size_t elem_size = get_dtype_size(pair.second->data_type());
     total_bytes += pair.second->size() * elem_size;
   }
-  total_bytes += Layer::cached_memory_bytes();
   return total_bytes;
 }
 

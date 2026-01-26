@@ -595,7 +595,7 @@ void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t
 
   std::vector<size_t> result_shape = input_shape;
   result_shape[0] = end_batch - start_batch;
-  result = make_tensor_from_dtype(input->data_type(), result_shape, input->device());
+  result = Tensor::create(input->data_type(), result_shape, input->device());
 
   const T *input_data = input->data_as<T>();
   size_t stride_0 = 1;

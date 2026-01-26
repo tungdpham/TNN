@@ -350,7 +350,6 @@ size_t ResidualBlock::cached_memory_bytes() const {
     size_t dtype_size = get_dtype_size(tensor->data_type());
     total_bytes += tensor->size() * dtype_size;
   }
-  total_bytes += Layer::cached_memory_bytes();
   return total_bytes;
 }
 

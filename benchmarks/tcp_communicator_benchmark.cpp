@@ -152,7 +152,7 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   for (int i = 0; i < 4; i++) {
-    Tensor tensor = make_tensor<float>({128, 512, 16, 16});
+    Tensor tensor = Tensor::create<float>({128, 512, 16, 16});
     tensor->fill_random_normal(0.0f, .2f, 12345);
     Job job;
     job.micro_batch_id = 0;

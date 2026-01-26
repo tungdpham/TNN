@@ -40,8 +40,8 @@ int main(int argc, char **argv) {
 
   size_t batch_size = 16;
 
-  Tensor batch_data = make_tensor<float>({batch_size, context_length});
-  Tensor batch_labels = make_tensor<float>({batch_size, context_length});
+  Tensor batch_data = Tensor::create<float>({batch_size, context_length});
+  Tensor batch_labels = Tensor::create<float>({batch_size, context_length});
 
   // Get the first batch
   if (loader.get_batch(batch_size, batch_data, batch_labels)) {
