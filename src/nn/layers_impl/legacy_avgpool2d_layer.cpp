@@ -99,10 +99,10 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward_impl(
   }
 #ifdef USE_CUDA
   else if (input_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::avgpool_nchw::compute_avg_pool_forward<Compute_T>,
-                           input_data->data_as<Compute_T>(), output_data->data_as<Compute_T>(),
-                           batch_size, channels, input_h, input_w, output_h, output_w, pool_h_,
-                           pool_w_, stride_h_, stride_w_, pad_h_, pad_w_);
+    return create_cuda_task(flow_id, cuda::avgpool_nchw::compute_avg_pool_forward<Compute_T>,
+                            input_data->data_as<Compute_T>(), output_data->data_as<Compute_T>(),
+                            batch_size, channels, input_h, input_w, output_h, output_w, pool_h_,
+                            pool_w_, stride_h_, stride_w_, pad_h_, pad_w_);
   }
 #endif
   else {
@@ -143,11 +143,11 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward_impl(
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::avgpool_nchw::compute_avg_pool_backward<Compute_T>,
-                           gradient_data->data_as<Compute_T>(),
-                           grad_input_data->data_as<Compute_T>(), batch_size, channels, input_h,
-                           input_w, output_h, output_w, pool_h_, pool_w_, stride_h_, stride_w_,
-                           pad_h_, pad_w_);
+    return create_cuda_task(flow_id, cuda::avgpool_nchw::compute_avg_pool_backward<Compute_T>,
+                            gradient_data->data_as<Compute_T>(),
+                            grad_input_data->data_as<Compute_T>(), batch_size, channels, input_h,
+                            input_w, output_h, output_w, pool_h_, pool_w_, stride_h_, stride_w_,
+                            pad_h_, pad_w_);
   }
 #endif
   else {

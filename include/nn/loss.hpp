@@ -113,9 +113,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_crossentropy_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                             num_classes, static_cast<T>(epsilon_));
+      return create_cuda_task("default", cuda::loss::compute_crossentropy_loss<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              num_classes, static_cast<T>(epsilon_));
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -139,10 +139,10 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_crossentropy_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, num_classes,
-                             static_cast<T>(epsilon_));
+      return create_cuda_task("default", cuda::loss::compute_crossentropy_gradient<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(),
+                              gradient->data_as<T>(), batch_size, num_classes,
+                              static_cast<T>(epsilon_));
     }
 #endif
     throw std::runtime_error("Unsupported device type for CrossEntropyLoss.");
@@ -203,9 +203,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (logits->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
-                             logits->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                             num_classes);
+      return create_cuda_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
+                              logits->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              num_classes);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -228,9 +228,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (logits->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
-                             logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
-                             batch_size, num_classes);
+      return create_cuda_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
+                              logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
+                              batch_size, num_classes);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -287,8 +287,8 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_mse_loss<T>, predictions->data_as<T>(),
-                             targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cuda_task("default", cuda::loss::compute_mse_loss<T>, predictions->data_as<T>(),
+                              targets->data_as<T>(), loss, batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MSELoss.");
@@ -311,9 +311,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_mse_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size);
+      return create_cuda_task("default", cuda::loss::compute_mse_gradient<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(),
+                              gradient->data_as<T>(), batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MSELoss.");
@@ -370,8 +370,8 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_mae_loss<T>, predictions->data_as<T>(),
-                             targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cuda_task("default", cuda::loss::compute_mae_loss<T>, predictions->data_as<T>(),
+                              targets->data_as<T>(), loss, batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MAELoss.");
@@ -394,9 +394,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_mae_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size);
+      return create_cuda_task("default", cuda::loss::compute_mae_gradient<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(),
+                              gradient->data_as<T>(), batch_size, output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MAELoss.");
@@ -460,9 +460,9 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_huber_loss<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                             output_size, static_cast<T>(delta_));
+      return create_cuda_task("default", cuda::loss::compute_huber_loss<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              output_size, static_cast<T>(delta_));
     }
 #endif
     throw std::runtime_error("Unsupported device type for HuberLoss.");
@@ -486,10 +486,10 @@ private:
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_gpu_task("default", cuda::loss::compute_huber_gradient<T>,
-                             predictions->data_as<T>(), targets->data_as<T>(),
-                             gradient->data_as<T>(), batch_size, output_size,
-                             static_cast<T>(delta_));
+      return create_cuda_task("default", cuda::loss::compute_huber_gradient<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(),
+                              gradient->data_as<T>(), batch_size, output_size,
+                              static_cast<T>(delta_));
     }
 #endif
     throw std::runtime_error("Unsupported device type for HuberLoss.");

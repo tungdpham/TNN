@@ -63,7 +63,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(const Tensor &input, Te
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         "default", cuda::layer_norm::layer_norm_forward<Compute_T>, input->data_as<Compute_T>(),
         output->data_as<Compute_T>(), gamma ? gamma->data_as<Compute_T>() : nullptr,
         beta ? beta->data_as<Compute_T>() : nullptr, batch_size, channels, epsilon_);
@@ -101,13 +101,13 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task("default", cuda::layer_norm::layer_norm_backward<Compute_T>,
-                           gradient->data_as<Compute_T>(), input->data_as<Compute_T>(),
-                           gamma ? gamma->data_as<Compute_T>() : nullptr,
-                           grad_input->data_as<Compute_T>(),
-                           gamma_gradients ? gamma_gradients->data_as<Compute_T>() : nullptr,
-                           beta_gradients ? beta_gradients->data_as<Compute_T>() : nullptr,
-                           batch_size, channels, epsilon_);
+    return create_cuda_task("default", cuda::layer_norm::layer_norm_backward<Compute_T>,
+                            gradient->data_as<Compute_T>(), input->data_as<Compute_T>(),
+                            gamma ? gamma->data_as<Compute_T>() : nullptr,
+                            grad_input->data_as<Compute_T>(),
+                            gamma_gradients ? gamma_gradients->data_as<Compute_T>() : nullptr,
+                            beta_gradients ? beta_gradients->data_as<Compute_T>() : nullptr,
+                            batch_size, channels, epsilon_);
   }
 #endif
   else {

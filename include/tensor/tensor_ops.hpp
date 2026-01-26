@@ -28,8 +28,8 @@ std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_
   }
 #ifdef USE_CUDA
   else if (input_tensor->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::im2col<T>, input_tensor, col_data->data_as<T>(), kernel_h,
-                           kernel_w, stride_h, stride_w, pad_h, pad_w);
+    return create_cuda_task(flow_id, cuda::im2col<T>, input_tensor, col_data->data_as<T>(),
+                            kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #endif
   else {
@@ -52,9 +52,9 @@ std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t
   }
 #ifdef USE_CUDA
   else if (col_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::col2im<T>, col_data->data_as<T>(),
-                           result_data->data_as<T>(), batch_size, channels, height, width, kernel_h,
-                           kernel_w, stride_h, stride_w, pad_h, pad_w);
+    return create_cuda_task(flow_id, cuda::col2im<T>, col_data->data_as<T>(),
+                            result_data->data_as<T>(), batch_size, channels, height, width,
+                            kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #endif
   else {
@@ -71,7 +71,7 @@ std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, siz
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::pad<T>, input, result, pad_h, pad_w, value);
+    return create_cuda_task(flow_id, cuda::pad<T>, input, result, pad_h, pad_w, value);
   }
 #endif
   else {
@@ -87,7 +87,7 @@ std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, s
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::unpad<T>, input, result, pad_h, pad_w);
+    return create_cuda_task(flow_id, cuda::unpad<T>, input, result, pad_h, pad_w);
   }
 #endif
   else {
@@ -105,7 +105,7 @@ std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t sta
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::crop<T>, input, result, start_h, start_w, end_h, end_w);
+    return create_cuda_task(flow_id, cuda::crop<T>, input, result, start_h, start_w, end_h, end_w);
   }
 #endif
   else {
@@ -122,7 +122,7 @@ std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t st
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::slice_batch<T>, input, result, start_batch, end_batch);
+    return create_cuda_task(flow_id, cuda::slice_batch<T>, input, result, start_batch, end_batch);
   }
 #endif
   else {
@@ -139,7 +139,7 @@ std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, s
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_gpu_task(flow_id, cuda::split<T>, input, results, num_splits);
+    return create_cuda_task(flow_id, cuda::split<T>, input, results, num_splits);
   }
 #endif
   else {
@@ -167,8 +167,8 @@ std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t r
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::cuda_transpose_2d<T>, input->data_as<T>(),
-                           output->data_as<T>(), rows, cols);
+    return create_cuda_task(flow_id, cuda::cuda_transpose_2d<T>, input->data_as<T>(),
+                            output->data_as<T>(), rows, cols);
   }
 #endif
   else {
@@ -196,8 +196,8 @@ std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::cuda_nchw_to_cnhw<T>, input->data_as<T>(),
-                           output->data_as<T>(), n, c, h, w);
+    return create_cuda_task(flow_id, cuda::cuda_nchw_to_cnhw<T>, input->data_as<T>(),
+                            output->data_as<T>(), n, c, h, w);
   }
 #endif
   else {
@@ -223,8 +223,8 @@ std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::cuda_cnhw_to_nchw<T>, input->data_as<T>(),
-                           output->data_as<T>(), n, c, h, w);
+    return create_cuda_task(flow_id, cuda::cuda_cnhw_to_nchw<T>, input->data_as<T>(),
+                            output->data_as<T>(), n, c, h, w);
   }
 #endif
   else {

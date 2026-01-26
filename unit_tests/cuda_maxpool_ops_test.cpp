@@ -119,7 +119,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
                             input_data.size() * sizeof(float));
 
   device_ptr gpu_mask = make_dptr_t<size_t[]>(gpu_device_, mask_size);
-  auto gpu_task = create_gpu_task(
+  auto gpu_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
       output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
@@ -167,7 +167,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
                             input_data.size() * sizeof(float));
 
   device_ptr gpu_mask = make_dptr_t<size_t[]>(gpu_device_, mask_size);
-  auto gpu_task = create_gpu_task(
+  auto gpu_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
       output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
@@ -217,7 +217,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
                             input_data.size() * sizeof(float));
 
   device_ptr gpu_mask = make_dptr_t<size_t[]>(gpu_device_, mask_size);
-  auto gpu_task = create_gpu_task(
+  auto gpu_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
       output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
@@ -267,7 +267,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
                             input_data.size() * sizeof(float));
 
   device_ptr gpu_mask = make_dptr_t<size_t[]>(gpu_device_, mask_size);
-  auto gpu_task = create_gpu_task(
+  auto gpu_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_output.get<float>(), batch_size, channels, input_h, input_w,
       output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0, gpu_mask.get<size_t>());
@@ -324,7 +324,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   gpu_device_->copyToDevice(gpu_input.get<float>(), input_data.data(),
                             input_data.size() * sizeof(float));
 
-  auto gpu_forward_task = create_gpu_task(
+  auto gpu_forward_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size, channels, input_h,
       input_w, output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0,
@@ -342,7 +342,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   gpu_device_->copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  auto gpu_backward_task = create_gpu_task(
+  auto gpu_backward_task = create_cuda_task(
       "test_maxpool_backward_gpu", cuda::maxpool_nchw::compute_max_pool_backward<float>,
       gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels, output_h,
       output_w, gpu_mask.get<size_t>());
@@ -402,7 +402,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   gpu_device_->copyToDevice(gpu_input.get<float>(), input_data.data(),
                             input_data.size() * sizeof(float));
 
-  auto gpu_forward_task = create_gpu_task(
+  auto gpu_forward_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size, channels, input_h,
       input_w, output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0,
@@ -420,7 +420,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   gpu_device_->copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  auto gpu_backward_task = create_gpu_task(
+  auto gpu_backward_task = create_cuda_task(
       "test_maxpool_backward_gpu", cuda::maxpool_nchw::compute_max_pool_backward<float>,
       gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels, output_h,
       output_w, gpu_mask.get<size_t>());
@@ -480,7 +480,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   gpu_device_->copyToDevice(gpu_input.get<float>(), input_data.data(),
                             input_data.size() * sizeof(float));
 
-  auto gpu_forward_task = create_gpu_task(
+  auto gpu_forward_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size, channels, input_h,
       input_w, output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0,
@@ -498,7 +498,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   gpu_device_->copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  auto gpu_backward_task = create_gpu_task(
+  auto gpu_backward_task = create_cuda_task(
       "test_maxpool_backward_gpu", cuda::maxpool_nchw::compute_max_pool_backward<float>,
       gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels, output_h,
       output_w, gpu_mask.get<size_t>());
@@ -558,7 +558,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   gpu_device_->copyToDevice(gpu_input.get<float>(), input_data.data(),
                             input_data.size() * sizeof(float));
 
-  auto gpu_forward_task = create_gpu_task(
+  auto gpu_forward_task = create_cuda_task(
       "test_maxpool_forward_gpu", cuda::maxpool_nchw::compute_max_pool_forward<float>,
       gpu_input.get<float>(), gpu_forward_output.get<float>(), batch_size, channels, input_h,
       input_w, output_h, output_w, pool_h, pool_w, stride_h, stride_w, 0, 0,
@@ -576,7 +576,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   gpu_device_->copyToDevice(gpu_grad_input.get<float>(), zero_grad.data(),
                             zero_grad.size() * sizeof(float));
 
-  auto gpu_backward_task = create_gpu_task(
+  auto gpu_backward_task = create_cuda_task(
       "test_maxpool_backward_gpu", cuda::maxpool_nchw::compute_max_pool_backward<float>,
       gpu_gradient.get<float>(), gpu_grad_input.get<float>(), batch_size, channels, output_h,
       output_w, gpu_mask.get<size_t>());

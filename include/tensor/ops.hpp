@@ -30,8 +30,8 @@ std::unique_ptr<Task> add(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_add<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_add<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -58,8 +58,8 @@ std::unique_ptr<Task> sub(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_sub<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_sub<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -86,8 +86,8 @@ std::unique_ptr<Task> mul(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_mul<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_mul<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -114,8 +114,8 @@ std::unique_ptr<Task> div(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_div<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_div<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -142,8 +142,8 @@ std::unique_ptr<Task> fmadd(const Tensor &a, const Tensor &b, Tensor &c, size_t 
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_fmadd<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_fmadd<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -170,8 +170,8 @@ std::unique_ptr<Task> fmsub(const Tensor &a, const Tensor &b, Tensor &c, size_t 
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_fmsub<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_fmsub<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -198,8 +198,8 @@ std::unique_ptr<Task> fnmadd(const Tensor &a, const Tensor &b, Tensor &c, size_t
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_fnmadd<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_fnmadd<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -226,8 +226,8 @@ std::unique_ptr<Task> add_scalar(const Tensor &a, T scalar, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_add_scalar<T>, a->data_as<T>(), scalar,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_add_scalar<T>, a->data_as<T>(), scalar,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -254,8 +254,8 @@ std::unique_ptr<Task> sub_scalar(const Tensor &a, T scalar, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_sub_scalar<T>, a->data_as<T>(), scalar,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_sub_scalar<T>, a->data_as<T>(), scalar,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -283,8 +283,8 @@ std::unique_ptr<Task> mul_scalar(const Tensor &a, T scalar, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_mul_scalar<T>, a->data_as<T>(), scalar,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_mul_scalar<T>, a->data_as<T>(), scalar,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -311,8 +311,8 @@ std::unique_ptr<Task> div_scalar(const Tensor &a, T scalar, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_div_scalar<T>, a->data_as<T>(), scalar,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_div_scalar<T>, a->data_as<T>(), scalar,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -335,7 +335,7 @@ std::unique_ptr<Task> set_scalar(Tensor &c, T scalar, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_set_scalar<T>, c->data_as<T>(), scalar, size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_set_scalar<T>, c->data_as<T>(), scalar, size);
   }
 #endif
   else {
@@ -362,8 +362,8 @@ std::unique_ptr<Task> axpy(T alpha, const Tensor &x, Tensor &y, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_axpy<T>, alpha, x->data_as<T>(),
-                           y->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_axpy<T>, alpha, x->data_as<T>(),
+                            y->data_as<T>(), size);
   }
 #endif
   else {
@@ -389,8 +389,8 @@ std::unique_ptr<Task> sqrt(const Tensor &a, Tensor &c, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_sqrt<T>, a->data_as<T>(), c->data_as<T>(),
-                           size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_sqrt<T>, a->data_as<T>(), c->data_as<T>(),
+                            size);
   }
 #endif
   else {
@@ -416,8 +416,8 @@ inline std::unique_ptr<Task> rsqrt(const Tensor &a, Tensor &c, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_rsqrt<T>, a->data_as<T>(), c->data_as<T>(),
-                           size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_rsqrt<T>, a->data_as<T>(), c->data_as<T>(),
+                            size);
   }
 #endif
   else {
@@ -443,7 +443,8 @@ inline std::unique_ptr<Task> rcp(const Tensor &a, Tensor &c, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_rcp<T>, a->data_as<T>(), c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_rcp<T>, a->data_as<T>(), c->data_as<T>(),
+                            size);
   }
 #endif
   else {
@@ -469,7 +470,8 @@ std::unique_ptr<Task> abs(const Tensor &a, Tensor &c, size_t size,
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_abs<T>, a->data_as<T>(), c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_abs<T>, a->data_as<T>(), c->data_as<T>(),
+                            size);
   }
 #endif
   else {
@@ -496,8 +498,8 @@ std::unique_ptr<Task> min(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_min<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_min<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -524,8 +526,8 @@ std::unique_ptr<Task> max(const Tensor &a, const Tensor &b, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_max<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_max<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -552,8 +554,8 @@ std::unique_ptr<Task> scalar_max(const Tensor &a, T scalar, Tensor &c, size_t si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_scalar_max<T>, a->data_as<T>(), scalar,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_scalar_max<T>, a->data_as<T>(), scalar,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -580,8 +582,8 @@ std::unique_ptr<Task> clamp(const Tensor &a, T min_val, T max_val, Tensor &c, si
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_clamp<T>, a->data_as<T>(), min_val, max_val,
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_clamp<T>, a->data_as<T>(), min_val, max_val,
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -608,8 +610,8 @@ std::unique_ptr<Task> equal(const Tensor &a, const Tensor &b, Tensor &c, size_t 
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_equal<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_equal<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -636,8 +638,8 @@ std::unique_ptr<Task> greater(const Tensor &a, const Tensor &b, Tensor &c, size_
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_greater<T>, a->data_as<T>(), b->data_as<T>(),
-                           c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_greater<T>, a->data_as<T>(), b->data_as<T>(),
+                            c->data_as<T>(), size);
   }
 #endif
   else {
@@ -668,8 +670,8 @@ std::unique_ptr<Task> copy(const Tensor &a, Tensor &c, size_t size, size_t a_off
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_copy<T>, a->data_as<T>() + a_offset,
-                           c->data_as<T>() + c_offset, size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_copy<T>, a->data_as<T>() + a_offset,
+                            c->data_as<T>() + c_offset, size);
   }
 #endif
   else {
@@ -696,16 +698,16 @@ std::unique_ptr<Task> cd_copy(const Tensor &a, Tensor &c, size_t size, size_t a_
   if (a_device_type == DeviceType::CPU && c_device_type == DeviceType::GPU) {
     // host to device copy
 #ifdef USE_CUDA
-    return create_gpu_task(flow_id, ops::cuda::cuda_h2d_copy<T>, a->data_as<T>() + a_offset,
-                           c->data_as<T>() + c_offset, size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_h2d_copy<T>, a->data_as<T>() + a_offset,
+                            c->data_as<T>() + c_offset, size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for CPU to GPU copy");
 #endif
   } else if (a_device_type == DeviceType::GPU && c_device_type == DeviceType::CPU) {
     // device to host copy
 #ifdef USE_CUDA
-    return create_gpu_task(flow_id, ops::cuda::cuda_d2h_copy<T>, a->data_as<T>() + a_offset,
-                           c->data_as<T>() + c_offset, size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_d2h_copy<T>, a->data_as<T>() + a_offset,
+                            c->data_as<T>() + c_offset, size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for GPU to CPU copy");
 #endif
@@ -728,7 +730,7 @@ std::unique_ptr<Task> zero(Tensor &c, size_t size, const std::string &flow_id = 
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_zero<T>, c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_zero<T>, c->data_as<T>(), size);
   }
 #endif
   else {
@@ -838,8 +840,8 @@ std::unique_ptr<Task> sub_mul_scalar(const Tensor &a, T sub_scalar, T mul_scalar
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_sub_mul_scalar<T>, a->data_as<T>(), sub_scalar,
-                           mul_scalar, c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_sub_mul_scalar<T>, a->data_as<T>(), sub_scalar,
+                            mul_scalar, c->data_as<T>(), size);
   }
 #endif
   else {
@@ -866,8 +868,8 @@ std::unique_ptr<Task> mul_add_scalar(const Tensor &a, T mul_scalar, T add_scalar
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_mul_add_scalar<T>, a->data_as<T>(), mul_scalar,
-                           add_scalar, c->data_as<T>(), size);
+    return create_cuda_task(flow_id, ops::cuda::cuda_mul_add_scalar<T>, a->data_as<T>(), mul_scalar,
+                            add_scalar, c->data_as<T>(), size);
   }
 #endif
   else {
@@ -892,8 +894,8 @@ std::unique_ptr<Task> fill_random_uniform(Tensor &data, size_t size, T min_val, 
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_fill_random_uniform<T>, data->data_as<T>(),
-                           size, min_val, max_val, seed);
+    return create_cuda_task(flow_id, ops::cuda::cuda_fill_random_uniform<T>, data->data_as<T>(),
+                            size, min_val, max_val, seed);
   }
 #endif
   else {
@@ -918,8 +920,8 @@ std::unique_ptr<Task> fill_random_normal(Tensor &data, size_t size, T mean, T st
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_gpu_task(flow_id, ops::cuda::cuda_fill_random_normal<T>, data->data_as<T>(), size,
-                           mean, stddev, seed);
+    return create_cuda_task(flow_id, ops::cuda::cuda_fill_random_normal<T>, data->data_as<T>(),
+                            size, mean, stddev, seed);
   }
 #endif
   else {

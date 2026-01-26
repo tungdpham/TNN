@@ -135,9 +135,10 @@ DenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Te
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::compute_dense_forward_ex<IO_T, Param_T, Compute_T>,
-                           input->data_as<IO_T>(), weights->data_as<Param_T>(),
-                           output->data_as<IO_T>(), batch_size, input_features, output_features);
+    return create_cuda_task(flow_id,
+                            cuda::dense::compute_dense_forward_ex<IO_T, Param_T, Compute_T>,
+                            input->data_as<IO_T>(), weights->data_as<Param_T>(),
+                            output->data_as<IO_T>(), batch_size, input_features, output_features);
   }
 #endif
   else {
@@ -169,7 +170,7 @@ DenseLayer::compute_weight_gradients(const Tensor &input, const Tensor &gradient
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         flow_id, cuda::dense::compute_weight_gradients_ex<IO_T, Param_T, Compute_T>,
         input->data_as<IO_T>(), gradient->data_as<IO_T>(), weight_grad->data_as<Param_T>(),
         batch_size, input_features, output_features);
@@ -204,7 +205,7 @@ DenseLayer::compute_input_gradients(const Tensor &gradient, const Tensor &weight
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         flow_id, cuda::dense::compute_input_gradients_ex<IO_T, Param_T, Compute_T>,
         gradient->data_as<IO_T>(), weights->data_as<Param_T>(), grad_input->data_as<IO_T>(),
         batch_size, input_features, output_features);
@@ -237,7 +238,7 @@ DenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         flow_id, cuda::dense::compute_bias_gradients_ex<IO_T, Param_T, Compute_T>,
         gradient->data_as<IO_T>(), bias_gradient->data_as<Param_T>(), batch_size, output_features);
   }
@@ -268,9 +269,9 @@ std::unique_ptr<Task> DenseLayer::add_bias_vector(Tensor &output, const Tensor &
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dense::add_bias_vector_ex<IO_T, Param_T, Compute_T>,
-                           output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size,
-                           output_features);
+    return create_cuda_task(flow_id, cuda::dense::add_bias_vector_ex<IO_T, Param_T, Compute_T>,
+                            output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size,
+                            output_features);
   }
 #endif
   else {

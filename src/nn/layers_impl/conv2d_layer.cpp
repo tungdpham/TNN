@@ -170,9 +170,9 @@ Conv2DLayer::conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, Conv
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::run_forward, fe_handle, stats, input->data(),
-                         weights->data(), bias_ != nullptr ? bias_->data() : nullptr,
-                         output->data(), workspace->data());
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_forward, fe_handle, stats, input->data(),
+                          weights->data(), bias_ != nullptr ? bias_->data() : nullptr,
+                          output->data(), workspace->data());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -184,8 +184,8 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_data_task(
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::run_backward_data, fe_handle, stats,
-                         gradient->data(), weights->data(), grad_input->data(), workspace->data());
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_backward_data, fe_handle, stats,
+                          gradient->data(), weights->data(), grad_input->data(), workspace->data());
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -198,9 +198,9 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
     throw std::runtime_error("Conv2DLayer input/gradient dtype mismatch with dispatch IO_T");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::run_backward_weights_and_bias, fe_handle,
-                         stats, input->data(), gradient->data(), weight_gradients->data(),
-                         use_bias_ ? bias_gradients->data() : nullptr, workspace->data());
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_backward_weights_and_bias, fe_handle,
+                          stats, input->data(), gradient->data(), weight_gradients->data(),
+                          use_bias_ ? bias_gradients->data() : nullptr, workspace->data());
 }
 
 void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id) {

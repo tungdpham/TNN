@@ -110,12 +110,12 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
   Tensor v_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
 
   DISPATCH_ON_DTYPE(io_dtype_, T, {
-    create_gpu_task("default", cuda::permute_heads<T>, q->data_as<T>(), q_heads->data_as<T>(),
-                    batch_size, seq_len, num_heads_, head_dim_);
-    create_gpu_task("default", cuda::permute_heads<T>, k->data_as<T>(), k_heads->data_as<T>(),
-                    batch_size, seq_len, num_heads_, head_dim_);
-    create_gpu_task("default", cuda::permute_heads<T>, v->data_as<T>(), v_heads->data_as<T>(),
-                    batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T>, q->data_as<T>(), q_heads->data_as<T>(),
+                     batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T>, k->data_as<T>(), k_heads->data_as<T>(),
+                     batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T>, v->data_as<T>(), v_heads->data_as<T>(),
+                     batch_size, seq_len, num_heads_, head_dim_);
   });
 
   auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
@@ -139,14 +139,14 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
 
   Tensor attn_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
 
-  create_gpu_task("default", cuda::cudnn_flash_attention::run_sdpa_forward, graph, cudnn_handle,
-                  q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
-                  workspace->data());
+  create_cuda_task("default", cuda::cudnn_flash_attention::run_sdpa_forward, graph, cudnn_handle,
+                   q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
+                   workspace->data());
 
   Tensor attn_out = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
   DISPATCH_ON_DTYPE(io_dtype_, T, {
-    create_gpu_task("default", cuda::permute_heads<T>, attn_heads->data_as<T>(),
-                    attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T>, attn_heads->data_as<T>(),
+                     attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
   out_proj_->forward(attn_out, output, mb_id);

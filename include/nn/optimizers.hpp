@@ -190,12 +190,12 @@ private:
 #ifdef USE_CUDA
     else if (param->device_type() == DeviceType::GPU) {
       if (momentum_ > 0.0f) {
-        create_gpu_task("default", cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
-                        grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
-                        momentum_);
+        create_cuda_task("default", cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+                         grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+                         momentum_);
       } else {
-        create_gpu_task("default", cuda::sgd::update_sgd<T>, param->data_as<T>(),
-                        grad->data_as<T>(), size, this->learning_rate_);
+        create_cuda_task("default", cuda::sgd::update_sgd<T>, param->data_as<T>(),
+                         grad->data_as<T>(), size, this->learning_rate_);
       }
     }
 #endif
@@ -286,10 +286,10 @@ private:
     }
 #ifdef USE_CUDA
     else if (param->device_type() == DeviceType::GPU) {
-      create_gpu_task("default", cuda::adam::update_adam<T>, param->data_as<T>(),
-                      grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
-                      this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
-                      bias_correction2, weight_decay_, decouple_weight_decay_);
+      create_cuda_task("default", cuda::adam::update_adam<T>, param->data_as<T>(),
+                       grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
+                       this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                       bias_correction2, weight_decay_, decouple_weight_decay_);
     }
 #endif
     else {

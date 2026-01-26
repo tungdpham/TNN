@@ -85,10 +85,10 @@ std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const Tensor &input,
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::dropout::compute_dropout_forward<Compute_T>,
-                           input->data_as<Compute_T>(), output->data_as<Compute_T>(),
-                           mask->data_as<Compute_T>(), batch_size, channels, spatial_size,
-                           dropout_rate_);
+    return create_cuda_task(flow_id, cuda::dropout::compute_dropout_forward<Compute_T>,
+                            input->data_as<Compute_T>(), output->data_as<Compute_T>(),
+                            mask->data_as<Compute_T>(), batch_size, channels, spatial_size,
+                            dropout_rate_);
   }
 #endif
   else {

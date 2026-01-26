@@ -33,9 +33,9 @@ void gemm(const device_ptr &A, const device_ptr &B, const device_ptr &C, const s
   }
 #ifdef USE_CUDA
   else if (A.device_type() == DeviceType::GPU) {
-    create_gpu_task("default", cuda::gemm_ex<IO_T, Param_T, Compute_T>, A.get<IO_T>(),
-                    B.get<Param_T>(), C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda,
-                    ldb, ldc);
+    create_cuda_task("default", cuda::gemm_ex<IO_T, Param_T, Compute_T>, A.get<IO_T>(),
+                     B.get<Param_T>(), C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda,
+                     ldb, ldc);
   }
 #endif
   else {

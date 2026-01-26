@@ -174,7 +174,7 @@ std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&.
 
 #ifdef USE_CUDA
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_gpu_task(std::string flow_id, Func &&func, Args &&...args) {
+std::unique_ptr<Task> create_cuda_task(std::string flow_id, Func &&func, Args &&...args) {
   auto &GPUDevice = getGPU();
   CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice.getFlow(flow_id));
   if (!flow) {

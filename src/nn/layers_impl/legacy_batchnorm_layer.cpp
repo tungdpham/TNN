@@ -150,7 +150,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         flow_id, cuda::batchnorm_nchw::compute_inference_output<IO_T>, input->data_as<IO_T>(),
         running_mean_->data_as<float>(), running_var_->data_as<float>(),
         affine_ ? gamma_->data_as<float>() : nullptr, affine_ ? beta_->data_as<float>() : nullptr,
@@ -187,12 +187,12 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_forward_fused(
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::batchnorm_nchw::run_forward_fused<IO_T>,
-                           input->data_as<IO_T>(), batch_mean->data_as<float>(),
-                           batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
-                           running_var->data_as<float>(), gamma->data_as<float>(),
-                           beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
-                           batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
+    return create_cuda_task(flow_id, cuda::batchnorm_nchw::run_forward_fused<IO_T>,
+                            input->data_as<IO_T>(), batch_mean->data_as<float>(),
+                            batch_inv_std->data_as<float>(), running_mean->data_as<float>(),
+                            running_var->data_as<float>(), gamma->data_as<float>(),
+                            beta->data_as<float>(), output->data_as<IO_T>(), norm->data_as<float>(),
+                            batch_size, channels, spatial_size, momentum_, epsilon_, affine_);
   }
 #endif
   else {
@@ -215,7 +215,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_backward_fused(
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_gpu_task(
+    return create_cuda_task(
         flow_id, cuda::batchnorm_nchw::run_backward_fused<IO_T>, grad_output->data_as<IO_T>(),
         norm_input->data_as<float>(), inv_std->data_as<float>(), gamma->data_as<float>(),
         d_gamma->data_as<float>(), d_beta->data_as<float>(), grad_input->data_as<IO_T>(),

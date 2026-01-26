@@ -57,9 +57,9 @@ std::unique_ptr<Task> SliceLayer::slice_forward(const Tensor &input, Tensor &out
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::slice::slice_forward<Compute_T>,
-                           input->data_as<Compute_T>(), output->data_as<Compute_T>(),
-                           input->shape(), axis_, start_, length_);
+    return create_cuda_task(flow_id, cuda::slice::slice_forward<Compute_T>,
+                            input->data_as<Compute_T>(), output->data_as<Compute_T>(),
+                            input->shape(), axis_, start_, length_);
   }
 #endif
   else {
@@ -90,9 +90,9 @@ std::unique_ptr<Task> SliceLayer::slice_backward(const Tensor &gradient, Tensor 
   }
 #ifdef USE_CUDA
   else if (gradient->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::slice::slice_backward<Compute_T>,
-                           gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
-                           original_shape, axis_, start_, length_);
+    return create_cuda_task(flow_id, cuda::slice::slice_backward<Compute_T>,
+                            gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                            original_shape, axis_, start_, length_);
   }
 #endif
   else {

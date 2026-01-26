@@ -126,13 +126,13 @@ GroupNormLayer::run_forward_fused(const Tensor &input, Tensor &group_mean, Tenso
   }
 #ifdef USE_CUDA
   if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task("default", cuda::groupnorm::run_forward_fused<Compute_T>,
-                           input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
-                           group_inv_std->data_as<Compute_T>(),
-                           affine_ ? gamma->data_as<Compute_T>() : nullptr,
-                           affine_ ? beta->data_as<Compute_T>() : nullptr,
-                           output->data_as<Compute_T>(), norm_cache->data_as<Compute_T>(),
-                           batch_size, channels, spatial_size, num_groups_, epsilon_, affine_);
+    return create_cuda_task("default", cuda::groupnorm::run_forward_fused<Compute_T>,
+                            input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
+                            group_inv_std->data_as<Compute_T>(),
+                            affine_ ? gamma->data_as<Compute_T>() : nullptr,
+                            affine_ ? beta->data_as<Compute_T>() : nullptr,
+                            output->data_as<Compute_T>(), norm_cache->data_as<Compute_T>(),
+                            batch_size, channels, spatial_size, num_groups_, epsilon_, affine_);
   } else
 #endif
   {
@@ -163,12 +163,12 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   }
 #ifdef USE_CUDA
   if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task("default", cuda::groupnorm::run_backward_fused<Compute_T>,
-                           grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
-                           inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
-                           d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
-                           grad_input->data_as<Compute_T>(), batch_size, channels, spatial_size,
-                           num_groups_, affine_);
+    return create_cuda_task("default", cuda::groupnorm::run_backward_fused<Compute_T>,
+                            grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
+                            inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
+                            d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
+                            grad_input->data_as<Compute_T>(), batch_size, channels, spatial_size,
+                            num_groups_, affine_);
   } else
 #endif
   {

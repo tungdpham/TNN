@@ -106,11 +106,11 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
   gpu_device_->copyToDevice(gpu_gamma.get<float>(), gamma.data(), channels * sizeof(float));
   gpu_device_->copyToDevice(gpu_beta.get<float>(), beta.data(), channels * sizeof(float));
 
-  auto gpu_task =
-      create_gpu_task("test_inference_gpu", cuda::batchnorm_nchw::compute_inference_output<float>,
-                      gpu_input.get<float>(), gpu_running_mean.get<float>(),
-                      gpu_running_var.get<float>(), gpu_gamma.get<float>(), gpu_beta.get<float>(),
-                      gpu_output.get<float>(), batch_size, channels, spatial_size, epsilon, affine);
+  auto gpu_task = create_cuda_task(
+      "test_inference_gpu", cuda::batchnorm_nchw::compute_inference_output<float>,
+      gpu_input.get<float>(), gpu_running_mean.get<float>(), gpu_running_var.get<float>(),
+      gpu_gamma.get<float>(), gpu_beta.get<float>(), gpu_output.get<float>(), batch_size, channels,
+      spatial_size, epsilon, affine);
   ASSERT_FALSE(gpu_task->sync()) << "GPU batchnorm inference task failed";
 
   std::vector<float> gpu_output_cpu(total_size);
@@ -174,7 +174,7 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
   gpu_device_->copyToDevice(gpu_beta_grad.get<float>(), zeros_channels.data(),
                             channels * sizeof(float));
 
-  auto gpu_task = create_gpu_task(
+  auto gpu_task = create_cuda_task(
       "test_backward_gpu", cuda::batchnorm_nchw::run_backward_fused<float>,
       gpu_gradient.get<float>(), gpu_normalized.get<float>(), gpu_std.get<float>(),
       gpu_gamma.get<float>(), gpu_gamma_grad.get<float>(), gpu_beta_grad.get<float>(),
@@ -255,11 +255,11 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
                             channels * sizeof(float));
 
   auto gpu_task =
-      create_gpu_task("test_backward_gpu", cuda::batchnorm_nchw::run_backward_fused<float>,
-                      gpu_gradient.get<float>(), gpu_normalized.get<float>(),
-                      gpu_inv_std.get<float>(), gpu_dummy_gamma.get<float>(),
-                      gpu_dummy_gamma_grad.get<float>(), gpu_dummy_beta_grad.get<float>(),
-                      gpu_grad_input.get<float>(), batch_size, channels, spatial_size, affine);
+      create_cuda_task("test_backward_gpu", cuda::batchnorm_nchw::run_backward_fused<float>,
+                       gpu_gradient.get<float>(), gpu_normalized.get<float>(),
+                       gpu_inv_std.get<float>(), gpu_dummy_gamma.get<float>(),
+                       gpu_dummy_gamma_grad.get<float>(), gpu_dummy_beta_grad.get<float>(),
+                       gpu_grad_input.get<float>(), batch_size, channels, spatial_size, affine);
   ASSERT_FALSE(gpu_task->sync()) << "GPU batchnorm backward task failed";
 
   std::vector<float> gpu_grad_input_cpu(total_size);

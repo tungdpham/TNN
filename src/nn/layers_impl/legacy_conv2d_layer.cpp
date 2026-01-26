@@ -318,11 +318,11 @@ LegacyConv2DLayer::cudnn_compute_fwd(const Tensor &input, const Tensor &weight, 
     throw std::runtime_error("cuDNN forward requires GPU device");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::forward_with_bias<IO_T>, convolution_handle_,
-                         input->data(), weight->data(), bias->data(), output->data(), batch_size,
-                         in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace->data(),
-                         cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::forward_with_bias<IO_T>, convolution_handle_,
+                          input->data(), weight->data(), bias->data(), output->data(), batch_size,
+                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
+                          cudnn_workspace->data(),
+                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -335,11 +335,11 @@ LegacyConv2DLayer::cudnn_backward_data(const Tensor &gradient, const Tensor &wei
     throw std::runtime_error("cuDNN backward data requires GPU device");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_data<IO_T>, convolution_handle_,
-                         gradient->data(), weight->data(), input_grad->data(), batch_size,
-                         in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace->data(),
-                         cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::backward_data<IO_T>, convolution_handle_,
+                          gradient->data(), weight->data(), input_grad->data(), batch_size,
+                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
+                          cudnn_workspace->data(),
+                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -352,11 +352,11 @@ LegacyConv2DLayer::cudnn_backward_filter(const Tensor &input, const Tensor &grad
     throw std::runtime_error("cuDNN backward filter requires GPU device");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_filter<IO_T>, convolution_handle_,
-                         input->data(), gradient->data(), weight_grad->data(), batch_size,
-                         in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                         cudnn_workspace->data(),
-                         cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::backward_filter<IO_T>, convolution_handle_,
+                          input->data(), gradient->data(), weight_grad->data(), batch_size,
+                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
+                          cudnn_workspace->data(),
+                          cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -368,9 +368,9 @@ LegacyConv2DLayer::cudnn_backward_bias(const Tensor &gradient, Tensor &bias_grad
     throw std::runtime_error("cuDNN backward bias requires GPU device");
   }
 
-  return create_gpu_task(flow_id, cuda::cudnn_conv2d::backward_bias<IO_T>, convolution_handle_,
-                         gradient->data(), bias_grad->data(), batch_size, out_channels, output_h,
-                         output_w);
+  return create_cuda_task(flow_id, cuda::cudnn_conv2d::backward_bias<IO_T>, convolution_handle_,
+                          gradient->data(), bias_grad->data(), batch_size, out_channels, output_h,
+                          output_w);
 }
 #endif
 
@@ -404,10 +404,10 @@ LegacyConv2DLayer::compute_conv_forward_impl(const Tensor &col_data, const Tenso
   }
 #ifdef USE_CUDA
   else if (col_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::conv2d_nchw::compute_conv_forward<Compute_T>,
-                           col_data->data_as<Compute_T>(), weight_data->data_as<Compute_T>(),
-                           output_data->data_as<Compute_T>(), output_size, kernel_size,
-                           out_channels);
+    return create_cuda_task(flow_id, cuda::conv2d_nchw::compute_conv_forward<Compute_T>,
+                            col_data->data_as<Compute_T>(), weight_data->data_as<Compute_T>(),
+                            output_data->data_as<Compute_T>(), output_size, kernel_size,
+                            out_channels);
   }
 #endif
   else {
@@ -445,10 +445,10 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_weight_gradients_impl(
   }
 #ifdef USE_CUDA
   else if (col_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::conv2d_nchw::compute_weight_gradients<Compute_T>,
-                           col_data->data_as<Compute_T>(), gradient_data->data_as<Compute_T>(),
-                           weight_grad_data->data_as<Compute_T>(), output_size, kernel_size,
-                           out_channels);
+    return create_cuda_task(flow_id, cuda::conv2d_nchw::compute_weight_gradients<Compute_T>,
+                            col_data->data_as<Compute_T>(), gradient_data->data_as<Compute_T>(),
+                            weight_grad_data->data_as<Compute_T>(), output_size, kernel_size,
+                            out_channels);
   }
 #endif
   else {
@@ -487,10 +487,10 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_input_gradients_impl(
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::conv2d_nchw::compute_input_gradients<Compute_T>,
-                           gradient_data->data_as<Compute_T>(), weight_data->data_as<Compute_T>(),
-                           col_grad_data->data_as<Compute_T>(), output_size, kernel_size,
-                           out_channels);
+    return create_cuda_task(flow_id, cuda::conv2d_nchw::compute_input_gradients<Compute_T>,
+                            gradient_data->data_as<Compute_T>(), weight_data->data_as<Compute_T>(),
+                            col_grad_data->data_as<Compute_T>(), output_size, kernel_size,
+                            out_channels);
   }
 #endif
   else {
@@ -528,10 +528,10 @@ LegacyConv2DLayer::compute_bias_gradients_impl(const Tensor &gradient_data, Tens
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::conv2d_nchw::compute_bias_gradients<Compute_T>,
-                           gradient_data->data_as<Compute_T>(),
-                           bias_grad_data->data_as<Compute_T>(), batch_size, output_h, output_w,
-                           out_channels);
+    return create_cuda_task(flow_id, cuda::conv2d_nchw::compute_bias_gradients<Compute_T>,
+                            gradient_data->data_as<Compute_T>(),
+                            bias_grad_data->data_as<Compute_T>(), batch_size, output_h, output_w,
+                            out_channels);
   }
 #endif
   else {
@@ -565,9 +565,9 @@ std::unique_ptr<Task> LegacyConv2DLayer::add_bias_to_output_impl(
   }
 #ifdef USE_CUDA
   else if (output_data->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::conv2d_nchw::add_bias_to_output<Compute_T>,
-                           output_data->data_as<Compute_T>(), bias_data->data_as<Compute_T>(),
-                           batch_size, output_h, output_w, out_channels);
+    return create_cuda_task(flow_id, cuda::conv2d_nchw::add_bias_to_output<Compute_T>,
+                            output_data->data_as<Compute_T>(), bias_data->data_as<Compute_T>(),
+                            batch_size, output_h, output_w, out_channels);
   }
 #endif
   else {

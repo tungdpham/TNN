@@ -75,8 +75,8 @@ std::unique_ptr<Task> ReLU::apply_impl(const Tensor &input, Tensor &output,
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::relu<Compute_T>, input->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), size);
+    return create_cuda_task(flow_id, cuda::relu<Compute_T>, input->data_as<Compute_T>(),
+                            output->data_as<Compute_T>(), size);
   }
 #endif
   else {
@@ -103,9 +103,9 @@ std::unique_ptr<Task> ReLU::compute_gradient_impl(const Tensor &input, const Ten
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::relu_gradient<Compute_T>, input->data_as<Compute_T>(),
-                           grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
-                           size);
+    return create_cuda_task(flow_id, cuda::relu_gradient<Compute_T>, input->data_as<Compute_T>(),
+                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                            size);
   }
 #endif
   else {

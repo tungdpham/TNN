@@ -57,9 +57,9 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const Tensor &input, Tensor 
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::class_token_forward<Compute_T>,
-                           input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
+    return create_cuda_task(flow_id, cuda::class_token_forward<Compute_T>,
+                            input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
+                            output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
 #endif
   else {
@@ -94,10 +94,10 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const Tensor &gradient, Ten
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::class_token_backward<Compute_T>,
-                           gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
-                           class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
-                           embed_dim);
+    return create_cuda_task(flow_id, cuda::class_token_backward<Compute_T>,
+                            gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                            class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
+                            embed_dim);
   }
 #endif
   else {

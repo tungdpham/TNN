@@ -106,10 +106,10 @@ EmbeddingLayer::compute_forward_impl(const Tensor &input, const Tensor &weight, 
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::embedding::compute_embedding_forward<Compute_T>,
-                           input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                           padding_idx);
+    return create_cuda_task(flow_id, cuda::embedding::compute_embedding_forward<Compute_T>,
+                            input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
+                            output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
+                            padding_idx);
   }
 #endif
   else {
@@ -141,10 +141,10 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_gpu_task(flow_id, cuda::embedding::compute_embedding_backward<Compute_T>,
-                           input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
-                           grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                           padding_idx);
+    return create_cuda_task(flow_id, cuda::embedding::compute_embedding_backward<Compute_T>,
+                            input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
+                            grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
+                            padding_idx);
   }
 #endif
   else {

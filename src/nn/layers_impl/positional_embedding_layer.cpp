@@ -124,10 +124,10 @@ PositionalEmbeddingLayer::add_positional_embedding(const Tensor &input, Tensor &
   else if (this->device_->device_type() == DeviceType::GPU) {
     // For GPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
-      create_gpu_task(flow_id, ops::cuda::cuda_add<Compute_T>,
-                      input->data_as<Compute_T>() + i * sample_size,
-                      pos_embedding->data_as<Compute_T>(),
-                      output->data_as<Compute_T>() + i * sample_size, sample_size);
+      create_cuda_task(flow_id, ops::cuda::cuda_add<Compute_T>,
+                       input->data_as<Compute_T>() + i * sample_size,
+                       pos_embedding->data_as<Compute_T>(),
+                       output->data_as<Compute_T>() + i * sample_size, sample_size);
     }
     return nullptr;
   }
@@ -171,10 +171,10 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
     for (size_t i = 0; i < batch_size; ++i) {
-      create_gpu_task(flow_id, ops::cuda::cuda_add<Compute_T>,
-                      pos_embedding_gradients->data_as<Compute_T>(),
-                      gradient->data_as<Compute_T>() + i * sample_size,
-                      pos_embedding_gradients->data_as<Compute_T>(), sample_size);
+      create_cuda_task(flow_id, ops::cuda::cuda_add<Compute_T>,
+                       pos_embedding_gradients->data_as<Compute_T>(),
+                       gradient->data_as<Compute_T>() + i * sample_size,
+                       pos_embedding_gradients->data_as<Compute_T>(), sample_size);
     }
     return nullptr;
   }
