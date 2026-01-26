@@ -13,6 +13,7 @@
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 #include <any>
+#include <cstddef>
 #include <cstring>
 #include <fmt/core.h>
 #include <iostream>
@@ -218,6 +219,7 @@ public:
 #ifndef NDEBUG
     this->device_->getFlow("default")->synchronize();
 #endif
+    clear_cache(mb_id);
     Clock::time_point end_time = Clock::now();
     profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "backward"});
   }
@@ -322,7 +324,7 @@ protected:
   bool enable_profiling_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::string, Tensor> cached_tensors_;
+  std::map<std::pair<size_t, std::string>, Tensor> cached_tensors_;
   Profiler profiler_;
   MemPool *mem_pool_;
   const Device *device_;
@@ -354,8 +356,7 @@ protected:
   }
 
   Tensor &get_cached_tensor(size_t mb_id, const std::string &key) {
-    auto aggregate_key = std::to_string(mb_id) + key;
-    return cached_tensors_[aggregate_key];
+    return cached_tensors_[{mb_id, key}];
   }
 
   Tensor get_buffer(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32) {
@@ -366,6 +367,17 @@ protected:
       throw std::runtime_error("Device not set for layer: " + name_);
     }
     return Tensor::create_pooled(*mem_pool_, dtype, shape);
+  }
+
+private:
+  void clear_cache(size_t mb_id) {
+    for (auto it = cached_tensors_.begin(); it != cached_tensors_.end();) {
+      if (it->first.first == mb_id) {
+        it = cached_tensors_.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 };
 

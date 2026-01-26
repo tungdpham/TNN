@@ -86,35 +86,36 @@ private:
     }
 
     const size_t actual_batch_size = std::min(batch_size, data_.size() - this->current_index_);
-
+    const size_t height = cifar10_constants::IMAGE_HEIGHT;
+    const size_t width = cifar10_constants::IMAGE_WIDTH;
+    const size_t channels = cifar10_constants::NUM_CHANNELS;
+    const size_t num_classes = cifar10_constants::NUM_CLASSES;
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data =
-        Tensor::create<T>({actual_batch_size, cifar10_constants::IMAGE_HEIGHT,
-                           cifar10_constants::IMAGE_WIDTH, cifar10_constants::NUM_CHANNELS});
+    batch_data = Tensor::create<T>({actual_batch_size, height, width, channels});
 
-    batch_labels = Tensor::create<T>({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
+    batch_labels = Tensor::create<T>({actual_batch_size, num_classes, 1, 1});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = Tensor::cast<T>(batch_data);
-    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
+    T *data = batch_data->data_as<T>();
+    T *labels = batch_labels->data_as<T>();
+
+    size_t data_pixel_idx = 0;
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const std::vector<float> &image_data = data_[this->current_index_ + i];
 
-      for (size_t c = 0; c < cifar10_constants::NUM_CHANNELS; ++c) {
-        for (size_t h = 0; h < cifar10_constants::IMAGE_HEIGHT; ++h) {
-          for (size_t w = 0; w < cifar10_constants::IMAGE_WIDTH; ++w) {
-            size_t pixel_idx =
-                c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
-                h * cifar10_constants::IMAGE_WIDTH + w;
-            (*typed_batch_data)({i, h, w, c}) = static_cast<T>(image_data[pixel_idx]);
+      for (size_t c = 0; c < channels; ++c) {
+        for (size_t h = 0; h < height; ++h) {
+          for (size_t w = 0; w < width; ++w) {
+            size_t pixel_idx = c * height * width + h * width + w;
+            data[data_pixel_idx++] = static_cast<T>(image_data[pixel_idx]);
           }
         }
       }
 
       const size_t label = labels_[this->current_index_ + i];
-      if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
-        (*typed_batch_labels)({i, label, 0, 0}) = static_cast<T>(1.0);
+      if (label >= 0 && label < static_cast<int>(num_classes)) {
+        labels[i * num_classes + label] = static_cast<T>(1.0);
       }
     });
 

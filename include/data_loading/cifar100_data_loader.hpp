@@ -100,14 +100,11 @@ private:
       size_t records_loaded = 0;
 
       while (file.read(buffer, cifar100_constants::RECORD_SIZE)) {
-
         coarse_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
-
         fine_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[1])));
 
         std::vector<float> image_data;
         image_data.reserve(cifar100_constants::IMAGE_SIZE);
-
         for (size_t i = 2; i < cifar100_constants::RECORD_SIZE; ++i) {
           image_data.push_back(static_cast<float>(static_cast<unsigned char>(buffer[i]) /
                                                   cifar100_constants::NORMALIZATION_FACTOR));

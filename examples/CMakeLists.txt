@@ -14,6 +14,7 @@ create_executable(inspect_openwebtext.cpp LIBS tnn_nn)
 
 # Training executables
 create_executable(trainer.cpp LIBS tnn_nn)
+create_executable(fp16_trainer.cpp LIBS tnn_nn)
 
 # Inference executables
 create_executable(inferencer.cpp LIBS tnn_nn)

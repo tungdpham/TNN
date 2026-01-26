@@ -33,7 +33,6 @@ void ActivationLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, 
   }
   grad_input->ensure(input->shape());
   activation_->compute_gradient(input, gradient, grad_input);
-  input = nullptr;
 }
 
 LayerConfig ActivationLayer::get_config() const {

@@ -123,6 +123,7 @@ DenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Te
   if (weights->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("DenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
+
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(

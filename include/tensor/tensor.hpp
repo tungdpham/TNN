@@ -873,7 +873,7 @@ inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_na
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
-inline void print_data_distribution(const Tensor &tensor) {
+inline void print_data_distribution(const Tensor &tensor, const std::string &tensor_name = "") {
   if (!tensor) {
     std::cerr << "Cannot print distribution of null tensor" << std::endl;
     return;
@@ -936,8 +936,8 @@ inline void print_data_distribution(const Tensor &tensor) {
 
   // Print distribution
   size_t total = cpu_tensor->size();
-  std::cout << "\nData Distribution (shape " << cpu_tensor->shape_str() << ", " << total
-            << " elements):\n";
+  std::cout << "\nData Distribution for tensor: " << tensor_name << " (shape "
+            << cpu_tensor->shape_str() << ", " << total << " elements):\n";
   std::cout << std::setw(20) << "Range" << std::setw(15) << "Count" << std::setw(15)
             << "Percentage\n";
   std::cout << std::string(50, '-') << "\n";

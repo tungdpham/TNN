@@ -47,10 +47,13 @@ void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  cublasGemmEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb, A,
-               CudaType<A_T>::type, lda, &beta, C, CudaType<C_T>::type, ldc,
-               CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
+  cublasStatus_t status = cublasGemmEx(
+      handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb, A, CudaType<A_T>::type, lda,
+      &beta, C, CudaType<C_T>::type, ldc, CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
+  if (status != CUBLAS_STATUS_SUCCESS) {
+    throw std::runtime_error("cublasGemmEx failed with status: " + std::to_string(status));
+  }
+  tnn::cuda::checkCudaError(cudaGetLastError(), "gemm_ex", __FILE__, __LINE__);
 }
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
@@ -66,11 +69,15 @@ void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M,
   cublasOperation_t opA = transA ? CUBLAS_OP_T : CUBLAS_OP_N;
   cublasOperation_t opB = transB ? CUBLAS_OP_T : CUBLAS_OP_N;
 
-  cublasGemmStridedBatchedEx(handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb,
-                             strideB, A, CudaType<A_T>::type, lda, strideA, &beta, C,
-                             CudaType<C_T>::type, ldc, strideC, batch_count,
-                             CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
-  tnn::cuda::checkCudaError(cudaGetLastError(), "copy", __FILE__, __LINE__);
+  cublasStatus_t status = cublasGemmStridedBatchedEx(
+      handle, opB, opA, N, M, K, &alpha, B, CudaType<B_T>::type, ldb, strideB, A,
+      CudaType<A_T>::type, lda, strideA, &beta, C, CudaType<C_T>::type, ldc, strideC, batch_count,
+      CublasComputeType<Compute_T>::type, CUBLAS_GEMM_DEFAULT);
+  if (status != CUBLAS_STATUS_SUCCESS) {
+    throw std::runtime_error("cublasGemmStridedBatchedEx failed with status: " +
+                             std::to_string(status));
+  }
+  tnn::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
 }
 
 #define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                          \

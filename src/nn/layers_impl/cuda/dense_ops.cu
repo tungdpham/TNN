@@ -20,7 +20,7 @@ void compute_dense_forward_ex(const IO_T *input_data, const Param_T *weight_data
   Compute_T alpha = static_cast<Compute_T>(1.0f);
   Compute_T beta = static_cast<Compute_T>(0.0f);
 
-  tnn::cuda::gemm_ex<IO_T, Param_T, IO_T, Compute_T>(
+  cuda::gemm_ex<IO_T, Param_T, IO_T, Compute_T>(
       input_data, weight_data, output_data, batch_size, output_features, input_features, false,
       true, alpha, beta, input_features, input_features, output_features, stream);
 }
@@ -46,7 +46,7 @@ void compute_input_gradients_ex(const IO_T *gradient_data, const Param_T *weight
   Compute_T alpha = static_cast<Compute_T>(1.0f);
   Compute_T beta = static_cast<Compute_T>(0.0f);
 
-  tnn::cuda::gemm_ex<IO_T, Param_T, IO_T, Compute_T>(
+  cuda::gemm_ex<IO_T, Param_T, IO_T, Compute_T>(
       gradient_data, weight_data, grad_input_data, batch_size, input_features, output_features,
       false, false, alpha, beta, output_features, input_features, input_features, stream);
 }

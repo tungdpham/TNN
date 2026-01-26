@@ -216,10 +216,6 @@ void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, input,
                                  grad_input, gamma_, gamma_gradients_, beta_gradients_, batch_mean,
                                  batch_invar, workspace, "default");
-
-  input = nullptr;
-  batch_mean = nullptr;
-  batch_invar = nullptr;
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>

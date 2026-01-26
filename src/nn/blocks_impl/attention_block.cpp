@@ -113,6 +113,7 @@ void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, s
   Tensor dq_in = this->get_buffer(q->shape(), io_dtype_);
   Tensor dk_in = this->get_buffer(k->shape(), io_dtype_);
   Tensor dv_in = this->get_buffer(v->shape(), io_dtype_);
+
   q_proj_->backward(dq, dq_in, mb_id);
   k_proj_->backward(dk, dk_in, mb_id);
   v_proj_->backward(dv, dv_in, mb_id);
@@ -124,10 +125,6 @@ void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, dq_in, dk_in, temp, size, "default");
   DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, temp, dv_in, grad_input, size, "default");
-
-  q = nullptr;
-  k = nullptr;
-  v = nullptr;
 }
 
 uint64_t AttentionBlock::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }

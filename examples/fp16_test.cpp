@@ -1,10 +1,8 @@
-#include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
-#include "nn/train.hpp"
+#include "nn/layers_impl/dense_layer.hpp"
 #include "type/type.hpp"
-#include "utils/env.hpp"
 
 using namespace std;
 using namespace tnn;
@@ -12,72 +10,69 @@ using namespace tnn;
 signed main() {
   ExampleModels::register_defaults();
 
-  TrainingConfig train_config;
-  train_config.load_from_env();
-  train_config.print_config();
+  DenseLayer fp32_dense(128, 64, false, "fp32_dense");
+  fp32_dense.set_io_dtype(DType_t::FP32);
+  fp32_dense.set_device(getGPU());
+  fp32_dense.init();
 
-  // Prioritize loading existing model, else create from available ones
-  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
-  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+  DenseLayer fp16_dense(128, 64, false, "fp16_dense");
+  fp16_dense.set_io_dtype(DType_t::FP16);
+  fp16_dense.set_param_dtype(DType_t::FP16);
+  fp16_dense.set_device(getGPU());
+  fp16_dense.init();
 
-  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
-  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
-  const auto &device = DeviceManager::getInstance().getDevice(device_type);
-
-  std::unique_ptr<Sequential> model;
-  if (!model_path.empty()) {
-    cout << "Loading model from: " << model_path << endl;
-    std::ifstream file(model_path, std::ios::binary);
-    if (!file.is_open()) {
-      throw std::runtime_error("Failed to open model file");
+  auto fp16_params = fp16_dense.parameters();
+  auto fp32_params = fp32_dense.parameters();
+  for (size_t i = 0; i < fp16_params.size(); ++i) {
+    Tensor cpu_fp16_param = fp16_params[i]->to_cpu();
+    Tensor cpu_fp32_param = fp32_params[i]->to_cpu();
+    fp16 *fp16_data = cpu_fp16_param->data_as<fp16>();
+    float *fp32_data = cpu_fp32_param->data_as<float>();
+    for (size_t j = 0; j < cpu_fp16_param->size(); ++j) {
+      fp32_data[j] = static_cast<float>(fp16_data[j]);
     }
-    model = load_state<Sequential>(file, device);
-    file.close();
-  } else {
-    cout << "Creating model: " << model_name << endl;
-    try {
-      Sequential temp_model = ExampleModels::create(model_name);
-      model = std::make_unique<Sequential>(std::move(temp_model));
-    } catch (const std::exception &e) {
-      cerr << "Error creating model: " << e.what() << endl;
-      cout << "Available models are: ";
-      for (const auto &name : ExampleModels::available_models()) {
-        cout << name << "\n";
+    cpu_fp32_param->copy_to(fp32_params[i]);
+  }
+
+  Tensor fp16_input = Tensor::create(DType_t::FP16, {32, 128}, &getCPU());
+  fp16_input->fill_random_uniform(0.0f, 1.0f);
+  Tensor fp32_input = Tensor::create(DType_t::FP32, {32, 128}, &getCPU());
+
+  fp16 *input_data = fp16_input->data_as<fp16>();
+  fp32 *input_data_fp32 = fp32_input->data_as<float>();
+  for (size_t i = 0; i < fp16_input->size(); ++i) {
+    input_data_fp32[i] = static_cast<float>(input_data[i]);
+  }
+
+  Tensor input_fp32 = fp32_input->to_device(&getGPU());
+  Tensor input_fp16 = fp16_input->to_device(&getGPU());
+
+  Tensor output_fp32, output_fp16;
+  output_fp32 = Tensor::create(DType_t::FP32, {32, 64}, &getGPU());
+  output_fp16 = Tensor::create(DType_t::FP16, {32, 64}, &getGPU());
+
+  fp32_dense.forward(input_fp32, output_fp32, 0);
+  fp16_dense.forward(input_fp16, output_fp16, 0);
+
+  Tensor cpu_output_fp32 = output_fp32->to_cpu();
+  Tensor cpu_output_fp16 = output_fp16->to_cpu();
+
+  float *output_data_fp32 = cpu_output_fp32->data_as<float>();
+  fp16 *output_data_fp16 = cpu_output_fp16->data_as<fp16>();
+  double max_diff = 0.0;
+  constexpr double tolerance = 1e-4;
+  for (size_t i = 0; i < cpu_output_fp32->size(); ++i) {
+    double val_fp32 = static_cast<double>(output_data_fp32[i]);
+    double val_fp16 = static_cast<double>(output_data_fp16[i]);
+    double diff = std::abs(val_fp32 - val_fp16);
+    if (diff > tolerance) {
+      if (diff > max_diff) {
+        max_diff = diff;
       }
-      cout << endl;
-      return 1;
+      std::cout << "At index " << i << ": FP32 value = " << val_fp32
+                << ", FP16 value = " << val_fp16 << ", diff = " << diff << std::endl;
     }
-    model->set_device(device);
-    model->set_io_dtype(DType_t::FP16);
-    model->init();
   }
-
-  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
-  if (dataset_name.empty()) {
-    throw std::runtime_error("DATASET_NAME environment variable is not set!");
-  }
-  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
-  auto [train_loader, val_loader] =
-      DataLoaderFactory::create(dataset_name, dataset_path, DType_t::FP16);
-  if (!train_loader || !val_loader) {
-    cerr << "Failed to create data loaders for model: " << model_name << endl;
-    return 1;
-  }
-
-  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
-
-  float lr_initial = Env::get("LR_INITIAL", 0.001f);
-  auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
-  // auto optimizer = OptimizerFactory::create_sgd(lr_initial, 0.9f);
-  auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), 10, 0.1f);
-
-  try {
-    train_model(model, train_loader, val_loader, optimizer, criterion, scheduler, train_config);
-  } catch (const std::exception &e) {
-    cerr << "Training failed: " << e.what() << endl;
-    return 1;
-  }
-
+  cout << "Max diff: " << max_diff << endl;
   return 0;
 }
