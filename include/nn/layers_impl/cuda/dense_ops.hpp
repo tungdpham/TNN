@@ -5,7 +5,7 @@
 #include <cuda_runtime.h>
 namespace tnn {
 namespace cuda {
-namespace dense {
+namespace legacy_dense {
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 void compute_dense_forward_ex(const IO_T *input_data, const Param_T *weight_data, IO_T *output_data,
@@ -32,7 +32,7 @@ void compute_bias_gradients_ex(const IO_T *current_grad_data, Param_T *bias_grad
 template <typename IO_T, typename Param_T, typename Compute_T>
 void add_bias_vector_ex(IO_T *output_data, const Param_T *bias_data, const size_t batch_size,
                         const size_t output_features, cudaStream_t stream);
-} // namespace dense
+} // namespace legacy_dense
 } // namespace cuda
 } // namespace tnn
 

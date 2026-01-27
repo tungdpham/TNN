@@ -13,7 +13,7 @@
 
 namespace tnn {
 namespace cpu {
-namespace dense {
+namespace legacy_dense {
 template <typename T>
 void compute_dense_forward(const T *input_data, const T *weight_data, T *output_data,
                            const size_t batch_size, const size_t input_features,
@@ -81,6 +81,6 @@ INSTANTIATE_DENSE(bf16)
 INSTANTIATE_DENSE(float)
 INSTANTIATE_DENSE(double)
 #undef INSTANTIATE_DENSE
-} // namespace dense
+} // namespace legacy_dense
 } // namespace cpu
 } // namespace tnn

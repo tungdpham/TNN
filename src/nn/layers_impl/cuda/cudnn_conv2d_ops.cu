@@ -2,8 +2,8 @@
 
 #ifdef USE_CUDNN
 
-#include "cudnn_frontend/graph_interface.h"
 #include "type/type.hpp"
+#include <cudnn_frontend.h>
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
 
@@ -14,19 +14,6 @@ namespace cuda {
 namespace cudnn_conv2d {
 
 namespace fe = cudnn_frontend;
-
-cudnnDataType_t get_cudnn_data_type(DType_t dtype) {
-  switch (dtype) {
-  case DType_t::FP16:
-    return CUDNN_DATA_HALF;
-  case DType_t::FP32:
-    return CUDNN_DATA_FLOAT;
-  case DType_t::FP64:
-    return CUDNN_DATA_DOUBLE;
-  default:
-    throw std::runtime_error("Unsupported data type for conv2d");
-  }
-}
 
 struct feHandle_t {
   cudnnHandle_t cudnn_handle = nullptr;

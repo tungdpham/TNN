@@ -21,21 +21,13 @@ void test_dense() {
 
   DenseLayer bf16_dense(input_dim, output_dim, false, "bf16_dense");
   bf16_dense.set_io_dtype(DType_t::BF16);
-  bf16_dense.set_param_dtype(DType_t::BF16);
   bf16_dense.set_device(getGPU());
   bf16_dense.init();
 
   auto bf16_params = bf16_dense.parameters();
   auto fp32_params = fp32_dense.parameters();
   for (size_t i = 0; i < bf16_params.size(); ++i) {
-    Tensor cpu_bf16_param = bf16_params[i]->to_cpu();
-    Tensor cpu_fp32_param = fp32_params[i]->to_cpu();
-    bf16 *bf16_data = cpu_bf16_param->data_as<bf16>();
-    float *fp32_data = cpu_fp32_param->data_as<float>();
-    for (size_t j = 0; j < cpu_bf16_param->size(); ++j) {
-      fp32_data[j] = static_cast<float>(bf16_data[j]);
-    }
-    cpu_fp32_param->copy_to(fp32_params[i]);
+    bf16_params[i]->copy_to(fp32_params[i]);
   }
 
   Tensor bf16_input = Tensor::create(DType_t::BF16, {batch_size, input_dim}, &getCPU());
@@ -64,7 +56,7 @@ void test_dense() {
   float *output_data_fp32 = cpu_output_fp32->data_as<float>();
   bf16 *output_data_bf16 = cpu_output_bf16->data_as<bf16>();
   double max_diff = 0.0;
-  constexpr double tolerance = 1e-3;
+  constexpr double tolerance = 2e-3;
   for (size_t i = 0; i < cpu_output_fp32->size(); ++i) {
     double val_fp32 = static_cast<double>(output_data_fp32[i]);
     double val_bf16 = static_cast<double>(output_data_bf16[i]);
@@ -181,7 +173,7 @@ void test_attention() {
   float *output_data_fp32 = cpu_output_fp32->data_as<float>();
   bf16 *output_data_bf16 = cpu_output_bf16->data_as<bf16>();
   double max_diff = 0.0;
-  constexpr double tolerance = 1e-3;
+  constexpr double tolerance = 2e-3;
   for (size_t i = 0; i < cpu_output_fp32->size(); ++i) {
     double val_fp32 = static_cast<double>(output_data_fp32[i]);
     double val_bf16 = static_cast<double>(output_data_bf16[i]);

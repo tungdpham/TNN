@@ -6,7 +6,7 @@
  */
 
 #include "device/device_manager.hpp"
-#include "nn/layers_impl/dense_layer.hpp"
+#include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "tensor/tensor.hpp"
 #include <cmath>
 #include <gtest/gtest.h>
@@ -15,11 +15,11 @@
 using namespace tnn;
 
 /**
- * Test fixture for DenseLayer validation tests.
+ * Test fixture for LegacyDenseLayer validation tests.
  * These tests verify the mathematical correctness of fully connected layer operations
  * including forward and backward passes.
  */
-class DenseLayerTest : public ::testing::Test {
+class LegacyLegacyDenseLayerTest : public ::testing::Test {
 protected:
   static void SetUpTestSuite() { initializeDefaultDevices(); }
 
@@ -51,8 +51,6 @@ protected:
 
     EXPECT_EQ(output_shape[0], batch_size);
     EXPECT_EQ(output_shape[1], output_features);
-    EXPECT_EQ(output_shape[2], 1);
-    EXPECT_EQ(output_shape[3], 1);
   }
 
   void verify_forward_result(const Tensor &input, const Tensor &output, const Tensor &weights,
@@ -123,8 +121,8 @@ protected:
   const Device *cpu_device_;
 };
 
-TEST_F(DenseLayerTest, BasicForwardPass) {
-  DenseLayer layer(10, 5, true, "test_dense");
+TEST_F(LegacyLegacyDenseLayerTest, BasicForwardPass) {
+  LegacyDenseLayer layer(10, 5, true, "test_dense");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -144,8 +142,8 @@ TEST_F(DenseLayerTest, BasicForwardPass) {
   verify_forward_result(input, output, params[0], params.size() > 1 ? params[1] : nullptr);
 }
 
-TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
-  DenseLayer layer(20, 10, true, "test_dense_single");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassSingleBatch) {
+  LegacyDenseLayer layer(20, 10, true, "test_dense_single");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -165,8 +163,8 @@ TEST_F(DenseLayerTest, ForwardPassSingleBatch) {
   EXPECT_EQ(output_shape[1], 10);
 }
 
-TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
-  DenseLayer layer(15, 8, false, "test_dense_multibatch");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassMultiBatch) {
+  LegacyDenseLayer layer(15, 8, false, "test_dense_multibatch");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -183,8 +181,8 @@ TEST_F(DenseLayerTest, ForwardPassMultiBatch) {
   EXPECT_EQ(output_shape[1], 8);
 }
 
-TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
-  DenseLayer layer(128, 64, true, "test_dense_large");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassLargeLayer) {
+  LegacyDenseLayer layer(128, 64, true, "test_dense_large");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -200,8 +198,8 @@ TEST_F(DenseLayerTest, ForwardPassLargeLayer) {
   EXPECT_EQ(output_shape[1], 64);
 }
 
-TEST_F(DenseLayerTest, ForwardPassWithBias) {
-  DenseLayer layer(10, 5, true, "test_dense_bias");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassWithBias) {
+  LegacyDenseLayer layer(10, 5, true, "test_dense_bias");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -217,8 +215,8 @@ TEST_F(DenseLayerTest, ForwardPassWithBias) {
   EXPECT_EQ(out_shape[1], 5);
 }
 
-TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
-  DenseLayer layer(10, 5, false, "test_dense_no_bias");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassWithoutBias) {
+  LegacyDenseLayer layer(10, 5, false, "test_dense_no_bias");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -234,8 +232,8 @@ TEST_F(DenseLayerTest, ForwardPassWithoutBias) {
   EXPECT_EQ(out_shape[1], 5);
 }
 
-TEST_F(DenseLayerTest, ForwardPassVariableInput) {
-  DenseLayer layer(6, 3, true, "test_dense_variable");
+TEST_F(LegacyLegacyDenseLayerTest, ForwardPassVariableInput) {
+  LegacyDenseLayer layer(6, 3, true, "test_dense_variable");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -252,8 +250,8 @@ TEST_F(DenseLayerTest, ForwardPassVariableInput) {
   verify_output_shape(input, output, 3);
 }
 
-TEST_F(DenseLayerTest, BasicBackwardPass) {
-  DenseLayer layer(10, 5, true, "test_dense_backward");
+TEST_F(LegacyLegacyDenseLayerTest, BasicBackwardPass) {
+  LegacyDenseLayer layer(10, 5, true, "test_dense_backward");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -278,8 +276,8 @@ TEST_F(DenseLayerTest, BasicBackwardPass) {
   verify_backward_result(gradient, grad_input, params[0]);
 }
 
-TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
-  DenseLayer layer(20, 10, true, "test_dense_backward_single");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardPassSingleBatch) {
+  LegacyDenseLayer layer(20, 10, true, "test_dense_backward_single");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -301,8 +299,8 @@ TEST_F(DenseLayerTest, BackwardPassSingleBatch) {
   EXPECT_EQ(grad_input_shape[0], 1);
 }
 
-TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
-  DenseLayer layer(15, 8, false, "test_dense_backward_multibatch");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardPassMultiBatch) {
+  LegacyDenseLayer layer(15, 8, false, "test_dense_backward_multibatch");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -324,8 +322,8 @@ TEST_F(DenseLayerTest, BackwardPassMultiBatch) {
   EXPECT_EQ(grad_input_shape[0], 4);
 }
 
-TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
-  DenseLayer layer(8, 4, true, "test_dense_backward_var");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardPassVariableGradient) {
+  LegacyDenseLayer layer(8, 4, true, "test_dense_backward_var");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -352,8 +350,8 @@ TEST_F(DenseLayerTest, BackwardPassVariableGradient) {
   EXPECT_EQ(grad_input->shape(), input->shape());
 }
 
-TEST_F(DenseLayerTest, BackwardPassWithBias) {
-  DenseLayer layer(10, 5, true, "test_dense_backward_bias");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardPassWithBias) {
+  LegacyDenseLayer layer(10, 5, true, "test_dense_backward_bias");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -373,8 +371,8 @@ TEST_F(DenseLayerTest, BackwardPassWithBias) {
   verify_gradient_shape(gradient, grad_input, input);
 }
 
-TEST_F(DenseLayerTest, BackwardPassWithoutBias) {
-  DenseLayer layer(10, 5, false, "test_dense_backward_no_bias");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardPassWithoutBias) {
+  LegacyDenseLayer layer(10, 5, false, "test_dense_backward_no_bias");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -394,8 +392,8 @@ TEST_F(DenseLayerTest, BackwardPassWithoutBias) {
   verify_gradient_shape(gradient, grad_input, input);
 }
 
-TEST_F(DenseLayerTest, ComputeOutputShape) {
-  DenseLayer layer(128, 64, true, "test_dense_shape");
+TEST_F(LegacyLegacyDenseLayerTest, ComputeOutputShape) {
+  LegacyDenseLayer layer(128, 64, true, "test_dense_shape");
 
   std::vector<size_t> input_shape = {2, 128};
   std::vector<size_t> expected_shape = {2, 64};
@@ -405,8 +403,8 @@ TEST_F(DenseLayerTest, ComputeOutputShape) {
   EXPECT_EQ(output_shape, expected_shape);
 }
 
-TEST_F(DenseLayerTest, GetConfig) {
-  DenseLayer layer(100, 50, true, "test_dense_config");
+TEST_F(LegacyLegacyDenseLayerTest, GetConfig) {
+  LegacyDenseLayer layer(100, 50, true, "test_dense_config");
 
   LayerConfig config = layer.get_config();
 
@@ -416,21 +414,21 @@ TEST_F(DenseLayerTest, GetConfig) {
   EXPECT_EQ(config.get<bool>("use_bias"), true);
 }
 
-TEST_F(DenseLayerTest, CreateFromConfig) {
+TEST_F(LegacyLegacyDenseLayerTest, CreateFromConfig) {
   LayerConfig config;
   config.name = "test_dense_recreate";
   config.parameters["input_features"] = size_t(64);
   config.parameters["output_features"] = size_t(32);
   config.parameters["use_bias"] = true;
 
-  auto layer = DenseLayer::create_from_config(config);
+  auto layer = LegacyDenseLayer::create_from_config(config);
 
   EXPECT_NE(layer, nullptr);
   EXPECT_EQ(layer->type(), "dense");
 }
 
-TEST_F(DenseLayerTest, Clone) {
-  DenseLayer original(100, 50, true, "test_dense_clone");
+TEST_F(LegacyLegacyDenseLayerTest, Clone) {
+  LegacyDenseLayer original(100, 50, true, "test_dense_clone");
 
   auto cloned = original.clone();
 
@@ -439,8 +437,8 @@ TEST_F(DenseLayerTest, Clone) {
   EXPECT_EQ(cloned->type(), original.type());
 }
 
-TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
-  DenseLayer layer(2, 1, true, "test_small_layer");
+TEST_F(LegacyLegacyDenseLayerTest, EdgeCaseSmallLayer) {
+  LegacyDenseLayer layer(2, 1, true, "test_small_layer");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -456,8 +454,8 @@ TEST_F(DenseLayerTest, EdgeCaseSmallLayer) {
   EXPECT_EQ(out_shape[0], 1);
 }
 
-TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
-  DenseLayer layer(10, 5, true, "test_zero_gradient");
+TEST_F(LegacyLegacyDenseLayerTest, EdgeCaseZeroGradient) {
+  LegacyDenseLayer layer(10, 5, true, "test_zero_gradient");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -477,8 +475,8 @@ TEST_F(DenseLayerTest, EdgeCaseZeroGradient) {
   verify_gradient_shape(gradient, grad_input, input);
 }
 
-TEST_F(DenseLayerTest, EdgeCaseLargeValues) {
-  DenseLayer layer(10, 5, false, "test_large_values");
+TEST_F(LegacyLegacyDenseLayerTest, EdgeCaseLargeValues) {
+  LegacyDenseLayer layer(10, 5, false, "test_large_values");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -492,8 +490,8 @@ TEST_F(DenseLayerTest, EdgeCaseLargeValues) {
   verify_output_shape(input, output, 5);
 }
 
-TEST_F(DenseLayerTest, EdgeCaseNegativeValues) {
-  DenseLayer layer(8, 4, true, "test_negative_values");
+TEST_F(LegacyLegacyDenseLayerTest, EdgeCaseNegativeValues) {
+  LegacyDenseLayer layer(8, 4, true, "test_negative_values");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -510,8 +508,8 @@ TEST_F(DenseLayerTest, EdgeCaseNegativeValues) {
   verify_output_shape(input, output, 4);
 }
 
-TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
-  DenseLayer layer(20, 10, true, "test_large_batch");
+TEST_F(LegacyLegacyDenseLayerTest, EdgeCaseLargeBatch) {
+  LegacyDenseLayer layer(20, 10, true, "test_large_batch");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -527,8 +525,8 @@ TEST_F(DenseLayerTest, EdgeCaseLargeBatch) {
   EXPECT_EQ(output_shape[0], 32);
 }
 
-TEST_F(DenseLayerTest, NumericalStabilitySmallValues) {
-  DenseLayer layer(10, 5, true, "test_small_values");
+TEST_F(LegacyLegacyDenseLayerTest, NumericalStabilitySmallValues) {
+  LegacyDenseLayer layer(10, 5, true, "test_small_values");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -542,8 +540,8 @@ TEST_F(DenseLayerTest, NumericalStabilitySmallValues) {
   verify_output_shape(input, output, 5);
 }
 
-TEST_F(DenseLayerTest, BackwardNumericalStability) {
-  DenseLayer layer(10, 5, false, "test_backward_stability");
+TEST_F(LegacyLegacyDenseLayerTest, BackwardNumericalStability) {
+  LegacyDenseLayer layer(10, 5, false, "test_backward_stability");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -563,8 +561,8 @@ TEST_F(DenseLayerTest, BackwardNumericalStability) {
   verify_gradient_shape(gradient, grad_input, input);
 }
 
-TEST_F(DenseLayerTest, NumericalStabilityMixedValues) {
-  DenseLayer layer(10, 5, true, "test_mixed_values");
+TEST_F(LegacyLegacyDenseLayerTest, NumericalStabilityMixedValues) {
+  LegacyDenseLayer layer(10, 5, true, "test_mixed_values");
   layer.set_device(*cpu_device_);
   layer.init();
 
@@ -581,8 +579,8 @@ TEST_F(DenseLayerTest, NumericalStabilityMixedValues) {
   verify_output_shape(input, output, 5);
 }
 
-TEST_F(DenseLayerTest, MultipleForwardBackwardPasses) {
-  DenseLayer layer(10, 5, true, "test_multiple_passes");
+TEST_F(LegacyLegacyDenseLayerTest, MultipleForwardBackwardPasses) {
+  LegacyDenseLayer layer(10, 5, true, "test_multiple_passes");
   layer.set_device(*cpu_device_);
   layer.init();
 

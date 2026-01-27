@@ -11,6 +11,7 @@
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
+#include "cuda/cudnn/common.hpp"
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 #endif
 #include "type/type.hpp"
@@ -228,8 +229,8 @@ void Conv2DLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_i
       throw std::runtime_error("Conv2DLayer requires CUDAContext for cuDNN operations");
     }
     cudnnHandle_t shared_handle = cuda_context->getCudnnHandle();
-    auto io_data_type = cuda::cudnn_conv2d::get_cudnn_data_type(io_dtype_);
-    auto compute_type = cuda::cudnn_conv2d::get_cudnn_data_type(compute_dtype_);
+    auto io_data_type = cuda::cudnn::to_cudnn_datatype(io_dtype_);
+    auto compute_type = cuda::cudnn::to_cudnn_datatype(compute_dtype_);
     fe_handle_cache[shape_key] = cuda::cudnn_conv2d::initialize_fe_handle(
         shared_handle, io_data_type, compute_type, new_stats);
     stats_cache[shape_key] = new_stats;

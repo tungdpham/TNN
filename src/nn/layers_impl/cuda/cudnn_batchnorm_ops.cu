@@ -3,12 +3,9 @@
 
 #ifdef USE_CUDNN
 
-#include "cuda/cudnn/common.hpp"
 #include "type/type.hpp"
-
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
-
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>

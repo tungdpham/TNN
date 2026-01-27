@@ -7,24 +7,20 @@
 #pragma once
 
 #include "device/task.hpp"
-#include "math/common/gemm.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
-#ifdef USE_CUDNN
-#include "math/cuda/cudnn_gemm.hpp"
-#endif
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 namespace tnn {
 
-class DenseLayer : public ParameterizedLayer {
+class LegacyDenseLayer : public ParameterizedLayer {
 private:
   size_t input_features_;
   size_t output_features_;
   bool use_bias_;
+
   Tensor weights_;
   Tensor bias_;
   Tensor weight_gradients_;
@@ -57,16 +53,6 @@ private:
   std::unique_ptr<Task> add_bias_vector(Tensor &output, const Tensor &bias, size_t batch_size,
                                         size_t output_features, const std::string &flow_id) const;
 
-#ifdef USE_CUDNN
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
-
-  std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> handle_cache;
-#endif
-  std::unordered_map<size_t, GemmStats> stats_cache;
-
-  size_t get_shape_hash(size_t batch_size) const;
-
   void init_params() override;
   void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
@@ -74,12 +60,10 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "dense";
+  static constexpr const char *TYPE_NAME = "legacy_dense";
 
-  DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
-             const std::string &name = "dense");
-
-  ~DenseLayer();
+  LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
+                   const std::string &name = "legacy_dense");
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
@@ -90,7 +74,7 @@ public:
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
-  static std::unique_ptr<DenseLayer> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<LegacyDenseLayer> create_from_config(const LayerConfig &config);
 };
 
 } // namespace tnn

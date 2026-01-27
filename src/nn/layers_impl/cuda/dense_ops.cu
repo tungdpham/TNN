@@ -11,7 +11,7 @@
 
 namespace tnn {
 namespace cuda {
-namespace dense {
+namespace legacy_dense {
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 void compute_dense_forward_ex(const IO_T *input_data, const Param_T *weight_data, IO_T *output_data,
@@ -166,6 +166,6 @@ INSTANTIATE_DENSE_OPS_IO(double)
 #undef INSTANTIATE_DENSE_OPS_COMPUTE
 #undef INSTANTIATE_DENSE_OPS
 
-} // namespace dense
+} // namespace legacy_dense
 } // namespace cuda
 } // namespace tnn

@@ -1,6 +1,19 @@
 # TNN CMakeLists.txt
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+# Type module
+file(GLOB_RECURSE TNN_TYPE_SOURCES 
+    "type/*.cpp"
+)
+add_library(tnn_type STATIC ${TNN_TYPE_SOURCES})
+target_include_directories(tnn_type PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+if(ENABLE_CUDA)
+    target_link_libraries(tnn_type PUBLIC CUDA::cudart CUDA::cublas)
+endif()
+
 # CUDA module
 if(ENABLE_CUDA)
     file(GLOB_RECURSE TNN_CUDA_SOURCES 
@@ -16,23 +29,11 @@ if(ENABLE_CUDA)
         CUDA_SEPARABLE_COMPILATION ON
         CUDA_RESOLVE_DEVICE_SYMBOLS ON
     )
+    target_link_libraries(tnn_cuda PUBLIC tnn_type)
     target_link_libraries(tnn_cuda PUBLIC CUDA::cudart CUDA::cublas)
     if(ENABLE_CUDNN)
         target_link_libraries(tnn_cuda PUBLIC CUDA::cudnn cudnn_frontend)
     endif()
-endif()
-
-# Type module
-file(GLOB_RECURSE TNN_TYPE_SOURCES 
-    "type/*.cpp"
-)
-add_library(tnn_type STATIC ${TNN_TYPE_SOURCES})
-target_include_directories(tnn_type PUBLIC 
-    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
-if(ENABLE_CUDA)
-    target_link_libraries(tnn_type PUBLIC CUDA::cudart CUDA::cublas)
 endif()
 
 # Device module
@@ -211,6 +212,9 @@ if(ENABLE_CUDA)
         CUDA_STANDARD 20
     )
     target_link_libraries(tnn_math PUBLIC CUDA::cudart CUDA::cublas)
+    if(ENABLE_CUDNN)
+        target_link_libraries(tnn_math PUBLIC CUDA::cudnn cudnn_frontend)
+    endif()
 endif()
 
 # Neural Network library

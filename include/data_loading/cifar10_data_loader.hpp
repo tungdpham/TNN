@@ -99,10 +99,9 @@ private:
     T *data = batch_data->data_as<T>();
     T *labels = batch_labels->data_as<T>();
 
-    size_t data_pixel_idx = 0;
-
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const std::vector<float> &image_data = data_[this->current_index_ + i];
+      size_t data_pixel_idx = i * height * width * channels;
 
       for (size_t c = 0; c < channels; ++c) {
         for (size_t h = 0; h < height; ++h) {

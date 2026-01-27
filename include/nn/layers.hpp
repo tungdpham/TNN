@@ -12,6 +12,7 @@
 #include "activations.hpp"
 #include "layers_impl/base_layer.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
+#include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -20,12 +21,14 @@ inline std::unique_ptr<ActivationFunction> create_activation(const std::string &
   return ActivationFactory::create(name);
 }
 
-class DenseLayer;
-class ActivationLayer;
+class LegacyDenseLayer;
 class LegacyConv2DLayer;
 class LegacyMaxPool2DLayer;
 class LegacyAvgPool2DLayer;
 class LegacyBatchNormLayer;
+
+class DenseLayer;
+class ActivationLayer;
 class Conv2DLayer;
 class MaxPool2DLayer;
 class AvgPool2DLayer;
@@ -65,6 +68,7 @@ class Sequential;
 #include "layers_impl/legacy_avgpool2d_layer.hpp"
 #include "layers_impl/legacy_batchnorm_layer.hpp"
 #include "layers_impl/legacy_conv2d_layer.hpp"
+#include "layers_impl/legacy_dense_layer.hpp"
 #include "layers_impl/legacy_maxpool2d_layer.hpp"
 #include "layers_impl/maxpool2d_layer.hpp"
 #include "layers_impl/positional_embedding_layer.hpp"
@@ -126,6 +130,7 @@ public:
     register_layer_type<DropoutLayer>();
     register_layer_type<GroupNormLayer>();
     register_layer_type<LayerNormLayer>();
+    register_layer_type<LegacyDenseLayer>();
     register_layer_type<FlattenLayer>();
     register_layer_type<ClassTokenLayer>();
     register_layer_type<PositionalEmbeddingLayer>();
@@ -289,6 +294,18 @@ public:
     auto layer = std::make_unique<AvgPool2DLayer>(
         pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
         name.empty() ? "avgpool2d_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(layer));
+    return *this;
+  }
+
+  LayerBuilder &legacy_dense(size_t output_features, bool use_bias = true,
+                             const std::string &name = "") {
+    std::vector<size_t> current_shape = get_current_shape();
+    size_t input_features = current_shape.back();
+
+    auto layer = std::make_unique<LegacyDenseLayer>(
+        input_features, output_features, use_bias,
+        name.empty() ? "dense_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
   }

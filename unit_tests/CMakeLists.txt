@@ -19,7 +19,7 @@ set(TEST_FILES
     residual_block_test.cpp
     sequential_residual_block_test.cpp
     tiny_imagenet_loader_test.cpp
-    dense_layer_test.cpp
+    legacy_dense_layer_test.cpp
     legacy_maxpool2d_layer_test.cpp
     legacy_avgpool_layer_test.cpp
     legacy_batchnorm_layer_test.cpp
