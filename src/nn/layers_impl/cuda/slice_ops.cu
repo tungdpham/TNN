@@ -117,6 +117,7 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
                                   const std::vector<size_t> &input_shape, size_t axis,             \
                                   size_t start, size_t length, cudaStream_t stream);
 INSTANTIATE_SLICE(fp16)
+INSTANTIATE_SLICE(bf16)
 INSTANTIATE_SLICE(float)
 INSTANTIATE_SLICE(double)
 #undef INSTANTIATE_SLICE

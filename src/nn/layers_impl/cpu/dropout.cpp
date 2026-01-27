@@ -53,6 +53,7 @@ void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, 
                                            size_t batch_size, size_t channels,                     \
                                            size_t spatial_size, T dropout_rate);
 INSTANTIATE_DROPOUT(fp16)
+INSTANTIATE_DROPOUT(bf16)
 INSTANTIATE_DROPOUT(float)
 INSTANTIATE_DROPOUT(double)
 #undef INSTANTIATE_DROPOUT

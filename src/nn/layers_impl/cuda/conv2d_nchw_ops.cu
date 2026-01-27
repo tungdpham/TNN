@@ -156,6 +156,7 @@ void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_s
       const size_t output_w, const size_t out_channels, cudaStream_t stream);
 
 INSTANTIATE_CONV2D(fp16)
+INSTANTIATE_CONV2D(bf16)
 INSTANTIATE_CONV2D(float)
 INSTANTIATE_CONV2D(double)
 #undef INSTANTIATE_CONV2D

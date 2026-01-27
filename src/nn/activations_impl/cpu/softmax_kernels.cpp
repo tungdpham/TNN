@@ -85,6 +85,7 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
                                     size_t batch_size, size_t channels, size_t height,             \
                                     size_t width);
 INSTANTIATE_SOFTMAX(fp16)
+INSTANTIATE_SOFTMAX(bf16)
 INSTANTIATE_SOFTMAX(float)
 INSTANTIATE_SOFTMAX(double)
 #undef INSTANTIATE_SOFTMAX

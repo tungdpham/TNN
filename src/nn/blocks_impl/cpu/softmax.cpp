@@ -67,9 +67,10 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
   template void softmax_backward<T>(const T *output, const T *grad_output, T *grad_input,          \
                                     size_t rows, size_t cols);
 
+INSTANTIATE_SOFTMAX(fp16)
+INSTANTIATE_SOFTMAX(bf16)
 INSTANTIATE_SOFTMAX(float)
 INSTANTIATE_SOFTMAX(double)
-INSTANTIATE_SOFTMAX(fp16)
 #undef INSTANTIATE_SOFTMAX
 
 } // namespace cpu

@@ -24,6 +24,7 @@ void sigmoid_gradient(const T *input, const T *grad_output, T *grad_input, size_
   template void sigmoid_gradient<T>(const T *input, const T *grad_output, T *grad_input,           \
                                     size_t size);
 INSTANTIATE_SIGMOID(fp16)
+INSTANTIATE_SIGMOID(bf16)
 INSTANTIATE_SIGMOID(float)
 INSTANTIATE_SIGMOID(double)
 #undef INSTANTIATE_SIGMOID

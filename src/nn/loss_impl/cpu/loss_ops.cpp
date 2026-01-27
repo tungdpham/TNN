@@ -258,6 +258,7 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
                                           const size_t batch_size, const size_t output_size,       \
                                           T delta);
 INSTANTIATE_LOSS_OPS(fp16)
+INSTANTIATE_LOSS_OPS(bf16)
 INSTANTIATE_LOSS_OPS(float)
 INSTANTIATE_LOSS_OPS(double)
 #undef INSTANTIATE_LOSS_OPS

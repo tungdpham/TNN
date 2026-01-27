@@ -54,18 +54,16 @@ void apply_causal_mask(T *scores, size_t batch_count, size_t L, T neg_inf, cudaS
   apply_causal_mask_kernel<<<blocks, threads, 0, stream>>>(scores, batch_count, L, neg_inf);
 }
 
-template void fill_causal_mask<float>(float *mask, size_t batch_count, size_t L, float neg_inf,
-                                      cudaStream_t stream);
-template void fill_causal_mask<double>(double *mask, size_t batch_count, size_t L, double neg_inf,
-                                       cudaStream_t stream);
-template void fill_causal_mask<fp16>(fp16 *mask, size_t batch_count, size_t L, fp16 neg_inf,
+#define INSTANTIATE_APPLY_CAUSAL_MASK(T)                                                           \
+  template void fill_causal_mask<T>(T * mask, size_t batch_count, size_t L, T neg_inf,             \
+                                    cudaStream_t stream);                                          \
+  template void apply_causal_mask<T>(T * scores, size_t batch_count, size_t L, T neg_inf,          \
                                      cudaStream_t stream);
-template void apply_causal_mask<float>(float *scores, size_t batch_count, size_t L, float neg_inf,
-                                       cudaStream_t stream);
-template void apply_causal_mask<double>(double *scores, size_t batch_count, size_t L,
-                                        double neg_inf, cudaStream_t stream);
-template void apply_causal_mask<fp16>(fp16 *scores, size_t batch_count, size_t L, fp16 neg_inf,
-                                      cudaStream_t stream);
+INSTANTIATE_APPLY_CAUSAL_MASK(fp16)
+INSTANTIATE_APPLY_CAUSAL_MASK(bf16)
+INSTANTIATE_APPLY_CAUSAL_MASK(float)
+INSTANTIATE_APPLY_CAUSAL_MASK(double)
+#undef INSTANTIATE_APPLY_CAUSAL_MASK
 
 } // namespace cuda
 } // namespace tnn

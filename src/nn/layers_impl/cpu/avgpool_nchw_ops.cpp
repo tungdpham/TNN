@@ -101,6 +101,7 @@ void compute_avg_pool_backward(const T *gradient_data, T *grad_input_data, size_
       size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);
 
 INSTANTIATE_AVGPOOL(fp16)
+INSTANTIATE_AVGPOOL(bf16)
 INSTANTIATE_AVGPOOL(float)
 INSTANTIATE_AVGPOOL(double)
 #undef INSTANTIATE_AVGPOOL

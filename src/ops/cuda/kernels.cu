@@ -5,6 +5,7 @@
 
 #include "cuda/error_handler.hpp"
 #include <cstdint>
+#include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
@@ -29,6 +30,11 @@ template <> struct VectorizedTrait<int> {
 
 template <> struct VectorizedTrait<fp16> {
   using type = half2;
+  static constexpr int size = 2;
+};
+
+template <> struct VectorizedTrait<bf16> {
+  using type = __nv_bfloat162;
   static constexpr int size = 2;
 };
 
@@ -83,6 +89,9 @@ template <typename T> struct FMAdd;
 template <> struct FMAdd<fp16> {
   __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, c); }
 };
+template <> struct FMAdd<bf16> {
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(a, b, c); }
+};
 template <> struct FMAdd<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(a, b, c); }
 };
@@ -94,6 +103,9 @@ template <typename T> struct FMSub;
 template <> struct FMSub<fp16> {
   __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(a, b, __hneg(c)); }
 };
+template <> struct FMSub<bf16> {
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(a, b, __hneg(c)); }
+};
 template <> struct FMSub<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(a, b, -c); }
 };
@@ -104,6 +116,9 @@ template <> struct FMSub<double> {
 template <typename T> struct FNMAdd;
 template <> struct FNMAdd<fp16> {
   __device__ fp16 operator()(fp16 a, fp16 b, fp16 c) const { return __hfma(__hneg(a), b, c); }
+};
+template <> struct FNMAdd<bf16> {
+  __device__ bf16 operator()(bf16 a, bf16 b, bf16 c) const { return __hfma(__hneg(a), b, c); }
 };
 template <> struct FNMAdd<float> {
   __device__ float operator()(float a, float b, float c) const { return fmaf(-a, b, c); }
@@ -117,6 +132,9 @@ template <typename T> struct Sqrt {
 };
 template <> struct Sqrt<fp16> {
   __device__ fp16 operator()(fp16 a) const { return hsqrt(a); }
+};
+template <> struct Sqrt<bf16> {
+  __device__ bf16 operator()(bf16 a) const { return hsqrt(a); }
 };
 template <> struct Sqrt<float> {
   __device__ float operator()(float a) const { return sqrtf(a); }
@@ -134,7 +152,9 @@ template <typename T> struct Rsqrt {
 template <> struct Rsqrt<float> {
   __device__ float operator()(float a) const { return rsqrtf(a); }
 };
-
+template <> struct Rsqrt<bf16> {
+  __device__ bf16 operator()(bf16 a) const { return hrsqrt(a); }
+};
 template <typename T> struct Rcp {
   __device__ T operator()(T a) const { return (T)1 / a; }
 };
@@ -144,6 +164,9 @@ template <typename T> struct Abs {
 };
 template <> struct Abs<fp16> {
   __device__ fp16 operator()(fp16 a) const { return __habs(a); }
+};
+template <> struct Abs<bf16> {
+  __device__ bf16 operator()(bf16 a) const { return __habs(a); }
 };
 template <> struct Abs<float> {
   __device__ float operator()(float a) const { return fabsf(a); }
@@ -695,6 +718,7 @@ T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
   template void cuda_greater<T>(const T *, const T *, T *, size_t, cudaStream_t);
 
 INSTANTIATE_BIN(fp16)
+INSTANTIATE_BIN(bf16)
 INSTANTIATE_BIN(float)
 INSTANTIATE_BIN(double)
 INSTANTIATE_BIN(int)
@@ -702,22 +726,26 @@ INSTANTIATE_BIN(unsigned long)
 
 // FMA operations may not support all types
 INSTANTIATE_FUSED(fp16)
+INSTANTIATE_FUSED(bf16)
 INSTANTIATE_FUSED(float)
 INSTANTIATE_FUSED(double)
 
 INSTANTIATE_SCALAR(fp16)
+INSTANTIATE_SCALAR(bf16)
 INSTANTIATE_SCALAR(float)
 INSTANTIATE_SCALAR(double)
 INSTANTIATE_SCALAR(int)
 INSTANTIATE_SCALAR(unsigned long)
 
 INSTANTIATE_UNARY(fp16)
+INSTANTIATE_UNARY(bf16)
 INSTANTIATE_UNARY(float)
 INSTANTIATE_UNARY(double)
 INSTANTIATE_UNARY(int)
 INSTANTIATE_UNARY(unsigned long)
 
 INSTANTIATE_UTILS(fp16)
+INSTANTIATE_UTILS(bf16)
 INSTANTIATE_UTILS(float)
 INSTANTIATE_UTILS(double)
 INSTANTIATE_UTILS(int)

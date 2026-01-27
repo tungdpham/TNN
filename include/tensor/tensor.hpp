@@ -800,6 +800,8 @@ public:
       return DType_t::FP64;
     } else if (std::is_same<T, fp16>::value) {
       return DType_t::FP16;
+    } else if (std::is_same<T, bf16>::value) {
+      return DType_t::BF16;
     } else if (std::is_same<T, int32_t>::value) {
       return DType_t::INT32_T;
     } else if (std::is_same<T, int64_t>::value) {
@@ -996,12 +998,14 @@ inline Tensor Tensor::create(std::initializer_list<size_t> shape, const device_p
 
 inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Device *device) {
   switch (dtype) {
+  case DType_t::FP16:
+    return create<fp16>(shape, device);
+  case DType_t::BF16:
+    return create<bf16>(shape, device);
   case DType_t::FP32:
     return create<float>(shape, device);
   case DType_t::FP64:
     return create<double>(shape, device);
-  case DType_t::FP16:
-    return create<fp16>(shape, device);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
@@ -1010,12 +1014,14 @@ inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Dev
 inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
                              const Device *device) {
   switch (dtype) {
+  case DType_t::FP16:
+    return create<fp16>(shape, device);
+  case DType_t::BF16:
+    return create<bf16>(shape, device);
   case DType_t::FP32:
     return create<float>(shape, device);
   case DType_t::FP64:
     return create<double>(shape, device);
-  case DType_t::FP16:
-    return create<fp16>(shape, device);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
@@ -1033,12 +1039,14 @@ inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::initializer_list<siz
 
 inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape) {
   switch (dtype) {
+  case DType_t::FP16:
+    return create_pooled<fp16>(mem_pool, shape);
+  case DType_t::BF16:
+    return create_pooled<bf16>(mem_pool, shape);
   case DType_t::FP32:
     return create_pooled<float>(mem_pool, shape);
   case DType_t::FP64:
     return create_pooled<double>(mem_pool, shape);
-  case DType_t::FP16:
-    return create_pooled<fp16>(mem_pool, shape);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
@@ -1047,12 +1055,14 @@ inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype, std::vecto
 inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype,
                                     std::initializer_list<size_t> shape) {
   switch (dtype) {
+  case DType_t::BF16:
+    return create_pooled<bf16>(mem_pool, shape);
+  case DType_t::FP16:
+    return create_pooled<fp16>(mem_pool, shape);
   case DType_t::FP32:
     return create_pooled<float>(mem_pool, shape);
   case DType_t::FP64:
     return create_pooled<double>(mem_pool, shape);
-  case DType_t::FP16:
-    return create_pooled<fp16>(mem_pool, shape);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
@@ -1231,6 +1241,16 @@ template <typename... Args> DType_t find_and_verify_dtype(const Args &...args) {
 #define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)                                            \
   do {                                                                                             \
     switch (dtype_value) {                                                                         \
+    case DType_t::FP16: {                                                                          \
+      using type_alias = fp16;                                                                     \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
+    case DType_t::BF16: {                                                                          \
+      using type_alias = bf16;                                                                     \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
     case DType_t::FP32: {                                                                          \
       using type_alias = float;                                                                    \
       __VA_ARGS__;                                                                                 \
@@ -1238,11 +1258,6 @@ template <typename... Args> DType_t find_and_verify_dtype(const Args &...args) {
     }                                                                                              \
     case DType_t::FP64: {                                                                          \
       using type_alias = double;                                                                   \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::FP16: {                                                                          \
-      using type_alias = fp16;                                                                     \
       __VA_ARGS__;                                                                                 \
       break;                                                                                       \
     }                                                                                              \

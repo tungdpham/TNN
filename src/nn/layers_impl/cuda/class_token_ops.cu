@@ -115,6 +115,7 @@ void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, si
                                         cudaStream_t stream);
 
 INSTANTIATE_CLASS_TOKEN(fp16)
+INSTANTIATE_CLASS_TOKEN(bf16)
 INSTANTIATE_CLASS_TOKEN(float)
 INSTANTIATE_CLASS_TOKEN(double)
 #undef INSTANTIATE_CLASS_TOKEN

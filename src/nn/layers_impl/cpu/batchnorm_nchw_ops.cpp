@@ -199,6 +199,7 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
       const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma,     \
       float *d_gamma, float *d_beta, T *grad_input, size_t N, size_t C, size_t S, bool affine);
 INSTANTIATE_BATCHNORM(fp16)
+INSTANTIATE_BATCHNORM(bf16)
 INSTANTIATE_BATCHNORM(float)
 INSTANTIATE_BATCHNORM(double)
 #undef INSTANTIATE_BATCHNORM

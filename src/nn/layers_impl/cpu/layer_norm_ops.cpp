@@ -108,6 +108,7 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
                                        T *grad_input, T *grad_gamma, T *grad_beta,                 \
                                        size_t batch_size, size_t channels, T epsilon);
 INSTANTIATE_LAYER_NORM(fp16)
+INSTANTIATE_LAYER_NORM(bf16)
 INSTANTIATE_LAYER_NORM(float)
 INSTANTIATE_LAYER_NORM(double)
 #undef INSTANTIATE_LAYER_NORM

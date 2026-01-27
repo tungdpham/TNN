@@ -718,6 +718,7 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
                                           T delta, cudaStream_t stream);
 
 INSTANTIATE_LOSS_OPS(fp16)
+INSTANTIATE_LOSS_OPS(bf16)
 INSTANTIATE_LOSS_OPS(float)
 INSTANTIATE_LOSS_OPS(double)
 #undef INSTANTIATE_LOSS_OPS

@@ -82,12 +82,15 @@ template float compute_class_accuracy<float>(const float *, const float *, const
 template float compute_class_accuracy<double>(const double *, const double *, const size_t,
                                               const size_t);
 template float compute_class_accuracy<fp16>(const fp16 *, const fp16 *, const size_t, const size_t);
+template float compute_class_accuracy<bf16>(const bf16 *, const bf16 *, const size_t, const size_t);
 
 template int compute_class_corrects<float>(const float *, const float *, const size_t, const size_t,
                                            float);
 template int compute_class_corrects<double>(const double *, const double *, const size_t,
                                             const size_t, float);
 template int compute_class_corrects<fp16>(const fp16 *, const fp16 *, const size_t, const size_t,
+                                          float);
+template int compute_class_corrects<bf16>(const bf16 *, const bf16 *, const size_t, const size_t,
                                           float);
 
 } // namespace accuracy

@@ -72,6 +72,7 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
       const float bias_correction1, const float bias_correction2, const float weight_decay,        \
       const bool decouple_weight_decay, cudaStream_t stream);
 INSTANTIATE_ADAM_KERNELS(fp16)
+INSTANTIATE_ADAM_KERNELS(bf16)
 INSTANTIATE_ADAM_KERNELS(float)
 INSTANTIATE_ADAM_KERNELS(double)
 #undef INSTANTIATE_ADAM_KERNELS

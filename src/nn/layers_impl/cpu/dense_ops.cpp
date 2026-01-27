@@ -77,6 +77,7 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
   template void add_bias_vector<T>(T * output_data, const T *bias_data, const size_t batch_size,   \
                                    const size_t output_features);
 INSTANTIATE_DENSE(fp16)
+INSTANTIATE_DENSE(bf16)
 INSTANTIATE_DENSE(float)
 INSTANTIATE_DENSE(double)
 #undef INSTANTIATE_DENSE

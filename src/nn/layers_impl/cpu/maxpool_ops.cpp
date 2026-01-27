@@ -81,6 +81,7 @@ void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indic
                                     size_t output_w);
 
 INSTANTIATE_MAXPOOL(fp16)
+INSTANTIATE_MAXPOOL(bf16)
 INSTANTIATE_MAXPOOL(float)
 INSTANTIATE_MAXPOOL(double)
 

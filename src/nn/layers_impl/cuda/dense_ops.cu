@@ -146,15 +146,18 @@ void add_bias_vector_ex(IO_T *output_data, const Param_T *bias_data, const size_
 
 #define INSTANTIATE_DENSE_OPS_PARAM(IO_T, Param_T)                                                 \
   INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, fp16)                                               \
+  INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, bf16)                                               \
   INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, float)                                              \
   INSTANTIATE_DENSE_OPS_COMPUTE(IO_T, Param_T, double)
 
 #define INSTANTIATE_DENSE_OPS_IO(IO_T)                                                             \
   INSTANTIATE_DENSE_OPS_PARAM(IO_T, fp16)                                                          \
+  INSTANTIATE_DENSE_OPS_PARAM(IO_T, bf16)                                                          \
   INSTANTIATE_DENSE_OPS_PARAM(IO_T, float)                                                         \
   INSTANTIATE_DENSE_OPS_PARAM(IO_T, double)
 
 INSTANTIATE_DENSE_OPS_IO(fp16)
+INSTANTIATE_DENSE_OPS_IO(bf16)
 INSTANTIATE_DENSE_OPS_IO(float)
 INSTANTIATE_DENSE_OPS_IO(double)
 

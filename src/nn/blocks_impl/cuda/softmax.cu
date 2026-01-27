@@ -1,4 +1,5 @@
 #include "nn/blocks_impl/cuda/softmax.hpp"
+#include <cudnn_graph.h>
 
 #ifdef USE_CUDNN
 
@@ -28,12 +29,12 @@ static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
   switch (data_type) {
   case CUDNN_DATA_HALF:
     return fe::DataType_t::HALF;
+  case CUDNN_DATA_BFLOAT16:
+    return fe::DataType_t::BFLOAT16;
   case CUDNN_DATA_FLOAT:
     return fe::DataType_t::FLOAT;
   case CUDNN_DATA_DOUBLE:
     return fe::DataType_t::DOUBLE;
-  case CUDNN_DATA_BFLOAT16:
-    return fe::DataType_t::BFLOAT16;
   default:
     throw std::runtime_error("Unsupported cuDNN data type for softmax");
   }
@@ -53,6 +54,8 @@ template <> inline cudnnDataType_t get_cudnn_data_type<float>() { return CUDNN_D
 template <> inline cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_DATA_DOUBLE; }
 
 template <> inline cudnnDataType_t get_cudnn_data_type<fp16>() { return CUDNN_DATA_HALF; }
+
+template <> inline cudnnDataType_t get_cudnn_data_type<bf16>() { return CUDNN_DATA_BFLOAT16; }
 
 struct SoftmaxKey {
   size_t rows = 0;
@@ -357,6 +360,7 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
   template void softmax_backward<T>(cudnnHandle_t handle, const T *output, const T *grad_output,   \
                                     T *grad_input, size_t rows, size_t cols, cudaStream_t stream);
 INSTANTIATE_SOFTMAX(fp16);
+INSTANTIATE_SOFTMAX(bf16);
 INSTANTIATE_SOFTMAX(float);
 INSTANTIATE_SOFTMAX(double);
 #undef INSTANTIATE_SOFTMAX

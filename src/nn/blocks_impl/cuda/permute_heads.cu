@@ -43,6 +43,7 @@ void permute_heads(const T *input, T *output, size_t B, size_t L, size_t H, size
   template void permute_heads<T>(const T *input, T *output, size_t B, size_t L, size_t H,          \
                                  size_t D, cudaStream_t stream);
 INSTANTIATE_PERMUTE_HEADS(fp16)
+INSTANTIATE_PERMUTE_HEADS(bf16)
 INSTANTIATE_PERMUTE_HEADS(float)
 INSTANTIATE_PERMUTE_HEADS(double)
 

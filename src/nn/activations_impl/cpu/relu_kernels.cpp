@@ -20,6 +20,7 @@ void relu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
   template void relu<T>(const T *input, T *output, size_t size);                                   \
   template void relu_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size);
 INSTANTIATE_RELU(fp16)
+INSTANTIATE_RELU(bf16)
 INSTANTIATE_RELU(float)
 INSTANTIATE_RELU(double)
 #undef INSTANTIATE_RELUss

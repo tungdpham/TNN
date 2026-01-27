@@ -86,6 +86,7 @@ void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_
                                              size_t batch_size, size_t channels, size_t output_h,  \
                                              size_t output_w, const size_t *mask_indices);
 INSTANTIATE_MAXPOOL(fp16)
+INSTANTIATE_MAXPOOL(bf16)
 INSTANTIATE_MAXPOOL(float)
 INSTANTIATE_MAXPOOL(double)
 #undef INSTANTIATE_MAXPOOL

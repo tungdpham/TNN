@@ -58,6 +58,7 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
                                const float bias_correction1, const float bias_correction2,         \
                                const float weight_decay, const bool decouple_weight_decay);
 INSTANTIATE_ADAM(fp16)
+INSTANTIATE_ADAM(bf16)
 INSTANTIATE_ADAM(float)
 INSTANTIATE_ADAM(double)
 #undef INSTANTIATE_ADAM

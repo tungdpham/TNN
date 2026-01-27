@@ -39,6 +39,7 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
                                        const size_t size, const float learning_rate,               \
                                        const float momentum);
 INSTANTIATE_SGD(fp16)
+INSTANTIATE_SGD(bf16)
 INSTANTIATE_SGD(float)
 INSTANTIATE_SGD(double)
 #undef INSTANTIATE_SGD

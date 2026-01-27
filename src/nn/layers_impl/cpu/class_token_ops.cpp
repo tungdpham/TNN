@@ -56,6 +56,7 @@ void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, si
   template void class_token_backward<T>(const T *grad_output, T *grad_input, T *grad_token,        \
                                         size_t batch_size, size_t seq_len, size_t embed_dim);
 INSTANTIATE_CLASS_TOKEN(fp16)
+INSTANTIATE_CLASS_TOKEN(bf16)
 INSTANTIATE_CLASS_TOKEN(float)
 INSTANTIATE_CLASS_TOKEN(double)
 #undef INSTANTIATE_CLASS_TOKEN

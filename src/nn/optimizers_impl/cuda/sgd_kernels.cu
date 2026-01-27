@@ -61,6 +61,7 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
                                        const size_t size, const float learning_rate,               \
                                        const float momentum, cudaStream_t stream);
 INSTANTIATE_SGD_KERNELS(fp16)
+INSTANTIATE_SGD_KERNELS(bf16)
 INSTANTIATE_SGD_KERNELS(float)
 INSTANTIATE_SGD_KERNELS(double)
 #undef INSTANTIATE_SGD_KERNELS

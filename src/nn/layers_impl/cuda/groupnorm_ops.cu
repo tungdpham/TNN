@@ -283,6 +283,7 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                                       size_t N, size_t C, size_t S, size_t num_groups,             \
                                       bool affine, cudaStream_t stream);
 INSTANTIATE_GROUPNORM(fp16)
+INSTANTIATE_GROUPNORM(bf16)
 INSTANTIATE_GROUPNORM(float)
 INSTANTIATE_GROUPNORM(double)
 #undef INSTANTIATE_GROUPNORM

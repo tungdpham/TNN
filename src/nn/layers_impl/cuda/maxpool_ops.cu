@@ -134,6 +134,7 @@ void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indic
                                     size_t batch_size, size_t channels, size_t output_h,           \
                                     size_t output_w);
 INSTANTIATE_MAXPOOL_FUNCS(fp16)
+INSTANTIATE_MAXPOOL_FUNCS(bf16)
 INSTANTIATE_MAXPOOL_FUNCS(float)
 INSTANTIATE_MAXPOOL_FUNCS(double)
 #undef INSTANTIATE_MAXPOOL_FUNCS

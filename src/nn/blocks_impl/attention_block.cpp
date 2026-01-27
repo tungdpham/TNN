@@ -190,9 +190,9 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
     size_t L = seq_len;
     size_t batch_count = batch_size * num_heads_;
 
-    Tensor q_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
-    Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
-    Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor q_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
     create_cuda_task(flow_id, cuda::permute_heads<IO_T>, q->data_as<IO_T>(),
                      q_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
@@ -201,7 +201,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
     create_cuda_task(flow_id, cuda::permute_heads<IO_T>, v->data_as<IO_T>(),
                      v_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
 
-    Tensor scores = this->get_buffer({batch_count, L, L});
+    Tensor scores = this->get_buffer({batch_count, L, L}, io_dtype_);
 
     Compute_T alpha = static_cast<Compute_T>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
 
@@ -228,7 +228,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
     create_cuda_task(flow_id, cuda::softmax_forward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
                      scores->data_as<IO_T>(), batch_count * L, L);
 
-    Tensor attn_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor attn_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
     strideA = L * L;
     strideB = L * head_dim_;
@@ -281,9 +281,9 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     size_t batch_count = batch_size * num_heads_;
     Compute_T alpha = static_cast<Compute_T>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
 
-    Tensor q_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
-    Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
-    Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor q_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
+    Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
     create_cuda_task(flow_id, cuda::permute_heads<IO_T>, q_raw, q_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
@@ -292,7 +292,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     create_cuda_task(flow_id, cuda::permute_heads<IO_T>, v_raw, v_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
 
-    Tensor scores = this->get_buffer({batch_count, L, L});
+    Tensor scores = this->get_buffer({batch_count, L, L}, io_dtype_);
 
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
                      q_heads->data_as<IO_T>(), k_heads->data_as<IO_T>(), scores->data_as<IO_T>(), L,
@@ -313,18 +313,18 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     create_cuda_task(flow_id, cuda::softmax_forward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
                      scores->data_as<IO_T>(), batch_count * L, L);
 
-    Tensor d_attn_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor d_attn_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(flow_id, cuda::permute_heads<IO_T>, d_out_raw, d_attn_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
 
-    Tensor dv_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor dv_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
                      scores->data_as<IO_T>(), d_attn_heads->data_as<IO_T>(),
                      dv_heads->data_as<IO_T>(), L, head_dim_, L, true, false,
                      static_cast<Compute_T>(1.0), static_cast<Compute_T>(0.0), L, head_dim_,
                      head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
 
-    Tensor dscores = this->get_buffer({batch_count, L, L});
+    Tensor dscores = this->get_buffer({batch_count, L, L}, io_dtype_);
 
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
                      d_attn_heads->data_as<IO_T>(), v_heads->data_as<IO_T>(),
@@ -332,7 +332,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
                      static_cast<Compute_T>(1.0), static_cast<Compute_T>(0.0), head_dim_, head_dim_,
                      L, L * head_dim_, L * head_dim_, L * L, batch_count);
 
-    Tensor dattn = this->get_buffer({batch_count, L, L});
+    Tensor dattn = this->get_buffer({batch_count, L, L}, io_dtype_);
 
     create_cuda_task(flow_id, cuda::softmax_backward<IO_T>, cudnn_handle, scores->data_as<IO_T>(),
                      dscores->data_as<IO_T>(), dattn->data_as<IO_T>(), batch_count * L, L);
@@ -342,13 +342,13 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
                        L, static_cast<IO_T>(0.0));
     }
 
-    Tensor dq_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor dq_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
                      dattn->data_as<IO_T>(), k_heads->data_as<IO_T>(), dq_heads->data_as<IO_T>(), L,
                      head_dim_, L, false, false, alpha, static_cast<Compute_T>(0.0), L, head_dim_,
                      head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
 
-    Tensor dk_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_});
+    Tensor dk_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
                      dattn->data_as<IO_T>(), q_heads->data_as<IO_T>(), dk_heads->data_as<IO_T>(), L,
                      head_dim_, L, true, false, alpha, static_cast<Compute_T>(0.0), L, head_dim_,

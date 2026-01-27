@@ -196,6 +196,7 @@ void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
   template void split<T>(const Tensor &, std::vector<Tensor> &, size_t, cudaStream_t);
 
 INSTANTIATE_TENSOR_OPS(fp16)
+INSTANTIATE_TENSOR_OPS(bf16)
 INSTANTIATE_TENSOR_OPS(float)
 INSTANTIATE_TENSOR_OPS(double)
 #undef INSTANTIATE_TENSOR_OPS

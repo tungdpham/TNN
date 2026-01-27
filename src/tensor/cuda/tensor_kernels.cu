@@ -403,6 +403,7 @@ void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, 
   template void cuda_cnhw_to_nchw<T>(const T *, T *, size_t, size_t, size_t, size_t, cudaStream_t);
 
 INSTANTIATE_KERNEL_FUNC(fp16)
+INSTANTIATE_KERNEL_FUNC(bf16)
 INSTANTIATE_KERNEL_FUNC(float)
 INSTANTIATE_KERNEL_FUNC(double)
 

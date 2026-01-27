@@ -21,6 +21,10 @@ template <> struct VectorType<fp16> {
   using type = half2;
   static constexpr int size = 2;
 };
+template <> struct VectorType<bf16> {
+  using type = __nv_bfloat162;
+  static constexpr int size = 2;
+};
 template <> struct VectorType<float> {
   using type = float4;
   static constexpr int size = 4;
@@ -585,6 +589,7 @@ void compute_inference_output(const T *input_data, const float *running_mean_dat
                                       bool affine, cudaStream_t stream);
 
 INSTANTIATE_BATCHNORM(fp16)
+INSTANTIATE_BATCHNORM(bf16)
 INSTANTIATE_BATCHNORM(float)
 INSTANTIATE_BATCHNORM(double)
 #undef INSTANTIATE_BATCHNORM

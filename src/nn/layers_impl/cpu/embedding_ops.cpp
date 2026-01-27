@@ -65,6 +65,7 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
   template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t,   \
                                               size_t);
 INSTANTIATE_EMBEDDING(fp16)
+INSTANTIATE_EMBEDDING(bf16)
 INSTANTIATE_EMBEDDING(float)
 INSTANTIATE_EMBEDDING(double)
 #undef INSTANTIATE_EMBEDDING

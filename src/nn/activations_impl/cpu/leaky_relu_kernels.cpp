@@ -24,6 +24,7 @@ void leaky_relu_gradient(const T *input, const T *grad_output, T *grad_input, si
   template void leaky_relu_gradient<T>(const T *input, const T *grad_output, T *grad_input,        \
                                        size_t size, T negative_slope);
 INSTANTIATE_LEAKY_RELU(fp16)
+INSTANTIATE_LEAKY_RELU(bf16)
 INSTANTIATE_LEAKY_RELU(float)
 INSTANTIATE_LEAKY_RELU(double)
 #undef INSTANTIATE_LEAKY_RELU

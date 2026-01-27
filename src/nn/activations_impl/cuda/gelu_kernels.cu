@@ -68,6 +68,7 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
                                  cudaStream_t stream);
 
 INSTANTIATE(fp16);
+INSTANTIATE(bf16);
 INSTANTIATE(float);
 INSTANTIATE(double);
 

@@ -187,6 +187,7 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
       size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
 
 INSTANTIATE_AVGPOOL_FUNCS(fp16)
+INSTANTIATE_AVGPOOL_FUNCS(bf16)
 INSTANTIATE_AVGPOOL_FUNCS(float)
 INSTANTIATE_AVGPOOL_FUNCS(double)
 #undef INSTANTIATE_AVGPOOL_FUNCS
