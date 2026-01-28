@@ -5,7 +5,4 @@
  * project root for the full license text.
  */
 
-#include "nn/sequential.hpp"
-#include "type/type.hpp"
-
 namespace tnn {} // namespace tnn

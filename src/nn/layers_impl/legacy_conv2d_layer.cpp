@@ -8,7 +8,7 @@
 #include "device/cuda/cuda_context.hpp"
 #include "device/device_type.hpp"
 #include "device/task.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "nn/layers_impl/cpu/conv2d_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/conv2d_nchw_ops.hpp"

@@ -70,14 +70,13 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "legacy_batchnorm";
-
   explicit LegacyBatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
                                 bool affine = true, const std::string &name = "batchnorm");
 
+  static constexpr const char *TYPE_NAME = "legacy_batchnorm";
+
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;

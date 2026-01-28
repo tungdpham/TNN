@@ -62,10 +62,10 @@ private:
   void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "legacy_maxpool2d";
-
   LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,
                        size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "maxpool2d");
+
+  static constexpr const char *TYPE_NAME = "legacy_maxpool2d";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

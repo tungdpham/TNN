@@ -7,7 +7,7 @@
 #pragma once
 
 #include "nn/activations_impl/base_activation.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 
 #include <memory>
@@ -59,13 +59,11 @@ public:
 
   ResidualBlock(const ResidualBlock &other);
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
   static constexpr const char *TYPE_NAME = "residual_block";
+
+  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
+  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
 
   LayerConfig get_config() const override;

@@ -44,10 +44,10 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "embedding";
-
   EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
                  size_t padding_idx = static_cast<size_t>(-1));
+
+  static constexpr const char *TYPE_NAME = "embedding";
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;

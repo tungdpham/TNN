@@ -6,7 +6,7 @@
  */
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "device/task.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 

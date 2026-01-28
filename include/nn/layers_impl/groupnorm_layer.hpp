@@ -48,10 +48,10 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "groupnorm";
-
   GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
                  const std::string &name = "groupnorm");
+
+  static constexpr const char *TYPE_NAME = "groupnorm";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

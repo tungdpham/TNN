@@ -1,7 +1,7 @@
 #pragma once
 
 #include "blocks_impl/residual_block.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include <memory>
 #include <vector>
 

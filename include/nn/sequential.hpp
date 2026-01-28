@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
 #include <cstddef>

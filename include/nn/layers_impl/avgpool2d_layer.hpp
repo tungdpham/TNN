@@ -36,23 +36,12 @@ private:
                                 size_t height, size_t width, size_t channels, size_t output_h,
                                 size_t output_w, const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_avg_pool_forward(const Tensor &input_data, Tensor &output_data,
-                                                 size_t batch_size, size_t height, size_t width,
-                                                 size_t channels, size_t output_h, size_t output_w,
-                                                 const std::string &flow_id) const;
-
   template <typename Compute_T>
   std::unique_ptr<Task>
   compute_avg_pool_backward_impl(const Tensor &gradient_data, Tensor &grad_input_data,
                                  size_t batch_size, size_t input_h, size_t input_w, size_t channels,
                                  size_t output_h, size_t output_w,
                                  const std::string &flow_id) const;
-
-  std::unique_ptr<Task> compute_avg_pool_backward(const Tensor &gradient_data,
-                                                  Tensor &grad_input_data, size_t batch_size,
-                                                  size_t input_h, size_t input_w, size_t channels,
-                                                  size_t output_h, size_t output_w,
-                                                  const std::string &flow_id) const;
 
   void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;

@@ -123,13 +123,13 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "legacy_conv2d";
-
   LegacyConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
                     size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                     bool use_bias = true, const std::string &name = "legacy_conv2d");
 
   ~LegacyConv2DLayer();
+
+  static constexpr const char *TYPE_NAME = "legacy_conv2d";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include "base_layer.hpp"
+#include "nn/layer.hpp"
 
 #include <string>
 #include <vector>

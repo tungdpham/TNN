@@ -7,7 +7,7 @@
 #pragma once
 
 #include "device/task.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -52,12 +52,11 @@ public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
                  const std::string &name = "attention_block");
 
+  static constexpr const char *TYPE_NAME = "attention_block";
+
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
-  static constexpr const char *TYPE_NAME = "attention_block";
   std::string type() const override { return TYPE_NAME; }
-
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;

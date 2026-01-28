@@ -10,8 +10,8 @@
 #include <string>
 
 #include "activations.hpp"
-#include "layers_impl/base_layer.hpp"
 #include "nn/blocks_impl/flash_attention_block.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/legacy_dense_layer.hpp"
 #include "type/type.hpp"
 
@@ -53,9 +53,9 @@ class Sequential;
 #include "blocks_impl/attention_block.hpp"
 #include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
+#include "layer.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
-#include "layers_impl/base_layer.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
 #include "layers_impl/class_token_layer.hpp"
 #include "layers_impl/conv2d_layer.hpp"

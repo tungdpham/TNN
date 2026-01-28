@@ -6,7 +6,7 @@
  */
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "device/task.hpp"
-#include "nn/layers_impl/base_layer.hpp"
+#include "nn/layer.hpp"
 #include "nn/layers_impl/common/batchnorm.hpp"
 #include "type/type.hpp"
 #ifdef USE_CUDNN

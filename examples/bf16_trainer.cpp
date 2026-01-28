@@ -48,7 +48,7 @@ signed main() {
       return 1;
     }
     model->set_device(device);
-    // model->set_param_dtype(DType_t::BF16);
+    model->set_param_dtype(DType_t::BF16);
     model->set_io_dtype(DType_t::BF16);
     model->init();
   }

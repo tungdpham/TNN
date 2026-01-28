@@ -60,10 +60,10 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "legacy_dense";
-
   LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
                    const std::string &name = "legacy_dense");
+
+  static constexpr const char *TYPE_NAME = "legacy_dense";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

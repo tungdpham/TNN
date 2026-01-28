@@ -31,9 +31,9 @@ private:
   void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "dropout";
-
   explicit DropoutLayer(float dropout_rate, const std::string &name = "dropout");
+
+  static constexpr const char *TYPE_NAME = "dropout";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;

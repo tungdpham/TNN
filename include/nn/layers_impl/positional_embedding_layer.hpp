@@ -38,10 +38,10 @@ private:
   void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
-  static constexpr const char *TYPE_NAME = "pos_embedding";
-
   explicit PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
                                     const std::string &name = "pos_embedding");
+
+  static constexpr const char *TYPE_NAME = "pos_embedding";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
