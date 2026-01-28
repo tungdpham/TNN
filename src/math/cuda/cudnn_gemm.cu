@@ -7,7 +7,6 @@
 #include <cudnn_frontend.h>
 #include <memory>
 #include <unordered_map>
-#include <vector>
 
 #include <string>
 
@@ -37,6 +36,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Graph> wgrad_graph;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_gradient;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_input;
+  std::shared_ptr<fe::graph::Tensor_attributes> wgrad_prev_grad_weight;
   std::shared_ptr<fe::graph::Tensor_attributes> wgrad_grad_weight;
 };
 
@@ -87,7 +87,7 @@ static void build_fwd_graph(feHandle_t *handle, GemmStats &stats) {
   auto weight = graph->tensor(fe::graph::Tensor_attributes()
                                   .set_name("Weight")
                                   .set_dim({batch, k, n})
-                                  .set_stride({0, n, 1})
+                                  .set_stride({0, 1, k})
                                   .set_data_type(param_type));
 
   std::shared_ptr<fe::graph::Tensor_attributes> weight_cast = weight;
@@ -212,9 +212,23 @@ static void build_wgrad_graph(feHandle_t *handle, GemmStats &stats) {
                                  .set_stride({m * k, k, 1})
                                  .set_data_type(io_type));
 
+  auto prev_grad_weight = graph->tensor(fe::graph::Tensor_attributes()
+                                            .set_name("PrevGradWeight")
+                                            .set_dim({1, n, k})
+                                            .set_stride({0, k, 1})
+                                            .set_data_type(param_type));
+
   auto matmul_attributes =
       fe::graph::Matmul_attributes().set_name("WGRAD_GEMM").set_compute_data_type(compute_type);
-  auto grad_weight = graph->matmul(gradient, input, matmul_attributes);
+  auto new_grad_weight = graph->matmul(gradient, input, matmul_attributes);
+  new_grad_weight->set_data_type(param_type);
+
+  // Accumulate with previous gradient (beta=1.0 behavior)
+  auto add_attributes = fe::graph::Pointwise_attributes()
+                            .set_name("AccumulateGrad")
+                            .set_mode(fe::PointwiseMode_t::ADD)
+                            .set_compute_data_type(compute_type);
+  auto grad_weight = graph->pointwise(new_grad_weight, prev_grad_weight, add_attributes);
   grad_weight->set_output(true).set_data_type(param_type);
 
   ensure_ok(graph->validate(), "wgrad_gemm validate");
@@ -229,6 +243,7 @@ static void build_wgrad_graph(feHandle_t *handle, GemmStats &stats) {
   handle->wgrad_graph = graph;
   handle->wgrad_gradient = gradient;
   handle->wgrad_input = input;
+  handle->wgrad_prev_grad_weight = prev_grad_weight;
   handle->wgrad_grad_weight = grad_weight;
   stats.wgrad_workspace_size = static_cast<size_t>(workspace_size);
 }
@@ -309,6 +324,7 @@ void run_wgrad(feHandle_t *handle, const GemmStats &stats, const void *input_dat
   std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
       {handle->wgrad_gradient, const_cast<void *>(gradient_data)},
       {handle->wgrad_input, const_cast<void *>(input_data)},
+      {handle->wgrad_prev_grad_weight, weight_grad_data},
       {handle->wgrad_grad_weight, weight_grad_data}};
 
   auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);

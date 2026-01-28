@@ -143,7 +143,7 @@ void DenseLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id
 
     GemmStats stats;
 
-    init_gemm_stats(stats, batch_size, input_features_, output_features_);
+    init_gemm_stats(stats, batch_size, output_features_, input_features_);
 
     handle = cuda::cudnn_gemm::initialize_fe_handle(cudnn_handle, io_dtype, param_dtype,
                                                     compute_dtype, stats);

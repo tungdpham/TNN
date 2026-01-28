@@ -108,6 +108,41 @@ void leaky_relu_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 
       input, grad_output, grad_input, size, negative_slope);
 }
 
+__global__ void leaky_relu_bf16_scalar_kernel(const bf16 *input, bf16 *output, size_t size,
+                                              bf16 negative_slope) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 zero = __float2bfloat16(0.0f);
+    output[idx] = (input[idx] > zero) ? input[idx] : negative_slope * input[idx];
+  }
+}
+
+__global__ void leaky_relu_gradient_bf16_scalar_kernel(const bf16 *input, const bf16 *grad_output,
+                                                       bf16 *grad_input, size_t size,
+                                                       bf16 negative_slope) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 zero = __float2bfloat16(0.0f);
+    grad_input[idx] = (input[idx] > zero) ? grad_output[idx] : negative_slope * grad_output[idx];
+  }
+}
+
+template <>
+void leaky_relu<bf16>(const bf16 *input, bf16 *output, size_t size, bf16 negative_slope,
+                      cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  leaky_relu_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, output, size,
+                                                                      negative_slope);
+}
+
+template <>
+void leaky_relu_gradient<bf16>(const bf16 *input, const bf16 *grad_output, bf16 *grad_input,
+                               size_t size, bf16 negative_slope, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  leaky_relu_gradient_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(
+      input, grad_output, grad_input, size, negative_slope);
+}
+
 } // namespace cuda
 } // namespace tnn
 

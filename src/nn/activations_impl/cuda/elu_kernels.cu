@@ -108,6 +108,45 @@ void elu_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 *grad_i
                                                                         grad_input, size, alpha);
 }
 
+__global__ void elu_bf16_scalar_kernel(const bf16 *input, bf16 *output, size_t size, bf16 alpha) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 zero = __float2bfloat16(0.0f);
+    if (input[idx] > zero) {
+      output[idx] = input[idx];
+    } else {
+      output[idx] = alpha * (hexp(input[idx]) - __float2bfloat16(1.0f));
+    }
+  }
+}
+
+__global__ void elu_gradient_bf16_scalar_kernel(const bf16 *input, const bf16 *grad_output,
+                                                bf16 *grad_input, size_t size, bf16 alpha) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 zero = __float2bfloat16(0.0f);
+    if (input[idx] > zero) {
+      grad_input[idx] = grad_output[idx];
+    } else {
+      grad_input[idx] = grad_output[idx] * (alpha * hexp(input[idx]));
+    }
+  }
+}
+
+template <>
+void elu<bf16>(const bf16 *input, bf16 *output, size_t size, bf16 alpha, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  elu_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, output, size, alpha);
+}
+
+template <>
+void elu_gradient<bf16>(const bf16 *input, const bf16 *grad_output, bf16 *grad_input, size_t size,
+                        bf16 alpha, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  elu_gradient_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                        grad_input, size, alpha);
+}
+
 } // namespace cuda
 } // namespace tnn
 

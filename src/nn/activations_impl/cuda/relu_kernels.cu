@@ -190,6 +190,42 @@ void relu_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 *grad_
                                                                           grad_input, size);
 }
 
+__global__ void relu_bf16_scalar_kernel(const bf16 *input, bf16 *output, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = blockDim.x * gridDim.x;
+  bf16 zero = __float2bfloat16(0.0f);
+  for (size_t i = idx; i < size; i += stride) {
+    output[i] = (input[i] > zero) ? input[i] : zero;
+  }
+}
+
+__global__ void relu_gradient_bf16_scalar_kernel(const bf16 *input, const bf16 *grad_output,
+                                                 bf16 *grad_input, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t stride = blockDim.x * gridDim.x;
+  bf16 zero = __float2bfloat16(0.0f);
+  for (size_t i = idx; i < size; i += stride) {
+    grad_input[i] = (input[i] > zero) ? grad_output[i] : zero;
+  }
+}
+
+template <> void relu<bf16>(const bf16 *input, bf16 *output, size_t size, cudaStream_t stream) {
+  int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  if (num_blocks == 0)
+    num_blocks = 1;
+  relu_bf16_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, output, size);
+}
+
+template <>
+void relu_gradient<bf16>(const bf16 *input, const bf16 *grad_output, bf16 *grad_input, size_t size,
+                         cudaStream_t stream) {
+  int num_blocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  if (num_blocks == 0)
+    num_blocks = 1;
+  relu_gradient_bf16_scalar_kernel<<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                          grad_input, size);
+}
+
 } // namespace cuda
 } // namespace tnn
 

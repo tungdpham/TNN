@@ -23,16 +23,7 @@ std::unique_ptr<Task> Sigmoid::apply(const Tensor &input, Tensor &output) const 
     throw std::runtime_error("Input and output must be on the same device for Sigmoid");
   }
 
-  switch (input->data_type()) {
-  case DType_t::FP32:
-    return apply_impl<float>(input, output, "default");
-  case DType_t::FP64:
-    return apply_impl<double>(input, output, "default");
-  case DType_t::FP16:
-    return apply_impl<fp16>(input, output, "default");
-  default:
-    throw std::runtime_error("Unsupported data type for Sigmoid apply");
-  }
+  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
 }
 
 std::unique_ptr<Task> Sigmoid::compute_gradient(const Tensor &input, const Tensor &grad_output,
@@ -42,16 +33,8 @@ std::unique_ptr<Task> Sigmoid::compute_gradient(const Tensor &input, const Tenso
   if (grad_output->device() != grad_input->device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for Sigmoid");
   }
-  switch (grad_output->data_type()) {
-  case DType_t::FP32:
-    return compute_gradient_impl<float>(input, grad_output, grad_input, "default");
-  case DType_t::FP64:
-    return compute_gradient_impl<double>(input, grad_output, grad_input, "default");
-  case DType_t::FP16:
-    return compute_gradient_impl<fp16>(input, grad_output, grad_input, "default");
-  default:
-    throw std::runtime_error("Unsupported data type for Sigmoid compute_gradient");
-  }
+  DISPATCH_ON_DTYPE(input->data_type(), T,
+                    return compute_gradient_impl<T>(input, grad_output, grad_input, "default"));
 }
 
 std::string Sigmoid::name() const { return "sigmoid"; }

@@ -100,6 +100,40 @@ void tanh_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 *grad_
                                                                          grad_input, size);
 }
 
+__global__ void tanh_bf16_scalar_kernel(const bf16 *input, bf16 *output, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    float input_f = static_cast<float>(input[idx]);
+    output[idx] = __float2bfloat16(tanhf(input_f));
+  }
+}
+
+__global__ void tanh_gradient_bf16_scalar_kernel(const bf16 *input, const bf16 *grad_output,
+                                                 bf16 *grad_input, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    float input_f = static_cast<float>(input[idx]);
+    float tanh_val_f = tanhf(input_f);
+    bf16 tanh_val = __float2bfloat16(tanh_val_f);
+    bf16 one = __float2bfloat16(1.0f);
+    bf16 grad = one - tanh_val * tanh_val;
+    grad_input[idx] = grad_output[idx] * grad;
+  }
+}
+
+template <> void tanh<bf16>(const bf16 *input, bf16 *output, size_t size, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  tanh_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, output, size);
+}
+
+template <>
+void tanh_gradient<bf16>(const bf16 *input, const bf16 *grad_output, bf16 *grad_input, size_t size,
+                         cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  tanh_gradient_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                         grad_input, size);
+}
+
 } // namespace cuda
 } // namespace tnn
 

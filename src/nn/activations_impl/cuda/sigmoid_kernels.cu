@@ -103,6 +103,40 @@ void sigmoid_gradient<fp16>(const fp16 *input, const fp16 *grad_output, fp16 *gr
                                                                             grad_input, size);
 }
 
+__global__ void sigmoid_bf16_scalar_kernel(const bf16 *input, bf16 *output, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 one = __float2bfloat16(1.0f);
+    bf16 neg_input = -input[idx];
+    output[idx] = one / (one + hexp(neg_input));
+  }
+}
+
+__global__ void sigmoid_gradient_bf16_scalar_kernel(const bf16 *input, const bf16 *grad_output,
+                                                    bf16 *grad_input, size_t size) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    bf16 one = __float2bfloat16(1.0f);
+    bf16 neg_input = -input[idx];
+    bf16 sigmoid_val = one / (one + hexp(neg_input));
+    bf16 grad = sigmoid_val * (one - sigmoid_val);
+    grad_input[idx] = grad_output[idx] * grad;
+  }
+}
+
+template <> void sigmoid<bf16>(const bf16 *input, bf16 *output, size_t size, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  sigmoid_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, output, size);
+}
+
+template <>
+void sigmoid_gradient<bf16>(const bf16 *input, const bf16 *grad_output, bf16 *grad_input,
+                            size_t size, cudaStream_t stream) {
+  const int numBlocks = (size + BLOCK_SIZE - 1) / BLOCK_SIZE;
+  sigmoid_gradient_bf16_scalar_kernel<<<numBlocks, BLOCK_SIZE, 0, stream>>>(input, grad_output,
+                                                                            grad_input, size);
+}
+
 } // namespace cuda
 } // namespace tnn
 
