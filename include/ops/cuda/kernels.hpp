@@ -96,6 +96,9 @@ template <typename T>
 void cuda_fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned long long seed,
                              cudaStream_t stream);
 
+template <typename A_T, typename B_T>
+void cuda_cast(const A_T *a, B_T *b, size_t size, cudaStream_t stream);
+
 } // namespace cuda
 } // namespace ops
 } // namespace tnn

@@ -443,6 +443,12 @@ void fill_random_normal(T *data, size_t size, T mean, T stddev, unsigned long lo
   }
 }
 
+template <typename A_T, typename B_T> void cast(const A_T *a, B_T *b, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    b[i] = static_cast<B_T>(a[i]);
+  }
+}
+
 } // namespace cpu
 } // namespace ops
 } // namespace tnn

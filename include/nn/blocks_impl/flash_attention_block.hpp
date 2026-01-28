@@ -6,10 +6,15 @@
  */
 #pragma once
 
+#include "nn/blocks_impl/common/flash_attention.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
+#ifdef USE_CUDNN
+#include "device/task.hpp"
+#include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
+#endif
 #include <cmath>
 #include <memory>
 #include <string>
@@ -34,6 +39,21 @@ private:
   std::unordered_map<size_t, Tensor> k_cache_;
   std::unordered_map<size_t, Tensor> v_cache_;
 
+#ifdef USE_CUDNN
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task>
+  flash_attention_forward_task(cuda::cudnn_flash_attention::feHandle_t *fe_handle,
+                               AttentionStats &stats, const Tensor &q_heads, const Tensor &k_heads,
+                               const Tensor &v_heads, Tensor &attn_heads, Tensor &workspace,
+                               const std::string &flow_id) const;
+
+  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+
+  std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
+#endif
+  std::unordered_map<size_t, AttentionStats> stats_cache;
+  size_t get_shape_hash(size_t b, size_t h, size_t s, size_t d) const;
+
   void init_params() override;
   void on_set_device(const Device &device) override;
   void on_set_io_dtype(DType_t dtype) override;
@@ -45,6 +65,8 @@ private:
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
                       const std::string &name = "flash_attention_block");
+
+  ~FlashAttentionBlock();
 
   static constexpr const char *TYPE_NAME = "flash_attention_block";
 

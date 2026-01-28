@@ -194,11 +194,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
     Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, q->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, q->data_as<IO_T>(),
                      q_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, k->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, k->data_as<IO_T>(),
                      k_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, v->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, v->data_as<IO_T>(),
                      v_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
 
     Tensor scores = this->get_buffer({batch_count, L, L}, io_dtype_);
@@ -240,7 +240,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
                      static_cast<Compute_T>(0.0), L, head_dim_, head_dim_, strideA, strideB,
                      strideC, batch_count);
 
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, attn_heads->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, attn_heads->data_as<IO_T>(),
                      output->data_as<IO_T>(), batch_size, num_heads_, L, head_dim_);
 
     return nullptr;
@@ -285,11 +285,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     Tensor k_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     Tensor v_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
 
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, q_raw, q_heads->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, q_raw, q_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, k_raw, k_heads->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, k_raw, k_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, v_raw, v_heads->data_as<IO_T>(),
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, v_raw, v_heads->data_as<IO_T>(),
                      batch_size, L, num_heads_, head_dim_);
 
     Tensor scores = this->get_buffer({batch_count, L, L}, io_dtype_);
@@ -314,8 +314,8 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
                      scores->data_as<IO_T>(), batch_count * L, L);
 
     Tensor d_attn_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, d_out_raw, d_attn_heads->data_as<IO_T>(),
-                     batch_size, L, num_heads_, head_dim_);
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, d_out_raw,
+                     d_attn_heads->data_as<IO_T>(), batch_size, L, num_heads_, head_dim_);
 
     Tensor dv_heads = this->get_buffer({batch_size, num_heads_, L, head_dim_}, io_dtype_);
     create_cuda_task(flow_id, cuda::gemm_strided_batched_ex<IO_T, IO_T, IO_T, Compute_T>,
@@ -354,11 +354,11 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
                      head_dim_, L, true, false, alpha, static_cast<Compute_T>(0.0), L, head_dim_,
                      head_dim_, L * L, L * head_dim_, L * head_dim_, batch_count);
 
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, dq_heads->data_as<IO_T>(), dq_ptr,
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, dq_heads->data_as<IO_T>(), dq_ptr,
                      batch_size, num_heads_, L, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, dk_heads->data_as<IO_T>(), dk_ptr,
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, dk_heads->data_as<IO_T>(), dk_ptr,
                      batch_size, num_heads_, L, head_dim_);
-    create_cuda_task(flow_id, cuda::permute_heads<IO_T>, dv_heads->data_as<IO_T>(), dv_ptr,
+    create_cuda_task(flow_id, cuda::permute_heads<IO_T, IO_T>, dv_heads->data_as<IO_T>(), dv_ptr,
                      batch_size, num_heads_, L, head_dim_);
 
     return nullptr;

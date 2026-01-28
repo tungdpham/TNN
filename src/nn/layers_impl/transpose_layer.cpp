@@ -27,13 +27,13 @@ std::unique_ptr<Task> TransposeLayer::permute(const Tensor &input, Tensor &outpu
   }
 
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::permute_heads<Compute_T>, input->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), B, L, H, D);
+    return create_cpu_task(flow_id, cpu::permute_heads<Compute_T, Compute_T>,
+                           input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::permute_heads<Compute_T>, input->data_as<Compute_T>(),
-                            output->data_as<Compute_T>(), B, L, H, D);
+    return create_cuda_task(flow_id, cuda::permute_heads<Compute_T, Compute_T>,
+                            input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #endif
   else {

@@ -187,7 +187,8 @@ std::unique_ptr<Task> fnmadd(const device_ptr &a, const device_ptr &b, device_pt
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -213,7 +214,8 @@ std::unique_ptr<Task> add_scalar(const device_ptr &a, T scalar, device_ptr &c, s
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_add_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_add_scalar<T>, a.get<T>(), scalar, c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -239,7 +241,8 @@ std::unique_ptr<Task> sub_scalar(const device_ptr &a, T scalar, device_ptr &c, s
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_sub_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_sub_scalar<T>, a.get<T>(), scalar, c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -266,7 +269,8 @@ std::unique_ptr<Task> mul_scalar(const device_ptr &a, T scalar, device_ptr &c, s
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_mul_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_mul_scalar<T>, a.get<T>(), scalar, c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -292,7 +296,8 @@ std::unique_ptr<Task> div_scalar(const device_ptr &a, T scalar, device_ptr &c, s
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_div_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_div_scalar<T>, a.get<T>(), scalar, c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -523,7 +528,8 @@ std::unique_ptr<Task> scalar_max(const device_ptr &a, T scalar, device_ptr &c, s
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_scalar_max<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cuda_task(flow_id, cuda::cuda_scalar_max<T>, a.get<T>(), scalar, c.get<T>(),
+                            size);
   }
 #endif
   else {
@@ -550,7 +556,7 @@ std::unique_ptr<Task> clamp(const device_ptr &a, T min_val, T max_val, device_pt
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(),
-                           size);
+                            size);
   }
 #endif
   else {
@@ -603,7 +609,7 @@ std::unique_ptr<Task> greater(const device_ptr &a, const device_ptr &b, device_p
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_greater<T>, a.get<T>(), b.get<T>(), c.get<T>(),
-                           size);
+                            size);
   }
 #endif
   else {
@@ -635,7 +641,7 @@ std::unique_ptr<Task> copy(const device_ptr &a, device_ptr &c, size_t size, size
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_copy<T>, a.get<T>() + a_offset,
-                           c.get<T>() + c_offset, size);
+                            c.get<T>() + c_offset, size);
   }
 #endif
   else {
@@ -663,7 +669,7 @@ std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, s
     // host to device copy
 #ifdef USE_CUDA
     return create_cuda_task(flow_id, cuda::cuda_h2d_copy<T>, a.get<T>() + a_offset,
-                           c.get<T>() + c_offset, size);
+                            c.get<T>() + c_offset, size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for CPU to GPU copy");
 #endif
@@ -671,7 +677,7 @@ std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, s
     // device to host copy
 #ifdef USE_CUDA
     return create_cuda_task(flow_id, cuda::cuda_d2h_copy<T>, a.get<T>() + a_offset,
-                           c.get<T>() + c_offset, size);
+                            c.get<T>() + c_offset, size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for GPU to CPU copy");
 #endif
@@ -805,7 +811,7 @@ std::unique_ptr<Task> sub_mul_scalar(const device_ptr &a, T sub_scalar, T mul_sc
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_sub_mul_scalar<T>, a.get<T>(), sub_scalar,
-                           mul_scalar, c.get<T>(), size);
+                            mul_scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -833,7 +839,7 @@ std::unique_ptr<Task> mul_add_scalar(const device_ptr &a, T mul_scalar, T add_sc
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_mul_add_scalar<T>, a.get<T>(), mul_scalar,
-                           add_scalar, c.get<T>(), size);
+                            add_scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -858,8 +864,8 @@ std::unique_ptr<Task> fill_random_uniform(device_ptr &data, size_t size, T min_v
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fill_random_uniform<T>, data.get<T>(), size, min_val,
-                           max_val, seed);
+    return create_cuda_task(flow_id, cuda::cuda_fill_random_uniform<T>, data.get<T>(), size,
+                            min_val, max_val, seed);
   }
 #endif
   else {
@@ -885,7 +891,33 @@ std::unique_ptr<Task> fill_random_normal(device_ptr &data, size_t size, T mean, 
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
     return create_cuda_task(flow_id, cuda::cuda_fill_random_normal<T>, data.get<T>(), size, mean,
-                           stddev, seed);
+                            stddev, seed);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type");
+  }
+}
+
+template <typename A_T, typename B_T>
+std::unique_ptr<Task> cast(const device_ptr &a, device_ptr &b, size_t size,
+                           const std::string &flow_id = "default") {
+  if (!a.getDevice() || !b.getDevice()) {
+    throw std::runtime_error("cast: Device pointer has no associated device");
+  }
+  if (a.getDevice() != b.getDevice()) {
+    throw std::runtime_error("cast: All device pointers must be on the same device");
+  }
+
+  auto device = a.getDevice();
+  auto device_type = device->device_type();
+
+  if (device_type == DeviceType::CPU) {
+    return create_cpu_task(flow_id, cpu::cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
+  }
+#ifdef USE_CUDA
+  else if (device_type == DeviceType::GPU) {
+    return create_cuda_task(flow_id, cuda::cuda_cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
   }
 #endif
   else {

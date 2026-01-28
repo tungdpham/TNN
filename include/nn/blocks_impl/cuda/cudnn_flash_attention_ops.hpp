@@ -11,29 +11,24 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <memory>
-
-namespace cudnn_frontend {
-namespace graph {
-class Graph;
-}
-} // namespace cudnn_frontend
 
 namespace tnn {
+
+struct AttentionStats;
+
 namespace cuda {
 namespace cudnn_flash_attention {
 
-using GraphPtr = std::shared_ptr<cudnn_frontend::graph::Graph>;
+struct feHandle_t;
 
-GraphPtr create_sdpa_forward_graph(int64_t b, int64_t h, int64_t s, int64_t d, float attn_scale,
-                                   bool is_causal);
+feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, AttentionStats &stats);
 
-void build_sdpa_forward_graph(const GraphPtr &graph, cudnnHandle_t handle);
+void destroy_fe_handle(feHandle_t *handle);
 
-size_t get_sdpa_forward_workspace_bytes(const GraphPtr &graph);
-
-void run_sdpa_forward(const GraphPtr &graph, cudnnHandle_t handle, void *q, void *k, void *v,
-                      void *o, void *workspace, cudaStream_t stream);
+void run_forward(feHandle_t *handle, const AttentionStats &stats, const void *q_data,
+                 const void *k_data, const void *v_data, void *o_data, void *workspace,
+                 cudaStream_t stream);
 
 } // namespace cudnn_flash_attention
 } // namespace cuda

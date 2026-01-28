@@ -5,16 +5,23 @@
  * project root for the full license text.
  */
 #include "nn/blocks_impl/flash_attention_block.hpp"
+#include "device/cuda/cuda_context.hpp"
 #include "device/device_type.hpp"
+#include "device/task.hpp"
+#include "nn/blocks_impl/common/flash_attention.hpp"
+#include "nn/layer.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #endif
 #ifdef USE_CUDNN
-#include "device/cuda/cuda_context.hpp"
+#include "cuda/cudnn/common.hpp"
 #include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
 #endif
+#include "type/type.hpp"
 #include <cmath>
 #include <stdexcept>
+#include <string>
 
 namespace tnn {
 
@@ -35,6 +42,17 @@ FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, boo
   out_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_out");
 }
 
+FlashAttentionBlock::~FlashAttentionBlock() {
+#ifdef USE_CUDNN
+  for (auto &kv : fe_handle_cache) {
+    if (kv.second) {
+      cuda::cudnn_flash_attention::destroy_fe_handle(kv.second);
+    }
+  }
+  fe_handle_cache.clear();
+#endif
+}
+
 void FlashAttentionBlock::init_params() {
   q_proj_->init();
   k_proj_->init();
@@ -43,9 +61,6 @@ void FlashAttentionBlock::init_params() {
 }
 
 void FlashAttentionBlock::on_set_io_dtype(DType_t dtype) {
-  if (io_dtype_ != DType_t::FP16) {
-    throw std::invalid_argument("FlashAttentionBlock only supports FP16 io_dtype for cuDNN SDPA");
-  }
   q_proj_->set_io_dtype(dtype);
   k_proj_->set_io_dtype(dtype);
   v_proj_->set_io_dtype(dtype);
@@ -66,30 +81,76 @@ void FlashAttentionBlock::on_set_device(const Device &device) {
   out_proj_->set_device(device);
 }
 
+size_t FlashAttentionBlock::get_shape_hash(size_t b, size_t h, size_t s, size_t d) const {
+  size_t seed = 0;
+  auto hash_combine = [&](size_t v) { seed ^= v + 0x9e3779b9 + (seed << 6) + (seed >> 2); };
+  hash_combine(b);
+  hash_combine(h);
+  hash_combine(s);
+  hash_combine(d);
+  return seed;
+}
+
 void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
-  const auto &input_shape = input->shape();
-  if (input_shape.size() != 3) {
+  if (input->dims() != 3) {
     throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E)");
   }
 
-  size_t batch_size = input_shape[0];
-  size_t seq_len = input_shape[1];
-  size_t embed_dim = input_shape[2];
+  size_t embed_dim = input->dimension(2);
 
   if (embed_dim != embed_dim_) {
     throw std::invalid_argument("FlashAttentionBlock: Input embed_dim mismatch");
   }
 
-  if (this->device_->device_type() != DeviceType::GPU) {
-    throw std::runtime_error("FlashAttentionBlock requires GPU device for cuDNN SDPA");
+#ifdef USE_CUDNN
+  if (this->device_->device_type() == DeviceType::GPU) {
+    cudnn_forward(input, output, mb_id);
+  } else
+#endif
+  {
+    throw std::runtime_error("CPU implementation for FlashAttentionBlock not implemented");
+  }
+}
+
+#ifdef USE_CUDNN
+template <typename IO_T, typename Param_T, typename Compute_T>
+std::unique_ptr<Task> FlashAttentionBlock::flash_attention_forward_task(
+    cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
+    const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
+    Tensor &workspace, const std::string &flow_id) const {
+  return create_cuda_task("default", cuda::cudnn_flash_attention::run_forward, fe_handle, stats,
+                          q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
+                          workspace->data());
+}
+
+void FlashAttentionBlock::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id) {
+  const auto &input_shape = input->shape();
+  size_t batch_size = input_shape[0];
+  size_t seq_len = input_shape[1];
+
+  size_t shape_key = get_shape_hash(batch_size, num_heads_, seq_len, head_dim_);
+
+  if (stats_cache.find(shape_key) == stats_cache.end()) {
+    AttentionStats stats;
+    float attn_scale = static_cast<float>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
+    init_attention_stats(stats, batch_size, num_heads_, seq_len, head_dim_, attn_scale, is_causal_);
+
+    auto *cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
+    if (!cuda_context) {
+      throw std::runtime_error("FlashAttentionBlock requires CUDAContext");
+    }
+    cudnnHandle_t cudnn_handle = cuda_context->getCudnnHandle();
+
+    cudnnDataType_t io_dtype = cuda::cudnn::to_cudnn_datatype(io_dtype_);
+    cudnnDataType_t compute_dtype = cuda::cudnn::to_cudnn_datatype(param_dtype_);
+
+    fe_handle_cache[shape_key] = cuda::cudnn_flash_attention::initialize_fe_handle(
+        cudnn_handle, io_dtype, compute_dtype, stats);
+    stats_cache[shape_key] = stats;
   }
 
-#ifndef USE_CUDNN
-  throw std::runtime_error("FlashAttentionBlock requires cuDNN for SDPA");
-#else
-  if (this->io_dtype_ != DType_t::FP16) {
-    throw std::runtime_error("FlashAttentionBlock SDPA requires FP16 io_dtype");
-  }
+  auto *fe_handle = fe_handle_cache[shape_key];
+  auto &stats = stats_cache[shape_key];
 
   Tensor &q = q_cache_[mb_id];
   Tensor &k = k_cache_[mb_id];
@@ -105,53 +166,38 @@ void FlashAttentionBlock::forward_impl(const Tensor &input, Tensor &output, size
   k_proj_->forward(input, k, mb_id);
   v_proj_->forward(input, v, mb_id);
 
-  Tensor q_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
-  Tensor k_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
-  Tensor v_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
+  Tensor q_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor k_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
+  Tensor v_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
   DISPATCH_ON_DTYPE(io_dtype_, T, {
-    create_cuda_task("default", cuda::permute_heads<T>, q->data_as<T>(), q_heads->data_as<T>(),
-                     batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task("default", cuda::permute_heads<T>, k->data_as<T>(), k_heads->data_as<T>(),
-                     batch_size, seq_len, num_heads_, head_dim_);
-    create_cuda_task("default", cuda::permute_heads<T>, v->data_as<T>(), v_heads->data_as<T>(),
-                     batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T, bf16>, q->data_as<T>(),
+                     q_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T, bf16>, k->data_as<T>(),
+                     k_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
+    create_cuda_task("default", cuda::permute_heads<T, bf16>, v->data_as<T>(),
+                     v_heads->data_as<bf16>(), batch_size, seq_len, num_heads_, head_dim_);
   });
 
-  auto cuda_context = dynamic_cast<CUDAContext *>(this->device_->context());
-  if (!cuda_context) {
-    throw std::runtime_error("FlashAttentionBlock requires CUDAContext for cuDNN SDPA");
-  }
-
-  cudnnHandle_t cudnn_handle = cuda_context->getCudnnHandle();
-  float attn_scale = static_cast<float>(1.0 / std::sqrt(static_cast<double>(head_dim_)));
-
-  auto graph = cuda::cudnn_flash_attention::create_sdpa_forward_graph(
-      static_cast<int64_t>(batch_size), static_cast<int64_t>(num_heads_),
-      static_cast<int64_t>(seq_len), static_cast<int64_t>(head_dim_), attn_scale, is_causal_);
-
-  cuda::cudnn_flash_attention::build_sdpa_forward_graph(graph, cudnn_handle);
-
-  size_t workspace_size = cuda::cudnn_flash_attention::get_sdpa_forward_workspace_bytes(graph);
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
+  size_t workspace_size = stats.fwd_workspace_size;
+  size_t io_dtype_size = get_dtype_size(DType_t::BF16);
   size_t workspace_elements = (workspace_size + io_dtype_size - 1) / io_dtype_size;
   Tensor workspace = this->get_buffer({workspace_elements}, io_dtype_);
 
-  Tensor attn_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, io_dtype_);
+  Tensor attn_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, DType_t::BF16);
 
-  create_cuda_task("default", cuda::cudnn_flash_attention::run_sdpa_forward, graph, cudnn_handle,
-                   q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
-                   workspace->data());
+  DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_forward_task, fe_handle, stats, q_heads, k_heads,
+                                 v_heads, attn_heads, workspace, "default");
 
   Tensor attn_out = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
   DISPATCH_ON_DTYPE(io_dtype_, T, {
-    create_cuda_task("default", cuda::permute_heads<T>, attn_heads->data_as<T>(),
+    create_cuda_task("default", cuda::permute_heads<bf16, T>, attn_heads->data_as<bf16>(),
                      attn_out->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
   out_proj_->forward(attn_out, output, mb_id);
-#endif
 }
+#endif
 
 void FlashAttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {}
 

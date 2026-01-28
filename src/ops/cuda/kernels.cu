@@ -662,6 +662,37 @@ template <typename T>
 T cuda_sum_squared_diff(const T *a, T mean, size_t size, cudaStream_t stream) {
   return dispatch_reduce<T, 2>(a, nullptr, mean, size, stream);
 }
+// Cast kernel implementation
+template <typename A_T, typename B_T>
+__global__ void cast_kernel(const A_T *__restrict__ a, B_T *__restrict__ b, size_t size) {
+  int idx = blockIdx.x * blockDim.x + threadIdx.x;
+  if (idx < size) {
+    b[idx] = static_cast<B_T>(a[idx]);
+  }
+}
+
+template <typename A_T, typename B_T>
+void cuda_cast(const A_T *a, B_T *b, size_t size, cudaStream_t stream) {
+  if (size == 0)
+    return;
+  int blocks = get_num_blocks(size);
+  cast_kernel<<<blocks, BLOCK_SIZE, 0, stream>>>(a, b, size);
+  tnn::cuda::checkCudaError(cudaGetLastError(), "cast", __FILE__, __LINE__);
+}
+
+// Explicit template instantiations for cast
+#define INSTANTIATE_CAST(A_T, B_T)                                                                 \
+  template void cuda_cast<A_T, B_T>(const A_T *, B_T *, size_t, cudaStream_t);
+INSTANTIATE_CAST(fp16, float)
+INSTANTIATE_CAST(float, fp16)
+INSTANTIATE_CAST(bf16, float)
+INSTANTIATE_CAST(float, bf16)
+INSTANTIATE_CAST(int, float)
+INSTANTIATE_CAST(float, int)
+INSTANTIATE_CAST(int, double)
+INSTANTIATE_CAST(double, int)
+
+#undef INSTANTIATE_CAST
 
 #define INSTANTIATE_BIN(T)                                                                         \
   template void cuda_add<T>(const T *, const T *, T *, size_t, cudaStream_t);                      \

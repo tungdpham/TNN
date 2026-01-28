@@ -10,6 +10,7 @@
 #include "device/task.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "tensor/tensor.hpp"
+#include <type_traits>
 #ifdef USE_CUDNN
 #include "cuda/cudnn/common.hpp"
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
@@ -167,6 +168,9 @@ Conv2DLayer::conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, Conv
                                  const Tensor &bias, Tensor &workspace, size_t batch_size,
                                  size_t input_h, size_t input_w, size_t output_h, size_t output_w,
                                  const std::string &flow_id) const {
+  if (!std::is_same_v<IO_T, Param_T>) {
+    throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
+  }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -181,6 +185,9 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_data_task(
     cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const Tensor &gradient,
     const Tensor &weights, Tensor &grad_input, Tensor &workspace, size_t batch_size, size_t input_h,
     size_t input_w, size_t output_h, size_t output_w, const std::string &flow_id) const {
+  if (!std::is_same_v<IO_T, Param_T>) {
+    throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
+  }
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -195,6 +202,9 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
     const Tensor &gradient, Tensor &weight_gradients, Tensor &bias_gradients, Tensor &workspace,
     size_t batch_size, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
+  if (!std::is_same_v<IO_T, Param_T>) {
+    throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
+  }
   if (input->data_type() != dtype_of<IO_T>() || gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("Conv2DLayer input/gradient dtype mismatch with dispatch IO_T");
   }

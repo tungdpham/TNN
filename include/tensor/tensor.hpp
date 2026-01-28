@@ -109,6 +109,8 @@ public:
   }
   virtual void *data() = 0;
   virtual const void *data() const = 0;
+  virtual device_ptr &data_ptr() = 0;
+  virtual const device_ptr &data_ptr() const = 0;
 
   // Operations
   virtual void resize(const std::vector<size_t> &new_shape) = 0;
@@ -167,6 +169,8 @@ public:
   static Tensor create(DType_t dtype, std::initializer_list<size_t> shape = {},
                        const Device *device = &getCPU());
 
+  static Tensor create(DType_t dtype, device_ptr &&data, std::vector<size_t> shape);
+
   template <typename T> static Tensor create_pooled(MemPool &mem_pool, std::vector<size_t> shape);
 
   template <typename T>
@@ -182,6 +186,8 @@ public:
   template <typename T> static Tensor load(std::ifstream &in, const Device *device = &getCPU());
 
   static void load_into(std::ifstream &in, Tensor &target);
+
+  static Tensor dtype_cast(const Tensor &input, DType_t target_dtype);
 };
 
 /**
@@ -316,6 +322,9 @@ public:
 
   void *data() override { return static_cast<void *>(data_.get<T>()); }
   const void *data() const override { return static_cast<const void *>(data_.get<T>()); }
+
+  device_ptr &data_ptr() override { return data_; }
+  const device_ptr &data_ptr() const override { return data_; }
 
   // Operators
   TypedTensor<T> &operator=(const TypedTensor<T> &other) {
@@ -495,10 +504,6 @@ public:
   bool is_on_cpu() const override { return device()->device_type() == DeviceType::CPU; }
 
   bool is_on_gpu() const override { return device()->device_type() == DeviceType::GPU; }
-
-  const device_ptr &data_ptr() const { return data_; }
-
-  device_ptr &data_ptr() { return data_; }
 
   Tensor to_cpu() const override {
     if (device_type() == DeviceType::CPU) {
@@ -973,7 +978,39 @@ inline void print_data_distribution(const Tensor &tensor, const std::string &ten
   std::cout << std::endl;
 }
 
-// Tensor static method implementations
+#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)                                            \
+  do {                                                                                             \
+    switch (dtype_value) {                                                                         \
+    case DType_t::FP16: {                                                                          \
+      using type_alias = fp16;                                                                     \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
+    case DType_t::BF16: {                                                                          \
+      using type_alias = bf16;                                                                     \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
+    case DType_t::FP32: {                                                                          \
+      using type_alias = float;                                                                    \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
+    case DType_t::FP64: {                                                                          \
+      using type_alias = double;                                                                   \
+      __VA_ARGS__;                                                                                 \
+      break;                                                                                       \
+    }                                                                                              \
+    default:                                                                                       \
+      throw std::runtime_error("Unknown dtype in dispatch");                                       \
+    }                                                                                              \
+  } while (0)
+
+#define DISPATCH_AUTO(type_alias, func_body, ...)                                                  \
+  DISPATCH_ON_DTYPE(tnn::find_and_verify_dtype(__VA_ARGS__), type_alias, func_body)
+
+#define DISPATCH_AUTO_T(func, ...) DISPATCH_AUTO(T, func<T>(__VA_ARGS__), __VA_ARGS__)
+
 template <typename T>
 inline Tensor Tensor::create(std::vector<size_t> shape, const Device *device) {
   return std::make_shared<TypedTensor<T>>(shape, device);
@@ -1027,6 +1064,21 @@ inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
   }
 }
 
+inline Tensor Tensor::create(DType_t dtype, device_ptr &&data, std::vector<size_t> shape) {
+  switch (dtype) {
+  case DType_t::FP16:
+    return create<fp16>(shape, std::move(data));
+  case DType_t::BF16:
+    return create<bf16>(shape, std::move(data));
+  case DType_t::FP32:
+    return create<float>(shape, std::move(data));
+  case DType_t::FP64:
+    return create<double>(shape, std::move(data));
+  default:
+    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
+  }
+}
+
 template <typename T>
 inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::vector<size_t> shape) {
   return std::make_shared<PooledTypedTensor<T>>(mem_pool, shape);
@@ -1074,6 +1126,20 @@ template <typename T> inline std::shared_ptr<TypedTensor<T>> Tensor::cast(const 
     throw std::runtime_error("Invalid tensor type cast");
   }
   return typed;
+}
+
+inline Tensor Tensor::dtype_cast(const Tensor &input, DType_t target_dtype) {
+  if (input->data_type() == target_dtype) {
+    return input->clone();
+  }
+
+  const device_ptr &input_data = input->data_ptr();
+  size_t input_size = input->size();
+  device_ptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
+  DISPATCH_ON_DTYPE(input->data_type(), A_T,
+                    DISPATCH_ON_DTYPE(target_dtype, B_T,
+                                      ops::cast<A_T, B_T>(input_data, output_data, input_size)));
+  return Tensor::create(target_dtype, std::move(output_data), input->shape());
 }
 
 template <typename T> inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
@@ -1237,38 +1303,5 @@ template <typename... Args> DType_t find_and_verify_dtype(const Args &...args) {
   check_all_match(found, args...);
   return found;
 }
-
-#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)                                            \
-  do {                                                                                             \
-    switch (dtype_value) {                                                                         \
-    case DType_t::FP16: {                                                                          \
-      using type_alias = fp16;                                                                     \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::BF16: {                                                                          \
-      using type_alias = bf16;                                                                     \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::FP32: {                                                                          \
-      using type_alias = float;                                                                    \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::FP64: {                                                                          \
-      using type_alias = double;                                                                   \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    default:                                                                                       \
-      throw std::runtime_error("Unknown dtype in dispatch");                                       \
-    }                                                                                              \
-  } while (0)
-
-#define DISPATCH_AUTO(type_alias, func_body, ...)                                                  \
-  DISPATCH_ON_DTYPE(tnn::find_and_verify_dtype(__VA_ARGS__), type_alias, func_body)
-
-#define DISPATCH_AUTO_T(func, ...) DISPATCH_AUTO(T, func<T>(__VA_ARGS__), __VA_ARGS__)
 
 } // namespace tnn

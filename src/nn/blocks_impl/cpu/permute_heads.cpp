@@ -8,8 +8,8 @@
 namespace tnn {
 namespace cpu {
 
-template <typename T>
-void permute_heads(const T *input, T *output, size_t B, size_t L, size_t H, size_t D) {
+template <typename I_T, typename O_T>
+void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, size_t D) {
   // Input: (B, L, H, D)
   // Output: (B, H, L, D)
   // Or vice versa if L and H are swapped in call.
@@ -25,23 +25,32 @@ void permute_heads(const T *input, T *output, size_t B, size_t L, size_t H, size
   size_t out_stride_l = D;
 
   parallel_for_2d<size_t>(B, L, [&](size_t b, size_t l) {
-    const T *src_base = input + b * in_stride_b + l * in_stride_l;
+    const I_T *src_base = input + b * in_stride_b + l * in_stride_l;
     for (size_t h = 0; h < H; ++h) {
-      const T *src = src_base + h * in_stride_h;
-      T *dst = output + b * out_stride_b + h * out_stride_h + l * out_stride_l;
+      const I_T *src = src_base + h * in_stride_h;
+      O_T *dst = output + b * out_stride_b + h * out_stride_h + l * out_stride_l;
       for (size_t d = 0; d < D; ++d) {
-        dst[d] = src[d];
+        dst[d] = static_cast<O_T>(src[d]);
       }
     }
   });
 }
 
-#define INSTANTIATE_PERMUTE_HEADS(T)                                                               \
-  template void permute_heads<T>(const T *input, T *output, size_t B, size_t L, size_t H, size_t D);
-INSTANTIATE_PERMUTE_HEADS(fp16)
-INSTANTIATE_PERMUTE_HEADS(bf16)
-INSTANTIATE_PERMUTE_HEADS(float)
-INSTANTIATE_PERMUTE_HEADS(double)
+#define INSTANTIATE_PERMUTE_HEADS(I_T, O_T)                                                        \
+  template void permute_heads<I_T, O_T>(const I_T *input, O_T *output, size_t B, size_t L,         \
+                                        size_t H, size_t D);
+#define INSTANTIATE_PERMUTE_HEADS_BOTH(I_T)                                                        \
+  INSTANTIATE_PERMUTE_HEADS(I_T, fp16)                                                             \
+  INSTANTIATE_PERMUTE_HEADS(I_T, bf16)                                                             \
+  INSTANTIATE_PERMUTE_HEADS(I_T, float)                                                            \
+  INSTANTIATE_PERMUTE_HEADS(I_T, double)
+
+INSTANTIATE_PERMUTE_HEADS_BOTH(fp16)
+INSTANTIATE_PERMUTE_HEADS_BOTH(bf16)
+INSTANTIATE_PERMUTE_HEADS_BOTH(float)
+INSTANTIATE_PERMUTE_HEADS_BOTH(double)
+
+#undef INSTANTIATE_PERMUTE_HEADS_BOTH
 #undef INSTANTIATE_PERMUTE_HEADS
 
 } // namespace cpu
