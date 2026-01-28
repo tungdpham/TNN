@@ -160,10 +160,10 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   Tensor &batch_invar = this->get_cached_tensor(mb_id, "batch_invar");
   Tensor &batch_mean = this->get_cached_tensor(mb_id, "batch_mean");
   if (batch_invar == nullptr) {
-    batch_invar = make_io_tensor({num_features_});
+    batch_invar = this->get_buffer({num_features_}, io_dtype_);
   }
   if (batch_mean == nullptr) {
-    batch_mean = make_io_tensor({num_features_});
+    batch_mean = this->get_buffer({num_features_}, io_dtype_);
   }
 
   size_t io_dtype_size = get_dtype_size(io_dtype_);
