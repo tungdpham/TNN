@@ -9,9 +9,6 @@
 #include <cuda_runtime.h>
 #include <cudnn.h>
 
-#include <cstddef>
-#include <cstdint>
-
 namespace tnn {
 
 struct AttentionStats;
@@ -27,8 +24,13 @@ feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_
 void destroy_fe_handle(feHandle_t *handle);
 
 void run_forward(feHandle_t *handle, const AttentionStats &stats, const void *q_data,
-                 const void *k_data, const void *v_data, void *o_data, void *workspace,
-                 cudaStream_t stream);
+                 const void *k_data, const void *v_data, void *o_data, void *stats_data,
+                 void *workspace, cudaStream_t stream);
+
+void run_backward(feHandle_t *handle, const AttentionStats &stats, const void *q_data,
+                  const void *k_data, const void *v_data, const void *o_data, const void *dO_data,
+                  const void *stats_data, void *dQ_data, void *dK_data, void *dV_data,
+                  void *workspace, cudaStream_t stream);
 
 } // namespace cudnn_flash_attention
 } // namespace cuda

@@ -38,16 +38,28 @@ private:
   std::unordered_map<size_t, Tensor> q_cache_;
   std::unordered_map<size_t, Tensor> k_cache_;
   std::unordered_map<size_t, Tensor> v_cache_;
+  std::unordered_map<size_t, Tensor> attn_out_cache_;
+  std::unordered_map<size_t, Tensor> stats_cache_tensor_;
 
 #ifdef USE_CUDNN
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task>
   flash_attention_forward_task(cuda::cudnn_flash_attention::feHandle_t *fe_handle,
                                AttentionStats &stats, const Tensor &q_heads, const Tensor &k_heads,
-                               const Tensor &v_heads, Tensor &attn_heads, Tensor &workspace,
-                               const std::string &flow_id) const;
+                               const Tensor &v_heads, Tensor &attn_heads, Tensor &stats_tensor,
+                               Tensor &workspace, const std::string &flow_id) const;
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task>
+  flash_attention_backward_task(cuda::cudnn_flash_attention::feHandle_t *fe_handle,
+                                AttentionStats &stats, const Tensor &q_heads, const Tensor &k_heads,
+                                const Tensor &v_heads, const Tensor &attn_heads,
+                                const Tensor &grad_attn_heads, const Tensor &stats_tensor,
+                                Tensor &grad_q_heads, Tensor &grad_k_heads, Tensor &grad_v_heads,
+                                Tensor &workspace, const std::string &flow_id) const;
 
   void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
 
   std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
 #endif
