@@ -131,7 +131,7 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   thread_wrapper.execute([&]() {
-    TCPWorker worker(cfg.listen_port, cfg.use_gpu, cfg.io_threads);
+    TCPWorker worker(Endpoint::tcp("0.0.0.0", cfg.listen_port), cfg.use_gpu, cfg.io_threads);
     worker.start();
   });
 

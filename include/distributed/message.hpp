@@ -25,9 +25,8 @@ struct MessageHeader {
 
   MessageHeader() : command_type(CommandType::_START) {}
 
-  MessageHeader(std::string sender_id, std::string recipient, CommandType cmd_type)
-      : recipient_id(std::move(recipient)), sender_id(std::move(sender_id)),
-        command_type(cmd_type) {}
+  MessageHeader(std::string sender_id, CommandType cmd_type)
+      : sender_id(std::move(sender_id)), command_type(cmd_type) {}
 
   MessageHeader(const MessageHeader &other)
       : recipient_id(other.recipient_id), sender_id(other.sender_id),
@@ -114,15 +113,13 @@ private:
   MessageData data_;
 
 public:
-  Message() : header_("", "", CommandType::_START), data_(std::monostate{}) {}
+  Message() : header_("", CommandType::_START), data_(std::monostate{}) {}
 
-  Message(std::string sender_id, std::string recipient_id, CommandType cmd_type,
-          PayloadType &&payload)
-      : header_(std::move(sender_id), std::move(recipient_id), cmd_type),
-        data_(std::move(payload)) {}
+  Message(std::string sender_id, CommandType cmd_type, PayloadType &&payload)
+      : header_(std::move(sender_id), cmd_type), data_(std::move(payload)) {}
 
-  Message(std::string sender_id, std::string recipient_id, CommandType cmd_type)
-      : header_(std::move(sender_id), std::move(recipient_id), cmd_type), data_(std::monostate{}) {}
+  Message(std::string sender_id, CommandType cmd_type)
+      : header_(std::move(sender_id), cmd_type), data_(std::monostate{}) {}
 
   Message(MessageHeader &&header, MessageData &&data)
       : header_(std::move(header)), data_(std::move(data)) {}

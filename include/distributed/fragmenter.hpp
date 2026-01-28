@@ -3,6 +3,7 @@
 #include "distributed/buffer_pool.hpp"
 #include "packet.hpp"
 #include <cstdint>
+#include <iostream>
 #include <mutex>
 #include <sys/types.h>
 #include <unordered_map>

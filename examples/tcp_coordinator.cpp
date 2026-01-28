@@ -95,8 +95,15 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  NetworkCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
-                                 coordinator_endpoint, endpoints);
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                                 endpoints);
+
+  // TCPWorker worker(coordinator_endpoint, device_type == DeviceType::GPU, 4);
+
+  // std::thread worker_thread([&worker]() {
+  //   cout << "Starting TCP Worker..." << endl;
+  //   worker.start();
+  // });
 
   unique_ptr<Partitioner> partitioner =
       make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
@@ -118,9 +125,8 @@ int main() {
 
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
-  thread_wrapper.execute([&coordinator, &train_loader, &val_loader, &criterion, &train_config]() {
-    train_model(coordinator, *train_loader, *val_loader, criterion, train_config);
-  });
+  thread_wrapper.execute(
+      [&]() { train_model(coordinator, *train_loader, *val_loader, criterion, train_config); });
 
   coordinator.stop();
 

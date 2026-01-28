@@ -2,11 +2,9 @@
 
 #include "endpoint.hpp"
 #include <nlohmann/json.hpp>
-#include <string>
 
 namespace tnn {
 struct StageConfig {
-  std::string stage_id;
   nlohmann::json model_config;
   nlohmann::json optimizer_config;
   Endpoint next_stage_endpoint;
@@ -14,8 +12,7 @@ struct StageConfig {
   Endpoint coordinator_endpoint;
 
   nlohmann::json to_json() const {
-    return nlohmann::json{{"stage_id", stage_id},
-                          {"model_config", model_config},
+    return nlohmann::json{{"model_config", model_config},
                           {"optimizer_config", optimizer_config},
                           {"next_stage_endpoint", next_stage_endpoint.to_json()},
                           {"prev_stage_endpoint", prev_stage_endpoint.to_json()},
@@ -24,7 +21,6 @@ struct StageConfig {
 
   static StageConfig from_json(const nlohmann::json &j) {
     StageConfig config;
-    config.stage_id = j["stage_id"];
     config.model_config = j["model_config"];
     config.optimizer_config = j["optimizer_config"];
     config.next_stage_endpoint = Endpoint::from_json(j["next_stage_endpoint"]);

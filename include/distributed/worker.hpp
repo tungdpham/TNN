@@ -65,12 +65,6 @@ public:
     message_available_cv_.notify_all();
   }
 
-  void set_id(const std::string &id) {
-    this->id_ = id;
-    this->communicator_->set_id(id);
-    std::cout << "Worker ID set to: " << id_ << std::endl;
-  }
-
   void message_loop() {
     std::cout << "Running event loop" << std::endl;
     while (!should_stop_) {
@@ -109,8 +103,8 @@ protected:
       auto forward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-      message = Message(id_, "next_stage", CommandType::FORWARD_JOB, std::move(output));
-      communicator_->send_message(std::move(message));
+      message = Message(id_, CommandType::FORWARD_JOB, std::move(output));
+      communicator_->send_message(std::move(message), next_stage_endpoint_);
     } break;
     case CommandType::BACKWARD_JOB: {
       auto backward_start = std::chrono::system_clock::now();
@@ -124,8 +118,8 @@ protected:
       auto backward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-      message = Message(id_, "prev_stage", CommandType::BACKWARD_JOB, std::move(output));
-      communicator_->send_message(std::move(message));
+      message = Message(id_, CommandType::BACKWARD_JOB, std::move(output));
+      communicator_->send_message(std::move(message), prev_stage_endpoint_);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
       auto update_start = std::chrono::system_clock::now();
@@ -135,8 +129,8 @@ protected:
       auto update_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
-      Message response(id_, "coordinator", CommandType::PARAMETERS_UPDATED, std::monostate{});
-      communicator_->send_message(std::move(response));
+      Message response(id_, CommandType::PARAMETERS_UPDATED, std::monostate{});
+      communicator_->send_message(std::move(response), coordinator_endpoint_);
     } break;
     case CommandType::TRAIN_MODE:
       this->model_->set_training(true);
@@ -159,21 +153,20 @@ protected:
       break;
     case CommandType::START_PROFILING: {
       GlobalProfiler::init_start_time(std::chrono::system_clock::now());
-      Message response(id_, message.header().sender_id, CommandType::PROFILING_STARTED);
-      communicator_->send_message(std::move(response));
+      Message response(id_, CommandType::PROFILING_STARTED);
+      communicator_->send_message(std::move(response), coordinator_endpoint_);
       break;
     }
     case CommandType::REPORT_PROFILING: {
-      Message response(id_, message.header().sender_id, CommandType::PROFILING_REPORTED,
-                       GlobalProfiler::get_profiler());
-      communicator_->send_message(std::move(response));
+      Message response(id_, CommandType::PROFILING_REPORTED, GlobalProfiler::get_profiler());
+      communicator_->send_message(std::move(response), coordinator_endpoint_);
       break;
     }
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_info();
-        Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_PRINTED);
-        communicator_->send_message(std::move(outgoing_message));
+        Message outgoing_message(id_, CommandType::PROFILING_PRINTED);
+        communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
       }
@@ -181,8 +174,8 @@ protected:
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->reset_profiling_info();
-        Message outgoing_message(id_, message.header().sender_id, CommandType::PROFILING_CLEARED);
-        communicator_->send_message(std::move(outgoing_message));
+        Message outgoing_message(id_, CommandType::PROFILING_CLEARED);
+        communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
@@ -201,8 +194,8 @@ protected:
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
-        Message error_msg(id_, message.header().sender_id, CommandType::ERROR_REPORT, error_text);
-        communicator_->send_message(std::move(error_msg));
+        Message error_msg(id_, CommandType::ERROR_REPORT, error_text);
+        communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
       }
       break;
     }
@@ -240,11 +233,8 @@ protected:
       // Parse configuration
       nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
       StageConfig config = StageConfig::from_json(config_json);
-      std::cout << "Received configuration for stage " << this->id_ << '\n';
-      std::cout << config_json.dump(2) << std::endl;
-      this->set_id(config.stage_id);
 
-      // setup model, optimizer
+      // setup model, optimizer, criterion
       LayerConfig model_config = LayerConfig::from_json(config.model_config);
       this->model_ = Sequential::create_from_config(model_config);
       OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
@@ -261,21 +251,27 @@ protected:
       // setup connections
       setup_stage_connections(config);
       is_configured_ = true;
-      Message ready_msg(id_, "coordinator", CommandType::CONFIG_RECEIVED, true);
-      this->communicator_->send_message(std::move(ready_msg));
+      Message ready_msg(id_, CommandType::CONFIG_RECEIVED, true);
+      this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
 
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
       std::string error_text = std::string("Configuration failed: ") + e.what();
-      Message error_msg(id_, "coordinator", CommandType::ERROR_REPORT, error_text);
-      this->communicator_->send_message(std::move(error_msg));
+      Message error_msg(id_, CommandType::ERROR_REPORT, error_text);
+      this->communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
     }
   }
 
   void setup_stage_connections(const StageConfig &config) {
-    this->communicator_->connect("coordinator", config.coordinator_endpoint);
-    this->communicator_->connect("next_stage", config.next_stage_endpoint);
-    this->communicator_->connect("prev_stage", config.prev_stage_endpoint);
+    coordinator_endpoint_ = config.coordinator_endpoint;
+    next_stage_endpoint_ = config.next_stage_endpoint;
+    prev_stage_endpoint_ = config.prev_stage_endpoint;
+    if (!coordinator_endpoint_.is_empty())
+      this->communicator_->connect(coordinator_endpoint_);
+    if (!next_stage_endpoint_.is_empty())
+      this->communicator_->connect(next_stage_endpoint_);
+    if (!prev_stage_endpoint_.is_empty())
+      this->communicator_->connect(prev_stage_endpoint_);
   }
 
   bool use_gpu_;
@@ -284,6 +280,9 @@ protected:
   std::shared_ptr<Communicator> communicator_;
 
   std::string id_;
+  Endpoint coordinator_endpoint_;
+  Endpoint next_stage_endpoint_;
+  Endpoint prev_stage_endpoint_;
   std::atomic<bool> should_stop_;
   std::atomic<bool> is_configured_;
 

@@ -142,9 +142,9 @@ int main(int argc, char *argv[]) {
 
   communicator.start_server();
 
-  string local_endpoint = cfg.host + ":" + to_string(cfg.port);
-  string peer_endpoint = cfg.peer_host + ":" + to_string(cfg.peer_port);
-  while (!communicator.connect(peer_endpoint, Endpoint::tcp(cfg.peer_host, cfg.peer_port))) {
+  Endpoint local_endpoint = Endpoint::tcp(cfg.host, cfg.port);
+  Endpoint peer_endpoint = Endpoint::tcp(cfg.peer_host, cfg.peer_port);
+  while (!communicator.connect(peer_endpoint)) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }
@@ -157,8 +157,8 @@ int main(int argc, char *argv[]) {
     Job job;
     job.mb_id = 0;
     job.data = std::move(tensor);
-    Message message(local_endpoint, peer_endpoint, CommandType::FORWARD_JOB, std::move(job));
-    communicator.send_message(std::move(message));
+    Message message(local_endpoint.id(), CommandType::FORWARD_JOB, std::move(job));
+    communicator.send_message(std::move(message), peer_endpoint);
   }
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -186,8 +186,8 @@ int main(int argc, char *argv[]) {
           continue;
         }
         num_messages_received++;
-        message.header().recipient_id = cfg.peer_host + ":" + to_string(cfg.peer_port);
-        communicator.send_message(std::move(message));
+        message.header().recipient_id = peer_endpoint.id();
+        communicator.send_message(std::move(message), peer_endpoint);
       }
 
       current_time = std::chrono::high_resolution_clock::now();

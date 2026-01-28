@@ -44,8 +44,6 @@ private:
         if (token_id >= 0 && token_id < (int)vocab_size_ && token_id != padding_token_id_) {
           (*typed_batch_labels)({b, i, (size_t)token_id}) = static_cast<T>(1);
         }
-        // If token_id == padding_token_id, the label tensor remains all zeros at this position
-        // The loss function will skip this position since all target probabilities are 0
       }
     }
 

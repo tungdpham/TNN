@@ -19,7 +19,7 @@ signed main() {
   Job job;
   job.mb_id = microbatch_id;
   job.data = std::move(tensor);
-  Message message("worker", "coordinator", CommandType::FORWARD_JOB, std::move(job));
+  Message message("worker", CommandType::FORWARD_JOB, std::move(job));
 
   ThreadWrapper thread_wrapper({16});
 

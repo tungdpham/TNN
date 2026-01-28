@@ -46,7 +46,7 @@ class RoceCommunicator : public Communicator {
 private:
   struct Connection {
     ibv_qp *qp = nullptr;
-    std::string peer_id;
+    Endpoint endpoint;
     uint32_t psn = 0;
     std::vector<std::unique_ptr<RoceBuffer>> recv_buffers;
 
@@ -76,7 +76,7 @@ private:
   std::atomic<bool> is_running_{false};
   std::atomic<uint64_t> msg_serial_id_counter_{0};
 
-  std::unordered_map<std::string, std::shared_ptr<Connection>> connections_;
+  std::unordered_map<Endpoint, std::shared_ptr<Connection>> connections_;
   std::unordered_map<uint32_t, std::shared_ptr<Connection>>
       qp_map_; // Map QPN to Connection* for polling
   std::mutex connections_mutex_;
@@ -155,7 +155,7 @@ public:
     io_thread_ = std::thread([this]() { io_context_.run(); });
   }
 
-  void send_message(Message &&message) override {
+  void send_impl(Message &&message, const Endpoint &endpoint) override {
     size_t msg_size = message.size();
     PooledRoceBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
     size_t offset = 0;
@@ -166,7 +166,7 @@ public:
     std::shared_ptr<Connection> conn;
     {
       std::lock_guard<std::mutex> lock(connections_mutex_);
-      auto it = connections_.find(message.header().recipient_id);
+      auto it = connections_.find(endpoint);
       if (it != connections_.end()) {
         conn = it->second;
       }
@@ -238,14 +238,14 @@ public:
   void flush_output_messages() override {
     std::lock_guard<std::mutex> lock(out_message_mutex_);
     while (!out_message_queue_.empty()) {
-      auto message = std::move(out_message_queue_.front());
-      send_message(std::move(message));
+      auto [message, endpoint] = std::move(out_message_queue_.front());
+      send_message(std::move(message), endpoint);
       out_message_queue_.pop();
     }
   }
 
 protected:
-  bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
+  bool connect_to_endpoint(const Endpoint &endpoint) override {
     try {
       std::string host = endpoint.get_parameter<std::string>("host");
       int tcp_port = endpoint.get_parameter<int>("port");
@@ -254,13 +254,15 @@ protected:
       asio::ip::tcp::resolver resolver(io_context_);
       asio::connect(socket, resolver.resolve(host, std::to_string(tcp_port)));
 
-      // Handshake
-      uint32_t id_len = id_.length();
-      asio::write(socket, asio::buffer(&id_len, sizeof(id_len)));
-      asio::write(socket, asio::buffer(id_));
+      // Handshake: Send our endpoint information as JSON
+      nlohmann::json local_endpoint_json = endpoint.to_json();
+      std::string local_endpoint_str = local_endpoint_json.dump();
+      uint32_t endpoint_len = local_endpoint_str.length();
+      asio::write(socket, asio::buffer(&endpoint_len, sizeof(endpoint_len)));
+      asio::write(socket, asio::buffer(local_endpoint_str));
 
       auto conn = std::make_shared<Connection>();
-      conn->peer_id = peer_id;
+      conn->endpoint = endpoint;
       conn->qp = create_qp();
 
       RoceConnectionInfo my_info = get_local_info(conn->qp);
@@ -297,10 +299,10 @@ protected:
       {
         std::lock_guard<std::mutex> lock(connections_mutex_);
         qp_map_[conn->qp->qp_num] = conn;
-        connections_[peer_id] = conn;
+        connections_[endpoint] = conn;
       }
 
-      std::cout << "Successfully established outgoing connection to " << peer_id
+      std::cout << "Successfully established outgoing connection to " << endpoint.id()
                 << " (QP: " << conn->qp->qp_num << ")\n";
       return true;
     } catch (const std::exception &e) {
@@ -309,9 +311,9 @@ protected:
     }
   }
 
-  bool disconnect_from_endpoint(const std::string &peer_id, const Endpoint &endpoint) override {
+  bool disconnect_from_endpoint(const Endpoint &endpoint) override {
     std::lock_guard<std::mutex> lock(connections_mutex_);
-    auto it = connections_.find(peer_id);
+    auto it = connections_.find(endpoint);
     if (it != connections_.end()) {
       qp_map_.erase(it->second->qp->qp_num);
       connections_.erase(it);
@@ -649,9 +651,9 @@ private:
             std::lock_guard<std::mutex> lock(connections_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
             if (it != qp_map_.end()) {
-              std::string peer_id = it->second->peer_id;
+              auto conn_endpoint = it->second->endpoint;
               qp_map_.erase(it);
-              connections_.erase(peer_id);
+              connections_.erase(conn_endpoint);
             }
           }
           if (wc[i].opcode == IBV_WC_RDMA_WRITE && (wc[i].wr_id & 1)) {
@@ -846,18 +848,27 @@ private:
         [this, socket, id_len_buf](const asio::error_code &ec, size_t) {
           if (ec)
             return;
-          size_t id_len = *id_len_buf;
-          auto peer_id_buf = std::make_shared<std::string>(id_len, '\0');
+          size_t endpoint_len = *id_len_buf;
+          auto peer_endpoint_buf = std::make_shared<std::string>(endpoint_len, '\0');
           asio::async_read(
-              *socket, asio::buffer(&(*peer_id_buf)[0], id_len),
-              [this, socket, peer_id_buf](const asio::error_code &ec, size_t) {
+              *socket, asio::buffer(&(*peer_endpoint_buf)[0], endpoint_len),
+              [this, socket, peer_endpoint_buf](const asio::error_code &ec, size_t) {
                 if (ec)
                   return;
-                std::string peer_id = *peer_id_buf;
-                std::cout << "Incoming connection from: " << peer_id << std::endl;
+
+                // Deserialize the peer's endpoint from JSON
+                Endpoint peer_endpoint;
+                try {
+                  nlohmann::json peer_endpoint_json = nlohmann::json::parse(*peer_endpoint_buf);
+                  peer_endpoint = Endpoint::from_json(peer_endpoint_json);
+                  std::cout << "Incoming connection from: " << peer_endpoint.id() << std::endl;
+                } catch (const std::exception &e) {
+                  std::cerr << "Failed to parse peer endpoint: " << e.what() << std::endl;
+                  return;
+                }
 
                 auto conn = std::make_shared<Connection>();
-                conn->peer_id = peer_id;
+                conn->endpoint = peer_endpoint;
                 try {
                   conn->qp = create_qp();
                 } catch (...) {
@@ -872,7 +883,7 @@ private:
 
                 asio::async_write(
                     *socket, asio::buffer(*my_info_buf),
-                    [this, socket, conn, peer_id, my_psn](const asio::error_code &ec, size_t) {
+                    [this, socket, conn, my_psn](const asio::error_code &ec, size_t) {
                       if (ec) {
                         std::cerr << "Error during async_write: " << ec.message() << std::endl;
                         return;
@@ -880,8 +891,8 @@ private:
                       auto peer_info_buf = std::make_shared<std::vector<uint8_t>>(26);
                       asio::async_read(
                           *socket, asio::buffer(*peer_info_buf),
-                          [this, socket, conn, peer_id, peer_info_buf,
-                           my_psn](const asio::error_code &ec, size_t) {
+                          [this, socket, conn, peer_info_buf, my_psn](const asio::error_code &ec,
+                                                                      size_t) {
                             if (ec) {
                               std::cerr << "Error during async_read: " << ec.message() << std::endl;
                               return;
@@ -901,8 +912,8 @@ private:
                               auto remote_ack_buf = std::make_shared<uint8_t>(0);
                               asio::async_read(
                                   *socket, asio::buffer(remote_ack_buf.get(), 1),
-                                  [this, socket, conn, peer_id,
-                                   remote_ack_buf](const asio::error_code &ec, size_t) {
+                                  [this, socket, conn, remote_ack_buf](const asio::error_code &ec,
+                                                                       size_t) {
                                     if (ec) {
                                       std::cerr << "Error reading ACK: " << ec.message()
                                                 << std::endl;
@@ -913,8 +924,7 @@ private:
                                     auto ack_buf = std::make_shared<uint8_t>(1);
                                     asio::async_write(
                                         *socket, asio::buffer(ack_buf.get(), 1),
-                                        [this, conn, peer_id, ack_buf](const asio::error_code &ec,
-                                                                       size_t) {
+                                        [this, conn, ack_buf](const asio::error_code &ec, size_t) {
                                           if (ec) {
                                             std::cerr << "Error sending ACK: " << ec.message()
                                                       << std::endl;
@@ -924,13 +934,13 @@ private:
                                           {
                                             std::lock_guard<std::mutex> lock(connections_mutex_);
                                             qp_map_[conn->qp->qp_num] = conn;
-                                            connections_[peer_id] = conn;
+                                            connections_[conn->endpoint] = conn;
                                           }
 
                                           std::cout << "Successfully established incoming "
                                                        "connection from "
-                                                    << peer_id << " (QP: " << conn->qp->qp_num
-                                                    << ")\n";
+                                                    << conn->endpoint.id()
+                                                    << " (QP: " << conn->qp->qp_num << ")\n";
                                         });
                                   });
 

@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/mem_pool.hpp"
+#include "distributed/endpoint.hpp"
 #include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -22,6 +23,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <future>
 #include <iostream>
 #include <memory>
@@ -44,9 +46,6 @@ public:
   }
 
   void initialize() {
-    for (int i = 0; i < num_stages_; ++i) {
-      stage_names_.push_back("stage_" + std::to_string(i));
-    }
     initialize_partitions();
     initialize_topology();
   }
@@ -76,18 +75,17 @@ public:
   }
 
   void start() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message start_msg("coordinator", stage_name, CommandType::TRAIN_MODE, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(start_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message start_msg("coordinator", CommandType::TRAIN_MODE, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
     }
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
 
   void stop() {
-    for (const auto &stage_name : this->stage_names_) {
-      std::cout << "Stopping stage " << stage_name << std::endl;
-      Message stop_msg("coordinator", stage_name, CommandType::SHUTDOWN, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(stop_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message stop_msg("coordinator", CommandType::SHUTDOWN, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(stop_msg), remote_endpoint);
     }
     should_stop_ = true;
     message_notification_cv_.notify_all();
@@ -99,18 +97,14 @@ public:
 
   void process_message(const Message &message) {}
 
-  const std::vector<std::string> &stage_names() const { return stage_names_; }
-
-  void send_message(Message &&message) {
-    this->coordinator_comm_->send_message(std::move(message));
+  void send_message(Message &&message, const Endpoint &endpoint) {
+    this->coordinator_comm_->send_message(std::move(message), endpoint);
   }
 
   void set_training(bool training) {
-    for (const auto &stage_name : this->stage_names_) {
-      Message mode_msg("coordinator", stage_name,
-                       training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE,
-                       std::monostate{});
-      this->coordinator_comm_->send_message(std::move(mode_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message mode_msg("coordinator", training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
+      this->coordinator_comm_->send_message(std::move(mode_msg), remote_endpoint);
     }
   }
 
@@ -120,18 +114,12 @@ public:
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
   void forward(Tensor &&input, size_t microbatch_id) {
-    if (this->stage_names_.empty()) {
-      throw std::runtime_error("No stages available for processing");
-    }
-
-    const std::string &first_stage = this->stage_names_.front();
-
     Job job;
     job.mb_id = microbatch_id;
     job.data = std::move(input);
-    Message forward_msg("coordinator", first_stage, CommandType::FORWARD_JOB, std::move(job));
+    Message forward_msg("coordinator", CommandType::FORWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(std::move(forward_msg));
+    this->coordinator_comm_->send_message(std::move(forward_msg), remote_endpoints_.front());
   }
 
   /**
@@ -140,27 +128,19 @@ public:
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
   void backward(Tensor &&gradient, size_t microbatch_id) {
-    if (this->stage_names_.empty()) {
-      throw std::runtime_error("No stages available for processing");
-    }
-
-    const std::string &last_stage = this->stage_names_.back();
-
     Job job;
     job.mb_id = microbatch_id;
     job.data = std::move(gradient);
-    Message backward_msg("coordinator", last_stage, CommandType::BACKWARD_JOB, std::move(job));
+    Message backward_msg("coordinator", CommandType::BACKWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(std::move(backward_msg));
+    this->coordinator_comm_->send_message(std::move(backward_msg), remote_endpoints_.back());
   }
 
   void update_parameters() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message update_msg("coordinator", stage_name, CommandType::UPDATE_PARAMETERS,
-                         std::monostate{});
-      this->coordinator_comm_->send_message(std::move(update_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message update_msg("coordinator", CommandType::UPDATE_PARAMETERS, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(update_msg), remote_endpoint);
     }
-
     bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
@@ -254,10 +234,9 @@ public:
    * @brief Requests all stages to print their profiling data.
    */
   void print_profiling() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message profiling_msg("coordinator", stage_name, CommandType::PRINT_PROFILING,
-                            std::monostate{});
-      this->coordinator_comm_->send_message(std::move(profiling_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message profiling_msg("coordinator", CommandType::PRINT_PROFILING, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(profiling_msg), remote_endpoint);
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
@@ -270,9 +249,9 @@ public:
    */
   void start_profiling() {
     GlobalProfiler::init_start_time(Clock::now());
-    for (const auto &stage_name : this->stage_names_) {
-      Message start_msg("coordinator", stage_name, CommandType::START_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(start_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message start_msg("coordinator", CommandType::START_PROFILING, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
     }
     bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
     if (!all_started) {
@@ -284,10 +263,9 @@ public:
    * @brief Requests all stages to report their profiling data.
    */
   void fetch_profiling() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message report_msg("coordinator", stage_name, CommandType::REPORT_PROFILING,
-                         std::monostate{});
-      this->coordinator_comm_->send_message(std::move(report_msg));
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message report_msg("coordinator", CommandType::REPORT_PROFILING, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(report_msg), remote_endpoint);
     }
     bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
     if (!all_reported) {
@@ -336,49 +314,9 @@ public:
    * @brief Requests all stages to clear their profiling data.
    */
   void clear_profiling() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message clear_msg("coordinator", stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(clear_msg));
-    }
-  }
-
-  /**
-   * @brief Collects current parameters from all stages to ensure coordinator has up-to-date
-   * weights.
-   * @return true if all parameters were collected successfully, false otherwise
-   */
-  bool collect_params() {
-    std::cout << "Collecting current parameters from all stages...\n";
-
-    // Request parameters from all stages
-    for (const auto &stage_name : this->stage_names_) {
-      Message params_request_msg("coordinator", stage_name, CommandType::SEND_PARAMS,
-                                 std::monostate{});
-      this->coordinator_comm_->send_message(std::move(params_request_msg));
-    }
-
-    // Wait for all parameter responses
-    bool received_all_params = join(CommandType::PARAMS_TRANSFER, this->num_stages_, 30);
-    if (!received_all_params) {
-      std::cerr << "Warning: Not all stages sent their parameters within timeout.\n";
-      return false;
-    }
-
-    // Collect parameter messages
-    std::vector<Message> params_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PARAMS_TRANSFER);
-
-    if (params_messages.size() != static_cast<size_t>(this->num_stages_)) {
-      std::cerr << "Warning: Expected " << this->num_stages_ << " parameter messages, got "
-                << params_messages.size() << ".\n";
-      return false;
-    }
-
-    try {
-      return true;
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating model parameters: " << e.what() << "\n";
-      return false;
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      Message clear_msg("coordinator", CommandType::CLEAR_PROFILING, std::monostate{});
+      this->coordinator_comm_->send_message(std::move(clear_msg), remote_endpoint);
     }
   }
 
@@ -394,9 +332,9 @@ public:
 
     std::vector<std::future<bool>> connection_futures;
 
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
-      auto future = std::async(std::launch::async, [this, i]() {
-        return this->coordinator_comm_->connect(this->stage_names_[i], remote_endpoints_[i]);
+    for (const auto &remote_endpoint : this->remote_endpoints_) {
+      auto future = std::async(std::launch::async, [this, remote_endpoint]() {
+        return this->coordinator_comm_->connect(remote_endpoint);
       });
       connection_futures.push_back(std::move(future));
     }
@@ -417,9 +355,9 @@ public:
 
     std::vector<std::future<bool>> deployment_futures;
 
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+    for (size_t i = 0; i < stage_configs_.size(); ++i) {
       auto future = std::async(std::launch::async, [this, i]() {
-        return deploy_stage_config(this->stage_names_[i], stage_configs_[i]);
+        return deploy_stage_config(stage_configs_[i], remote_endpoints_[i]);
       });
       deployment_futures.push_back(std::move(future));
     }
@@ -455,9 +393,6 @@ private:
   }
 
   void initialize_topology() {
-    if (coordinator_endpoint_.communication_type() == "") {
-      throw std::runtime_error("Coordinator endpoint is not set");
-    }
     if (remote_endpoints_.size() != static_cast<size_t>(num_stages_)) {
       throw std::runtime_error("Remote endpoints size does not match number of stages");
     }
@@ -465,10 +400,9 @@ private:
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
-      config.stage_id = this->stage_names_[i];
       config.model_config = splitted_model[i].get_config().to_json();
       config.optimizer_config = optimizer_->get_config().to_json();
-      config.model_config["name"] = this->stage_names_[i];
+      config.model_config["name"] = "stage_" + std::to_string(i);
       config.coordinator_endpoint = coordinator_endpoint_;
 
       if (i > 0) {
@@ -486,15 +420,14 @@ private:
     }
   }
 
-  bool deploy_stage_config(const std::string &stage_id, const StageConfig &config) {
+  bool deploy_stage_config(const StageConfig &config, const Endpoint &remote_endpoint) {
     try {
       std::string config_json = config.to_json().dump();
-      auto config_msg = Message("coordinator", stage_id, CommandType::CONFIG_TRANSFER, config_json);
-      this->coordinator_comm_->send_message(std::move(config_msg));
-      std::cout << "Sent configuration to stage " << stage_id << '\n';
+      auto config_msg = Message("coordinator", CommandType::CONFIG_TRANSFER, config_json);
+      this->coordinator_comm_->send_message(std::move(config_msg), remote_endpoint);
       return true;
     } catch (const std::exception &e) {
-      std::cout << "Failed to deploy config to stage " << stage_id << ": " << e.what() << '\n';
+      std::cout << "Failed to deploy config: " << e.what() << '\n';
       return false;
     }
   }
@@ -515,7 +448,6 @@ protected:
   std::atomic<bool> is_deployed_ = false;
 
   // Topology information
-  std::vector<std::string> stage_names_;
   std::vector<Partition> partitions_;
   std::vector<Endpoint> remote_endpoints_;
   std::vector<StageConfig> stage_configs_;

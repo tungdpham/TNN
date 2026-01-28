@@ -38,31 +38,28 @@ public:
 
     message_queues_.clear();
 
-    std::queue<Message> empty_out;
+    std::queue<std::pair<Message, Endpoint>> empty_out;
     out_message_queue_.swap(empty_out);
-
-    recipients_.clear();
 
     message_notification_callback_ = nullptr;
   }
 
-  virtual void send_message(Message &&message) = 0;
+  void send_message(Message &&message, const Endpoint &endpoint) {
+    if (endpoint.communication_type() == CommunicationType::IN_PROCESS) {
+      auto other_communicator = endpoint.get_parameter<Communicator *>("communicator");
+      other_communicator->enqueue_input_message(std::move(message));
+    } else {
+      this->send_impl(std::move(message), endpoint);
+    }
+  }
 
   virtual void flush_output_messages() = 0;
 
-  void set_id(const std::string &id) {
-    this->id_ = id;
-    this->onSetId();
-  }
-
-  const std::string &get_id() const { return id_; }
-
-  bool connect(const std::string &peer_id, const Endpoint &endpoint) {
+  bool connect(const Endpoint &endpoint) {
     try {
-      if (!connect_to_endpoint(peer_id, endpoint)) {
+      if (!connect_to_endpoint(endpoint)) {
         return false;
       }
-      register_recipient(peer_id, endpoint);
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Failed to connect to endpoint: " << e.what() << std::endl;
@@ -70,25 +67,14 @@ public:
     }
   }
 
-  bool disconnect(const std::string &peer_id) {
+  bool disconnect(const Endpoint &endpoint) {
     try {
-      Endpoint endpoint = get_recipient(peer_id);
-      disconnect_from_endpoint(peer_id, endpoint);
-      unregister_recipient(peer_id);
+      disconnect_from_endpoint(endpoint);
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Failed to disconnect from endpoint: " << e.what() << std::endl;
       return false;
     }
-  }
-
-  virtual Endpoint get_recipient(const std::string &recipient_id) const {
-    std::lock_guard<std::mutex> lock(recipients_mutex_);
-    auto it = recipients_.find(recipient_id);
-    if (it == recipients_.end()) {
-      throw std::runtime_error("Recipient not found: " + recipient_id);
-    }
-    return it->second;
   }
 
   inline void enqueue_input_message(Message &&message) {
@@ -99,12 +85,12 @@ public:
     }
   }
 
-  inline void enqueue_output_message(Message &&message) {
+  inline void enqueue_output_message(Message &&message, const Endpoint &endpoint) {
     if (message.header().recipient_id.empty()) {
       throw std::runtime_error("Message recipient_id is empty");
     }
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
-    this->out_message_queue_.push(std::move(message));
+    this->out_message_queue_.push(std::make_pair(std::move(message), endpoint));
   }
 
   inline Message dequeue_input_message() {
@@ -168,19 +154,11 @@ public:
   }
 
 protected:
-  virtual bool connect_to_endpoint(const std::string &peer_id, const Endpoint &endpoint) = 0;
+  virtual void send_impl(Message &&message, const Endpoint &endpoint) = 0;
 
-  virtual bool disconnect_from_endpoint(const std::string &peer_id, const Endpoint &endpoint) = 0;
+  virtual bool connect_to_endpoint(const Endpoint &endpoint) = 0;
 
-  void register_recipient(const std::string &recipient_id, const Endpoint &endpoint) {
-    std::lock_guard<std::mutex> lock(recipients_mutex_);
-    recipients_[recipient_id] = endpoint;
-  }
-
-  void unregister_recipient(const std::string &recipient_id) {
-    std::lock_guard<std::mutex> lock(recipients_mutex_);
-    recipients_.erase(recipient_id);
-  }
+  virtual bool disconnect_from_endpoint(const Endpoint &endpoint) = 0;
 
   void add_profile_data(const std::string &key, int64_t value) {
     std::lock_guard<std::mutex> lock(profile_mutex_);
@@ -193,18 +171,14 @@ protected:
   }
 
 protected:
-  std::string id_;
-
   MessageMap message_queues_;
 
-  std::queue<Message> out_message_queue_;
+  std::queue<std::pair<Message, Endpoint>> out_message_queue_;
 
   mutable std::mutex out_message_mutex_;
   mutable std::mutex recipients_mutex_;
 
   std::function<void()> message_notification_callback_;
-
-  std::unordered_map<std::string, Endpoint> recipients_;
 
   virtual void onSetId() {}
 

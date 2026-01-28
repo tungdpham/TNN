@@ -5,7 +5,6 @@
  * project root for the full license text.
  */
 
-#include "distributed/in_process_coordinator.hpp"
 #include "distributed/job.hpp"
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"

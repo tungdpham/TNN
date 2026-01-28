@@ -1,12 +1,12 @@
 #pragma once
 
 #include "buffer_pool.hpp"
+#include "distributed/endpoint.hpp"
 #include "packet.hpp"
 #include <asio.hpp>
 #include <memory>
 #include <mutex>
 #include <queue>
-#include <string>
 #include <utility>
 
 namespace tnn {
@@ -96,14 +96,14 @@ public:
   explicit Connection(asio::ip::tcp::socket sock) : socket(std::move(sock)) {}
   ~Connection() = default;
 
-  void set_peer_id(const std::string &new_id) {
+  void set_peer_endpoint(const Endpoint &new_endpoint) {
     std::lock_guard<std::mutex> lock(id_mutex_);
-    peer_id_ = new_id;
+    endpoint_ = new_endpoint;
   }
 
-  const std::string &get_peer_id() const {
+  const Endpoint &get_peer_endpoint() const {
     std::lock_guard<std::mutex> lock(id_mutex_);
-    return peer_id_;
+    return endpoint_;
   }
 
   std::unique_ptr<WriteHandle> acquire_write() {
@@ -119,7 +119,7 @@ public:
 
 private:
   friend class WriteHandle;
-  std::string peer_id_;
+  Endpoint endpoint_;
   mutable std::mutex id_mutex_;
 
   WriteQueue write_queue_;
