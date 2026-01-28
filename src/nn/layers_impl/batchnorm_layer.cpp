@@ -286,9 +286,9 @@ BatchNormLayer::backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, Batc
   if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
     return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_backward, fe_handle, stats,
-                            input->data(), gradient->data(), gamma->data(), grad_input->data(),
-                            gamma_gradients->data(), beta_gradients->data(), batch_mean->data(),
-                            batch_invar->data(), workspace->data());
+                            input->data(), gradient->data(), gamma->data(), beta_->data(),
+                            grad_input->data(), gamma_gradients->data(), beta_gradients->data(),
+                            batch_mean->data(), batch_invar->data(), workspace->data());
 #endif
   } else {
     throw std::runtime_error("BatchNormLayer backward only implemented for GPU with cuDNN");

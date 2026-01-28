@@ -46,6 +46,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dy;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_x;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_scale;
+  std::shared_ptr<fe::graph::Tensor_attributes> bwd_bias;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_mean;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_invar;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dx;
@@ -291,21 +292,22 @@ static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
       .set_intermediate_data_type(compute_type)
       .set_compute_data_type(compute_type);
 
-  auto DY = graph->tensor(fe::graph::Tensor_attributes()
-                              .set_name("DY")
-                              .set_dim({n, c, h, w})
-                              .set_stride({h * w * c, 1, w * c, c}));
-
-  auto X = graph->tensor(fe::graph::Tensor_attributes()
-                             .set_name("X")
-                             .set_dim({n, c, h, w})
-                             .set_stride({h * w * c, 1, w * c, c}));
+  auto BN_X = graph->tensor(fe::graph::Tensor_attributes()
+                                .set_name("X")
+                                .set_dim({n, c, h, w})
+                                .set_stride({h * w * c, 1, w * c, c}));
 
   auto scale = graph->tensor(fe::graph::Tensor_attributes()
                                  .set_name("scale")
                                  .set_dim({1, c, 1, 1})
                                  .set_stride({c, 1, c, c})
                                  .set_data_type(fe::DataType_t::FLOAT));
+
+  auto bias = graph->tensor(fe::graph::Tensor_attributes()
+                                .set_name("bias")
+                                .set_dim({1, c, 1, 1})
+                                .set_stride({c, 1, c, c})
+                                .set_data_type(fe::DataType_t::FLOAT));
 
   auto mean = graph->tensor(fe::graph::Tensor_attributes()
                                 .set_name("mean")
@@ -319,15 +321,24 @@ static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
                                  .set_stride({c, 1, c, c})
                                  .set_data_type(fe::DataType_t::FLOAT));
 
-  auto bwd_options =
+  auto batchnorm_inference_attributes = fe::graph::Batchnorm_inference_attributes();
+  auto BN_Y =
+      graph->batchnorm_inference(BN_X, mean, invar, scale, bias, batchnorm_inference_attributes);
+
+  auto DY = graph->tensor(fe::graph::Tensor_attributes()
+                              .set_name("DY")
+                              .set_dim({n, c, h, w})
+                              .set_stride({h * w * c, 1, w * c, c}));
+
+  auto relu_backward_attributes =
+      fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_BWD);
+  auto DX_drelu = graph->pointwise(DY, BN_Y, relu_backward_attributes);
+  DX_drelu->set_data_type(io_type);
+
+  auto DBN_options =
       fe::graph::Batchnorm_backward_attributes().set_saved_mean_and_inv_variance(mean, invar);
-
-  auto outputs = graph->batchnorm_backward(DY, X, scale, bwd_options);
-  auto DX = outputs[0];
-  auto dscale = outputs[1];
-  auto dbias = outputs[2];
-
-  DX->set_output(true).set_data_type(io_type);
+  auto [DX, dscale, dbias] = graph->batchnorm_backward(DX_drelu, BN_X, scale, DBN_options);
+  DX->set_output(true);
   dscale->set_output(true).set_data_type(fe::DataType_t::FLOAT);
   dbias->set_output(true).set_data_type(fe::DataType_t::FLOAT);
 
@@ -345,8 +356,9 @@ static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
 
   handle->bwd_graph = graph;
   handle->bwd_dy = DY;
-  handle->bwd_x = X;
+  handle->bwd_x = BN_X;
   handle->bwd_scale = scale;
+  handle->bwd_bias = bias;
   handle->bwd_mean = mean;
   handle->bwd_invar = invar;
   handle->bwd_dx = DX;
@@ -426,9 +438,9 @@ void run_forward_inference(feHandle_t *handle, const BatchNormStats &stats, cons
 }
 
 void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *input,
-                  const void *grad_output, const void *gamma, void *grad_input, void *grad_gamma,
-                  void *grad_beta, const void *batch_mean, const void *batch_invar, void *workspace,
-                  cudaStream_t stream) {
+                  const void *grad_output, const void *gamma, const void *beta, void *grad_input,
+                  void *grad_gamma, void *grad_beta, const void *batch_mean,
+                  const void *batch_invar, void *workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_backward called with null feHandle");
   }
@@ -439,6 +451,7 @@ void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *i
       {handle->bwd_dy, const_cast<void *>(grad_output)},
       {handle->bwd_x, const_cast<void *>(input)},
       {handle->bwd_scale, const_cast<void *>(gamma)},
+      {handle->bwd_bias, const_cast<void *>(beta)},
       {handle->bwd_mean, const_cast<void *>(batch_mean)},
       {handle->bwd_invar, const_cast<void *>(batch_invar)},
       {handle->bwd_dx, grad_input},

@@ -30,9 +30,9 @@ void run_forward_inference(feHandle_t *handle, const BatchNormStats &stats, cons
                            void *output, void *workspace, cudaStream_t stream);
 
 void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *input,
-                  const void *grad_output, const void *gamma, void *grad_input, void *grad_gamma,
-                  void *grad_beta, const void *batch_mean, const void *batch_invar, void *workspace,
-                  cudaStream_t stream);
+                  const void *grad_output, const void *gamma, const void *beta, void *grad_input,
+                  void *grad_gamma, void *grad_beta, const void *batch_mean,
+                  const void *batch_invar, void *workspace, cudaStream_t stream);
 
 } // namespace cudnn_batchnorm
 } // namespace cuda
