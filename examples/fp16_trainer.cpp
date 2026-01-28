@@ -70,7 +70,6 @@ signed main() {
   float lr_initial = Env::get("LR_INITIAL", 0.001f);
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
-  // auto optimizer = OptimizerFactory::create_sgd(lr_initial, 0.9f);
   auto scheduler = SchedulerFactory::create_step_lr(optimizer.get(), 10, 0.1f);
 
   try {

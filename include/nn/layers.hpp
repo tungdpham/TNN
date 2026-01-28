@@ -264,7 +264,7 @@ public:
   }
 
   LayerBuilder &batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
-                          const std::string &name = "") {
+                          SBool use_relu = SBool::FALSE, const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 2) {
@@ -274,7 +274,7 @@ public:
     size_t num_features = current_shape.back();
 
     auto layer = std::make_unique<BatchNormLayer>(
-        num_features, epsilon, momentum, affine, false,
+        num_features, epsilon, momentum, affine, use_relu == SBool::TRUE,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -503,10 +503,9 @@ public:
     auto main_path = LayerBuilder()
                          .input(input_shape)
                          .conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
-                         .activation("relu")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn0")
                          .conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn0")
                          .build();
 
     std::vector<std::unique_ptr<Layer>> shortcut;
@@ -514,7 +513,7 @@ public:
       shortcut = LayerBuilder()
                      .input(input_shape)
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
-                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn0")
                      .build();
     }
 
@@ -538,11 +537,9 @@ public:
     // Build main path with pre-activation (BN-ReLU-Conv) ordering
     LayerBuilder main_builder;
     main_builder.input(input_shape)
-        .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
-        .activation("relu")
+        .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
         .conv2d(out_channels, 3, 3, stride, stride, 1, 1, true)
-        .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2")
-        .activation("relu");
+        .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2");
 
     if (dropout_rate > 0.0f) {
       main_builder.dropout(dropout_rate);
@@ -579,13 +576,11 @@ public:
     auto main_path = LayerBuilder()
                          .input(input_shape)
                          .conv2d(mid_channels, 1, 1, 1, 1, 0, 0, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
-                         .activation("relu")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn0")
                          .conv2d(mid_channels, 3, 3, stride, stride, 1, 1, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
-                         .activation("relu")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
                          .conv2d(out_channels, 1, 1, 1, 1, 0, 0, false)
-                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2")
+                         .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2")
                          .build();
 
     std::vector<std::unique_ptr<Layer>> shortcut;
@@ -593,7 +588,7 @@ public:
       shortcut = LayerBuilder()
                      .input(input_shape)
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
-                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn3")
+                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn3")
                      .build();
     }
 

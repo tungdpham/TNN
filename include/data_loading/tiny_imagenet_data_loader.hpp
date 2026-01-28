@@ -84,7 +84,8 @@ private:
     auto typed_batch_data = Tensor::cast<T>(batch_data);
     auto typed_batch_labels = Tensor::cast<T>(batch_labels);
 
-    for (size_t i = 0; i < actual_batch_size; ++i) {
+    // for (size_t i = 0; i < actual_batch_size; ++i) {
+    parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_offset = (this->current_index_ + i) * tiny_imagenet_constants::IMAGE_SIZE;
 
       // Convert from CHW (stored format) to HWC (NHWC tensor format)
@@ -105,7 +106,7 @@ private:
       if (label >= 0 && label < static_cast<int>(tiny_imagenet_constants::NUM_CLASSES)) {
         (*typed_batch_labels)({i, label, 0, 0}) = static_cast<T>(1.0);
       }
-    }
+    });
 
     this->apply_augmentation(batch_data, batch_labels);
 

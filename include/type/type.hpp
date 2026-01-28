@@ -58,6 +58,8 @@ template <> constexpr DType_t dtype_of<int32_t>() { return DType_t::INT32_T; }
 template <> constexpr DType_t dtype_of<int64_t>() { return DType_t::INT64_T; }
 template <> constexpr DType_t dtype_of<size_t>() { return DType_t::SIZE_T; }
 
+enum class SBool : uint8_t { FALSE = 0, TRUE = 1 };
+
 inline float dtype_eps(DType_t dtype) {
   switch (dtype) {
   case DType_t::FP16:
