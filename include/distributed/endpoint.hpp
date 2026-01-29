@@ -18,15 +18,15 @@ enum class CommunicationType { IN_PROCESS, TCP, ROCE, NONE };
 
 struct Endpoint {
 private:
-  CommunicationType communication_type_;
+  CommunicationType type_;
   std::unordered_map<std::string, std::any> parameters_;
 
 public:
   Endpoint() = default;
 
-  explicit Endpoint(CommunicationType comm_type) : communication_type_(comm_type) {}
+  explicit Endpoint(CommunicationType comm_type) : type_(comm_type) {}
 
-  CommunicationType communication_type() const { return communication_type_; }
+  CommunicationType type() const { return type_; }
 
   template <typename T> T get_parameter(const std::string &key) const {
     auto it = parameters_.find(key);
@@ -44,10 +44,10 @@ public:
     parameters_[key] = std::move(value);
   }
 
-  bool is_empty() const { return communication_type_ == CommunicationType::NONE; }
+  bool is_empty() const { return type_ == CommunicationType::NONE; }
 
   size_t hash() const {
-    size_t h = std::hash<int>{}(static_cast<int>(communication_type_));
+    size_t h = std::hash<int>{}(static_cast<int>(type_));
     // Combine hashes of parameters
     for (const auto &[key, value] : parameters_) {
       // Hash the key
@@ -73,7 +73,7 @@ public:
   }
 
   std::string id() const {
-    switch (communication_type_) {
+    switch (type_) {
     case CommunicationType::IN_PROCESS:
       return "IN_PROCESS";
     case CommunicationType::TCP:
@@ -88,7 +88,7 @@ public:
   }
 
   bool operator==(const Endpoint &other) const {
-    if (communication_type_ != other.communication_type_) {
+    if (type_ != other.type_) {
       return false;
     }
     if (parameters_.size() != other.parameters_.size()) {
@@ -162,7 +162,7 @@ public:
 
   nlohmann::json to_json() const {
     nlohmann::json j;
-    j["communication_type_"] = static_cast<int>(communication_type_);
+    j["type_"] = static_cast<int>(type_);
     nlohmann::json param_json = nlohmann::json::object();
 
     for (const auto &pair : parameters_) {
@@ -188,8 +188,7 @@ public:
 
   static Endpoint from_json(const nlohmann::json &j) {
     Endpoint endpoint;
-    endpoint.communication_type_ =
-        static_cast<CommunicationType>(j.at("communication_type_").get<int>());
+    endpoint.type_ = static_cast<CommunicationType>(j.at("type_").get<int>());
 
     if (j.contains("parameters_")) {
       for (auto &[key, value] : j["parameters_"].items()) {

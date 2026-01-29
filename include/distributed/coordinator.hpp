@@ -63,7 +63,7 @@ public:
   int num_microbatches() const { return num_microbatches_; }
 
   void add_message_callback() {
-    this->comm_->set_message_notification_callback([this]() {
+    this->comm_->set_callback([this]() {
       std::lock_guard<std::mutex> lock(this->message_notification_mutex_);
       this->message_notification_cv_.notify_all();
     });
@@ -79,7 +79,6 @@ public:
       Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
       this->comm_->send_message(std::move(start_msg), worker_endpoint);
     }
-    std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
 
   void stop() {
@@ -178,8 +177,6 @@ public:
 
     float total_loss = 0.0f;
 
-    // Assuming no microbatch are lost during transmission/processing. May need additional
-    // handling for production use.
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
@@ -325,7 +322,7 @@ public:
       return false;
     }
 
-    std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
+    std::cout << "Connected to all endpoints, sending stage configurations..." << std::endl;
 
     for (size_t i = 0; i < stage_configs_.size(); ++i) {
       deploy_stage_config(stage_configs_[i], worker_endpoints_[i]);

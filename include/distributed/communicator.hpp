@@ -33,7 +33,6 @@ public:
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
-    std::lock_guard<std::mutex> rec_lock(recipients_mutex_);
 
     message_queues_.clear();
 
@@ -46,7 +45,7 @@ public:
   Endpoint endpoint() const { return endpoint_; }
 
   void send_message(Message &&message, const Endpoint &endpoint) {
-    if (endpoint.communication_type() == CommunicationType::IN_PROCESS) {
+    if (endpoint.type() == CommunicationType::IN_PROCESS) {
       auto other_communicator = endpoint.get_parameter<Communicator *>("communicator");
       other_communicator->enqueue_input_message(std::move(message));
     } else {
@@ -58,6 +57,9 @@ public:
 
   bool connect(const Endpoint &endpoint) {
     try {
+      if (endpoint.type() == CommunicationType::IN_PROCESS) {
+        return true;
+      }
       if (!connect_to_endpoint(endpoint)) {
         return false;
       }
@@ -70,7 +72,12 @@ public:
 
   bool disconnect(const Endpoint &endpoint) {
     try {
-      disconnect_from_endpoint(endpoint);
+      if (endpoint.type() == CommunicationType::IN_PROCESS) {
+        return true;
+      }
+      if (!disconnect_from_endpoint(endpoint)) {
+        return false;
+      }
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Failed to disconnect from endpoint: " << e.what() << std::endl;
@@ -130,7 +137,7 @@ public:
     return !this->out_message_queue_.empty();
   }
 
-  inline void set_message_notification_callback(std::function<void()> callback) {
+  inline void set_callback(std::function<void()> callback) {
     message_notification_callback_ = callback;
   }
 
@@ -173,8 +180,6 @@ protected:
   MessageMap message_queues_;
   std::queue<std::pair<Message, Endpoint>> out_message_queue_;
   mutable std::mutex out_message_mutex_;
-  mutable std::mutex recipients_mutex_;
-
   std::function<void()> message_notification_callback_;
 
 private:

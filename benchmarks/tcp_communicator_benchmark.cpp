@@ -166,7 +166,7 @@ int main(int argc, char *argv[]) {
   std::atomic<int> num_messages_received(0);
   condition_variable message_available_cv_;
   mutex message_available_mutex_;
-  communicator.set_message_notification_callback([&]() {
+  communicator.set_callback([&]() {
     std::unique_lock<std::mutex> lock(message_available_mutex_);
     message_available_cv_.notify_one();
   });

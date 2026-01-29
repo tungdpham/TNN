@@ -50,7 +50,7 @@ public:
 
     should_stop_ = false;
 
-    communicator_->set_message_notification_callback([this]() {
+    communicator_->set_callback([this]() {
       std::lock_guard<std::mutex> lock(message_available_mutex_);
       message_available_cv_.notify_one();
     });
