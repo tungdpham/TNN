@@ -95,8 +95,6 @@ public:
 
   template <Buffer BufferType>
   static void serialize(BufferType &buffer, size_t &offset, const MessageHeader &header) {
-    buffer.write(offset, header.recipient_id);
-    buffer.write(offset, header.sender_id);
     buffer.write(offset, static_cast<uint16_t>(header.command_type));
   }
 
@@ -152,8 +150,6 @@ public:
 
   template <Buffer BufferType>
   static void deserialize(const BufferType &buffer, size_t &offset, MessageHeader &header) {
-    buffer.read(offset, header.recipient_id);
-    buffer.read(offset, header.sender_id);
     uint16_t cmd_type;
     buffer.template read<uint16_t>(offset, cmd_type);
     header.command_type = static_cast<CommandType>(cmd_type);

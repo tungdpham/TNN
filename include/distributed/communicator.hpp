@@ -14,7 +14,6 @@
 #include <functional>
 #include <mutex>
 #include <queue>
-#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -86,9 +85,6 @@ public:
   }
 
   inline void enqueue_output_message(Message &&message, const Endpoint &endpoint) {
-    if (message.header().recipient_id.empty()) {
-      throw std::runtime_error("Message recipient_id is empty");
-    }
     std::lock_guard<std::mutex> lock(this->out_message_mutex_);
     this->out_message_queue_.push(std::make_pair(std::move(message), endpoint));
   }

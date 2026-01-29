@@ -19,23 +19,16 @@ namespace tnn {
 using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler>;
 
 struct MessageHeader {
-  std::string recipient_id; // ID of the recipient stage
-  std::string sender_id;    // ID of the sender stage
   CommandType command_type; // Type of command
 
   MessageHeader() : command_type(CommandType::_START) {}
 
-  MessageHeader(std::string sender_id, CommandType cmd_type)
-      : sender_id(std::move(sender_id)), command_type(cmd_type) {}
+  MessageHeader(CommandType cmd_type) : command_type(cmd_type) {}
 
-  MessageHeader(const MessageHeader &other)
-      : recipient_id(other.recipient_id), sender_id(other.sender_id),
-        command_type(other.command_type) {}
+  MessageHeader(const MessageHeader &other) : command_type(other.command_type) {}
 
   const uint64_t size() const {
-    return sizeof(uint64_t) + recipient_id.size() + // recipient_id length + data
-           sizeof(uint64_t) + sender_id.size() +    // sender_id length + data
-           sizeof(uint16_t);                        // command_type (serialized as uint16_t)
+    return sizeof(uint16_t); // command_type (serialized as uint16_t)
   }
 };
 
@@ -113,13 +106,12 @@ private:
   MessageData data_;
 
 public:
-  Message() : header_("", CommandType::_START), data_(std::monostate{}) {}
+  Message() : header_(CommandType::_START), data_(std::monostate{}) {}
 
-  Message(std::string sender_id, CommandType cmd_type, PayloadType &&payload)
-      : header_(std::move(sender_id), cmd_type), data_(std::move(payload)) {}
+  Message(CommandType cmd_type, PayloadType &&payload)
+      : header_(cmd_type), data_(std::move(payload)) {}
 
-  Message(std::string sender_id, CommandType cmd_type)
-      : header_(std::move(sender_id), cmd_type), data_(std::monostate{}) {}
+  Message(CommandType cmd_type) : header_(cmd_type), data_(std::monostate{}) {}
 
   Message(MessageHeader &&header, MessageData &&data)
       : header_(std::move(header)), data_(std::move(data)) {}

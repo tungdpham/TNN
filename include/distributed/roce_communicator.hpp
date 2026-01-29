@@ -173,8 +173,7 @@ public:
     }
 
     if (!conn) {
-      std::cerr << "Connection not found for recipient: " << message.header().recipient_id
-                << std::endl;
+      std::cerr << "Connection not found for endpoint: " << endpoint.id() << std::endl;
       return;
     }
 
@@ -182,8 +181,8 @@ public:
     struct ibv_qp_init_attr init_attr;
     if (ibv_query_qp(conn->qp, &attr, IBV_QP_STATE, &init_attr) == 0) {
       if (attr.qp_state != IBV_QPS_RTS) {
-        std::cerr << "QP for " << message.header().recipient_id
-                  << " not in RTS state (state: " << attr.qp_state << "), dropping message\n";
+        std::cerr << "QP for " << endpoint.id() << " not in RTS state (state: " << attr.qp_state
+                  << "), dropping message\n";
         return;
       }
     }
@@ -223,8 +222,7 @@ public:
     wr.send_flags = IBV_SEND_SIGNALED;
 
     if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
-      std::cerr << "Failed to post send MSG_PREPARE to " << message.header().recipient_id
-                << std::endl;
+      std::cerr << "Failed to post send MSG_PREPARE to " << endpoint.id() << std::endl;
       {
         std::lock_guard<std::mutex> conn_lock(conn->mutex);
         conn->pending_sends.erase(msg_id);

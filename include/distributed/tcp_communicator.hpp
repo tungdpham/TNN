@@ -446,8 +446,6 @@ private:
       GlobalProfiler::add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
                                  "Message Deserialize", endpoint_.id()});
 
-      msg.header().sender_id = connection->get_peer_endpoint().id();
-
       this->enqueue_input_message(std::move(msg));
       start_read(connection);
     } catch (const std::exception &e) {

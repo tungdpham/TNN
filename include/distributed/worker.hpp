@@ -103,7 +103,7 @@ protected:
       auto forward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-      message = Message(id_, CommandType::FORWARD_JOB, std::move(output));
+      message = Message(CommandType::FORWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message), next_stage_endpoint_);
     } break;
     case CommandType::BACKWARD_JOB: {
@@ -118,7 +118,7 @@ protected:
       auto backward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-      message = Message(id_, CommandType::BACKWARD_JOB, std::move(output));
+      message = Message(CommandType::BACKWARD_JOB, std::move(output));
       communicator_->send_message(std::move(message), prev_stage_endpoint_);
     } break;
     case CommandType::UPDATE_PARAMETERS: {
@@ -129,7 +129,7 @@ protected:
       auto update_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
-      Message response(id_, CommandType::PARAMETERS_UPDATED, std::monostate{});
+      Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
       communicator_->send_message(std::move(response), coordinator_endpoint_);
     } break;
     case CommandType::TRAIN_MODE:
@@ -148,24 +148,24 @@ protected:
     case CommandType::ERROR_REPORT:
       if (message.has_type<std::string>()) {
         std::cout << "Stage " << id_ << " received error: " << message.get<std::string>()
-                  << " from " << message.header().sender_id << std::endl;
+                  << std::endl;
       }
       break;
     case CommandType::START_PROFILING: {
       GlobalProfiler::init_start_time(std::chrono::system_clock::now());
-      Message response(id_, CommandType::PROFILING_STARTED);
+      Message response(CommandType::PROFILING_STARTED);
       communicator_->send_message(std::move(response), coordinator_endpoint_);
       break;
     }
     case CommandType::REPORT_PROFILING: {
-      Message response(id_, CommandType::PROFILING_REPORTED, GlobalProfiler::get_profiler());
+      Message response(CommandType::PROFILING_REPORTED, GlobalProfiler::get_profiler());
       communicator_->send_message(std::move(response), coordinator_endpoint_);
       break;
     }
     case CommandType::PRINT_PROFILING:
       if (model_) {
         model_->print_profiling_info();
-        Message outgoing_message(id_, CommandType::PROFILING_PRINTED);
+        Message outgoing_message(CommandType::PROFILING_PRINTED);
         communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
       } else {
         std::cout << "Warning: No model available to print profiling data" << std::endl;
@@ -174,7 +174,7 @@ protected:
     case CommandType::CLEAR_PROFILING:
       if (model_) {
         model_->reset_profiling_info();
-        Message outgoing_message(id_, CommandType::PROFILING_CLEARED);
+        Message outgoing_message(CommandType::PROFILING_CLEARED);
         communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
       } else {
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
@@ -194,7 +194,7 @@ protected:
       } catch (const std::exception &e) {
         std::cerr << "Failed to send parameters: " << e.what() << std::endl;
         std::string error_text = std::string("Failed to send parameters: ") + e.what();
-        Message error_msg(id_, CommandType::ERROR_REPORT, error_text);
+        Message error_msg(CommandType::ERROR_REPORT, error_text);
         communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
       }
       break;
@@ -235,9 +235,9 @@ protected:
       StageConfig config = StageConfig::from_json(config_json);
 
       // setup model, optimizer, criterion
-      LayerConfig model_config = LayerConfig::from_json(config.model_config);
+      LayerConfig model_config = config.model_config;
       this->model_ = Sequential::create_from_config(model_config);
-      OptimizerConfig optimizer_config = OptimizerConfig::from_json(config.optimizer_config);
+      OptimizerConfig optimizer_config = config.optimizer_config;
       this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
       if (use_gpu_) {
         this->model_->set_device(getGPU());
@@ -251,13 +251,13 @@ protected:
       // setup connections
       setup_stage_connections(config);
       is_configured_ = true;
-      Message ready_msg(id_, CommandType::CONFIG_RECEIVED, true);
+      Message ready_msg(CommandType::CONFIG_RECEIVED, true);
       this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
 
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
       std::string error_text = std::string("Configuration failed: ") + e.what();
-      Message error_msg(id_, CommandType::ERROR_REPORT, error_text);
+      Message error_msg(CommandType::ERROR_REPORT, error_text);
       this->communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
     }
   }

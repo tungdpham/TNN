@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
     Job job;
     job.mb_id = 0;
     job.data = std::move(tensor);
-    Message message(local_endpoint.id(), CommandType::FORWARD_JOB, std::move(job));
+    Message message(CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message), peer_endpoint);
   }
 
@@ -186,7 +186,6 @@ int main(int argc, char *argv[]) {
           continue;
         }
         num_messages_received++;
-        message.header().recipient_id = peer_endpoint.id();
         communicator.send_message(std::move(message), peer_endpoint);
       }
 

@@ -76,7 +76,7 @@ public:
 
   void start() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message start_msg("coordinator", CommandType::TRAIN_MODE, std::monostate{});
+      Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
       this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
     }
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
@@ -84,7 +84,7 @@ public:
 
   void stop() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message stop_msg("coordinator", CommandType::SHUTDOWN, std::monostate{});
+      Message stop_msg(CommandType::SHUTDOWN, std::monostate{});
       this->coordinator_comm_->send_message(std::move(stop_msg), remote_endpoint);
     }
     should_stop_ = true;
@@ -103,7 +103,7 @@ public:
 
   void set_training(bool training) {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message mode_msg("coordinator", training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
+      Message mode_msg(training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
       this->coordinator_comm_->send_message(std::move(mode_msg), remote_endpoint);
     }
   }
@@ -117,7 +117,7 @@ public:
     Job job;
     job.mb_id = microbatch_id;
     job.data = std::move(input);
-    Message forward_msg("coordinator", CommandType::FORWARD_JOB, std::move(job));
+    Message forward_msg(CommandType::FORWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(forward_msg), remote_endpoints_.front());
   }
@@ -131,14 +131,14 @@ public:
     Job job;
     job.mb_id = microbatch_id;
     job.data = std::move(gradient);
-    Message backward_msg("coordinator", CommandType::BACKWARD_JOB, std::move(job));
+    Message backward_msg(CommandType::BACKWARD_JOB, std::move(job));
 
     this->coordinator_comm_->send_message(std::move(backward_msg), remote_endpoints_.back());
   }
 
   void update_parameters() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message update_msg("coordinator", CommandType::UPDATE_PARAMETERS, std::monostate{});
+      Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
       this->coordinator_comm_->send_message(std::move(update_msg), remote_endpoint);
     }
     bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
@@ -235,7 +235,7 @@ public:
    */
   void print_profiling() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message profiling_msg("coordinator", CommandType::PRINT_PROFILING, std::monostate{});
+      Message profiling_msg(CommandType::PRINT_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(profiling_msg), remote_endpoint);
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
@@ -250,7 +250,7 @@ public:
   void start_profiling() {
     GlobalProfiler::init_start_time(Clock::now());
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message start_msg("coordinator", CommandType::START_PROFILING, std::monostate{});
+      Message start_msg(CommandType::START_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
     }
     bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
@@ -264,7 +264,7 @@ public:
    */
   void fetch_profiling() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message report_msg("coordinator", CommandType::REPORT_PROFILING, std::monostate{});
+      Message report_msg(CommandType::REPORT_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(report_msg), remote_endpoint);
     }
     bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
@@ -315,7 +315,7 @@ public:
    */
   void clear_profiling() {
     for (const auto &remote_endpoint : this->remote_endpoints_) {
-      Message clear_msg("coordinator", CommandType::CLEAR_PROFILING, std::monostate{});
+      Message clear_msg(CommandType::CLEAR_PROFILING, std::monostate{});
       this->coordinator_comm_->send_message(std::move(clear_msg), remote_endpoint);
     }
   }
@@ -400,9 +400,8 @@ private:
 
     for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
       StageConfig config;
-      config.model_config = splitted_model[i].get_config().to_json();
-      config.optimizer_config = optimizer_->get_config().to_json();
-      config.model_config["name"] = "stage_" + std::to_string(i);
+      config.model_config = splitted_model[i].get_config();
+      config.optimizer_config = optimizer_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
 
       if (i > 0) {
@@ -423,7 +422,7 @@ private:
   bool deploy_stage_config(const StageConfig &config, const Endpoint &remote_endpoint) {
     try {
       std::string config_json = config.to_json().dump();
-      auto config_msg = Message("coordinator", CommandType::CONFIG_TRANSFER, config_json);
+      auto config_msg = Message(CommandType::CONFIG_TRANSFER, config_json);
       this->coordinator_comm_->send_message(std::move(config_msg), remote_endpoint);
       return true;
     } catch (const std::exception &e) {
