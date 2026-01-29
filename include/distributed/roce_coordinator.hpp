@@ -42,13 +42,13 @@ public:
 
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
-    this->remote_endpoints_ = endpoints;
+    this->worker_endpoints_ = endpoints;
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize RoCE communicator for the coordinator
     auto communicator = std::make_unique<RoceCommunicator>(id, coordinator_endpoint);
     communicator->start_server();
-    this->coordinator_comm_ = std::move(communicator);
+    this->comm_ = std::move(communicator);
     this->add_message_callback();
   }
 

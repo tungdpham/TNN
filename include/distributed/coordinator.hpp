@@ -42,7 +42,7 @@ public:
     if (message_thread_.joinable()) {
       message_thread_.join();
     }
-    coordinator_comm_.reset();
+    comm_.reset();
   }
 
   void initialize() {
@@ -68,24 +68,24 @@ public:
   int num_microbatches() const { return num_microbatches_; }
 
   void add_message_callback() {
-    this->coordinator_comm_->set_message_notification_callback([this]() {
+    this->comm_->set_message_notification_callback([this]() {
       std::lock_guard<std::mutex> lock(this->message_notification_mutex_);
       this->message_notification_cv_.notify_all();
     });
   }
 
   void start() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
+      this->comm_->send_message(std::move(start_msg), worker_endpoint);
     }
     std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
   }
 
   void stop() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message stop_msg(CommandType::SHUTDOWN, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(stop_msg), remote_endpoint);
+      this->comm_->send_message(std::move(stop_msg), worker_endpoint);
     }
     should_stop_ = true;
     message_notification_cv_.notify_all();
@@ -98,13 +98,13 @@ public:
   void process_message(const Message &message) {}
 
   void send_message(Message &&message, const Endpoint &endpoint) {
-    this->coordinator_comm_->send_message(std::move(message), endpoint);
+    this->comm_->send_message(std::move(message), endpoint);
   }
 
   void set_training(bool training) {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message mode_msg(training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
-      this->coordinator_comm_->send_message(std::move(mode_msg), remote_endpoint);
+      this->comm_->send_message(std::move(mode_msg), worker_endpoint);
     }
   }
 
@@ -114,12 +114,10 @@ public:
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
   void forward(Tensor &&input, size_t microbatch_id) {
-    Job job;
-    job.mb_id = microbatch_id;
-    job.data = std::move(input);
+    Job job(std::move(input), microbatch_id);
     Message forward_msg(CommandType::FORWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(std::move(forward_msg), remote_endpoints_.front());
+    this->comm_->send_message(std::move(forward_msg), worker_endpoints_.front());
   }
 
   /**
@@ -128,18 +126,16 @@ public:
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
   void backward(Tensor &&gradient, size_t microbatch_id) {
-    Job job;
-    job.mb_id = microbatch_id;
-    job.data = std::move(gradient);
+    Job job(std::move(gradient), microbatch_id);
     Message backward_msg(CommandType::BACKWARD_JOB, std::move(job));
 
-    this->coordinator_comm_->send_message(std::move(backward_msg), remote_endpoints_.back());
+    this->comm_->send_message(std::move(backward_msg), worker_endpoints_.back());
   }
 
   void update_parameters() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(update_msg), remote_endpoint);
+      this->comm_->send_message(std::move(update_msg), worker_endpoint);
     }
     bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
     if (!success) {
@@ -161,7 +157,7 @@ public:
 
     bool success =
         message_notification_cv_.wait_until(lock, timeout, [this, type, expected_count]() {
-          return this->coordinator_comm_->message_count(type) >= expected_count;
+          return this->comm_->message_count(type) >= expected_count;
         });
 
     return success;
@@ -192,11 +188,10 @@ public:
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(lock, [this]() {
-        return this->coordinator_comm_->message_count(CommandType::FORWARD_JOB) > 0;
-      });
+      message_notification_cv_.wait(
+          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
       std::vector<Message> FORWARD_JOBs =
-          this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+          this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
         if (forward_msg.has_type<Job>()) {
@@ -219,11 +214,11 @@ public:
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     message_notification_cv_.wait(lock, [this]() {
-      return this->coordinator_comm_->message_count(CommandType::BACKWARD_JOB) >=
+      return this->comm_->message_count(CommandType::BACKWARD_JOB) >=
              static_cast<size_t>(this->num_microbatches_);
     });
 
-    this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
+    this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
 
     return (this->num_microbatches_ > 0)
                ? (total_loss / static_cast<float>(this->num_microbatches_))
@@ -234,9 +229,9 @@ public:
    * @brief Requests all stages to print their profiling data.
    */
   void print_profiling() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message profiling_msg(CommandType::PRINT_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(profiling_msg), remote_endpoint);
+      this->comm_->send_message(std::move(profiling_msg), worker_endpoint);
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
@@ -249,9 +244,9 @@ public:
    */
   void start_profiling() {
     GlobalProfiler::init_start_time(Clock::now());
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message start_msg(CommandType::START_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(start_msg), remote_endpoint);
+      this->comm_->send_message(std::move(start_msg), worker_endpoint);
     }
     bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
     if (!all_started) {
@@ -263,9 +258,9 @@ public:
    * @brief Requests all stages to report their profiling data.
    */
   void fetch_profiling() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message report_msg(CommandType::REPORT_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(report_msg), remote_endpoint);
+      this->comm_->send_message(std::move(report_msg), worker_endpoint);
     }
     bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
     if (!all_reported) {
@@ -273,7 +268,7 @@ public:
     }
 
     std::vector<Message> profiling_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
+        this->comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
     auto &aggregator = GlobalProfiler::get_profiler();
     for (const auto &msg : profiling_messages) {
@@ -314,36 +309,20 @@ public:
    * @brief Requests all stages to clear their profiling data.
    */
   void clear_profiling() {
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message clear_msg(CommandType::CLEAR_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(clear_msg), remote_endpoint);
+      this->comm_->send_message(std::move(clear_msg), worker_endpoint);
     }
   }
 
   std::vector<Message> dequeue_all_messages(CommandType target_type) {
-    return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
+    return this->comm_->dequeue_all_messages_by_type(target_type);
   }
 
   bool deploy_stages() {
-    if (is_deployed_) {
-      std::cout << "Stages already deployed\n";
-      return true;
-    }
-
-    std::vector<std::future<bool>> connection_futures;
-
-    for (const auto &remote_endpoint : this->remote_endpoints_) {
-      auto future = std::async(std::launch::async, [this, remote_endpoint]() {
-        return this->coordinator_comm_->connect(remote_endpoint);
-      });
-      connection_futures.push_back(std::move(future));
-    }
-
     bool all_connected = true;
-    for (auto &future : connection_futures) {
-      if (!future.get()) {
-        all_connected = false;
-      }
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      all_connected &= this->comm_->connect(worker_endpoint);
     }
 
     if (!all_connected) {
@@ -353,34 +332,15 @@ public:
 
     std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
 
-    std::vector<std::future<bool>> deployment_futures;
-
     for (size_t i = 0; i < stage_configs_.size(); ++i) {
-      auto future = std::async(std::launch::async, [this, i]() {
-        return deploy_stage_config(stage_configs_[i], remote_endpoints_[i]);
-      });
-      deployment_futures.push_back(std::move(future));
-    }
-
-    bool all_deployed = true;
-    for (auto &future : deployment_futures) {
-      if (!future.get()) {
-        all_deployed = false;
-      }
-    }
-
-    if (!all_deployed) {
-      std::cout << "Failed to deploy all stages\n";
-      return false;
+      deploy_stage_config(stage_configs_[i], worker_endpoints_[i]);
     }
 
     if (!join(CommandType::CONFIG_RECEIVED, this->num_stages_, 60)) {
       std::cerr << "Not all stages reported ready\n";
-      throw new std::runtime_error("Stage deployment failed");
+      throw std::runtime_error("Stage deployment failed");
     }
 
-    is_deployed_ = true;
-    std::cout << "All stages deployed and ready!\n";
     return true;
   }
 
@@ -393,24 +353,24 @@ private:
   }
 
   void initialize_topology() {
-    if (remote_endpoints_.size() != static_cast<size_t>(num_stages_)) {
-      throw std::runtime_error("Remote endpoints size does not match number of stages");
+    if (worker_endpoints_.size() != static_cast<size_t>(num_stages_)) {
+      throw std::runtime_error("Worker endpoints size does not match number of stages");
     }
     auto splitted_model = this->model_->split(this->partitions_);
 
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+    for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
       StageConfig config;
       config.model_config = splitted_model[i].get_config();
       config.optimizer_config = optimizer_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
 
       if (i > 0) {
-        config.prev_stage_endpoint = remote_endpoints_[i - 1];
+        config.prev_stage_endpoint = worker_endpoints_[i - 1];
       } else {
         config.prev_stage_endpoint = coordinator_endpoint_;
       }
-      if (i < remote_endpoints_.size() - 1) {
-        config.next_stage_endpoint = remote_endpoints_[i + 1];
+      if (i < worker_endpoints_.size() - 1) {
+        config.next_stage_endpoint = worker_endpoints_[i + 1];
       } else {
         config.next_stage_endpoint = coordinator_endpoint_;
       }
@@ -419,11 +379,11 @@ private:
     }
   }
 
-  bool deploy_stage_config(const StageConfig &config, const Endpoint &remote_endpoint) {
+  bool deploy_stage_config(const StageConfig &config, const Endpoint &worker_endpoint) {
     try {
       std::string config_json = config.to_json().dump();
       auto config_msg = Message(CommandType::CONFIG_TRANSFER, config_json);
-      this->coordinator_comm_->send_message(std::move(config_msg), remote_endpoint);
+      this->comm_->send_message(std::move(config_msg), worker_endpoint);
       return true;
     } catch (const std::exception &e) {
       std::cout << "Failed to deploy config: " << e.what() << '\n';
@@ -440,7 +400,7 @@ protected:
   // Components of the coordinator
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
-  std::unique_ptr<Communicator> coordinator_comm_;
+  std::unique_ptr<Communicator> comm_;
   std::unique_ptr<Partitioner> partitioner_;
   Endpoint coordinator_endpoint_;
 
@@ -448,7 +408,7 @@ protected:
 
   // Topology information
   std::vector<Partition> partitions_;
-  std::vector<Endpoint> remote_endpoints_;
+  std::vector<Endpoint> worker_endpoints_;
   std::vector<StageConfig> stage_configs_;
   std::thread message_thread_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};

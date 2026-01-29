@@ -39,12 +39,10 @@ public:
   virtual ~Worker() { stop(); }
 
 protected:
-  Worker(bool use_gpu)
-      : use_gpu_(use_gpu), model_(nullptr), communicator_(nullptr), should_stop_(true),
-        is_configured_(false) {}
+  Worker(bool use_gpu) : use_gpu_(use_gpu), should_stop_(true), is_configured_(false) {}
 
 public:
-  virtual void start() {
+  void start() {
     if (!should_stop_) {
       std::cerr << "Stage " << id_ << " is already running" << std::endl;
       return;
@@ -57,15 +55,6 @@ public:
       message_available_cv_.notify_one();
     });
 
-    message_loop();
-  }
-
-  virtual void stop() {
-    should_stop_ = true;
-    message_available_cv_.notify_all();
-  }
-
-  void message_loop() {
     std::cout << "Running event loop" << std::endl;
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
@@ -84,9 +73,40 @@ public:
     }
   }
 
+  void stop() {
+    should_stop_ = true;
+    message_available_cv_.notify_all();
+  }
+
   bool is_configured() const { return is_configured_; }
 
-  std::string name() const { return id_; }
+  void set_config(const StageConfig &config) {
+    // setup model, optimizer, criterion
+    LayerConfig model_config = config.model_config;
+    this->model_ = Sequential::create_from_config(model_config);
+    OptimizerConfig optimizer_config = config.optimizer_config;
+    this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
+    this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
+    this->model_->init();
+    this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
+    this->model_->enable_profiling(true);
+
+    // setup connections
+    coordinator_endpoint_ = config.coordinator_endpoint;
+    next_stage_endpoint_ = config.next_stage_endpoint;
+    prev_stage_endpoint_ = config.prev_stage_endpoint;
+    this->communicator_->connect(coordinator_endpoint_);
+    this->communicator_->connect(next_stage_endpoint_);
+    this->communicator_->connect(prev_stage_endpoint_);
+
+    is_configured_ = true;
+  }
+
+  void set_next_stage_endpoint(const Endpoint &endpoint) { next_stage_endpoint_ = endpoint; }
+
+  void set_prev_stage_endpoint(const Endpoint &endpoint) { prev_stage_endpoint_ = endpoint; }
+
+  void set_coordinator_endpoint(const Endpoint &endpoint) { coordinator_endpoint_ = endpoint; }
 
 protected:
   virtual void process_message(Message &&message) {
@@ -98,8 +118,7 @@ protected:
           MemPool::instance(*model_->get_device()), forward_job.data->data_type(),
           this->model_->compute_output_shape(forward_job.data->shape()));
       this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
-      Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
-      Job output(cpu_output_tensor, forward_job.mb_id);
+      Job output(output_tensor, forward_job.mb_id);
       auto forward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
@@ -113,8 +132,7 @@ protected:
           Tensor::create_pooled(MemPool::instance(*model_->get_device()),
                                 backward_job.data->data_type(), backward_job.data->shape());
       this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
-      Tensor cpu_output_tensor = output_tensor->to_device(&getCPU());
-      Job output(cpu_output_tensor, backward_job.mb_id);
+      Job output(output_tensor, backward_job.mb_id);
       auto backward_end = std::chrono::system_clock::now();
       GlobalProfiler::add_event(
           {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
@@ -180,9 +198,12 @@ protected:
         std::cout << "Warning: No model available to clear profiling data" << std::endl;
       }
       break;
-    case CommandType::CONFIG_TRANSFER:
+    case CommandType::CONFIG_TRANSFER: {
       handle_configuration(message);
+      Message ready_msg(CommandType::CONFIG_RECEIVED, true);
+      this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
       break;
+    }
     case CommandType::LOAD_PARAMS: {
       // // decode and deserialize parameters
       throw std::runtime_error("Not implemented yet");
@@ -234,25 +255,7 @@ protected:
       nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
       StageConfig config = StageConfig::from_json(config_json);
 
-      // setup model, optimizer, criterion
-      LayerConfig model_config = config.model_config;
-      this->model_ = Sequential::create_from_config(model_config);
-      OptimizerConfig optimizer_config = config.optimizer_config;
-      this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
-      if (use_gpu_) {
-        this->model_->set_device(getGPU());
-      } else {
-        this->model_->set_device(getCPU());
-      }
-      this->model_->init();
-      this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
-      this->model_->enable_profiling(true);
-
-      // setup connections
-      setup_stage_connections(config);
-      is_configured_ = true;
-      Message ready_msg(CommandType::CONFIG_RECEIVED, true);
-      this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
+      set_config(config);
 
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
@@ -260,18 +263,6 @@ protected:
       Message error_msg(CommandType::ERROR_REPORT, error_text);
       this->communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
     }
-  }
-
-  void setup_stage_connections(const StageConfig &config) {
-    coordinator_endpoint_ = config.coordinator_endpoint;
-    next_stage_endpoint_ = config.next_stage_endpoint;
-    prev_stage_endpoint_ = config.prev_stage_endpoint;
-    if (!coordinator_endpoint_.is_empty())
-      this->communicator_->connect(coordinator_endpoint_);
-    if (!next_stage_endpoint_.is_empty())
-      this->communicator_->connect(next_stage_endpoint_);
-    if (!prev_stage_endpoint_.is_empty())
-      this->communicator_->connect(prev_stage_endpoint_);
   }
 
   bool use_gpu_;

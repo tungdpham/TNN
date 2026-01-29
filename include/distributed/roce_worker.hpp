@@ -19,7 +19,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs using RDMA.
  */
-class RoceWorker : Worker {
+class RoceWorker : public Worker {
 public:
   /**
    * @brief Constructor for RoCE worker
@@ -40,19 +40,6 @@ public:
   }
 
   ~RoceWorker() override { stop(); }
-
-  void start() override {
-    if (!this->should_stop_)
-      return;
-
-    Worker::start();
-  }
-
-  void stop() override {
-    std::cout << "Stopping RoCE worker." << '\n';
-    Worker::stop();
-    std::cout << "RoCE worker stopped" << '\n';
-  }
 
 private:
   Endpoint worker_endpoint_;

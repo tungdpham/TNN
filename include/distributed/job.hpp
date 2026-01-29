@@ -19,8 +19,6 @@ struct Job {
 
   Job(Tensor d, size_t mb_id) : data(d), mb_id(mb_id) {}
 
-  Job(Tensor &&d, size_t mb_id) : data(std::move(d)), mb_id(mb_id) {}
-
   Job(const Job &other) {
     data = other.data->clone();
     mb_id = other.mb_id;

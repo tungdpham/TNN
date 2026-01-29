@@ -21,7 +21,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs.
  */
-class TCPWorker : Worker {
+class TCPWorker : public Worker {
 public:
   /**
    * @brief Constructor with optional thread affinity configuration
@@ -42,21 +42,6 @@ public:
   }
 
   ~TCPWorker() {}
-
-  void start() override {
-    if (!this->should_stop_)
-      return;
-
-    Worker::start();
-  }
-
-  void stop() override {
-    std::cout << "Stopping TCP stage worker." << '\n';
-
-    Worker::stop();
-
-    std::cout << "TCP stage worker stopped" << '\n';
-  }
 
 private:
   size_t io_threads_;
