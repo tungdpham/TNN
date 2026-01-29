@@ -111,6 +111,20 @@ public:
     }
   }
 
+  void copy_to_host(void *host_ptr, size_t byte_size) const {
+    if (!device_) {
+      throw std::runtime_error("No associated device to perform copy_to_host()");
+    }
+    device_->copyToHost(host_ptr, ptr_, byte_size);
+  }
+
+  void copy_from_host(const void *host_ptr, size_t byte_size) {
+    if (!device_) {
+      throw std::runtime_error("No associated device to perform copy_from_host()");
+    }
+    device_->copyToDevice(ptr_, host_ptr, byte_size);
+  }
+
   explicit operator bool() const { return ptr_ != nullptr; }
 
 private:

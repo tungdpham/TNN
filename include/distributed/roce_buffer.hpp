@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "device/device_ptr.hpp"
 #include "endian.hpp"
 #include "threading/thread_handler.hpp"
 #include <algorithm>
@@ -162,6 +163,15 @@ public:
     offset += length * sizeof(T);
   }
 
+  inline void write(size_t &offset, const device_ptr &ptr, size_t length) {
+    ensure_capacity(offset + length);
+    ptr.copy_to_host(data_ + offset, length);
+    if (offset + length > size_) {
+      size_ = offset + length;
+    }
+    offset += length;
+  }
+
   inline void write(size_t &offset, const std::string &str) {
     uint64_t str_length = static_cast<uint64_t>(str.size());
     write<uint64_t>(offset, str_length);
@@ -195,6 +205,14 @@ public:
       parallel_for<size_t>(0, length, [&](size_t i) { bswap(arr[i]); });
     }
     offset += byte_size;
+  }
+
+  inline void read(size_t &offset, device_ptr &ptr, size_t length) const {
+    if (offset + length > size_) {
+      throw std::out_of_range(get_out_of_bound_msg(offset + length));
+    }
+    ptr.copy_from_host(data_ + offset, length);
+    offset += length;
   }
 
   inline void read(size_t &offset, std::string &str) const {

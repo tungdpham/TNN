@@ -1,6 +1,7 @@
 #pragma once
 
 #include "device/device_manager.hpp"
+#include "device/device_ptr.hpp"
 #include "device/mem_pool.hpp"
 #include "endian.hpp"
 #include "message.hpp"
@@ -32,18 +33,21 @@ template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64
 namespace tnn {
 
 template <typename T>
-concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len,
-                          std::string &str, uint64_t &val) {
-  t.write(offset, val);
-  t.write(offset, ptr, len);
-  t.write(offset, static_cast<const std::string &>(str));
+concept Buffer =
+    requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, device_ptr &dptr,
+             const device_ptr &cdptr, std::string &str, uint64_t &val) {
+      t.write(offset, val);
+      t.write(offset, ptr, len);
+      t.write(offset, cdptr, len);
+      t.write(offset, static_cast<const std::string &>(str));
 
-  ct.read(offset, val);
-  ct.read(offset, ptr, len);
-  ct.read(offset, str);
+      ct.read(offset, val);
+      ct.read(offset, ptr, len);
+      ct.read(offset, dptr, len);
+      ct.read(offset, str);
 
-  { ct.size() } -> std::convertible_to<size_t>;
-};
+      { ct.size() } -> std::convertible_to<size_t>;
+    };
 
 class BinarySerializer {
 public:
@@ -57,7 +61,9 @@ public:
     for (size_t dim : shape) {
       buffer.write(offset, static_cast<uint64_t>(dim));
     }
-    DISPATCH_ON_DTYPE(dtype, T, buffer.write(offset, tensor->data_as<T>(), tensor->size()));
+    const auto &device_ptr = tensor->data_ptr();
+    size_t byte_size = tensor->size() * get_dtype_size(dtype);
+    buffer.write(offset, device_ptr, byte_size);
   }
 
   template <Buffer BufferType>
@@ -172,8 +178,9 @@ public:
     tensor = Tensor::create_pooled(MemPool::instance(getCPU()), dtype,
                                    std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
-      DISPATCH_ON_DTYPE(dtype, T, buffer.read(offset, tensor->data_as<T>(), tensor->size()));
-      offset += tensor->size() * dtype_size;
+      auto &device_ptr = tensor->data_ptr();
+      size_t byte_size = tensor->size() * dtype_size;
+      buffer.read(offset, device_ptr, byte_size);
     }
   }
 
