@@ -94,8 +94,8 @@ private:
   std::thread io_thread_;
 
 public:
-  explicit RoceCommunicator(const std::string &id, const Endpoint &endpoint)
-      : Communicator(), acceptor_(io_context_) {
+  explicit RoceCommunicator(const Endpoint &endpoint)
+      : Communicator(endpoint), acceptor_(io_context_) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
       port_ = endpoint.get_parameter<int>("port");

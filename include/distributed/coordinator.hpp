@@ -8,6 +8,7 @@
 
 #include "device/mem_pool.hpp"
 #include "distributed/endpoint.hpp"
+#include "distributed/worker.hpp"
 #include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
@@ -20,30 +21,24 @@
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
 
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
-#include <future>
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer)
-      : model_(std::move(model)), optimizer_(std::move(optimizer)) {}
+  Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
+              std::unique_ptr<Worker> local_worker = nullptr)
+      : model_(std::move(model)), optimizer_(std::move(optimizer)),
+        local_worker_(std::move(local_worker)) {}
 
-  virtual ~Coordinator() {
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
-    comm_.reset();
-  }
+  virtual ~Coordinator() { comm_.reset(); }
 
   void initialize() {
     initialize_partitions();
@@ -75,6 +70,11 @@ public:
   }
 
   void start() {
+    if (local_worker_) {
+      std::thread worker_thread([this]() { local_worker_->start(); });
+      worker_thread.detach();
+    }
+
     for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
       this->comm_->send_message(std::move(start_msg), worker_endpoint);
@@ -89,9 +89,6 @@ public:
     }
     should_stop_ = true;
     message_notification_cv_.notify_all();
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
@@ -116,7 +113,6 @@ public:
   void forward(Tensor &&input, size_t microbatch_id) {
     Job job(std::move(input), microbatch_id);
     Message forward_msg(CommandType::FORWARD_JOB, std::move(job));
-
     this->comm_->send_message(std::move(forward_msg), worker_endpoints_.front());
   }
 
@@ -128,7 +124,6 @@ public:
   void backward(Tensor &&gradient, size_t microbatch_id) {
     Job job(std::move(gradient), microbatch_id);
     Message backward_msg(CommandType::BACKWARD_JOB, std::move(job));
-
     this->comm_->send_message(std::move(backward_msg), worker_endpoints_.back());
   }
 
@@ -358,6 +353,10 @@ private:
     }
     auto splitted_model = this->model_->split(this->partitions_);
 
+    if (local_worker_) {
+      worker_endpoints_.push_back(local_worker_->endpoint());
+    }
+
     for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
       StageConfig config;
       config.model_config = splitted_model[i].get_config();
@@ -381,8 +380,7 @@ private:
 
   bool deploy_stage_config(const StageConfig &config, const Endpoint &worker_endpoint) {
     try {
-      std::string config_json = config.to_json().dump();
-      auto config_msg = Message(CommandType::CONFIG_TRANSFER, config_json);
+      auto config_msg = Message(CommandType::CONFIG_TRANSFER, config);
       this->comm_->send_message(std::move(config_msg), worker_endpoint);
       return true;
     } catch (const std::exception &e) {
@@ -402,15 +400,13 @@ protected:
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Communicator> comm_;
   std::unique_ptr<Partitioner> partitioner_;
+  std::unique_ptr<Worker> local_worker_;
   Endpoint coordinator_endpoint_;
-
-  std::atomic<bool> is_deployed_ = false;
 
   // Topology information
   std::vector<Partition> partitions_;
   std::vector<Endpoint> worker_endpoints_;
   std::vector<StageConfig> stage_configs_;
-  std::thread message_thread_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Message synchronization

@@ -12,7 +12,6 @@
 #include "tcp_communicator.hpp"
 #include <asio.hpp>
 #include <memory>
-#include <string>
 #include <vector>
 
 namespace tnn {
@@ -33,16 +32,16 @@ public:
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
   NetworkCoordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
-                     Endpoint coordinator_endpoint = Endpoint::tcp("localhost", 8000),
-                     const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
-      : Coordinator(std::move(model), std::move(optimizer)) {
+                     std::unique_ptr<Worker> local_worker, Endpoint coordinator_endpoint,
+                     const std::vector<Endpoint> &endpoints)
+      : Coordinator(std::move(model), std::move(optimizer), std::move(local_worker)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
     this->worker_endpoints_ = endpoints;
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize TCP communicator for the coordinator
-    auto communicator = std::make_unique<TcpCommunicator>(coordinator_endpoint, io_threads);
+    auto communicator = std::make_unique<TcpCommunicator>(coordinator_endpoint);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

@@ -29,7 +29,7 @@ private:
   std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
-  Communicator() {}
+  Communicator(Endpoint endpoint) : endpoint_(endpoint) {}
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
@@ -42,6 +42,8 @@ public:
 
     message_notification_callback_ = nullptr;
   }
+
+  Endpoint endpoint() const { return endpoint_; }
 
   void send_message(Message &&message, const Endpoint &endpoint) {
     if (endpoint.communication_type() == CommunicationType::IN_PROCESS) {
@@ -167,16 +169,13 @@ protected:
   }
 
 protected:
+  Endpoint endpoint_;
   MessageMap message_queues_;
-
   std::queue<std::pair<Message, Endpoint>> out_message_queue_;
-
   mutable std::mutex out_message_mutex_;
   mutable std::mutex recipients_mutex_;
 
   std::function<void()> message_notification_callback_;
-
-  virtual void onSetId() {}
 
 private:
   std::mutex profile_mutex_;

@@ -108,6 +108,10 @@ public:
 
   void set_coordinator_endpoint(const Endpoint &endpoint) { coordinator_endpoint_ = endpoint; }
 
+  Endpoint endpoint() const { return communicator_->endpoint(); }
+
+  Communicator *get_communicator() const { return communicator_.get(); }
+
 protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
@@ -245,18 +249,10 @@ protected:
   }
 
   void handle_configuration(const Message &message) {
-    if (!message.has_type<std::string>()) {
-      std::cout << "Configuration message missing text data" << '\n';
-      return;
-    }
-
     try {
       // Parse configuration
-      nlohmann::json config_json = nlohmann::json::parse(message.get<std::string>());
-      StageConfig config = StageConfig::from_json(config_json);
-
+      StageConfig config = message.get<StageConfig>();
       set_config(config);
-
     } catch (const std::exception &e) {
       std::cout << "Failed to configure stage: " << e.what() << '\n';
       std::string error_text = std::string("Configuration failed: ") + e.what();

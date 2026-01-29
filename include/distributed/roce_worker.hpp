@@ -8,7 +8,6 @@
 
 #include "roce_communicator.hpp"
 #include "worker.hpp"
-#include <iostream>
 #include <memory>
 
 namespace tnn {
@@ -32,7 +31,7 @@ public:
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
 
-    auto communicator = std::make_unique<RoceCommunicator>(this->id_, worker_endpoint_);
+    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_);
 
     communicator->start_server();
 

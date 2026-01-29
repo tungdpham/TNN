@@ -11,7 +11,6 @@
 #include "nn/sequential.hpp"
 #include "roce_communicator.hpp"
 #include <memory>
-#include <string>
 #include <vector>
 
 namespace tnn {
@@ -35,9 +34,8 @@ public:
    * @param gid_index GID index for RoCE
    * @param endpoints The list of worker endpoints
    */
-  RoceCoordinator(const std::string &id, std::unique_ptr<Sequential> model,
-                  std::unique_ptr<Optimizer> optimizer, Endpoint coordinator_endpoint,
-                  const std::vector<Endpoint> &endpoints = {})
+  RoceCoordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
+                  Endpoint coordinator_endpoint, const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), std::move(optimizer)) {
 
     // Initialize coordinator and remote endpoints
@@ -46,7 +44,7 @@ public:
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize RoCE communicator for the coordinator
-    auto communicator = std::make_unique<RoceCommunicator>(id, coordinator_endpoint);
+    auto communicator = std::make_unique<RoceCommunicator>(coordinator_endpoint);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

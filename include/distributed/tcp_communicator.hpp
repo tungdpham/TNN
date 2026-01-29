@@ -46,7 +46,7 @@ public:
   explicit TcpCommunicator(const Endpoint &endpoint, size_t num_io_threads = DEFAULT_IO_THREADS,
                            uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT,
                            uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE)
-      : endpoint_(endpoint), num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
+      : Communicator(endpoint), num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
         io_context_pool_(num_io_threads_), acceptor_(io_context_pool_.get_acceptor_io_context()),
         skts_per_endpoint_(skts_per_endpoint), max_packet_size_(max_packet_size) {
     is_running_ = false;
@@ -222,7 +222,6 @@ private:
     }
   };
 
-  Endpoint endpoint_;
   size_t num_io_threads_;
   IoContextPool io_context_pool_;
   asio::ip::tcp::acceptor acceptor_;

@@ -10,7 +10,6 @@
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
 #include <csignal>
-#include <iostream>
 #include <memory>
 
 namespace tnn {

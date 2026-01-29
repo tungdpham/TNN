@@ -6,6 +6,8 @@
  */
 #include "distributed/tcp_coordinator.hpp"
 #include "data_loading/data_loader_factory.hpp"
+#include "distributed/endpoint.hpp"
+#include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
@@ -16,6 +18,7 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <vector>
 
 using namespace tnn;
@@ -85,8 +88,6 @@ int main() {
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
                     Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::tcp(Env::get<string>("WORKER2_HOST", "localhost"),
-                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
@@ -95,15 +96,12 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                                 endpoints);
+  // hard-coded for now
+  auto worker = std::make_unique<TCPWorker>(Endpoint::tcp("localhost", 8000),
+                                            device_type == DeviceType::GPU, 4);
 
-  // TCPWorker worker(coordinator_endpoint, device_type == DeviceType::GPU, 4);
-
-  // std::thread worker_thread([&worker]() {
-  //   cout << "Starting TCP Worker..." << endl;
-  //   worker.start();
-  // });
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
+                                 coordinator_endpoint, endpoints);
 
   unique_ptr<Partitioner> partitioner =
       make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));

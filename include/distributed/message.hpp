@@ -7,6 +7,7 @@
 #pragma once
 
 #include "command_type.hpp"
+#include "distributed/stage_config.hpp"
 #include "job.hpp"
 #include "profiling/profiler.hpp"
 #include "type/type.hpp"
@@ -16,7 +17,7 @@
 #include <variant>
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler>;
+using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler, StageConfig>;
 
 struct MessageHeader {
   CommandType command_type; // Type of command
@@ -93,6 +94,9 @@ struct MessageData {
         size += sizeof(uint64_t);  // name length (uint64_t in serialization)
         size += event.name.size(); // name data
       }
+    } else if (std::holds_alternative<StageConfig>(payload)) {
+      const auto &stage_config = std::get<StageConfig>(payload);
+      size += sizeof(uint64_t) + stage_config.to_json().dump().size(); // JSON string size
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }

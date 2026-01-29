@@ -149,8 +149,8 @@ int main(int argc, char *argv[]) {
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
-  RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
-                              coordinator_endpoint, endpoints);
+  RoceCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                              endpoints);
 
   // initialize a partitioner with weights 2:1
   auto partitioner = std::make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));

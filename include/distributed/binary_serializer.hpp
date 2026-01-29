@@ -122,6 +122,10 @@ public:
     } else if (std::holds_alternative<Profiler>(data.payload)) {
       const auto &profiler = std::get<Profiler>(data.payload);
       serialize(buffer, offset, profiler);
+    } else if (std::holds_alternative<StageConfig>(data.payload)) {
+      const auto &stage_config = std::get<StageConfig>(data.payload);
+      std::string json_dump = stage_config.to_json().dump();
+      buffer.write(offset, json_dump);
     } else {
       throw std::runtime_error("Unsupported payload type in MessageData");
     }
@@ -260,6 +264,15 @@ public:
       Profiler profiler;
       deserialize(buffer, offset, profiler);
       data.payload = std::move(profiler);
+    } break;
+    case variant_index<PayloadType, StageConfig>(): { // StageConfig
+      uint64_t json_size;
+      buffer.read(offset, json_size);
+      std::string json_str;
+      json_str.resize(json_size);
+      buffer.read(offset, json_str.data(), json_size);
+      StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
+      data.payload = std::move(config);
     } break;
     default:
       throw std::runtime_error("Unsupported payload type in MessageData deserialization");
