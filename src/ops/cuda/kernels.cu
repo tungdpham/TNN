@@ -683,14 +683,36 @@ void cuda_cast(const A_T *a, B_T *b, size_t size, cudaStream_t stream) {
 // Explicit template instantiations for cast
 #define INSTANTIATE_CAST(A_T, B_T)                                                                 \
   template void cuda_cast<A_T, B_T>(const A_T *, B_T *, size_t, cudaStream_t);
+
+// fp16 conversions
+INSTANTIATE_CAST(fp16, fp16)
+INSTANTIATE_CAST(fp16, bf16)
 INSTANTIATE_CAST(fp16, float)
-INSTANTIATE_CAST(float, fp16)
+INSTANTIATE_CAST(fp16, double)
+
+// bf16 conversions
+INSTANTIATE_CAST(bf16, fp16)
+INSTANTIATE_CAST(bf16, bf16)
 INSTANTIATE_CAST(bf16, float)
+INSTANTIATE_CAST(bf16, double)
+
+// float conversions
+INSTANTIATE_CAST(float, fp16)
 INSTANTIATE_CAST(float, bf16)
-INSTANTIATE_CAST(int, float)
+INSTANTIATE_CAST(float, float)
+INSTANTIATE_CAST(float, double)
 INSTANTIATE_CAST(float, int)
-INSTANTIATE_CAST(int, double)
+
+// double conversions
+INSTANTIATE_CAST(double, fp16)
+INSTANTIATE_CAST(double, bf16)
+INSTANTIATE_CAST(double, float)
+INSTANTIATE_CAST(double, double)
 INSTANTIATE_CAST(double, int)
+
+// int conversions
+INSTANTIATE_CAST(int, float)
+INSTANTIATE_CAST(int, double)
 
 #undef INSTANTIATE_CAST
 
