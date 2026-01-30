@@ -50,13 +50,13 @@ concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t 
 
 class BinarySerializer {
 private:
-  static bool deserialize_to_gpu_;
+  bool use_gpu_;
 
 public:
-  static void set_deserialize_to_gpu(bool flag) { deserialize_to_gpu_ = flag; }
+  void set_use_gpu(bool flag) { use_gpu_ = flag; }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
+  void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
     DType_t dtype = tensor->data_type();
     buffer.template write<uint32_t>(offset, static_cast<uint32_t>(dtype));
     std::vector<size_t> shape = tensor->shape();
@@ -71,7 +71,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const Event &event) {
+  void serialize(BufferType &buffer, size_t &offset, const Event &event) {
     buffer.write(offset, static_cast<int64_t>(event.start_time.time_since_epoch().count()));
     buffer.write(offset, static_cast<int64_t>(event.end_time.time_since_epoch().count()));
     buffer.write(offset, static_cast<uint8_t>(event.type));
@@ -80,7 +80,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const Profiler &profiler) {
+  void serialize(BufferType &buffer, size_t &offset, const Profiler &profiler) {
     auto events = profiler.get_events();
     buffer.write(offset, static_cast<int64_t>(profiler.start_time().time_since_epoch().count()));
     int64_t event_count = static_cast<int64_t>(events.size());
@@ -91,7 +91,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const PacketHeader &header) {
+  void serialize(BufferType &buffer, size_t &offset, const PacketHeader &header) {
     buffer.write(offset, header.PROTOCOL_VERSION);
     buffer.write(offset, header.endianess);
     buffer.write(offset, header.type);
@@ -104,12 +104,12 @@ public:
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const MessageHeader &header) {
+  void serialize(BufferType &buffer, size_t &offset, const MessageHeader &header) {
     buffer.write(offset, static_cast<uint16_t>(header.command_type));
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
+  void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
     buffer.write(offset, data.payload_type);
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
@@ -136,13 +136,13 @@ public:
   }
 
   template <Buffer BufferType>
-  static void serialize(BufferType &buffer, size_t &offset, const Message &message) {
+  void serialize(BufferType &buffer, size_t &offset, const Message &message) {
     serialize(buffer, offset, message.header());
     serialize(buffer, offset, message.data());
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, PacketHeader &header) {
+  void deserialize(const BufferType &buffer, size_t &offset, PacketHeader &header) {
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.template read<PacketType>(offset, header.type);
@@ -163,14 +163,14 @@ public:
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, MessageHeader &header) {
+  void deserialize(const BufferType &buffer, size_t &offset, MessageHeader &header) {
     uint16_t cmd_type;
     buffer.template read<uint16_t>(offset, cmd_type);
     header.command_type = static_cast<CommandType>(cmd_type);
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, Tensor &tensor) {
+  void deserialize(const BufferType &buffer, size_t &offset, Tensor &tensor) {
     size_t dtype_size;
     DType_t dtype;
     uint32_t dtype_value;
@@ -183,7 +183,7 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    auto &device = deserialize_to_gpu_ ? getGPU() : getCPU();
+    auto &device = use_gpu_ ? getGPU() : getCPU();
     tensor = Tensor::create_pooled(PoolAllocator::instance(device), dtype,
                                    std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
@@ -194,25 +194,25 @@ public:
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, Job &job) {
+  void deserialize(const BufferType &buffer, size_t &offset, Job &job) {
     buffer.template read<uint64_t>(offset, reinterpret_cast<uint64_t &>(job.mb_id));
     deserialize(buffer, offset, job.data);
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, std::string &str) {
+  void deserialize(const BufferType &buffer, size_t &offset, std::string &str) {
     buffer.read(offset, str);
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, bool &flag) {
+  void deserialize(const BufferType &buffer, size_t &offset, bool &flag) {
     uint8_t value;
     buffer.read(offset, value);
     flag = (value != 0);
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, Event &event) {
+  void deserialize(const BufferType &buffer, size_t &offset, Event &event) {
     int64_t start_time_count;
     int64_t end_time_count;
     uint8_t type_value;
@@ -227,7 +227,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, Profiler &profiler) {
+  void deserialize(const BufferType &buffer, size_t &offset, Profiler &profiler) {
     int64_t start_time_count;
     buffer.read(offset, start_time_count);
     profiler.init_start_time(Clock::time_point(Clock::duration(start_time_count)));
@@ -241,7 +241,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, MessageData &data) {
+  void deserialize(const BufferType &buffer, size_t &offset, MessageData &data) {
     // Determine payload type based on payload_type
     uint64_t payload_type;
     buffer.read(offset, payload_type);
@@ -285,7 +285,7 @@ public:
   }
 
   template <Buffer BufferType>
-  static void deserialize(const BufferType &buffer, size_t &offset, Message &message) {
+  void deserialize(const BufferType &buffer, size_t &offset, Message &message) {
     deserialize(buffer, offset, message.header());
     deserialize(buffer, offset, message.data());
   }

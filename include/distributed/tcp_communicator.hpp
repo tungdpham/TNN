@@ -112,6 +112,8 @@ public:
     }
   }
 
+  void set_use_gpu(bool flag) { serializer_.set_use_gpu(flag); }
+
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     try {
       start_send(endpoint, std::move(message));
@@ -228,6 +230,7 @@ private:
   std::thread pool_thread_;
   uint32_t skts_per_endpoint_;
   uint32_t max_packet_size_;
+  BinarySerializer serializer_;
 
   std::atomic<bool> is_running_;
 
@@ -308,7 +311,8 @@ private:
 
                            PacketHeader packet_header;
                            size_t offset = 0;
-                           BinarySerializer::deserialize(*buffer, offset, packet_header);
+
+                           serializer_.deserialize(*buffer, offset, packet_header);
 
                            buffer->set_endianess(packet_header.endianess);
                            read_message(connection, packet_header);
@@ -439,7 +443,7 @@ private:
       }
       Message msg;
       size_t offset = 0;
-      BinarySerializer::deserialize(*state.buffer, offset, msg);
+      serializer_.deserialize(*state.buffer, offset, msg);
 
       auto deserialize_end = Clock::now();
       GlobalProfiler::add_event({EventType::COMMUNICATION, deserialize_start, deserialize_end,
@@ -521,7 +525,7 @@ private:
     size_t msg_size = message.size();
     PooledBuffer data_buffer = BufferPool::instance().get_buffer(msg_size);
     size_t offset = 0;
-    BinarySerializer::serialize(*data_buffer, offset, message);
+    serializer_.serialize(*data_buffer, offset, message);
 
     uint32_t packets_per_msg =
         static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
@@ -569,7 +573,7 @@ private:
     PacketHeader packet_header = current_write.packet_header();
     auto packet_header_buffer = BufferPool::instance().get_buffer(PacketHeader::size());
     size_t offset = 0;
-    BinarySerializer::serialize(*packet_header_buffer, offset, packet_header);
+    serializer_.serialize(*packet_header_buffer, offset, packet_header);
     uint8_t *packet_data = current_write.packet_data();
 
     std::array<asio::const_buffer, 2> buffers = {

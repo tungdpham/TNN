@@ -10,9 +10,4 @@
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 
-namespace tnn {
-
-// Static member variable definition
-bool BinarySerializer::deserialize_to_gpu_ = false;
-
-} // namespace tnn
+namespace tnn {} // namespace tnn

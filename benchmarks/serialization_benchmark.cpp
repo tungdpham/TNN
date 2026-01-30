@@ -22,7 +22,7 @@ signed main() {
   Message message(CommandType::FORWARD_JOB, std::move(job));
 
   ThreadWrapper thread_wrapper({16});
-
+  BinarySerializer serializer;
   thread_wrapper.execute([&]() -> void {
     size_t data_size = 256 * 512 * 16 * 16 * sizeof(float);
     uint8_t *data_ptr = (uint8_t *)std::aligned_alloc(64, data_size);
@@ -34,7 +34,7 @@ signed main() {
       buffer.fill(0);
       auto serialization_start = std::chrono::high_resolution_clock::now();
       size_t serialize_offset = 0;
-      BinarySerializer::serialize(buffer, serialize_offset, message);
+      serializer.serialize(buffer, serialize_offset, message);
       auto serialization_end = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double, std::milli> serialization_duration =
           serialization_end - serialization_start;
@@ -45,7 +45,7 @@ signed main() {
       Message deserialized_message;
       auto deserialization_start = std::chrono::high_resolution_clock::now();
       size_t deserialize_offset = 0;
-      BinarySerializer::deserialize(buffer, deserialize_offset, deserialized_message);
+      serializer.deserialize(buffer, deserialize_offset, deserialized_message);
       auto deserialization_end = std::chrono::high_resolution_clock::now();
       std::chrono::duration<double, std::milli> deserialization_duration =
           deserialization_end - deserialization_start;

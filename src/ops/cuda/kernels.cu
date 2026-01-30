@@ -23,6 +23,16 @@ inline int get_num_blocks(size_t size) { return (size + BLOCK_SIZE - 1) / BLOCK_
 
 template <typename T> struct VectorizedTrait;
 
+template <> struct VectorizedTrait<uint8_t> {
+  using type = uchar4;
+  static constexpr int size = 4;
+};
+
+template <> struct VectorizedTrait<char> {
+  using type = char4;
+  static constexpr int size = 4;
+};
+
 template <> struct VectorizedTrait<int> {
   using type = int4;
   static constexpr int size = 4;
@@ -770,6 +780,8 @@ INSTANTIATE_CAST(int, double)
   template void cuda_equal<T>(const T *, const T *, T *, size_t, cudaStream_t);                    \
   template void cuda_greater<T>(const T *, const T *, T *, size_t, cudaStream_t);
 
+INSTANTIATE_BIN(uint8_t)
+INSTANTIATE_BIN(char)
 INSTANTIATE_BIN(fp16)
 INSTANTIATE_BIN(bf16)
 INSTANTIATE_BIN(float)
@@ -783,6 +795,9 @@ INSTANTIATE_FUSED(bf16)
 INSTANTIATE_FUSED(float)
 INSTANTIATE_FUSED(double)
 
+// Scalar operations
+INSTANTIATE_SCALAR(uint8_t)
+INSTANTIATE_SCALAR(char)
 INSTANTIATE_SCALAR(fp16)
 INSTANTIATE_SCALAR(bf16)
 INSTANTIATE_SCALAR(float)
@@ -790,6 +805,9 @@ INSTANTIATE_SCALAR(double)
 INSTANTIATE_SCALAR(int)
 INSTANTIATE_SCALAR(unsigned long)
 
+// Unary operations
+INSTANTIATE_UNARY(uint8_t)
+INSTANTIATE_UNARY(char)
 INSTANTIATE_UNARY(fp16)
 INSTANTIATE_UNARY(bf16)
 INSTANTIATE_UNARY(float)
@@ -797,6 +815,9 @@ INSTANTIATE_UNARY(double)
 INSTANTIATE_UNARY(int)
 INSTANTIATE_UNARY(unsigned long)
 
+// Utils
+INSTANTIATE_UTILS(uint8_t)
+INSTANTIATE_UTILS(char)
 INSTANTIATE_UTILS(fp16)
 INSTANTIATE_UTILS(bf16)
 INSTANTIATE_UTILS(float)

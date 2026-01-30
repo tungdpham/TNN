@@ -75,7 +75,7 @@ private:
   std::thread poll_thread_;
   std::atomic<bool> is_running_{false};
   std::atomic<uint64_t> msg_serial_id_counter_{0};
-
+  BinarySerializer serializer_;
   std::unordered_map<Endpoint, std::shared_ptr<Connection>> connections_;
   std::unordered_map<uint32_t, std::shared_ptr<Connection>>
       qp_map_; // Map QPN to Connection* for polling
@@ -162,7 +162,7 @@ public:
     size_t msg_size = message.size();
     auto data_buffer = create_roce_buffer(msg_size);
     size_t offset = 0;
-    BinarySerializer::serialize(*data_buffer, offset, message);
+    serializer_.serialize(*data_buffer, offset, message);
 
     uint64_t msg_id = msg_serial_id_counter_.fetch_add(1);
 
@@ -209,7 +209,7 @@ public:
 
     size_t header_offset = 0;
     send_buf->resize(sizeof(PacketHeader));
-    BinarySerializer::serialize(*send_buf, header_offset, header);
+    serializer_.serialize(*send_buf, header_offset, header);
 
     struct ibv_sge sge;
     sge.addr = (uint64_t)send_buf->get();
@@ -698,7 +698,7 @@ private:
                 Message msg;
                 size_t offset = 0;
                 try {
-                  BinarySerializer::deserialize(*dest_buf, offset, msg);
+                  serializer_.deserialize(*dest_buf, offset, msg);
                   enqueue_input_message(std::move(msg));
                 } catch (const std::exception &e) {
                   std::cerr << "Deserialization error: " << e.what() << "\n";
@@ -710,7 +710,7 @@ private:
             } else {
               PacketHeader header;
               size_t offset = 0;
-              BinarySerializer::deserialize(*buf, offset, header);
+              serializer_.deserialize(*buf, offset, header);
 
               if (header.type == PacketType::MSG_PREPARE) {
                 auto dest_buf = create_roce_buffer(header.msg_length);
@@ -734,7 +734,7 @@ private:
 
                 size_t ready_offset = 0;
                 send_buf->resize(sizeof(PacketHeader) + 12);
-                BinarySerializer::serialize(*send_buf, ready_offset, ready_header);
+                serializer_.serialize(*send_buf, ready_offset, ready_header);
                 uint64_t addr = (uint64_t)dest_buf->get();
                 uint32_t rkey = dest_buf->get_mr()->rkey;
                 send_buf->write(ready_offset, addr);

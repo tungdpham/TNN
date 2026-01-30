@@ -8,6 +8,7 @@
 
 #include "device/dptr.hpp"
 #include "endian.hpp"
+#include "ops/ops.hpp"
 #include "threading/thread_handler.hpp"
 #include <cstddef>
 #include <cstdint>
@@ -156,7 +157,7 @@ public:
     if (!data_) {
       throw std::runtime_error("Cannot write to null buffer");
     }
-    ptr.copy_to_host(data_.get<uint8_t>() + offset, length);
+    ops::cd_copy<uint8_t>(ptr, data_, length);
     if (offset + length > size_) {
       size_ = offset + length;
     }
@@ -211,7 +212,7 @@ public:
     if (!data_) {
       throw std::runtime_error("Cannot read from null buffer");
     }
-    ptr.copy_from_host(data_.get<const uint8_t>() + offset, length);
+    ops::cd_copy<uint8_t>(data_ + offset, ptr, length);
     offset += length;
   }
 

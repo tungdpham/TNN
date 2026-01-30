@@ -4,6 +4,7 @@
 #include "device/device_type.hpp"
 
 #include <cstddef>
+#include <cstdint>
 
 namespace tnn {
 

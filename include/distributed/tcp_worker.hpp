@@ -37,6 +37,8 @@ public:
 
     communicator->start_server();
 
+    communicator->set_use_gpu(use_gpu);
+
     this->communicator_ = std::move(communicator);
   }
 
