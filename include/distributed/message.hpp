@@ -57,7 +57,7 @@ struct MessageData {
   }
 
   const uint64_t size() const {
-    // Rough estimate of size; actual serialization may differ
+    // Exact serialized size matching BinarySerializer
     uint64_t size = 0;
 
     // size of payload_type
@@ -69,12 +69,11 @@ struct MessageData {
 
     } else if (std::holds_alternative<Job>(payload)) {
       const auto &job = std::get<Job>(payload);
-      size += sizeof(uint64_t); // mb_id
-      size += sizeof(uint64_t); // shape size (uint64_t in serialization)
-      size +=
-          job.data->shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
-      // No size prefix for tensor data itself
-      size += job.data->size() * get_dtype_size(job.data->data_type()); // data
+      size += sizeof(uint64_t);                            // mb_id
+      size += sizeof(uint32_t);                            // dtype (serialized as uint32_t)
+      size += sizeof(uint64_t);                            // shape size (uint64_t in serialization)
+      size += job.data->shape().size() * sizeof(uint64_t); // each dimension (uint64_t)
+      size += job.data->size() * get_dtype_size(job.data->data_type()); // tensor data
     } else if (std::holds_alternative<std::string>(payload)) {
       const auto &str = std::get<std::string>(payload);
       size += sizeof(uint64_t); // string length (uint64_t in serialization)
@@ -87,12 +86,15 @@ struct MessageData {
       const auto &profiler = std::get<Profiler>(payload);
       size += sizeof(int64_t); // profiler_start_time_ (serialized as int64_t)
       auto events = profiler.get_events();
-      size += sizeof(uint64_t); // number of events
+      size += sizeof(int64_t); // number of events (serialized as int64_t)
       for (const auto &event : events) {
-        size += sizeof(int64_t);   // start_time_ (serialized as int64_t)
-        size += sizeof(int64_t);   // end_time_ (serialized as int64_t)
-        size += sizeof(uint64_t);  // name length (uint64_t in serialization)
-        size += event.name.size(); // name data
+        size += sizeof(int64_t);     // start_time_ (serialized as int64_t)
+        size += sizeof(int64_t);     // end_time_ (serialized as int64_t)
+        size += sizeof(uint8_t);     // event.type (serialized as uint8_t)
+        size += sizeof(uint64_t);    // name length (uint64_t in serialization)
+        size += event.name.size();   // name data
+        size += sizeof(uint64_t);    // source length (uint64_t in serialization)
+        size += event.source.size(); // source data
       }
     } else if (std::holds_alternative<StageConfig>(payload)) {
       const auto &stage_config = std::get<StageConfig>(payload);

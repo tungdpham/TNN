@@ -7,6 +7,7 @@
 #pragma once
 
 #include "device/allocator.hpp"
+#include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 
 #include <cerrno>
@@ -29,7 +30,7 @@ namespace tnn {
 class IbvAllocator : public IAllocator {
 public:
   IbvAllocator(const Device &device, ibv_pd *pd, size_t slab_size)
-      : device_(device), pd_(pd), slab_size_(slab_size), allocated_(0), using_host_memory_(false) {
+      : device_(device), pd_(pd), slab_size_(slab_size), allocated_(0), using_host_memory_(true) {
     if (!pd_) {
       throw std::invalid_argument("Protection Domain cannot be null");
     }
@@ -39,50 +40,26 @@ public:
 
     int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
 
-    // Try GPU Direct RDMA first (allocate on device and register with InfiniBand)
-    slab_ptr_ = device_.allocateAlignedMemory(slab_size_, DEFAULT_ALIGNMENT);
-    if (!slab_ptr_) {
-      throw std::runtime_error("Failed to allocate master slab");
+    // Host pinned memory only (no GPU Direct RDMA)
+    if (posix_memalign(&slab_ptr_, DEFAULT_ALIGNMENT, slab_size_) != 0) {
+      throw std::runtime_error("Failed to allocate host pinned memory");
     }
 
+    // Register host memory with InfiniBand
     slab_mr_ = ibv_reg_mr(pd_, slab_ptr_, slab_size_, access_flags);
     if (!slab_mr_) {
       int err = errno;
-#ifndef NDEBUG
-      std::cout << "IbvAllocator: GPU Direct RDMA registration failed: " << std::strerror(err)
-                << " (errno=" << err << "). Falling back to host pinned memory.\n";
-#endif
-      // Free GPU memory
-      device_.deallocateAlignedMemory(slab_ptr_);
+      free(slab_ptr_);
       slab_ptr_ = nullptr;
-
-      // Fallback to host pinned memory
-      if (posix_memalign(&slab_ptr_, DEFAULT_ALIGNMENT, slab_size_) != 0) {
-        throw std::runtime_error("Failed to allocate host pinned memory");
-      }
-
-      // Register host memory with InfiniBand
-      slab_mr_ = ibv_reg_mr(pd_, slab_ptr_, slab_size_, access_flags);
-      if (!slab_mr_) {
-        err = errno;
-        free(slab_ptr_);
-        slab_ptr_ = nullptr;
-        throw std::runtime_error(
-            "Failed to register host memory with InfiniBand: " + std::string(std::strerror(err)) +
-            " (errno=" + std::to_string(err) + ")");
-      }
-
-      using_host_memory_ = true;
-#ifndef NDEBUG
-      std::cout << "IbvAllocator: Successfully registered host pinned memory of " << slab_size_
-                << " bytes at " << slab_ptr_ << " with lkey=" << slab_mr_->lkey << "\n";
-#endif
-    } else {
-#ifndef NDEBUG
-      std::cout << "IbvAllocator: Registered GPU memory slab of " << slab_size_ << " bytes at "
-                << slab_ptr_ << " with lkey=" << slab_mr_->lkey << " (GPU Direct RDMA)\n";
-#endif
+      throw std::runtime_error(
+          "Failed to register host memory with InfiniBand: " + std::string(std::strerror(err)) +
+          " (errno=" + std::to_string(err) + ")");
     }
+
+#ifndef NDEBUG
+    std::cout << "IbvAllocator: Registered host pinned memory slab of " << slab_size_
+              << " bytes at " << slab_ptr_ << " with lkey=" << slab_mr_->lkey << "\n";
+#endif
   }
 
   ~IbvAllocator() {
@@ -134,12 +111,6 @@ public:
       size_t offset = it->second;
       size_t block_size = it->first;
       free_blocks_.erase(it);
-
-#ifndef NDEBUG
-      std::cout << "IbvAllocator: Reusing block of size " << block_size << " at offset " << offset
-                << "\n";
-#endif
-
       return create_dptr(offset, block_size);
     }
 
@@ -149,11 +120,6 @@ public:
 
     size_t offset = allocated_;
     allocated_ += size;
-
-#ifndef NDEBUG
-    std::cout << "IbvAllocator: Allocating new block of size " << size << " at offset " << offset
-              << " (total allocated: " << allocated_ << " / " << slab_size_ << ")\n";
-#endif
 
     return create_dptr(offset, size);
   }
@@ -226,7 +192,7 @@ private:
 
     void *slice_ptr = static_cast<uint8_t *>(slab_ptr_) + offset;
     auto storage = std::shared_ptr<device_storage>(
-        new device_storage(&device_, slice_ptr, size, DEFAULT_ALIGNMENT),
+        new device_storage(&getCPU(), slice_ptr, size, DEFAULT_ALIGNMENT),
         [storage_info](device_storage *storage) {
           // custom deleter to reclaim memory back to the allocator
           if (storage_info && storage_info->allocator) {
@@ -243,11 +209,6 @@ private:
   void reclaim(size_t offset, size_t size) {
     std::lock_guard<std::mutex> lock(mutex_);
     free_blocks_.emplace(size, offset);
-
-#ifndef NDEBUG
-    std::cout << "IbvAllocator: Reclaimed block of size " << size << " at offset " << offset
-              << "\n";
-#endif
   }
 
   struct slab_storage_info {

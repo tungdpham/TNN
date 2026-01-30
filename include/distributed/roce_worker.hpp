@@ -33,10 +33,7 @@ public:
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
 
-    // Use GPU device for GPU Direct RDMA if enabled, otherwise use CPU
-    const Device *device = use_gpu ? &getGPU() : &getCPU();
-    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, device,
-                                                           1024 * 1024 * 1024); // 1GB slab
+    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, use_gpu);
 
     communicator->start_server();
 

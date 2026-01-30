@@ -45,9 +45,8 @@ public:
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize RoCE communicator for the coordinator
-    // Coordinators typically use CPU, workers use GPU for GPU Direct RDMA
-    auto communicator = std::make_unique<RoceCommunicator>(coordinator_endpoint, &getCPU(),
-                                                           512 * 1024 * 1024); // 512MB slab
+    auto communicator =
+        std::make_unique<RoceCommunicator>(coordinator_endpoint, false /* use_gpu */);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

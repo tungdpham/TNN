@@ -50,7 +50,7 @@ concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t 
 
 class BinarySerializer {
 private:
-  bool use_gpu_;
+  bool use_gpu_ = false;
 
 public:
   void set_use_gpu(bool flag) { use_gpu_ = flag; }

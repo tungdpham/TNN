@@ -8,10 +8,12 @@
 
 #include "communicator.hpp"
 #include "device/allocator.hpp"
-#include "device/ibv_allocator.hpp"
+#include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/packet.hpp"
 #include "distributed/roce_buffer.hpp"
+#include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
 #include <any>
 #include <cerrno>
@@ -52,8 +54,8 @@ private:
     std::vector<std::unique_ptr<RoceBuffer>> recv_buffers;
 
     std::mutex mutex;
-    std::unordered_map<uint64_t, std::unique_ptr<RoceBuffer>> pending_sends;
-    std::unordered_map<uint64_t, std::unique_ptr<RoceBuffer>> pending_receives;
+    std::unordered_map<uint64_t, PooledRoceBuffer> pending_sends;
+    std::unordered_map<uint64_t, PooledRoceBuffer> pending_receives;
     std::any attached_context;
 
     ~Connection() {
@@ -76,7 +78,7 @@ private:
   std::thread poll_thread_;
   std::atomic<bool> is_running_{false};
   std::atomic<uint64_t> msg_serial_id_counter_{0};
-  BinarySerializer serializer_;
+
   std::unordered_map<Endpoint, std::shared_ptr<Connection>> connections_;
   std::unordered_map<uint32_t, std::shared_ptr<Connection>>
       qp_map_; // Map QPN to Connection* for polling
@@ -87,19 +89,18 @@ private:
   std::queue<RoceBuffer *> free_send_buffers_;
   std::mutex send_buffers_mutex_;
   std::condition_variable send_buffers_cv_;
+  BinarySerializer serializer_;
 
-  std::unique_ptr<IbvAllocator> ibv_allocator_;
+  std::unique_ptr<RoceBufferPool> buffer_pool_;
 
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
+  bool use_gpu_;
   std::thread io_thread_;
 
-  const Device *device_;
-
 public:
-  explicit RoceCommunicator(const Endpoint &endpoint, const Device *device,
-                            size_t slab_size = 128 * 1024 * 1024)
-      : Communicator(endpoint), acceptor_(io_context_), device_(device) {
+  explicit RoceCommunicator(const Endpoint &endpoint, bool use_gpu)
+      : Communicator(endpoint), acceptor_(io_context_), use_gpu_(use_gpu) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
       port_ = endpoint.get_parameter<int>("port");
@@ -111,7 +112,7 @@ public:
 
     init_rdma();
     print_gid_table();
-    ibv_allocator_ = std::make_unique<IbvAllocator>(*device_, pd_, slab_size);
+    buffer_pool_ = std::make_unique<RoceBufferPool>(pd_);
     init_send_buffers();
 
     is_running_ = true;
@@ -138,7 +139,7 @@ public:
     }
 
     send_buffers_.clear();
-    ibv_allocator_.reset();
+    buffer_pool_.reset();
 
     if (cq_)
       ibv_destroy_cq(cq_);
@@ -161,7 +162,7 @@ public:
 
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     size_t msg_size = message.size();
-    auto data_buffer = create_roce_buffer(msg_size);
+    PooledRoceBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
     size_t offset = 0;
     serializer_.serialize(*data_buffer, offset, message);
 
@@ -194,7 +195,7 @@ public:
     // Store pending send
     {
       std::lock_guard<std::mutex> conn_lock(conn->mutex);
-      conn->pending_sends[msg_id] = std::move(data_buffer);
+      conn->pending_sends[msg_id] = data_buffer;
     }
 
     RoceBuffer *send_buf = nullptr;
@@ -246,7 +247,9 @@ public:
     }
   }
 
-  IAllocator &get_allocator() override { return *ibv_allocator_; }
+  IAllocator &get_allocator() override {
+    return PoolAllocator::instance(use_gpu_ ? getGPU() : getCPU());
+  }
 
 protected:
   bool connect_to_endpoint(const Endpoint &endpoint) override {
@@ -282,7 +285,7 @@ protected:
 
       // Initialize receive buffers for this connection
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = create_roce_buffer(ROCE_BUFFER_SIZE);
+        auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
         buf->resize(ROCE_BUFFER_SIZE);
         post_recv_buffer(conn->qp, buf.get());
         conn->recv_buffers.push_back(std::move(buf));
@@ -473,7 +476,7 @@ private:
 
   void init_send_buffers() {
     for (int i = 0; i < ROCE_SQ_DEPTH; ++i) {
-      auto buf = create_roce_buffer(ROCE_BUFFER_SIZE);
+      auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
       buf->resize(ROCE_BUFFER_SIZE);
       free_send_buffers_.push(buf.get());
       send_buffers_.push_back(std::move(buf));
@@ -619,12 +622,6 @@ private:
     }
   }
 
-  std::unique_ptr<RoceBuffer> create_roce_buffer(size_t size) {
-    dptr data = ibv_allocator_->allocate(size);
-    ibv_mr *mr = ibv_allocator_->get_mr();
-    return std::make_unique<RoceBuffer>(mr, data, 0);
-  }
-
   void post_recv_buffer(ibv_qp *qp, RoceBuffer *buf) {
     struct ibv_sge sge;
     sge.addr = (uint64_t)buf->get();
@@ -687,12 +684,12 @@ private:
           if (conn) {
             if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
               uint32_t imm = ntohl(wc[i].imm_data);
-              std::unique_ptr<RoceBuffer> dest_buf;
+              PooledRoceBuffer dest_buf;
               {
                 std::lock_guard<std::mutex> lock(conn->mutex);
                 auto it = conn->pending_receives.find(imm);
                 if (it != conn->pending_receives.end()) {
-                  dest_buf = std::move(it->second);
+                  dest_buf = it->second;
                   conn->pending_receives.erase(it);
                 }
               }
@@ -716,12 +713,12 @@ private:
               serializer_.deserialize(*buf, offset, header);
 
               if (header.type == PacketType::MSG_PREPARE) {
-                auto dest_buf = create_roce_buffer(header.msg_length);
+                auto dest_buf = buffer_pool_->get_buffer(header.msg_length);
                 dest_buf->resize(header.msg_length);
 
                 {
                   std::lock_guard<std::mutex> lock(conn->mutex);
-                  conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = std::move(dest_buf);
+                  conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
                 }
 
                 RoceBuffer *send_buf = nullptr;
@@ -770,12 +767,12 @@ private:
                 buf->read(offset, remote_addr);
                 buf->read(offset, rkey);
 
-                RoceBuffer *source_buf = nullptr;
+                PooledRoceBuffer source_buf;
                 {
                   std::lock_guard<std::mutex> lock(conn->mutex);
                   auto it = conn->pending_sends.find(header.msg_serial_id);
                   if (it != conn->pending_sends.end())
-                    source_buf = it->second.get();
+                    source_buf = it->second;
                 }
 
                 if (source_buf) {
@@ -912,7 +909,7 @@ private:
                               modify_qp_to_rts(conn->qp, peer_info, my_psn);
 
                               for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-                                auto buf = create_roce_buffer(ROCE_BUFFER_SIZE);
+                                auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
                                 buf->resize(ROCE_BUFFER_SIZE);
                                 post_recv_buffer(conn->qp, buf.get());
                                 conn->recv_buffers.push_back(std::move(buf));
