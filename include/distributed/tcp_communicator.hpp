@@ -115,7 +115,10 @@ public:
     }
   }
 
-  void set_use_gpu(bool flag) { serializer_.set_use_gpu(flag); }
+  void set_use_gpu(bool flag) {
+    use_gpu_ = flag;
+    serializer_.set_use_gpu(flag);
+  }
 
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     try {
@@ -141,7 +144,9 @@ public:
     lock.unlock();
   }
 
-  IAllocator &get_allocator() override { return PoolAllocator::instance(getCPU()); }
+  IAllocator &get_allocator() override {
+    return PoolAllocator::instance(use_gpu_ ? getGPU() : getCPU());
+  }
 
   bool connect_to_endpoint(const Endpoint &endpoint) override {
     try {
@@ -235,6 +240,7 @@ private:
   std::thread pool_thread_;
   uint32_t skts_per_endpoint_;
   uint32_t max_packet_size_;
+  bool use_gpu_ = false;
   BinarySerializer serializer_;
 
   std::atomic<bool> is_running_;
