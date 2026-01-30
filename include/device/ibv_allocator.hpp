@@ -9,7 +9,9 @@
 #include "device/allocator.hpp"
 #include "device/dptr.hpp"
 
+#include <cerrno>
 #include <cstddef>
+#include <cstring>
 #include <infiniband/verbs.h>
 #include <map>
 #include <memory>
@@ -27,7 +29,7 @@ namespace tnn {
 class IbvAllocator : public IAllocator {
 public:
   IbvAllocator(const Device &device, ibv_pd *pd, size_t slab_size)
-      : device_(device), pd_(pd), slab_size_(slab_size), allocated_(0) {
+      : device_(device), pd_(pd), slab_size_(slab_size), allocated_(0), using_host_memory_(false) {
     if (!pd_) {
       throw std::invalid_argument("Protection Domain cannot be null");
     }
@@ -35,25 +37,52 @@ public:
       throw std::invalid_argument("Slab size must be greater than 0");
     }
 
-    // Allocate the master slab on the device (GPU for GPU Direct RDMA)
+    int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
+
+    // Try GPU Direct RDMA first (allocate on device and register with InfiniBand)
     slab_ptr_ = device_.allocateAlignedMemory(slab_size_, DEFAULT_ALIGNMENT);
     if (!slab_ptr_) {
       throw std::runtime_error("Failed to allocate master slab");
     }
 
-    // Register the slab with InfiniBand
-    // For GPU Direct RDMA, this registers GPU memory with the IB adapter
-    int access_flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
     slab_mr_ = ibv_reg_mr(pd_, slab_ptr_, slab_size_, access_flags);
     if (!slab_mr_) {
-      device_.deallocateAlignedMemory(slab_ptr_);
-      throw std::runtime_error("Failed to register master slab with InfiniBand");
-    }
-
+      int err = errno;
 #ifndef NDEBUG
-    std::cout << "IbvAllocator: Registered master slab of " << slab_size_ << " bytes at "
-              << slab_ptr_ << " with lkey=" << slab_mr_->lkey << "\n";
+      std::cout << "IbvAllocator: GPU Direct RDMA registration failed: " << std::strerror(err)
+                << " (errno=" << err << "). Falling back to host pinned memory.\n";
 #endif
+      // Free GPU memory
+      device_.deallocateAlignedMemory(slab_ptr_);
+      slab_ptr_ = nullptr;
+
+      // Fallback to host pinned memory
+      if (posix_memalign(&slab_ptr_, DEFAULT_ALIGNMENT, slab_size_) != 0) {
+        throw std::runtime_error("Failed to allocate host pinned memory");
+      }
+
+      // Register host memory with InfiniBand
+      slab_mr_ = ibv_reg_mr(pd_, slab_ptr_, slab_size_, access_flags);
+      if (!slab_mr_) {
+        err = errno;
+        free(slab_ptr_);
+        slab_ptr_ = nullptr;
+        throw std::runtime_error(
+            "Failed to register host memory with InfiniBand: " + std::string(std::strerror(err)) +
+            " (errno=" + std::to_string(err) + ")");
+      }
+
+      using_host_memory_ = true;
+#ifndef NDEBUG
+      std::cout << "IbvAllocator: Successfully registered host pinned memory of " << slab_size_
+                << " bytes at " << slab_ptr_ << " with lkey=" << slab_mr_->lkey << "\n";
+#endif
+    } else {
+#ifndef NDEBUG
+      std::cout << "IbvAllocator: Registered GPU memory slab of " << slab_size_ << " bytes at "
+                << slab_ptr_ << " with lkey=" << slab_mr_->lkey << " (GPU Direct RDMA)\n";
+#endif
+    }
   }
 
   ~IbvAllocator() {
@@ -67,7 +96,11 @@ public:
 
     // Free the master slab
     if (slab_ptr_) {
-      device_.deallocateAlignedMemory(slab_ptr_);
+      if (using_host_memory_) {
+        free(slab_ptr_);
+      } else {
+        device_.deallocateAlignedMemory(slab_ptr_);
+      }
       slab_ptr_ = nullptr;
     }
 
@@ -160,6 +193,8 @@ public:
 
   uint32_t get_rkey() const { return slab_mr_ ? slab_mr_->rkey : 0; }
 
+  bool is_using_host_memory() const { return using_host_memory_; }
+
   struct ibv_mr_info {
     ibv_mr *mr;
     size_t offset;
@@ -183,6 +218,7 @@ private:
   void *slab_ptr_;
   size_t slab_size_;
   size_t allocated_;
+  bool using_host_memory_;
   mutable std::mutex mutex_;
 
   dptr create_dptr(size_t offset, size_t size) {

@@ -98,7 +98,7 @@ private:
 
 public:
   explicit RoceCommunicator(const Endpoint &endpoint, const Device *device,
-                            size_t slab_size = 512 * 1024 * 1024)
+                            size_t slab_size = 128 * 1024 * 1024)
       : Communicator(endpoint), acceptor_(io_context_), device_(device) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
