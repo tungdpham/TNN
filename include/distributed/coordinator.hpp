@@ -192,12 +192,13 @@ public:
           Job &job = forward_msg.get<Job>();
           Tensor &predictions = job.data;
           Tensor &targets = microbatch_labels[job.mb_id];
+          Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
-          criterion->compute_loss(predictions, targets, loss);
+          criterion->compute_loss(predictions, device_targets, loss);
           total_loss += loss;
-          Tensor gradient = Tensor::create_pooled(PoolAllocator::instance(getCPU()),
+          Tensor gradient = Tensor::create_pooled(PoolAllocator::instance(*predictions->device()),
                                                   predictions->data_type(), predictions->shape());
-          criterion->compute_gradient(predictions, targets, gradient);
+          criterion->compute_gradient(predictions, device_targets, gradient);
           this->backward(std::move(gradient), job.mb_id);
         }
       }

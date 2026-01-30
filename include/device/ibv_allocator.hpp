@@ -22,11 +22,7 @@
 namespace tnn {
 
 // InfiniBand Verbs allocator that manages a large master slab and slices it into individual
-// buffers for tensor data. Supports GPU Direct RDMA for efficient data transfer between GPU
-// and InfiniBand adapters without involving the CPU.
-//
-// The allocator registers a large contiguous memory region (slab) with InfiniBand and
-// distributes sub-regions as dptrs. Each dptr has a custom deleter that returns the memory
+// buffers (dptrs) for tensor data. Each dptr has a custom deleter that returns the memory
 // back to the allocator's free list.
 class IbvAllocator : public IAllocator {
 public:
@@ -99,11 +95,9 @@ public:
 
     std::lock_guard<std::mutex> lock(mutex_);
 
-    // Try to find a suitable free block
     auto it = free_blocks_.lower_bound(size);
 
     if (it != free_blocks_.end()) {
-      // Found a suitable free block
       size_t offset = it->second;
       size_t block_size = it->first;
       free_blocks_.erase(it);
@@ -116,7 +110,6 @@ public:
       return create_dptr(offset, block_size);
     }
 
-    // No suitable free block found, allocate from the slab
     if (allocated_ + size > slab_size_) {
       throw std::runtime_error("IbvAllocator: Out of memory in master slab");
     }
@@ -167,7 +160,6 @@ public:
 
   uint32_t get_rkey() const { return slab_mr_ ? slab_mr_->rkey : 0; }
 
-  // Get the memory region for a specific dptr (for RDMA operations)
   struct ibv_mr_info {
     ibv_mr *mr;
     size_t offset;
@@ -176,7 +168,6 @@ public:
   };
 
   ibv_mr_info get_mr_info(const dptr &ptr) const {
-    // Calculate offset from the slab base
     const void *ptr_addr = ptr.get<void>();
     size_t offset =
         static_cast<const uint8_t *>(ptr_addr) - static_cast<const uint8_t *>(slab_ptr_);
@@ -195,22 +186,17 @@ private:
   mutable std::mutex mutex_;
 
   dptr create_dptr(size_t offset, size_t size) {
-    // Create a device_storage that points to a slice of the master slab
-    // The storage doesn't own the memory (ptr is managed by the allocator)
-    // but we need to track it for reclamation
     auto *storage_info = new slab_storage_info{this, offset, size};
 
     void *slice_ptr = static_cast<uint8_t *>(slab_ptr_) + offset;
     auto storage = std::shared_ptr<device_storage>(
         new device_storage(&device_, slice_ptr, size, DEFAULT_ALIGNMENT),
         [storage_info](device_storage *storage) {
-          // Custom deleter: return the block to the allocator's free list
+          // custom deleter to reclaim memory back to the allocator
           if (storage_info && storage_info->allocator) {
             storage_info->allocator->reclaim(storage_info->offset, storage_info->size);
           }
           delete storage_info;
-          // Don't deallocate the memory - it's part of the master slab
-          // Just delete the storage metadata
           storage->ptr = nullptr; // Prevent device_storage destructor from freeing
           delete storage;
         });

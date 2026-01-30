@@ -132,7 +132,7 @@ private:
   }
 };
 
-WriteQueue &WriteHandle::queue() { return conn_->write_queue_; }
-void WriteHandle::release() { conn_->release_write(); }
+inline WriteQueue &WriteHandle::queue() { return conn_->write_queue_; }
+inline void WriteHandle::release() { conn_->release_write(); }
 
 } // namespace tnn

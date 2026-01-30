@@ -5,8 +5,14 @@
  * project root for the full license text.
  */
 
+#include "distributed/binary_serializer.hpp"
 #include "distributed/job.hpp"
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 
-namespace tnn {} // namespace tnn
+namespace tnn {
+
+// Static member variable definition
+bool BinarySerializer::deserialize_to_gpu_ = false;
+
+} // namespace tnn

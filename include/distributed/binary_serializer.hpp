@@ -49,7 +49,12 @@ concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t 
 };
 
 class BinarySerializer {
+private:
+  static bool deserialize_to_gpu_;
+
 public:
+  static void set_deserialize_to_gpu(bool flag) { deserialize_to_gpu_ = flag; }
+
   template <Buffer BufferType>
   static void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
     DType_t dtype = tensor->data_type();
@@ -178,7 +183,8 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    tensor = Tensor::create_pooled(PoolAllocator::instance(getCPU()), dtype,
+    auto &device = deserialize_to_gpu_ ? getGPU() : getCPU();
+    tensor = Tensor::create_pooled(PoolAllocator::instance(device), dtype,
                                    std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       auto &dptr = tensor->data_ptr();

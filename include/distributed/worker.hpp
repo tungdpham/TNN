@@ -6,15 +6,15 @@
  */
 #pragma once
 
+#include "communicator.hpp"
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
+#include "distributed/binary_serializer.hpp"
 #include "distributed/command_type.hpp"
-#include "nn/optimizers.hpp"
-#include "nn/sequential.hpp"
-
-#include "communicator.hpp"
 #include "job.hpp"
 #include "message.hpp"
+#include "nn/optimizers.hpp"
+#include "nn/sequential.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
@@ -87,6 +87,7 @@ public:
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
+    BinarySerializer::set_deserialize_to_gpu(use_gpu_);
     this->model_->init();
     this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
     this->model_->enable_profiling(true);

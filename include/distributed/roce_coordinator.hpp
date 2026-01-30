@@ -7,7 +7,6 @@
 #pragma once
 
 #include "coordinator.hpp"
-#include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
