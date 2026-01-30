@@ -13,6 +13,9 @@
 #include "communicator.hpp"
 #include "connection.hpp"
 #include "connection_group.hpp"
+#include "device/allocator.hpp"
+#include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/fragmenter.hpp"
 #include "io_context_pool.hpp"
@@ -137,6 +140,8 @@ public:
 
     lock.unlock();
   }
+
+  IAllocator &get_allocator() override { return PoolAllocator::instance(getCPU()); }
 
   bool connect_to_endpoint(const Endpoint &endpoint) override {
     try {

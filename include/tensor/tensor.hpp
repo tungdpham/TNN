@@ -829,6 +829,32 @@ public:
     this->data_ = allocator_.allocate(this->data_size_ * sizeof(T));
   }
 
+  void ensure(const std::vector<size_t> &new_shape) override {
+    size_t new_size =
+        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
+    if (new_size > this->data_.capacity() / sizeof(T)) {
+      // Reallocate using the allocator
+      this->data_ = allocator_.allocate(new_size * sizeof(T));
+    }
+    this->data_size_ = new_size;
+    this->shape_ = new_shape;
+  }
+
+  void resize(const std::vector<size_t> &new_shape) override {
+    if (new_shape == this->shape_) {
+      return;
+    }
+
+    size_t new_size =
+        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
+    if (new_size > this->data_.capacity() / sizeof(T)) {
+      // Reallocate using the allocator
+      this->data_ = allocator_.allocate(new_size * sizeof(T));
+    }
+    this->data_size_ = new_size;
+    this->shape_ = new_shape;
+  }
+
 private:
   IAllocator &allocator_;
 };

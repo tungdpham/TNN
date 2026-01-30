@@ -76,14 +76,14 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
   compute_max_size(input->shape(), input->data_type());
 
   Tensor current_input = input;
+  Tensor current_output = nullptr;
   for (size_t i = 0; i < layers_.size(); ++i) {
     try {
       auto start = Clock::now();
-      output = nullptr;
-      output = this->get_buffer(layers_[i]->compute_output_shape(current_input->shape()),
-                                input->data_type());
-      layers_[i]->forward(current_input, output, mb_id);
-      current_input = output;
+      current_output = this->get_buffer(layers_[i]->compute_output_shape(current_input->shape()),
+                                        input->data_type());
+      layers_[i]->forward(current_input, current_output, mb_id);
+      current_input = current_output;
       auto end = Clock::now();
       this->profiler_.add_event(
           Event{EventType::COMPUTE, start, end, layers_[i]->name() + " forward"});
@@ -92,6 +92,7 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
                                layers_[i]->name() + "): " + e.what());
     }
   }
+  current_output->copy_to(output);
   this->device_->getFlow("default")->synchronize();
   auto end = Clock::now();
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
@@ -103,14 +104,14 @@ void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
   }
   auto start = Clock::now();
   Tensor current_gradient = gradient;
-  grad_input = nullptr;
-  grad_input = this->get_buffer({max_size_}, gradient->data_type());
+  Tensor current_grad_input = nullptr;
+  current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
   for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
     try {
       auto start = Clock::now();
       // no need to renew buffer since backward doesn't cache inputs
-      layers_[i]->backward(current_gradient, grad_input, mb_id);
-      std::swap(current_gradient, grad_input);
+      layers_[i]->backward(current_gradient, current_grad_input, mb_id);
+      std::swap(current_gradient, current_grad_input);
       auto end = Clock::now();
       this->profiler_.add_event(
           Event{EventType::COMPUTE, start, end, layers_[i]->name() + " backward"});
@@ -119,7 +120,7 @@ void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
                                layers_[i]->type() + "): " + e.what());
     }
   }
-  grad_input = current_gradient;
+  current_gradient->copy_to(grad_input);
   this->device_->getFlow("default")->synchronize();
   auto end = Clock::now();
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential backward"});

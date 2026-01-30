@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "device/allocator.hpp"
 #include "endpoint.hpp"
 #include "message.hpp"
 #include "message_map.hpp"
@@ -157,6 +158,8 @@ public:
     std::lock_guard<std::mutex> lock(profile_mutex_);
     profile_data_.clear();
   }
+
+  virtual IAllocator &get_allocator() = 0;
 
 protected:
   virtual void send_impl(Message &&message, const Endpoint &endpoint) = 0;

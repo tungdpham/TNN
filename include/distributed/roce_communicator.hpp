@@ -7,6 +7,7 @@
 #pragma once
 
 #include "communicator.hpp"
+#include "device/allocator.hpp"
 #include "device/ibv_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/packet.hpp"
@@ -244,6 +245,8 @@ public:
       out_message_queue_.pop();
     }
   }
+
+  IAllocator &get_allocator() override { return *ibv_allocator_; }
 
 protected:
   bool connect_to_endpoint(const Endpoint &endpoint) override {

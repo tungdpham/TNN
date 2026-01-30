@@ -7,8 +7,8 @@
 #pragma once
 
 #include "communicator.hpp"
+#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
-#include "device/pool_allocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
 #include "message.hpp"
@@ -18,6 +18,7 @@
 #include "profiling/profiler.hpp"
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
+#include "type/type.hpp"
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
@@ -113,9 +114,12 @@ protected:
     case CommandType::FORWARD_JOB: {
       auto forward_start = std::chrono::system_clock::now();
       const Job &forward_job = message.get<Job>();
-      Tensor output_tensor = Tensor::create_pooled(
-          PoolAllocator::instance(*model_->get_device()), forward_job.data->data_type(),
-          this->model_->compute_output_shape(forward_job.data->shape()));
+
+      IAllocator &out_allocator = communicator_->get_allocator();
+      DType_t input_dtype = forward_job.data->data_type();
+      auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
+      Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
+
       this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
       Job output(output_tensor, forward_job.mb_id);
       auto forward_end = std::chrono::system_clock::now();
@@ -127,9 +131,10 @@ protected:
     case CommandType::BACKWARD_JOB: {
       auto backward_start = std::chrono::system_clock::now();
       const Job &backward_job = message.get<Job>();
+      IAllocator &out_allocator = communicator_->get_allocator();
       Tensor output_tensor =
-          Tensor::create_pooled(PoolAllocator::instance(*model_->get_device()),
-                                backward_job.data->data_type(), backward_job.data->shape());
+          Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
+
       this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
       Job output(output_tensor, backward_job.mb_id);
       auto backward_end = std::chrono::system_clock::now();
