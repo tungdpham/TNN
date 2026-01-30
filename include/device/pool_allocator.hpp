@@ -1,6 +1,7 @@
 #pragma once
 
-#include "device/device_ptr.hpp"
+#include "device/allocator.hpp"
+#include "device/dptr.hpp"
 
 #include <cstddef>
 #include <map>
@@ -11,26 +12,26 @@
 
 namespace tnn {
 
-class MemPool {
+class PoolAllocator : public IAllocator {
 public:
-  MemPool(const Device &device) : device_(device) {}
-  ~MemPool() = default;
+  PoolAllocator(const Device &device) : device_(device) {}
+  ~PoolAllocator() = default;
 
-  MemPool(const MemPool &) = delete;
-  MemPool &operator=(const MemPool &) = delete;
+  PoolAllocator(const PoolAllocator &) = delete;
+  PoolAllocator &operator=(const PoolAllocator &) = delete;
 
-  static MemPool &instance(const Device &device) {
+  static PoolAllocator &instance(const Device &device) {
     static std::mutex registry_mutex;
-    static std::map<const Device *, std::unique_ptr<MemPool>> instances;
+    static std::map<const Device *, std::unique_ptr<PoolAllocator>> instances;
     std::lock_guard<std::mutex> lock(registry_mutex);
     auto &pool = instances[&device];
     if (!pool) {
-      pool = std::make_unique<MemPool>(device);
+      pool = std::make_unique<PoolAllocator>(device);
     }
     return *pool;
   }
 
-  device_ptr get(size_t size) {
+  dptr allocate(size_t size) override {
     if (size == 0) {
       return make_dptr(&device_, 0);
     }
@@ -40,20 +41,20 @@ public:
     auto it = free_blocks_.lower_bound(size);
 
     while (it != free_blocks_.end()) {
-      device_ptr block = std::move(it->second);
+      dptr block = std::move(it->second);
       free_blocks_.erase(it);
       return block;
       ++it;
     }
 #ifndef NDEBUG
     if (size > 0)
-      std::cout << "MemPool: Allocating new tensor of size " << size << " bytes.\n";
+      std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
 #endif
 
     return make_dptr(&device_, size);
   }
 
-  void release(device_ptr &&ptr) {
+  void deallocate(dptr &&ptr) override {
     std::lock_guard<std::mutex> lock(mutex_);
     size_t byte_size = ptr.capacity();
     if (byte_size == 0) {
@@ -84,7 +85,7 @@ public:
   const Device &device() const { return device_; }
 
 private:
-  std::multimap<size_t, device_ptr> free_blocks_;
+  std::multimap<size_t, dptr> free_blocks_;
   const Device &device_;
   mutable std::mutex mutex_;
 };

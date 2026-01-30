@@ -6,7 +6,7 @@
  */
 
 #include "device/device_manager.hpp"
-#include "device/device_ptr.hpp"
+#include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
@@ -91,12 +91,12 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
       input_data.data(), running_mean.data(), running_var.data(), gamma.data(), beta.data(),
       cpu_output.data(), batch_size, channels, spatial_size, epsilon, affine);
 
-  device_ptr gpu_input = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_running_mean = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_running_var = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_gamma = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_beta = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_output = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_input = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_running_mean = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_running_var = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_gamma = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_beta = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_output = make_dptr_t<float[]>(gpu_device_, total_size);
 
   gpu_device_->copyToDevice(gpu_input.get<float>(), input_data.data(), total_size * sizeof(float));
   gpu_device_->copyToDevice(gpu_running_mean.get<float>(), running_mean.data(),
@@ -150,13 +150,13 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedAffine) {
                                           cpu_beta_grad.data(), cpu_grad_input.data(), batch_size,
                                           channels, spatial_size, affine);
 
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_normalized = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_std = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_gamma = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_grad_input = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_gamma_grad = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_beta_grad = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_normalized = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_std = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_gamma = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_grad_input = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_gamma_grad = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_beta_grad = make_dptr_t<float[]>(gpu_device_, channels);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             total_size * sizeof(float));
@@ -226,14 +226,14 @@ TEST_F(CUDABatchNormOpsTest, BackwardFusedNoAffine) {
       cpu_d_gamma_grad.data(), cpu_d_beta_grad.data(), cpu_grad_input.data(), batch_size, channels,
       spatial_size, affine);
 
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_normalized = make_dptr_t<float[]>(gpu_device_, total_size);
-  device_ptr gpu_inv_std = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_grad_input = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_normalized = make_dptr_t<float[]>(gpu_device_, total_size);
+  dptr gpu_inv_std = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_grad_input = make_dptr_t<float[]>(gpu_device_, total_size);
 
-  device_ptr gpu_dummy_gamma = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_dummy_gamma_grad = make_dptr_t<float[]>(gpu_device_, channels);
-  device_ptr gpu_dummy_beta_grad = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_dummy_gamma = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_dummy_gamma_grad = make_dptr_t<float[]>(gpu_device_, channels);
+  dptr gpu_dummy_beta_grad = make_dptr_t<float[]>(gpu_device_, channels);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             total_size * sizeof(float));

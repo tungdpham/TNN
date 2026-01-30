@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "device/mem_pool.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
@@ -195,7 +195,7 @@ public:
           float loss = 0.0f;
           criterion->compute_loss(predictions, targets, loss);
           total_loss += loss;
-          Tensor gradient = Tensor::create_pooled(MemPool::instance(getCPU()),
+          Tensor gradient = Tensor::create_pooled(PoolAllocator::instance(getCPU()),
                                                   predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, targets, gradient);
           this->backward(std::move(gradient), job.mb_id);

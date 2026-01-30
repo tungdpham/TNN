@@ -1,6 +1,6 @@
 #pragma once
 
-#include "device/device_ptr.hpp"
+#include "device/dptr.hpp"
 #include "ops/cpu/kernels.hpp"
 #ifdef USE_CUDA
 #include "ops/cuda/kernels.hpp"
@@ -15,7 +15,7 @@ namespace tnn {
 namespace ops {
 
 template <typename T>
-std::unique_ptr<Task> add(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> add(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("add: Device pointer has no associated device");
@@ -40,7 +40,7 @@ std::unique_ptr<Task> add(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> sub(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> sub(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("sub: Device pointer has no associated device");
@@ -66,7 +66,7 @@ std::unique_ptr<Task> sub(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> mul(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> mul(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("mul: Device pointer has no associated device");
@@ -92,7 +92,7 @@ std::unique_ptr<Task> mul(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> div(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> div(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("div: Device pointer has no associated device");
@@ -118,7 +118,7 @@ std::unique_ptr<Task> div(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> fmadd(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> fmadd(dptr_view a, dptr_view b, dptr_view c, size_t size,
                             const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("fmadd: Device pointer has no associated device");
@@ -144,7 +144,7 @@ std::unique_ptr<Task> fmadd(const device_ptr &a, const device_ptr &b, device_ptr
 }
 
 template <typename T>
-std::unique_ptr<Task> fmsub(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> fmsub(dptr_view a, dptr_view b, dptr_view c, size_t size,
                             const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("fmsub: Device pointer has no associated device");
@@ -170,7 +170,7 @@ std::unique_ptr<Task> fmsub(const device_ptr &a, const device_ptr &b, device_ptr
 }
 
 template <typename T>
-std::unique_ptr<Task> fnmadd(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> fnmadd(dptr_view a, dptr_view b, dptr_view c, size_t size,
                              const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("fnmadd: Device pointer has no associated device");
@@ -197,7 +197,7 @@ std::unique_ptr<Task> fnmadd(const device_ptr &a, const device_ptr &b, device_pt
 }
 
 template <typename T>
-std::unique_ptr<Task> add_scalar(const device_ptr &a, T scalar, device_ptr &c, size_t size,
+std::unique_ptr<Task> add_scalar(dptr_view a, T scalar, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("add_scalar: Device pointer has no associated device");
@@ -224,7 +224,7 @@ std::unique_ptr<Task> add_scalar(const device_ptr &a, T scalar, device_ptr &c, s
 }
 
 template <typename T>
-std::unique_ptr<Task> sub_scalar(const device_ptr &a, T scalar, device_ptr &c, size_t size,
+std::unique_ptr<Task> sub_scalar(dptr_view a, T scalar, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("sub_scalar: Device pointer has no associated device");
@@ -251,7 +251,7 @@ std::unique_ptr<Task> sub_scalar(const device_ptr &a, T scalar, device_ptr &c, s
 }
 
 template <typename T>
-std::unique_ptr<Task> mul_scalar(const device_ptr &a, T scalar, device_ptr &c, size_t size,
+std::unique_ptr<Task> mul_scalar(dptr_view a, T scalar, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("mul_scalar: Device pointer has no associated device");
@@ -279,7 +279,7 @@ std::unique_ptr<Task> mul_scalar(const device_ptr &a, T scalar, device_ptr &c, s
 }
 
 template <typename T>
-std::unique_ptr<Task> div_scalar(const device_ptr &a, T scalar, device_ptr &c, size_t size,
+std::unique_ptr<Task> div_scalar(dptr_view a, T scalar, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("div_scalar: Device pointer has no associated device");
@@ -306,7 +306,7 @@ std::unique_ptr<Task> div_scalar(const device_ptr &a, T scalar, device_ptr &c, s
 }
 
 template <typename T>
-std::unique_ptr<Task> set_scalar(device_ptr &c, T scalar, size_t size,
+std::unique_ptr<Task> set_scalar(dptr_view c, T scalar, size_t size,
                                  const std::string &flow_id = "default") {
   if (!c.getDevice()) {
     throw std::runtime_error("set_scalar: Device pointer has no associated device");
@@ -329,7 +329,7 @@ std::unique_ptr<Task> set_scalar(device_ptr &c, T scalar, size_t size,
 }
 
 template <typename T>
-std::unique_ptr<Task> axpy(T alpha, const device_ptr &x, device_ptr &y, size_t size,
+std::unique_ptr<Task> axpy(T alpha, dptr_view x, dptr_view y, size_t size,
                            const std::string &flow_id = "default") {
   if (!x.getDevice() || !y.getDevice()) {
     throw std::runtime_error("axpy: Device pointer has no associated device");
@@ -355,7 +355,7 @@ std::unique_ptr<Task> axpy(T alpha, const device_ptr &x, device_ptr &y, size_t s
 }
 
 template <typename T>
-std::unique_ptr<Task> sqrt(const device_ptr &a, device_ptr &c, size_t size,
+std::unique_ptr<Task> sqrt(dptr_view a, dptr_view c, size_t size,
                            const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("sqrt: Device pointer has no associated device");
@@ -381,7 +381,7 @@ std::unique_ptr<Task> sqrt(const device_ptr &a, device_ptr &c, size_t size,
 }
 
 template <typename T>
-inline std::unique_ptr<Task> rsqrt(const device_ptr &a, device_ptr &c, size_t size,
+inline std::unique_ptr<Task> rsqrt(dptr_view a, dptr_view c, size_t size,
                                    const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("rsqrt: Device pointer has no associated device");
@@ -407,7 +407,7 @@ inline std::unique_ptr<Task> rsqrt(const device_ptr &a, device_ptr &c, size_t si
 }
 
 template <typename T>
-inline std::unique_ptr<Task> rcp(const device_ptr &a, device_ptr &c, size_t size,
+inline std::unique_ptr<Task> rcp(dptr_view a, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("rcp: Device pointer has no associated device");
@@ -433,7 +433,7 @@ inline std::unique_ptr<Task> rcp(const device_ptr &a, device_ptr &c, size_t size
 }
 
 template <typename T>
-std::unique_ptr<Task> abs(const device_ptr &a, device_ptr &c, size_t size,
+std::unique_ptr<Task> abs(dptr_view a, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("abs: Device pointer has no associated device");
@@ -459,7 +459,7 @@ std::unique_ptr<Task> abs(const device_ptr &a, device_ptr &c, size_t size,
 }
 
 template <typename T>
-std::unique_ptr<Task> min(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> min(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("min: Device pointer has no associated device");
@@ -485,7 +485,7 @@ std::unique_ptr<Task> min(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> max(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> max(dptr_view a, dptr_view b, dptr_view c, size_t size,
                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("max: Device pointer has no associated device");
@@ -511,7 +511,7 @@ std::unique_ptr<Task> max(const device_ptr &a, const device_ptr &b, device_ptr &
 }
 
 template <typename T>
-std::unique_ptr<Task> scalar_max(const device_ptr &a, T scalar, device_ptr &c, size_t size,
+std::unique_ptr<Task> scalar_max(dptr_view a, T scalar, dptr_view c, size_t size,
                                  const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("scalar_max: Device pointer has no associated device");
@@ -538,7 +538,7 @@ std::unique_ptr<Task> scalar_max(const device_ptr &a, T scalar, device_ptr &c, s
 }
 
 template <typename T>
-std::unique_ptr<Task> clamp(const device_ptr &a, T min_val, T max_val, device_ptr &c, size_t size,
+std::unique_ptr<Task> clamp(dptr_view a, T min_val, T max_val, dptr_view c, size_t size,
                             const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("clamp: Device pointer has no associated device");
@@ -565,7 +565,7 @@ std::unique_ptr<Task> clamp(const device_ptr &a, T min_val, T max_val, device_pt
 }
 
 template <typename T>
-std::unique_ptr<Task> equal(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> equal(dptr_view a, dptr_view b, dptr_view c, size_t size,
                             const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("equal: Device pointer has no associated device");
@@ -591,7 +591,7 @@ std::unique_ptr<Task> equal(const device_ptr &a, const device_ptr &b, device_ptr
 }
 
 template <typename T>
-std::unique_ptr<Task> greater(const device_ptr &a, const device_ptr &b, device_ptr &c, size_t size,
+std::unique_ptr<Task> greater(dptr_view a, dptr_view b, dptr_view c, size_t size,
                               const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
     throw std::runtime_error("greater: Device pointer has no associated device");
@@ -618,8 +618,8 @@ std::unique_ptr<Task> greater(const device_ptr &a, const device_ptr &b, device_p
 }
 
 template <typename T>
-std::unique_ptr<Task> copy(const device_ptr &a, device_ptr &c, size_t size, size_t a_offset = 0,
-                           size_t c_offset = 0, const std::string &flow_id = "default") {
+std::unique_ptr<Task> copy(dptr_view a, dptr_view c, size_t size,
+                           const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("copy: Device pointer has no associated device");
   }
@@ -635,13 +635,11 @@ std::unique_ptr<Task> copy(const device_ptr &a, device_ptr &c, size_t size, size
   auto device_type = device->device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::copy<T>, a.get<T>() + a_offset, c.get<T>() + c_offset,
-                           size);
+    return create_cpu_task(flow_id, cpu::copy<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_copy<T>, a.get<T>() + a_offset,
-                            c.get<T>() + c_offset, size);
+    return create_cuda_task(flow_id, cuda::cuda_copy<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -651,8 +649,8 @@ std::unique_ptr<Task> copy(const device_ptr &a, device_ptr &c, size_t size, size
 
 // Special copy for copying cross devices (resort to same device/host copy if applicable)
 template <typename T>
-std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, size_t a_offset = 0,
-                              size_t c_offset = 0, const std::string &flow_id = "default") {
+std::unique_ptr<Task> cd_copy(dptr_view a, dptr_view c, size_t size,
+                              const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("cd_copy: Device pointer has no associated device");
   }
@@ -660,7 +658,7 @@ std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, s
   auto c_device = c.getDevice();
   if (a_device == c_device) {
     // same device copy
-    return copy<T>(a, c, size, a_offset, c_offset, flow_id);
+    return copy<T>(a, c, size, flow_id);
   }
   auto a_device_type = a_device->device_type();
   auto c_device_type = c_device->device_type();
@@ -668,16 +666,14 @@ std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, s
   if (a_device_type == DeviceType::CPU && c_device_type == DeviceType::GPU) {
     // host to device copy
 #ifdef USE_CUDA
-    return create_cuda_task(flow_id, cuda::cuda_h2d_copy<T>, a.get<T>() + a_offset,
-                            c.get<T>() + c_offset, size);
+    return create_cuda_task(flow_id, cuda::cuda_h2d_copy<T>, a.get<T>(), c.get<T>(), size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for CPU to GPU copy");
 #endif
   } else if (a_device_type == DeviceType::GPU && c_device_type == DeviceType::CPU) {
     // device to host copy
 #ifdef USE_CUDA
-    return create_cuda_task(flow_id, cuda::cuda_d2h_copy<T>, a.get<T>() + a_offset,
-                            c.get<T>() + c_offset, size);
+    return create_cuda_task(flow_id, cuda::cuda_d2h_copy<T>, a.get<T>(), c.get<T>(), size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for GPU to CPU copy");
 #endif
@@ -687,7 +683,7 @@ std::unique_ptr<Task> cd_copy(const device_ptr &a, device_ptr &c, size_t size, s
 }
 
 template <typename T>
-std::unique_ptr<Task> zero(device_ptr &c, size_t size, const std::string &flow_id = "default") {
+std::unique_ptr<Task> zero(dptr_view c, size_t size, const std::string &flow_id = "default") {
   if (!c.getDevice()) {
     throw std::runtime_error("zero: Device pointer has no associated device");
   }
@@ -708,7 +704,7 @@ std::unique_ptr<Task> zero(device_ptr &c, size_t size, const std::string &flow_i
   }
 }
 
-template <typename T> T sum(const device_ptr &a, size_t size) {
+template <typename T> T sum(dptr_view a, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("sum: Device pointer has no associated device");
   }
@@ -728,7 +724,7 @@ template <typename T> T sum(const device_ptr &a, size_t size) {
   }
 }
 
-template <typename T> T dot_product(const device_ptr &a, const device_ptr &b, size_t size) {
+template <typename T> T dot_product(dptr_view a, dptr_view b, size_t size) {
   if (!a.getDevice() || !b.getDevice()) {
     throw std::runtime_error("dot_product: Device pointer has no associated device");
   }
@@ -751,7 +747,7 @@ template <typename T> T dot_product(const device_ptr &a, const device_ptr &b, si
   }
 }
 
-template <typename T> T norm_squared(const device_ptr &a, size_t size) {
+template <typename T> T norm_squared(dptr_view a, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("norm_squared: Device pointer has no associated device");
   }
@@ -771,7 +767,7 @@ template <typename T> T norm_squared(const device_ptr &a, size_t size) {
   }
 }
 
-template <typename T> T sum_squared_diff(const device_ptr &a, T mean, size_t size) {
+template <typename T> T sum_squared_diff(dptr_view a, T mean, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
   }
@@ -792,7 +788,7 @@ template <typename T> T sum_squared_diff(const device_ptr &a, T mean, size_t siz
 }
 
 template <typename T>
-std::unique_ptr<Task> sub_mul_scalar(const device_ptr &a, T sub_scalar, T mul_scalar, device_ptr &c,
+std::unique_ptr<Task> sub_mul_scalar(dptr_view a, T sub_scalar, T mul_scalar, dptr_view c,
                                      size_t size, const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("sub_mul_scalar: Device pointer has no associated device");
@@ -820,7 +816,7 @@ std::unique_ptr<Task> sub_mul_scalar(const device_ptr &a, T sub_scalar, T mul_sc
 }
 
 template <typename T>
-std::unique_ptr<Task> mul_add_scalar(const device_ptr &a, T mul_scalar, T add_scalar, device_ptr &c,
+std::unique_ptr<Task> mul_add_scalar(dptr_view a, T mul_scalar, T add_scalar, dptr_view c,
                                      size_t size, const std::string &flow_id = "default") {
   if (!a.getDevice() || !c.getDevice()) {
     throw std::runtime_error("mul_add_scalar: Device pointer has no associated device");
@@ -848,7 +844,7 @@ std::unique_ptr<Task> mul_add_scalar(const device_ptr &a, T mul_scalar, T add_sc
 }
 
 template <typename T>
-std::unique_ptr<Task> fill_random_uniform(device_ptr &data, size_t size, T min_val, T max_val,
+std::unique_ptr<Task> fill_random_uniform(dptr_view data, size_t size, T min_val, T max_val,
                                           unsigned long long seed,
                                           const std::string &flow_id = "default") {
   if (!data.getDevice()) {
@@ -874,7 +870,7 @@ std::unique_ptr<Task> fill_random_uniform(device_ptr &data, size_t size, T min_v
 }
 
 template <typename T>
-std::unique_ptr<Task> fill_random_normal(device_ptr &data, size_t size, T mean, T stddev,
+std::unique_ptr<Task> fill_random_normal(dptr_view data, size_t size, T mean, T stddev,
                                          unsigned long long seed,
                                          const std::string &flow_id = "default") {
   if (!data.getDevice()) {
@@ -900,7 +896,7 @@ std::unique_ptr<Task> fill_random_normal(device_ptr &data, size_t size, T mean, 
 }
 
 template <typename A_T, typename B_T>
-std::unique_ptr<Task> cast(const device_ptr &a, device_ptr &b, size_t size,
+std::unique_ptr<Task> cast(dptr_view a, dptr_view b, size_t size,
                            const std::string &flow_id = "default") {
   if (!a.getDevice() || !b.getDevice()) {
     throw std::runtime_error("cast: Device pointer has no associated device");

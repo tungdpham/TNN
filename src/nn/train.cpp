@@ -6,7 +6,7 @@
  */
 
 #include "nn/train.hpp"
-#include "device/mem_pool.hpp"
+#include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
@@ -83,7 +83,7 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   int num_batches = 0;
   const Device *model_device = model->get_device();
 
-  MemPool &mem_pool = MemPool::instance(*model_device);
+  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device);
 
   Tensor device_labels = Tensor::create_pooled(mem_pool, config.dtype);
   Tensor loss_gradient = Tensor::create_pooled(mem_pool, model->get_io_dtype());
@@ -304,7 +304,7 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  MemPool &mem_pool = MemPool::instance(*model->get_device());
+  PoolAllocator &mem_pool = PoolAllocator::instance(*model->get_device());
   Tensor batch_data = Tensor::create_pooled(mem_pool, model->get_io_dtype()),
          batch_labels = Tensor::create_pooled(mem_pool, model->get_io_dtype());
 

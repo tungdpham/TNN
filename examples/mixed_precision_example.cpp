@@ -44,10 +44,10 @@ int main() {
   float value = (*typed_f32)(0, 0);     // Direct element access
   std::cout << "Option 2 - tensor_cast: First element = " << value << std::endl;
 
-  // Option 3: Access device_ptr through tensor_cast
-  device_ptr &dev_ptr = typed_f32->data_ptr();
+  // Option 3: Access dptr through tensor_cast
+  dptr &dev_ptr = typed_f32->data_ptr();
   float *from_dev_ptr = dev_ptr.get();
-  std::cout << "Option 3 - device_ptr: First element = " << from_dev_ptr[0] << std::endl;
+  std::cout << "Option 3 - dptr: First element = " << from_dev_ptr[0] << std::endl;
 
   // Modify data through typed tensor
   (*typed_f32)(0, 0) = 42.0f;

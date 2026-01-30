@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "device/device_ptr.hpp"
+#include "device/dptr.hpp"
 #include "endian.hpp"
 #include "threading/thread_handler.hpp"
 #include <algorithm>
@@ -180,7 +180,7 @@ public:
     offset += length * sizeof(T);
   }
 
-  inline void write(size_t &offset, const device_ptr &ptr, size_t length) {
+  inline void write(size_t &offset, const dptr &ptr, size_t length) {
     ensure_capacity(offset + length);
     ptr.copy_to_host(data_ + offset, length);
     if (offset + length > size_) {
@@ -225,7 +225,7 @@ public:
     offset += byte_size;
   }
 
-  inline void read(size_t &offset, device_ptr &ptr, size_t length) const {
+  inline void read(size_t &offset, dptr &ptr, size_t length) const {
     if (offset + length > size_) {
       throw std::out_of_range(get_out_of_bound_msg(offset + length));
     }

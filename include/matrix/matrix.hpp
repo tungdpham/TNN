@@ -23,7 +23,7 @@ template <typename T = float> struct Matrix {
 private:
   size_t rows_, cols_;
   const Device *device_;
-  device_ptr data_;
+  dptr data_;
 
   static constexpr size_t MKL_ALIGNMENT = 64;
   static constexpr size_t AVX2_ALIGNMENT = 32;
@@ -43,7 +43,7 @@ public:
     allocate_aligned(rows_ * cols_);
   }
 
-  Matrix(size_t rows, size_t cols, const device_ptr &data, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, const dptr &data, const Device *device = &getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
     if (data.get<T>() != nullptr) {
@@ -83,8 +83,8 @@ public:
 
   ~Matrix() {}
 
-  const T *data() const { return data_.get<T>(); }
-  T *data() { return data_.get<T>(); }
+  const T *data() const { return static_cast<const T *>(data_.get<T>()); }
+  T *data() { return static_cast<T *>(data_.get<T>()); }
 
   void fill(T value) { ops::set_scalar(data_, value, rows_ * cols_); }
 

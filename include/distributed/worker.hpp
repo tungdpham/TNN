@@ -7,7 +7,7 @@
 #pragma once
 
 #include "device/device_manager.hpp"
-#include "device/mem_pool.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/command_type.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
@@ -119,7 +119,7 @@ protected:
       auto forward_start = std::chrono::system_clock::now();
       const Job &forward_job = message.get<Job>();
       Tensor output_tensor = Tensor::create_pooled(
-          MemPool::instance(*model_->get_device()), forward_job.data->data_type(),
+          PoolAllocator::instance(*model_->get_device()), forward_job.data->data_type(),
           this->model_->compute_output_shape(forward_job.data->shape()));
       this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
       Job output(output_tensor, forward_job.mb_id);
@@ -133,7 +133,7 @@ protected:
       auto backward_start = std::chrono::system_clock::now();
       const Job &backward_job = message.get<Job>();
       Tensor output_tensor =
-          Tensor::create_pooled(MemPool::instance(*model_->get_device()),
+          Tensor::create_pooled(PoolAllocator::instance(*model_->get_device()),
                                 backward_job.data->data_type(), backward_job.data->shape());
       this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
       Job output(output_tensor, backward_job.mb_id);

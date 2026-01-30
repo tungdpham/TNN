@@ -6,7 +6,7 @@
  */
 
 #include "device/device_manager.hpp"
-#include "device/device_ptr.hpp"
+#include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/conv2d_nchw_ops.hpp"
@@ -90,9 +90,9 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsBasic) {
                                              out_channels);
 
   // GPU version
-  device_ptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
+  dptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
 
   gpu_device_->copyToDevice(gpu_col.get<float>(), col_data.data(), col_data.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
@@ -138,9 +138,9 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsMultiOutput) {
                                              out_channels);
 
   // GPU version
-  device_ptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
+  dptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
 
   gpu_device_->copyToDevice(gpu_col.get<float>(), col_data.data(), col_data.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
@@ -185,9 +185,9 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsLargeKernel) {
                                              out_channels);
 
   // GPU version
-  device_ptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
+  dptr gpu_col = make_dptr_t<float[]>(gpu_device_, col_data.size());
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_weight_grad = make_dptr_t<float[]>(gpu_device_, out_channels * kernel_size);
 
   gpu_device_->copyToDevice(gpu_col.get<float>(), col_data.data(), col_data.size() * sizeof(float));
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
@@ -234,9 +234,9 @@ TEST_F(CUDAConv2dOpsTest, InputGradientsBasic) {
                                             out_channels);
 
   // GPU version
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_weight = make_dptr_t<float[]>(gpu_device_, weight_data.size());
-  device_ptr gpu_col_grad = make_dptr_t<float[]>(gpu_device_, kernel_size * output_size);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_weight = make_dptr_t<float[]>(gpu_device_, weight_data.size());
+  dptr gpu_col_grad = make_dptr_t<float[]>(gpu_device_, kernel_size * output_size);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -282,9 +282,9 @@ TEST_F(CUDAConv2dOpsTest, InputGradientsLargeKernel) {
                                             out_channels);
 
   // GPU version
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_weight = make_dptr_t<float[]>(gpu_device_, weight_data.size());
-  device_ptr gpu_col_grad = make_dptr_t<float[]>(gpu_device_, kernel_size * output_size);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_weight = make_dptr_t<float[]>(gpu_device_, weight_data.size());
+  dptr gpu_col_grad = make_dptr_t<float[]>(gpu_device_, kernel_size * output_size);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -327,8 +327,8 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsBasic) {
                                            output_h, output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -367,8 +367,8 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsMultiBatch) {
                                            output_h, output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -407,8 +407,8 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsLargeChannels) {
                                            output_h, output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
-  device_ptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
+  dptr gpu_gradient = make_dptr_t<float[]>(gpu_device_, gradient_data.size());
+  dptr gpu_bias_grad = make_dptr_t<float[]>(gpu_device_, out_channels);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -454,8 +454,8 @@ TEST_F(CUDAConv2dOpsTest, AddBiasBasic) {
                                        output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
-  device_ptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
+  dptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
+  dptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
 
   gpu_device_->copyToDevice(gpu_output.get<float>(), output_data.data(),
                             output_data.size() * sizeof(float));
@@ -496,8 +496,8 @@ TEST_F(CUDAConv2dOpsTest, AddBiasMultiBatch) {
                                        output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
-  device_ptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
+  dptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
+  dptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
 
   gpu_device_->copyToDevice(gpu_output.get<float>(), output_data.data(),
                             output_data.size() * sizeof(float));
@@ -538,8 +538,8 @@ TEST_F(CUDAConv2dOpsTest, AddBiasLargeOutput) {
                                        output_w, out_channels);
 
   // GPU version
-  device_ptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
-  device_ptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
+  dptr gpu_output = make_dptr_t<float[]>(gpu_device_, output_data.size());
+  dptr gpu_bias = make_dptr_t<float[]>(gpu_device_, bias_data.size());
 
   gpu_device_->copyToDevice(gpu_output.get<float>(), output_data.data(),
                             output_data.size() * sizeof(float));

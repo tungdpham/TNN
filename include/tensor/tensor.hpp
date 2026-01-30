@@ -8,8 +8,8 @@
 
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
-#include "device/device_ptr.hpp"
-#include "device/mem_pool.hpp"
+#include "device/dptr.hpp"
+#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
@@ -109,8 +109,8 @@ public:
   }
   virtual void *data() = 0;
   virtual const void *data() const = 0;
-  virtual device_ptr &data_ptr() = 0;
-  virtual const device_ptr &data_ptr() const = 0;
+  virtual dptr &data_ptr() = 0;
+  virtual const dptr &data_ptr() const = 0;
 
   // Operations
   virtual void resize(const std::vector<size_t> &new_shape) = 0;
@@ -154,14 +154,14 @@ public:
   static Tensor create(std::vector<size_t> shape, const Device *device = &getCPU());
 
   template <typename T>
-  static Tensor create(std::vector<size_t> shape, const device_ptr &data,
+  static Tensor create(std::vector<size_t> shape, const dptr &data,
                        const Device *device = &getCPU());
 
   template <typename T>
   static Tensor create(std::initializer_list<size_t> shape = {}, const Device *device = &getCPU());
 
   template <typename T>
-  static Tensor create(std::initializer_list<size_t> shape, const device_ptr &data,
+  static Tensor create(std::initializer_list<size_t> shape, const dptr &data,
                        const Device *device = &getCPU());
 
   static Tensor create(DType_t dtype, std::vector<size_t> shape, const Device *device = &getCPU());
@@ -169,16 +169,17 @@ public:
   static Tensor create(DType_t dtype, std::initializer_list<size_t> shape = {},
                        const Device *device = &getCPU());
 
-  static Tensor create(DType_t dtype, device_ptr &&data, std::vector<size_t> shape);
-
-  template <typename T> static Tensor create_pooled(MemPool &mem_pool, std::vector<size_t> shape);
+  static Tensor create(DType_t dtype, dptr &&data, std::vector<size_t> shape);
 
   template <typename T>
-  static Tensor create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape = {});
+  static Tensor create_pooled(PoolAllocator &allocator, std::vector<size_t> shape);
 
-  static Tensor create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape);
+  template <typename T>
+  static Tensor create_pooled(PoolAllocator &allocator, std::initializer_list<size_t> shape = {});
 
-  static Tensor create_pooled(MemPool &mem_pool, DType_t dtype,
+  static Tensor create_pooled(PoolAllocator &allocator, DType_t dtype, std::vector<size_t> shape);
+
+  static Tensor create_pooled(PoolAllocator &allocator, DType_t dtype,
                               std::initializer_list<size_t> shape = {});
 
   template <typename T> static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
@@ -200,7 +201,7 @@ public:
 template <typename T = float> class TypedTensor : public ITensor {
 protected:
   size_t data_size_;
-  device_ptr data_;
+  dptr data_;
   std::vector<size_t> shape_;
 
   inline size_t compute_stride(size_t index) const {
@@ -231,9 +232,7 @@ protected:
     return index;
   }
 
-  device_ptr allocate_data(const Device *device, size_t size) {
-    return make_dptr_t<T>(device, size);
-  }
+  dptr allocate_data(const Device *device, size_t size) { return make_dptr_t<T>(device, size); }
 
 public:
   // Constructors and Destructor
@@ -251,7 +250,7 @@ public:
     data_ = allocate_data(device, data_size_);
   }
 
-  TypedTensor(std::initializer_list<size_t> shape_list, const device_ptr &data,
+  TypedTensor(std::initializer_list<size_t> shape_list, const dptr &data,
               const Device *device = &getCPU())
       : shape_(shape_list) {
     data_size_ =
@@ -269,7 +268,7 @@ public:
     data_ = allocate_data(device, data_size_);
   }
 
-  TypedTensor(std::vector<size_t> shape, const device_ptr &data, const Device *device = &getCPU())
+  TypedTensor(std::vector<size_t> shape, const dptr &data, const Device *device = &getCPU())
       : shape_(std::move(shape)) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
@@ -280,7 +279,7 @@ public:
   }
 
   ~TypedTensor() {
-    // data_ will be automatically released by device_ptr destructor
+    // data_ will be automatically released by dptr destructor
   }
 
   TypedTensor(const TypedTensor &other) : data_size_(other.data_size_), shape_(other.shape_) {
@@ -323,13 +322,13 @@ public:
   void *data() override { return static_cast<void *>(data_.get<T>()); }
   const void *data() const override { return static_cast<const void *>(data_.get<T>()); }
 
-  device_ptr &data_ptr() override { return data_; }
-  const device_ptr &data_ptr() const override { return data_; }
+  dptr &data_ptr() override { return data_; }
+  const dptr &data_ptr() const override { return data_; }
 
   // Operators
   TypedTensor<T> &operator=(const TypedTensor<T> &other) {
     if (this != &other) {
-      data_ = device_ptr(nullptr);
+      data_ = dptr(nullptr);
       data_size_ = other.data_size_;
       shape_ = other.shape_;
       data_ = allocate_data(other.device(), data_size_);
@@ -717,7 +716,7 @@ public:
     size_t src_offset = src_batch_idx * other.compute_stride(0);
     size_t dest_offset = dest_batch_idx * batch_stride;
 
-    ops::copy<T>(other.data_, data_, batch_stride, src_offset, dest_offset);
+    ops::copy<T>(other.data_ + src_offset, data_ + dest_offset, batch_stride);
   }
 
   double min() const override {
@@ -824,18 +823,18 @@ public:
   using TypedTensor<T>::TypedTensor;
 
   // ! Do not call default TypedTensor constructor with shape as that will allocate memory
-  PooledTypedTensor(MemPool &mem_pool, std::vector<size_t> shape)
-      : TypedTensor<T>(&mem_pool.device()), mem_pool_(mem_pool) {
+  PooledTypedTensor(PoolAllocator &allocator, std::vector<size_t> shape)
+      : TypedTensor<T>(&allocator.device()), allocator_(allocator) {
     this->shape_ = std::move(shape);
     this->data_size_ = std::accumulate(this->shape_.begin(), this->shape_.end(), size_t(1),
                                        std::multiplies<size_t>());
-    this->data_ = mem_pool_.get(this->data_size_ * sizeof(T));
+    this->data_ = allocator_.allocate(this->data_size_ * sizeof(T));
   }
 
-  ~PooledTypedTensor() override { mem_pool_.release(std::move(this->data_)); }
+  ~PooledTypedTensor() override { allocator_.deallocate(std::move(this->data_)); }
 
 private:
-  MemPool &mem_pool_;
+  PoolAllocator &allocator_;
 };
 
 template <typename T>
@@ -1017,8 +1016,7 @@ inline Tensor Tensor::create(std::vector<size_t> shape, const Device *device) {
 }
 
 template <typename T>
-inline Tensor Tensor::create(std::vector<size_t> shape, const device_ptr &data,
-                             const Device *device) {
+inline Tensor Tensor::create(std::vector<size_t> shape, const dptr &data, const Device *device) {
   return std::make_shared<TypedTensor<T>>(shape, data, device);
 }
 
@@ -1028,7 +1026,7 @@ inline Tensor Tensor::create(std::initializer_list<size_t> shape, const Device *
 }
 
 template <typename T>
-inline Tensor Tensor::create(std::initializer_list<size_t> shape, const device_ptr &data,
+inline Tensor Tensor::create(std::initializer_list<size_t> shape, const dptr &data,
                              const Device *device) {
   return std::make_shared<TypedTensor<T>>(shape, data, device);
 }
@@ -1064,7 +1062,7 @@ inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
   }
 }
 
-inline Tensor Tensor::create(DType_t dtype, device_ptr &&data, std::vector<size_t> shape) {
+inline Tensor Tensor::create(DType_t dtype, dptr &&data, std::vector<size_t> shape) {
   switch (dtype) {
   case DType_t::FP16:
     return create<fp16>(shape, std::move(data));
@@ -1080,41 +1078,42 @@ inline Tensor Tensor::create(DType_t dtype, device_ptr &&data, std::vector<size_
 }
 
 template <typename T>
-inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::vector<size_t> shape) {
-  return std::make_shared<PooledTypedTensor<T>>(mem_pool, shape);
+inline Tensor Tensor::create_pooled(PoolAllocator &allocator, std::vector<size_t> shape) {
+  return std::make_shared<PooledTypedTensor<T>>(allocator, shape);
 }
 
 template <typename T>
-inline Tensor Tensor::create_pooled(MemPool &mem_pool, std::initializer_list<size_t> shape) {
-  return std::make_shared<PooledTypedTensor<T>>(mem_pool, std::vector<size_t>(shape));
+inline Tensor Tensor::create_pooled(PoolAllocator &allocator, std::initializer_list<size_t> shape) {
+  return std::make_shared<PooledTypedTensor<T>>(allocator, std::vector<size_t>(shape));
 }
 
-inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype, std::vector<size_t> shape) {
+inline Tensor Tensor::create_pooled(PoolAllocator &allocator, DType_t dtype,
+                                    std::vector<size_t> shape) {
   switch (dtype) {
   case DType_t::FP16:
-    return create_pooled<fp16>(mem_pool, shape);
+    return create_pooled<fp16>(allocator, shape);
   case DType_t::BF16:
-    return create_pooled<bf16>(mem_pool, shape);
+    return create_pooled<bf16>(allocator, shape);
   case DType_t::FP32:
-    return create_pooled<float>(mem_pool, shape);
+    return create_pooled<float>(allocator, shape);
   case DType_t::FP64:
-    return create_pooled<double>(mem_pool, shape);
+    return create_pooled<double>(allocator, shape);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
 }
 
-inline Tensor Tensor::create_pooled(MemPool &mem_pool, DType_t dtype,
+inline Tensor Tensor::create_pooled(PoolAllocator &allocator, DType_t dtype,
                                     std::initializer_list<size_t> shape) {
   switch (dtype) {
   case DType_t::BF16:
-    return create_pooled<bf16>(mem_pool, shape);
+    return create_pooled<bf16>(allocator, shape);
   case DType_t::FP16:
-    return create_pooled<fp16>(mem_pool, shape);
+    return create_pooled<fp16>(allocator, shape);
   case DType_t::FP32:
-    return create_pooled<float>(mem_pool, shape);
+    return create_pooled<float>(allocator, shape);
   case DType_t::FP64:
-    return create_pooled<double>(mem_pool, shape);
+    return create_pooled<double>(allocator, shape);
   default:
     throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
@@ -1133,9 +1132,9 @@ inline Tensor Tensor::dtype_cast(const Tensor &input, DType_t target_dtype) {
     return input->clone();
   }
 
-  const device_ptr &input_data = input->data_ptr();
+  const dptr &input_data = input->data_ptr();
   size_t input_size = input->size();
-  device_ptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
+  dptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
   DISPATCH_ON_DTYPE(input->data_type(), A_T,
                     DISPATCH_ON_DTYPE(target_dtype, B_T,
                                       ops::cast<A_T, B_T>(input_data, output_data, input_size)));

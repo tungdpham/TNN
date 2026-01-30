@@ -1,8 +1,8 @@
 #pragma once
 
 #include "device/device_manager.hpp"
-#include "device/device_ptr.hpp"
-#include "device/mem_pool.hpp"
+#include "device/dptr.hpp"
+#include "device/pool_allocator.hpp"
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
@@ -33,21 +33,20 @@ template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64
 namespace tnn {
 
 template <typename T>
-concept Buffer =
-    requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, device_ptr &dptr,
-             const device_ptr &cdptr, std::string &str, uint64_t &val) {
-      t.write(offset, val);
-      t.write(offset, ptr, len);
-      t.write(offset, cdptr, len);
-      t.write(offset, static_cast<const std::string &>(str));
+concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, dptr &dev_ptr,
+                          const dptr &cdev_ptr, std::string &str, uint64_t &val) {
+  t.write(offset, val);
+  t.write(offset, ptr, len);
+  t.write(offset, cdev_ptr, len);
+  t.write(offset, static_cast<const std::string &>(str));
 
-      ct.read(offset, val);
-      ct.read(offset, ptr, len);
-      ct.read(offset, dptr, len);
-      ct.read(offset, str);
+  ct.read(offset, val);
+  ct.read(offset, ptr, len);
+  ct.read(offset, dev_ptr, len);
+  ct.read(offset, str);
 
-      { ct.size() } -> std::convertible_to<size_t>;
-    };
+  { ct.size() } -> std::convertible_to<size_t>;
+};
 
 class BinarySerializer {
 public:
@@ -61,9 +60,9 @@ public:
     for (size_t dim : shape) {
       buffer.write(offset, static_cast<uint64_t>(dim));
     }
-    const auto &device_ptr = tensor->data_ptr();
+    const auto &dptr = tensor->data_ptr();
     size_t byte_size = tensor->size() * get_dtype_size(dtype);
-    buffer.write(offset, device_ptr, byte_size);
+    buffer.write(offset, dptr, byte_size);
   }
 
   template <Buffer BufferType>
@@ -179,12 +178,12 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    tensor = Tensor::create_pooled(MemPool::instance(getCPU()), dtype,
+    tensor = Tensor::create_pooled(PoolAllocator::instance(getCPU()), dtype,
                                    std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
-      auto &device_ptr = tensor->data_ptr();
+      auto &dptr = tensor->data_ptr();
       size_t byte_size = tensor->size() * dtype_size;
-      buffer.read(offset, device_ptr, byte_size);
+      buffer.read(offset, dptr, byte_size);
     }
   }
 

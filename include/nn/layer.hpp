@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "device/mem_pool.hpp"
+#include "device/pool_allocator.hpp"
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
@@ -103,9 +103,9 @@ public:
 
   void print_profiling_info() const;
 
-  void set_mem_pool(MemPool *mem_pool);
+  void set_mem_pool(PoolAllocator *mem_pool);
 
-  const MemPool *get_mem_pool() const;
+  const PoolAllocator *get_mem_pool() const;
 
   size_t nbytes_params();
 
@@ -123,7 +123,7 @@ protected:
   unsigned long long srand_seed_ = 0;
   std::map<std::pair<size_t, std::string>, Tensor> cached_tensors_;
   Profiler profiler_;
-  MemPool *mem_pool_;
+  PoolAllocator *mem_pool_;
   const Device *device_;
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;      // data type for input/output tensors

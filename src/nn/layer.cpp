@@ -79,12 +79,12 @@ LayerConfig LayerConfig::from_json(const nlohmann::json &j) {
 
 Layer::Layer() {
   this->device_ = &getCPU();
-  this->mem_pool_ = &MemPool::instance(*device_);
+  this->mem_pool_ = &PoolAllocator::instance(*device_);
 }
 
 void Layer::set_device(const Device &device) {
   device_ = &device;
-  mem_pool_ = &MemPool::instance(*device_);
+  mem_pool_ = &PoolAllocator::instance(*device_);
   on_set_device(device);
 }
 
@@ -244,9 +244,9 @@ void Layer::print_profiling_info() const {
   GlobalLogger::info(output);
 }
 
-void Layer::set_mem_pool(MemPool *mem_pool) { mem_pool_ = mem_pool; }
+void Layer::set_mem_pool(PoolAllocator *mem_pool) { mem_pool_ = mem_pool; }
 
-const MemPool *Layer::get_mem_pool() const { return mem_pool_; }
+const PoolAllocator *Layer::get_mem_pool() const { return mem_pool_; }
 
 size_t Layer::nbytes_params() {
   size_t total = 0;
@@ -296,7 +296,7 @@ Tensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
 
 Tensor Layer::get_buffer(const std::vector<size_t> &shape, DType_t dtype) {
   if (!mem_pool_) {
-    throw std::runtime_error("MemPool not set for layer: " + name_);
+    throw std::runtime_error("PoolAllocator not set for layer: " + name_);
   }
   if (!this->device_) {
     throw std::runtime_error("Device not set for layer: " + name_);
