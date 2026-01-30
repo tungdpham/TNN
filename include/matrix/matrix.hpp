@@ -32,7 +32,7 @@ private:
     if (count == 0)
       return;
 
-    data_ = make_dptr_t<T[]>(device_, count, MKL_ALIGNMENT);
+    data_ = make_dptr_t<T>(device_, count, MKL_ALIGNMENT);
   }
 
 public:

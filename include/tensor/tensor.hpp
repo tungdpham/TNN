@@ -6,10 +6,10 @@
  */
 #pragma once
 
+#include "device/allocator.hpp"
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
-#include "device/pool_allocator.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
@@ -172,14 +172,14 @@ public:
   static Tensor create(DType_t dtype, dptr &&data, std::vector<size_t> shape);
 
   template <typename T>
-  static Tensor create_pooled(PoolAllocator &allocator, std::vector<size_t> shape);
+  static Tensor create_pooled(IAllocator &allocator, std::vector<size_t> shape);
 
   template <typename T>
-  static Tensor create_pooled(PoolAllocator &allocator, std::initializer_list<size_t> shape = {});
+  static Tensor create_pooled(IAllocator &allocator, std::initializer_list<size_t> shape = {});
 
-  static Tensor create_pooled(PoolAllocator &allocator, DType_t dtype, std::vector<size_t> shape);
+  static Tensor create_pooled(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape);
 
-  static Tensor create_pooled(PoolAllocator &allocator, DType_t dtype,
+  static Tensor create_pooled(IAllocator &allocator, DType_t dtype,
                               std::initializer_list<size_t> shape = {});
 
   template <typename T> static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
@@ -195,7 +195,7 @@ public:
  * @brief A tensor class dedicated for ML and DL applications.
  * @tparam T Data type (e.g., float, double, int)
  * Data layout is assumed to be row-major (C-style) by default.
- * Generic N-dimensional tensor with various lity functions. How layers interpret
+ * Generic N-dimensional tensor with various functions. How layers interpret
  * the dimensions is up to the layer implementation.
  */
 template <typename T = float> class TypedTensor : public ITensor {
@@ -278,9 +278,7 @@ public:
     }
   }
 
-  ~TypedTensor() {
-    // data_ will be automatically released by dptr destructor
-  }
+  ~TypedTensor() = default;
 
   TypedTensor(const TypedTensor &other) : data_size_(other.data_size_), shape_(other.shape_) {
     if (data_size_ > 0) {
@@ -823,18 +821,16 @@ public:
   using TypedTensor<T>::TypedTensor;
 
   // ! Do not call default TypedTensor constructor with shape as that will allocate memory
-  PooledTypedTensor(PoolAllocator &allocator, std::vector<size_t> shape)
-      : TypedTensor<T>(&allocator.device()), allocator_(allocator) {
+  PooledTypedTensor(IAllocator &allocator, std::vector<size_t> shape)
+      : TypedTensor<T>(), allocator_(allocator) {
     this->shape_ = std::move(shape);
     this->data_size_ = std::accumulate(this->shape_.begin(), this->shape_.end(), size_t(1),
                                        std::multiplies<size_t>());
     this->data_ = allocator_.allocate(this->data_size_ * sizeof(T));
   }
 
-  ~PooledTypedTensor() override { allocator_.deallocate(std::move(this->data_)); }
-
 private:
-  PoolAllocator &allocator_;
+  IAllocator &allocator_;
 };
 
 template <typename T>
@@ -1078,16 +1074,16 @@ inline Tensor Tensor::create(DType_t dtype, dptr &&data, std::vector<size_t> sha
 }
 
 template <typename T>
-inline Tensor Tensor::create_pooled(PoolAllocator &allocator, std::vector<size_t> shape) {
+inline Tensor Tensor::create_pooled(IAllocator &allocator, std::vector<size_t> shape) {
   return std::make_shared<PooledTypedTensor<T>>(allocator, shape);
 }
 
 template <typename T>
-inline Tensor Tensor::create_pooled(PoolAllocator &allocator, std::initializer_list<size_t> shape) {
+inline Tensor Tensor::create_pooled(IAllocator &allocator, std::initializer_list<size_t> shape) {
   return std::make_shared<PooledTypedTensor<T>>(allocator, std::vector<size_t>(shape));
 }
 
-inline Tensor Tensor::create_pooled(PoolAllocator &allocator, DType_t dtype,
+inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
                                     std::vector<size_t> shape) {
   switch (dtype) {
   case DType_t::FP16:
@@ -1103,7 +1099,7 @@ inline Tensor Tensor::create_pooled(PoolAllocator &allocator, DType_t dtype,
   }
 }
 
-inline Tensor Tensor::create_pooled(PoolAllocator &allocator, DType_t dtype,
+inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
                                     std::initializer_list<size_t> shape) {
   switch (dtype) {
   case DType_t::BF16:

@@ -344,8 +344,8 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
   return Sequential("tiny_imagenet_vit", std::move(layers));
 }
 
-Sequential create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
-  constexpr size_t seq_len = 512;
+Sequential create_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t seq_len = 1024;
   constexpr size_t vocab_size = 50257;
   constexpr size_t embed_dim = 768;
   constexpr size_t num_heads = 12;
@@ -366,11 +366,11 @@ Sequential create_gpt2(DType_t io_dtype_ = DType_t::FP32) {
   builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
 
   auto layers = builder.build();
-  return Sequential("gpt2", std::move(layers));
+  return Sequential("gpt2_small", std::move(layers));
 }
 
-Sequential create_flash_gpt2(DType_t io_dtype_ = DType_t::FP32) {
-  constexpr size_t seq_len = 512;
+Sequential create_flash_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t seq_len = 1024;
   constexpr size_t vocab_size = 50257;
   constexpr size_t embed_dim = 768;
   constexpr size_t num_heads = 12;
@@ -416,8 +416,8 @@ void ExampleModels::register_defaults() {
   register_model(create_resnet50_imagenet);
 
   // GPT-2
-  register_model(create_gpt2);
-  register_model(create_flash_gpt2);
+  register_model(create_gpt2_small);
+  register_model(create_flash_gpt2_small);
 }
 
 } // namespace tnn

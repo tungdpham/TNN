@@ -12,6 +12,9 @@
 
 namespace tnn {
 
+// Allocates a device pointer that contains a storage block that can be shared and automatically
+// reclaimed by allocator by installing a custom deleter in device_storage's shared_ptr.
+// Ensures user don't do some bad memory management.
 class PoolAllocator : public IAllocator {
 public:
   PoolAllocator(const Device &device) : device_(device) {}
@@ -32,35 +35,10 @@ public:
   }
 
   dptr allocate(size_t size) override {
-    if (size == 0) {
-      return make_dptr(&device_, 0);
-    }
-
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    auto it = free_blocks_.lower_bound(size);
-
-    while (it != free_blocks_.end()) {
-      dptr block = std::move(it->second);
-      free_blocks_.erase(it);
-      return block;
-      ++it;
-    }
-#ifndef NDEBUG
-    if (size > 0)
-      std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
-#endif
-
-    return make_dptr(&device_, size);
-  }
-
-  void deallocate(dptr &&ptr) override {
-    std::lock_guard<std::mutex> lock(mutex_);
-    size_t byte_size = ptr.capacity();
-    if (byte_size == 0) {
-      return;
-    }
-    free_blocks_.emplace(byte_size, std::move(ptr));
+    device_storage *ptr = allocate_storage(size);
+    auto storage =
+        std::shared_ptr<device_storage>(ptr, [this](device_storage *ptr) { this->reclaim(ptr); });
+    return dptr(storage, 0, storage->capacity);
   }
 
   void clear() {
@@ -85,9 +63,37 @@ public:
   const Device &device() const { return device_; }
 
 private:
-  std::multimap<size_t, dptr> free_blocks_;
+  std::multimap<size_t, device_storage *> free_blocks_;
   const Device &device_;
   mutable std::mutex mutex_;
+
+  device_storage *allocate_storage(size_t size) {
+    if (size == 0) {
+      return new device_storage();
+    }
+
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    auto it = free_blocks_.lower_bound(size);
+
+    if (it != free_blocks_.end()) {
+      device_storage *block = it->second;
+      free_blocks_.erase(it);
+      return block;
+    }
+#ifndef NDEBUG
+    if (size > 0)
+      std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
+#endif
+
+    void *ptr = device_.allocateAlignedMemory(size, DEFAULT_ALIGNMENT);
+    return new device_storage(&device_, ptr, size, DEFAULT_ALIGNMENT);
+  }
+
+  void reclaim(device_storage *storage) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    free_blocks_.emplace(storage->capacity, storage);
+  }
 };
 
 } // namespace tnn
