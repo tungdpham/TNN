@@ -47,14 +47,11 @@ public:
       std::cerr << "Stage " << id_ << " is already running" << std::endl;
       return;
     }
-
     should_stop_ = false;
-
     communicator_->set_callback([this]() {
       std::lock_guard<std::mutex> lock(message_available_mutex_);
       message_available_cv_.notify_one();
     });
-
     std::cout << "Running event loop" << std::endl;
     while (!should_stop_) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
@@ -65,7 +62,6 @@ public:
         std::cout << "Stage " << id_ << " stopping message loop" << std::endl;
         break;
       }
-
       while (communicator_->has_input_message()) {
         auto message = communicator_->dequeue_input_message();
         this->process_message(std::move(message));
@@ -158,16 +154,13 @@ protected:
     case CommandType::TRAIN_MODE:
       this->model_->set_training(true);
       break;
-
     case CommandType::EVAL_MODE:
       this->model_->set_training(false);
       break;
-
     case CommandType::STATUS_REQUEST: {
       throw std::runtime_error("Not implemented yet");
       break;
     }
-
     case CommandType::ERROR_REPORT:
       if (message.has_type<std::string>()) {
         std::cout << "Stage " << id_ << " received error: " << message.get<std::string>()
