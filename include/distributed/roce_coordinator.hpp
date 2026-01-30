@@ -7,6 +7,8 @@
 #pragma once
 
 #include "coordinator.hpp"
+#include "device/device.hpp"
+#include "device/device_manager.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
 #include "roce_communicator.hpp"
@@ -44,7 +46,9 @@ public:
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize RoCE communicator for the coordinator
-    auto communicator = std::make_unique<RoceCommunicator>(coordinator_endpoint);
+    // Coordinators typically use CPU, workers use GPU for GPU Direct RDMA
+    auto communicator = std::make_unique<RoceCommunicator>(coordinator_endpoint, &getCPU(),
+                                                           512 * 1024 * 1024); // 512MB slab
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

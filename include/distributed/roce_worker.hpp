@@ -6,6 +6,8 @@
  */
 #pragma once
 
+#include "device/device.hpp"
+#include "device/device_manager.hpp"
 #include "roce_communicator.hpp"
 #include "worker.hpp"
 #include <memory>
@@ -31,7 +33,10 @@ public:
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
 
-    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_);
+    // Use GPU device for GPU Direct RDMA if enabled, otherwise use CPU
+    const Device *device = use_gpu ? &getGPU() : &getCPU();
+    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, device,
+                                                           1024 * 1024 * 1024); // 1GB slab
 
     communicator->start_server();
 
