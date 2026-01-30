@@ -92,6 +92,7 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
                                layers_[i]->name() + "): " + e.what());
     }
   }
+  output->ensure(current_output->shape());
   current_output->copy_to(output);
   this->device_->getFlow("default")->synchronize();
   auto end = Clock::now();
@@ -120,6 +121,7 @@ void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
                                layers_[i]->type() + "): " + e.what());
     }
   }
+  grad_input->ensure(current_gradient->shape());
   current_gradient->copy_to(grad_input);
   this->device_->getFlow("default")->synchronize();
   auto end = Clock::now();

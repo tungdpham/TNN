@@ -1,6 +1,5 @@
 #pragma once
 
-#include "cuda/error_handler.hpp"
 #include "device/device_manager.hpp"
 #include "flow.hpp"
 
