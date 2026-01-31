@@ -36,7 +36,12 @@ public:
               std::unique_ptr<Worker> local_worker = nullptr)
       : model_(std::move(model)),
         optimizer_(std::move(optimizer)),
-        local_worker_(std::move(local_worker)) {}
+        local_worker_(std::move(local_worker)) {
+    if (local_worker_) {
+      std::thread worker_thread([this]() { local_worker_->start(); });
+      worker_thread.detach();
+    }
+  }
 
   virtual ~Coordinator() { comm_.reset(); }
 
@@ -70,11 +75,6 @@ public:
   }
 
   void start() {
-    if (local_worker_) {
-      std::thread worker_thread([this]() { local_worker_->start(); });
-      worker_thread.detach();
-    }
-
     for (const auto &worker_endpoint : this->worker_endpoints_) {
       Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
       this->comm_->send_message(std::move(start_msg), worker_endpoint);
@@ -354,10 +354,6 @@ private:
       throw std::runtime_error("Worker endpoints size does not match number of stages");
     }
     auto splitted_model = this->model_->split(this->partitions_);
-
-    if (local_worker_) {
-      worker_endpoints_.push_back(local_worker_->endpoint());
-    }
 
     for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
       StageConfig config;
