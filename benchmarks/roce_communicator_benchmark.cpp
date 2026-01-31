@@ -77,6 +77,21 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
           return false;
         }
         break;
+      case 'd':
+        cfg.device = optarg;
+        break;
+      case 'i':
+        try {
+          cfg.gid_index = stoi(optarg);
+          if (cfg.gid_index < -1) {
+            cerr << "Invalid gid-index value: " << optarg << endl;
+            return false;
+          }
+        } catch (...) {
+          cerr << "--gid-index requires a valid number argument" << endl;
+          return false;
+        }
+        break;
       case 'P':
         cfg.peer_host = optarg;
         break;
