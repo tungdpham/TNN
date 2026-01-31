@@ -31,12 +31,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = nullptr;
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -139,23 +137,22 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
 
 TEST_F(LegacyBatchNormLayerTest, BasicForwardPassTraining) {
   LegacyBatchNormLayer layer(3, 1e-5f, 0.1f, false, "test_bn");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -168,18 +165,18 @@ TEST_F(LegacyBatchNormLayerTest, BasicForwardPassTraining) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
   LegacyBatchNormLayer layer(3, 1e-5f, 0.1f, true, "test_bn_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -195,15 +192,15 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
   LegacyBatchNormLayer layer(1, 1e-5f, 0.1f, false, "test_bn_single");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({4, 1, 8, 8}, cpu_device_);
+  Tensor input = Tensor::create<float>({4, 1, 8, 8}, getCPU());
   input->fill(2.5f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -216,18 +213,18 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassMultiBatch) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, false, "test_bn_multibatch");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({8, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({8, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>((i % 20) - 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -236,18 +233,18 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassMultiBatch) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassLargeFeatures) {
   LegacyBatchNormLayer layer(64, 1e-5f, 0.1f, true, "test_bn_large");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 64, 8, 8}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 64, 8, 8}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 100) / 10.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -256,18 +253,18 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassLargeFeatures) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassInference) {
   LegacyBatchNormLayer layer(3, 1e-5f, 0.1f, false, "test_bn_inference");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(false);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -281,15 +278,15 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInference) {
 
 TEST_F(LegacyBatchNormLayerTest, ForwardPassInferenceWithAffine) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, true, "test_bn_inference_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(false);
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -297,24 +294,24 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInferenceWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, false, "test_bn_backward");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -322,27 +319,27 @@ TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
 
 TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
   LegacyBatchNormLayer layer(3, 1e-5f, 0.1f, true, "test_bn_backward_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = static_cast<float>(i % 5) / 5.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -353,21 +350,21 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, false, "test_bn_backward_multibatch");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({8, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({8, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   auto grad_input_shape = grad_input->shape();
@@ -377,21 +374,21 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
 
 TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, true, "test_bn_backward_zero");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   gradient->fill(0.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -452,7 +449,7 @@ TEST_F(LegacyBatchNormLayerTest, CreateFromConfig) {
 
 TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
   LegacyBatchNormLayer layer(16, 1e-5f, 0.1f, true, "test_bn_params_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
   std::vector<Tensor> params = layer.parameters();
@@ -462,7 +459,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
   LegacyBatchNormLayer layer(16, 1e-5f, 0.1f, false, "test_bn_params_no_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
   std::vector<Tensor> params = layer.parameters();
@@ -472,7 +469,7 @@ TEST_F(LegacyBatchNormLayerTest, ParameterCollectionWithoutAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
   LegacyBatchNormLayer layer(16, 1e-5f, 0.1f, true, "test_bn_grads_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
   std::vector<Tensor> grads = layer.gradients();
@@ -482,7 +479,7 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithoutAffine) {
   LegacyBatchNormLayer layer(16, 1e-5f, 0.1f, false, "test_bn_grads_no_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
   std::vector<Tensor> grads = layer.gradients();
@@ -492,18 +489,18 @@ TEST_F(LegacyBatchNormLayerTest, GradientCollectionWithoutAffine) {
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {
   LegacyBatchNormLayer layer(3, 1e-5f, 0.1f, false, "test_bn_small_batch");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({1, 3, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -511,15 +508,15 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeEpsilon) {
   LegacyBatchNormLayer layer(2, 1e-1f, 0.1f, false, "test_bn_large_epsilon");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -527,18 +524,18 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeEpsilon) {
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallSpatialSize) {
   LegacyBatchNormLayer layer(4, 1e-5f, 0.1f, true, "test_bn_small_spatial");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({4, 4, 1, 1}, cpu_device_);
+  Tensor input = Tensor::create<float>({4, 4, 1, 1}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -548,15 +545,15 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallSpatialSize) {
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeValues) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, false, "test_bn_large_values");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   input->fill(1e6f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -569,18 +566,18 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeValues) {
 
 TEST_F(LegacyBatchNormLayerTest, EdgeCaseNegativeValues) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, true, "test_bn_negative");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -588,15 +585,15 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseNegativeValues) {
 
 TEST_F(LegacyBatchNormLayerTest, NumericalStabilitySmallValues) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, false, "test_bn_small_values");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   input->fill(1e-6f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -604,18 +601,18 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilitySmallValues) {
 
 TEST_F(LegacyBatchNormLayerTest, NumericalStabilityMixedValues) {
   LegacyBatchNormLayer layer(2, 1e-5f, 0.1f, true, "test_bn_mixed");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);

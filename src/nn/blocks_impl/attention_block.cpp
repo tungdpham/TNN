@@ -17,7 +17,7 @@
 #include <cmath>
 #include <stdexcept>
 
-#include "tensor/ops.hpp"
+#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -126,8 +126,10 @@ void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 
   Tensor temp = this->get_buffer(dq_in->shape(), io_dtype_);
 
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, dq_in, dk_in, temp, size, "default");
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, temp, dv_in, grad_input, size, "default");
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::add, dq_in->data_ptr(), dk_in->data_ptr(), temp->data_ptr(),
+                              size, "default");
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::add, temp->data_ptr(), dv_in->data_ptr(), grad_input->data_ptr(),
+                              size, "default");
 }
 
 uint64_t AttentionBlock::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }

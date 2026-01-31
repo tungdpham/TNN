@@ -9,6 +9,8 @@
 
 #include <cstring>
 #include <random>
+
+#include "device/sref.hpp"
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
@@ -24,7 +26,7 @@ template <typename T = float>
 struct Matrix {
 private:
   size_t rows_, cols_;
-  const Device *device_;
+  csref<Device> device_;
   dptr data_;
 
   static constexpr size_t MKL_ALIGNMENT = 64;
@@ -37,14 +39,14 @@ private:
   }
 
 public:
-  Matrix(const Device *device) : rows_(0), cols_(0), device_(device), data_(nullptr) {}
+  Matrix(sref<const Device> device) : rows_(0), cols_(0), device_(device), data_(nullptr) {}
 
-  Matrix(size_t rows, size_t cols, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, sref<const Device> device = getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
   }
 
-  Matrix(size_t rows, size_t cols, const dptr &data, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, const dptr &data, const sref<const Device> device = getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
     if (data.get<T>() != nullptr) {
@@ -52,16 +54,16 @@ public:
     }
   }
 
-  Matrix(const Matrix<T> &other) {
-    this->rows_ = other.rows_;
-    this->cols_ = other.cols_;
-    this->device_ = other.device_;
+  Matrix(const Matrix<T> &other) : rows_(other.rows_), cols_(other.cols_), device_(other.device_) {
     allocate_aligned(rows_ * cols_);
     ops::copy<T>(other.data_, data_, rows_ * cols_);
   }
 
   Matrix(Matrix<T> &&other) noexcept
-      : rows_(other.rows_), cols_(other.cols_), data_(std::move(other.data_)) {
+      : rows_(other.rows_),
+        cols_(other.cols_),
+        device_(other.device_),
+        data_(std::move(other.data_)) {
     other.rows_ = 0;
     other.cols_ = 0;
     other.data_ = nullptr;

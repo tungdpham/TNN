@@ -83,7 +83,7 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   double total_corrects = 0.0;
   size_t cur_samples = 0;
   int num_batches = 0;
-  const Device *model_device = model->get_device();
+  csref<Device> model_device = model->get_device();
 
   PoolAllocator &mem_pool = PoolAllocator::instance(*model_device);
 
@@ -214,7 +214,7 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
   train_loader->shuffle();
   train_loader->reset();
 
-  const Device *model_device = model->get_device();
+  csref<Device> model_device = model->get_device();
   Tensor loss_gradient = Tensor::create(model->get_io_dtype(), {1}, model_device);
   Tensor device_labels = Tensor::create(model->get_io_dtype(), {1}, model_device);
   Tensor predictions = Tensor::create(model->get_io_dtype(), {1}, model_device);
@@ -306,7 +306,7 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(*model->get_device());
+  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device());
   Tensor batch_data = Tensor::create_pooled(mem_pool, model->get_io_dtype()),
          batch_labels = Tensor::create_pooled(mem_pool, model->get_io_dtype());
 
@@ -317,7 +317,7 @@ Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
   double val_loss = 0.0;
   double val_corrects = 0.0;
   int val_batches = 0;
-  const Device *model_device = model->get_device();
+  csref<Device> model_device = model->get_device();
 
   Tensor device_batch_labels = Tensor::create(model->get_io_dtype(), {}, model_device);
   Tensor predictions = Tensor::create(model->get_io_dtype(), {}, model_device);

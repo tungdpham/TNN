@@ -22,6 +22,8 @@ public:
   Device(const Device &) = delete;
   Device &operator=(const Device &) = delete;
 
+  bool operator==(const Device &other) const;
+
   const DeviceType &device_type() const;
   int getID() const;
   std::string getName() const;

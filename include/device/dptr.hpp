@@ -5,6 +5,7 @@
 
 #include "device/device.hpp"
 #include "device/device_type.hpp"
+#include "device/sref.hpp"
 
 namespace tnn {
 
@@ -12,25 +13,25 @@ constexpr size_t DEFAULT_ALIGNMENT = 64;
 
 struct device_storage {
 private:
-  const Device *device_;
+  csref<Device> device_;
   void *ptr_;
   size_t capacity_;
   size_t alignment_;
 
 public:
-  device_storage(const Device *device = nullptr, void *ptr = nullptr, size_t capacity = 0,
+  device_storage(csref<Device> device, void *ptr = nullptr, size_t capacity = 0,
                  size_t alignment = DEFAULT_ALIGNMENT)
       : device_(device), ptr_(ptr), capacity_(capacity), alignment_(alignment) {}
 
   ~device_storage() {
-    if (ptr_ && device_) {
+    if (ptr_) {
       device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
     }
     ptr_ = nullptr;
     capacity_ = 0;
   }
 
-  const Device *device() const { return device_; }
+  csref<Device> device() const { return device_; }
   void *data() const { return ptr_; }
   size_t capacity() const { return capacity_; }
   size_t alignment() const { return alignment_; }
@@ -55,12 +56,7 @@ public:
 
   operator bool() const { return storage_ != nullptr && storage_->data() != nullptr; }
 
-  const Device *getDevice() const {
-    if (!storage_) {
-      return nullptr;
-    }
-    return storage_->device();
-  }
+  const Device &getDevice() const { return storage_->device(); }
 
   DeviceType device_type() const {
     if (!storage_) {
@@ -104,7 +100,7 @@ public:
   }
 
   void copy_to_host(void *host_ptr, size_t byte_size, size_t src_offset = 0) const {
-    if (!storage_ || !storage_->device()) {
+    if (!storage_) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_to_host");
     }
     if (src_offset + byte_size > capacity_) {
@@ -115,7 +111,7 @@ public:
   }
 
   void copy_from_host(const void *host_ptr, size_t byte_size, size_t dst_offset = 0) {
-    if (!storage_ || !storage_->device()) {
+    if (!storage_) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_from_host");
     }
     if (dst_offset + byte_size > capacity_) {
@@ -126,11 +122,8 @@ public:
   }
 };
 
-inline dptr make_dptr(const Device *device, size_t byte_size,
+inline dptr make_dptr(csref<Device> device, size_t byte_size,
                       size_t alignment = DEFAULT_ALIGNMENT) {
-  if (!device) {
-    throw std::invalid_argument("Device cannot be null when making device storage pointer");
-  }
   if (byte_size == 0) {
     return dptr(nullptr);
   }
@@ -143,7 +136,7 @@ inline dptr make_dptr(const Device *device, size_t byte_size,
 }
 
 template <typename T>
-inline dptr make_dptr_t(const Device *device, size_t count, size_t alignment = DEFAULT_ALIGNMENT) {
+inline dptr make_dptr_t(csref<Device> device, size_t count, size_t alignment = DEFAULT_ALIGNMENT) {
   return make_dptr(device, count * sizeof(T), alignment);
 }
 

@@ -31,12 +31,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = nullptr;
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -152,18 +150,17 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
 
 TEST_F(GroupNormLayerTest, BasicForwardPass) {
   size_t num_groups = 2;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -171,7 +168,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -184,11 +181,11 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   size_t num_groups = 2;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -196,7 +193,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -214,11 +211,11 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   size_t num_groups = 1;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 2, 2}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -226,7 +223,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -239,11 +236,11 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   size_t num_groups = 4;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -251,7 +248,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -264,11 +261,11 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   size_t num_groups = 2;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -276,13 +273,13 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   Tensor grad_output = output->clone();
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(grad_output, grad_input);
 
   auto input_shape = input->shape();

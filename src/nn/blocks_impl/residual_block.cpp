@@ -12,7 +12,7 @@
 
 #include "nn/activations.hpp"
 #include "nn/layers.hpp"
-#include "tensor/ops.hpp"
+#include "ops/ops.hpp"
 
 namespace tnn {
 
@@ -125,15 +125,15 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_
       pre_act = this->get_buffer(main_output->shape(), main_output->data_type());
     else
       pre_act->ensure(main_output->shape());
-    DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_output, shortcut_output, pre_act,
-                                pre_act->size());
+    DISPATCH_ON_DTYPE_TO_METHOD(ops::add, main_output->data_ptr(), shortcut_output->data_ptr(),
+                                pre_act->data_ptr(), pre_act->size());
 
     output->ensure(main_output->shape());
     final_activation_->apply(pre_act, output);
   } else {
     output->ensure(main_output->shape());
-    DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_output, shortcut_output, output,
-                                output->size());
+    DISPATCH_ON_DTYPE_TO_METHOD(ops::add, main_output->data_ptr(), shortcut_output->data_ptr(),
+                                output->data_ptr(), output->size());
   }
 }
 
@@ -189,8 +189,8 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, si
   }
 
   grad_input->ensure(main_grad->shape());
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::add, main_grad, shortcut_grad, grad_input,
-                              grad_input->size());
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::add, main_grad->data_ptr(), shortcut_grad->data_ptr(),
+                              grad_input->data_ptr(), grad_input->size());
 }
 
 void ResidualBlock::collect_parameters(std::vector<Tensor> &params) {

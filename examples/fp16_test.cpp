@@ -34,9 +34,9 @@ signed main() {
     cpu_fp32_param->copy_to(fp32_params[i]);
   }
 
-  Tensor fp16_input = Tensor::create(DType_t::FP16, {32, 128}, &getCPU());
+  Tensor fp16_input = Tensor::create(DType_t::FP16, {32, 128}, getCPU());
   fp16_input->fill_random_uniform(0.0f, 1.0f);
-  Tensor fp32_input = Tensor::create(DType_t::FP32, {32, 128}, &getCPU());
+  Tensor fp32_input = Tensor::create(DType_t::FP32, {32, 128}, getCPU());
 
   fp16 *input_data = fp16_input->data_as<fp16>();
   fp32 *input_data_fp32 = fp32_input->data_as<float>();
@@ -44,12 +44,12 @@ signed main() {
     input_data_fp32[i] = static_cast<float>(input_data[i]);
   }
 
-  Tensor input_fp32 = fp32_input->to_device(&getGPU());
-  Tensor input_fp16 = fp16_input->to_device(&getGPU());
+  Tensor input_fp32 = fp32_input->to_device(getGPU());
+  Tensor input_fp16 = fp16_input->to_device(getGPU());
 
   Tensor output_fp32, output_fp16;
-  output_fp32 = Tensor::create(DType_t::FP32, {32, 64}, &getGPU());
-  output_fp16 = Tensor::create(DType_t::FP16, {32, 64}, &getGPU());
+  output_fp32 = Tensor::create(DType_t::FP32, {32, 64}, getGPU());
+  output_fp16 = Tensor::create(DType_t::FP16, {32, 64}, getGPU());
 
   fp32_dense.forward(input_fp32, output_fp32, 0);
   fp16_dense.forward(input_fp16, output_fp16, 0);

@@ -30,12 +30,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = nullptr;
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -150,22 +148,21 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
 
 TEST_F(LegacyAvgPool2DLayerTest, BasicForwardPass) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_avgpool");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -179,17 +176,17 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicForwardPass) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithStride) {
   LegacyAvgPool2DLayer layer(3, 3, 1, 1, 0, 0, "test_avgpool_stride");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 5, 5}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 5, 5}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 25; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 3, 3, 1, 1, 0, 0);
@@ -202,17 +199,17 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithStride) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithPadding) {
   LegacyAvgPool2DLayer layer(3, 3, 1, 1, 1, 1, "test_avgpool_padding");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   auto out_shape = output->shape();
@@ -224,10 +221,10 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassWithPadding) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiChannel) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_avgpool_multichannel");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
 
   for (int i = 0; i < 32; ++i) {
@@ -235,7 +232,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiChannel) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -249,10 +246,10 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiChannel) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiBatch) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_avgpool_multibatch");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({2, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
 
   for (int i = 0; i < 32; ++i) {
@@ -260,7 +257,7 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiBatch) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -274,17 +271,17 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassMultiBatch) {
 
 TEST_F(LegacyAvgPool2DLayerTest, ForwardPassNonSquarePooling) {
   LegacyAvgPool2DLayer layer(3, 2, 2, 2, 0, 0, "test_avgpool_nonsquare");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 6, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 6, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 24; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 3, 2, 2, 2, 0, 0);
@@ -297,26 +294,26 @@ TEST_F(LegacyAvgPool2DLayerTest, ForwardPassNonSquarePooling) {
 
 TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_avgpool_backward");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *grad_data = gradient->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
@@ -329,26 +326,26 @@ TEST_F(LegacyAvgPool2DLayerTest, BasicBackwardPass) {
 
 TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
   LegacyAvgPool2DLayer layer(3, 3, 1, 1, 1, 1, "test_avgpool_backward_pad");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 3, 3, 1, 1, 1, 1);
@@ -358,26 +355,26 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassWithPadding) {
 
 TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_avgpool_backward_multichannel");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
@@ -387,26 +384,26 @@ TEST_F(LegacyAvgPool2DLayerTest, BackwardPassMultiChannel) {
 
 TEST_F(LegacyAvgPool2DLayerTest, BackwardPassVariableGradient) {
   LegacyAvgPool2DLayer layer(2, 2, 1, 1, 0, 0, "test_avgpool_backward_var");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 1, 1, 0, 0);
@@ -478,17 +475,17 @@ TEST_F(LegacyAvgPool2DLayerTest, Clone) {
 
 TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
   LegacyAvgPool2DLayer layer(4, 4, 1, 1, 0, 0, "test_global_avgpool");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 2.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   auto out_shape = output->shape();
@@ -499,23 +496,23 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseGlobalAveragePooling) {
 
 TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseZeroGradient) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_zero_gradient");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(0.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);
@@ -527,17 +524,17 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseZeroGradient) {
 
 TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseLargeValues) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_large_values");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e6f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -549,17 +546,17 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseLargeValues) {
 
 TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseNegativeValues) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_negative_values");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -569,17 +566,17 @@ TEST_F(LegacyAvgPool2DLayerTest, EdgeCaseNegativeValues) {
 
 TEST_F(LegacyAvgPool2DLayerTest, NumericalStabilitySmallValues) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_small_values");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_forward_result(input, output, 2, 2, 2, 2, 0, 0);
@@ -591,26 +588,26 @@ TEST_F(LegacyAvgPool2DLayerTest, NumericalStabilitySmallValues) {
 
 TEST_F(LegacyAvgPool2DLayerTest, BackwardNumericalStability) {
   LegacyAvgPool2DLayer layer(2, 2, 2, 2, 0, 0, "test_backward_stability");
-  layer.set_device(*cpu_device_);
+  layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = 1e-6f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_backward_result(gradient, grad_input, 2, 2, 2, 2, 0, 0);

@@ -159,14 +159,14 @@ void LegacyConv2DLayer::def_forward(const Tensor &input, Tensor &output, size_t 
   size_t output_buffer_size = out_channels_ * output_size;
   temp_output_buffer_->ensure({output_buffer_size});
 
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::im2col, input, col_buffer, kernel_h_, kernel_w_, stride_h_,
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::im2col, input, col_buffer, kernel_h_, kernel_w_, stride_h_,
                               stride_w_, pad_h_, pad_w_, "default");
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_conv_forward_impl, col_buffer, weights_,
                                  temp_output_buffer_, output_size, kernel_size, out_channels_,
                                  "default");
 
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::cnhw_to_nchw, temp_output_buffer_, output, batch_size,
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::cnhw_to_nchw, temp_output_buffer_, output, batch_size,
                               out_channels_, output_h, output_w, "default");
 
   if (use_bias_) {
@@ -207,7 +207,7 @@ void LegacyConv2DLayer::def_backward(const Tensor &gradient, Tensor &grad_input,
   temp_gradient_buffer_->ensure({gradient_buffer_size});
   temp_col_grad_matrix_buffer_->ensure({col_grad_matrix_size});
 
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::nchw_to_cnhw, gradient, temp_gradient_buffer_, batch_size,
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::nchw_to_cnhw, gradient, temp_gradient_buffer_, batch_size,
                               out_channels_, output_h, output_w, "default");
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients_impl, it_col_buffer->second,
@@ -218,9 +218,9 @@ void LegacyConv2DLayer::def_backward(const Tensor &gradient, Tensor &grad_input,
                                  temp_col_grad_matrix_buffer_, output_size, kernel_size,
                                  out_channels_, "default");
 
-  DISPATCH_ON_DTYPE_TO_METHOD(TensorOps::col2im, temp_col_grad_matrix_buffer_, grad_input,
-                              batch_size, in_channels_, input_h, input_w, kernel_h_, kernel_w_,
-                              stride_h_, stride_w_, pad_h_, pad_w_, "default");
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::col2im, temp_col_grad_matrix_buffer_, grad_input, batch_size,
+                              in_channels_, input_h, input_w, kernel_h_, kernel_w_, stride_h_,
+                              stride_w_, pad_h_, pad_w_, "default");
 
   if (use_bias_) {
     DISPATCH_ON_3_DTYPES_TO_METHOD(compute_bias_gradients_impl, gradient, bias_gradients_,

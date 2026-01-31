@@ -31,9 +31,9 @@ signed main() {
   relu_layer.set_device(getGPU());
   relu_layer.init();
 
-  Tensor input = Tensor::create<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, &getGPU());
+  Tensor input = Tensor::create<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor output = Tensor::create<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, &getGPU());
+  Tensor output = Tensor::create<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
 
   // cold pass
   batchnorm_layer.forward(input, output);
@@ -57,12 +57,11 @@ signed main() {
   std::cout << "BatchNorm Average time per forward pass: " << duration.count() / passes << " ms"
             << std::endl;
 
-  Tensor legacy_input = Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, &getGPU());
+  Tensor legacy_input = Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
   legacy_input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor legacy_output =
-      Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, &getGPU());
+  Tensor legacy_output = Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
   Tensor legacy_relu_output =
-      Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, &getGPU());
+      Tensor::create<float>({BATCH_SIZE, NUM_FEATURES, HEIGHT, WIDTH}, getGPU());
 
   // legacy batchnorm benchmark
 
@@ -88,8 +87,8 @@ signed main() {
   std::cout << "Legacy BatchNorm Average time per forward pass: " << duration.count() / passes
             << " ms" << std::endl;
 
-  auto cpu_current_output = output->to_device(&getCPU());
-  auto cpu_legacy_output = legacy_relu_output->to_device(&getCPU());
+  auto cpu_current_output = output->to_device(getCPU());
+  auto cpu_legacy_output = legacy_relu_output->to_device(getCPU());
 
   float *current_data = cpu_current_output->data_as<float>();
   float *legacy_data = cpu_legacy_output->data_as<float>();

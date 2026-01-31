@@ -56,8 +56,6 @@ public:
   Sequential(Sequential &&) = default;
   Sequential &operator=(Sequential &&) = default;
 
-  const Device *get_device() const { return this->device_; }
-
   /**
    * @brief Returns a vector of pointers to all params in the model
    */

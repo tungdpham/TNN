@@ -17,14 +17,11 @@ namespace ops {
 template <typename T>
 std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("add: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("add: All device pointers must be on the same device");
   }
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::add<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -42,15 +39,12 @@ std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("sub: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -68,15 +62,12 @@ std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("mul: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("mul: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -94,15 +85,12 @@ std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("div: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("div: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::div<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -120,15 +108,12 @@ std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
                             const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("fmadd: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fmadd: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -146,15 +131,12 @@ std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
                             const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("fmsub: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fmsub: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fmsub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -172,15 +154,12 @@ std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
                              const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("fnmadd: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fnmadd: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -199,15 +178,12 @@ std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("add_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("add_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::add_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
@@ -226,15 +202,12 @@ std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("sub_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
@@ -253,16 +226,12 @@ std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("mul_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
-    std::cout << "Device pointers: " << a.getDevice() << " " << c.getDevice() << std::endl;
     throw std::runtime_error("mul_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
@@ -281,15 +250,12 @@ std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("div_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("div_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::div_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
@@ -308,12 +274,8 @@ std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!c.getDevice()) {
-    throw std::runtime_error("set_scalar: Device pointer has no associated device");
-  }
-
-  auto device = c.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = c.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::set_scalar<T>, c.get<T>(), scalar, size);
@@ -331,15 +293,12 @@ std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
 template <typename T>
 std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
                            const std::string &flow_id = "default") {
-  if (!x.getDevice() || !y.getDevice()) {
-    throw std::runtime_error("axpy: Device pointer has no associated device");
-  }
   if (x.getDevice() != y.getDevice()) {
     throw std::runtime_error("axpy: All device pointers must be on the same device");
   }
 
-  auto device = x.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = x.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::axpy<T>, alpha, x.get<T>(), y.get<T>(), size);
@@ -357,15 +316,12 @@ std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
 template <typename T>
 std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
                            const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("sqrt: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sqrt: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sqrt<T>, a.get<T>(), c.get<T>(), size);
@@ -383,15 +339,12 @@ std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
 template <typename T>
 inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
                                    const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("rsqrt: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("rsqrt: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::rsqrt<T>, a.get<T>(), c.get<T>(), size);
@@ -409,15 +362,12 @@ inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
 template <typename T>
 inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("rcp: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("rcp: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::rcp<T>, a.get<T>(), c.get<T>(), size);
@@ -435,15 +385,12 @@ inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("abs: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("abs: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::abs<T>, a.get<T>(), c.get<T>(), size);
@@ -461,15 +408,12 @@ std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("min: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("min: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::min<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -487,15 +431,12 @@ std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
                           const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("max: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("max: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::max<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -513,15 +454,12 @@ std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
                                  const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("scalar_max: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("scalar_max: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::scalar_max<T>, a.get<T>(), scalar, c.get<T>(), size);
@@ -540,15 +478,12 @@ std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t size,
                             const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("clamp: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("clamp: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(), size);
@@ -567,15 +502,12 @@ std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t s
 template <typename T>
 std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
                             const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("equal: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("equal: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::equal<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -593,15 +525,12 @@ std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
                               const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("greater: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("greater: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::greater<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
@@ -620,9 +549,6 @@ std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
                            const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("copy: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("copy: All device pointers must be on the same device");
   }
@@ -631,8 +557,8 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
     throw std::runtime_error("copy: Null pointer exception in copy operation");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::copy<T>, a.get<T>(), c.get<T>(), size);
@@ -651,17 +577,14 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
 template <typename T>
 std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
                               const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("cd_copy: Device pointer has no associated device");
-  }
-  auto a_device = a.getDevice();
-  auto c_device = c.getDevice();
+  const auto &a_device = a.getDevice();
+  const auto &c_device = c.getDevice();
   if (a_device == c_device) {
     // same device copy
     return copy<T>(a, c, size, flow_id);
   }
-  auto a_device_type = a_device->device_type();
-  auto c_device_type = c_device->device_type();
+  auto a_device_type = a_device.device_type();
+  auto c_device_type = c_device.device_type();
 
   if (a_device_type == DeviceType::CPU && c_device_type == DeviceType::GPU) {
     // host to device copy
@@ -684,12 +607,8 @@ std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> zero(dptr c, size_t size, const std::string &flow_id = "default") {
-  if (!c.getDevice()) {
-    throw std::runtime_error("zero: Device pointer has no associated device");
-  }
-
-  auto device = c.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = c.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::zero<T>, c.get<T>(), size);
@@ -706,11 +625,8 @@ std::unique_ptr<Task> zero(dptr c, size_t size, const std::string &flow_id = "de
 
 template <typename T>
 T sum(dptr a, size_t size) {
-  if (!a.getDevice()) {
-    throw std::runtime_error("sum: Device pointer has no associated device");
-  }
-
-  auto device_type = a.getDevice()->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::sum(a.get<T>(), size);
@@ -727,14 +643,12 @@ T sum(dptr a, size_t size) {
 
 template <typename T>
 T dot_product(dptr a, dptr b, size_t size) {
-  if (!a.getDevice() || !b.getDevice()) {
-    throw std::runtime_error("dot_product: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice()) {
     throw std::runtime_error("dot_product: All device pointers must be on the same device");
   }
 
-  auto device_type = a.getDevice()->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::dot_product(a.get<T>(), b.get<T>(), size);
@@ -751,11 +665,8 @@ T dot_product(dptr a, dptr b, size_t size) {
 
 template <typename T>
 T norm_squared(dptr a, size_t size) {
-  if (!a.getDevice()) {
-    throw std::runtime_error("norm_squared: Device pointer has no associated device");
-  }
-
-  auto device_type = a.getDevice()->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::norm_squared(a.get<T>(), size);
@@ -772,11 +683,8 @@ T norm_squared(dptr a, size_t size) {
 
 template <typename T>
 T sum_squared_diff(const dptr a, T mean, size_t size) {
-  if (!a.getDevice()) {
-    throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
-  }
-
-  auto device_type = a.getDevice()->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return cpu::sum_squared_diff(a.get<T>(), mean, size);
@@ -794,15 +702,12 @@ T sum_squared_diff(const dptr a, T mean, size_t size) {
 template <typename T>
 std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, dptr c, size_t size,
                                      const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("sub_mul_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub_mul_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::sub_mul_scalar<T>, a.get<T>(), sub_scalar, mul_scalar,
@@ -822,15 +727,12 @@ std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, d
 template <typename T>
 std::unique_ptr<Task> mul_add_scalar(const dptr a, T mul_scalar, T add_scalar, dptr c, size_t size,
                                      const std::string &flow_id = "default") {
-  if (!a.getDevice() || !c.getDevice()) {
-    throw std::runtime_error("mul_add_scalar: Device pointer has no associated device");
-  }
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("mul_add_scalar: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::mul_add_scalar<T>, a.get<T>(), mul_scalar, add_scalar,
@@ -851,12 +753,8 @@ template <typename T>
 std::unique_ptr<Task> fill_random_uniform(dptr data, size_t size, T min_val, T max_val,
                                           unsigned long long seed,
                                           const std::string &flow_id = "default") {
-  if (!data.getDevice()) {
-    throw std::runtime_error("fill_random_uniform: Device pointer has no associated device");
-  }
-
-  auto device = data.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = data.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fill_random_uniform<T>, data.get<T>(), size, min_val,
@@ -877,12 +775,8 @@ template <typename T>
 std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stddev,
                                          unsigned long long seed,
                                          const std::string &flow_id = "default") {
-  if (!data.getDevice()) {
-    throw std::runtime_error("fill_random_normal: Device pointer has no associated device");
-  }
-
-  auto device = data.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = data.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::fill_random_normal<T>, data.get<T>(), size, mean, stddev,
@@ -901,15 +795,12 @@ std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stdde
 
 template <typename A_T, typename B_T>
 std::unique_ptr<Task> cast(dptr a, dptr b, size_t size, const std::string &flow_id = "default") {
-  if (!a.getDevice() || !b.getDevice()) {
-    throw std::runtime_error("cast: Device pointer has no associated device");
-  }
   if (a.getDevice() != b.getDevice()) {
     throw std::runtime_error("cast: All device pointers must be on the same device");
   }
 
-  auto device = a.getDevice();
-  auto device_type = device->device_type();
+  const auto &device = a.getDevice();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);

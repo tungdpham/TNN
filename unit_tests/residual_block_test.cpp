@@ -32,12 +32,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = {};
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -113,7 +111,7 @@ protected:
     // Use a 1x1 conv with specific initialization to act as a simple linear transformation
     auto layer = std::make_unique<LegacyConv2DLayer>(in_channels, out_channels, 1, 1, 1, 1, 0, 0,
                                                      false, name);
-    layer->set_device(*cpu_device_);
+    layer->set_device(getCPU());
     layer->init();
 
     // Set weights to scale value
@@ -130,7 +128,6 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
 
 // Identity Shortcut Tests
@@ -141,17 +138,17 @@ TEST_F(ResidualBlockTest, IdentityShortcutForward) {
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "identity_residual");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   EXPECT_EQ(output->shape(), input->shape());
@@ -168,17 +165,17 @@ TEST_F(ResidualBlockTest, IdentityShortcutForwardWithReLU) {
   main_path = create_scaling_layer(-2.0f, "scale_neg2x");
 
   ResidualBlock residual(std::move(main_path), {}, "relu", "identity_relu");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: relu(F(x) + x) = relu(-2*1 + 1) = relu(-1) = 0
@@ -193,17 +190,17 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiChannel) {
   main_path = create_scaling_layer(0.5f, "scale_half", 2, 2);
 
   ResidualBlock residual(std::move(main_path), {}, "none", "identity_multichannel");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 2, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 2, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 8; ++i) {
     input_data[i] = 2.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   EXPECT_EQ(output_shape[0], 1);
@@ -225,17 +222,17 @@ TEST_F(ResidualBlockTest, IdentityShortcutMultiBatch) {
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "identity_multibatch");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({2, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 8; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   EXPECT_EQ(output_shape[0], 2);
@@ -259,17 +256,17 @@ TEST_F(ResidualBlockTest, ProjectionShortcutForward) {
   std::vector<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.25f, "scale_shortcut");
 
   ResidualBlock residual(std::move(main_path), std::move(shortcut), "none", "projection_residual");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 4.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: F(x) + shortcut(x) = 0.5*4 + 0.25*4 = 2 + 1 = 3
@@ -286,17 +283,17 @@ TEST_F(ResidualBlockTest, ProjectionShortcutWithReLU) {
   std::vector<std::unique_ptr<Layer>> shortcut = create_scaling_layer(0.5f, "scale_short");
 
   ResidualBlock residual(std::move(main_path), std::move(shortcut), "relu", "projection_relu");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 2.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: relu(F(x) + shortcut(x)) = relu(-1*2 + 0.5*2) = relu(-1) = 0
@@ -313,26 +310,26 @@ TEST_F(ResidualBlockTest, IdentityShortcutBackward) {
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "identity_backward");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 1.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *grad_data = gradient->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     grad_data[i] = 1.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   residual.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -408,20 +405,20 @@ TEST_F(ResidualBlockTest, EdgeCaseZeroGradient) {
   main_path = create_scaling_layer(2.0f, "scale_2x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "zero_gradient");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(0.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   residual.backward(gradient, grad_input);
 
   for (size_t i = 0; i < grad_input->size(); ++i) {
@@ -434,17 +431,17 @@ TEST_F(ResidualBlockTest, EdgeCaseLargeValues) {
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "large_values");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 1e6f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: F(x) + x = 1*1e6 + 1e6 = 2e6
@@ -459,17 +456,17 @@ TEST_F(ResidualBlockTest, EdgeCaseNegativeValues) {
   main_path = create_scaling_layer(-1.0f, "scale_neg");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "negative_values");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = -2.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: F(x) + x = -1*(-2) + (-2) = 2 - 2 = 0
@@ -484,17 +481,17 @@ TEST_F(ResidualBlockTest, NumericalStabilitySmallValues) {
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "small_values");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 1e-6f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: F(x) + x = 1*1e-6 + 1e-6 = 2e-6
@@ -509,20 +506,20 @@ TEST_F(ResidualBlockTest, NumericalStabilityBackward) {
   main_path = create_scaling_layer(1.0f, "scale_1x");
 
   ResidualBlock residual(std::move(main_path), {}, "none", "backward_stability");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   input->fill(1e-6f);
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(1e-6f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   residual.backward(gradient, grad_input);
 
   // grad_main (1.0 * 1e-6) + grad_shortcut (1e-6) = 2e-6
@@ -542,17 +539,17 @@ TEST_F(ResidualBlockTest, MultiLayerMainPath) {
   main_path.push_back(std::move(layer2[0]));
 
   ResidualBlock residual(std::move(main_path), {}, "none", "multi_layer");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = 2.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: F(x) + x = (2.0 * (0.5 * 2.0)) + 2.0 = (2.0 * 1.0) + 2.0 = 4.0
@@ -570,20 +567,20 @@ TEST_F(ResidualBlockTest, MultiLayerMainPathBackward) {
   main_path.push_back(std::move(layer2[0]));
 
   ResidualBlock residual(std::move(main_path), {}, "none", "multi_layer_backward");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   residual.backward(gradient, grad_input);
 
   // grad_main = 2.0 * 0.5 * 1.0 = 1.0
@@ -600,17 +597,17 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionForward) {
   main_path = create_scaling_layer(0.0f, "scale_zero");
 
   ResidualBlock residual(std::move(main_path), {}, "relu", "relu_suppression");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = -1.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
   // Expected: relu(F(x) + x) = relu(0 + (-1)) = relu(-1) = 0
@@ -625,23 +622,23 @@ TEST_F(ResidualBlockTest, ReLUNegativeInputSuppressionBackward) {
   main_path = create_scaling_layer(0.0f, "scale_zero");
 
   ResidualBlock residual(std::move(main_path), {}, "relu", "relu_suppression_bwd");
-  residual.set_device(*cpu_device_);
+  residual.set_device(getCPU());
   residual.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 4; ++i) {
     input_data[i] = -1.0f;
   }
 
   std::vector<size_t> output_shape = residual.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, cpu_device_);
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   residual.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, cpu_device_);
+  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   residual.backward(gradient, grad_input);
 
   // ReLU blocks gradient when output is negative

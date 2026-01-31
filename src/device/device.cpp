@@ -35,6 +35,10 @@ std::string Device::getName() const {
   }
 }
 
+bool Device::operator==(const Device &other) const {
+  return (type_ == other.type_) && (id_ == other.id_);
+}
+
 size_t Device::getTotalMemory() const { return context_->getTotalMemory(); }
 
 size_t Device::getAvailableMemory() const { return context_->getAvailableMemory(); }

@@ -80,17 +80,17 @@ LayerConfig LayerConfig::from_json(const nlohmann::json &j) {
 }
 
 Layer::Layer() {
-  this->device_ = &getCPU();
+  this->device_ = getCPU();
   this->mem_pool_ = &PoolAllocator::instance(*device_);
 }
 
 void Layer::set_device(const Device &device) {
-  device_ = &device;
+  device_ = device;
   mem_pool_ = &PoolAllocator::instance(*device_);
   on_set_device(device);
 }
 
-const Device *Layer::get_device() const { return device_; }
+const Device &Layer::get_device() const { return device_; }
 
 void Layer::set_io_dtype(DType_t dtype) {
   io_dtype_ = dtype;
@@ -299,9 +299,6 @@ Tensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
 Tensor Layer::get_buffer(const std::vector<size_t> &shape, DType_t dtype) {
   if (!mem_pool_) {
     throw std::runtime_error("PoolAllocator not set for layer: " + name_);
-  }
-  if (!this->device_) {
-    throw std::runtime_error("Device not set for layer: " + name_);
   }
   return Tensor::create_pooled(*mem_pool_, dtype, shape);
 }

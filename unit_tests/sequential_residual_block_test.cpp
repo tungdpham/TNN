@@ -32,12 +32,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = nullptr;
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -76,7 +74,6 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
@@ -84,13 +81,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
       LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 64, 1, "basic_64_64").build();
   Sequential model("test_basic_identity", std::move(layers));
 
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 64, 32, 32}, "BasicResidualBlockIdentityShortcut");
@@ -111,13 +108,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
       LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 128, 1, "basic_64_128").build();
 
   auto model = Sequential("test_basic_projection", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 128, 32, 32}, "BasicResidualBlockProjectionShortcut");
@@ -140,13 +137,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedShortcut) {
                     .build();
 
   auto model = Sequential("test_basic_strided", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 64, 16, 16}, "BasicResidualBlockStridedShortcut");
@@ -159,13 +156,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedAndProjection) {
                     .build();
 
   auto model = Sequential("test_basic_strided_projection", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 128, 16, 16}, "BasicResidualBlockStridedAndProjection");
@@ -176,20 +173,20 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
       LayerBuilder().input({32, 16, 16}).basic_residual_block(32, 32, 1, "basic_32_32").build();
 
   auto model = Sequential("test_basic_backward", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 32, 16, 16}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 32, 16, 16}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
   EXPECT_EQ(output->shape(), input->shape());
 
-  Tensor grad_output = Tensor::create<float>({1, 32, 16, 16}, cpu_device_);
+  Tensor grad_output = Tensor::create<float>({1, 32, 16, 16}, getCPU());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   model.backward(grad_output, grad_input);
 
   verify_output_shape(grad_input->shape(), input->shape(), "BasicResidualBlockBackward");
@@ -215,13 +212,13 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockMultipleBlocks) {
                     .build();
 
   auto model = Sequential("test_basic_multiple", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 128, 16, 16}, "BasicResidualBlockMultipleBlocks");
@@ -232,13 +229,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
       LayerBuilder().input({256, 32, 32}).bottleneck_residual_block(256, 64, 256, 1).build();
 
   auto model = Sequential("test_bottleneck_identity", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 256, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 256, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 256, 32, 32}, "BottleneckResidualBlockIdentityShortcut");
@@ -259,13 +256,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockProjectionShortcut) {
       LayerBuilder().input({64, 32, 32}).bottleneck_residual_block(64, 64, 256, 1).build();
 
   auto model = Sequential("test_bottleneck_projection", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 256, 32, 32},
@@ -277,13 +274,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedShortcut) {
       LayerBuilder().input({256, 32, 32}).bottleneck_residual_block(256, 64, 256, 2).build();
 
   auto model = Sequential("test_bottleneck_strided", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 256, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 256, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 256, 16, 16}, "BottleneckResidualBlockStridedShortcut");
@@ -294,13 +291,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedAndProjection)
       LayerBuilder().input({64, 32, 32}).bottleneck_residual_block(64, 64, 256, 2).build();
 
   auto model = Sequential("test_bottleneck_strided_projection", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 256, 16, 16},
@@ -311,20 +308,20 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
   auto layers = LayerBuilder().input({64, 16, 16}).bottleneck_residual_block(64, 32, 64, 1).build();
 
   auto model = Sequential("test_bottleneck_backward", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 16, 16}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 16, 16}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
   EXPECT_EQ(output->shape(), input->shape());
 
-  Tensor grad_output = Tensor::create<float>({1, 64, 16, 16}, cpu_device_);
+  Tensor grad_output = Tensor::create<float>({1, 64, 16, 16}, getCPU());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   model.backward(grad_output, grad_input);
 
   verify_output_shape(grad_input->shape(), input->shape(), "BottleneckResidualBlockBackward");
@@ -350,13 +347,13 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockMultipleBlocks) {
                     .build();
 
   auto model = Sequential("test_bottleneck_multiple", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 512, 16, 16}, "BottleneckResidualBlockMultipleBlocks");
@@ -372,13 +369,13 @@ TEST_F(SequentialResidualBlockTest, MixedBasicAndBottleneckBlocks) {
                     .build();
 
   auto model = Sequential("test_mixed_blocks", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 512, 16, 16}, "MixedBasicAndBottleneckBlocks");
@@ -398,13 +395,13 @@ TEST_F(SequentialResidualBlockTest, ResNet18LikeArchitecture) {
                     .build();
 
   auto model = Sequential("test_resnet18_like", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 512, 4, 4}, "ResNet18LikeArchitecture");
@@ -425,13 +422,13 @@ TEST_F(SequentialResidualBlockTest, ResNet50LikeArchitecture) {
                     .build();
 
   auto model = Sequential("test_resnet50_like", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 64, 32, 32}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 64, 32, 32}, getCPU());
   input->fill(1.0f);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
 
   verify_output_shape(output->shape(), {1, 1024, 8, 8}, "ResNet50LikeArchitecture");
@@ -504,19 +501,19 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGetConfig) {
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
   auto layers = LayerBuilder().input({16, 8, 8}).basic_residual_block(16, 16, 1).build();
   Sequential model("test_basic_numerical", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
   std::vector<float> scales = {0.01f, 0.1f, 1.0f, 10.0f};
   for (float scale : scales) {
-    Tensor input = Tensor::create<float>({1, 16, 8, 8}, cpu_device_);
+    Tensor input = Tensor::create<float>({1, 16, 8, 8}, getCPU());
     float *input_data = input->data_as<float>();
     srand(42);
     for (size_t i = 0; i < input->size(); ++i) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
 
-    Tensor output = Tensor::create<float>({}, cpu_device_);
+    Tensor output = Tensor::create<float>({}, getCPU());
     model.forward(input, output);
 
     const float *output_data = output->data_as<float>();
@@ -538,19 +535,19 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
   auto layers = LayerBuilder().input({32, 8, 8}).bottleneck_residual_block(32, 16, 32, 1).build();
   Sequential model("test_bottleneck_numerical", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
   std::vector<float> scales = {0.01f, 0.1f, 1.0f, 10.0f};
   for (float scale : scales) {
-    Tensor input = Tensor::create<float>({1, 32, 8, 8}, cpu_device_);
+    Tensor input = Tensor::create<float>({1, 32, 8, 8}, getCPU());
     float *input_data = input->data_as<float>();
     srand(42);
     for (size_t i = 0; i < input->size(); ++i) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
 
-    Tensor output = Tensor::create<float>({}, cpu_device_);
+    Tensor output = Tensor::create<float>({}, getCPU());
     model.forward(input, output);
 
     const float *output_data = output->data_as<float>();
@@ -570,22 +567,22 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
   auto layers = LayerBuilder().input({8, 8, 8}).basic_residual_block(8, 8, 1).build();
   Sequential model("test_basic_gradient_finite", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 8, 8, 8}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 8, 8, 8}, getCPU());
   srand(42);
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
-  Tensor grad_output = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor grad_output = Tensor::create<float>(output->shape(), getCPU());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   model.backward(grad_output, grad_input);
 
   const float *grad_data = grad_input->data_as<float>();
@@ -606,22 +603,22 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
   auto layers = LayerBuilder().input({16, 8, 8}).bottleneck_residual_block(16, 8, 16, 1).build();
   Sequential model("test_bottleneck_gradient_finite", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 16, 8, 8}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 16, 8, 8}, getCPU());
   srand(42);
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
-  Tensor grad_output = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor grad_output = Tensor::create<float>(output->shape(), getCPU());
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   model.backward(grad_output, grad_input);
 
   const float *grad_data = grad_input->data_as<float>();
@@ -648,19 +645,19 @@ TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
                     .build();
 
   Sequential model("test_gradient_magnitudes", std::move(layers));
-  model.set_device(*cpu_device_);
+  model.set_device(getCPU());
   model.set_seed(123);
   model.init();
 
-  Tensor input = Tensor::create<float>({1, 16, 16, 16}, cpu_device_);
+  Tensor input = Tensor::create<float>({1, 16, 16, 16}, getCPU());
   input->fill_random_uniform(0.0f, 0.1f, 456);
 
-  Tensor output = Tensor::create<float>({}, cpu_device_);
+  Tensor output = Tensor::create<float>({}, getCPU());
   model.forward(input, output);
-  Tensor grad_output = Tensor::create<float>(output->shape(), cpu_device_);
+  Tensor grad_output = Tensor::create<float>(output->shape(), getCPU());
   grad_output->fill(0.001f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   model.backward(grad_output, grad_input);
 
   const float *grad_data = grad_input->data_as<float>();

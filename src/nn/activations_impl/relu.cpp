@@ -22,8 +22,6 @@ std::unique_ptr<Task> ReLU::apply(const Tensor &input, Tensor &output) const {
     throw std::runtime_error("Input and output shapes must match for ReLU");
   }
   if (input->device() != output->device()) {
-    std::cout << "Input device: " << input->device() << ", Output device: " << output->device()
-              << std::endl;
     throw std::runtime_error("Input and output must be on the same device for ReLU");
   }
 

@@ -33,11 +33,9 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader &t
   while (train_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
     std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(TensorOps::split, batch_data, micro_batch_inputs,
-                    coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, coordinator.num_microbatches());
     std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(TensorOps::split, batch_labels, micro_batch_labels,
-                    coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, coordinator.num_microbatches());
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
@@ -83,12 +81,10 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader
 
   while (test_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(TensorOps::split, batch_data, micro_batch_inputs,
-                    coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, coordinator.num_microbatches());
 
     std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(TensorOps::split, batch_labels, micro_batch_labels,
-                    coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, coordinator.num_microbatches());
 
     for (size_t i = 0; i < micro_batch_inputs.size(); ++i) {
       coordinator.forward(std::move(micro_batch_inputs[i]), i);

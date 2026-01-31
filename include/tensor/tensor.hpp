@@ -24,8 +24,10 @@
 
 #include "device/allocator.hpp"
 #include "device/device.hpp"
+#include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
+#include "device/sref.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
 #include "type/type.hpp"
@@ -66,7 +68,7 @@ public:
   // device properties
   virtual bool is_on_cpu() const = 0;
   virtual bool is_on_gpu() const = 0;
-  virtual const Device *device() const = 0;
+  virtual const Device &device() const = 0;
   virtual DeviceType device_type() const = 0;
   virtual bool is_aligned(size_t alignment = 32) const = 0;
 
@@ -84,7 +86,7 @@ public:
   // Data access
   template <typename U>
   U &at(std::initializer_list<size_t> indices) {
-    assert(device()->device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
+    assert(device().device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
     assert(indices.size() == shape().size());
     size_t index = compute_index(indices);
     return data_as<U>()[index];
@@ -92,7 +94,7 @@ public:
 
   template <typename U>
   const U &at(std::initializer_list<size_t> indices) const {
-    assert(device()->device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
+    assert(device().device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
     assert(indices.size() == shape().size());
     size_t index = compute_index(indices);
     return data_as<U>()[index];
@@ -123,7 +125,7 @@ public:
   virtual void copy_to(Tensor &target) const = 0;
   virtual Tensor to_cpu() const = 0;
   virtual Tensor to_gpu(int gpu_id = 0) const = 0;
-  virtual Tensor to_device(const Device *target_device) const = 0;
+  virtual Tensor to_device(const Device &target_device) const = 0;
 
   virtual void add(const Tensor &other) = 0;
   virtual void sub(const Tensor &other) = 0;
@@ -156,23 +158,23 @@ public:
   Tensor(std::shared_ptr<ITensor> &&ptr) : std::shared_ptr<ITensor>(std::move(ptr)) {}
 
   template <typename T>
-  static Tensor create(std::vector<size_t> shape, const Device *device = &getCPU());
+  static Tensor create(std::vector<size_t> shape, const Device &device = getCPU());
 
   template <typename T>
   static Tensor create(std::vector<size_t> shape, const dptr &data,
-                       const Device *device = &getCPU());
+                       const Device &device = getCPU());
 
   template <typename T>
-  static Tensor create(std::initializer_list<size_t> shape = {}, const Device *device = &getCPU());
+  static Tensor create(std::initializer_list<size_t> shape = {}, const Device &device = getCPU());
 
   template <typename T>
   static Tensor create(std::initializer_list<size_t> shape, const dptr &data,
-                       const Device *device = &getCPU());
+                       const Device &device = getCPU());
 
-  static Tensor create(DType_t dtype, std::vector<size_t> shape, const Device *device = &getCPU());
+  static Tensor create(DType_t dtype, std::vector<size_t> shape, const Device &device = getCPU());
 
   static Tensor create(DType_t dtype, std::initializer_list<size_t> shape = {},
-                       const Device *device = &getCPU());
+                       const Device &device = getCPU());
 
   static Tensor create(DType_t dtype, dptr &&data, std::vector<size_t> shape);
 
@@ -191,7 +193,7 @@ public:
   static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
 
   template <typename T>
-  static Tensor load(std::ifstream &in, const Device *device = &getCPU());
+  static Tensor load(std::ifstream &in, const Device &device = getCPU());
 
   static void load_into(std::ifstream &in, Tensor &target);
 
@@ -208,6 +210,7 @@ public:
 template <typename T = float>
 class TypedTensor : public ITensor {
 protected:
+  sref<IAllocator> allocator_;
   size_t data_size_;
   dptr data_;
   std::vector<size_t> shape_;
@@ -241,89 +244,94 @@ protected:
     return index;
   }
 
-  dptr allocate_data(const Device *device, size_t size) { return make_dptr_t<T>(device, size); }
+  dptr allocate_data(size_t size) {
+    dptr data = allocator_->allocate(size * sizeof(T));
+    return data;
+  }
 
 public:
   // Constructors and Destructor
-  TypedTensor(const Device *device = &getCPU()) : data_size_(0) {
+  TypedTensor(IAllocator &allocator) : allocator_(allocator), data_size_(0) {
     for (size_t i = 0; i < shape_.size(); ++i) {
       shape_[i] = 0;
     }
-    data_ = allocate_data(device, 0);
+    data_ = allocate_data(0);
   }
 
-  TypedTensor(std::initializer_list<size_t> shape_list, const Device *device = &getCPU())
-      : shape_(shape_list) {
+  TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list)
+      : allocator_(allocator), shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_data(device, data_size_);
+    data_ = allocate_data(data_size_);
   }
 
-  TypedTensor(std::initializer_list<size_t> shape_list, const dptr &data,
-              const Device *device = &getCPU())
-      : shape_(shape_list) {
+  TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list, const dptr &data)
+      : allocator_(allocator), shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_data(device, data_size_);
+    data_ = allocator_->allocate(data_size_ * sizeof(T));
     if (data.get<T>() != nullptr) {
-      ops::copy<T>(data, data_, data_size_);
+      ops::cd_copy<T>(data, data_, data_size_);
     }
   }
 
-  TypedTensor(std::vector<size_t> shape, const Device *device = &getCPU())
-      : shape_(std::move(shape)) {
+  TypedTensor(IAllocator &allocator, std::vector<size_t> shape)
+      : allocator_(allocator), shape_(std::move(shape)) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_data(device, data_size_);
+    data_ = allocate_data(data_size_);
   }
 
-  TypedTensor(std::vector<size_t> shape, const dptr &data, const Device *device = &getCPU())
-      : shape_(std::move(shape)) {
+  TypedTensor(IAllocator &allocator, std::vector<size_t> shape, const dptr &data)
+      : allocator_(allocator), shape_(std::move(shape)) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
-    data_ = allocate_data(device, data_size_);
+    data_ = allocate_data(data_size_);
     if (data.get<T>() != nullptr) {
-      ops::copy<T>(data, data_, data_size_);
+      ops::cd_copy<T>(data, data_, data_size_);
     }
   }
 
   ~TypedTensor() = default;
 
-  TypedTensor(const TypedTensor &other) : data_size_(other.data_size_), shape_(other.shape_) {
+  TypedTensor(const TypedTensor &other)
+      : allocator_(other.allocator_), data_size_(other.data_size_), shape_(other.shape_) {
     if (data_size_ > 0) {
-      data_ = allocate_data(other.device(), data_size_);
+      data_ = allocate_data(data_size_);
       ops::copy<T>(other.data_, data_, data_size_);
     }
   }
 
   TypedTensor(TypedTensor &&other) noexcept
-      : data_size_(other.data_size_), shape_(std::move(other.shape_)) {
+      : allocator_(other.allocator_),
+        data_size_(other.data_size_),
+        shape_(std::move(other.shape_)) {
     data_ = std::move(other.data_);
     other.data_size_ = 0;
   }
 
   template <typename... Indices>
   T &operator()(Indices... indices) {
-    assert(device()->device_type() == DeviceType::CPU &&
+    assert(device().device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices...)];
   }
 
   T &operator()(std::initializer_list<size_t> indices) {
-    assert(device()->device_type() == DeviceType::CPU &&
+    assert(device().device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices)];
   }
 
   template <typename... Indices>
   const T &operator()(Indices... indices) const {
-    assert(device()->device_type() == DeviceType::CPU &&
+    assert(device().device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices...)];
   }
 
   const T &operator()(std::initializer_list<size_t> indices) const {
-    assert(device()->device_type() == DeviceType::CPU &&
+    assert(device().device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices)];
   }
@@ -335,25 +343,14 @@ public:
   const dptr &data_ptr() const override { return data_; }
 
   // Operators
-  TypedTensor<T> &operator=(const TypedTensor<T> &other) {
-    if (this != &other) {
-      data_ = dptr(nullptr);
-      data_size_ = other.data_size_;
-      shape_ = other.shape_;
-      data_ = allocate_data(other.device(), data_size_);
-      if (data_size_ > 0) {
-        ops::copy<T>(other.data_, data_, data_size_);
-      }
-    }
-    return *this;
-  }
+  TypedTensor<T> &operator=(const TypedTensor<T> &other) = delete;
 
   TypedTensor<T> &operator=(TypedTensor<T> &&other) noexcept {
     if (this != &other) {
+      allocator_ = other.allocator_;
       shape_ = std::move(other.shape_);
       data_ = std::move(other.data_);
       data_size_ = other.data_size_;
-
       other.data_size_ = 0;
     }
     return *this;
@@ -366,7 +363,7 @@ public:
       throw std::invalid_argument("TypedTensor shapes must match for addition");
     }
 
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::add<T>(data_, other.data_, result.data_, data_size_);
     return result;
   }
@@ -376,7 +373,7 @@ public:
       throw std::invalid_argument("TypedTensor shapes must match for subtraction");
     }
 
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::sub<T>(data_, other.data_, result.data_, data_size_);
     return result;
   }
@@ -386,7 +383,7 @@ public:
       throw std::invalid_argument("TypedTensor shapes must match for element-wise multiplication");
     }
 
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::mul<T>(data_, other.data_, result.data_, data_size_);
     return result;
   }
@@ -396,25 +393,25 @@ public:
       throw std::invalid_argument("TypedTensor shapes must match for element-wise division");
     }
 
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::div<T>(data_, other.data_, result.data_, data_size_);
     return result;
   }
 
   TypedTensor<T> operator+(T scalar) const {
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::add_scalar<T>(data_, scalar, result.data_, data_size_);
     return result;
   }
 
   TypedTensor<T> operator-(T scalar) const {
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::sub_scalar(data_, scalar, result.data_, data_size_);
     return result;
   }
 
   TypedTensor<T> operator*(T scalar) const {
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::mul_scalar(data_, scalar, result.data_, data_size_);
     return result;
   }
@@ -424,7 +421,7 @@ public:
       throw std::invalid_argument("Division by zero");
     }
 
-    TypedTensor<T> result(shape_, device());
+    TypedTensor<T> result(allocator_, shape_);
     ops::div_scalar(data_, scalar, result.data_, data_size_);
     return result;
   }
@@ -505,13 +502,12 @@ public:
     return (reinterpret_cast<uintptr_t>(data_.get<T>()) % alignment) == 0;
   }
 
-  const Device *device() const override { return data_.getDevice(); }
+  const Device &device() const override { return data_.getDevice(); }
 
-  DeviceType device_type() const override { return device()->device_type(); }
+  DeviceType device_type() const override { return device().device_type(); }
 
-  bool is_on_cpu() const override { return device()->device_type() == DeviceType::CPU; }
-
-  bool is_on_gpu() const override { return device()->device_type() == DeviceType::GPU; }
+  bool is_on_cpu() const override { return device().device_type() == DeviceType::CPU; }
+  bool is_on_gpu() const override { return device().device_type() == DeviceType::GPU; }
 
   Tensor to_cpu() const override {
     if (device_type() == DeviceType::CPU) {
@@ -521,10 +517,9 @@ public:
     if (device_type() == DeviceType::GPU) {
       std::vector<size_t> shape_vec(shape_);
       std::shared_ptr<TypedTensor<T>> cpu_tensor =
-          std::make_shared<TypedTensor<T>>(shape_vec, &getCPU());
+          std::make_shared<TypedTensor<T>>(HostAllocator(), shape_vec);
       // Copy from GPU to CPU
-      data_.getDevice()->copyToHost(cpu_tensor->data_.template get<T>(), data_.template get<T>(),
-                                    data_size_ * sizeof(T));
+      ops::cd_copy<T>(data_, cpu_tensor->data_, sizeof(T) * data_size_);
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_cpu()");
@@ -537,7 +532,7 @@ public:
 
     if (device_type() == DeviceType::CPU) {
       std::vector<size_t> shape_vec(shape_);
-      auto gpu_tensor = std::make_shared<TypedTensor<T>>(shape_vec, &getGPU(gpu_id));
+      auto gpu_tensor = std::make_shared<TypedTensor<T>>(GPUAllocator(), shape_vec);
 
       // Copy from CPU to GPU
       getGPU(gpu_id).copyToDevice(gpu_tensor->data_.template get<T>(), data_.template get<T>(),
@@ -548,16 +543,16 @@ public:
     throw std::runtime_error("Unsupported device type for to_gpu()");
   }
 
-  Tensor to_device(const Device *target_device) const override {
+  Tensor to_device(const Device &target_device) const override {
     if (device() == target_device) {
       return clone();
     }
 
-    if (device_type() == DeviceType::CPU && target_device->device_type() == DeviceType::GPU) {
-      return to_gpu(target_device->getID());
+    if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
+      return to_gpu(target_device.getID());
     }
 
-    if (device_type() == DeviceType::GPU && target_device->device_type() == DeviceType::CPU) {
+    if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
       return to_cpu();
     }
 
@@ -565,7 +560,7 @@ public:
   }
 
   Tensor clone() const override {
-    return std::make_shared<TypedTensor<T>>(shape_, data_, device());
+    return std::make_shared<TypedTensor<T>>(allocator_, shape_, data_);
   }
 
   std::unique_ptr<Task> fill(double value) override {
@@ -690,7 +685,7 @@ public:
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size != data_size_) {
-      data_ = allocate_data(device(), new_size);
+      data_ = allocate_data(new_size);
       data_size_ = new_size;
     }
     shape_ = new_shape;
@@ -704,7 +699,7 @@ public:
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
     if (new_size * sizeof(T) > data_.capacity()) {
-      data_ = allocate_data(device(), new_size);
+      data_ = allocate_data(new_size);
     }
     data_size_ = new_size;
     shape_ = new_shape;
@@ -802,7 +797,7 @@ public:
       out.write(reinterpret_cast<const char *>(data_.get<T>()), data_size_ * sizeof(T));
     } else {
       std::vector<T> host_buffer(data_size_);
-      device()->copyToHost(host_buffer.data(), data_.get<T>(), data_size_ * sizeof(T));
+      device().copyToHost(host_buffer.data(), data_.get<T>(), data_size_ * sizeof(T));
       out.write(reinterpret_cast<const char *>(host_buffer.data()), data_size_ * sizeof(T));
     }
   }
@@ -826,50 +821,6 @@ public:
       throw std::runtime_error("Unsupported data type for TypedTensor");
     }
   }
-};
-
-template <typename T>
-class PooledTypedTensor : public TypedTensor<T> {
-public:
-  using TypedTensor<T>::TypedTensor;
-
-  // ! Do not call default TypedTensor constructor with shape as that will allocate memory
-  PooledTypedTensor(IAllocator &allocator, std::vector<size_t> shape)
-      : TypedTensor<T>(), allocator_(allocator) {
-    this->shape_ = std::move(shape);
-    this->data_size_ = std::accumulate(this->shape_.begin(), this->shape_.end(), size_t(1),
-                                       std::multiplies<size_t>());
-    this->data_ = allocator_.allocate(this->data_size_ * sizeof(T));
-  }
-
-  void ensure(const std::vector<size_t> &new_shape) override {
-    size_t new_size =
-        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size > this->data_.capacity() / sizeof(T)) {
-      // Reallocate using the allocator
-      this->data_ = allocator_.allocate(new_size * sizeof(T));
-    }
-    this->data_size_ = new_size;
-    this->shape_ = new_shape;
-  }
-
-  void resize(const std::vector<size_t> &new_shape) override {
-    if (new_shape == this->shape_) {
-      return;
-    }
-
-    size_t new_size =
-        std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size > this->data_.capacity() / sizeof(T)) {
-      // Reallocate using the allocator
-      this->data_ = allocator_.allocate(new_size * sizeof(T));
-    }
-    this->data_size_ = new_size;
-    this->shape_ = new_shape;
-  }
-
-private:
-  IAllocator &allocator_;
 };
 
 template <typename T>
@@ -1046,27 +997,31 @@ inline void print_data_distribution(const Tensor &tensor, const std::string &ten
 #define DISPATCH_AUTO_T(func, ...) DISPATCH_AUTO(T, func<T>(__VA_ARGS__), __VA_ARGS__)
 
 template <typename T>
-inline Tensor Tensor::create(std::vector<size_t> shape, const Device *device) {
-  return std::make_shared<TypedTensor<T>>(shape, device);
+inline Tensor Tensor::create(std::vector<size_t> shape, const Device &device) {
+  auto &allocator = DeviceAllocator::instance(device);
+  return std::make_shared<TypedTensor<T>>(allocator, shape);
 }
 
 template <typename T>
-inline Tensor Tensor::create(std::vector<size_t> shape, const dptr &data, const Device *device) {
-  return std::make_shared<TypedTensor<T>>(shape, data, device);
+inline Tensor Tensor::create(std::vector<size_t> shape, const dptr &data, const Device &device) {
+  auto &allocator = DeviceAllocator::instance(device);
+  return std::make_shared<TypedTensor<T>>(allocator, shape, data);
 }
 
 template <typename T>
-inline Tensor Tensor::create(std::initializer_list<size_t> shape, const Device *device) {
-  return std::make_shared<TypedTensor<T>>(shape, device);
+inline Tensor Tensor::create(std::initializer_list<size_t> shape, const Device &device) {
+  auto &allocator = DeviceAllocator::instance(device);
+  return std::make_shared<TypedTensor<T>>(allocator, shape);
 }
 
 template <typename T>
 inline Tensor Tensor::create(std::initializer_list<size_t> shape, const dptr &data,
-                             const Device *device) {
-  return std::make_shared<TypedTensor<T>>(shape, data, device);
+                             const Device &device) {
+  auto &allocator = DeviceAllocator::instance(device);
+  return std::make_shared<TypedTensor<T>>(allocator, shape, data);
 }
 
-inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Device *device) {
+inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Device &device) {
   switch (dtype) {
     case DType_t::FP16:
       return create<fp16>(shape, device);
@@ -1082,7 +1037,7 @@ inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Dev
 }
 
 inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
-                             const Device *device) {
+                             const Device &device) {
   switch (dtype) {
     case DType_t::FP16:
       return create<fp16>(shape, device);
@@ -1114,12 +1069,12 @@ inline Tensor Tensor::create(DType_t dtype, dptr &&data, std::vector<size_t> sha
 
 template <typename T>
 inline Tensor Tensor::create_pooled(IAllocator &allocator, std::vector<size_t> shape) {
-  return std::make_shared<PooledTypedTensor<T>>(allocator, shape);
+  return std::make_shared<TypedTensor<T>>(allocator, shape);
 }
 
 template <typename T>
 inline Tensor Tensor::create_pooled(IAllocator &allocator, std::initializer_list<size_t> shape) {
-  return std::make_shared<PooledTypedTensor<T>>(allocator, std::vector<size_t>(shape));
+  return std::make_shared<TypedTensor<T>>(allocator, std::vector<size_t>(shape));
 }
 
 inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
@@ -1178,7 +1133,7 @@ inline Tensor Tensor::dtype_cast(const Tensor &input, DType_t target_dtype) {
 }
 
 template <typename T>
-inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
+inline Tensor Tensor::load(std::ifstream &in, const Device &device) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }
@@ -1191,7 +1146,7 @@ inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
   }
 
   auto tensor = std::make_shared<TypedTensor<T>>(shape, device);
-  if (device->device_type() == DeviceType::CPU) {
+  if (device.device_type() == DeviceType::CPU) {
     in.read(reinterpret_cast<char *>(tensor->data()), tensor->size() * sizeof(T));
     if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
       throw std::runtime_error("Failed to read tensor data from file");
@@ -1202,7 +1157,7 @@ inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
     if (in.gcount() != static_cast<std::streamsize>(tensor->size() * sizeof(T))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
-    device->copyToDevice(tensor->data(), host_buffer.data(), tensor->size() * sizeof(T));
+    device.copyToDevice(tensor->data(), host_buffer.data(), tensor->size() * sizeof(T));
   }
   return tensor;
 }
@@ -1235,8 +1190,8 @@ inline void Tensor::load_into(std::ifstream &in, Tensor &target) {
     if (in.gcount() != static_cast<std::streamsize>(target->size() * get_dtype_size(dtype))) {
       throw std::runtime_error("Failed to read tensor data from file");
     }
-    target->device()->copyToDevice(target->data(), host_buffer,
-                                   target->size() * get_dtype_size(dtype));
+    target->device().copyToDevice(target->data(), host_buffer,
+                                  target->size() * get_dtype_size(dtype));
     free(host_buffer);
   }
 }
@@ -1302,7 +1257,7 @@ inline Tensor operator*(double scalar, const Tensor &rhs) {
 
 // Convenience wrapper for backward compatibility
 template <typename T>
-inline Tensor load_tensor(std::ifstream &in, const Device *device = &getCPU()) {
+inline Tensor load_tensor(std::ifstream &in, const Device &device = getCPU()) {
   return Tensor::load<T>(in, device);
 }
 

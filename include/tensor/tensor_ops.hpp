@@ -9,7 +9,7 @@
 #include "tensor.hpp"
 
 namespace tnn {
-namespace TensorOps {
+namespace ops {
 // im2col/col2im operations
 template <typename T>
 std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_t kernel_h,
@@ -23,12 +23,12 @@ std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_
     throw std::runtime_error("im2col: Mismatched device types between input tensor and col_data");
   }
   if (input_tensor->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::im2col<T>, input_tensor, col_data->data_as<T>(), kernel_h,
-                           kernel_w, stride_h, stride_w, pad_h, pad_w);
+    return create_cpu_task(flow_id, tnn::cpu::im2col<T>, input_tensor, col_data->data_as<T>(),
+                           kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #ifdef USE_CUDA
   else if (input_tensor->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::im2col<T>, input_tensor, col_data->data_as<T>(),
+    return create_cuda_task(flow_id, tnn::cuda::im2col<T>, input_tensor, col_data->data_as<T>(),
                             kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #endif
@@ -46,13 +46,13 @@ std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t
     throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
   }
   if (col_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::col2im<T>, col_data->data_as<T>(),
+    return create_cpu_task(flow_id, tnn::cpu::col2im<T>, col_data->data_as<T>(),
                            result_data->data_as<T>(), batch_size, channels, height, width, kernel_h,
                            kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #ifdef USE_CUDA
   else if (col_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::col2im<T>, col_data->data_as<T>(),
+    return create_cuda_task(flow_id, tnn::cuda::col2im<T>, col_data->data_as<T>(),
                             result_data->data_as<T>(), batch_size, channels, height, width,
                             kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
@@ -67,11 +67,11 @@ template <typename T>
 std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                           T value = T(0), const std::string &flow_id = "default") {
   if (input->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::pad<T>, input, result, pad_h, pad_w, value);
+    return create_cpu_task(flow_id, tnn::cpu::pad<T>, input, result, pad_h, pad_w, value);
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::pad<T>, input, result, pad_h, pad_w, value);
+    return create_cuda_task(flow_id, tnn::cuda::pad<T>, input, result, pad_h, pad_w, value);
   }
 #endif
   else {
@@ -83,11 +83,11 @@ template <typename T>
 std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                             const std::string &flow_id = "default") {
   if (input->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::unpad<T>, input, result, pad_h, pad_w);
+    return create_cpu_task(flow_id, tnn::cpu::unpad<T>, input, result, pad_h, pad_w);
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::unpad<T>, input, result, pad_h, pad_w);
+    return create_cuda_task(flow_id, tnn::cuda::unpad<T>, input, result, pad_h, pad_w);
   }
 #endif
   else {
@@ -101,11 +101,13 @@ std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t sta
                            const size_t start_w, const size_t end_h, const size_t end_w,
                            const std::string &flow_id = "default") {
   if (input->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::crop<T>, input, result, start_h, start_w, end_h, end_w);
+    return create_cpu_task(flow_id, tnn::cpu::crop<T>, input, result, start_h, start_w, end_h,
+                           end_w);
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::crop<T>, input, result, start_h, start_w, end_h, end_w);
+    return create_cuda_task(flow_id, tnn::cuda::crop<T>, input, result, start_h, start_w, end_h,
+                            end_w);
   }
 #endif
   else {
@@ -118,11 +120,13 @@ template <typename T>
 std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t start_batch,
                                   size_t end_batch, const std::string &flow_id = "default") {
   if (input->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::slice_batch<T>, input, result, start_batch, end_batch);
+    return create_cpu_task(flow_id, tnn::cpu::slice_batch<T>, input, result, start_batch,
+                           end_batch);
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::slice_batch<T>, input, result, start_batch, end_batch);
+    return create_cuda_task(flow_id, tnn::cuda::slice_batch<T>, input, result, start_batch,
+                            end_batch);
   }
 #endif
   else {
@@ -135,11 +139,11 @@ template <typename T>
 std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
                             const std::string &flow_id = "default") {
   if (input->is_on_cpu()) {
-    return create_cpu_task(flow_id, cpu::split<T>, input, results, num_splits);
+    return create_cpu_task(flow_id, tnn::cpu::split<T>, input, results, num_splits);
   }
 #ifdef USE_CUDA
   else if (input->is_on_gpu()) {
-    return create_cuda_task(flow_id, cuda::split<T>, input, results, num_splits);
+    return create_cuda_task(flow_id, tnn::cuda::split<T>, input, results, num_splits);
   }
 #endif
   else {
@@ -150,24 +154,20 @@ std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, s
 template <typename T>
 std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t rows, size_t cols,
                                    const std::string &flow_id = "default") {
-  if (!input->device() || !output->device()) {
-    throw std::runtime_error("transpose_2d: Device pointer has no associated device");
-  }
-
   if (output->device() != input->device()) {
     throw std::runtime_error("transpose_2d: Input and output must be on the same device");
   }
 
-  auto device = input->device();
-  auto device_type = device->device_type();
+  const auto &device = input->device();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::transpose_2d<T>, input->data_as<T>(), output->data_as<T>(),
-                           rows, cols);
+    return create_cpu_task(flow_id, tnn::cpu::transpose_2d<T>, input->data_as<T>(),
+                           output->data_as<T>(), rows, cols);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_transpose_2d<T>, input->data_as<T>(),
+    return create_cuda_task(flow_id, tnn::cuda::cuda_transpose_2d<T>, input->data_as<T>(),
                             output->data_as<T>(), rows, cols);
   }
 #endif
@@ -179,24 +179,20 @@ std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t r
 template <typename T>
 std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n, size_t c,
                                    size_t h, size_t w, const std::string &flow_id = "default") {
-  if (!input->device() || !output->device()) {
-    throw std::runtime_error("nchw_to_cnhw: Device pointer has no associated device");
-  }
-
   if (output->device() != input->device()) {
     throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
   }
 
-  auto device = input->device();
-  auto device_type = device->device_type();
+  const auto &device = input->device();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::nchw_to_cnhw<T>, input->data_as<T>(), output->data_as<T>(),
-                           n, c, h, w);
+    return create_cpu_task(flow_id, tnn::cpu::nchw_to_cnhw<T>, input->data_as<T>(),
+                           output->data_as<T>(), n, c, h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_nchw_to_cnhw<T>, input->data_as<T>(),
+    return create_cuda_task(flow_id, tnn::cuda::cuda_nchw_to_cnhw<T>, input->data_as<T>(),
                             output->data_as<T>(), n, c, h, w);
   }
 #endif
@@ -208,22 +204,19 @@ std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n
 template <typename T>
 std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n, size_t c,
                                    size_t h, size_t w, const std::string &flow_id = "default") {
-  if (!input->device() || !output->device()) {
-    throw std::runtime_error("cnhw_to_nchw: Device pointer has no associated device");
-  }
   if (output->device() != input->device()) {
     throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
   }
-  auto device = input->device();
-  auto device_type = device->device_type();
+  const auto &device = input->device();
+  auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::cnhw_to_nchw<T>, input->data_as<T>(), output->data_as<T>(),
-                           n, c, h, w);
+    return create_cpu_task(flow_id, tnn::cpu::cnhw_to_nchw<T>, input->data_as<T>(),
+                           output->data_as<T>(), n, c, h, w);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_cnhw_to_nchw<T>, input->data_as<T>(),
+    return create_cuda_task(flow_id, tnn::cuda::cuda_cnhw_to_nchw<T>, input->data_as<T>(),
                             output->data_as<T>(), n, c, h, w);
   }
 #endif
@@ -232,5 +225,5 @@ std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n
   }
 }
 
-}  // namespace TensorOps
+}  // namespace ops
 }  // namespace tnn

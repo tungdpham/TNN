@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <vector>
 
+#include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
@@ -47,7 +48,7 @@ public:
   // Note: have to reinit after changing device
   void set_device(const Device &device);
 
-  const Device *get_device() const;
+  const Device &get_device() const;
 
   void set_io_dtype(DType_t dtype);
 
@@ -127,7 +128,7 @@ protected:
   std::map<std::pair<size_t, std::string>, Tensor> cached_tensors_;
   Profiler profiler_;
   PoolAllocator *mem_pool_;
-  const Device *device_;
+  csref<Device> device_ = getCPU();
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
   DType_t param_dtype_ = DType_t::FP32;    // data type for parameters/gradients

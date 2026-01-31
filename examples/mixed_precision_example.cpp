@@ -10,8 +10,8 @@ using namespace tnn;
 
 int main() {
   // Create type-erased tensors
-  Tensor tensor_f32 = Tensor::create<float>({2, 3}, &getCPU());
-  Tensor tensor_f64 = make_tensor<double>({2, 3}, &getCPU());
+  Tensor tensor_f32 = Tensor::create<float>({2, 3}, getCPU());
+  Tensor tensor_f64 = make_tensor<double>({2, 3}, getCPU());
 
   // Fill with values
   tensor_f32->fill_scalar(1.0);
