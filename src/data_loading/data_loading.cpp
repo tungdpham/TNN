@@ -70,8 +70,8 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
       pair.val = std::move(val);
     }
   } else if (dataset_type == "open_webtext") {
-    auto train = std::make_unique<OpenWebTextDataLoader>(512, io_dtype_);
-    auto val = std::make_unique<OpenWebTextDataLoader>(512, io_dtype_);
+    auto train = std::make_unique<OpenWebTextDataLoader>(1024, io_dtype_);
+    auto val = std::make_unique<OpenWebTextDataLoader>(1024, io_dtype_);
 
     if (train->load_data(dataset_path + "/train.bin")) {
       pair.train = std::move(train);

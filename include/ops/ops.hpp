@@ -794,7 +794,8 @@ std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stdde
 }
 
 template <typename A_T, typename B_T>
-std::unique_ptr<Task> cast(dptr a, dptr b, size_t size, const std::string &flow_id = "default") {
+std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
+                           const std::string &flow_id = "default") {
   if (a.getDevice() != b.getDevice()) {
     throw std::runtime_error("cast: All device pointers must be on the same device");
   }

@@ -396,6 +396,56 @@ Sequential create_flash_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
   return Sequential("flash_gpt2", std::move(layers));
 }
 
+Sequential create_gpt2_large(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t seq_len = 1024;
+  constexpr size_t vocab_size = 50257;
+  constexpr size_t embed_dim = 1280;
+  constexpr size_t num_heads = 16;
+  constexpr size_t num_layers = 36;
+  constexpr float dropout = 0.1f;
+
+  LayerBuilder builder;
+  builder.input({seq_len})
+      .dtype(io_dtype_)
+      .embedding(vocab_size, embed_dim, "token_embed")
+      .positional_embedding(embed_dim, seq_len, "pos_embed")
+      .dropout(dropout);
+
+  for (size_t i = 0; i < num_layers; ++i) {
+    builder.gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
+  }
+
+  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+
+  auto layers = builder.build();
+  return Sequential("gpt2_large", std::move(layers));
+}
+
+Sequential create_flash_gpt2_large(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t seq_len = 1024;
+  constexpr size_t vocab_size = 50257;
+  constexpr size_t embed_dim = 1280;
+  constexpr size_t num_heads = 16;
+  constexpr size_t num_layers = 36;
+  constexpr float dropout = 0.1f;
+
+  LayerBuilder builder;
+  builder.input({seq_len})
+      .dtype(io_dtype_)
+      .embedding(vocab_size, embed_dim, "token_embed")
+      .positional_embedding(embed_dim, seq_len, "pos_embed")
+      .dropout(dropout);
+
+  for (size_t i = 0; i < num_layers; ++i) {
+    builder.flash_gpt_block(embed_dim, num_heads, embed_dim * 4, dropout, true, "gelu");
+  }
+
+  builder.layernorm(dtype_eps(io_dtype_), true, "ln_f").dense(vocab_size, true, "head");
+
+  auto layers = builder.build();
+  return Sequential("flash_gpt2_large", std::move(layers));
+}
+
 // Register all models
 void ExampleModels::register_defaults() {
   // MNIST
@@ -420,6 +470,9 @@ void ExampleModels::register_defaults() {
   // GPT-2
   register_model(create_gpt2_small);
   register_model(create_flash_gpt2_small);
+
+  register_model(create_gpt2_large);
+  register_model(create_flash_gpt2_large);
 }
 
 }  // namespace tnn
