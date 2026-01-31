@@ -11,22 +11,29 @@ namespace tnn {
 constexpr size_t DEFAULT_ALIGNMENT = 64;
 
 struct device_storage {
-  const Device *device;
-  void *ptr;
-  size_t capacity;
-  size_t alignment;
+private:
+  const Device *device_;
+  void *ptr_;
+  size_t capacity_;
+  size_t alignment_;
 
+public:
   device_storage(const Device *device = nullptr, void *ptr = nullptr, size_t capacity = 0,
                  size_t alignment = DEFAULT_ALIGNMENT)
-      : device(device), ptr(ptr), capacity(capacity), alignment(alignment) {}
+      : device_(device), ptr_(ptr), capacity_(capacity), alignment_(alignment) {}
 
   ~device_storage() {
-    if (ptr && device) {
-      device->deallocateAlignedMemory(static_cast<void *>(ptr));
+    if (ptr_ && device_) {
+      device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
     }
-    ptr = nullptr;
-    capacity = 0;
+    ptr_ = nullptr;
+    capacity_ = 0;
   }
+
+  const Device *device() const { return device_; }
+  void *data() const { return ptr_; }
+  size_t capacity() const { return capacity_; }
+  size_t alignment() const { return alignment_; }
 };
 
 // device pointer. Shares ownership of device storage. True owners have offset 0.
@@ -46,20 +53,20 @@ public:
 
   dptr(std::nullptr_t) : storage_(nullptr), offset_(0), capacity_(0) {}
 
-  operator bool() const { return storage_ != nullptr && storage_->ptr != nullptr; }
+  operator bool() const { return storage_ != nullptr && storage_->data() != nullptr; }
 
   const Device *getDevice() const {
     if (!storage_) {
       return nullptr;
     }
-    return storage_->device;
+    return storage_->device();
   }
 
   DeviceType device_type() const {
     if (!storage_) {
       return DeviceType::NULL_DEVICE;
     }
-    return storage_->device->device_type();
+    return storage_->device()->device_type();
   }
 
   size_t capacity() const { return capacity_; }
@@ -68,7 +75,7 @@ public:
     if (!storage_) {
       return 0;
     }
-    return storage_->alignment;
+    return storage_->alignment();
   }
 
   template <typename T>
@@ -76,7 +83,8 @@ public:
     if (!storage_) {
       return nullptr;
     }
-    return static_cast<T *>(static_cast<void *>(static_cast<uint8_t *>(storage_->ptr) + offset_));
+    return static_cast<T *>(
+        static_cast<void *>(static_cast<uint8_t *>(storage_->data()) + offset_));
   }
 
   template <typename T>
@@ -85,7 +93,7 @@ public:
       return nullptr;
     }
     return static_cast<const T *>(
-        static_cast<const void *>(static_cast<const uint8_t *>(storage_->ptr) + offset_));
+        static_cast<const void *>(static_cast<const uint8_t *>(storage_->data()) + offset_));
   }
 
   inline dptr operator+(size_t offset) const {
@@ -96,25 +104,25 @@ public:
   }
 
   void copy_to_host(void *host_ptr, size_t byte_size, size_t src_offset = 0) const {
-    if (!storage_ || !storage_->device) {
+    if (!storage_ || !storage_->device()) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_to_host");
     }
     if (src_offset + byte_size > capacity_) {
       throw std::out_of_range("dptr copy_to_host out of range");
     }
-    storage_->device->copyToHost(
-        host_ptr, static_cast<uint8_t *>(storage_->ptr) + offset_ + src_offset, byte_size);
+    storage_->device()->copyToHost(
+        host_ptr, static_cast<uint8_t *>(storage_->data()) + offset_ + src_offset, byte_size);
   }
 
   void copy_from_host(const void *host_ptr, size_t byte_size, size_t dst_offset = 0) {
-    if (!storage_ || !storage_->device) {
+    if (!storage_ || !storage_->device()) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_from_host");
     }
     if (dst_offset + byte_size > capacity_) {
       throw std::out_of_range("dptr copy_from_host out of range");
     }
-    storage_->device->copyToDevice(static_cast<uint8_t *>(storage_->ptr) + offset_ + dst_offset,
-                                   host_ptr, byte_size);
+    storage_->device()->copyToDevice(
+        static_cast<uint8_t *>(storage_->data()) + offset_ + dst_offset, host_ptr, byte_size);
   }
 };
 
