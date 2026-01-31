@@ -1,8 +1,9 @@
 #pragma once
 
+#include <sys/types.h>
+
 #include <chrono>
 #include <string>
-#include <sys/types.h>
 
 namespace tnn {
 
@@ -10,14 +11,14 @@ enum class EventType : uint8_t { COMPUTE, COMMUNICATION, OTHER };
 
 inline std::string event_type_to_string(EventType type) {
   switch (type) {
-  case EventType::COMPUTE:
-    return "COMPUTE";
-  case EventType::COMMUNICATION:
-    return "COMMUNICATION";
-  case EventType::OTHER:
-    return "OTHER";
-  default:
-    return "UNKNOWN";
+    case EventType::COMPUTE:
+      return "COMPUTE";
+    case EventType::COMMUNICATION:
+      return "COMMUNICATION";
+    case EventType::OTHER:
+      return "OTHER";
+    default:
+      return "UNKNOWN";
   }
 }
 
@@ -32,4 +33,4 @@ struct Event {
   std::string name;
   std::string source;
 };
-} // namespace tnn
+}  // namespace tnn

@@ -7,16 +7,13 @@
 #pragma once
 
 #include "data_loading/data_loader.hpp"
-#include "data_loading/image_data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
-#include "utils/env.hpp"
-#include "utils/memory.hpp"
-#include "utils/utils_extended.hpp"
+#include "type/type.hpp"
 
 #ifdef USE_TBB
 #include <tbb/info.h>
@@ -30,6 +27,7 @@
 
 namespace tnn {
 enum class ProfilerType { NONE = 0, NORMAL = 1, CUMULATIVE = 2 };
+enum class TrainingMode { CLASSIFICATION = 0, REGRESSION = 1, CUSTOM = 2 };
 
 #ifdef USE_TBB
 inline void tbb_cleanup();
@@ -38,18 +36,20 @@ inline void tbb_cleanup();
 constexpr int DEFAULT_EPOCH = 10;
 constexpr size_t DEFAULT_BATCH_SIZE = 32;
 constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
-constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5; // in epochs
+constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
-constexpr int64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
+constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
   // Trainer params
+  DType_t dtype = DType_t::FP32;
   int epochs = 10;
   size_t batch_size = 32;
-  float lr_decay_factor = 0.9f;
-  size_t lr_decay_interval = 5; // in epochs
+  int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
+  float lr_initial = 0.001f;
+  int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
-  int64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+  int64_t num_threads = 8;  // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
@@ -62,50 +62,19 @@ struct TrainingConfig {
   void load_from_env();
 };
 
-struct ClassResult {
-  float avg_loss = 0.0f;
-  float avg_accuracy = 0.0f;
+struct Result {
+  double avg_loss = 0.0f;
+  double avg_accuracy = -1.0f;
 };
 
-struct RegResult {
-  float avg_loss = 0.0f;
-  float avg_error = 0.0f;
-};
+Result validate_model(std::unique_ptr<Sequential> &model,
+                      std::unique_ptr<BaseDataLoader> &val_loader,
+                      const std::unique_ptr<Loss> &criterion, const TrainingConfig &config);
 
-// Classification training functions
-template <typename T>
-ClassResult train_class_epoch(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                              Optimizer<T> &optimizer, Loss<T> &loss_function,
-                              const TrainingConfig &config = TrainingConfig());
+void train_model(std::unique_ptr<Sequential> &model, std::unique_ptr<BaseDataLoader> &train_loader,
+                 std::unique_ptr<BaseDataLoader> &test_loader,
+                 std::unique_ptr<Optimizer> &optimizer, const std::unique_ptr<Loss> &criterion,
+                 std::unique_ptr<Scheduler> &scheduler,
+                 const TrainingConfig &config = TrainingConfig());
 
-template <typename T>
-ClassResult validate_class_model(Sequential<T> &model, BaseDataLoader<T> &test_loader,
-                                 Loss<T> &loss_function);
-
-template <typename T>
-void train_classification_model(Sequential<T> &model, BaseDataLoader<T> &train_loader,
-                                BaseDataLoader<T> &test_loader,
-                                std::unique_ptr<Optimizer<T>> optimizer,
-                                std::unique_ptr<Loss<T>> loss_function,
-                                std::unique_ptr<Scheduler<T>> scheduler,
-                                const TrainingConfig &config = TrainingConfig());
-
-// Regression training functions
-template <typename T>
-RegResult train_reg_epoch(Sequential<T> &model, RegressionDataLoader<T> &train_loader,
-                          Optimizer<T> &optimizer, Loss<T> &loss_function,
-                          const TrainingConfig &config = TrainingConfig());
-
-template <typename T>
-RegResult validate_reg_model(Sequential<T> &model, RegressionDataLoader<T> &test_loader,
-                             Loss<T> &loss_function);
-
-template <typename T>
-void train_regression_model(Sequential<T> &model, RegressionDataLoader<T> &train_loader,
-                            RegressionDataLoader<T> &test_loader,
-                            std::unique_ptr<Optimizer<T>> optimizer,
-                            std::unique_ptr<Loss<T>> loss_function,
-                            std::unique_ptr<Scheduler<T>> scheduler,
-                            const TrainingConfig &config = TrainingConfig());
-
-} // namespace tnn
+}  // namespace tnn

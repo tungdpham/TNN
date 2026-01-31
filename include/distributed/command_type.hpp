@@ -71,8 +71,9 @@ enum CommandType : uint16_t {
 
   // handshake
   HANDSHAKE,
+  HANDSHAKE_ACK,
 
   _COUNT
 };
 
-} // namespace tnn
+}  // namespace tnn

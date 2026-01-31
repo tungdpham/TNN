@@ -2,5 +2,5 @@
 
 namespace tnn {
 // all supported device types
-enum class DeviceType { CPU, GPU };
-} // namespace tnn
+enum class DeviceType { CPU, GPU, NULL_DEVICE };
+}  // namespace tnn

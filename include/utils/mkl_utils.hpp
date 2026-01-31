@@ -9,8 +9,6 @@
 #ifdef USE_MKL
 
 #include <mkl.h>
-#include <stdexcept>
-#include <string>
 
 namespace tnn {
 namespace mkl {
@@ -29,7 +27,7 @@ struct MklInitializer {
   MklInitializer() { initialize_mkl(); }
 };
 static MklInitializer mkl_init;
-} // anonymous namespace
+}  // anonymous namespace
 
 /**
  * @brief Wrapper for Intel MKL SGEMM (single precision)
@@ -67,6 +65,33 @@ inline void gemm(const char transa, const char transb, const MKL_INT m, const MK
   cblas_dgemm(CblasRowMajor, transa == 'T' ? CblasTrans : CblasNoTrans,
               transb == 'T' ? CblasTrans : CblasNoTrans, m, n, k, alpha, a, lda, b, ldb, beta, c,
               ldc);
+}
+
+/**
+ * @brief Wrapper for Intel MKL SGEMM Batch
+ */
+inline void gemm_batch(const char transa, const char transb, const MKL_INT m, const MKL_INT n,
+                       const MKL_INT k, const float alpha, const float **a_array, const MKL_INT lda,
+                       const float **b_array, const MKL_INT ldb, const float beta, float **c_array,
+                       const MKL_INT ldc, const MKL_INT batch_size) {
+  CBLAS_TRANSPOSE transa_val = (transa == 'T' ? CblasTrans : CblasNoTrans);
+  CBLAS_TRANSPOSE transb_val = (transb == 'T' ? CblasTrans : CblasNoTrans);
+  cblas_sgemm_batch(CblasRowMajor, &transa_val, &transb_val, &m, &n, &k, &alpha, a_array, &lda,
+                    b_array, &ldb, &beta, c_array, &ldc, 1, &batch_size);
+}
+
+/**
+ * @brief Wrapper for Intel MKL DGEMM Batch
+ */
+inline void gemm_batch(const char transa, const char transb, const MKL_INT m, const MKL_INT n,
+                       const MKL_INT k, const double alpha, const double **a_array,
+                       const MKL_INT lda, const double **b_array, const MKL_INT ldb,
+                       const double beta, double **c_array, const MKL_INT ldc,
+                       const MKL_INT batch_size) {
+  CBLAS_TRANSPOSE transa_val = (transa == 'T' ? CblasTrans : CblasNoTrans);
+  CBLAS_TRANSPOSE transb_val = (transb == 'T' ? CblasTrans : CblasNoTrans);
+  cblas_dgemm_batch(CblasRowMajor, &transa_val, &transb_val, &m, &n, &k, &alpha, a_array, &lda,
+                    b_array, &ldb, &beta, c_array, &ldc, 1, &batch_size);
 }
 
 /**
@@ -138,7 +163,7 @@ inline void conv_input_grad_gemm(const T *weights, const T *output_grad, T *col_
        output_size, T(0.0), col_grad, output_size);
 }
 
-} // namespace mkl
-} // namespace tnn
+}  // namespace mkl
+}  // namespace tnn
 
-#endif // USE_MKL
+#endif  // USE_MKL

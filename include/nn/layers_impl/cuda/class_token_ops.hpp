@@ -6,18 +6,19 @@
  */
 #pragma once
 
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
 
 template <typename T>
 void class_token_forward(const T *input, const T *token, T *output, size_t batch_size,
-                         size_t channels, size_t spatial_size, cudaStream_t stream);
+                         size_t seq_len, size_t embed_dim, cudaStream_t stream);
 
 template <typename T>
 void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, size_t batch_size,
-                          size_t channels, size_t spatial_size, cudaStream_t stream);
-} // namespace cuda
-} // namespace tnn
+                          size_t seq_len, size_t embed_dim, cudaStream_t stream);
+}  // namespace cuda
+}  // namespace tnn

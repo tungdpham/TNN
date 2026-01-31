@@ -1,9 +1,10 @@
 #pragma once
 
-#include "device.hpp"
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "device.hpp"
 
 namespace tnn {
 class DeviceManager {
@@ -75,4 +76,4 @@ void initializeDefaultDevices();
 const Device &getGPU(size_t gpu_index = 0);
 const Device &getCPU();
 
-} // namespace tnn
+}  // namespace tnn

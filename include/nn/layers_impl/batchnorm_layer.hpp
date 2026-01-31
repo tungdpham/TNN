@@ -6,125 +6,96 @@
  */
 #pragma once
 
-#include "device/device_ptr.hpp"
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
-
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "nn/layers_impl/common/batchnorm.hpp"
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
+
 #ifdef USE_CUDNN
-namespace tnn {
-namespace cuda {
-namespace cudnn_batchnorm {
-struct BatchNormHandle;
-}
-} // namespace cuda
-} // namespace tnn
+#include <cudnn.h>
+
+#include "cuda/cudnn_batchnorm_ops.hpp"
 #endif
 
 namespace tnn {
 
-template <typename T = float> class BatchNormLayer : public ParameterizedLayer<T> {
+class BatchNormLayer : public ParameterizedLayer {
 private:
   size_t num_features_;
-  T epsilon_;
-  T momentum_;
+  float epsilon_;
+  float momentum_;
   bool affine_;
+  bool use_relu_;
+
+  Tensor gamma_;
+  Tensor beta_;
+  Tensor gamma_gradients_;
+  Tensor beta_gradients_;
+
+  Tensor running_mean_;
+  Tensor running_var_;
+  Tensor dummy_mean_gradients_;
+  Tensor dummy_var_gradients_;
+
+  std::unordered_map<size_t, BatchNormStats> stats_cache;
+  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
 
 #ifdef USE_CUDNN
-  cuda::cudnn_batchnorm::BatchNormHandle *cudnn_handle_ = nullptr;
-  size_t cached_batch_size_ = 0;
-  size_t cached_input_h_ = 0;
-  size_t cached_input_w_ = 0;
+  std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> forward_training_task(
+      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
+      Tensor &output, const Tensor &gamma, const Tensor &beta, Tensor &prev_running_mean,
+      Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
+      Tensor &batch_mean, Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const;
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
+                                               BatchNormStats &stats, const Tensor &input,
+                                               Tensor &output, const Tensor &gamma,
+                                               const Tensor &beta, const Tensor &saved_mean,
+                                               const Tensor &saved_invar, Tensor &workspace,
+                                               const std::string &flow_id) const;
+
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
+                                      BatchNormStats &stats, const Tensor &gradient,
+                                      const Tensor &input, Tensor &grad_input, const Tensor &gamma,
+                                      Tensor &gamma_gradients, Tensor &beta_gradients,
+                                      const Tensor &batch_mean, const Tensor &batch_var,
+                                      Tensor &workspace, const std::string &flow_id) const;
+
+  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
 #endif
 
-  Tensor<T> gamma_;
-  Tensor<T> beta_;
-  Tensor<T> gamma_gradients_;
-  Tensor<T> beta_gradients_;
-
-  Tensor<T> running_mean_;
-  Tensor<T> running_var_;
-
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_normalized_;
-  std::unordered_map<size_t, device_ptr<T[]>> micro_batch_inv_std_;
-  std::unordered_map<size_t, device_ptr<T[]>> batch_mean_fixed_;
-  std::unordered_map<size_t, Tensor<T>> micro_batch_inputs_cache_;
-
-  std::unique_ptr<Task> forward_task_;
-  std::unique_ptr<Task> backward_task_;
-
-  void def_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void def_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
-                    size_t micro_batch_id);
-
-#ifdef USE_CUDNN
-  void cudnn_forward(const Tensor<T> *current, Tensor<T> &output, size_t micro_batch_id);
-  void cudnn_backward(const Tensor<T> *current_gradient, Tensor<T> &grad_input,
-                      size_t micro_batch_id);
-#endif
-
-  void extract_tensor_dimensions(const Tensor<T> &input, size_t &batch_size, size_t &channels,
-                                 size_t &height, size_t &width, size_t &spatial_size);
-
-  std::unique_ptr<Task> compute_inference_output(const Tensor<T> &input, Tensor<T> &output,
-                                                 size_t batch_size, size_t channels,
-                                                 size_t spatial_size,
-                                                 const std::string &flow_id = "default");
-
-  std::unique_ptr<Task>
-  run_forward_fused(const device_ptr<T[]> &input, device_ptr<T[]> &batch_mean_fixed,
-                    device_ptr<T[]> &batch_inv_std, device_ptr<T[]> &running_mean,
-                    device_ptr<T[]> &running_var, const device_ptr<T[]> &gamma,
-                    const device_ptr<T[]> &beta, device_ptr<T[]> &output,
-                    device_ptr<T[]> &norm_cache, size_t batch_size, size_t channels,
-                    size_t spatial_size, const std::string &flow_id = "default");
-
-  std::unique_ptr<Task> run_backward_fused(const device_ptr<T[]> &grad_output,
-                                           const device_ptr<T[]> &norm_input,
-                                           const device_ptr<T[]> &inv_std,
-                                           const device_ptr<T[]> &gamma, device_ptr<T[]> &d_gamma,
-                                           device_ptr<T[]> &d_beta, device_ptr<T[]> &grad_input,
-                                           size_t batch_size, size_t channels, size_t spatial_size,
-                                           const std::string &flow_id = "default");
+  void init_params() override;
+  void collect_parameters(std::vector<Tensor> &params) override;
+  void collect_gradients(std::vector<Tensor> &grads) override;
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
-  explicit BatchNormLayer(size_t num_features, T epsilon = T(1e-5), T momentum = T(0.1),
-                          bool affine = true, const std::string &name = "batchnorm");
+  explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,
+                          bool affine = true, bool use_relu = false,
+                          const std::string &name = "batchnorm");
   ~BatchNormLayer() override;
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
+  static constexpr const char *TYPE_NAME = "batchnorm";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
-  std::string type() const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
-
+  static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
+  std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
-
-  const Tensor<T> &running_mean() const { return running_mean_; }
-  const Tensor<T> &running_var() const { return running_var_; }
-
-  size_t cached_memory_bytes() const override;
-
-protected:
-  void initialize_params() override;
-  void collect_parameters(std::vector<Tensor<T> *> &params) override;
-  void collect_gradients(std::vector<Tensor<T> *> &grads) override;
-  void clear_gradients() override;
 };
 
-} // namespace tnn
-
-#include "nn/layers_impl/batchnorm_layer.tpp"
+}  // namespace tnn

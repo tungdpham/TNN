@@ -6,17 +6,18 @@
  */
 #pragma once
 
-#include "math/cpu/gemm.hpp"
 #include <algorithm>
 #include <cmath>
 #include <vector>
+
+#include "math/cpu/gemm.hpp"
 
 namespace tnn {
 namespace cpu {
 
 template <typename T>
 void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, size_t head_dim,
-                             size_t seq_len) {
+                             size_t seq_len, bool is_causal = true) {
   const size_t Br = 64;
   const size_t Bc = 64;
   size_t D = head_dim;
@@ -28,20 +29,20 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
     T *V_b = v + b * D * L;
     T *O_b = output + b * D * L;
 
-    std::fill(O_b, O_b + D * L, static_cast<T>(0));
+    std::fill(O_b, O_b + D * L, static_cast(0));
 
-    std::vector<T> m(L, -INFINITY);
-    std::vector<T> l(L, 0);
+    std::vector m(L, -INFINITY);
+    std::vector l(L, 0);
 
     // Pre-allocate buffers for blocks
-    std::vector<T> Q_block(D * Br);
-    std::vector<T> K_block(D * Bc);
-    std::vector<T> V_block(D * Bc);
-    std::vector<T> S_ij(Br * Bc);
-    std::vector<T> P_ij(Br * Bc);
-    std::vector<T> PV(D * Br);
-    std::vector<T> m_block(Br);
-    std::vector<T> l_block(Br);
+    std::vector Q_block(D * Br);
+    std::vector K_block(D * Bc);
+    std::vector V_block(D * Bc);
+    std::vector S_ij(Br * Bc);
+    std::vector P_ij(Br * Bc);
+    std::vector PV(D * Br);
+    std::vector m_block(Br);
+    std::vector l_block(Br);
 
     for (size_t i = 0; i < L; i += Br) {
       size_t br = std::min(Br, L - i);
@@ -62,16 +63,28 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
           }
         }
 
-        T scale = 1.0f / std::sqrt(static_cast<T>(D));
-        cpu::gemm(Q_block.data(), K_block.data(), S_ij.data(), br, bc, D, true, false, scale, 0.0f);
+        T scale = 1.0f / std::sqrt(static_cast(D));
+        cpu::gemm(Q_block->data_as(), K_block->data_as(), S_ij->data_as(), br, bc, D, true, false,
+                  scale, 0.0f);
+
+        if (is_causal) {
+          for (size_t r = 0; r < br; ++r) {
+            size_t global_r = i + r;
+            for (size_t c = 0; c < bc; ++c) {
+              size_t global_c = j + c;
+              if (global_c > global_r) {
+                S_ij[r * bc + c] = -INFINITY;
+              }
+            }
+          }
+        }
 
         std::fill(m_block.begin(), m_block.end(), -INFINITY);
 
         for (size_t r = 0; r < br; ++r) {
           T max_val = -INFINITY;
           for (size_t c = 0; c < bc; ++c) {
-            if (S_ij[r * bc + c] > max_val)
-              max_val = S_ij[r * bc + c];
+            if (S_ij[r * bc + c] > max_val) max_val = S_ij[r * bc + c];
           }
           m_block[r] = max_val;
         }
@@ -92,7 +105,8 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
           }
         }
 
-        cpu::gemm(V_block.data(), P_ij.data(), PV.data(), D, br, bc, false, true, 1.0f, 0.0f);
+        cpu::gemm(V_block->data_as(), P_ij->data_as(), PV->data_as(), D, br, bc, false, true, 1.0f,
+                  0.0f);
 
         for (size_t r = 0; r < br; ++r) {
           size_t global_r = i + r;
@@ -129,5 +143,5 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
   }
 }
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

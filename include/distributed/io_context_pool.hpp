@@ -9,8 +9,7 @@ namespace tnn {
 class IoContextPool {
 public:
   explicit IoContextPool(std::size_t pool_size) : next_io_context_(0) {
-    if (pool_size == 0)
-      pool_size = 1;
+    if (pool_size == 0) pool_size = 1;
 
     for (std::size_t i = 0; i < pool_size; ++i) {
       io_contexts_.emplace_back(std::make_shared<asio::io_context>());
@@ -23,21 +22,18 @@ public:
     for (auto &ctx : io_contexts_) {
       threads.emplace_back([ctx]() { ctx->run(); });
     }
-    for (auto &t : threads)
-      t.join();
+    for (auto &t : threads) t.join();
   }
 
   void stop() {
-    for (auto &ctx : io_contexts_)
-      ctx->stop();
+    for (auto &ctx : io_contexts_) ctx->stop();
   }
 
   // Round-robin assignment
   asio::io_context &get_io_context() {
     asio::io_context &io_context = *io_contexts_[next_io_context_];
     ++next_io_context_;
-    if (next_io_context_ == io_contexts_.size())
-      next_io_context_ = 0;
+    if (next_io_context_ == io_contexts_.size()) next_io_context_ = 0;
     return io_context;
   }
 
@@ -49,4 +45,4 @@ private:
   std::size_t next_io_context_;
 };
 
-} // namespace tnn
+}  // namespace tnn

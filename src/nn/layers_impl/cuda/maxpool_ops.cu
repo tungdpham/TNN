@@ -4,133 +4,137 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/layers_impl/cuda/maxpool_ops.hpp"
-
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
+
+#include "cuda/error_handler.hpp"
+#include "nn/layers_impl/cuda/maxpool_ops.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
-namespace maxpool {
+
+// Forward kernel for NHWC max pooling
 template <typename T>
-__global__ void
-compute_max_pool_forward_kernel(const T *input_data, T *output_data, size_t batch_size,
-                                size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                                size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                                size_t stride_w, size_t pad_h, size_t pad_w, size_t *mask_indices) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  int total_outputs = batch_size * channels * output_h * output_w;
+__global__ void maxpool_forward_kernel(const T* input, T* output, int* mask_indices,
+                                       size_t batch_size, size_t height, size_t width,
+                                       size_t channels, size_t pool_h, size_t pool_w,
+                                       size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
+                                       size_t output_h, size_t output_w) {
+  // Calculate output position
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_outputs = batch_size * output_h * output_w * channels;
 
-  if (idx >= total_outputs)
-    return;
+  if (idx >= total_outputs) return;
 
-  int n = idx / (channels * output_h * output_w);
-  int remaining = idx % (channels * output_h * output_w);
-  int c = remaining / (output_h * output_w);
-  remaining = remaining % (output_h * output_w);
-  int out_h = remaining / output_w;
-  int out_w = remaining % output_w;
+  // Decode NHWC indices
+  size_t c = idx % channels;
+  size_t ow = (idx / channels) % output_w;
+  size_t oh = (idx / (channels * output_w)) % output_h;
+  size_t b = idx / (channels * output_w * output_h);
 
-  const size_t input_offset = (n * channels + c) * input_h * input_w;
+  // Calculate input window bounds
+  int h_start = static_cast<int>(oh * stride_h) - static_cast<int>(pad_h);
+  int w_start = static_cast<int>(ow * stride_w) - static_cast<int>(pad_w);
+  int h_end = min(h_start + static_cast<int>(pool_h), static_cast<int>(height));
+  int w_end = min(w_start + static_cast<int>(pool_w), static_cast<int>(width));
+  h_start = max(h_start, 0);
+  w_start = max(w_start, 0);
 
-  long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
-  long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
-  long h_end = h_start + pool_h;
-  long w_end = w_start + pool_w;
-
-  long h_start_valid = max(0L, h_start);
-  long w_start_valid = max(0L, w_start);
-  long h_end_valid = min(static_cast<long>(input_h), h_end);
-  long w_end_valid = min(static_cast<long>(input_w), w_end);
-
-  T max_val = -INFINITY;
-  size_t max_idx = 0;
-
-  for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
-    for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
-      const size_t cur_input_idx = input_offset + ih * input_w + iw;
-      T val = input_data[cur_input_idx];
-
-      if (val > max_val || (ih == h_start_valid && iw == w_start_valid)) {
+  // Find maximum value
+  float max_val = -INFINITY;
+  int max_idx = -1;
+  for (int h = h_start; h < h_end; ++h) {
+    for (int w = w_start; w < w_end; ++w) {
+      size_t input_idx = ((b * height + h) * width + w) * channels + c;
+      float val = static_cast<float>(input[input_idx]);
+      if (val > max_val) {
         max_val = val;
-        max_idx = cur_input_idx;
+        max_idx = static_cast<int>(input_idx);
       }
     }
   }
 
-  output_data[idx] = max_val;
+  output[idx] = static_cast<T>(max_val);
   mask_indices[idx] = max_idx;
 }
 
+// Backward kernel for NHWC max pooling
 template <typename T>
-__global__ void compute_max_pool_backward_kernel(const T *gradient_data, T *grad_input_data,
-                                                 size_t batch_size, size_t channels,
-                                                 size_t output_h, size_t output_w,
-                                                 const size_t *mask_indices) {
-  int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  int total_outputs = batch_size * channels * output_h * output_w;
+__global__ void maxpool_backward_kernel(const T* grad_output, T* grad_input,
+                                        const int* mask_indices, size_t batch_size, size_t channels,
+                                        size_t output_h, size_t output_w) {
+  // Calculate output position
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_outputs = batch_size * output_h * output_w * channels;
 
-  if (idx >= total_outputs)
-    return;
+  if (idx >= total_outputs) return;
 
-  const T grad_val = gradient_data[idx];
-  const size_t input_idx = mask_indices[idx];
+  int max_idx = mask_indices[idx];
+  if (max_idx >= 0) {
+    atomicAdd(&grad_input[max_idx], grad_output[idx]);
+  }
+}
 
-  atomicAdd(&grad_input_data[input_idx], grad_val);
+// Specialization for half precision atomicAdd
+template <>
+__global__ void maxpool_backward_kernel<half>(const half* grad_output, half* grad_input,
+                                              const int* mask_indices, size_t batch_size,
+                                              size_t channels, size_t output_h, size_t output_w) {
+  size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
+  size_t total_outputs = batch_size * output_h * output_w * channels;
+
+  if (idx >= total_outputs) return;
+
+  int max_idx = mask_indices[idx];
+  if (max_idx >= 0) {
+    atomicAdd(reinterpret_cast<__half*>(&grad_input[max_idx]),
+              *reinterpret_cast<const __half*>(&grad_output[idx]));
+  }
 }
 
 template <typename T>
-void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_size,
-                              size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                              size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
-                              size_t stride_w, size_t pad_h, size_t pad_w,
-                              device_ptr<size_t[]> &mask_indices, cudaStream_t stream) {
-  int total_outputs = batch_size * channels * output_h * output_w;
-  int threads_per_block = 256;
-  int num_blocks = (total_outputs + threads_per_block - 1) / threads_per_block;
+void maxpool_forward(const T* input, T* output, int* mask_indices, size_t batch_size, size_t height,
+                     size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
+                     size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
+                     size_t output_w) {
+  size_t total_outputs = batch_size * output_h * output_w * channels;
+  int threads = 256;
+  int blocks = (total_outputs + threads - 1) / threads;
 
-  compute_max_pool_forward_kernel<<<num_blocks, threads_per_block, 0, stream>>>(
-      input_data, output_data, batch_size, channels, input_h, input_w, output_h, output_w, pool_h,
-      pool_w, stride_h, stride_w, pad_h, pad_w, mask_indices.get());
+  maxpool_forward_kernel<<<blocks, threads>>>(input, output, mask_indices, batch_size, height,
+                                              width, channels, pool_h, pool_w, stride_h, stride_w,
+                                              pad_h, pad_w, output_h, output_w);
+
+  CUDA_CHECK(cudaGetLastError());
 }
 
 template <typename T>
-void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
-                               size_t channels, size_t output_h, size_t output_w,
-                               const device_ptr<size_t[]> &mask_indices, cudaStream_t stream) {
-  int total_outputs = batch_size * channels * output_h * output_w;
-  int threads_per_block = 256;
-  int num_blocks = (total_outputs + threads_per_block - 1) / threads_per_block;
+void maxpool_backward(const T* grad_output, T* grad_input, const int* mask_indices,
+                      size_t batch_size, size_t channels, size_t output_h, size_t output_w) {
+  size_t total_outputs = batch_size * output_h * output_w * channels;
+  int threads = 256;
+  int blocks = (total_outputs + threads - 1) / threads;
 
-  compute_max_pool_backward_kernel<<<num_blocks, threads_per_block, 0, stream>>>(
-      gradient_data, grad_input_data, batch_size, channels, output_h, output_w, mask_indices.get());
+  maxpool_backward_kernel<<<blocks, threads>>>(grad_output, grad_input, mask_indices, batch_size,
+                                               channels, output_h, output_w);
+
+  CUDA_CHECK(cudaGetLastError());
 }
 
-template void compute_max_pool_forward<float>(const float *input_data, float *output_data,
-                                              size_t batch_size, size_t channels, size_t input_h,
-                                              size_t input_w, size_t output_h, size_t output_w,
-                                              size_t pool_h, size_t pool_w, size_t stride_h,
-                                              size_t stride_w, size_t pad_h, size_t pad_w,
-                                              device_ptr<size_t[]> &mask_indices,
-                                              cudaStream_t stream);
-template void compute_max_pool_forward<double>(const double *input_data, double *output_data,
-                                               size_t batch_size, size_t channels, size_t input_h,
-                                               size_t input_w, size_t output_h, size_t output_w,
-                                               size_t pool_h, size_t pool_w, size_t stride_h,
-                                               size_t stride_w, size_t pad_h, size_t pad_w,
-                                               device_ptr<size_t[]> &mask_indices,
-                                               cudaStream_t stream);
+#define INSTANTIATE_MAXPOOL_FUNCS(T)                                                              \
+  template void maxpool_forward<T>(                                                               \
+      const T* input, T* output, int* mask_indices, size_t batch_size, size_t height,             \
+      size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,               \
+      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);             \
+  template void maxpool_backward<T>(const T* grad_output, T* grad_input, const int* mask_indices, \
+                                    size_t batch_size, size_t channels, size_t output_h,          \
+                                    size_t output_w);
+INSTANTIATE_MAXPOOL_FUNCS(fp16)
+INSTANTIATE_MAXPOOL_FUNCS(bf16)
+INSTANTIATE_MAXPOOL_FUNCS(float)
+INSTANTIATE_MAXPOOL_FUNCS(double)
+#undef INSTANTIATE_MAXPOOL_FUNCS
 
-template void compute_max_pool_backward<float>(const float *gradient_data, float *grad_input_data,
-                                               size_t batch_size, size_t channels, size_t output_h,
-                                               size_t output_w,
-                                               const device_ptr<size_t[]> &mask_indices,
-                                               cudaStream_t stream);
-template void compute_max_pool_backward<double>(const double *gradient_data,
-                                                double *grad_input_data, size_t batch_size,
-                                                size_t channels, size_t output_h, size_t output_w,
-                                                const device_ptr<size_t[]> &mask_indices,
-                                                cudaStream_t stream);
-
-} // namespace maxpool
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

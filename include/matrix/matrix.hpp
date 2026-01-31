@@ -9,58 +9,61 @@
 
 #include <cstring>
 #include <random>
+
+#include "device/sref.hpp"
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
-#include "ops/ops.hpp"
 #include <cstdlib>
+
+#include "ops/ops.hpp"
 #ifdef _WIN32
 #include <malloc.h>
 #endif
 
 namespace tnn {
-template <typename T = float> struct Matrix {
+template <typename T = float>
+struct Matrix {
 private:
   size_t rows_, cols_;
-  const Device *device_;
-  device_ptr<T[]> data_;
+  csref<Device> device_;
+  dptr data_;
 
   static constexpr size_t MKL_ALIGNMENT = 64;
   static constexpr size_t AVX2_ALIGNMENT = 32;
 
   void allocate_aligned(size_t count) {
-    if (count == 0)
-      return;
+    if (count == 0) return;
 
-    data_ = make_array_ptr<T[]>(device_, count, MKL_ALIGNMENT);
+    data_ = make_dptr_t<T>(device_, count, MKL_ALIGNMENT);
   }
 
 public:
-  Matrix(const Device *device) : rows_(0), cols_(0), device_(device), data_(nullptr) {}
+  Matrix(sref<const Device> device) : rows_(0), cols_(0), device_(device), data_(nullptr) {}
 
-  Matrix(size_t rows, size_t cols, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, sref<const Device> device = getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
   }
 
-  Matrix(size_t rows, size_t cols, const device_ptr<T[]> &data, const Device *device = &getCPU())
+  Matrix(size_t rows, size_t cols, const dptr &data, const sref<const Device> device = getCPU())
       : rows_(rows), cols_(cols), device_(device) {
     allocate_aligned(rows_ * cols_);
-    if (data.get() != nullptr) {
-      ops::copy(data, data_, rows_ * cols_)->sync();
+    if (data.get<T>() != nullptr) {
+      ops::copy<T>(data, data_, rows_ * cols_);
     }
   }
 
-  Matrix(const Matrix<T> &other) {
-    this->rows_ = other.rows_;
-    this->cols_ = other.cols_;
-    this->device_ = other.device_;
+  Matrix(const Matrix<T> &other) : rows_(other.rows_), cols_(other.cols_), device_(other.device_) {
     allocate_aligned(rows_ * cols_);
-    ops::copy(other.data_, data_, rows_ * cols_)->sync();
+    ops::copy<T>(other.data_, data_, rows_ * cols_);
   }
 
   Matrix(Matrix<T> &&other) noexcept
-      : rows_(other.rows_), cols_(other.cols_), data_(std::move(other.data_)) {
+      : rows_(other.rows_),
+        cols_(other.cols_),
+        device_(other.device_),
+        data_(std::move(other.data_)) {
     other.rows_ = 0;
     other.cols_ = 0;
     other.data_ = nullptr;
@@ -83,10 +86,10 @@ public:
 
   ~Matrix() {}
 
-  const T *data() const { return data_.get(); }
-  T *data() { return data_.get(); }
+  const T *data() const { return static_cast<const T *>(data_.get<T>()); }
+  T *data() { return static_cast<T *>(data_.get<T>()); }
 
-  void fill(T value) { ops::set_scalar(data_, value, rows_ * cols_)->sync(); }
+  void fill(T value) { ops::set_scalar(data_, value, rows_ * cols_); }
 
   inline Matrix<T> operator+(const Matrix<T> &other) const {
     if (rows_ != other.rows_ || cols_ != other.cols_) {
@@ -95,7 +98,7 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::add(data_, other.data_, result.data_, size)->sync();
+    ops::add<T>(data_, other.data_, result.data_, size);
     return result;
   }
 
@@ -105,7 +108,7 @@ public:
     }
     size_t size = rows_ * cols_;
 
-    ops::add(data_, other.data_, data_, size)->sync();
+    ops::add<T>(data_, other.data_, data_, size);
     return *this;
   }
 
@@ -116,7 +119,7 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::sub(data_, other.data_, result.data_, size)->sync();
+    ops::sub<T>(data_, other.data_, result.data_, size);
     return result;
   }
 
@@ -126,7 +129,7 @@ public:
     }
     size_t size = rows_ * cols_;
 
-    ops::sub(data_, other.data_, data_, size)->sync();
+    ops::sub<T>(data_, other.data_, data_, size);
 
     return *this;
   }
@@ -135,14 +138,14 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::mul_scalar(data_, scalar, result.data_, size)->sync();
+    ops::mul_scalar(data_, scalar, result.data_, size);
     return result;
   }
 
   inline Matrix<T> &operator*=(T scalar) {
     size_t size = rows_ * cols_;
 
-    ops::mul_scalar(data_, scalar, data_, size)->sync();
+    ops::mul_scalar(data_, scalar, data_, size);
     return *this;
   }
 
@@ -153,7 +156,7 @@ public:
     Matrix<T> result(rows_, cols_);
     size_t size = rows_ * cols_;
 
-    ops::div_scalar(data_, scalar, result.data_, size)->sync();
+    ops::div_scalar(data_, scalar, result.data_, size);
     return result;
   }
 
@@ -163,7 +166,7 @@ public:
     }
     size_t size = rows_ * cols_;
 
-    ops::div_scalar(data_, scalar, data_, size)->sync();
+    ops::div_scalar(data_, scalar, data_, size);
 
     return *this;
   }
@@ -175,7 +178,7 @@ public:
     Matrix<T> result(rows_, other.cols_);
     result.fill(0.0);
 
-    ops::mul(data_, other.data_, result.data_, size())->sync();
+    ops::mul<T>(data_, other.data_, result.data_, size());
     return result;
   }
 
@@ -214,4 +217,4 @@ public:
                             static_cast<unsigned long long>(std::random_device{}()));
   }
 };
-} // namespace tnn
+}  // namespace tnn

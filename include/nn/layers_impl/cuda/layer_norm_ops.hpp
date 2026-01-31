@@ -6,8 +6,9 @@
  */
 #pragma once
 
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -15,13 +16,13 @@ namespace layer_norm {
 
 template <typename T>
 void layer_norm_forward(const T *input, T *output, const T *gamma, const T *beta, size_t batch_size,
-                        size_t channels, size_t spatial_size, T epsilon, cudaStream_t stream);
+                        size_t channels, T epsilon, cudaStream_t stream);
 
 template <typename T>
 void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T *grad_input,
-                         T *grad_gamma, T *grad_beta, size_t batch_size, size_t channels,
-                         size_t spatial_size, T epsilon, cudaStream_t stream);
+                         T *grad_gamma, T *grad_beta, size_t batch_size, size_t channels, T epsilon,
+                         cudaStream_t stream);
 
-} // namespace layer_norm
-} // namespace cuda
-} // namespace tnn
+}  // namespace layer_norm
+}  // namespace cuda
+}  // namespace tnn

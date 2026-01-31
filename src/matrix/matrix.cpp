@@ -10,4 +10,4 @@
 namespace tnn {
 template struct Matrix<float>;
 template struct Matrix<double>;
-} // namespace tnn
+}  // namespace tnn

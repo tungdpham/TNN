@@ -6,56 +6,47 @@
  */
 #pragma once
 
-#include "distributed/job_pool.hpp"
+#include <chrono>
+#include <condition_variable>
+#include <cstddef>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+#include "communicator.hpp"
+#include "device/pool_allocator.hpp"
+#include "distributed/endpoint.hpp"
+#include "distributed/worker.hpp"
 #include "logging/logger.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
-
-#include "communicator.hpp"
 #include "partitioner/partitioner.hpp"
 #include "profiling/event.hpp"
+#include "profiling/profiler.hpp"
 #include "stage_config.hpp"
-
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <future>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <thread>
-#include <vector>
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
 class Coordinator {
 public:
-  Coordinator(Sequential<float> model, std::unique_ptr<Optimizer<float>> optimizer)
-      : model_(std::move(model)), optimizer_(std::move(optimizer)) {}
+  Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
+              std::unique_ptr<Worker> local_worker = nullptr)
+      : model_(std::move(model)),
+        optimizer_(std::move(optimizer)),
+        local_worker_(std::move(local_worker)) {}
 
-  virtual ~Coordinator() {
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
-    coordinator_comm_.reset();
-  }
+  virtual ~Coordinator() { comm_.reset(); }
 
   void initialize() {
-    for (int i = 0; i < num_stages_; ++i) {
-      stage_names_.push_back("stage_" + std::to_string(i));
-    }
     initialize_partitions();
     initialize_topology();
   }
 
-  void set_partitioner(std::unique_ptr<Partitioner<float>> tnn) { partitioner_ = std::move(tnn); }
-
-  void set_loss_function(std::unique_ptr<Loss<float>> loss) {
-    if (!loss) {
-      throw std::invalid_argument("Loss function cannot be null");
-    }
-    loss_function_ = std::move(loss);
+  void set_partitioner(std::unique_ptr<Partitioner> partitioner) {
+    partitioner_ = std::move(partitioner);
   }
 
   int num_stages() const { return num_stages_; }
@@ -72,52 +63,44 @@ public:
   int num_microbatches() const { return num_microbatches_; }
 
   void add_message_callback() {
-    this->coordinator_comm_->set_message_notification_callback([this]() {
+    this->comm_->set_callback([this]() {
       std::lock_guard<std::mutex> lock(this->message_notification_mutex_);
       this->message_notification_cv_.notify_all();
     });
   }
 
   void start() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message start_msg(stage_name, CommandType::TRAIN_MODE, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(start_msg));
+    if (local_worker_) {
+      std::thread worker_thread([this]() { local_worker_->start(); });
+      worker_thread.detach();
     }
 
-    // message_thread_ = std::thread(&Coordinator::message_loop, this);
-
-    std::cout << "Started all " << this->num_stages_ << " pipeline stages" << std::endl;
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
+      this->comm_->send_message(std::move(start_msg), worker_endpoint);
+    }
   }
 
   void stop() {
-    for (const auto &stage_name : this->stage_names_) {
-      std::cout << "Stopping stage " << stage_name << std::endl;
-      Message stop_msg(stage_name, CommandType::SHUTDOWN, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(stop_msg));
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message stop_msg(CommandType::SHUTDOWN, std::monostate{});
+      this->comm_->send_message(std::move(stop_msg), worker_endpoint);
     }
     should_stop_ = true;
-
     message_notification_cv_.notify_all();
-
-    if (message_thread_.joinable()) {
-      message_thread_.join();
-    }
-
     std::cout << "Stopped all pipeline stages" << std::endl;
   }
 
   void process_message(const Message &message) {}
 
-  const std::vector<std::string> &stage_names() const { return stage_names_; }
-
-  void send_message(Message &&message) {
-    this->coordinator_comm_->send_message(std::move(message));
+  void send_message(Message &&message, const Endpoint &endpoint) {
+    this->comm_->send_message(std::move(message), endpoint);
   }
 
   void set_training(bool training) {
-    for (const auto &stage_name : this->stage_names_) {
-      Message mode_msg(stage_name, training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
-      this->coordinator_comm_->send_message(std::move(mode_msg));
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message mode_msg(training ? CommandType::TRAIN_MODE : CommandType::EVAL_MODE);
+      this->comm_->send_message(std::move(mode_msg), worker_endpoint);
     }
   }
 
@@ -126,20 +109,10 @@ public:
    * @param input The input tensor to be processed.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void forward(Tensor<float> &&input, size_t microbatch_id) {
-    if (this->stage_names_.empty()) {
-      throw std::runtime_error("No stages available for processing");
-    }
-
-    const std::string &first_stage = this->stage_names_[0];
-
-    PooledJob<float> job = JobPool<float>::instance().get_job(input.size());
-    job->micro_batch_id = microbatch_id;
-    job->data = std::move(input);
-    Message forward_msg(first_stage, CommandType::FORWARD_JOB, std::move(job));
-    forward_msg.header().sender_id = "coordinator";
-
-    this->coordinator_comm_->send_message(std::move(forward_msg));
+  void forward(Tensor &&input, size_t microbatch_id) {
+    Job job(std::move(input), microbatch_id);
+    Message forward_msg(CommandType::FORWARD_JOB, std::move(job));
+    this->comm_->send_message(std::move(forward_msg), worker_endpoints_.front());
   }
 
   /**
@@ -147,122 +120,21 @@ public:
    * @param gradient The gradient tensor to be backpropagated.
    * @param microbatch_id The ID of the microbatch (0 to num_microbatches - 1).
    */
-  void backward(Tensor<float> &&gradient, size_t microbatch_id) {
-    if (this->stage_names_.empty()) {
-      throw std::runtime_error("No stages available for processing");
-    }
-
-    const std::string &last_stage = this->stage_names_.back();
-
-    PooledJob<float> job = JobPool<float>::instance().get_job(gradient.size());
-    job->micro_batch_id = microbatch_id;
-    job->data = std::move(gradient);
-    Message backward_msg(last_stage, CommandType::BACKWARD_JOB, std::move(job));
-    backward_msg.header().sender_id = "coordinator";
-
-    this->coordinator_comm_->send_message(std::move(backward_msg));
-  }
-
-  /**
-   * @brief Computes the loss given predictions and targets using the model's loss function.
-   * @param predictions The predicted output tensor.
-   * @param targets The target output tensor.
-   * @return The computed loss value.
-   */
-  float compute_loss(const Tensor<float> &predictions, const Tensor<float> &targets) {
-    if (!loss_function_) {
-      throw std::runtime_error("Loss function is not set in the coordinator");
-    }
-    float loss = 0.0f;
-    loss_function_->compute_loss(predictions, targets, loss);
-    return loss;
-  }
-
-  /**
-   * @brief Computes gradient of the loss with respect to predictions using the model's loss
-   * function.
-   */
-  Tensor<float> compute_gradient(const Tensor<float> &predictions, const Tensor<float> &targets) {
-    if (!loss_function_) {
-      throw std::runtime_error("Loss function is not set in the coordinator");
-    }
-    Tensor<float> gradient;
-    loss_function_->compute_gradient(predictions, targets, gradient);
-    return gradient;
+  void backward(Tensor &&gradient, size_t microbatch_id) {
+    Job job(std::move(gradient), microbatch_id);
+    Message backward_msg(CommandType::BACKWARD_JOB, std::move(job));
+    this->comm_->send_message(std::move(backward_msg), worker_endpoints_.back());
   }
 
   void update_parameters() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message update_msg(stage_name, CommandType::UPDATE_PARAMETERS, std::monostate{});
-      update_msg.header().sender_id = "coordinator";
-      this->coordinator_comm_->send_message(std::move(update_msg));
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
+      this->comm_->send_message(std::move(update_msg), worker_endpoint);
     }
-
     bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
     }
-  }
-
-  bool send_params(const std::string &stage_id, const Partition &partition) {
-    try {
-      throw new std::runtime_error("Not implemented yet");
-    } catch (const std::exception &e) {
-      std::cerr << "Failed to send parameters to stage " << stage_id << ": " << e.what() << '\n';
-      return false;
-    }
-  }
-
-  /**
-   * @brief Intelligently sends parameters only to stages that need them based on partition
-   * changes.
-   * @param old_partitions The previous partition configuration
-   * @param new_partitions The new partition configuration
-   * @return true if all necessary parameters were sent successfully, false otherwise
-   */
-  bool send_updated_parameters(const std::vector<Partition> &old_partitions,
-                               const std::vector<Partition> &new_partitions) {
-    if (old_partitions.size() != new_partitions.size() ||
-        new_partitions.size() != stage_names_.size()) {
-      std::cerr << "Partition size mismatch in send_updated_parameters\n";
-      return false;
-    }
-
-    std::vector<std::future<bool>> param_futures;
-
-    for (size_t i = 0; i < stage_names_.size(); ++i) {
-      const std::string &stage_name = stage_names_[i];
-      const auto &old_partition = old_partitions[i];
-      const auto &new_partition = new_partitions[i];
-
-      // Check if this stage's partition actually changed
-      bool partition_changed = (old_partition.start_layer != new_partition.start_layer ||
-                                old_partition.end_layer != new_partition.end_layer);
-
-      if (partition_changed) {
-        std::cout << "Partition changed for stage " << stage_name << ": ["
-                  << old_partition.start_layer << "," << old_partition.end_layer << ") -> ["
-                  << new_partition.start_layer << "," << new_partition.end_layer << ")\n";
-
-        auto future = std::async(std::launch::async, [this, stage_name, new_partition]() {
-          return this->send_params(stage_name, new_partition);
-        });
-        param_futures.push_back(std::move(future));
-      } else {
-        std::cout << "No partition change for stage " << stage_name
-                  << ", skipping parameter update\n";
-      }
-    }
-
-    // Wait for all parameter transfers to complete
-    bool all_params_sent = true;
-    for (auto &future : param_futures) {
-      if (!future.get()) {
-        all_params_sent = false;
-      }
-    }
-
-    return all_params_sent;
   }
 
   /**
@@ -279,7 +151,7 @@ public:
 
     bool success =
         message_notification_cv_.wait_until(lock, timeout, [this, type, expected_count]() {
-          return this->coordinator_comm_->message_count(type) >= expected_count;
+          return this->comm_->message_count(type) >= expected_count;
         });
 
     return success;
@@ -291,8 +163,9 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  float async_process_batch(std::vector<Tensor<float>> &microbatch_inputs,
-                            std::vector<Tensor<float>> &microbatch_labels) {
+  float async_process_batch(std::vector<Tensor> &microbatch_inputs,
+                            std::vector<Tensor> &microbatch_labels,
+                            const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
         microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
       throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
@@ -304,30 +177,29 @@ public:
 
     float total_loss = 0.0f;
 
-    // Assuming no microbatch are lost during transmission/processing. May need additional
-    // handling for production use.
     int processed_microbatches_ = 0;
     while (processed_microbatches_ < this->num_microbatches_) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(lock, [this]() {
-        return this->coordinator_comm_->message_count(CommandType::FORWARD_JOB) > 0;
-      });
+      message_notification_cv_.wait(
+          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
       std::vector<Message> FORWARD_JOBs =
-          this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+          this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
       for (auto &forward_msg : FORWARD_JOBs) {
-        if (forward_msg.has_type<PooledJob<float>>()) {
+        if (forward_msg.has_type<Job>()) {
           ++processed_microbatches_;
 
-          PooledJob<float> &job = forward_msg.get<PooledJob<float>>();
-          Tensor<float> &predictions = job->data;
-          Tensor<float> &targets = microbatch_labels[job->micro_batch_id];
+          Job &job = forward_msg.get<Job>();
+          Tensor &predictions = job.data;
+          Tensor &targets = microbatch_labels[job.mb_id];
+          Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
-          loss_function_->compute_loss(predictions, targets, loss);
+          criterion->compute_loss(predictions, device_targets, loss);
           total_loss += loss;
-          Tensor<float> gradient;
-          loss_function_->compute_gradient(predictions, targets, gradient);
-          this->backward(std::move(gradient), job->micro_batch_id);
+          Tensor gradient = Tensor::create_pooled(PoolAllocator::instance(predictions->device()),
+                                                  predictions->data_type(), predictions->shape());
+          criterion->compute_gradient(predictions, device_targets, gradient);
+          this->backward(std::move(gradient), job.mb_id);
         }
       }
     }
@@ -335,11 +207,11 @@ public:
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
     message_notification_cv_.wait(lock, [this]() {
-      return this->coordinator_comm_->message_count(CommandType::BACKWARD_JOB) >=
+      return this->comm_->message_count(CommandType::BACKWARD_JOB) >=
              static_cast<size_t>(this->num_microbatches_);
     });
 
-    this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
+    this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
 
     return (this->num_microbatches_ > 0)
                ? (total_loss / static_cast<float>(this->num_microbatches_))
@@ -350,10 +222,9 @@ public:
    * @brief Requests all stages to print their profiling data.
    */
   void print_profiling() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message profiling_msg(stage_name, CommandType::PRINT_PROFILING, std::monostate{});
-      profiling_msg.header().sender_id = "coordinator";
-      this->coordinator_comm_->send_message(std::move(profiling_msg));
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message profiling_msg(CommandType::PRINT_PROFILING, std::monostate{});
+      this->comm_->send_message(std::move(profiling_msg), worker_endpoint);
     }
     bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
     if (!all_printed) {
@@ -365,11 +236,10 @@ public:
    * @brief Requests all stages to start profiling.
    */
   void start_profiling() {
-    Profiler::instance().init_start_time(Clock::now());
-    for (const auto &stage_name : this->stage_names_) {
-      Message start_msg(stage_name, CommandType::START_PROFILING, std::monostate{});
-      start_msg.header().sender_id = "coordinator";
-      this->coordinator_comm_->send_message(std::move(start_msg));
+    GlobalProfiler::init_start_time(Clock::now());
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message start_msg(CommandType::START_PROFILING, std::monostate{});
+      this->comm_->send_message(std::move(start_msg), worker_endpoint);
     }
     bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
     if (!all_started) {
@@ -381,10 +251,9 @@ public:
    * @brief Requests all stages to report their profiling data.
    */
   void fetch_profiling() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message report_msg(stage_name, CommandType::REPORT_PROFILING, std::monostate{});
-      report_msg.header().sender_id = "coordinator";
-      this->coordinator_comm_->send_message(std::move(report_msg));
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message report_msg(CommandType::REPORT_PROFILING, std::monostate{});
+      this->comm_->send_message(std::move(report_msg), worker_endpoint);
     }
     bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
     if (!all_reported) {
@@ -392,9 +261,9 @@ public:
     }
 
     std::vector<Message> profiling_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
+        this->comm_->dequeue_all_messages_by_type(CommandType::PROFILING_REPORTED);
 
-    auto &aggregator = Profiler::instance();
+    auto &aggregator = GlobalProfiler::get_profiler();
     for (const auto &msg : profiling_messages) {
       if (msg.has_type<Profiler>()) {
         const Profiler &profiler = msg.get<Profiler>();
@@ -423,7 +292,7 @@ public:
       }
 
       logger_.info(
-          "Event: {}, Source: {}, Type: {}, Start: {:.1f} ms, End: {:.1f} ms, Duration: {:.1f} ms",
+          "Event: {}, Source: {}, Type: {}, Start: {:.2f} ms, End: {:.2f} ms, Duration: {:.2f} ms",
           event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
           duration_ms);
     }
@@ -432,84 +301,21 @@ public:
   /**
    * @brief Requests all stages to clear their profiling data.
    */
-  void clear_profiling_data() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message clear_msg(stage_name, CommandType::CLEAR_PROFILING, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(clear_msg));
-    }
-  }
-
-  /**
-   * @brief Collects current parameters from all stages to ensure coordinator has up-to-date
-   * weights.
-   * @return true if all parameters were collected successfully, false otherwise
-   */
-  bool collect_current_parameters() {
-    std::cout << "Collecting current parameters from all stages...\n";
-
-    // Request parameters from all stages
-    for (const auto &stage_name : this->stage_names_) {
-      Message params_request_msg(stage_name, CommandType::SEND_PARAMS, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(params_request_msg));
-    }
-
-    // Wait for all parameter responses
-    bool received_all_params = join(CommandType::PARAMS_TRANSFER, this->num_stages_, 30);
-    if (!received_all_params) {
-      std::cerr << "Warning: Not all stages sent their parameters within timeout.\n";
-      return false;
-    }
-
-    // Collect parameter messages
-    std::vector<Message> params_messages =
-        this->coordinator_comm_->dequeue_all_messages_by_type(CommandType::PARAMS_TRANSFER);
-
-    if (params_messages.size() != static_cast<size_t>(this->num_stages_)) {
-      std::cerr << "Warning: Expected " << this->num_stages_ << " parameter messages, got "
-                << params_messages.size() << ".\n";
-      return false;
-    }
-
-    try {
-
-      return true;
-    } catch (const std::exception &e) {
-      std::cerr << "Error updating model parameters: " << e.what() << "\n";
-      return false;
-    }
-  }
-
-  void request_status_from_all_stages() {
-    for (const auto &stage_name : this->stage_names_) {
-      Message status_msg(stage_name, CommandType::STATUS_REQUEST, std::monostate{});
-      this->coordinator_comm_->send_message(std::move(status_msg));
+  void clear_profiling() {
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      Message clear_msg(CommandType::CLEAR_PROFILING, std::monostate{});
+      this->comm_->send_message(std::move(clear_msg), worker_endpoint);
     }
   }
 
   std::vector<Message> dequeue_all_messages(CommandType target_type) {
-    return this->coordinator_comm_->dequeue_all_messages_by_type(target_type);
+    return this->comm_->dequeue_all_messages_by_type(target_type);
   }
 
   bool deploy_stages() {
-    if (is_deployed_) {
-      std::cout << "Stages already deployed\n";
-      return true;
-    }
-
-    std::vector<std::future<bool>> connection_futures;
-
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
-      auto future = std::async(std::launch::async, [this, i]() {
-        return this->coordinator_comm_->connect(this->stage_names_[i], remote_endpoints_[i]);
-      });
-      connection_futures.push_back(std::move(future));
-    }
-
     bool all_connected = true;
-    for (auto &future : connection_futures) {
-      if (!future.get()) {
-        all_connected = false;
-      }
+    for (const auto &worker_endpoint : this->worker_endpoints_) {
+      all_connected &= this->comm_->connect(worker_endpoint);
     }
 
     if (!all_connected) {
@@ -517,36 +323,17 @@ public:
       return false;
     }
 
-    std::cout << "Connected to all endpoints, sending stage configurations...\n" << std::endl;
+    std::cout << "Connected to all endpoints, sending stage configurations..." << std::endl;
 
-    std::vector<std::future<bool>> deployment_futures;
-
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
-      auto future = std::async(std::launch::async, [this, i]() {
-        return deploy_stage_config(this->stage_names_[i], stage_configs_[i]);
-      });
-      deployment_futures.push_back(std::move(future));
-    }
-
-    bool all_deployed = true;
-    for (auto &future : deployment_futures) {
-      if (!future.get()) {
-        all_deployed = false;
-      }
-    }
-
-    if (!all_deployed) {
-      std::cout << "Failed to deploy all stages\n";
-      return false;
+    for (size_t i = 0; i < stage_configs_.size(); ++i) {
+      deploy_stage_config(stage_configs_[i], worker_endpoints_[i]);
     }
 
     if (!join(CommandType::CONFIG_RECEIVED, this->num_stages_, 60)) {
       std::cerr << "Not all stages reported ready\n";
-      throw new std::runtime_error("Stage deployment failed");
+      throw std::runtime_error("Stage deployment failed");
     }
 
-    is_deployed_ = true;
-    std::cout << "All stages deployed and ready!\n";
     return true;
   }
 
@@ -555,33 +342,32 @@ private:
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    this->partitions_ = partitioner_->get_partitions(this->model_.get_layers());
+    this->partitions_ = partitioner_->get_partitions(this->model_->get_layers());
   }
 
   void initialize_topology() {
-    if (coordinator_endpoint_.communication_type() == "") {
-      throw std::runtime_error("Coordinator endpoint is not set");
+    if (worker_endpoints_.size() != static_cast<size_t>(num_stages_)) {
+      throw std::runtime_error("Worker endpoints size does not match number of stages");
     }
-    if (remote_endpoints_.size() != static_cast<size_t>(num_stages_)) {
-      throw std::runtime_error("Remote endpoints size does not match number of stages");
-    }
-    auto splitted_model = this->model_.split(this->partitions_);
+    auto splitted_model = this->model_->split(this->partitions_);
 
-    for (size_t i = 0; i < remote_endpoints_.size(); ++i) {
+    if (local_worker_) {
+      worker_endpoints_.push_back(local_worker_->endpoint());
+    }
+
+    for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
       StageConfig config;
-      config.stage_id = this->stage_names_[i];
       config.model_config = splitted_model[i].get_config();
-      config.optimizer_config = optimizer_->get_config().to_json();
-      config.model_config["name"] = this->stage_names_[i];
+      config.optimizer_config = optimizer_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
 
       if (i > 0) {
-        config.prev_stage_endpoint = remote_endpoints_[i - 1];
+        config.prev_stage_endpoint = worker_endpoints_[i - 1];
       } else {
         config.prev_stage_endpoint = coordinator_endpoint_;
       }
-      if (i < remote_endpoints_.size() - 1) {
-        config.next_stage_endpoint = remote_endpoints_[i + 1];
+      if (i < worker_endpoints_.size() - 1) {
+        config.next_stage_endpoint = worker_endpoints_[i + 1];
       } else {
         config.next_stage_endpoint = coordinator_endpoint_;
       }
@@ -590,18 +376,13 @@ private:
     }
   }
 
-  bool deploy_stage_config(const std::string &stage_id, const StageConfig &config) {
+  bool deploy_stage_config(const StageConfig &config, const Endpoint &worker_endpoint) {
     try {
-      std::string config_json = config.to_json().dump();
-      auto config_msg = Message(stage_id, CommandType::CONFIG_TRANSFER, config_json);
-
-      this->coordinator_comm_->send_message(std::move(config_msg));
-
-      std::cout << "Sent configuration to stage " << stage_id << '\n';
-
+      auto config_msg = Message(CommandType::CONFIG_TRANSFER, config);
+      this->comm_->send_message(std::move(config_msg), worker_endpoint);
       return true;
     } catch (const std::exception &e) {
-      std::cout << "Failed to deploy config to stage " << stage_id << ": " << e.what() << '\n';
+      std::cout << "Failed to deploy config: " << e.what() << '\n';
       return false;
     }
   }
@@ -613,21 +394,17 @@ protected:
   bool should_stop_ = true;
 
   // Components of the coordinator
-  Sequential<float> model_;
-  std::unique_ptr<Optimizer<float>> optimizer_;
-  std::unique_ptr<Communicator> coordinator_comm_;
-  std::unique_ptr<Loss<float>> loss_function_;
-  std::unique_ptr<Partitioner<float>> partitioner_;
+  std::unique_ptr<Sequential> model_;
+  std::unique_ptr<Optimizer> optimizer_;
+  std::unique_ptr<Communicator> comm_;
+  std::unique_ptr<Partitioner> partitioner_;
+  std::unique_ptr<Worker> local_worker_;
   Endpoint coordinator_endpoint_;
 
-  std::atomic<bool> is_deployed_ = false;
-
   // Topology information
-  std::vector<std::string> stage_names_;
   std::vector<Partition> partitions_;
-  std::vector<Endpoint> remote_endpoints_;
+  std::vector<Endpoint> worker_endpoints_;
   std::vector<StageConfig> stage_configs_;
-  std::thread message_thread_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
 
   // Message synchronization
@@ -635,4 +412,4 @@ protected:
   mutable std::condition_variable message_notification_cv_;
 };
 
-} // namespace tnn
+}  // namespace tnn

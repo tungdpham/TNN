@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "optimizers.hpp"
 #include <algorithm>
 #include <any>
 #include <cmath>
@@ -15,6 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "optimizers.hpp"
+
 namespace tnn {
 
 struct SchedulerConfig {
@@ -22,7 +23,8 @@ struct SchedulerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -39,9 +41,9 @@ struct SchedulerConfig {
  * @brief Base class for learning rate schedulers.
  * @tparam T The data type (default: float).
  */
-template <typename T = float> class Scheduler {
+class Scheduler {
 public:
-  explicit Scheduler(Optimizer<T> *optimizer) : optimizer_(optimizer), current_step_(0) {
+  explicit Scheduler(Optimizer *optimizer) : optimizer_(optimizer), current_step_(0) {
     if (optimizer_) {
       base_lr_ = optimizer_->get_learning_rate();
     }
@@ -80,10 +82,10 @@ public:
 
   virtual std::string name() const = 0;
   virtual SchedulerConfig get_config() const = 0;
-  virtual std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const = 0;
+  virtual std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const = 0;
 
 protected:
-  Optimizer<T> *optimizer_;
+  Optimizer *optimizer_;
   float base_lr_;
   size_t current_step_;
 
@@ -97,9 +99,9 @@ protected:
 /**
  * @brief No-op scheduler - learning rate remains constant.
  */
-template <typename T = float> class NoOpScheduler : public Scheduler<T> {
+class NoOpScheduler : public Scheduler {
 public:
-  NoOpScheduler(Optimizer<T> *optimizer) : Scheduler<T>(optimizer) {}
+  NoOpScheduler(Optimizer *optimizer) : Scheduler(optimizer) {}
 
   void step() override {
     this->current_step_++;
@@ -116,18 +118,18 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<NoOpScheduler<T>>(optimizer);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<NoOpScheduler>(optimizer);
   }
 };
 
 /**
  * @brief Step decay scheduler - reduces LR by a factor every N steps.
  */
-template <typename T = float> class StepLR : public Scheduler<T> {
+class StepLR : public Scheduler {
 public:
-  StepLR(Optimizer<T> *optimizer, size_t step_size, float gamma = 0.1f)
-      : Scheduler<T>(optimizer), step_size_(step_size), gamma_(gamma) {}
+  StepLR(Optimizer *optimizer, size_t step_size, float gamma = 0.1f)
+      : Scheduler(optimizer), step_size_(step_size), gamma_(gamma) {}
 
   void step() override {
     this->current_step_++;
@@ -149,8 +151,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<StepLR<T>>(optimizer, step_size_, gamma_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<StepLR>(optimizer, step_size_, gamma_);
   }
 
 private:
@@ -161,11 +163,10 @@ private:
 /**
  * @brief Multi-step decay scheduler - reduces LR at specified milestones.
  */
-template <typename T = float> class MultiStepLR : public Scheduler<T> {
+class MultiStepLR : public Scheduler {
 public:
-  MultiStepLR(Optimizer<T> *optimizer, std::vector<size_t> milestones, float gamma = 0.1f)
-      : Scheduler<T>(optimizer), milestones_(std::move(milestones)), gamma_(gamma),
-        milestone_idx_(0) {
+  MultiStepLR(Optimizer *optimizer, std::vector<size_t> milestones, float gamma = 0.1f)
+      : Scheduler(optimizer), milestones_(std::move(milestones)), gamma_(gamma), milestone_idx_(0) {
     std::sort(milestones_.begin(), milestones_.end());
   }
 
@@ -179,7 +180,7 @@ public:
   }
 
   void reset() override {
-    Scheduler<T>::reset();
+    Scheduler::reset();
     milestone_idx_ = 0;
   }
 
@@ -195,8 +196,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<MultiStepLR<T>>(optimizer, milestones_, gamma_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<MultiStepLR>(optimizer, milestones_, gamma_);
   }
 
 private:
@@ -208,10 +209,9 @@ private:
 /**
  * @brief Exponential decay scheduler - reduces LR by gamma every step.
  */
-template <typename T = float> class ExponentialLR : public Scheduler<T> {
+class ExponentialLR : public Scheduler {
 public:
-  ExponentialLR(Optimizer<T> *optimizer, float gamma = 0.95f)
-      : Scheduler<T>(optimizer), gamma_(gamma) {}
+  ExponentialLR(Optimizer *optimizer, float gamma = 0.95f) : Scheduler(optimizer), gamma_(gamma) {}
 
   void step() override {
     this->current_step_++;
@@ -230,8 +230,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<ExponentialLR<T>>(optimizer, gamma_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<ExponentialLR>(optimizer, gamma_);
   }
 
 private:
@@ -241,10 +241,10 @@ private:
 /**
  * @brief Cosine annealing scheduler - follows cosine curve from base_lr to min_lr.
  */
-template <typename T = float> class CosineAnnealingLR : public Scheduler<T> {
+class CosineAnnealingLR : public Scheduler {
 public:
-  CosineAnnealingLR(Optimizer<T> *optimizer, size_t T_max, float eta_min = 0.0f)
-      : Scheduler<T>(optimizer), T_max_(T_max), eta_min_(eta_min) {}
+  CosineAnnealingLR(Optimizer *optimizer, size_t T_max, float eta_min = 0.0f)
+      : Scheduler(optimizer), T_max_(T_max), eta_min_(eta_min) {}
 
   void step() override {
     this->current_step_++;
@@ -267,8 +267,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<CosineAnnealingLR<T>>(optimizer, T_max_, eta_min_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<CosineAnnealingLR>(optimizer, T_max_, eta_min_);
   }
 
 private:
@@ -279,12 +279,11 @@ private:
 /**
  * @brief Cosine annealing with warm restarts.
  */
-template <typename T = float> class CosineAnnealingWarmRestarts : public Scheduler<T> {
+class CosineAnnealingWarmRestarts : public Scheduler {
 public:
-  CosineAnnealingWarmRestarts(Optimizer<T> *optimizer, size_t T_0, size_t T_mult = 1,
+  CosineAnnealingWarmRestarts(Optimizer *optimizer, size_t T_0, size_t T_mult = 1,
                               float eta_min = 0.0f)
-      : Scheduler<T>(optimizer), T_0_(T_0), T_mult_(T_mult), eta_min_(eta_min), T_cur_(0),
-        T_i_(T_0) {}
+      : Scheduler(optimizer), T_0_(T_0), T_mult_(T_mult), eta_min_(eta_min), T_cur_(0), T_i_(T_0) {}
 
   void step() override {
     this->current_step_++;
@@ -302,7 +301,7 @@ public:
   }
 
   void reset() override {
-    Scheduler<T>::reset();
+    Scheduler::reset();
     T_cur_ = 0;
     T_i_ = T_0_;
   }
@@ -320,8 +319,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<CosineAnnealingWarmRestarts<T>>(optimizer, T_0_, T_mult_, eta_min_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<CosineAnnealingWarmRestarts>(optimizer, T_0_, T_mult_, eta_min_);
   }
 
 private:
@@ -335,10 +334,10 @@ private:
 /**
  * @brief Linear warmup scheduler - linearly increases LR from start_lr to base_lr.
  */
-template <typename T = float> class LinearWarmup : public Scheduler<T> {
+class LinearWarmup : public Scheduler {
 public:
-  LinearWarmup(Optimizer<T> *optimizer, size_t warmup_steps, float start_lr = 0.0f)
-      : Scheduler<T>(optimizer), warmup_steps_(warmup_steps), start_lr_(start_lr) {
+  LinearWarmup(Optimizer *optimizer, size_t warmup_steps, float start_lr = 0.0f)
+      : Scheduler(optimizer), warmup_steps_(warmup_steps), start_lr_(start_lr) {
     // Start at start_lr
     this->set_lr(start_lr_);
   }
@@ -366,8 +365,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<LinearWarmup<T>>(optimizer, warmup_steps_, start_lr_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<LinearWarmup>(optimizer, warmup_steps_, start_lr_);
   }
 
 private:
@@ -378,12 +377,15 @@ private:
 /**
  * @brief Linear warmup followed by cosine annealing decay.
  */
-template <typename T = float> class WarmupCosineAnnealing : public Scheduler<T> {
+class WarmupCosineAnnealing : public Scheduler {
 public:
-  WarmupCosineAnnealing(Optimizer<T> *optimizer, size_t warmup_steps, size_t total_steps,
+  WarmupCosineAnnealing(Optimizer *optimizer, size_t warmup_steps, size_t total_steps,
                         float start_lr = 0.0f, float eta_min = 0.0f)
-      : Scheduler<T>(optimizer), warmup_steps_(warmup_steps), total_steps_(total_steps),
-        start_lr_(start_lr), eta_min_(eta_min) {
+      : Scheduler(optimizer),
+        warmup_steps_(warmup_steps),
+        total_steps_(total_steps),
+        start_lr_(start_lr),
+        eta_min_(eta_min) {
     this->set_lr(start_lr_);
   }
 
@@ -421,9 +423,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<WarmupCosineAnnealing<T>>(optimizer, warmup_steps_, total_steps_,
-                                                      start_lr_, eta_min_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<WarmupCosineAnnealing>(optimizer, warmup_steps_, total_steps_,
+                                                   start_lr_, eta_min_);
   }
 
 private:
@@ -436,14 +438,19 @@ private:
 /**
  * @brief Reduce LR on plateau - reduces LR when a metric has stopped improving.
  */
-template <typename T = float> class ReduceLROnPlateau : public Scheduler<T> {
+class ReduceLROnPlateau : public Scheduler {
 public:
   enum class Mode { MIN, MAX };
 
-  ReduceLROnPlateau(Optimizer<T> *optimizer, Mode mode = Mode::MIN, float factor = 0.1f,
+  ReduceLROnPlateau(Optimizer *optimizer, Mode mode = Mode::MIN, float factor = 0.1f,
                     size_t patience = 10, float threshold = 1e-4f, float min_lr = 0.0f)
-      : Scheduler<T>(optimizer), mode_(mode), factor_(factor), patience_(patience),
-        threshold_(threshold), min_lr_(min_lr), best_value_(mode == Mode::MIN ? 1e10f : -1e10f),
+      : Scheduler(optimizer),
+        mode_(mode),
+        factor_(factor),
+        patience_(patience),
+        threshold_(threshold),
+        min_lr_(min_lr),
+        best_value_(mode == Mode::MIN ? 1e10f : -1e10f),
         bad_epochs_(0) {}
 
   void step() override {
@@ -480,7 +487,7 @@ public:
   }
 
   void reset() override {
-    Scheduler<T>::reset();
+    Scheduler::reset();
     best_value_ = (mode_ == Mode::MIN) ? 1e10f : -1e10f;
     bad_epochs_ = 0;
   }
@@ -500,9 +507,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<ReduceLROnPlateau<T>>(optimizer, mode_, factor_, patience_, threshold_,
-                                                  min_lr_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<ReduceLROnPlateau>(optimizer, mode_, factor_, patience_, threshold_,
+                                               min_lr_);
   }
 
 private:
@@ -518,10 +525,10 @@ private:
 /**
  * @brief Polynomial decay scheduler.
  */
-template <typename T = float> class PolynomialLR : public Scheduler<T> {
+class PolynomialLR : public Scheduler {
 public:
-  PolynomialLR(Optimizer<T> *optimizer, size_t total_steps, float power = 1.0f, float end_lr = 0.0f)
-      : Scheduler<T>(optimizer), total_steps_(total_steps), power_(power), end_lr_(end_lr) {}
+  PolynomialLR(Optimizer *optimizer, size_t total_steps, float power = 1.0f, float end_lr = 0.0f)
+      : Scheduler(optimizer), total_steps_(total_steps), power_(power), end_lr_(end_lr) {}
 
   void step() override {
     this->current_step_++;
@@ -544,8 +551,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<PolynomialLR<T>>(optimizer, total_steps_, power_, end_lr_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<PolynomialLR>(optimizer, total_steps_, power_, end_lr_);
   }
 
 private:
@@ -557,12 +564,16 @@ private:
 /**
  * @brief One Cycle scheduler - follows the 1cycle policy.
  */
-template <typename T = float> class OneCycleLR : public Scheduler<T> {
+class OneCycleLR : public Scheduler {
 public:
-  OneCycleLR(Optimizer<T> *optimizer, float max_lr, size_t total_steps, float pct_start = 0.3f,
+  OneCycleLR(Optimizer *optimizer, float max_lr, size_t total_steps, float pct_start = 0.3f,
              float div_factor = 25.0f, float final_div_factor = 1e4f)
-      : Scheduler<T>(optimizer), max_lr_(max_lr), total_steps_(total_steps), pct_start_(pct_start),
-        div_factor_(div_factor), final_div_factor_(final_div_factor) {
+      : Scheduler(optimizer),
+        max_lr_(max_lr),
+        total_steps_(total_steps),
+        pct_start_(pct_start),
+        div_factor_(div_factor),
+        final_div_factor_(final_div_factor) {
     initial_lr_ = max_lr_ / div_factor_;
     min_lr_ = initial_lr_ / final_div_factor_;
     step_up_ = static_cast<size_t>(total_steps_ * pct_start_);
@@ -602,9 +613,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<Scheduler<T>> clone(Optimizer<T> *optimizer) const override {
-    return std::make_unique<OneCycleLR<T>>(optimizer, max_lr_, total_steps_, pct_start_,
-                                           div_factor_, final_div_factor_);
+  std::unique_ptr<Scheduler> clone(Optimizer *optimizer) const override {
+    return std::make_unique<OneCycleLR>(optimizer, max_lr_, total_steps_, pct_start_, div_factor_,
+                                        final_div_factor_);
   }
 
 private:
@@ -622,126 +633,124 @@ private:
 /**
  * @brief Factory class for creating schedulers.
  */
-template <typename T = float> class SchedulerFactory {
+class SchedulerFactory {
 public:
   /**
    * @brief Static method to create a no-op scheduler (learning rate unchanged).
    */
-  static std::unique_ptr<Scheduler<T>> create_no_op(Optimizer<T> *optimizer) {
-    return std::make_unique<NoOpScheduler<T>>(optimizer);
+  static std::unique_ptr<Scheduler> create_no_op(Optimizer *optimizer) {
+    return std::make_unique<NoOpScheduler>(optimizer);
   }
 
   /**
    * @brief Static method to create a StepLR scheduler.
    */
-  static std::unique_ptr<Scheduler<T>> create_step_lr(Optimizer<T> *optimizer, size_t step_size,
-                                                      float gamma = 0.1f) {
-    return std::make_unique<StepLR<T>>(optimizer, step_size, gamma);
+  static std::unique_ptr<Scheduler> create_step_lr(Optimizer *optimizer, size_t step_size,
+                                                   float gamma = 0.1f) {
+    return std::make_unique<StepLR>(optimizer, step_size, gamma);
   }
 
   /**
    * @brief Static method to create a CosineAnnealingLR scheduler.
    */
-  static std::unique_ptr<Scheduler<T>> create_cosine_annealing(Optimizer<T> *optimizer,
-                                                               size_t T_max, float eta_min = 0.0f) {
-    return std::make_unique<CosineAnnealingLR<T>>(optimizer, T_max, eta_min);
+  static std::unique_ptr<Scheduler> create_cosine_annealing(Optimizer *optimizer, size_t T_max,
+                                                            float eta_min = 0.0f) {
+    return std::make_unique<CosineAnnealingLR>(optimizer, T_max, eta_min);
   }
 
   /**
    * @brief Static method to create a linear warmup followed by cosine annealing scheduler.
    */
-  static std::unique_ptr<Scheduler<T>> create_warmup_cosine(Optimizer<T> *optimizer,
-                                                            size_t warmup_steps, size_t total_steps,
-                                                            float start_lr = 0.0f,
-                                                            float eta_min = 0.0f) {
-    return std::make_unique<WarmupCosineAnnealing<T>>(optimizer, warmup_steps, total_steps,
-                                                      start_lr, eta_min);
+  static std::unique_ptr<Scheduler> create_warmup_cosine(Optimizer *optimizer, size_t warmup_steps,
+                                                         size_t total_steps, float start_lr = 0.0f,
+                                                         float eta_min = 0.0f) {
+    return std::make_unique<WarmupCosineAnnealing>(optimizer, warmup_steps, total_steps, start_lr,
+                                                   eta_min);
   }
 
-  static std::unique_ptr<Scheduler<T>>
-  create(const std::string &name, Optimizer<T> *optimizer,
-         const std::unordered_map<std::string, float> &params = {}) {
+  static std::unique_ptr<Scheduler> create(
+      const std::string &name, Optimizer *optimizer,
+      const std::unordered_map<std::string, float> &params = {}) {
     if (name == "step_lr") {
       size_t step_size =
           static_cast<size_t>(params.count("step_size") ? params.at("step_size") : 10);
       float gamma = params.count("gamma") ? params.at("gamma") : 0.1f;
-      return std::make_unique<StepLR<T>>(optimizer, step_size, gamma);
+      return std::make_unique<StepLR>(optimizer, step_size, gamma);
     }
     if (name == "exponential_lr") {
       float gamma = params.count("gamma") ? params.at("gamma") : 0.95f;
-      return std::make_unique<ExponentialLR<T>>(optimizer, gamma);
+      return std::make_unique<ExponentialLR>(optimizer, gamma);
     }
     if (name == "cosine_annealing_lr") {
       size_t T_max = static_cast<size_t>(params.count("T_max") ? params.at("T_max") : 100);
       float eta_min = params.count("eta_min") ? params.at("eta_min") : 0.0f;
-      return std::make_unique<CosineAnnealingLR<T>>(optimizer, T_max, eta_min);
+      return std::make_unique<CosineAnnealingLR>(optimizer, T_max, eta_min);
     }
     if (name == "polynomial_lr") {
       size_t total_steps =
           static_cast<size_t>(params.count("total_steps") ? params.at("total_steps") : 100);
       float power = params.count("power") ? params.at("power") : 1.0f;
       float end_lr = params.count("end_lr") ? params.at("end_lr") : 0.0f;
-      return std::make_unique<PolynomialLR<T>>(optimizer, total_steps, power, end_lr);
+      return std::make_unique<PolynomialLR>(optimizer, total_steps, power, end_lr);
     }
     throw std::invalid_argument("Unknown scheduler type: " + name);
   }
 
-  static std::unique_ptr<Scheduler<T>> create_from_config(const SchedulerConfig &config,
-                                                          Optimizer<T> *optimizer) {
+  static std::unique_ptr<Scheduler> create_from_config(const SchedulerConfig &config,
+                                                       Optimizer *optimizer) {
     if (config.type == "step_lr") {
       size_t step_size = config.get<size_t>("step_size", 10);
       float gamma = config.get<float>("gamma", 0.1f);
-      return std::make_unique<StepLR<T>>(optimizer, step_size, gamma);
+      return std::make_unique<StepLR>(optimizer, step_size, gamma);
     }
     if (config.type == "multi_step_lr") {
       auto milestones = config.get<std::vector<size_t>>("milestones", {});
       float gamma = config.get<float>("gamma", 0.1f);
-      return std::make_unique<MultiStepLR<T>>(optimizer, milestones, gamma);
+      return std::make_unique<MultiStepLR>(optimizer, milestones, gamma);
     }
     if (config.type == "exponential_lr") {
       float gamma = config.get<float>("gamma", 0.95f);
-      return std::make_unique<ExponentialLR<T>>(optimizer, gamma);
+      return std::make_unique<ExponentialLR>(optimizer, gamma);
     }
     if (config.type == "cosine_annealing_lr") {
       size_t T_max = config.get<size_t>("T_max", 100);
       float eta_min = config.get<float>("eta_min", 0.0f);
-      return std::make_unique<CosineAnnealingLR<T>>(optimizer, T_max, eta_min);
+      return std::make_unique<CosineAnnealingLR>(optimizer, T_max, eta_min);
     }
     if (config.type == "cosine_annealing_warm_restarts") {
       size_t T_0 = config.get<size_t>("T_0", 10);
       size_t T_mult = config.get<size_t>("T_mult", 1);
       float eta_min = config.get<float>("eta_min", 0.0f);
-      return std::make_unique<CosineAnnealingWarmRestarts<T>>(optimizer, T_0, T_mult, eta_min);
+      return std::make_unique<CosineAnnealingWarmRestarts>(optimizer, T_0, T_mult, eta_min);
     }
     if (config.type == "linear_warmup") {
       size_t warmup_steps = config.get<size_t>("warmup_steps", 100);
       float start_lr = config.get<float>("start_lr", 0.0f);
-      return std::make_unique<LinearWarmup<T>>(optimizer, warmup_steps, start_lr);
+      return std::make_unique<LinearWarmup>(optimizer, warmup_steps, start_lr);
     }
     if (config.type == "warmup_cosine_annealing") {
       size_t warmup_steps = config.get<size_t>("warmup_steps", 100);
       size_t total_steps = config.get<size_t>("total_steps", 1000);
       float start_lr = config.get<float>("start_lr", 0.0f);
       float eta_min = config.get<float>("eta_min", 0.0f);
-      return std::make_unique<WarmupCosineAnnealing<T>>(optimizer, warmup_steps, total_steps,
-                                                        start_lr, eta_min);
+      return std::make_unique<WarmupCosineAnnealing>(optimizer, warmup_steps, total_steps, start_lr,
+                                                     eta_min);
     }
     if (config.type == "reduce_lr_on_plateau") {
       std::string mode_str = config.get<std::string>("mode", "min");
-      auto mode =
-          (mode_str == "max") ? ReduceLROnPlateau<T>::Mode::MAX : ReduceLROnPlateau<T>::Mode::MIN;
+      auto mode = (mode_str == "max") ? ReduceLROnPlateau::Mode::MAX : ReduceLROnPlateau::Mode::MIN;
       float factor = config.get<float>("factor", 0.1f);
       size_t patience = config.get<size_t>("patience", 10);
       float threshold = config.get<float>("threshold", 1e-4f);
       float min_lr = config.get<float>("min_lr", 0.0f);
-      return std::make_unique<ReduceLROnPlateau<T>>(optimizer, mode, factor, patience, threshold,
-                                                    min_lr);
+      return std::make_unique<ReduceLROnPlateau>(optimizer, mode, factor, patience, threshold,
+                                                 min_lr);
     }
     if (config.type == "polynomial_lr") {
       size_t total_steps = config.get<size_t>("total_steps", 100);
       float power = config.get<float>("power", 1.0f);
       float end_lr = config.get<float>("end_lr", 0.0f);
-      return std::make_unique<PolynomialLR<T>>(optimizer, total_steps, power, end_lr);
+      return std::make_unique<PolynomialLR>(optimizer, total_steps, power, end_lr);
     }
     if (config.type == "one_cycle_lr") {
       float max_lr = config.get<float>("max_lr", 0.1f);
@@ -749,11 +758,11 @@ public:
       float pct_start = config.get<float>("pct_start", 0.3f);
       float div_factor = config.get<float>("div_factor", 25.0f);
       float final_div_factor = config.get<float>("final_div_factor", 1e4f);
-      return std::make_unique<OneCycleLR<T>>(optimizer, max_lr, total_steps, pct_start, div_factor,
-                                             final_div_factor);
+      return std::make_unique<OneCycleLR>(optimizer, max_lr, total_steps, pct_start, div_factor,
+                                          final_div_factor);
     }
     throw std::invalid_argument("Unknown scheduler type: " + config.type);
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

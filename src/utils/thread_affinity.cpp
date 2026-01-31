@@ -5,10 +5,12 @@
  * project root for the full license text.
  */
 #include "utils/thread_affinity.hpp"
+
+#include <unistd.h>
+
 #include <algorithm>
 #include <cstring>
 #include <iostream>
-#include <unistd.h>
 
 namespace tnn {
 
@@ -52,29 +54,29 @@ bool ThreadAffinity::set_thread_affinity(std::thread &thread, const AffinityConf
 
 std::vector<int> ThreadAffinity::get_recommended_cores(const AffinityConfig &config) const {
   switch (config.core_type) {
-  case CoreType::EFFICIENCY_CORES:
-    return get_efficiency_core_ids(config.max_threads, config.numa_node);
-  case CoreType::PERFORMANCE_CORES:
-    return get_performance_core_ids(config.max_threads, config.numa_node);
-  case CoreType::ALL_CORES: {
-    std::vector<int> all_cores;
-    for (int i = 0; i < hw_info_.get_logical_cores(); ++i) {
-      all_cores.push_back(i);
-    }
-    if (config.max_threads > 0 && config.max_threads < static_cast<int>(all_cores.size())) {
-      all_cores.resize(config.max_threads);
-    }
-    return all_cores;
-  }
-  case CoreType::AUTO:
-    // Default to E-cores if available, otherwise P-cores
-    if (has_efficiency_cores()) {
+    case CoreType::EFFICIENCY_CORES:
       return get_efficiency_core_ids(config.max_threads, config.numa_node);
-    } else {
+    case CoreType::PERFORMANCE_CORES:
       return get_performance_core_ids(config.max_threads, config.numa_node);
+    case CoreType::ALL_CORES: {
+      std::vector<int> all_cores;
+      for (int i = 0; i < hw_info_.get_logical_cores(); ++i) {
+        all_cores.push_back(i);
+      }
+      if (config.max_threads > 0 && config.max_threads < static_cast<int>(all_cores.size())) {
+        all_cores.resize(config.max_threads);
+      }
+      return all_cores;
     }
-  default:
-    return {};
+    case CoreType::AUTO:
+      // Default to E-cores if available, otherwise P-cores
+      if (has_efficiency_cores()) {
+        return get_efficiency_core_ids(config.max_threads, config.numa_node);
+      } else {
+        return get_performance_core_ids(config.max_threads, config.numa_node);
+      }
+    default:
+      return {};
   }
 }
 
@@ -116,8 +118,7 @@ std::vector<int> ThreadAffinity::get_efficiency_core_ids(int max_cores, int numa
     std::cout << "Found " << ecore_ids.size() << " E-core(s): ";
     for (size_t i = 0; i < ecore_ids.size(); ++i) {
       std::cout << ecore_ids[i];
-      if (i < ecore_ids.size() - 1)
-        std::cout << ", ";
+      if (i < ecore_ids.size() - 1) std::cout << ", ";
     }
     std::cout << std::endl;
   }
@@ -163,8 +164,7 @@ std::vector<int> ThreadAffinity::get_performance_core_ids(int max_cores, int num
     std::cout << "Found " << pcore_ids.size() << " P-core(s): ";
     for (size_t i = 0; i < pcore_ids.size(); ++i) {
       std::cout << pcore_ids[i];
-      if (i < pcore_ids.size() - 1)
-        std::cout << ", ";
+      if (i < pcore_ids.size() - 1) std::cout << ", ";
     }
     std::cout << std::endl;
   }
@@ -200,8 +200,7 @@ bool ThreadAffinity::set_affinity_impl(pthread_t thread_id, const std::vector<in
   std::cout << "Successfully set thread affinity to CPUs: ";
   for (size_t i = 0; i < cpu_ids.size(); ++i) {
     std::cout << cpu_ids[i];
-    if (i < cpu_ids.size() - 1)
-      std::cout << ", ";
+    if (i < cpu_ids.size() - 1) std::cout << ", ";
   }
   std::cout << std::endl;
 
@@ -238,8 +237,7 @@ void ThreadAffinity::print_affinity_info() const {
       std::cout << "  NUMA node " << node << ": ";
       for (size_t i = 0; i < core_list.size(); ++i) {
         std::cout << core_list[i];
-        if (i < core_list.size() - 1)
-          std::cout << ", ";
+        if (i < core_list.size() - 1) std::cout << ", ";
       }
       std::cout << std::endl;
     }
@@ -253,8 +251,7 @@ void ThreadAffinity::print_affinity_info() const {
     bool first = true;
     for (int i = 0; i < CPU_SETSIZE; ++i) {
       if (CPU_ISSET(i, &current_mask)) {
-        if (!first)
-          std::cout << ", ";
+        if (!first) std::cout << ", ";
         std::cout << i;
         first = false;
       }
@@ -266,4 +263,4 @@ void ThreadAffinity::print_affinity_info() const {
   std::cout << "=================================" << std::endl;
 }
 
-} // namespace tnn
+}  // namespace tnn

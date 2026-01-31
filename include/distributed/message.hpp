@@ -6,43 +6,37 @@
  */
 #pragma once
 
-#include "command_type.hpp"
-#include "distributed/job_pool.hpp"
-#include "job.hpp"
-#include "profiling/profiler.hpp"
-#include "tensor/tensor.hpp"
 #include <arpa/inet.h>
+
 #include <cstring>
 #include <string>
 #include <variant>
-#include <vector>
+
+#include "command_type.hpp"
+#include "distributed/stage_config.hpp"
+#include "job.hpp"
+#include "profiling/profiler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, PooledJob<float>, std::string, bool, Profiler>;
+using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler, StageConfig>;
 
 struct MessageHeader {
-  std::string recipient_id; // ID of the recipient stage
-  std::string sender_id;    // ID of the sender stage
-  CommandType command_type; // Type of command
+  CommandType command_type;  // Type of command
 
   MessageHeader() : command_type(CommandType::_START) {}
 
-  MessageHeader(std::string recipient, CommandType cmd_type)
-      : recipient_id(std::move(recipient)), sender_id(""), command_type(cmd_type) {}
+  MessageHeader(CommandType cmd_type) : command_type(cmd_type) {}
 
-  MessageHeader(const MessageHeader &other)
-      : recipient_id(other.recipient_id), sender_id(other.sender_id),
-        command_type(other.command_type) {}
+  MessageHeader(const MessageHeader &other) : command_type(other.command_type) {}
 
   const uint64_t size() const {
-    return sizeof(uint64_t) + recipient_id.size() + // recipient_id length + data
-           sizeof(uint64_t) + sender_id.size() +    // sender_id length + data
-           sizeof(uint16_t);                        // command_type (serialized as uint16_t)
+    return sizeof(uint16_t);  // command_type (serialized as uint16_t)
   }
 };
 
 struct MessageData {
-  uint64_t payload_type; // to indicate which type is held in the variant
+  uint64_t payload_type;  // to indicate which type is held in the variant
   PayloadType payload;
 
   MessageData(PayloadType &&pay) : payload(std::move(pay)) {
@@ -65,7 +59,7 @@ struct MessageData {
   }
 
   const uint64_t size() const {
-    // Rough estimate of size; actual serialization may differ
+    // Exact serialized size matching BinarySerializer
     uint64_t size = 0;
 
     // size of payload_type
@@ -75,34 +69,38 @@ struct MessageData {
     if (std::holds_alternative<std::monostate>(payload)) {
       // No additional size for monostate
 
-    } else if (std::holds_alternative<PooledJob<float>>(payload)) {
-      const auto &job = std::get<PooledJob<float>>(payload);
-      size += sizeof(uint64_t); // micro_batch_id
-      size += sizeof(uint64_t); // shape size (uint64_t in serialization)
-      size +=
-          job->data.shape().size() * sizeof(uint64_t); // each dimension (uint64_t in serialization)
-      // No size prefix for tensor data itself
-      size += job->data.size() * sizeof(float); // data
-
+    } else if (std::holds_alternative<Job>(payload)) {
+      const auto &job = std::get<Job>(payload);
+      size += sizeof(uint64_t);  // mb_id
+      size += sizeof(uint32_t);  // dtype (serialized as uint32_t)
+      size += sizeof(uint64_t);  // shape size (uint64_t in serialization)
+      size += job.data->shape().size() * sizeof(uint64_t);  // each dimension (uint64_t)
+      size += job.data->size() * get_dtype_size(job.data->data_type());  // tensor data
     } else if (std::holds_alternative<std::string>(payload)) {
       const auto &str = std::get<std::string>(payload);
-      size += sizeof(uint64_t); // string length (uint64_t in serialization)
-      size += str.size();       // string data
+      size += sizeof(uint64_t);  // string length (uint64_t in serialization)
+      size += str.size();        // string data
 
     } else if (std::holds_alternative<bool>(payload)) {
-      size += sizeof(uint8_t); // bool serialized as uint8_t
+      size += sizeof(uint8_t);  // bool serialized as uint8_t
 
     } else if (std::holds_alternative<Profiler>(payload)) {
       const auto &profiler = std::get<Profiler>(payload);
-      size += sizeof(int64_t); // profiler_start_time_ (serialized as int64_t)
+      size += sizeof(int64_t);  // profiler_start_time_ (serialized as int64_t)
       auto events = profiler.get_events();
-      size += sizeof(uint64_t); // number of events
+      size += sizeof(int64_t);  // number of events (serialized as int64_t)
       for (const auto &event : events) {
-        size += sizeof(int64_t);   // start_time_ (serialized as int64_t)
-        size += sizeof(int64_t);   // end_time_ (serialized as int64_t)
-        size += sizeof(uint64_t);  // name length (uint64_t in serialization)
-        size += event.name.size(); // name data
+        size += sizeof(int64_t);      // start_time_ (serialized as int64_t)
+        size += sizeof(int64_t);      // end_time_ (serialized as int64_t)
+        size += sizeof(uint8_t);      // event.type (serialized as uint8_t)
+        size += sizeof(uint64_t);     // name length (uint64_t in serialization)
+        size += event.name.size();    // name data
+        size += sizeof(uint64_t);     // source length (uint64_t in serialization)
+        size += event.source.size();  // source data
       }
+    } else if (std::holds_alternative<StageConfig>(payload)) {
+      const auto &stage_config = std::get<StageConfig>(payload);
+      size += sizeof(uint64_t) + stage_config.to_json().dump().size();  // JSON string size
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }
@@ -116,13 +114,12 @@ private:
   MessageData data_;
 
 public:
-  Message() : header_("", CommandType::_START), data_(std::monostate{}) {}
+  Message() : header_(CommandType::_START), data_(std::monostate{}) {}
 
-  Message(std::string recipient_id, CommandType cmd_type, PayloadType &&payload)
-      : header_(std::move(recipient_id), cmd_type), data_(std::move(payload)) {}
+  Message(CommandType cmd_type, PayloadType &&payload)
+      : header_(cmd_type), data_(std::move(payload)) {}
 
-  Message(std::string recipient_id, CommandType cmd_type)
-      : header_(std::move(recipient_id), cmd_type), data_(std::monostate{}) {}
+  Message(CommandType cmd_type) : header_(cmd_type), data_(std::monostate{}) {}
 
   Message(MessageHeader &&header, MessageData &&data)
       : header_(std::move(header)), data_(std::move(data)) {}
@@ -150,19 +147,23 @@ public:
   MessageData &data() { return data_; }
   const MessageData &data() const { return data_; }
 
-  template <typename PayloadType> bool has_type() const {
+  template <typename PayloadType>
+  bool has_type() const {
     return std::holds_alternative<PayloadType>(data_.payload);
   }
 
-  template <typename PayloadType> PayloadType &get() {
+  template <typename PayloadType>
+  PayloadType &get() {
     return std::get<PayloadType>(data_.payload);
   }
 
-  template <typename PayloadType> const PayloadType &get() const {
+  template <typename PayloadType>
+  const PayloadType &get() const {
     return std::get<PayloadType>(data_.payload);
   }
 
-  template <typename PayloadType> void set(const PayloadType &new_payload) {
+  template <typename PayloadType>
+  void set(const PayloadType &new_payload) {
     data_.payload = new_payload;
     data_.payload_type = static_cast<uint64_t>(data_.payload.index());
   }
@@ -170,4 +171,4 @@ public:
   const uint64_t size() const { return header_.size() + data_.size(); }
 };
 
-} // namespace tnn
+}  // namespace tnn

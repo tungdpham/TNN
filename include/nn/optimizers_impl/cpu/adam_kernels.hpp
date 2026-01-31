@@ -19,6 +19,6 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay);
 
-} // namespace adam
-} // namespace cpu
-} // namespace tnn
+}  // namespace adam
+}  // namespace cpu
+}  // namespace tnn

@@ -1,6 +1,4 @@
 
-#include "threading/thread_handler.hpp"
-#include "threading/thread_wrapper.hpp"
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -8,6 +6,9 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+
+#include "threading/thread_handler.hpp"
+#include "threading/thread_wrapper.hpp"
 
 using namespace tnn;
 

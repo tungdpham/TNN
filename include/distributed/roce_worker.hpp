@@ -6,11 +6,12 @@
  */
 #pragma once
 
+#include <memory>
+
+#include "device/device.hpp"
+#include "device/device_manager.hpp"
 #include "roce_communicator.hpp"
 #include "worker.hpp"
-#include <iostream>
-#include <memory>
-#include <string>
 
 namespace tnn {
 
@@ -20,7 +21,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs using RDMA.
  */
-template <typename T = float> class RoceWorker : public Worker {
+class RoceWorker : public Worker {
 public:
   /**
    * @brief Constructor for RoCE worker
@@ -32,8 +33,7 @@ public:
    */
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
-
-    auto communicator = std::make_unique<RoceCommunicator>(this->id_, worker_endpoint_);
+    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, use_gpu);
 
     communicator->start_server();
 
@@ -42,21 +42,8 @@ public:
 
   ~RoceWorker() override { stop(); }
 
-  void start() override {
-    if (!this->should_stop_)
-      return;
-
-    Worker::start();
-  }
-
-  void stop() override {
-    std::cout << "Stopping RoCE worker." << '\n';
-    Worker::stop();
-    std::cout << "RoCE worker stopped" << '\n';
-  }
-
 private:
   Endpoint worker_endpoint_;
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -5,10 +5,4 @@
  * project root for the full license text.
  */
 
-#include "nn/sequential.hpp"
-
-namespace tnn {
-// Sequential model instantiations
-template class Sequential<float>;
-template class SequentialBuilder<float>;
-} // namespace tnn
+namespace tnn {}  // namespace tnn

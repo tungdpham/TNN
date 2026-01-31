@@ -6,6 +6,7 @@
  */
 
 #include "utils/hardware_info.hpp"
+
 #include <algorithm>
 #include <cstring>
 #include <fstream>
@@ -131,8 +132,7 @@ bool HardwareInfo::read_cpuinfo_linux() {
 
   logical_cores_ = processor_count;
   sockets_ = static_cast<int>(physical_ids.size());
-  if (sockets_ == 0)
-    sockets_ = 1; // Single socket system
+  if (sockets_ == 0) sockets_ = 1;  // Single socket system
 
   // Determine architecture
   if (vendor_.find("Intel") != std::string::npos) {
@@ -140,16 +140,16 @@ bool HardwareInfo::read_cpuinfo_linux() {
     // Detect Intel microarchitecture based on family/model
     if (family_ == 6) {
       if (model_ >= 0x8C && model_ <= 0x8F) {
-        microarchitecture_ = "Alder Lake"; // 12th gen
+        microarchitecture_ = "Alder Lake";  // 12th gen
         process_node_nm_ = 10;
       } else if (model_ >= 0xB7 && model_ <= 0xBA) {
-        microarchitecture_ = "Raptor Lake"; // 13th/14th gen
+        microarchitecture_ = "Raptor Lake";  // 13th/14th gen
         process_node_nm_ = 10;
       } else if (model_ >= 0xA7 && model_ <= 0xA8) {
-        microarchitecture_ = "Rocket Lake"; // 11th gen
+        microarchitecture_ = "Rocket Lake";  // 11th gen
         process_node_nm_ = 14;
       } else if (model_ >= 0x7D && model_ <= 0x7E) {
-        microarchitecture_ = "Ice Lake"; // 10th gen mobile
+        microarchitecture_ = "Ice Lake";  // 10th gen mobile
         process_node_nm_ = 10;
       } else {
         microarchitecture_ = "Unknown Intel";
@@ -243,7 +243,7 @@ bool HardwareInfo::init_core_topology() {
     std::vector<SYSTEM_LOGICAL_PROCESSOR_INFORMATION> buffer(
         bufferSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION));
 
-    if (GetLogicalProcessorInformation(buffer.data(), &bufferSize)) {
+    if (GetLogicalProcessorInformation(buffer->data_as<T>(), &bufferSize)) {
       int physical_core_count = 0;
       int hyperthreading_count = 0;
 
@@ -254,8 +254,7 @@ bool HardwareInfo::init_core_topology() {
           ULONG_PTR mask = info.ProcessorMask;
           int threads_per_core = 0;
           while (mask) {
-            if (mask & 1)
-              threads_per_core++;
+            if (mask & 1) threads_per_core++;
             mask >>= 1;
           }
           if (threads_per_core > 1) {
@@ -330,11 +329,11 @@ bool HardwareInfo::init_frequency_info() {
 #elif defined(_WIN32)
   // Query processor information using CPUID to get base frequency
   int cpuInfo[4];
-  __cpuid(cpuInfo, 0x16); // Processor Frequency Information Leaf
+  __cpuid(cpuInfo, 0x16);  // Processor Frequency Information Leaf
 
-  if (cpuInfo[0] != 0) {              // Check if leaf is supported
-    base_frequency_mhz_ = cpuInfo[0]; // EAX = Base frequency in MHz
-    max_frequency_mhz_ = cpuInfo[1];  // EBX = Maximum frequency in MHz
+  if (cpuInfo[0] != 0) {               // Check if leaf is supported
+    base_frequency_mhz_ = cpuInfo[0];  // EAX = Base frequency in MHz
+    max_frequency_mhz_ = cpuInfo[1];   // EBX = Maximum frequency in MHz
     // ECX = Bus frequency in MHz (not used here)
   } else {
     // Fallback: try to get frequency from registry
@@ -346,7 +345,7 @@ bool HardwareInfo::init_frequency_info() {
       if (RegQueryValueEx(hKey, "~MHz", nullptr, nullptr, (LPBYTE)&frequency, &bufferSize) ==
           ERROR_SUCCESS) {
         base_frequency_mhz_ = frequency;
-        max_frequency_mhz_ = frequency; // Assume base = max without better info
+        max_frequency_mhz_ = frequency;  // Assume base = max without better info
       }
       RegCloseKey(hKey);
     }
@@ -460,7 +459,7 @@ bool HardwareInfo::init_memory_hierarchy() {
     // Check if this cache index exists
     std::ifstream level_file(base_path + "/level");
     if (!level_file.is_open()) {
-      break; // No more cache levels
+      break;  // No more cache levels
     }
 
     MemoryHierarchy::CacheLevel cache;
@@ -474,7 +473,7 @@ bool HardwareInfo::init_memory_hierarchy() {
     if (size_file.is_open()) {
       std::string size_str;
       size_file >> size_str;
-      cache.size_kb = std::stoi(size_str.substr(0, size_str.length() - 1)); // Remove 'K'
+      cache.size_kb = std::stoi(size_str.substr(0, size_str.length() - 1));  // Remove 'K'
     }
 
     // Read cache type
@@ -547,7 +546,7 @@ bool HardwareInfo::init_memory_hierarchy() {
 #elif defined(_WIN32)
   return init_windows_memory_hierarchy();
 #else
-  return true; // Not implemented for other platforms yet
+  return true;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -562,7 +561,7 @@ bool HardwareInfo::init_ram_info() {
 #elif defined(__APPLE__)
   return init_macos_ram_info();
 #else
-  return true; // Not implemented for other platforms yet
+  return true;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -612,7 +611,7 @@ bool HardwareInfo::init_container_detection() {
 #elif defined(_WIN32)
   return init_windows_container_detection();
 #else
-  return true; // Not implemented for other platforms yet
+  return true;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -662,7 +661,7 @@ bool HardwareInfo::detect_pcore_ecore_topology() {
 
     // P-cores typically have higher max frequency and support hyperthreading
     // E-cores have lower frequency and no hyperthreading
-    double p_core_threshold = max_freq * 0.85; // P-cores should be within 15% of max
+    double p_core_threshold = max_freq * 0.85;  // P-cores should be within 15% of max
 
     performance_cores_ = 0;
     efficiency_cores_ = 0;
@@ -672,7 +671,7 @@ bool HardwareInfo::detect_pcore_ecore_topology() {
       std::cout << "core_id: " << core_id << ", freq: " << freq
                 << " MHz, threads: " << threads.size() << std::endl;
       bool is_p_core =
-          (freq >= p_core_threshold) && (threads.size() > 1); // P-cores have hyperthreading
+          (freq >= p_core_threshold) && (threads.size() > 1);  // P-cores have hyperthreading
 
       if (is_p_core) {
         performance_cores_++;
@@ -729,7 +728,7 @@ bool HardwareInfo::populate_core_cache_info() {
       // Check if this cache index exists
       std::ifstream level_file(base_path + "/level");
       if (!level_file.is_open()) {
-        break; // No more cache levels
+        break;  // No more cache levels
       }
 
       int level;
@@ -740,7 +739,7 @@ bool HardwareInfo::populate_core_cache_info() {
       if (size_file.is_open()) {
         std::string size_str;
         size_file >> size_str;
-        int size_kb = std::stoi(size_str.substr(0, size_str.length() - 1)); // Remove 'K'
+        int size_kb = std::stoi(size_str.substr(0, size_str.length() - 1));  // Remove 'K'
 
         // Accumulate cache sizes by level (handles separate I/D caches)
         if (level == 1) {
@@ -811,7 +810,7 @@ bool HardwareInfo::update_utilization() {
 #elif defined(_WIN32)
   return update_windows_perfcounters();
 #else
-  return false; // Not implemented for other platforms yet
+  return false;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -823,7 +822,7 @@ bool HardwareInfo::read_proc_stat_linux() {
   }
 
   std::string line;
-  std::getline(stat_file, line); // First line is overall CPU stats
+  std::getline(stat_file, line);  // First line is overall CPU stats
 
   std::istringstream iss(line);
   std::string cpu_label;
@@ -914,7 +913,7 @@ bool HardwareInfo::update_thermal_info() {
 #elif defined(_WIN32)
   return read_thermal_windows();
 #else
-  return false; // Not implemented for other platforms yet
+  return false;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -944,7 +943,6 @@ bool HardwareInfo::read_thermal_linux() {
           zone_type.find("x86_pkg_temp") != std::string::npos ||
           zone_type.find("coretemp") != std::string::npos ||
           zone_type.find("Package") != std::string::npos) {
-
         thermal_info_.current_temp_celsius = temp_celsius;
         found_temp = true;
 
@@ -952,7 +950,7 @@ bool HardwareInfo::read_thermal_linux() {
         if (temp_celsius > 85.0) {
           thermal_info_.thermal_throttling = true;
         }
-        break; // Use first CPU thermal zone found
+        break;  // Use first CPU thermal zone found
       }
     }
   }
@@ -971,7 +969,6 @@ bool HardwareInfo::read_thermal_linux() {
         // Look for coretemp or similar CPU temperature monitors
         if (hwmon_name.find("coretemp") != std::string::npos ||
             hwmon_name.find("k10temp") != std::string::npos) {
-
           // Try temp1_input (package temperature)
           std::string temp_path = hwmon_path + "/temp1_input";
           std::ifstream temp_file(temp_path);
@@ -995,12 +992,12 @@ bool HardwareInfo::read_thermal_linux() {
       // In VMs/containers, thermal sensors are often not available
       // Set a reasonable default that indicates "thermal monitoring
       // unavailable"
-      thermal_info_.current_temp_celsius = -1.0; // Special value indicating unavailable
+      thermal_info_.current_temp_celsius = -1.0;  // Special value indicating unavailable
     }
   }
 
-  return true; // Always return true since missing thermal sensors isn't an
-               // error
+  return true;  // Always return true since missing thermal sensors isn't an
+                // error
 #else
   return false;
 #endif
@@ -1012,7 +1009,7 @@ bool HardwareInfo::update_frequency_info() {
 #elif defined(_WIN32)
   return read_frequencies_windows();
 #else
-  return false; // Not implemented for other platforms yet
+  return false;  // Not implemented for other platforms yet
 #endif
 }
 
@@ -1064,7 +1061,7 @@ CoreInfo HardwareInfo::get_core_info(int logical_core_id) const {
   if (logical_core_id >= 0 && logical_core_id < static_cast<int>(cores_.size())) {
     return cores_[logical_core_id];
   }
-  return CoreInfo{}; // Return default-constructed CoreInfo for invalid ID
+  return CoreInfo{};  // Return default-constructed CoreInfo for invalid ID
 }
 
 std::map<int, std::vector<int>> HardwareInfo::get_numa_aware_cores() const {
@@ -1442,10 +1439,9 @@ bool HardwareInfo::init_windows_memory_hierarchy() {
     __cpuidex(cpuInfo, 4, cache_id);
     int cache_type = cpuInfo[0] & 0x1F;
 
-    if (cache_type == 0)
-      break; // No more caches
+    if (cache_type == 0) break;  // No more caches
 
-    if (cache_type == 1 || cache_type == 3) { // Data or Unified cache
+    if (cache_type == 1 || cache_type == 3) {  // Data or Unified cache
       int level = (cpuInfo[0] >> 5) & 0x7;
       int ways = ((cpuInfo[1] >> 22) & 0x3FF) + 1;
       int partitions = ((cpuInfo[1] >> 12) & 0x3FF) + 1;
@@ -1569,7 +1565,7 @@ bool HardwareInfo::update_windows_perfcounters() {
 
     // First collection to establish baseline
     PdhCollectQueryData(hQuery);
-    Sleep(100); // Wait a bit before second collection
+    Sleep(100);  // Wait a bit before second collection
     initialized = true;
   }
 
@@ -1581,7 +1577,7 @@ bool HardwareInfo::update_windows_perfcounters() {
   PDH_FMT_COUNTERVALUE counterValue;
   if (PdhGetFormattedCounterValue(hTotalCounter, PDH_FMT_DOUBLE, nullptr, &counterValue) ==
       ERROR_SUCCESS) {
-    overall_utilization_ = 100.0 - counterValue.doubleValue; // PDH returns % idle time
+    overall_utilization_ = 100.0 - counterValue.doubleValue;  // PDH returns % idle time
   }
 
   // Get per-core utilization
@@ -1589,7 +1585,8 @@ bool HardwareInfo::update_windows_perfcounters() {
     if (hCoreCounters[i] && PdhGetFormattedCounterValue(hCoreCounters[i], PDH_FMT_DOUBLE, nullptr,
                                                         &counterValue) == ERROR_SUCCESS) {
       if (i < static_cast<int>(cores_.size())) {
-        cores_[i].utilization_percent = 100.0 - counterValue.doubleValue; // PDH returns % idle time
+        cores_[i].utilization_percent =
+            100.0 - counterValue.doubleValue;  // PDH returns % idle time
       }
     }
   }
@@ -1601,7 +1598,7 @@ bool HardwareInfo::read_thermal_windows() {
   // Windows thermal information is typically not exposed through standard APIs
   // This would require WMI queries to MSAcpi_ThermalZoneTemperature class
   // For now, set thermal information as unavailable
-  thermal_info_.current_temp_celsius = -1.0; // Indicates unavailable
+  thermal_info_.current_temp_celsius = -1.0;  // Indicates unavailable
   thermal_info_.thermal_throttling = false;
 
   // Try to detect thermal throttling by monitoring frequency drops
@@ -1610,7 +1607,7 @@ bool HardwareInfo::read_thermal_windows() {
 
   if (base_frequency_mhz_ > 0 && prev_freq > 0) {
     double freq_drop = (prev_freq - base_frequency_mhz_) / prev_freq;
-    if (freq_drop > 0.1) { // More than 10% frequency drop
+    if (freq_drop > 0.1) {  // More than 10% frequency drop
       throttle_count++;
       if (throttle_count > 3) {
         thermal_info_.thermal_throttling = true;
@@ -1642,7 +1639,7 @@ bool HardwareInfo::read_frequencies_windows() {
           double current_freq = counterValue.doubleValue;
           for (auto &core : cores_) {
             core.current_freq_mhz = current_freq;
-            core.governor = "windows"; // Windows manages frequency automatically
+            core.governor = "windows";  // Windows manages frequency automatically
           }
         }
       }
@@ -1691,7 +1688,7 @@ bool HardwareInfo::read_meminfo_linux() {
     long long value;
 
     if (iss >> key >> value) {
-      value *= 1024; // Convert from KB to bytes
+      value *= 1024;  // Convert from KB to bytes
 
       if (key == "MemTotal:") {
         ram_info_.total_physical_memory_bytes = value;
@@ -1737,11 +1734,11 @@ bool HardwareInfo::read_ram_modules_linux() {
   if (ram_info_.total_physical_memory_bytes > 0 && ram_info_.modules.empty()) {
     RamModule module;
     module.size_bytes = ram_info_.total_physical_memory_bytes;
-    module.type = "DDR4";    // Default assumption
-    module.speed_mhz = 2400; // Default assumption
+    module.type = "DDR4";     // Default assumption
+    module.speed_mhz = 2400;  // Default assumption
     ram_info_.modules.push_back(module);
     ram_info_.populated_slots = 1;
-    ram_info_.total_slots = 4; // Common default
+    ram_info_.total_slots = 4;  // Common default
   }
 
   return true;
@@ -1861,4 +1858,4 @@ std::vector<int> HardwareInfo::get_recommended_cpu_affinity(int thread_count) co
   return recommended_cores;
 }
 
-} // namespace tnn
+}  // namespace tnn

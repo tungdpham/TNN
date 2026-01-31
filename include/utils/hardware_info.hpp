@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <map>
-#include <memory>
 #include <string>
 #include <vector>
 
@@ -66,10 +65,10 @@ struct RamModule {
   std::string serial_number = "unknown";
   long long size_bytes = 0;
   int speed_mhz = 0;
-  std::string type = "unknown"; // DDR4, DDR5, etc.
+  std::string type = "unknown";  // DDR4, DDR5, etc.
   int rank = 0;
   int data_width_bits = 64;
-  std::string form_factor = "unknown"; // DIMM, SO-DIMM, etc.
+  std::string form_factor = "unknown";  // DIMM, SO-DIMM, etc.
   std::string voltage = "unknown";
   int cas_latency = 0;
   std::string bank_locator = "unknown";
@@ -95,7 +94,7 @@ struct RamInfo {
   int populated_slots = 0;
   int total_slots = 0;
   double memory_bandwidth_gbps = 0.0;
-  std::string memory_type = "unknown"; // DDR4, DDR5, LPDDR4, etc.
+  std::string memory_type = "unknown";  // DDR4, DDR5, LPDDR4, etc.
   int jedec_speed_mhz = 0;
   int effective_speed_mhz = 0;
 
@@ -360,4 +359,4 @@ private:
   std::vector<CpuTimes> prev_core_times_;
 };
 
-} // namespace tnn
+}  // namespace tnn

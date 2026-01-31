@@ -6,14 +6,14 @@
  */
 #pragma once
 
+#include <asio.hpp>
+#include <memory>
+#include <vector>
+
 #include "coordinator.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
 #include "tcp_communicator.hpp"
-#include <asio.hpp>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace tnn {
 
@@ -32,24 +32,23 @@ public:
    * @param endpoints The list of worker endpoints
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  NetworkCoordinator(const std::string &id, Sequential<float> model,
-                     std::unique_ptr<Optimizer<float>> optimizer,
-                     Endpoint coordinator_endpoint = Endpoint::tcp("localhost", 8000),
-                     const std::vector<Endpoint> &endpoints = {}, size_t io_threads = 1)
-      : Coordinator(std::move(model), std::move(optimizer)) {
+  NetworkCoordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
+                     std::unique_ptr<Worker> local_worker, Endpoint coordinator_endpoint,
+                     const std::vector<Endpoint> &endpoints)
+      : Coordinator(std::move(model), std::move(optimizer), std::move(local_worker)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
-    this->remote_endpoints_ = endpoints;
+    this->worker_endpoints_ = endpoints;
     this->num_stages_ = static_cast<int>(endpoints.size());
 
     // Initialize TCP communicator for the coordinator
-    auto communicator = std::make_unique<TcpCommunicator>(id, coordinator_endpoint, io_threads);
+    auto communicator = std::make_unique<TcpCommunicator>(coordinator_endpoint);
     communicator->start_server();
-    this->coordinator_comm_ = std::move(communicator);
+    this->comm_ = std::move(communicator);
     this->add_message_callback();
   }
 
   ~NetworkCoordinator() = default;
 };
 
-} // namespace tnn
+}  // namespace tnn

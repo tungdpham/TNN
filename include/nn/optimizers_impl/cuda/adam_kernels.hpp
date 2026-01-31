@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -21,8 +22,8 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay, cudaStream_t stream);
 
-} // namespace adam
-} // namespace cuda
-} // namespace tnn
+}  // namespace adam
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

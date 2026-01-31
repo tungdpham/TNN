@@ -6,6 +6,13 @@
  */
 #pragma once
 
+#include <any>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "device/task.hpp"
 #include "nlohmann/json.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
@@ -13,12 +20,6 @@
 #include "optimizers_impl/cuda/adam_kernels.hpp"
 #include "optimizers_impl/cuda/sgd_kernels.hpp"
 #include "tensor/tensor.hpp"
-#include <any>
-#include <cmath>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace tnn {
 
@@ -27,7 +28,8 @@ struct OptimizerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -86,12 +88,12 @@ struct OptimizerConfig {
   }
 };
 
-template <typename T = float> class Optimizer {
+class Optimizer {
 public:
   explicit Optimizer(float learning_rate) : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
-  void attach(std::vector<Tensor<T> *> params, const std::vector<Tensor<T> *> grads) {
+  void attach(std::vector<Tensor> params, const std::vector<Tensor> grads) {
     if (params.size() != grads.size()) {
       throw std::invalid_argument("Parameters and gradients size mismatch in optimizer attach" +
                                   std::to_string(params.size()) + " vs " +
@@ -108,7 +110,7 @@ public:
 
   void clear_gradients() {
     for (auto &grad : gradients_) {
-      grad->fill(T(0));
+      grad->fill(0.0);
     }
   }
 
@@ -117,53 +119,28 @@ public:
 
   virtual std::string name() const = 0;
   virtual OptimizerConfig get_config() const = 0;
-  virtual std::unique_ptr<Optimizer<T>> clone() const = 0;
+  virtual std::unique_ptr<Optimizer> clone() const = 0;
 
 protected:
   float learning_rate_;
-  std::vector<Tensor<T> *> parameters_;
-  std::vector<Tensor<T> *> gradients_;
+  std::vector<Tensor> parameters_;
+  std::vector<Tensor> gradients_;
 
   virtual void on_attach() {}
 };
 
-template <typename T = float> class SGD : public Optimizer<T> {
+class SGD : public Optimizer {
 public:
   SGD(float learning_rate = 0.01f, float momentum = 0.0f)
-      : Optimizer<T>(learning_rate), momentum_(momentum) {}
+      : Optimizer(learning_rate), momentum_(momentum) {}
 
   void update() override {
     auto &params = this->parameters_;
     auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
-      const size_t size = params[i]->size();
-
-      if (params[i]->device_type() == DeviceType::CPU) {
-        if (momentum_ > 0.0f) {
-          create_cpu_task("default", cpu::sgd::update_sgd_momentum<T>, params[i]->data_ptr().get(),
-                          grads[i]->data_ptr().get(), velocities_[i].data_ptr().get(), size,
-                          this->learning_rate_, momentum_);
-        } else {
-          create_cpu_task("default", cpu::sgd::update_sgd<T>, params[i]->data_ptr().get(),
-                          grads[i]->data_ptr().get(), size, this->learning_rate_);
-        }
-      }
-#ifdef USE_CUDA
-      else if (params[i]->device_type() == DeviceType::GPU) {
-        if (momentum_ > 0.0f) {
-          create_gpu_task("default", cuda::sgd::update_sgd_momentum<T>, params[i]->data_ptr().get(),
-                          grads[i]->data_ptr().get(), velocities_[i].data_ptr().get(), size,
-                          this->learning_rate_, momentum_);
-        } else {
-          create_gpu_task("default", cuda::sgd::update_sgd<T>, params[i]->data_ptr().get(),
-                          grads[i]->data_ptr().get(), size, this->learning_rate_);
-        }
-      }
-#endif
-      else {
-        throw std::runtime_error("Unsupported device type for SGD optimizer");
-      }
+      DISPATCH_ON_DTYPE(params[i]->data_type(), T,
+                        update_impl<T>(params[i], grads[i], velocities_[i]));
     }
   }
 
@@ -178,8 +155,8 @@ public:
     return config;
   }
 
-  std::unique_ptr<Optimizer<T>> clone() const override {
-    return std::make_unique<SGD<T>>(this->learning_rate_, momentum_);
+  std::unique_ptr<Optimizer> clone() const override {
+    return std::make_unique<SGD>(this->learning_rate_, momentum_);
   }
 
 protected:
@@ -187,23 +164,61 @@ protected:
     if (momentum_ > 0.0f) {
       velocities_.resize(this->parameters_.size());
       for (size_t i = 0; i < this->parameters_.size(); ++i) {
-        velocities_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
-        velocities_[i].fill(0.0f);
+        velocities_[i] =
+            Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                           this->parameters_[i]->device());
+        velocities_[i]->fill(0.0f);
       }
     }
   }
 
 private:
   float momentum_;
-  std::vector<Tensor<T>> velocities_;
+  std::vector<Tensor> velocities_;
+
+  template <typename T>
+  void update_impl(Tensor &param, Tensor &grad, Tensor &velocity) {
+    const size_t size = param->size();
+
+    if (param->device_type() == DeviceType::CPU) {
+      if (momentum_ > 0.0f) {
+        create_cpu_task("default", cpu::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+                        grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+                        momentum_);
+      } else {
+        create_cpu_task("default", cpu::sgd::update_sgd<T>, param->data_as<T>(), grad->data_as<T>(),
+                        size, this->learning_rate_);
+      }
+    }
+#ifdef USE_CUDA
+    else if (param->device_type() == DeviceType::GPU) {
+      if (momentum_ > 0.0f) {
+        create_cuda_task("default", cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+                         grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
+                         momentum_);
+      } else {
+        create_cuda_task("default", cuda::sgd::update_sgd<T>, param->data_as<T>(),
+                         grad->data_as<T>(), size, this->learning_rate_);
+      }
+    }
+#endif
+    else {
+      throw std::runtime_error("Unsupported device type for SGD optimizer");
+    }
+  }
 };
 
-template <typename T = float> class Adam : public Optimizer<T> {
+class Adam : public Optimizer {
 public:
   Adam(float learning_rate = 0.001f, float beta1 = 0.9f, float beta2 = 0.999f,
        float epsilon = 1e-8f, float weight_decay = 0.0f, bool decouple_weight_decay = false)
-      : Optimizer<T>(learning_rate), beta1_(beta1), beta2_(beta2), epsilon_(epsilon),
-        weight_decay_(weight_decay), decouple_weight_decay_(decouple_weight_decay), t_(0) {}
+      : Optimizer(learning_rate),
+        beta1_(beta1),
+        beta2_(beta2),
+        epsilon_(epsilon),
+        weight_decay_(weight_decay),
+        decouple_weight_decay_(decouple_weight_decay),
+        t_(0) {}
 
   void update() override {
     auto &params = this->parameters_;
@@ -216,25 +231,9 @@ public:
     const float bias_correction2 = 1.0f - std::pow(beta2_, static_cast<float>(t_));
 
     for (size_t i = 0; i < params.size(); ++i) {
-      const size_t size = params[i]->size();
-
-      if (params[i]->device_type() == DeviceType::CPU) {
-        create_cpu_task("default", cpu::adam::update_adam<T>, params[i]->data_ptr().get(),
-                        grads[i]->data_ptr().get(), m_[i].data_ptr().get(), v_[i].data_ptr().get(),
-                        size, this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
-                        bias_correction2, weight_decay_, decouple_weight_decay_);
-      }
-#ifdef USE_CUDA
-      else if (params[i]->device_type() == DeviceType::GPU) {
-        create_gpu_task("default", cuda::adam::update_adam<T>, params[i]->data_ptr().get(),
-                        grads[i]->data_ptr().get(), m_[i].data_ptr().get(), v_[i].data_ptr().get(),
-                        size, this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
-                        bias_correction2, weight_decay_, decouple_weight_decay_);
-      }
-#endif
-      else {
-        throw std::runtime_error("Unsupported device type for Adam optimizer");
-      }
+      DISPATCH_ON_DTYPE(
+          params[i]->data_type(), T,
+          update_impl<T>(params[i], grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }
   }
 
@@ -253,9 +252,9 @@ public:
     return config;
   }
 
-  std::unique_ptr<Optimizer<T>> clone() const override {
-    return std::make_unique<Adam<T>>(this->learning_rate_, beta1_, beta2_, epsilon_, weight_decay_,
-                                     decouple_weight_decay_);
+  std::unique_ptr<Optimizer> clone() const override {
+    return std::make_unique<Adam>(this->learning_rate_, beta1_, beta2_, epsilon_, weight_decay_,
+                                  decouple_weight_decay_);
   }
 
 protected:
@@ -263,10 +262,12 @@ protected:
     m_.resize(this->parameters_.size());
     v_.resize(this->parameters_.size());
     for (size_t i = 0; i < this->parameters_.size(); ++i) {
-      m_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
-      m_[i].fill(0.0f);
-      v_[i] = Tensor<T>(this->parameters_[i]->shape(), this->parameters_[i]->device());
-      v_[i].fill(0.0f);
+      m_[i] = Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                             this->parameters_[i]->device());
+      m_[i]->fill(0.0f);
+      v_[i] = Tensor::create(this->parameters_[i]->data_type(), this->parameters_[i]->shape(),
+                             this->parameters_[i]->device());
+      v_[i]->fill(0.0f);
     }
     t_ = 0;
   }
@@ -278,17 +279,40 @@ private:
   float weight_decay_;
   bool decouple_weight_decay_;
   unsigned long t_;
-  std::vector<Tensor<T>> m_;
-  std::vector<Tensor<T>> v_;
+  std::vector<Tensor> m_;
+  std::vector<Tensor> v_;
+
+  template <typename T>
+  void update_impl(Tensor &param, Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
+                   float bias_correction2) {
+    const size_t size = param->size();
+    if (param->device_type() == DeviceType::CPU) {
+      create_cpu_task("default", cpu::adam::update_adam<T>, param->data_as<T>(), grad->data_as<T>(),
+                      m->data_as<T>(), v->data_as<T>(), size, this->learning_rate_, beta1_, beta2_,
+                      epsilon_, bias_correction1, bias_correction2, weight_decay_,
+                      decouple_weight_decay_);
+    }
+#ifdef USE_CUDA
+    else if (param->device_type() == DeviceType::GPU) {
+      create_cuda_task("default", cuda::adam::update_adam<T>, param->data_as<T>(),
+                       grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
+                       this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                       bias_correction2, weight_decay_, decouple_weight_decay_);
+    }
+#endif
+    else {
+      throw std::runtime_error("Unsupported device type for Adam optimizer");
+    }
+  }
 };
 
-template <typename T = float> class OptimizerFactory {
+class OptimizerFactory {
 public:
-  static std::unique_ptr<Optimizer<T>> create_from_config(const OptimizerConfig &config) {
+  static std::unique_ptr<Optimizer> create_from_config(const OptimizerConfig &config) {
     if (config.type == "sgd") {
       float learning_rate = config.get<float>("learning_rate", 0.01f);
       float momentum = config.get<float>("momentum", 0.0f);
-      return std::make_unique<SGD<T>>(learning_rate, momentum);
+      return std::make_unique<SGD>(learning_rate, momentum);
     }
     if (config.type == "adam" || config.type == "adamw") {
       float learning_rate = config.get<float>("learning_rate", 0.001f);
@@ -298,24 +322,23 @@ public:
       float weight_decay = config.get<float>("weight_decay", 0.0f);
       bool decouple_weight_decay =
           config.get<bool>("decouple_weight_decay", config.type == "adamw");
-      return std::make_unique<Adam<T>>(learning_rate, beta1, beta2, epsilon, weight_decay,
-                                       decouple_weight_decay);
+      return std::make_unique<Adam>(learning_rate, beta1, beta2, epsilon, weight_decay,
+                                    decouple_weight_decay);
     }
     throw std::invalid_argument("Unknown optimizer type: " + config.type);
   }
 
-  static std::unique_ptr<Optimizer<T>> create_sgd(float learning_rate = 0.01f,
-                                                  float momentum = 0.0f) {
-    return std::make_unique<SGD<T>>(learning_rate, momentum);
+  static std::unique_ptr<Optimizer> create_sgd(float learning_rate = 0.01f, float momentum = 0.0f) {
+    return std::make_unique<SGD>(learning_rate, momentum);
   }
 
-  static std::unique_ptr<Optimizer<T>> create_adam(float learning_rate = 0.001f, float beta1 = 0.9f,
-                                                   float beta2 = 0.999f, float epsilon = 1e-8f,
-                                                   float weight_decay = 0.0f,
-                                                   bool decouple_weight_decay = false) {
-    return std::make_unique<Adam<T>>(learning_rate, beta1, beta2, epsilon, weight_decay,
-                                     decouple_weight_decay);
+  static std::unique_ptr<Optimizer> create_adam(float learning_rate = 0.001f, float beta1 = 0.9f,
+                                                float beta2 = 0.999f, float epsilon = 1e-8f,
+                                                float weight_decay = 0.0f,
+                                                bool decouple_weight_decay = false) {
+    return std::make_unique<Adam>(learning_rate, beta1, beta2, epsilon, weight_decay,
+                                  decouple_weight_decay);
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

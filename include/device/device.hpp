@@ -1,11 +1,11 @@
 #pragma once
 
-#include "context.hpp"
-#include "device_type.hpp"
-
 #include <cstring>
 #include <memory>
 #include <string>
+
+#include "context.hpp"
+#include "device_type.hpp"
 
 namespace tnn {
 
@@ -21,6 +21,8 @@ public:
   // Explicitly delete copy constructor and copy assignment operator
   Device(const Device &) = delete;
   Device &operator=(const Device &) = delete;
+
+  bool operator==(const Device &other) const;
 
   const DeviceType &device_type() const;
   int getID() const;
@@ -43,4 +45,4 @@ private:
   std::unique_ptr<Context> context_;
 };
 
-} // namespace tnn
+}  // namespace tnn

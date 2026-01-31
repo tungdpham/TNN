@@ -1,9 +1,11 @@
 #include "device/cuda/cuda_context.hpp"
+
 #include "device/flow.hpp"
 
 #ifdef USE_CUDA
 
 #include <cuda_runtime.h>
+
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -85,7 +87,7 @@ void CUDAContext::copyToHost(void *dest, const void *src, size_t size) {
 
 void *CUDAContext::allocateAlignedMemory(size_t size, size_t alignment) {
   // cudaMalloc already provides 256-byte alignment, which is sufficient for most cases
-  (void)alignment; // Unused parameter
+  (void)alignment;  // Unused parameter
   return allocateMemory(size);
 }
 
@@ -109,6 +111,6 @@ Flow *CUDAContext::getFlow(const std::string &flow_id) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn
 
-#endif // USE_CUDA
+#endif  // USE_CUDA

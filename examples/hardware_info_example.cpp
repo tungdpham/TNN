@@ -1,4 +1,3 @@
-#include "utils/hardware_info.hpp"
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -6,6 +5,8 @@
 #include <iostream>
 #include <sstream>
 #include <thread>
+
+#include "utils/hardware_info.hpp"
 
 using namespace tnn;
 using namespace std;
@@ -71,8 +72,7 @@ int main() {
       cout << "  NUMA Node " << node << ": ";
       for (size_t i = 0; i < cores.size(); ++i) {
         cout << cores[i];
-        if (i < cores.size() - 1)
-          cout << ", ";
+        if (i < cores.size() - 1) cout << ", ";
       }
       cout << endl;
     }

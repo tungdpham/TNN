@@ -6,8 +6,10 @@
  */
 #include "nn/optimizers_impl/cpu/adam_kernels.hpp"
 
-#include "threading/thread_handler.hpp"
 #include <cmath>
+
+#include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -18,30 +20,28 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
                  const float learning_rate, const float beta1, const float beta2,
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay) {
-
-  const T one_minus_beta1 = static_cast<T>(1.0) - beta1;
-  const T one_minus_beta2 = static_cast<T>(1.0) - beta2;
+  const T one_minus_beta1 = T(1.0) - static_cast<T>(beta1);
+  const T one_minus_beta2 = T(1.0) - static_cast<T>(beta2);
 
   parallel_for<size_t>(0, size, [&](size_t i) {
     T grad = grads_data[i];
 
-    m_data[i] = beta1 * m_data[i] + one_minus_beta1 * grad;
+    m_data[i] = static_cast<T>(beta1) * m_data[i] + one_minus_beta1 * grad;
 
-    v_data[i] = beta2 * v_data[i] + one_minus_beta2 * grad * grad;
+    v_data[i] = static_cast<T>(beta2) * v_data[i] + one_minus_beta2 * grad * grad;
 
-    T m_hat = m_data[i] / bias_correction1;
+    T m_hat = m_data[i] / static_cast<T>(bias_correction1);
+    T v_hat = v_data[i] / static_cast<T>(bias_correction2);
 
-    T v_hat = v_data[i] / bias_correction2;
-
-    T update = learning_rate * m_hat / (std::sqrt(v_hat) + epsilon);
+    T update = static_cast<T>(learning_rate) * m_hat /
+               (static_cast<T>(std::sqrt(static_cast<float>(v_hat))) + static_cast<T>(epsilon));
 
     if (weight_decay > 0.0f) {
       if (decouple_weight_decay) {
-
-        params_data[i] -= weight_decay * learning_rate * params_data[i];
+        params_data[i] -=
+            static_cast<T>(weight_decay) * static_cast<T>(learning_rate) * params_data[i];
       } else {
-
-        update += weight_decay * learning_rate * params_data[i];
+        update += static_cast<T>(weight_decay) * static_cast<T>(learning_rate) * params_data[i];
       }
     }
 
@@ -49,17 +49,18 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
   });
 }
 
-template void update_adam<float>(float *params_data, const float *grads_data, float *m_data,
-                                 float *v_data, const size_t size, const float learning_rate,
-                                 const float beta1, const float beta2, const float epsilon,
-                                 const float bias_correction1, const float bias_correction2,
-                                 const float weight_decay, const bool decouple_weight_decay);
-template void update_adam<double>(double *params_data, const double *grads_data, double *m_data,
-                                  double *v_data, const size_t size, const float learning_rate,
-                                  const float beta1, const float beta2, const float epsilon,
-                                  const float bias_correction1, const float bias_correction2,
-                                  const float weight_decay, const bool decouple_weight_decay);
+#define INSTANTIATE_ADAM(T)                                                                     \
+  template void update_adam<T>(T * params_data, const T *grads_data, T *m_data, T *v_data,      \
+                               const size_t size, const float learning_rate, const float beta1, \
+                               const float beta2, const float epsilon,                          \
+                               const float bias_correction1, const float bias_correction2,      \
+                               const float weight_decay, const bool decouple_weight_decay);
+INSTANTIATE_ADAM(fp16)
+INSTANTIATE_ADAM(bf16)
+INSTANTIATE_ADAM(float)
+INSTANTIATE_ADAM(double)
+#undef INSTANTIATE_ADAM
 
-} // namespace adam
-} // namespace cpu
-} // namespace tnn
+}  // namespace adam
+}  // namespace cpu
+}  // namespace tnn

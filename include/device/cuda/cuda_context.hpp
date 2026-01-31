@@ -2,12 +2,12 @@
 
 #ifdef USE_CUDA
 
-#include "device/context.hpp"
-
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
+
+#include "device/context.hpp"
 
 #ifdef USE_CUDNN
 #include <cudnn.h>
@@ -39,6 +39,6 @@ public:
   void createFlow(const std::string &flow_id) override;
   Flow *getFlow(const std::string &flow_id) override;
 };
-} // namespace tnn
+}  // namespace tnn
 
-#endif // USE_CUDA
+#endif  // USE_CUDA

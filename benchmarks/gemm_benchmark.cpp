@@ -1,6 +1,9 @@
-#include "math/cpu/gemm.hpp"
+#include "math/cpu/sgemm.hpp"
 #include "matrix/matrix.hpp"
 #include "utils/misc.hpp"
+#ifdef USE_TBB
+#include <tbb/task_arena.h>
+#endif
 #ifdef USE_MKL
 #include "utils/mkl_utils.hpp"
 #endif
@@ -30,7 +33,6 @@ bool check_match(const float *a, const float *b, size_t size, float max_acceptab
 }
 
 int main() {
-
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(8));
 

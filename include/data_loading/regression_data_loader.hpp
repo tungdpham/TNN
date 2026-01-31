@@ -11,7 +11,7 @@ namespace tnn {
  * Specialized base class for regression datasets
  * Provides common functionality for continuous target prediction
  */
-template <typename T = float> class RegressionDataLoader : public BaseDataLoader<T> {
+class RegressionDataLoader : public BaseDataLoader {
 public:
   virtual ~RegressionDataLoader() = default;
 
@@ -33,19 +33,14 @@ public:
   /**
    * Get feature normalization statistics (optional)
    */
-  virtual std::vector<T> get_feature_means() const { return {}; }
-  virtual std::vector<T> get_feature_stds() const { return {}; }
+  virtual std::vector<float> get_feature_means() const { return {}; }
+  virtual std::vector<float> get_feature_stds() const { return {}; }
 
   /**
    * Get target normalization statistics (optional)
    */
-  virtual std::vector<T> get_target_means() const { return {}; }
-  virtual std::vector<T> get_target_stds() const { return {}; }
-
-protected:
-  using BaseDataLoader<T>::current_index_;
-  using BaseDataLoader<T>::batch_size_;
-  using BaseDataLoader<T>::rng_;
+  virtual std::vector<float> get_target_means() const { return {}; }
+  virtual std::vector<float> get_target_stds() const { return {}; }
 };
 
-} // namespace tnn
+}  // namespace tnn

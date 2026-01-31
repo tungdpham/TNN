@@ -5,12 +5,15 @@
  * project root for the full license text.
  */
 
-#include "device/device_manager.hpp"
 #include "nn/layers_impl/groupnorm_layer.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
+
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -28,12 +31,10 @@ protected:
     std::vector<std::string> device_ids = manager.getAvailableDeviceIDs();
 
     has_cpu_ = false;
-    cpu_device_ = nullptr;
 
     for (const std::string &id : device_ids) {
       const Device &device = manager.getDevice(id);
       if (device.device_type() == DeviceType::CPU) {
-        cpu_device_ = &device;
         has_cpu_ = true;
         break;
       }
@@ -44,22 +45,23 @@ protected:
     }
   }
 
-  // Verify output shape matches input shape
-  void verify_output_shape(const Tensor<float> &input, const Tensor<float> &output) {
-    EXPECT_EQ(output.batch_size(), input.batch_size());
-    EXPECT_EQ(output.channels(), input.channels());
-    EXPECT_EQ(output.height(), input.height());
-    EXPECT_EQ(output.width(), input.width());
+  void verify_output_shape(const Tensor &input, const Tensor &output) {
+    auto input_shape = input->shape();
+    auto output_shape = output->shape();
+    EXPECT_EQ(output_shape[0], input_shape[0]);
+    EXPECT_EQ(output_shape[1], input_shape[1]);
+    EXPECT_EQ(output_shape[2], input_shape[2]);
+    EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  // Compute group statistics for verification
-  void compute_group_statistics(const Tensor<float> &input, size_t num_groups,
-                                std::vector<float> &means, std::vector<float> &vars) {
-    const float *data = input.data();
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+  void compute_group_statistics(const Tensor &input, size_t num_groups, std::vector<float> &means,
+                                std::vector<float> &vars) {
+    const float *data = input->data_as<float>();
+    auto input_shape = input->shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
     size_t spatial_size = height * width;
     size_t channels_per_group = channels / num_groups;
     size_t group_size = channels_per_group * spatial_size;
@@ -67,7 +69,6 @@ protected:
     means.resize(batch_size * num_groups, 0.0f);
     vars.resize(batch_size * num_groups, 0.0f);
 
-    // Compute means per group
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t g = 0; g < num_groups; ++g) {
         float sum = 0.0f;
@@ -85,7 +86,6 @@ protected:
       }
     }
 
-    // Compute variances per group
     for (size_t n = 0; n < batch_size; ++n) {
       for (size_t g = 0; g < num_groups; ++g) {
         size_t group_idx = n * num_groups + g;
@@ -105,21 +105,21 @@ protected:
     }
   }
 
-  // Verify forward pass numerical correctness
-  void verify_forward_result(const Tensor<float> &input, const Tensor<float> &output,
-                             size_t num_groups, const std::vector<float> &expected_mean,
+  void verify_forward_result(const Tensor &input, const Tensor &output, size_t num_groups,
+                             const std::vector<float> &expected_mean,
                              const std::vector<float> &expected_var, float epsilon,
-                             const Tensor<float> *gamma = nullptr,
-                             const Tensor<float> *beta = nullptr, float tolerance = 1e-4f) {
-    const float *input_data = input.data();
-    const float *output_data = output.data();
-    const float *gamma_data = gamma ? gamma->data() : nullptr;
-    const float *beta_data = beta ? beta->data() : nullptr;
+                             const Tensor gamma = nullptr, const Tensor beta = nullptr,
+                             float tolerance = 1e-4f) {
+    const float *input_data = input->data_as<float>();
+    const float *output_data = output->data_as<float>();
+    const float *gamma_data = gamma ? gamma->data_as<float>() : nullptr;
+    const float *beta_data = beta ? beta->data_as<float>() : nullptr;
 
-    size_t batch_size = input.batch_size();
-    size_t channels = input.channels();
-    size_t height = input.height();
-    size_t width = input.width();
+    auto input_shape = input->shape();
+    size_t batch_size = input_shape[0];
+    size_t channels = input_shape[1];
+    size_t height = input_shape[2];
+    size_t width = input_shape[3];
     size_t channels_per_group = channels / num_groups;
 
     for (size_t n = 0; n < batch_size; ++n) {
@@ -150,29 +150,25 @@ protected:
   }
 
   bool has_cpu_;
-  const Device *cpu_device_;
 };
-
-// Forward Pass Tests
 
 TEST_F(GroupNormLayerTest, BasicForwardPass) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn");
-  layer.set_device(cpu_device_);
-  layer.initialize();
+  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn");
+  layer.set_device(getCPU());
+  layer.init();
   layer.set_training(true);
 
-  Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
-  // Initialize with simple values
-  float *data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
+  float *data = input->data_as<float>();
+  for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10);
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -184,28 +180,27 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
 TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
-  layer.set_device(cpu_device_);
-  layer.initialize();
+  GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
+  layer.set_device(getCPU());
+  layer.init();
   layer.set_training(true);
 
-  Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
-  float *data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
+  float *data = input->data_as<float>();
+  for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
 
-  // Get gamma and beta for verification
-  std::vector<Tensor<float> *> params = layer.parameters();
+  std::vector<Tensor> params = layer.parameters();
   ASSERT_EQ(params.size(), 2);
 
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, params[0],
@@ -213,23 +208,22 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
 }
 
 TEST_F(GroupNormLayerTest, SingleGroup) {
-  // Single group is equivalent to LayerNorm
   size_t num_groups = 1;
   size_t num_channels = 4;
-  GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
-  layer.set_device(cpu_device_);
-  layer.initialize();
+  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
+  layer.set_device(getCPU());
+  layer.init();
   layer.set_training(true);
 
-  Tensor<float> input({2, num_channels, 2, 2}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 2, 2}, getCPU());
 
-  float *data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
+  float *data = input->data_as<float>();
+  for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -239,23 +233,22 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
 }
 
 TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
-  // num_groups == num_channels is equivalent to InstanceNorm
   size_t num_groups = 4;
   size_t num_channels = 4;
-  GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
-  layer.set_device(cpu_device_);
-  layer.initialize();
+  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
+  layer.set_device(getCPU());
+  layer.init();
   layer.set_training(true);
 
-  Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
-  float *data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
+  float *data = input->data_as<float>();
+  for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -267,37 +260,38 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
 TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer<float> layer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
-  layer.set_device(cpu_device_);
-  layer.initialize();
+  GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
+  layer.set_device(getCPU());
+  layer.init();
   layer.set_training(true);
 
-  Tensor<float> input({2, num_channels, 3, 3}, cpu_device_);
+  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
 
-  float *data = input.data();
-  for (size_t i = 0; i < input.size(); ++i) {
+  float *data = input->data_as<float>();
+  for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input.shape());
-  Tensor<float> output(output_shape, cpu_device_);
+  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
+  Tensor output = Tensor::create<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor<float> grad_output = output.clone();
-  grad_output.fill(1.0f);
+  Tensor grad_output = output->clone();
+  grad_output->fill(1.0f);
 
-  Tensor<float> grad_input(input.shape(), cpu_device_);
+  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
   layer.backward(grad_output, grad_input);
 
-  EXPECT_EQ(grad_input.batch_size(), input.batch_size());
-  EXPECT_EQ(grad_input.channels(), input.channels());
-  EXPECT_EQ(grad_input.height(), input.height());
-  EXPECT_EQ(grad_input.width(), input.width());
+  auto input_shape = input->shape();
+  auto grad_input_shape = grad_input->shape();
+  EXPECT_EQ(grad_input_shape[0], input_shape[0]);
+  EXPECT_EQ(grad_input_shape[1], input_shape[1]);
+  EXPECT_EQ(grad_input_shape[2], input_shape[2]);
+  EXPECT_EQ(grad_input_shape[3], input_shape[3]);
 
-  // Verify gradients are non-zero
-  const float *grad_data = grad_input.data();
+  const float *grad_data = grad_input->data_as<float>();
   bool has_nonzero = false;
-  for (size_t i = 0; i < grad_input.size(); ++i) {
+  for (size_t i = 0; i < grad_input->size(); ++i) {
     if (std::abs(grad_data[i]) > 1e-6f) {
       has_nonzero = true;
       break;
@@ -307,15 +301,13 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 }
 
 TEST_F(GroupNormLayerTest, InvalidConfiguration) {
-  // num_channels not divisible by num_groups should throw
-  EXPECT_THROW(
-      { GroupNormLayer<float> layer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
+  EXPECT_THROW({ GroupNormLayer layer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
 }
 
 TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
   size_t num_groups = 2;
   size_t num_channels = 6;
-  GroupNormLayer<float> original(num_groups, num_channels, 1e-5f, true, "test_config");
+  GroupNormLayer original(num_groups, num_channels, 1e-5f, true, "test_config");
 
   LayerConfig config = original.get_config();
   EXPECT_EQ(config.name, "test_config");
@@ -324,7 +316,7 @@ TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
   EXPECT_FLOAT_EQ(config.get<float>("epsilon"), 1e-5f);
   EXPECT_TRUE(config.get<bool>("affine"));
 
-  auto restored = GroupNormLayer<float>::create_from_config(config);
+  auto restored = GroupNormLayer::create_from_config(config);
   EXPECT_NE(restored, nullptr);
   EXPECT_EQ(restored->type(), "groupnorm");
 }
@@ -332,7 +324,7 @@ TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
 TEST_F(GroupNormLayerTest, CloneLayer) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer<float> original(num_groups, num_channels, 1e-5f, true, "test_clone");
+  GroupNormLayer original(num_groups, num_channels, 1e-5f, true, "test_clone");
 
   auto cloned = original.clone();
   EXPECT_NE(cloned, nullptr);

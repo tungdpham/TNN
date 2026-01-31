@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/optimizers_impl/cuda/sgd_kernels.hpp"
+#include "type/type.hpp"
 
 #ifdef USE_CUDA
 
@@ -13,27 +14,28 @@ namespace cuda {
 namespace sgd {
 
 template <typename T>
-__global__ void update_sgd_kernel(T *params_data, const T *grads_data, const size_t size,
+__global__ void update_sgd_kernel(T* params_data, const T* grads_data, const size_t size,
                                   const float learning_rate) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
-    params_data[idx] -= learning_rate * grads_data[idx];
+    params_data[idx] -= learning_rate * static_cast<float>(grads_data[idx]);
   }
 }
 
 template <typename T>
-__global__ void update_sgd_momentum_kernel(T *params_data, const T *grads_data, T *velocity_data,
+__global__ void update_sgd_momentum_kernel(T* params_data, const T* grads_data, T* velocity_data,
                                            const size_t size, const float learning_rate,
                                            const float momentum) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
-    velocity_data[idx] = momentum * velocity_data[idx] - learning_rate * grads_data[idx];
+    velocity_data[idx] = momentum * static_cast<float>(velocity_data[idx]) -
+                         learning_rate * static_cast<float>(grads_data[idx]);
     params_data[idx] += velocity_data[idx];
   }
 }
 
 template <typename T>
-void update_sgd(T *params_data, const T *grads_data, const size_t size, const float learning_rate,
+void update_sgd(T* params_data, const T* grads_data, const size_t size, const float learning_rate,
                 cudaStream_t stream) {
   const int threads_per_block = 256;
   const int num_blocks = (size + threads_per_block - 1) / threads_per_block;
@@ -43,7 +45,7 @@ void update_sgd(T *params_data, const T *grads_data, const size_t size, const fl
 }
 
 template <typename T>
-void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, const size_t size,
+void update_sgd_momentum(T* params_data, const T* grads_data, T* velocity_data, const size_t size,
                          const float learning_rate, const float momentum, cudaStream_t stream) {
   const int threads_per_block = 256;
   const int num_blocks = (size + threads_per_block - 1) / threads_per_block;
@@ -52,22 +54,20 @@ void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, 
       params_data, grads_data, velocity_data, size, learning_rate, momentum);
 }
 
-template void update_sgd<float>(float *params_data, const float *grads_data, const size_t size,
-                                const float learning_rate, cudaStream_t stream);
-template void update_sgd<double>(double *params_data, const double *grads_data, const size_t size,
-                                 const float learning_rate, cudaStream_t stream);
+#define INSTANTIATE_SGD_KERNELS(T)                                                             \
+  template void update_sgd<T>(T * params_data, const T* grads_data, const size_t size,         \
+                              const float learning_rate, cudaStream_t stream);                 \
+  template void update_sgd_momentum<T>(T * params_data, const T* grads_data, T* velocity_data, \
+                                       const size_t size, const float learning_rate,           \
+                                       const float momentum, cudaStream_t stream);
+INSTANTIATE_SGD_KERNELS(fp16)
+INSTANTIATE_SGD_KERNELS(bf16)
+INSTANTIATE_SGD_KERNELS(float)
+INSTANTIATE_SGD_KERNELS(double)
+#undef INSTANTIATE_SGD_KERNELS
 
-template void update_sgd_momentum<float>(float *params_data, const float *grads_data,
-                                         float *velocity_data, const size_t size,
-                                         const float learning_rate, const float momentum,
-                                         cudaStream_t stream);
-template void update_sgd_momentum<double>(double *params_data, const double *grads_data,
-                                          double *velocity_data, const size_t size,
-                                          const float learning_rate, const float momentum,
-                                          cudaStream_t stream);
-
-} // namespace sgd
-} // namespace cuda
-} // namespace tnn
+}  // namespace sgd
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

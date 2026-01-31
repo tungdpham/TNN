@@ -1,17 +1,16 @@
 #pragma once
 
-#include "device/device_manager.hpp"
-#include "flow.hpp"
-
 #include <atomic>
 #include <functional>
 #include <iostream>
 #include <mutex>
 #include <system_error>
-#include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "flow.hpp"
 
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
@@ -64,6 +63,7 @@ public:
   ~CPUTask() override = default;
 
   void execute() override {
+    (void)flow_;
     work_function_();
     set_ready_state(ErrorStatus{});
   }
@@ -163,8 +163,8 @@ public:
 
 template <typename Func, typename... Args>
 std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&...args) {
-  auto CPUDevice = &getCPU();
-  CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice->getFlow(flow_id));
+  auto &CPUDevice = getCPU();
+  CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice.getFlow(flow_id));
   if (!flow) {
     throw std::runtime_error("Failed to get CPU flow with ID: " + flow_id);
   }
@@ -173,9 +173,9 @@ std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&.
 
 #ifdef USE_CUDA
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_gpu_task(std::string flow_id, Func &&func, Args &&...args) {
-  auto GPUDevice = &getGPU();
-  CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice->getFlow(flow_id));
+std::unique_ptr<Task> create_cuda_task(std::string flow_id, Func &&func, Args &&...args) {
+  auto &GPUDevice = getGPU();
+  CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice.getFlow(flow_id));
   if (!flow) {
     throw std::runtime_error("Failed to get CUDA flow with ID: " + flow_id);
   }
@@ -195,4 +195,4 @@ inline void task_sync_all(const std::initializer_list<Task *> &tasks) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

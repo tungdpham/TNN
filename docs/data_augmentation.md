@@ -174,7 +174,7 @@ auto heavy_aug = AugmentationBuilder<float>()
 
 namespace data_augmentation {
 
-template <typename T = float>
+
 class MyCustomAugmentation : public Augmentation<T> {
 public:
     explicit MyCustomAugmentation(float probability = 0.5f, /* other params */)
@@ -182,7 +182,7 @@ public:
         this->name_ = "MyCustomAugmentation";
     }
 
-    void apply(Tensor<T> &data, Tensor<T> &labels) override {
+    void apply(Tensor &data, Tensor &labels) override {
         std::uniform_real_distribution<float> dist(0.0f, 1.0f);
         
         const auto shape = data.shape();
@@ -209,7 +209,7 @@ private:
     float probability_;
     // Other parameters
     
-    void apply_transformation(Tensor<T> &data, size_t batch_idx, 
+    void apply_transformation(Tensor &data, size_t batch_idx, 
                             size_t channels, size_t height, size_t width) {
         // Implementation details
     }
@@ -222,7 +222,7 @@ private:
 
 #### 1. Inherit from Augmentation Base Class
 ```cpp
-template <typename T = float>
+
 class MyAugmentation : public Augmentation<T> {
     // Implementation
 };
@@ -238,7 +238,7 @@ MyAugmentation() {
 #### 3. Implement Required Methods
 ```cpp
 // Apply transformation to data and labels
-void apply(Tensor<T> &data, Tensor<T> &labels) override;
+void apply(Tensor &data, Tensor &labels) override;
 
 // Create a copy of the augmentation
 std::unique_ptr<Augmentation<T>> clone() const override;
@@ -291,7 +291,7 @@ AugmentationBuilder &my_custom_augmentation(float probability = 0.5f, /* other p
 
 namespace data_augmentation {
 
-template <typename T = float>
+
 class ColorInversionAugmentation : public Augmentation<T> {
 public:
     explicit ColorInversionAugmentation(float probability = 0.3f)
@@ -299,7 +299,7 @@ public:
         this->name_ = "ColorInversion";
     }
 
-    void apply(Tensor<T> &data, Tensor<T> &labels) override {
+    void apply(Tensor &data, Tensor &labels) override {
         std::uniform_real_distribution<float> dist(0.0f, 1.0f);
         
         const auto shape = data.shape();

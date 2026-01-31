@@ -5,48 +5,90 @@
  * project root for the full license text.
  */
 #include "distributed/tcp_coordinator.hpp"
-#include "data_augmentation/augmentation.hpp"
-#include "data_loading/cifar10_data_loader.hpp"
-#include "data_loading/mnist_data_loader.hpp"
-#include "distributed/train.hpp"
-#include "nn/example_models.hpp"
-#include "nn/sequential.hpp"
-#include "partitioner/naive_partitioner.hpp"
-#include "tensor/tensor.hpp"
-#include "threading/thread_wrapper.hpp"
-#include "utils/env.hpp"
 
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <vector>
+
+#include "data_loading/data_loader_factory.hpp"
+#include "distributed/endpoint.hpp"
+#include "distributed/tcp_worker.hpp"
+#include "distributed/train.hpp"
+#include "nn/example_models.hpp"
+#include "nn/layers.hpp"
+#include "nn/sequential.hpp"
+#include "partitioner/naive_partitioner.hpp"
+#include "threading/thread_wrapper.hpp"
+#include "utils/env.hpp"
 
 using namespace tnn;
 using namespace std;
 
-constexpr float LR_INITIAL = 0.001f; // Careful, too big can cause exploding gradients
-constexpr float EPSILON = 1e-7f;
-
 int main() {
-  auto model = create_resnet9_cifar10();
-
-  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
-
-  float lr_initial = Env::get<float>("LR_INITIAL", LR_INITIAL);
+  ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
   train_config.print_config();
 
-  auto optimizer = OptimizerFactory<float>::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+  // Prioritize loading existing model, else create from available ones
+  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
+  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+
+  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
+  const auto &device = DeviceManager::getInstance().getDevice(device_type);
+
+  std::unique_ptr<Sequential> model;
+  if (!model_path.empty()) {
+    cout << "Loading model from: " << model_path << endl;
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    model = load_state<Sequential>(file, device);
+    file.close();
+  } else {
+    cout << "Creating model: " << model_name << endl;
+    try {
+      Sequential temp_model = ExampleModels::create(model_name);
+      model = std::make_unique<Sequential>(std::move(temp_model));
+    } catch (const std::exception &e) {
+      cerr << "Error creating model: " << e.what() << endl;
+      cout << "Available models are: ";
+      for (const auto &name : ExampleModels::available_models()) {
+        cout << name << "\n";
+      }
+      cout << endl;
+      return 1;
+    }
+    model->set_device(device);
+    model->init();
+  }
+
+  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  if (dataset_name.empty()) {
+    throw std::runtime_error("DATASET_NAME environment variable is not set!");
+  }
+  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
+  if (!train_loader || !val_loader) {
+    cerr << "Failed to create data loaders for model: " << model_name << endl;
+    return 1;
+  }
+
+  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+
+  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-8f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
-                                                Env::get<int>("COORDINATOR_PORT", 8000));
+                                                Env::get<int>("COORDINATOR_PORT", 9000));
 
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
                     Env::get<int>("WORKER1_PORT", 8001)),
-      Endpoint::tcp(Env::get<string>("WORKER2_HOST", "localhost"),
-                    Env::get<int>("WORKER2_PORT", 8002)),
 
   };
 
@@ -55,17 +97,19 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  NetworkCoordinator coordinator("coordinator", move(model), move(optimizer), coordinator_endpoint,
-                                 endpoints);
+  // hard-coded for now
+  auto worker = std::make_unique<TCPWorker>(Endpoint::tcp("localhost", 8000),
+                                            device_type == DeviceType::GPU, 4);
 
-  unique_ptr<Partitioner<float>> partitioner =
-      make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
+                                 coordinator_endpoint, endpoints);
 
-  coordinator.set_partitioner(move(partitioner));
+  unique_ptr<Partitioner> partitioner =
+      make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
+
+  coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
-  auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-  coordinator.set_loss_function(move(loss_function));
   cout << "Deploying stages to remote endpoints." << endl;
   for (const auto &ep : endpoints) {
     cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
@@ -78,30 +122,10 @@ int main() {
 
   coordinator.start();
 
-  CIFAR10DataLoader<float> train_loader, test_loader;
-
-  CIFAR10DataLoader<float>::create("./data", train_loader, test_loader);
-
-  auto train_transform =
-      AugmentationBuilder<float>()
-          .random_crop(0.5f, 4)
-          .horizontal_flip(0.5f)
-          .cutout(0.5f, 8)
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
-  train_loader.set_augmentation(move(train_transform));
-
-  auto val_transform =
-      AugmentationBuilder<float>()
-          .normalize({0.49139968, 0.48215827, 0.44653124}, {0.24703233f, 0.24348505f, 0.26158768f})
-          .build();
-  test_loader.set_augmentation(move(val_transform));
-
   ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
 
-  thread_wrapper.execute([&coordinator, &train_loader, &test_loader, &train_config]() {
-    train_model(coordinator, train_loader, test_loader, train_config);
-  });
+  thread_wrapper.execute(
+      [&]() { train_model(coordinator, *train_loader, *val_loader, criterion, train_config); });
 
   coordinator.stop();
 

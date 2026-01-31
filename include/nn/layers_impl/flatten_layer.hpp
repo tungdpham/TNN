@@ -6,44 +6,40 @@
  */
 #pragma once
 
-#include "stateless_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "stateless_layer.hpp"
+#include "tensor/tensor.hpp"
+
 namespace tnn {
 
-template <typename T = float> class FlattenLayer : public StatelessLayer<T> {
+class FlattenLayer : public StatelessLayer {
 private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_original_shapes_;
   int start_dim_;
+  int end_dim_;
+
+  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
-  explicit FlattenLayer(int start_dim = 1, const std::string &name = "flatten");
+  explicit FlattenLayer(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");
 
-  void forward(const Tensor<T> &input, Tensor<T> &output, size_t micro_batch_id = 0) override;
-  void backward(const Tensor<T> &gradient, Tensor<T> &grad_input,
-                size_t micro_batch_id = 0) override;
-
-  uint64_t forward_complexity(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_complexity(const std::vector<size_t> &input_shape) const override;
+  static constexpr const char *TYPE_NAME = "flatten";
 
   uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
   uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
-  std::string type() const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer<T>> clone() const override;
+  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
 public:
-  static std::unique_ptr<Layer<T>> create_from_config(const LayerConfig &config);
+  static std::unique_ptr<FlattenLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
-
-#include "nn/layers_impl/flatten_layer.tpp"
+}  // namespace tnn

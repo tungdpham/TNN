@@ -1,289 +1,408 @@
-/*
- * Copyright (c) 2025 Tung D. Pham
- *
- * This software is licensed under the MIT License. See the LICENSE file in the
- * project root for the full license text.
- */
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 
 #ifdef USE_CUDNN
-#include <cudnn.h>
-#include <iostream>
-#include <stdexcept>
+
+#include <cuda_runtime.h>
+#include <cudnn_frontend.h>
+
+#include <string>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
 namespace cudnn_conv2d {
 
-#define CHECK_CUDNN(status)                                                                        \
-  {                                                                                                \
-    if (status != CUDNN_STATUS_SUCCESS) {                                                          \
-      std::cerr << "cuDNN Error at " << __FILE__ << ":" << __LINE__ << " - "                       \
-                << cudnnGetErrorString(status) << std::endl;                                       \
-      throw std::runtime_error("cuDNN error");                                                     \
-    }                                                                                              \
+namespace fe = cudnn_frontend;
+
+struct feHandle_t {
+  cudnnHandle_t cudnn_handle = nullptr;
+  cudnnDataType_t io_data_type;
+  cudnnDataType_t compute_data_type;
+  std::shared_ptr<fe::KernelCache> kernel_cache;
+
+  std::shared_ptr<fe::graph::Graph> fwd_graph;
+  std::shared_ptr<fe::graph::Tensor_attributes> fwd_x;
+  std::shared_ptr<fe::graph::Tensor_attributes> fwd_w;
+  std::shared_ptr<fe::graph::Tensor_attributes> fwd_b;
+  std::shared_ptr<fe::graph::Tensor_attributes> fwd_y;
+
+  std::shared_ptr<fe::graph::Graph> dgrad_graph;
+  std::shared_ptr<fe::graph::Tensor_attributes> dgrad_dy;
+  std::shared_ptr<fe::graph::Tensor_attributes> dgrad_w;
+  std::shared_ptr<fe::graph::Tensor_attributes> dgrad_dx;
+
+  std::shared_ptr<fe::graph::Graph> wgrad_graph;
+  std::shared_ptr<fe::graph::Tensor_attributes> wgrad_x;
+  std::shared_ptr<fe::graph::Tensor_attributes> wgrad_dy;
+  std::shared_ptr<fe::graph::Tensor_attributes> wgrad_dw;
+
+  std::shared_ptr<fe::graph::Graph> bgrad_graph;
+  std::shared_ptr<fe::graph::Tensor_attributes> bgrad_dy;
+  std::shared_ptr<fe::graph::Tensor_attributes> bgrad_db;
+};
+
+static void ensure_ok(fe::error_t status, std::string stage) {
+  if (status.is_bad()) {
+    throw std::runtime_error("cuDNN frontend error at " + stage + ": " + status.get_message());
+  }
+}
+
+static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
+  switch (data_type) {
+    case CUDNN_DATA_HALF:
+      return fe::DataType_t::HALF;
+    case CUDNN_DATA_FLOAT:
+      return fe::DataType_t::FLOAT;
+    case CUDNN_DATA_DOUBLE:
+      return fe::DataType_t::DOUBLE;
+    case CUDNN_DATA_BFLOAT16:
+      return fe::DataType_t::BFLOAT16;
+    default:
+      throw std::runtime_error("Unsupported cuDNN data type for conv2d");
+  }
+}
+
+static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
+  if (data_type == CUDNN_DATA_HALF || data_type == CUDNN_DATA_BFLOAT16) {
+    return fe::DataType_t::FLOAT;
+  }
+  return to_fe_data_type(data_type);
+}
+
+static void build_fwd_graph(feHandle_t* handle, ConvolutionStats& stats) {
+  const int64_t n = static_cast<int64_t>(stats.batch_size);
+  const int64_t c = static_cast<int64_t>(stats.in_channels);
+  const int64_t h = static_cast<int64_t>(stats.input_h);
+  const int64_t w = static_cast<int64_t>(stats.input_w);
+  const int64_t k = static_cast<int64_t>(stats.out_channels);
+  const int64_t r = static_cast<int64_t>(stats.kernel_h);
+  const int64_t s = static_cast<int64_t>(stats.kernel_w);
+
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
+
+  auto graph = std::make_shared<fe::graph::Graph>();
+  graph->set_io_data_type(io_type)
+      .set_intermediate_data_type(compute_type)
+      .set_compute_data_type(compute_type)
+      .set_dynamic_shape_enabled(true)
+      .set_kernel_cache(handle->kernel_cache);
+
+  auto X = graph->tensor(fe::graph::Tensor_attributes()
+                             .set_name("X")
+                             .set_dim({n, c, h, w})
+                             .set_stride({h * w * c, 1, w * c, c}));
+
+  auto W = graph->tensor(fe::graph::Tensor_attributes()
+                             .set_name("W")
+                             .set_dim({k, c, r, s})
+                             .set_stride({r * s * c, 1, s * c, c}));
+
+  auto conv_options =
+      fe::graph::Conv_fprop_attributes()
+          .set_pre_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_post_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_stride({static_cast<int64_t>(stats.stride_h), static_cast<int64_t>(stats.stride_w)})
+          .set_dilation({1, 1});
+
+  auto conv_output = graph->conv_fprop(X, W, conv_options);
+
+  std::shared_ptr<fe::graph::Tensor_attributes> Y;
+  std::shared_ptr<fe::graph::Tensor_attributes> B;
+
+  if (stats.use_bias) {
+    B = graph->tensor(fe::graph::Tensor_attributes()
+                          .set_name("B")
+                          .set_dim({1, k, 1, 1})
+                          .set_stride({k, 1, k, k}));
+
+    auto bias_options = fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::ADD);
+    Y = graph->pointwise(conv_output, B, bias_options);
+    Y->set_output(true).set_data_type(io_type);
+  } else {
+    Y = conv_output;
+    Y->set_output(true).set_data_type(io_type);
   }
 
-template <typename T> cudnnDataType_t get_cudnn_data_type();
+  ensure_ok(graph->validate(), "conv_fprop validate");
+  ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_fprop build op graph");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_fprop create plans");
+  ensure_ok(graph->check_support(), "conv_fprop check support");
+  ensure_ok(graph->build_plans(), "conv_fprop build plans");
 
-template <> cudnnDataType_t get_cudnn_data_type<float>() { return CUDNN_DATA_FLOAT; }
+  int64_t workspace_size = 0;
+  ensure_ok(graph->get_workspace_size(workspace_size), "conv_fprop workspace");
 
-template <> cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_DATA_DOUBLE; }
+  handle->fwd_graph = graph;
+  handle->fwd_x = X;
+  handle->fwd_w = W;
+  handle->fwd_b = B;
+  handle->fwd_y = Y;
+  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+}
 
-ConvolutionHandle *initialize_convolution_handle(cudnnHandle_t shared_handle, size_t batch_size,
-                                                 size_t in_channels, size_t input_h, size_t input_w,
-                                                 size_t out_channels, size_t kernel_h,
-                                                 size_t kernel_w, size_t stride_h, size_t stride_w,
-                                                 size_t pad_h, size_t pad_w,
-                                                 size_t workspace_limit_bytes) {
-  ConvolutionHandle *handle = new ConvolutionHandle();
+static void build_dgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
+  const int64_t n = static_cast<int64_t>(stats.batch_size);
+  const int64_t c = static_cast<int64_t>(stats.in_channels);
+  const int64_t h = static_cast<int64_t>(stats.input_h);
+  const int64_t w = static_cast<int64_t>(stats.input_w);
+  const int64_t k = static_cast<int64_t>(stats.out_channels);
+  const int64_t r = static_cast<int64_t>(stats.kernel_h);
+  const int64_t s = static_cast<int64_t>(stats.kernel_w);
+  const int64_t p = static_cast<int64_t>(stats.output_h);
+  const int64_t q = static_cast<int64_t>(stats.output_w);
 
-  handle->cudnn_handle = shared_handle;
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
-  CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->input_descriptor));
-  CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->output_descriptor));
-  CHECK_CUDNN(cudnnCreateFilterDescriptor(&handle->filter_descriptor));
-  CHECK_CUDNN(cudnnCreateConvolutionDescriptor(&handle->convolution_descriptor));
-  CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->bias_descriptor));
-  CHECK_CUDNN(cudnnCreateActivationDescriptor(&handle->activation_descriptor));
+  auto graph = std::make_shared<fe::graph::Graph>();
+  graph->set_io_data_type(io_type)
+      .set_intermediate_data_type(compute_type)
+      .set_compute_data_type(compute_type);
 
-  size_t output_h = (input_h + 2 * pad_h - kernel_h) / stride_h + 1;
-  size_t output_w = (input_w + 2 * pad_w - kernel_w) / stride_w + 1;
+  auto DY = graph->tensor(fe::graph::Tensor_attributes()
+                              .set_name("DY")
+                              .set_dim({n, k, p, q})
+                              .set_stride({p * q * k, 1, q * k, k}));
 
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, in_channels, input_h,
-                                         input_w));
+  auto W = graph->tensor(fe::graph::Tensor_attributes()
+                             .set_name("W")
+                             .set_dim({k, c, r, s})
+                             .set_stride({r * s * c, 1, s * c, c}));
 
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, out_channels, output_h,
-                                         output_w));
+  auto dgrad_options =
+      fe::graph::Conv_dgrad_attributes()
+          .set_pre_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_post_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_stride({static_cast<int64_t>(stats.stride_h), static_cast<int64_t>(stats.stride_w)})
+          .set_dilation({1, 1});
 
-  CHECK_CUDNN(cudnnSetFilter4dDescriptor(handle->filter_descriptor, CUDNN_DATA_FLOAT,
-                                         CUDNN_TENSOR_NCHW, out_channels, in_channels, kernel_h,
-                                         kernel_w));
+  auto DX = graph->conv_dgrad(DY, W, dgrad_options);
+  DX->set_dim({n, c, h, w})
+      .set_stride({h * w * c, 1, w * c, c})
+      .set_data_type(io_type)
+      .set_output(true);
 
-  CHECK_CUDNN(cudnnSetConvolution2dDescriptor(handle->convolution_descriptor, pad_h, pad_w,
-                                              stride_h, stride_w, 1, 1, CUDNN_CROSS_CORRELATION,
-                                              CUDNN_DATA_FLOAT));
+  ensure_ok(graph->validate(), "conv_dgrad validate");
+  ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_dgrad build op graph");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_dgrad create plans");
+  ensure_ok(graph->check_support(), "conv_dgrad check support");
+  ensure_ok(graph->build_plans(), "conv_dgrad build plans");
 
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->bias_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, 1, out_channels, 1, 1));
+  int64_t workspace_size = 0;
+  ensure_ok(graph->get_workspace_size(workspace_size), "conv_dgrad workspace");
 
-  int requested_algo_count = 10;
-  int returned_algo_count;
-  cudnnConvolutionFwdAlgoPerf_t fwd_perf[10];
-  cudnnConvolutionBwdDataAlgoPerf_t bwd_data_perf[10];
-  cudnnConvolutionBwdFilterAlgoPerf_t bwd_filter_perf[10];
+  handle->dgrad_graph = graph;
+  handle->dgrad_dy = DY;
+  handle->dgrad_w = W;
+  handle->dgrad_dx = DX;
+  stats.dgrad_workspace_size = static_cast<size_t>(workspace_size);
+}
 
-  CHECK_CUDNN(cudnnFindConvolutionForwardAlgorithm(
-      handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
-      handle->convolution_descriptor, handle->output_descriptor, requested_algo_count,
-      &returned_algo_count, fwd_perf));
+static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
+  const int64_t n = static_cast<int64_t>(stats.batch_size);
+  const int64_t c = static_cast<int64_t>(stats.in_channels);
+  const int64_t h = static_cast<int64_t>(stats.input_h);
+  const int64_t w = static_cast<int64_t>(stats.input_w);
+  const int64_t k = static_cast<int64_t>(stats.out_channels);
+  const int64_t r = static_cast<int64_t>(stats.kernel_h);
+  const int64_t s = static_cast<int64_t>(stats.kernel_w);
+  const int64_t p = static_cast<int64_t>(stats.output_h);
+  const int64_t q = static_cast<int64_t>(stats.output_w);
 
-  bool found_fwd = false;
-  for (int i = 0; i < returned_algo_count; i++) {
-    if (fwd_perf[i].status == CUDNN_STATUS_SUCCESS &&
-        (workspace_limit_bytes == 0 || fwd_perf[i].memory <= workspace_limit_bytes)) {
-      handle->fwd_algo = fwd_perf[i].algo;
-      handle->fwd_workspace_size = fwd_perf[i].memory;
-      found_fwd = true;
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
 
-      break;
-    }
+  auto graph = std::make_shared<fe::graph::Graph>();
+  graph->set_io_data_type(io_type)
+      .set_intermediate_data_type(compute_type)
+      .set_compute_data_type(compute_type);
+
+  auto X = graph->tensor(fe::graph::Tensor_attributes()
+                             .set_name("X")
+                             .set_dim({n, c, h, w})
+                             .set_stride({h * w * c, 1, w * c, c}));
+
+  auto DY = graph->tensor(fe::graph::Tensor_attributes()
+                              .set_name("DY")
+                              .set_dim({n, k, p, q})
+                              .set_stride({p * q * k, 1, q * k, k}));
+
+  auto wgrad_options =
+      fe::graph::Conv_wgrad_attributes()
+          .set_pre_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_post_padding({static_cast<int64_t>(stats.pad_h), static_cast<int64_t>(stats.pad_w)})
+          .set_stride({static_cast<int64_t>(stats.stride_h), static_cast<int64_t>(stats.stride_w)})
+          .set_dilation({1, 1});
+
+  auto DW = graph->conv_wgrad(DY, X, wgrad_options);
+  DW->set_output(true)
+      .set_dim({k, c, r, s})
+      .set_stride({r * s * c, 1, s * c, c})
+      .set_data_type(io_type);
+
+  ensure_ok(graph->validate(), "conv_wgrad validate");
+  ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_wgrad build op graph");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_wgrad create plans");
+  ensure_ok(graph->check_support(), "conv_wgrad check support");
+  ensure_ok(graph->build_plans(), "conv_wgrad build plans");
+
+  int64_t workspace_size = 0;
+  ensure_ok(graph->get_workspace_size(workspace_size), "conv_wgrad workspace");
+
+  handle->wgrad_graph = graph;
+  handle->wgrad_x = X;
+  handle->wgrad_dy = DY;
+  handle->wgrad_dw = DW;
+  stats.wgrad_workspace_size = static_cast<size_t>(workspace_size);
+}
+
+static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
+  const int64_t n = static_cast<int64_t>(stats.batch_size);
+  const int64_t k = static_cast<int64_t>(stats.out_channels);
+  const int64_t p = static_cast<int64_t>(stats.output_h);
+  const int64_t q = static_cast<int64_t>(stats.output_w);
+
+  auto io_type = to_fe_data_type(handle->io_data_type);
+  auto compute_type = to_fe_compute_type(handle->compute_data_type);
+
+  auto graph = std::make_shared<fe::graph::Graph>();
+  graph->set_io_data_type(io_type)
+      .set_intermediate_data_type(compute_type)
+      .set_compute_data_type(compute_type);
+
+  auto DY = graph->tensor(fe::graph::Tensor_attributes()
+                              .set_name("DY")
+                              .set_dim({n, k, p, q})
+                              .set_stride({p * q * k, 1, q * k, k}));
+
+  // Bias gradient is the sum of DY over N, H, and W dimensions
+  auto reduction_options = fe::graph::Reduction_attributes().set_mode(fe::ReductionMode_t::ADD);
+
+  auto DB = graph->reduction(DY, reduction_options);
+  DB->set_output(true)
+      .set_dim({1, k, 1, 1})
+      .set_stride({k, 1, k, k})
+      .set_data_type(io_type)
+      .set_name("DB");
+
+  ensure_ok(graph->validate(), "bias_grad validate");
+  ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "bias_grad build op graph");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "bias_grad create plans");
+  ensure_ok(graph->check_support(), "bias_grad check support");
+  ensure_ok(graph->build_plans(), "bias_grad build plans");
+
+  int64_t workspace_size = 0;
+  ensure_ok(graph->get_workspace_size(workspace_size), "bias_grad workspace");
+
+  handle->bgrad_graph = graph;
+  handle->bgrad_dy = DY;
+  handle->bgrad_db = DB;
+  stats.bgrad_workspace_size = static_cast<size_t>(workspace_size);
+}
+
+static void rebuild_all_graphs(feHandle_t* handle, ConvolutionStats& stats) {
+  build_fwd_graph(handle, stats);
+  build_dgrad_graph(handle, stats);
+  build_wgrad_graph(handle, stats);
+  if (stats.use_bias) {
+    build_bgrad_graph(handle, stats);
   }
-  if (!found_fwd) {
-    throw std::runtime_error("No suitable forward convolution algorithm found within memory limit");
-  }
+}
 
-  CHECK_CUDNN(cudnnFindConvolutionBackwardDataAlgorithm(
-      handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->input_descriptor, requested_algo_count,
-      &returned_algo_count, bwd_data_perf));
+feHandle_t* initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, ConvolutionStats& stats) {
+  auto* handle = new feHandle_t();
+  handle->cudnn_handle = cudnn_handle;
+  handle->io_data_type = io_data_type;
+  handle->compute_data_type = compute_data_type;
+  handle->kernel_cache = std::make_shared<fe::KernelCache>();
 
-  bool found_bwd_data = false;
-  for (int i = 0; i < returned_algo_count; i++) {
-    if (bwd_data_perf[i].status == CUDNN_STATUS_SUCCESS &&
-        (workspace_limit_bytes == 0 || bwd_data_perf[i].memory <= workspace_limit_bytes)) {
-      handle->bwd_data_algo = bwd_data_perf[i].algo;
-      handle->bwd_data_workspace_size = bwd_data_perf[i].memory;
-      found_bwd_data = true;
-
-      break;
-    }
-  }
-  if (!found_bwd_data) {
-    throw std::runtime_error("No suitable backward data algorithm found within memory limit");
-  }
-
-  CHECK_CUDNN(cudnnFindConvolutionBackwardFilterAlgorithm(
-      handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->filter_descriptor, requested_algo_count,
-      &returned_algo_count, bwd_filter_perf));
-
-  bool found_bwd_filter = false;
-  for (int i = 0; i < returned_algo_count; i++) {
-    if (bwd_filter_perf[i].status == CUDNN_STATUS_SUCCESS &&
-        (workspace_limit_bytes == 0 || bwd_filter_perf[i].memory <= workspace_limit_bytes)) {
-      handle->bwd_filter_algo = bwd_filter_perf[i].algo;
-      handle->bwd_filter_workspace_size = bwd_filter_perf[i].memory;
-      found_bwd_filter = true;
-
-      break;
-    }
-  }
-  if (!found_bwd_filter) {
-    throw std::runtime_error("No suitable backward filter algorithm found within memory limit");
-  }
+  rebuild_all_graphs(handle, stats);
+  round_workspace_size(stats);
 
   return handle;
 }
 
-void destroy_convolution_handle(ConvolutionHandle *handle) {
-  if (handle) {
-    cudnnDestroyTensorDescriptor(handle->input_descriptor);
-    cudnnDestroyTensorDescriptor(handle->output_descriptor);
-    cudnnDestroyFilterDescriptor(handle->filter_descriptor);
-    cudnnDestroyConvolutionDescriptor(handle->convolution_descriptor);
-    cudnnDestroyTensorDescriptor(handle->bias_descriptor);
-    cudnnDestroyActivationDescriptor(handle->activation_descriptor);
-    delete handle;
+void destroy_fe_handle(feHandle_t* handle) {
+  if (!handle) {
+    return;
+  }
+  delete handle;
+}
+
+void run_forward(feHandle_t* handle, const ConvolutionStats& stats, const void* input_data,
+                 const void* weight_data, const void* bias_data, void* output_data,
+                 void* workspace_data, cudaStream_t stream) {
+  if (!handle) {
+    throw std::runtime_error("run_forward called with null feHandle_t");
+  }
+
+  cudnnSetStream(handle->cudnn_handle, stream);
+
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->fwd_x, const_cast<void*>(input_data)},
+      {handle->fwd_w, const_cast<void*>(weight_data)},
+      {handle->fwd_y, output_data}};
+
+  if (stats.use_bias && bias_data && handle->fwd_b) {
+    variant_pack[handle->fwd_b] = const_cast<void*>(bias_data);
+  }
+
+  auto status = handle->fwd_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
+  ensure_ok(status, "conv_fprop execute");
+}
+
+void run_backward_data(feHandle_t* handle, const ConvolutionStats& stats, const void* gradient_data,
+                       const void* weight_data, void* input_grad_data, void* workspace_data,
+                       cudaStream_t stream) {
+  if (!handle) {
+    throw std::runtime_error("run_backward_data called with null feHandle_t");
+  }
+
+  cudnnSetStream(handle->cudnn_handle, stream);
+
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->dgrad_dy, const_cast<void*>(gradient_data)},
+      {handle->dgrad_w, const_cast<void*>(weight_data)},
+      {handle->dgrad_dx, input_grad_data}};
+
+  auto status = handle->dgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
+  ensure_ok(status, "conv_dgrad execute");
+}
+
+void run_backward_weights_and_bias(feHandle_t* handle, const ConvolutionStats& stats,
+                                   const void* input_data, const void* gradient_data,
+                                   void* weight_grad_data, void* bias_grad_data,
+                                   void* workspace_data, cudaStream_t stream) {
+  if (!handle) {
+    throw std::runtime_error("run_backward_weights_and_bias called with null feHandle_t");
+  }
+
+  cudnnSetStream(handle->cudnn_handle, stream);
+
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->wgrad_x, const_cast<void*>(input_data)},
+      {handle->wgrad_dy, const_cast<void*>(gradient_data)},
+      {handle->wgrad_dw, weight_grad_data}};
+
+  auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
+  ensure_ok(status, "conv_wgrad execute");
+
+  // Compute bias gradient separately if needed
+  if (stats.use_bias && bias_grad_data && handle->bgrad_graph) {
+    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> bgrad_variant_pack = {
+        {handle->bgrad_dy, const_cast<void*>(gradient_data)}, {handle->bgrad_db, bias_grad_data}};
+
+    auto bgrad_status =
+        handle->bgrad_graph->execute(handle->cudnn_handle, bgrad_variant_pack, workspace_data);
+    ensure_ok(bgrad_status, "bias_grad execute");
   }
 }
 
-template <typename T>
-void forward_with_bias(ConvolutionHandle *handle, const T *input_data, const T *weight_data,
-                       const T *bias_data, T *output_data, size_t batch_size, size_t in_channels,
-                       size_t input_h, size_t input_w, size_t out_channels, size_t output_h,
-                       size_t output_w, T *workspace, size_t workspace_size, cudaStream_t stream) {
+}  // namespace cudnn_conv2d
+}  // namespace cuda
+}  // namespace tnn
 
-  CHECK_CUDNN(cudnnSetStream(handle->cudnn_handle, stream));
-
-  T alpha = T(1.0);
-  T beta = T(0.0);
-
-  CHECK_CUDNN(cudnnConvolutionForward(
-      handle->cudnn_handle, &alpha, handle->input_descriptor, input_data, handle->filter_descriptor,
-      weight_data, handle->convolution_descriptor, handle->fwd_algo, workspace, workspace_size,
-      &beta, handle->output_descriptor, output_data));
-
-  if (bias_data) {
-    alpha = T(1.0);
-    beta = T(1.0);
-    CHECK_CUDNN(cudnnAddTensor(handle->cudnn_handle, &alpha, handle->bias_descriptor, bias_data,
-                               &beta, handle->output_descriptor, output_data));
-  }
-}
-
-template <typename T>
-void backward_data(ConvolutionHandle *handle, const T *gradient_data, const T *weight_data,
-                   T *input_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
-                   size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
-                   T *workspace, size_t workspace_size, cudaStream_t stream) {
-  CHECK_CUDNN(cudnnSetStream(handle->cudnn_handle, stream));
-
-  T alpha = T(1.0);
-  T beta = T(0.0);
-
-  CHECK_CUDNN(cudnnConvolutionBackwardData(handle->cudnn_handle, &alpha, handle->filter_descriptor,
-                                           weight_data, handle->output_descriptor, gradient_data,
-                                           handle->convolution_descriptor, handle->bwd_data_algo,
-                                           workspace, workspace_size, &beta,
-                                           handle->input_descriptor, input_grad_data));
-}
-
-template <typename T>
-void backward_filter(ConvolutionHandle *handle, const T *input_data, const T *gradient_data,
-                     T *weight_grad_data, size_t batch_size, size_t in_channels, size_t input_h,
-                     size_t input_w, size_t out_channels, size_t output_h, size_t output_w,
-                     T *workspace, size_t workspace_size, cudaStream_t stream) {
-  CHECK_CUDNN(cudnnSetStream(handle->cudnn_handle, stream));
-
-  T alpha = T(1.0);
-  T beta = T(1.0);
-
-  CHECK_CUDNN(cudnnConvolutionBackwardFilter(
-      handle->cudnn_handle, &alpha, handle->input_descriptor, input_data, handle->output_descriptor,
-      gradient_data, handle->convolution_descriptor, handle->bwd_filter_algo, workspace,
-      workspace_size, &beta, handle->filter_descriptor, weight_grad_data));
-}
-
-template <typename T>
-void backward_bias(ConvolutionHandle *handle, const T *gradient_data, T *bias_grad_data,
-                   size_t batch_size, size_t out_channels, size_t output_h, size_t output_w,
-                   cudaStream_t stream) {
-
-  CHECK_CUDNN(cudnnSetStream(handle->cudnn_handle, stream));
-
-  T alpha = T(1.0);
-  T beta = T(1.0);
-
-  CHECK_CUDNN(cudnnConvolutionBackwardBias(handle->cudnn_handle, &alpha, handle->output_descriptor,
-                                           gradient_data, &beta, handle->bias_descriptor,
-                                           bias_grad_data));
-}
-
-void update_batch_size(ConvolutionHandle *handle, size_t batch_size, size_t in_channels,
-                       size_t input_h, size_t input_w, size_t out_channels, size_t output_h,
-                       size_t output_w) {
-
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, in_channels, input_h,
-                                         input_w));
-
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, out_channels, output_h,
-                                         output_w));
-
-  CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
-      handle->convolution_descriptor, handle->output_descriptor, handle->fwd_algo,
-      &handle->fwd_workspace_size));
-
-  CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
-      handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->input_descriptor, handle->bwd_data_algo,
-      &handle->bwd_data_workspace_size));
-
-  CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->filter_descriptor, handle->bwd_filter_algo,
-      &handle->bwd_filter_workspace_size));
-}
-
-WorkspaceSizes get_workspace_sizes(ConvolutionHandle *handle, size_t batch_size) {
-  WorkspaceSizes sizes;
-  sizes.fwd_size = handle->fwd_workspace_size;
-  sizes.bwd_data_size = handle->bwd_data_workspace_size;
-  sizes.bwd_filter_size = handle->bwd_filter_workspace_size;
-  return sizes;
-}
-
-template void forward_with_bias<float>(ConvolutionHandle *handle, const float *input_data,
-                                       const float *weight_data, const float *bias_data,
-                                       float *output_data, size_t batch_size, size_t in_channels,
-                                       size_t input_h, size_t input_w, size_t out_channels,
-                                       size_t output_h, size_t output_w, float *workspace,
-                                       size_t workspace_size, cudaStream_t stream);
-
-template void backward_data<float>(ConvolutionHandle *handle, const float *gradient_data,
-                                   const float *weight_data, float *input_grad_data,
-                                   size_t batch_size, size_t in_channels, size_t input_h,
-                                   size_t input_w, size_t out_channels, size_t output_h,
-                                   size_t output_w, float *workspace, size_t workspace_size,
-                                   cudaStream_t stream);
-
-template void backward_filter<float>(ConvolutionHandle *handle, const float *input_data,
-                                     const float *gradient_data, float *weight_grad_data,
-                                     size_t batch_size, size_t in_channels, size_t input_h,
-                                     size_t input_w, size_t out_channels, size_t output_h,
-                                     size_t output_w, float *workspace, size_t workspace_size,
-                                     cudaStream_t stream);
-
-template void backward_bias<float>(ConvolutionHandle *handle, const float *gradient_data,
-                                   float *bias_grad_data, size_t batch_size, size_t out_channels,
-                                   size_t output_h, size_t output_w, cudaStream_t stream);
-
-} // namespace cudnn_conv2d
-} // namespace cuda
-} // namespace tnn
 #endif

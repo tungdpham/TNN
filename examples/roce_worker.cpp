@@ -1,8 +1,11 @@
 #include "distributed/roce_worker.hpp"
-#include "distributed/endpoint.hpp"
+
 #include <getopt.h>
+
 #include <iostream>
 #include <string>
+
+#include "distributed/endpoint.hpp"
 
 using namespace tnn;
 using namespace std;
@@ -40,38 +43,38 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
 
   while ((c = getopt_long(argc, argv, "H:p:d:g:Gh", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'H':
-      cfg.host = optarg;
-      break;
-    case 'p':
-      try {
-        cfg.port = stoi(optarg);
-      } catch (...) {
-        cerr << "Invalid port value: " << optarg << endl;
+      case 'H':
+        cfg.host = optarg;
+        break;
+      case 'p':
+        try {
+          cfg.port = stoi(optarg);
+        } catch (...) {
+          cerr << "Invalid port value: " << optarg << endl;
+          return false;
+        }
+        break;
+      case 'd':
+        cfg.device_name = optarg;
+        break;
+      case 'g':
+        try {
+          cfg.gid_index = stoi(optarg);
+        } catch (...) {
+          cerr << "Invalid gid-index value: " << optarg << endl;
+          return false;
+        }
+        break;
+      case 'G':
+        cfg.use_gpu = true;
+        break;
+      case 'h':
+        print_usage(argv[0]);
         return false;
-      }
-      break;
-    case 'd':
-      cfg.device_name = optarg;
-      break;
-    case 'g':
-      try {
-        cfg.gid_index = stoi(optarg);
-      } catch (...) {
-        cerr << "Invalid gid-index value: " << optarg << endl;
+      case '?':
         return false;
-      }
-      break;
-    case 'G':
-      cfg.use_gpu = true;
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      return false;
-    case '?':
-      return false;
-    default:
-      return false;
+      default:
+        return false;
     }
   }
 

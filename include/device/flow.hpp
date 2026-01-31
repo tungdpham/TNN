@@ -64,4 +64,4 @@ public:
 };
 
 #endif
-} // namespace tnn
+}  // namespace tnn

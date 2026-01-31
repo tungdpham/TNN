@@ -32,18 +32,26 @@ public:
   Fragmenter &get_fragmenter() { return fragmenter_; }
   const Fragmenter &get_fragmenter() const { return fragmenter_; }
 
-  void add_conn(const std::shared_ptr<Connection> &conn) { connections_.push_back(conn); }
+  void add_conn(const std::shared_ptr<Connection> &conn) {
+    std::lock_guard<std::mutex> lock(connections_mutex_);
+    connections_.push_back(conn);
+  }
 
   void remove_conn(const std::shared_ptr<Connection> &conn) {
+    std::lock_guard<std::mutex> lock(connections_mutex_);
     connections_.erase(std::remove(connections_.begin(), connections_.end(), conn),
                        connections_.end());
   }
 
-  const std::vector<std::shared_ptr<Connection>> &get_connections() const { return connections_; }
+  std::vector<std::shared_ptr<Connection>> get_connections() const {
+    std::lock_guard<std::mutex> lock(connections_mutex_);
+    return connections_;
+  }
 
 private:
   std::string id_;
   Fragmenter fragmenter_;
+  mutable std::mutex connections_mutex_;
   std::vector<std::shared_ptr<Connection>> connections_;
 };
-} // namespace tnn
+}  // namespace tnn

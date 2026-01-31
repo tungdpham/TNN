@@ -21,6 +21,6 @@ template <typename T>
 void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length);
 
-} // namespace slice
-} // namespace cpu
-} // namespace tnn
+}  // namespace slice
+}  // namespace cpu
+}  // namespace tnn

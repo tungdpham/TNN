@@ -1,0 +1,19 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ */
+#pragma once
+
+#ifdef USE_CUDA
+#include <cuda_runtime.h>
+
+#include <cstddef>
+namespace tnn {
+namespace cuda {
+
+template <typename I_T, typename O_T>
+void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, size_t D,
+                   cudaStream_t stream);
+
+}  // namespace cuda
+}  // namespace tnn
+#endif

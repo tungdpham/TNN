@@ -6,11 +6,12 @@
  */
 #pragma once
 
+#include <csignal>
+#include <memory>
+
+#include "distributed/endpoint.hpp"
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
-#include <csignal>
-#include <iostream>
-#include <memory>
 
 namespace tnn {
 
@@ -20,7 +21,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs.
  */
-template <typename T = float> class TCPWorker : public Worker {
+class TCPWorker : public Worker {
 public:
   /**
    * @brief Constructor with optional thread affinity configuration
@@ -30,36 +31,20 @@ public:
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  explicit TCPWorker(int listen_port, bool use_gpu, size_t io_threads = 1)
-      : Worker(use_gpu), listen_port_(listen_port), io_threads_(io_threads) {
-
-    auto communicator = std::make_unique<TcpCommunicator>(
-        this->id_, Endpoint::tcp("localhost", listen_port_), io_threads_);
+  explicit TCPWorker(Endpoint endpoint, bool use_gpu, size_t io_threads = 1)
+      : Worker(use_gpu), io_threads_(io_threads) {
+    auto communicator = std::make_unique<TcpCommunicator>(endpoint, io_threads_);
 
     communicator->start_server();
+
+    communicator->set_use_gpu(use_gpu);
 
     this->communicator_ = std::move(communicator);
   }
 
   ~TCPWorker() {}
 
-  void start() override {
-    if (!this->should_stop_)
-      return;
-
-    Worker::start();
-  }
-
-  void stop() override {
-    std::cout << "Stopping TCP stage worker." << '\n';
-
-    Worker::stop();
-
-    std::cout << "TCP stage worker stopped" << '\n';
-  }
-
 private:
-  int listen_port_;
   size_t io_threads_;
 };
-} // namespace tnn
+}  // namespace tnn

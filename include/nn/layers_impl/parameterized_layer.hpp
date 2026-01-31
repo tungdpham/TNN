@@ -6,29 +6,28 @@
  */
 #pragma once
 
-#include "base_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <string>
 #include <vector>
 
+#include "nn/layer.hpp"
+#include "tensor/tensor.hpp"
+
 namespace tnn {
 
-template <typename T = float> class ParameterizedLayer : public Layer<T> {
+class ParameterizedLayer : public Layer {
 public:
   explicit ParameterizedLayer(const std::string &name = "") { this->name_ = name; }
 
-  void initialize() override;
-  std::vector<Tensor<T> *> parameters() override;
-  std::vector<Tensor<T> *> gradients() override;
+  std::vector<Tensor> parameters() override;
+  std::vector<Tensor> gradients() override;
   bool has_parameters() const override { return true; }
 
-protected:
-  virtual void initialize_params() = 0;
-  virtual void collect_parameters(std::vector<Tensor<T> *> &params) = 0;
-  virtual void collect_gradients(std::vector<Tensor<T> *> &grads) = 0;
-  bool initialized_ = false;
-};
-} // namespace tnn
+private:
+  void init_impl() override;
 
-#include "nn/layers_impl/parameterized_layer.tpp"
+protected:
+  virtual void init_params() = 0;
+  virtual void collect_parameters(std::vector<Tensor> &params) = 0;
+  virtual void collect_gradients(std::vector<Tensor> &grads) = 0;
+};
+}  // namespace tnn

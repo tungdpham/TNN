@@ -5,8 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cpu/slice_ops.hpp"
+
 #include <cstring>
 #include <numeric>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -45,7 +48,6 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
 template <typename T>
 void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length) {
-
   size_t total_elements =
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
   std::memset(grad_input, 0, total_elements * sizeof(T));
@@ -77,20 +79,20 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
   }
 }
 
-template void slice_forward<float>(const float *input, float *output,
-                                   const std::vector<size_t> &input_shape, size_t axis,
-                                   size_t start, size_t length);
-template void slice_forward<double>(const double *input, double *output,
-                                    const std::vector<size_t> &input_shape, size_t axis,
-                                    size_t start, size_t length);
+#define INSTANTIATE_SLICE(T)                                                           \
+  template void slice_forward<T>(const T *input, T *output,                            \
+                                 const std::vector<size_t> &input_shape, size_t axis,  \
+                                 size_t start, size_t length);                         \
+                                                                                       \
+  template void slice_backward<T>(const T *gradient, T *grad_input,                    \
+                                  const std::vector<size_t> &input_shape, size_t axis, \
+                                  size_t start, size_t length);
+INSTANTIATE_SLICE(fp16)
+INSTANTIATE_SLICE(bf16)
+INSTANTIATE_SLICE(float)
+INSTANTIATE_SLICE(double)
+#undef INSTANTIATE_SLICE
 
-template void slice_backward<float>(const float *gradient, float *grad_input,
-                                    const std::vector<size_t> &input_shape, size_t axis,
-                                    size_t start, size_t length);
-template void slice_backward<double>(const double *gradient, double *grad_input,
-                                     const std::vector<size_t> &input_shape, size_t axis,
-                                     size_t start, size_t length);
-
-} // namespace slice
-} // namespace cpu
-} // namespace tnn
+}  // namespace slice
+}  // namespace cpu
+}  // namespace tnn

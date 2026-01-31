@@ -6,21 +6,21 @@
  */
 #pragma once
 
-#include "tensor/tensor.hpp"
 #include <memory>
 
+#include "tensor/tensor.hpp"
+
 namespace tnn {
-template <typename T = float> class EWActivationFunction {
+class ActivationFunction {
 public:
-  virtual ~EWActivationFunction() = default;
+  virtual ~ActivationFunction() = default;
 
-  virtual std::unique_ptr<Task> apply(const Tensor<T> &input, Tensor<T> &output) const = 0;
+  virtual std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const = 0;
 
-  virtual std::unique_ptr<Task> compute_gradient(const Tensor<T> &input,
-                                                 const Tensor<T> &grad_output,
-                                                 Tensor<T> &grad_input) const = 0;
+  virtual std::unique_ptr<Task> compute_gradient(const Tensor &input, const Tensor &grad_output,
+                                                 Tensor &grad_input) const = 0;
 
   virtual std::string name() const = 0;
-  virtual std::unique_ptr<EWActivationFunction<T>> clone() const = 0;
+  virtual std::unique_ptr<ActivationFunction> clone() const = 0;
 };
-} // namespace tnn
+}  // namespace tnn

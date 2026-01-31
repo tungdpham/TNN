@@ -1,10 +1,10 @@
 #pragma once
 
-#include "tbuffer.hpp"
 #include <deque>
-#include <iostream>
 #include <memory>
 #include <mutex>
+
+#include "tbuffer.hpp"
 
 namespace tnn {
 class BufferPool;
@@ -50,7 +50,6 @@ public:
       }
     }
 
-    std::cout << "BufferPool Miss: Allocating new buffer of size " << min_size << std::endl;
     return PooledBuffer(new TBuffer(min_size), deleter);
   }
 
@@ -108,4 +107,4 @@ inline void BufferDeleter::operator()(TBuffer *ptr) const {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

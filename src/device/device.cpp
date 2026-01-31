@@ -1,4 +1,5 @@
 #include "device/device.hpp"
+
 #include "device/context.hpp"
 
 namespace tnn {
@@ -25,13 +26,17 @@ int Device::getID() const { return id_; }
 
 std::string Device::getName() const {
   switch (type_) {
-  case DeviceType::CPU:
-    return "CPU Device " + std::to_string(id_);
-  case DeviceType::GPU:
-    return "GPU Device " + std::to_string(id_);
-  default:
-    return "Unknown Device";
+    case DeviceType::CPU:
+      return "CPU Device " + std::to_string(id_);
+    case DeviceType::GPU:
+      return "GPU Device " + std::to_string(id_);
+    default:
+      return "Unknown Device";
   }
+}
+
+bool Device::operator==(const Device &other) const {
+  return (type_ == other.type_) && (id_ == other.id_);
 }
 
 size_t Device::getTotalMemory() const { return context_->getTotalMemory(); }
@@ -60,4 +65,4 @@ void Device::createFlow(const std::string &flow_id) const { context_->createFlow
 
 Flow *Device::getFlow(const std::string &flow_id) const { return context_->getFlow(flow_id); }
 
-} // namespace tnn
+}  // namespace tnn

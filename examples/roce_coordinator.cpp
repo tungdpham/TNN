@@ -1,13 +1,18 @@
 #include "distributed/roce_coordinator.hpp"
-#include "data_loading/cifar100_data_loader.hpp"
+
+#include <getopt.h>
+
+#include <iostream>
+#include <vector>
+
+#include "data_loading/data_loader_factory.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
+#include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include <getopt.h>
-#include <iostream>
-#include <vector>
+#include "utils/env.hpp"
 
 using namespace tnn;
 using namespace std;
@@ -38,24 +43,24 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
 
   while ((c = getopt_long(argc, argv, "H:p:d:g:h", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'd':
-      cfg.device_name = optarg;
-      break;
-    case 'g':
-      try {
-        cfg.gid_index = stoi(optarg);
-      } catch (...) {
-        cerr << "Invalid gid-index value: " << optarg << endl;
+      case 'd':
+        cfg.device_name = optarg;
+        break;
+      case 'g':
+        try {
+          cfg.gid_index = stoi(optarg);
+        } catch (...) {
+          cerr << "Invalid gid-index value: " << optarg << endl;
+          return false;
+        }
+        break;
+      case 'h':
+        print_usage(argv[0]);
         return false;
-      }
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      return false;
-    case '?':
-      return false;
-    default:
-      return false;
+      case '?':
+        return false;
+      default:
+        return false;
     }
   }
 
@@ -78,11 +83,63 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
+  ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
   train_config.print_config();
+
+  // Prioritize loading existing model, else create from available ones
+  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
+  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
+
+  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
+  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
+  const auto &device = DeviceManager::getInstance().getDevice(device_type);
+
+  std::unique_ptr<Sequential> model;
+  if (!model_path.empty()) {
+    cout << "Loading model from: " << model_path << endl;
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    model = load_state<Sequential>(file, device);
+    file.close();
+  } else {
+    cout << "Creating model: " << model_name << endl;
+    try {
+      Sequential temp_model = ExampleModels::create(model_name);
+      model = std::make_unique<Sequential>(std::move(temp_model));
+    } catch (const std::exception &e) {
+      cerr << "Error creating model: " << e.what() << endl;
+      cout << "Available models are: ";
+      for (const auto &name : ExampleModels::available_models()) {
+        cout << name << "\n";
+      }
+      cout << endl;
+      return 1;
+    }
+    model->set_device(device);
+    model->init();
+  }
+
+  string dataset_name = Env::get<std::string>("DATASET_NAME", "");
+  if (dataset_name.empty()) {
+    throw std::runtime_error("DATASET_NAME environment variable is not set!");
+  }
+  string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
+  auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
+  if (!train_loader || !val_loader) {
+    cerr << "Failed to create data loaders for model: " << model_name << endl;
+    return 1;
+  }
+
+  cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
+
+  auto criterion = LossFactory::create_logsoftmax_crossentropy();
+  float lr_initial = Env::get("LR_INITIAL", 0.001f);
+  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
@@ -91,42 +148,19 @@ int main(int argc, char *argv[]) {
                      Env::get<int>("WORKER2_PORT", 8002), "rocep5s0f0", -1),
   };
 
-  CIFAR100DataLoader<float> train_loader, test_loader;
-
-  CIFAR100DataLoader<float>::create("./data", train_loader, test_loader);
-
-  auto train_transform = AugmentationBuilder<float>()
-                             .random_crop(0.5f, 4)
-                             .horizontal_flip(0.5f)
-                             .cutout(0.5f, 8)
-                             .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
-                             .build();
-  train_loader.set_augmentation(std::move(train_transform));
-
-  auto val_transform = AugmentationBuilder<float>()
-                           .normalize({0.5071, 0.4867, 0.4408}, {0.2675, 0.2565, 0.2761})
-                           .build();
-  test_loader.set_augmentation(std::move(val_transform));
-
-  Sequential<float> model = create_wrn16_8_cifar100();
-
-  auto optimizer = OptimizerFactory<float>::create_adam(0.001f, 0.9f, 0.999f, 1e-8f);
-
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
-  int port = Env::get<int>("COORDINATOR_PORT", 8000);
+  int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
-  RoceCoordinator coordinator("coordinator", std::move(model), std::move(optimizer),
-                              coordinator_endpoint, endpoints);
+  RoceCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
+                              endpoints);
 
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePartitioner<float>>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = std::make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
 
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
-  auto loss_function = LossFactory<float>::create_logsoftmax_crossentropy();
-  coordinator.set_loss_function(std::move(loss_function));
   std::cout << "Deploying stages to remote endpoints." << std::endl;
   for (const auto &ep : endpoints) {
     std::cout << "  Worker expected at " << ep.to_json().dump(4) << std::endl;
@@ -138,8 +172,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    coordinator.initialize();
-    train_model(coordinator, train_loader, test_loader, train_config);
+    train_model(coordinator, *train_loader, *val_loader, criterion, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

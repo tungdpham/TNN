@@ -20,7 +20,8 @@ public:
   explicit ThreadWrapper(const ThreadingConfig &config)
       : config_(config), arena_(config.num_threads) {}
 
-  template <typename Function, typename... Args> void execute(Function &&f, Args &&...args) {
+  template <typename Function, typename... Args>
+  void execute(Function &&f, Args &&...args) {
 #ifdef USE_TBB
     arena_.execute([&]() { f(std::forward<Args>(args)...); });
 #elif defined(_OPENMP)
@@ -46,4 +47,4 @@ private:
 #endif
 };
 
-} // namespace tnn
+}  // namespace tnn

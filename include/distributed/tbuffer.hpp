@@ -6,11 +6,6 @@
  */
 #pragma once
 
-#include "endian.hpp"
-#include "threading/thread_handler.hpp"
-#ifdef __AVX2__
-#include <immintrin.h>
-#endif
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -18,6 +13,10 @@
 #include <initializer_list>
 #include <stdexcept>
 #include <type_traits>
+
+#include "device/dptr.hpp"
+#include "endian.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -28,7 +27,7 @@ private:
   size_t capacity_;
   // Endianess of the data in the buffer, does not apply to write. Read functions will swap bytes if
   // needed.
-  Endianness endianess_ = get_system_endianness(); // 0 for little-endian and 1 for big-endian
+  Endianness endianess_ = get_system_endianness();  // 0 for little-endian and 1 for big-endian
 
   static constexpr size_t MAX_ARRAY_SIZE = static_cast<size_t>(-1) - 8;
   static constexpr size_t DEFAULT_CAPACITY = 10;
@@ -47,7 +46,7 @@ private:
   }
 
   void allocate(size_t new_capacity) {
-    constexpr size_t alignment = 64; // 64-byte alignment for AVX2
+    constexpr size_t alignment = 64;  // 64-byte alignment for AVX2
 #ifdef _WIN32
     data_ = static_cast<uint8_t *>(_aligned_malloc(new_capacity, alignment));
 #else
@@ -159,7 +158,8 @@ public:
   void clear() { size_ = 0; }
 
 #if defined(ARCH_64)
-  template <typename T> inline void write(size_t &offset, const T &value) {
+  template <typename T>
+  inline void write(size_t &offset, const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     ensure_capacity(offset + sizeof(T));
@@ -170,7 +170,8 @@ public:
     offset += sizeof(T);
   }
 
-  template <typename T> inline void write(size_t &offset, const T *arr, size_t length) {
+  template <typename T>
+  inline void write(size_t &offset, const T *arr, size_t length) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
@@ -182,6 +183,15 @@ public:
     offset += length * sizeof(T);
   }
 
+  inline void write(size_t &offset, const dptr &ptr, size_t length) {
+    ensure_capacity(offset + length);
+    ptr.copy_to_host(data_ + offset, length);
+    if (offset + length > size_) {
+      size_ = offset + length;
+    }
+    offset += length;
+  }
+
   inline void write(size_t &offset, const std::string &str) {
     uint64_t str_length = static_cast<uint64_t>(str.size());
     write<uint64_t>(offset, str_length);
@@ -190,7 +200,8 @@ public:
     }
   }
 
-  template <typename T> inline void read(size_t &offset, T &value) const {
+  template <typename T>
+  inline void read(size_t &offset, T &value) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     if (offset + sizeof(T) > size_) {
@@ -203,7 +214,8 @@ public:
     }
   }
 
-  template <typename T> inline void read(size_t &offset, T *arr, size_t length) const {
+  template <typename T>
+  inline void read(size_t &offset, T *arr, size_t length) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
@@ -216,6 +228,14 @@ public:
       parallel_for<size_t>(0, length, [&](size_t i) { bswap(arr[i]); });
     }
     offset += byte_size;
+  }
+
+  inline void read(size_t &offset, dptr &ptr, size_t length) const {
+    if (offset + length > size_) {
+      throw std::out_of_range(get_out_of_bound_msg(offset + length));
+    }
+    ptr.copy_from_host(data_ + offset, length);
+    offset += length;
   }
 
   inline void read(size_t &offset, std::string &str) const {
@@ -245,7 +265,7 @@ public:
 
   void fill(uint8_t value) {
     ensure_capacity(size_);
-    std::fill(data_, data_ + size_, value); // Fill only up to size, not capacity
+    std::fill(data_, data_ + size_, value);  // Fill only up to size, not capacity
   }
 
 private:
@@ -286,4 +306,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

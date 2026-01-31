@@ -5,15 +5,9 @@
  * project root for the full license text.
  */
 
-#include "distributed/in_process_coordinator.hpp"
+#include "distributed/binary_serializer.hpp"
 #include "distributed/job.hpp"
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 
-namespace tnn {
-/**
- * Template instantiations for commonly used types. Uncomment as needed.
- */
-template struct Job<float>;
-
-} // namespace tnn
+namespace tnn {}  // namespace tnn
