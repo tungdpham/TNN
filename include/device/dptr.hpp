@@ -92,7 +92,15 @@ public:
         static_cast<const void *>(static_cast<const uint8_t *>(storage_->data()) + offset_));
   }
 
-  inline dptr operator+(size_t offset) const {
+  dptr span(size_t start_offset, size_t span_size) const {
+    size_t new_offset = offset_ + start_offset;
+    if (new_offset + span_size > capacity_) {
+      throw std::out_of_range("dptr span size out of range");
+    }
+    return dptr(storage_, new_offset, span_size);
+  }
+
+  dptr operator+(size_t offset) const {
     if (offset > capacity_) {
       throw std::out_of_range("dptr offset out of range");
     }

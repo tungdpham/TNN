@@ -30,14 +30,10 @@ private:
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> q_proj_;
-  std::unique_ptr<DenseLayer> k_proj_;
-  std::unique_ptr<DenseLayer> v_proj_;
+  std::unique_ptr<DenseLayer> qkv_proj_;
   std::unique_ptr<DenseLayer> out_proj_;
 
-  std::unordered_map<size_t, Tensor> q_cache_;
-  std::unordered_map<size_t, Tensor> k_cache_;
-  std::unordered_map<size_t, Tensor> v_cache_;
+  std::unordered_map<size_t, Tensor> input_cache_;
   std::unordered_map<size_t, Tensor> attn_out_cache_;
   std::unordered_map<size_t, Tensor> stats_cache_tensor_;
 

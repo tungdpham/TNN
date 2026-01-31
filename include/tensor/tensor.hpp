@@ -117,6 +117,7 @@ public:
   virtual const dptr &data_ptr() const = 0;
 
   // Operations
+  virtual Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const = 0;
   virtual void resize(const std::vector<size_t> &new_shape) = 0;
   virtual void ensure(const std::vector<size_t> &new_shape) = 0;
   virtual void copy_to(Tensor &target) const = 0;
@@ -269,21 +270,27 @@ public:
     }
   }
 
-  TypedTensor(IAllocator &allocator, std::vector<size_t> shape)
-      : allocator_(allocator), shape_(std::move(shape)) {
+  TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape)
+      : allocator_(allocator), shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
   }
 
-  TypedTensor(IAllocator &allocator, std::vector<size_t> shape, const dptr &data)
-      : allocator_(allocator), shape_(std::move(shape)) {
+  TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape, const dptr &data)
+      : allocator_(allocator), shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
     if (data.get<T>() != nullptr) {
       ops::cd_copy<T>(data, data_, data_size_);
     }
+  }
+
+  TypedTensor(IAllocator &allocator, dptr &&data, const std::vector<size_t> &shape)
+      : allocator_(allocator), data_(std::move(data)), shape_(shape) {
+    data_size_ =
+        std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
   }
 
   ~TypedTensor() = default;
@@ -555,6 +562,37 @@ public:
 
   Tensor clone() const override {
     return std::make_shared<TypedTensor<T>>(allocator_, shape_, data_);
+  }
+
+  Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const override {
+    if (start_offset.size() != shape_.size() || span_sizes.size() != shape_.size()) {
+      throw std::invalid_argument("Span offsets and sizes must match tensor dimensions");
+    }
+
+    bool found_partial = false;
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      if (start_offset[i] + span_sizes[i] > shape_[i]) {
+        throw std::out_of_range("Span exceeds tensor dimensions");
+      }
+      bool is_partial = (start_offset[i] != 0) || (span_sizes[i] != shape_[i]);
+      if (found_partial && is_partial) {
+        throw std::invalid_argument(
+            "Non-contiguous span: after a partial dimension, all subsequent dimensions "
+            "must be complete (start_offset=0, span_size=shape[i])");
+      }
+      if (is_partial) {
+        found_partial = true;
+      }
+    }
+
+    size_t offset = 0;
+    size_t span_size = 1;
+    for (size_t i = 0; i < shape_.size(); ++i) {
+      offset += start_offset[i] * compute_stride(i);
+      span_size *= span_sizes[i];
+    }
+    dptr span_data = data_.span(offset * sizeof(T), span_size * sizeof(T));
+    return std::make_shared<TypedTensor<T>>(allocator_, std::move(span_data), span_sizes);
   }
 
   std::unique_ptr<Task> fill(double value) override {
