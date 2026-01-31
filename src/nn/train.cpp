@@ -222,7 +222,18 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
   int grad_accum_counter = 0;
 
+  // cold pass
+  train_loader->get_batch(config.batch_size, batch_data, batch_labels);
+  device_labels = batch_labels->to_device(model_device);
+  model->forward(batch_data, predictions);
+
+  train_loader->reset();
+
+  auto start_time = chrono::high_resolution_clock::now();
+
   thread_wrapper.execute([&]() -> void {
+    auto time_since_last_print = chrono::high_resolution_clock::now();
+
     for (int steps = 0; steps < config.max_steps; ++steps) {
       if (!train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
         break;
@@ -246,6 +257,12 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
       }
 
       if (steps % config.progress_print_interval == 0) {
+        auto new_time = chrono::high_resolution_clock::now();
+        auto duration_since_last_print =
+            chrono::duration_cast<chrono::milliseconds>(new_time - time_since_last_print);
+        time_since_last_print = new_time;
+        cout << "Time for last " << config.progress_print_interval
+             << " steps: " << duration_since_last_print.count() << "ms" << endl;
         if (model->is_profiling_enabled()) {
           model->print_profiling_info();
         }
@@ -256,6 +273,11 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
         model->reset_profiling_info();
       }
     }
+
+    // training epoch done, print time taken
+    auto end_time = chrono::high_resolution_clock::now();
+    auto epoch_duration = chrono::duration_cast<chrono::milliseconds>(end_time - start_time);
+    cout << "Training completed in " << epoch_duration.count() << "ms" << endl;
 
     // save model
     try {
