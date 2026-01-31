@@ -519,41 +519,6 @@ TEST_F(GPUTensorTest, FillRandomNormal) {
   EXPECT_NEAR(mean, 0.0f, 0.2f);
 }
 
-TEST_F(GPUTensorTest, CopyBatch) {
-  Tensor source = Tensor::create<float>({2, 1, 2, 2}, getGPU());
-  Tensor dest = Tensor::create<float>({2, 1, 2, 2}, getGPU());
-
-  Tensor cpu_source = Tensor::create<float>({2, 1, 2, 2});
-  for (size_t i = 0; i < 4; ++i) {
-    cpu_source->at<float>({0, 0, i / 2, i % 2}) = 1.0f;
-    cpu_source->at<float>({1, 0, i / 2, i % 2}) = 2.0f;
-  }
-  source = cpu_source->to_device(getGPU());
-
-  dest->fill(0.0);
-
-  auto dest_typed = Tensor::cast<float>(dest);
-  auto source_typed = Tensor::cast<float>(source);
-  dest_typed->copy_batch(*source_typed, 1, 0);
-
-  Tensor cpu_result = dest->to_cpu();
-
-  EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 0}), 2.0f);
-  EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 1}), 2.0f);
-  EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 1, 0}), 2.0f);
-  EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 1, 1}), 2.0f);
-}
-
-TEST_F(GPUTensorTest, CopyBatchInvalidIndex) {
-  Tensor source = Tensor::create<float>({2, 1, 2, 2}, getGPU());
-  Tensor dest = Tensor::create<float>({2, 1, 2, 2}, getGPU());
-
-  auto dest_typed = Tensor::cast<float>(dest);
-  auto source_typed = Tensor::cast<float>(source);
-  EXPECT_THROW(dest_typed->copy_batch(*source_typed, 5, 0), std::invalid_argument);
-  EXPECT_THROW(dest_typed->copy_batch(*source_typed, 0, 5), std::invalid_argument);
-}
-
 class GPUTensorSizeTest
     : public ::testing::TestWithParam<std::tuple<size_t, size_t, size_t, size_t>> {
 protected:

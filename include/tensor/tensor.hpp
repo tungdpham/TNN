@@ -48,9 +48,6 @@ class ITensor;
 
 class Tensor;
 
-template <typename T>
-class TypedTensor;
-
 class ITensor {
 public:
   virtual ~ITensor() = default;
@@ -188,9 +185,6 @@ public:
 
   static Tensor create_pooled(IAllocator &allocator, DType_t dtype,
                               std::initializer_list<size_t> shape = {});
-
-  template <typename T>
-  static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
 
   template <typename T>
   static Tensor load(std::ifstream &in, const Device &device = getCPU());
@@ -1107,15 +1101,6 @@ inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
     default:
       throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
-}
-
-template <typename T>
-inline std::shared_ptr<TypedTensor<T>> Tensor::cast(const Tensor &tensor) {
-  auto typed = std::dynamic_pointer_cast<TypedTensor<T>>(tensor);
-  if (!typed) {
-    throw std::runtime_error("Invalid tensor type cast");
-  }
-  return typed;
 }
 
 inline Tensor Tensor::dtype_cast(const Tensor &input, DType_t target_dtype) {

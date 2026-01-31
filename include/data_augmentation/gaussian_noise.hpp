@@ -38,8 +38,7 @@ private:
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
-    auto typed_data = Tensor::cast<T>(data);
-    T *ptr = static_cast<T *>(typed_data->data());
+    T *ptr = data->data_as<T>();
 
     for (size_t b = 0; b < batch_size; ++b) {
       if (prob_dist(this->rng_) < probability_) {

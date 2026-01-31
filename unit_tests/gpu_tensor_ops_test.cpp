@@ -55,16 +55,13 @@ protected:
     Tensor expected_cpu = expected->is_on_cpu() ? expected->clone() : expected->to_cpu();
     Tensor actual_cpu = actual->is_on_cpu() ? actual->clone() : actual->to_cpu();
 
-    auto expected_tensor = Tensor::cast<T>(expected_cpu);
-    auto actual_tensor = Tensor::cast<T>(actual_cpu);
-
     auto shape = expected_cpu->shape();
     for (size_t n = 0; n < shape[0]; ++n) {
       for (size_t c = 0; c < shape[1]; ++c) {
         for (size_t h = 0; h < shape[2]; ++h) {
           for (size_t w = 0; w < shape[3]; ++w) {
-            T expected_val = expected_tensor->operator()(n, c, h, w);
-            T actual_val = actual_tensor->operator()(n, c, h, w);
+            T expected_val = expected_cpu->at<T>({n, c, h, w});
+            T actual_val = actual_cpu->at<T>({n, c, h, w});
             EXPECT_NEAR(expected_val, actual_val, tolerance)
                 << "Mismatch at position [" << n << "," << c << "," << h << "," << w
                 << "]. Expected: " << expected_val << ", Got: " << actual_val;

@@ -94,9 +94,6 @@ private:
     batch_labels = Tensor::create<T>({actual_batch_size, cifar10_constants::NUM_CLASSES, 1, 1});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = Tensor::cast<T>(batch_data);
-    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
-
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const std::vector<float> &image_data = data_[this->current_index_ + i];
 
@@ -106,14 +103,14 @@ private:
             size_t pixel_idx =
                 c * cifar10_constants::IMAGE_HEIGHT * cifar10_constants::IMAGE_WIDTH +
                 h * cifar10_constants::IMAGE_WIDTH + w;
-            (*typed_batch_data)({i, c, h, w}) = static_cast<T>(image_data[pixel_idx]);
+            batch_data->at<T>({i, c, h, w}) = static_cast<T>(image_data[pixel_idx]);
           }
         }
       }
 
       const size_t label = labels_[this->current_index_ + i];
       if (label >= 0 && label < static_cast<int>(cifar10_constants::NUM_CLASSES)) {
-        (*typed_batch_labels)({i, label, 0, 0}) = static_cast<T>(1.0);
+        batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
       }
     }
 

@@ -81,9 +81,6 @@ private:
         Tensor::create<T>({actual_batch_size, tiny_imagenet_constants::NUM_CLASSES, 1, 1});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = Tensor::cast<T>(batch_data);
-    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
-
     // for (size_t i = 0; i < actual_batch_size; ++i) {
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const size_t sample_offset = (this->current_index_ + i) * tiny_imagenet_constants::IMAGE_SIZE;
@@ -96,7 +93,7 @@ private:
                 c * tiny_imagenet_constants::IMAGE_HEIGHT * tiny_imagenet_constants::IMAGE_WIDTH +
                 h * tiny_imagenet_constants::IMAGE_WIDTH + w;
             // NHWC indexing: (batch, height, width, channel)
-            (*typed_batch_data)({i, h, w, c}) = static_cast<T>(data_[sample_offset + pixel_idx]);
+            batch_data->at<T>({i, h, w, c}) = static_cast<T>(data_[sample_offset + pixel_idx]);
           }
         }
       }
@@ -104,7 +101,7 @@ private:
       // Set one-hot label
       const size_t label = labels_[this->current_index_ + i];
       if (label >= 0 && label < static_cast<int>(tiny_imagenet_constants::NUM_CLASSES)) {
-        (*typed_batch_labels)({i, label, 0, 0}) = static_cast<T>(1.0);
+        batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
       }
     });
 

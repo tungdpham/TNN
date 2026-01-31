@@ -144,9 +144,6 @@ private:
     batch_labels = Tensor::create<T>({actual_batch_size, num_classes, 1, 1});
     batch_labels->fill(0.0);
 
-    auto typed_batch_data = Tensor::cast<T>(batch_data);
-    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
-
     for (size_t i = 0; i < actual_batch_size; ++i) {
       const auto &image_data = data_[this->current_index_ + i];
 
@@ -156,7 +153,7 @@ private:
             size_t pixel_idx =
                 c * cifar100_constants::IMAGE_HEIGHT * cifar100_constants::IMAGE_WIDTH +
                 h * cifar100_constants::IMAGE_WIDTH + w;
-            (*typed_batch_data)({i, c, h, w}) = static_cast<T>(image_data[pixel_idx]);
+            batch_data->at<T>({i, c, h, w}) = static_cast<T>(image_data[pixel_idx]);
           }
         }
       }
@@ -164,7 +161,7 @@ private:
       const size_t label = use_coarse_labels_
                                ? static_cast<size_t>(coarse_labels_[this->current_index_ + i])
                                : static_cast<size_t>(fine_labels_[this->current_index_ + i]);
-      (*typed_batch_labels)({i, label, 0, 0}) = static_cast<T>(1.0);
+      batch_labels->at<T>({i, label, 0, 0}) = static_cast<T>(1.0);
     }
 
     this->apply_augmentation(batch_data, batch_labels);

@@ -23,10 +23,7 @@ private:
     batch_data = Tensor::create<T>({batch_size, context_length_});
     batch_labels = Tensor::create<T>({batch_size, context_length_, vocab_size_});
 
-    auto typed_batch_data = Tensor::cast<T>(batch_data);
-    auto typed_batch_labels = Tensor::cast<T>(batch_labels);
-
-    T *label_ptr = static_cast<T *>(typed_batch_labels->data());
+    T *label_ptr = static_cast<T *>(batch_labels->data());
     std::fill(label_ptr, label_ptr + batch_labels->size(), static_cast<T>(0));
 
     for (size_t b = 0; b < batch_size; ++b) {
@@ -39,11 +36,11 @@ private:
       }
 
       for (size_t i = 0; i < context_length_; ++i) {
-        (*typed_batch_data)({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
+        batch_data->at<T>({b, i}) = static_cast<T>(mapped_data_[start_pos + i]);
         int token_id = static_cast<int>(mapped_data_[start_pos + i + 1]);
         // Only set label if token is valid and not a padding token
         if (token_id >= 0 && token_id < (int)vocab_size_ && token_id != padding_token_id_) {
-          (*typed_batch_labels)({b, i, (size_t)token_id}) = static_cast<T>(1);
+          batch_labels->at<T>({b, i, (size_t)token_id}) = static_cast<T>(1);
         }
       }
     }
