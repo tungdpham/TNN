@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -44,7 +45,7 @@ template <typename T>
 void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
                        cudaStream_t stream);
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

@@ -1,11 +1,14 @@
 #include "distributed/tcp_worker.hpp"
-#include "threading/thread_wrapper.hpp"
+
+#include <getopt.h>
+#include <unistd.h>
+
 #include <cstdlib>
 #include <cstring>
-#include <getopt.h>
 #include <iostream>
 #include <string>
-#include <unistd.h>
+
+#include "threading/thread_wrapper.hpp"
 
 using namespace tnn;
 
@@ -47,42 +50,42 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
 
   while ((c = getopt_long(argc, argv, "h", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'g':
-      cfg.use_gpu = true;
-      break;
-    case 'i':
-      try {
-        int threads = stoi(optarg);
-        if (threads <= 0) {
-          cerr << "Invalid io-threads value: " << optarg << endl;
+      case 'g':
+        cfg.use_gpu = true;
+        break;
+      case 'i':
+        try {
+          int threads = stoi(optarg);
+          if (threads <= 0) {
+            cerr << "Invalid io-threads value: " << optarg << endl;
+            return false;
+          }
+          cfg.io_threads = static_cast<size_t>(threads);
+        } catch (...) {
+          cerr << "--io-threads requires a valid number argument" << endl;
           return false;
         }
-        cfg.io_threads = static_cast<size_t>(threads);
-      } catch (...) {
-        cerr << "--io-threads requires a valid number argument" << endl;
-        return false;
-      }
-      break;
-    case 'n':
-      try {
-        int threads = stoi(optarg);
-        if (threads <= 0) {
-          cerr << "Invalid num-threads value: " << optarg << endl;
+        break;
+      case 'n':
+        try {
+          int threads = stoi(optarg);
+          if (threads <= 0) {
+            cerr << "Invalid num-threads value: " << optarg << endl;
+            return false;
+          }
+          cfg.num_threads = static_cast<size_t>(threads);
+        } catch (...) {
+          cerr << "--num-threads requires a valid number argument" << endl;
           return false;
         }
-        cfg.num_threads = static_cast<size_t>(threads);
-      } catch (...) {
-        cerr << "--num-threads requires a valid number argument" << endl;
+        break;
+      case 'h':
+        print_usage(argv[0]);
         return false;
-      }
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      return false;
-    case '?':
-      return false;
-    default:
-      return false;
+      case '?':
+        return false;
+      default:
+        return false;
     }
   }
 

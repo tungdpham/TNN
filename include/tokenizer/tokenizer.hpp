@@ -67,4 +67,4 @@ private:
   std::vector<std::string> vocab_;
 };
 
-} // namespace tnn
+}  // namespace tnn

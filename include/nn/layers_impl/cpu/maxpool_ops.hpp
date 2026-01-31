@@ -20,5 +20,5 @@ template <typename T>
 void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indices,
                       size_t batch_size, size_t channels, size_t output_h, size_t output_w);
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

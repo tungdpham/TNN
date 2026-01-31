@@ -16,6 +16,6 @@ template <typename T>
 void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, const size_t size,
                          const float learning_rate, const float momentum);
 
-} // namespace sgd
-} // namespace cpu
-} // namespace tnn
+}  // namespace sgd
+}  // namespace cpu
+}  // namespace tnn

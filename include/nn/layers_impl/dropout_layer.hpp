@@ -6,14 +6,14 @@
  */
 #pragma once
 
-#include "stateless_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <memory>
 #include <random>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "stateless_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -47,4 +47,4 @@ public:
   static std::unique_ptr<DropoutLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

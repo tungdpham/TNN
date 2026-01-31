@@ -1,16 +1,18 @@
-#include "distributed/message.hpp"
-#include "distributed/tcp_communicator.hpp"
-#include "tensor/tensor.hpp"
-#include "threading/thread_wrapper.hpp"
+#include <getopt.h>
+#include <unistd.h>
+
 #include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
-#include <getopt.h>
 #include <iostream>
 #include <mutex>
 #include <string>
-#include <unistd.h>
+
+#include "distributed/message.hpp"
+#include "distributed/tcp_communicator.hpp"
+#include "tensor/tensor.hpp"
+#include "threading/thread_wrapper.hpp"
 
 using namespace tnn;
 using namespace std;
@@ -56,56 +58,56 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
 
   while ((c = getopt_long(argc, argv, "h", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'H':
-      cfg.host = optarg;
-      break;
-    case 'p':
-      try {
-        cfg.port = stoi(optarg);
-        if (cfg.port <= 0 || cfg.port > 65535) {
-          cerr << "Invalid port value: " << optarg << endl;
+      case 'H':
+        cfg.host = optarg;
+        break;
+      case 'p':
+        try {
+          cfg.port = stoi(optarg);
+          if (cfg.port <= 0 || cfg.port > 65535) {
+            cerr << "Invalid port value: " << optarg << endl;
+            return false;
+          }
+        } catch (...) {
+          cerr << "--port requires a valid number argument" << endl;
           return false;
         }
-      } catch (...) {
-        cerr << "--port requires a valid number argument" << endl;
-        return false;
-      }
-      break;
-    case 'P':
-      cfg.peer_host = optarg;
-      break;
-    case 'r':
-      try {
-        cfg.peer_port = stoi(optarg);
-        if (cfg.peer_port <= 0 || cfg.peer_port > 65535) {
-          cerr << "Invalid peer-port value: " << optarg << endl;
+        break;
+      case 'P':
+        cfg.peer_host = optarg;
+        break;
+      case 'r':
+        try {
+          cfg.peer_port = stoi(optarg);
+          if (cfg.peer_port <= 0 || cfg.peer_port > 65535) {
+            cerr << "Invalid peer-port value: " << optarg << endl;
+            return false;
+          }
+        } catch (...) {
+          cerr << "--peer-port requires a valid number argument" << endl;
           return false;
         }
-      } catch (...) {
-        cerr << "--peer-port requires a valid number argument" << endl;
-        return false;
-      }
-      break;
-    case 'n':
-      try {
-        int threads = stoi(optarg);
-        if (threads <= 0) {
-          cerr << "Invalid num-threads value: " << optarg << endl;
+        break;
+      case 'n':
+        try {
+          int threads = stoi(optarg);
+          if (threads <= 0) {
+            cerr << "Invalid num-threads value: " << optarg << endl;
+            return false;
+          }
+          cfg.num_threads = static_cast<size_t>(threads);
+        } catch (...) {
+          cerr << "--num-threads requires a valid number argument" << endl;
           return false;
         }
-        cfg.num_threads = static_cast<size_t>(threads);
-      } catch (...) {
-        cerr << "--num-threads requires a valid number argument" << endl;
+        break;
+      case 'h':
+        print_usage(argv[0]);
         return false;
-      }
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      return false;
-    case '?':
-      return false;
-    default:
-      return false;
+      case '?':
+        return false;
+      default:
+        return false;
     }
   }
 

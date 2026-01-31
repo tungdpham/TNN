@@ -1175,7 +1175,6 @@ void mul_add_scalar(const double *a, double mul_scalar, double add_scalar, doubl
 double sum(const double *a, size_t size) {
 #ifdef __AVX2__
   if (reinterpret_cast<uintptr_t>(a) % 32 == 0) {
-
     double result;
     avx2_aligned_sum(a, size, &result);
     return result;
@@ -1243,7 +1242,7 @@ void fill_random_normal(double *data, size_t size, double mean, double stddev,
   }
 }
 
-} // namespace dp
-} // namespace cpu
-} // namespace ops
-} // namespace tnn
+}  // namespace dp
+}  // namespace cpu
+}  // namespace ops
+}  // namespace tnn

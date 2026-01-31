@@ -5,10 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/activations_impl/relu.hpp"
-#include "tensor/tensor.hpp"
+
 #include <cassert>
 
 #include "nn/activations_impl/cpu/relu_kernels.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/activations_impl/cuda/relu_kernels.hpp"
 #endif
@@ -97,4 +98,4 @@ std::unique_ptr<Task> ReLU::compute_gradient_impl(const Tensor &input, const Ten
   return nullptr;
 }
 
-} // namespace tnn
+}  // namespace tnn

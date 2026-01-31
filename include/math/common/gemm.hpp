@@ -24,4 +24,4 @@ inline void init_gemm_stats(GemmStats &stats, size_t M, size_t N, size_t K,
   stats.wgrad_workspace_size = 0;
 }
 
-} // namespace tnn
+}  // namespace tnn

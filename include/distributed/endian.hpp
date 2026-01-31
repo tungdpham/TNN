@@ -12,7 +12,8 @@ inline Endianness get_system_endianness() {
   return (u.c[0] == 1) ? Endianness::BIG : Endianness::LITTLE;
 }
 
-template <typename T> void bswap(T &value) {
+template <typename T>
+void bswap(T &value) {
   if constexpr (sizeof(T) == 1) {
     return;
   } else if constexpr (sizeof(T) == 2) {

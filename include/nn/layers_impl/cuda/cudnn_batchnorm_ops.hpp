@@ -1,10 +1,11 @@
 #pragma once
 
 #ifdef USE_CUDNN
-#include "nn/layers_impl/common/batchnorm.hpp"
-#include "type/type.hpp"
 #include <cudnn.h>
 #include <cudnn_graph.h>
+
+#include "nn/layers_impl/common/batchnorm.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -34,8 +35,8 @@ void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *i
                   void *grad_gamma, void *grad_beta, const void *batch_mean,
                   const void *batch_invar, void *workspace, cudaStream_t stream);
 
-} // namespace cudnn_batchnorm
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_batchnorm
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

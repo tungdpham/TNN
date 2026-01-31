@@ -4,19 +4,19 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include <cuda_fp16.h>
+#include <cuda_runtime.h>
+
 #include "cuda/error_handler.hpp"
 #include "nn/layers_impl/cuda/avgpool_ops.hpp"
 #include "type/type.hpp"
-
-#include <cuda_fp16.h>
-#include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
 
 // Forward kernel for NHWC average pooling
 template <typename T>
-__global__ void avgpool_forward_kernel(const T *input, T *output, size_t batch_size, size_t height,
+__global__ void avgpool_forward_kernel(const T* input, T* output, size_t batch_size, size_t height,
                                        size_t width, size_t channels, size_t pool_h, size_t pool_w,
                                        size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                                        size_t output_h, size_t output_w) {
@@ -24,8 +24,7 @@ __global__ void avgpool_forward_kernel(const T *input, T *output, size_t batch_s
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_outputs = batch_size * output_h * output_w * channels;
 
-  if (idx >= total_outputs)
-    return;
+  if (idx >= total_outputs) return;
 
   // Decode NHWC indices
   size_t c = idx % channels;
@@ -57,7 +56,7 @@ __global__ void avgpool_forward_kernel(const T *input, T *output, size_t batch_s
 
 // Backward kernel for NHWC average pooling
 template <typename T>
-__global__ void avgpool_backward_kernel(const T *grad_output, T *grad_input, size_t batch_size,
+__global__ void avgpool_backward_kernel(const T* grad_output, T* grad_input, size_t batch_size,
                                         size_t input_h, size_t input_w, size_t channels,
                                         size_t pool_h, size_t pool_w, size_t stride_h,
                                         size_t stride_w, size_t pad_h, size_t pad_w,
@@ -66,8 +65,7 @@ __global__ void avgpool_backward_kernel(const T *grad_output, T *grad_input, siz
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_outputs = batch_size * output_h * output_w * channels;
 
-  if (idx >= total_outputs)
-    return;
+  if (idx >= total_outputs) return;
 
   // Decode NHWC indices
   size_t c = idx % channels;
@@ -88,8 +86,7 @@ __global__ void avgpool_backward_kernel(const T *grad_output, T *grad_input, siz
 
   // Count valid elements
   int count = (h_end - h_start) * (w_end - w_start);
-  if (count == 0)
-    return;
+  if (count == 0) return;
 
   // Distribute gradient evenly
   float grad_per_element = grad / count;
@@ -103,7 +100,7 @@ __global__ void avgpool_backward_kernel(const T *grad_output, T *grad_input, siz
 
 // Specialization for half precision atomicAdd
 template <>
-__global__ void avgpool_backward_kernel<half>(const half *grad_output, half *grad_input,
+__global__ void avgpool_backward_kernel<half>(const half* grad_output, half* grad_input,
                                               size_t batch_size, size_t input_h, size_t input_w,
                                               size_t channels, size_t pool_h, size_t pool_w,
                                               size_t stride_h, size_t stride_w, size_t pad_h,
@@ -111,8 +108,7 @@ __global__ void avgpool_backward_kernel<half>(const half *grad_output, half *gra
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_outputs = batch_size * output_h * output_w * channels;
 
-  if (idx >= total_outputs)
-    return;
+  if (idx >= total_outputs) return;
 
   size_t c = idx % channels;
   size_t ow = (idx / channels) % output_w;
@@ -129,8 +125,7 @@ __global__ void avgpool_backward_kernel<half>(const half *grad_output, half *gra
   w_start = max(w_start, 0);
 
   int count = (h_end - h_start) * (w_end - w_start);
-  if (count == 0)
-    return;
+  if (count == 0) return;
 
   float grad_per_element = grad / count;
   __half grad_half = __float2half(grad_per_element);
@@ -138,13 +133,13 @@ __global__ void avgpool_backward_kernel<half>(const half *grad_output, half *gra
   for (int h = h_start; h < h_end; ++h) {
     for (int w = w_start; w < w_end; ++w) {
       size_t input_idx = ((b * input_h + h) * input_w + w) * channels + c;
-      atomicAdd(reinterpret_cast<__half *>(&grad_input[input_idx]), grad_half);
+      atomicAdd(reinterpret_cast<__half*>(&grad_input[input_idx]), grad_half);
     }
   }
 }
 
 template <typename T>
-void avgpool_forward(const T *input, T *output, size_t batch_size, size_t height, size_t width,
+void avgpool_forward(const T* input, T* output, size_t batch_size, size_t height, size_t width,
                      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,
                      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
                      size_t output_w) {
@@ -160,11 +155,10 @@ void avgpool_forward(const T *input, T *output, size_t batch_size, size_t height
 }
 
 template <typename T>
-void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, size_t input_h,
+void avgpool_backward(const T* grad_output, T* grad_input, size_t batch_size, size_t input_h,
                       size_t input_w, size_t channels, size_t pool_h, size_t pool_w,
                       size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
                       size_t output_w) {
-
   size_t total_outputs = batch_size * output_h * output_w * channels;
   int threads = 256;
   int blocks = (total_outputs + threads - 1) / threads;
@@ -176,14 +170,14 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
   CUDA_CHECK(cudaGetLastError());
 }
 
-#define INSTANTIATE_AVGPOOL_FUNCS(T)                                                               \
-  template void avgpool_forward<T>(const T *input, T *output, size_t batch_size, size_t height,    \
-                                   size_t width, size_t channels, size_t pool_h, size_t pool_w,    \
-                                   size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,   \
-                                   size_t output_h, size_t output_w);                              \
-  template void avgpool_backward<T>(                                                               \
-      const T *grad_output, T *grad_input, size_t batch_size, size_t input_h, size_t input_w,      \
-      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,             \
+#define INSTANTIATE_AVGPOOL_FUNCS(T)                                                             \
+  template void avgpool_forward<T>(const T* input, T* output, size_t batch_size, size_t height,  \
+                                   size_t width, size_t channels, size_t pool_h, size_t pool_w,  \
+                                   size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, \
+                                   size_t output_h, size_t output_w);                            \
+  template void avgpool_backward<T>(                                                             \
+      const T* grad_output, T* grad_input, size_t batch_size, size_t input_h, size_t input_w,    \
+      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,           \
       size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
 
 INSTANTIATE_AVGPOOL_FUNCS(fp16)
@@ -192,5 +186,5 @@ INSTANTIATE_AVGPOOL_FUNCS(float)
 INSTANTIATE_AVGPOOL_FUNCS(double)
 #undef INSTANTIATE_AVGPOOL_FUNCS
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

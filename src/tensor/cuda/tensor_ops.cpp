@@ -6,10 +6,12 @@
  */
 
 #include "tensor/cuda/tensor_ops.hpp"
+
+#include <cstddef>
+
 #include "tensor/cuda/tensor_kernels.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
-#include <cstddef>
 
 #ifdef USE_CUDA
 #include "cuda/error_handler.hpp"
@@ -47,7 +49,6 @@ template <typename T>
 void col2im_padded(const T *col_data, T *result_data, size_t batch_size, size_t channels,
                    size_t height, size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h,
                    size_t stride_w, size_t pad_h, size_t pad_w, cudaStream_t stream) {
-
   const size_t padded_h = height + 2 * pad_h;
   const size_t padded_w = width + 2 * pad_w;
   const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
@@ -62,7 +63,6 @@ template <typename T>
 void col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels, size_t height,
             size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
             size_t pad_h, size_t pad_w, cudaStream_t stream) {
-
   col2im_padded(col_data, result_data, batch_size, channels, height, width, kernel_h, kernel_w,
                 stride_h, stride_w, pad_h, pad_w, stream);
 }
@@ -181,18 +181,18 @@ void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
 }
 
 // Explicit template instantiations for float
-#define INSTANTIATE_TENSOR_OPS(T)                                                                  \
-  template void im2col<T>(const Tensor &, T *, size_t, size_t, size_t, size_t, size_t, size_t,     \
-                          cudaStream_t);                                                           \
-  template void col2im_padded<T>(const T *, T *, size_t, size_t, size_t, size_t, size_t, size_t,   \
-                                 size_t, size_t, size_t, size_t, cudaStream_t);                    \
-  template void col2im<T>(const T *, T *, size_t, size_t, size_t, size_t, size_t, size_t, size_t,  \
-                          size_t, size_t, size_t, cudaStream_t);                                   \
-  template void pad<T>(const Tensor &, Tensor &, size_t, size_t, T, cudaStream_t);                 \
-  template void unpad<T>(const Tensor &, Tensor &, size_t, size_t, cudaStream_t);                  \
-  template void crop<T>(const Tensor &, Tensor &, const size_t, const size_t, const size_t,        \
-                        const size_t, cudaStream_t);                                               \
-  template void slice_batch<T>(const Tensor &, Tensor &, size_t, size_t, cudaStream_t);            \
+#define INSTANTIATE_TENSOR_OPS(T)                                                                 \
+  template void im2col<T>(const Tensor &, T *, size_t, size_t, size_t, size_t, size_t, size_t,    \
+                          cudaStream_t);                                                          \
+  template void col2im_padded<T>(const T *, T *, size_t, size_t, size_t, size_t, size_t, size_t,  \
+                                 size_t, size_t, size_t, size_t, cudaStream_t);                   \
+  template void col2im<T>(const T *, T *, size_t, size_t, size_t, size_t, size_t, size_t, size_t, \
+                          size_t, size_t, size_t, cudaStream_t);                                  \
+  template void pad<T>(const Tensor &, Tensor &, size_t, size_t, T, cudaStream_t);                \
+  template void unpad<T>(const Tensor &, Tensor &, size_t, size_t, cudaStream_t);                 \
+  template void crop<T>(const Tensor &, Tensor &, const size_t, const size_t, const size_t,       \
+                        const size_t, cudaStream_t);                                              \
+  template void slice_batch<T>(const Tensor &, Tensor &, size_t, size_t, cudaStream_t);           \
   template void split<T>(const Tensor &, std::vector<Tensor> &, size_t, cudaStream_t);
 
 INSTANTIATE_TENSOR_OPS(fp16)
@@ -201,8 +201,8 @@ INSTANTIATE_TENSOR_OPS(float)
 INSTANTIATE_TENSOR_OPS(double)
 #undef INSTANTIATE_TENSOR_OPS
 
-} // namespace cuda
+}  // namespace cuda
 
-} // namespace tnn
+}  // namespace tnn
 
-#endif // USE_CUDA
+#endif  // USE_CUDA

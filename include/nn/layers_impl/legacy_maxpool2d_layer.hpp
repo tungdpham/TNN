@@ -6,14 +6,14 @@
  */
 #pragma once
 
-#include "device/task.hpp"
-#include "stateless_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "device/task.hpp"
+#include "stateless_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -33,11 +33,12 @@ private:
   std::unique_ptr<Task> backward_task_;
 
   template <typename Compute_T>
-  std::unique_ptr<Task>
-  compute_max_pool_forward_impl(const Tensor &input_data, Tensor &output_data, size_t batch_size,
-                                size_t channels, size_t input_h, size_t input_w, size_t output_h,
-                                size_t output_w, Tensor &mask_indices,
-                                const std::string &flow_id) const;
+  std::unique_ptr<Task> compute_max_pool_forward_impl(const Tensor &input_data, Tensor &output_data,
+                                                      size_t batch_size, size_t channels,
+                                                      size_t input_h, size_t input_w,
+                                                      size_t output_h, size_t output_w,
+                                                      Tensor &mask_indices,
+                                                      const std::string &flow_id) const;
 
   std::unique_ptr<Task> compute_max_pool_forward(const Tensor &input_data, Tensor &output_data,
                                                  size_t batch_size, size_t channels, size_t input_h,
@@ -79,4 +80,4 @@ public:
   static std::unique_ptr<LegacyMaxPool2DLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

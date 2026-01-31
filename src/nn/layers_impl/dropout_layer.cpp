@@ -109,8 +109,8 @@ std::unique_ptr<Layer> DropoutLayer::clone() const {
   return std::make_unique<DropoutLayer>(dropout_rate_, this->name_);
 }
 
-std::vector<size_t>
-DropoutLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> DropoutLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -146,4 +146,4 @@ uint64_t DropoutLayer::backward_flops(const std::vector<size_t> &input_shape) co
   return num_elements;
 }
 
-} // namespace tnn
+}  // namespace tnn

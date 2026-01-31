@@ -7,7 +7,8 @@
 
 namespace tnn {
 
-template <typename EnumType> constexpr std::vector<EnumType> get_enum_vector() {
+template <typename EnumType>
+constexpr std::vector<EnumType> get_enum_vector() {
   static_assert(std::is_enum_v<EnumType>, "Template parameter must be an enum type");
   static_assert(std::is_same_v<decltype(EnumType::_COUNT), EnumType>,
                 "Enum type must have a _COUNT member to indicate the number of "
@@ -22,7 +23,8 @@ template <typename EnumType> constexpr std::vector<EnumType> get_enum_vector() {
   return values;
 }
 
-template <typename Func> void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
+template <typename Func>
+void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
   std::cout << "Benchmarking: " << name << std::endl;
   std::vector<double> times;
   for (int i = 0; i < bench_runs; ++i) {
@@ -37,4 +39,4 @@ template <typename Func> void benchmark(const std::string &name, Func &&func, in
   std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
-} // namespace tnn
+}  // namespace tnn

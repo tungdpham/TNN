@@ -6,11 +6,12 @@
  */
 #pragma once
 
+#include <csignal>
+#include <memory>
+
 #include "distributed/endpoint.hpp"
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
-#include <csignal>
-#include <memory>
 
 namespace tnn {
 
@@ -32,7 +33,6 @@ public:
    */
   explicit TCPWorker(Endpoint endpoint, bool use_gpu, size_t io_threads = 1)
       : Worker(use_gpu), io_threads_(io_threads) {
-
     auto communicator = std::make_unique<TcpCommunicator>(endpoint, io_threads_);
 
     communicator->start_server();
@@ -47,4 +47,4 @@ public:
 private:
   size_t io_threads_;
 };
-} // namespace tnn
+}  // namespace tnn

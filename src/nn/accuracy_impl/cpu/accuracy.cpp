@@ -93,6 +93,6 @@ template int compute_class_corrects<fp16>(const fp16 *, const fp16 *, const size
 template int compute_class_corrects<bf16>(const bf16 *, const bf16 *, const size_t, const size_t,
                                           float);
 
-} // namespace accuracy
-} // namespace cpu
-} // namespace tnn
+}  // namespace accuracy
+}  // namespace cpu
+}  // namespace tnn

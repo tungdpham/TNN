@@ -27,7 +27,7 @@ struct MklInitializer {
   MklInitializer() { initialize_mkl(); }
 };
 static MklInitializer mkl_init;
-} // anonymous namespace
+}  // anonymous namespace
 
 /**
  * @brief Wrapper for Intel MKL SGEMM (single precision)
@@ -163,7 +163,7 @@ inline void conv_input_grad_gemm(const T *weights, const T *output_grad, T *col_
        output_size, T(0.0), col_grad, output_size);
 }
 
-} // namespace mkl
-} // namespace tnn
+}  // namespace mkl
+}  // namespace tnn
 
-#endif // USE_MKL
+#endif  // USE_MKL

@@ -25,7 +25,8 @@ struct LossConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -166,8 +167,9 @@ public:
   std::unique_ptr<Task> compute_gradient(const Tensor &logits, const Tensor &targets,
                                          Tensor &gradient) override {
     if (logits->device() != targets->device() || logits->device() != gradient->device()) {
-      throw std::runtime_error("Logits, targets, and gradient must be on the same device for "
-                               "LogSoftmaxCrossEntropyLoss.");
+      throw std::runtime_error(
+          "Logits, targets, and gradient must be on the same device for "
+          "LogSoftmaxCrossEntropyLoss.");
     }
     DISPATCH_ON_DTYPE(logits->data_type(), T,
                       return compute_gradient_impl<T>(logits, targets, gradient));
@@ -555,4 +557,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

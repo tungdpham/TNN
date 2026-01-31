@@ -8,21 +8,23 @@
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/layer_norm_ops.hpp"
 #endif
-#include "device/task.hpp"
-#include "nn/layers_impl/layer_norm_layer.hpp"
 #include <stdexcept>
 #include <type_traits>
+
+#include "device/task.hpp"
+#include "nn/layers_impl/layer_norm_layer.hpp"
 
 namespace tnn {
 
 LayerNormLayer::LayerNormLayer(size_t normalized_shape, float epsilon, bool affine,
                                const std::string &name)
-    : ParameterizedLayer(name), normalized_shape_(normalized_shape), epsilon_(epsilon),
+    : ParameterizedLayer(name),
+      normalized_shape_(normalized_shape),
+      epsilon_(epsilon),
       affine_(affine) {}
 
 void LayerNormLayer::init_params() {
-  if (this->initialized_)
-    return;
+  if (this->initialized_) return;
 
   if (affine_) {
     gamma_ = make_param_tensor({normalized_shape_});
@@ -163,20 +165,16 @@ void LayerNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 uint64_t LayerNormLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  if (input_shape.size() < 2)
-    return 0;
+  if (input_shape.size() < 2) return 0;
   size_t elements = 1;
-  for (size_t s : input_shape)
-    elements *= s;
+  for (size_t s : input_shape) elements *= s;
   return elements * 8;
 }
 
 uint64_t LayerNormLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  if (input_shape.size() < 2)
-    return 0;
+  if (input_shape.size() < 2) return 0;
   size_t elements = 1;
-  for (size_t s : input_shape)
-    elements *= s;
+  for (size_t s : input_shape) elements *= s;
   return elements * 16;
 }
 
@@ -215,4 +213,4 @@ std::unique_ptr<LayerNormLayer> LayerNormLayer::create_from_config(const LayerCo
   return std::make_unique<LayerNormLayer>(normalized_shape, epsilon, affine, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

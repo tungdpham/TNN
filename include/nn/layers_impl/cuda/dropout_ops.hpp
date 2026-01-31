@@ -2,8 +2,9 @@
 
 #ifdef USE_CUDA
 
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -15,7 +16,7 @@ void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, 
                              cudaStream_t stream);
 
 }
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

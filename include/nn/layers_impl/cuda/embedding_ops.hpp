@@ -2,8 +2,9 @@
 
 #ifdef USE_CUDA
 
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -19,8 +20,8 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
                                 size_t num_indices, size_t vocab_size, size_t embed_dim,
                                 size_t padding_idx, cudaStream_t stream);
 
-} // namespace embedding
-} // namespace cuda
-} // namespace tnn
+}  // namespace embedding
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

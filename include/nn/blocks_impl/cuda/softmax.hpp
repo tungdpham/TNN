@@ -20,6 +20,6 @@ template <typename T>
 void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_output, T *grad_input,
                       size_t rows, size_t cols, cudaStream_t stream);
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn
 #endif

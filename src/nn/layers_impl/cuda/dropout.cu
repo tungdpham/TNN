@@ -4,31 +4,35 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/layers_impl/cuda/dropout_ops.hpp"
-
-#include "type/type.hpp"
-#include <algorithm>
-#include <ctime>
 #include <cuda_runtime.h>
 #include <curand_kernel.h>
+
+#include <algorithm>
+#include <ctime>
+
+#include "nn/layers_impl/cuda/dropout_ops.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
 namespace dropout {
 #define BLOCK_SIZE 256
 
-template <typename T> struct VectorType;
-template <> struct VectorType<float> {
+template <typename T>
+struct VectorType;
+template <>
+struct VectorType<float> {
   using type = float4;
 };
-template <> struct VectorType<double> {
+template <>
+struct VectorType<double> {
   using type = double2;
 };
 
 template <typename T>
-__global__ void compute_dropout_forward_kernel_vectorized(const T *__restrict__ input_data,
-                                                          T *__restrict__ output_data,
-                                                          T *__restrict__ mask_data,
+__global__ void compute_dropout_forward_kernel_vectorized(const T* __restrict__ input_data,
+                                                          T* __restrict__ output_data,
+                                                          T* __restrict__ mask_data,
                                                           size_t n_elements, T dropout_rate,
                                                           T scale, unsigned long long seed) {
   using VecT = typename VectorType<T>::type;
@@ -36,9 +40,9 @@ __global__ void compute_dropout_forward_kernel_vectorized(const T *__restrict__ 
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int stride = blockDim.x * gridDim.x;
 
-  const VecT *input_vec = reinterpret_cast<const VecT *>(input_data);
-  VecT *output_vec = reinterpret_cast<VecT *>(output_data);
-  VecT *mask_vec = reinterpret_cast<VecT *>(mask_data);
+  const VecT* input_vec = reinterpret_cast<const VecT*>(input_data);
+  VecT* output_vec = reinterpret_cast<VecT*>(output_data);
+  VecT* mask_vec = reinterpret_cast<VecT*>(mask_data);
 
   size_t n_vectors = n_elements / (sizeof(VecT) / sizeof(T));
 
@@ -102,7 +106,7 @@ __global__ void compute_dropout_forward_kernel_vectorized(const T *__restrict__ 
 }
 
 template <typename T>
-__global__ void compute_dropout_forward_kernel(const T *input_data, T *output_data, T *mask_data,
+__global__ void compute_dropout_forward_kernel(const T* input_data, T* output_data, T* mask_data,
                                                size_t batch_size, size_t channels,
                                                size_t spatial_size, T dropout_rate, T scale,
                                                unsigned long long seed) {
@@ -127,7 +131,7 @@ __global__ void compute_dropout_forward_kernel(const T *input_data, T *output_da
 }
 
 template <typename T>
-void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, size_t batch_size,
+void compute_dropout_forward(const T* input_data, T* output_data, T* mask_data, size_t batch_size,
                              size_t channels, size_t spatial_size, T dropout_rate,
                              cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
@@ -145,16 +149,15 @@ void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, 
     compute_dropout_forward_kernel_vectorized<float><<<blocks, threads, 0, stream>>>(
         input_data, output_data, mask_data, total_elements, dropout_rate, scale, seed);
   } else {
-
     compute_dropout_forward_kernel<<<blocks, threads, 0, stream>>>(
         input_data, output_data, mask_data, batch_size, channels, spatial_size, dropout_rate, scale,
         seed);
   }
 }
 
-#define INSTANTIATE_DROPOUT(T)                                                                     \
-  template void compute_dropout_forward<T>(                                                        \
-      const T *input_data, T *output_data, T *mask_data, size_t batch_size, size_t channels,       \
+#define INSTANTIATE_DROPOUT(T)                                                               \
+  template void compute_dropout_forward<T>(                                                  \
+      const T* input_data, T* output_data, T* mask_data, size_t batch_size, size_t channels, \
       size_t spatial_size, T dropout_rate, cudaStream_t stream);
 INSTANTIATE_DROPOUT(fp16)
 INSTANTIATE_DROPOUT(bf16)
@@ -162,6 +165,6 @@ INSTANTIATE_DROPOUT(float)
 INSTANTIATE_DROPOUT(double)
 #undef INSTANTIATE_DROPOUT
 
-} // namespace dropout
-} // namespace cuda
-} // namespace tnn
+}  // namespace dropout
+}  // namespace cuda
+}  // namespace tnn

@@ -1,8 +1,9 @@
 #pragma once
 
-#include "augmentation.hpp"
 #include <algorithm>
 #include <random>
+
+#include "augmentation.hpp"
 
 namespace tnn {
 
@@ -25,13 +26,13 @@ private:
   float probability_;
   float brightness_range_;
 
-  template <typename T> void apply_impl(Tensor &data, Tensor &labels) {
+  template <typename T>
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> brightness_dist(-brightness_range_, brightness_range_);
 
     const auto shape = data->shape();
-    if (shape.size() != 4)
-      return;
+    if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
     auto typed_data = Tensor::cast<T>(data);
@@ -51,4 +52,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

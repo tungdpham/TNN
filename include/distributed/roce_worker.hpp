@@ -6,11 +6,12 @@
  */
 #pragma once
 
+#include <memory>
+
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include "roce_communicator.hpp"
 #include "worker.hpp"
-#include <memory>
 
 namespace tnn {
 
@@ -32,7 +33,6 @@ public:
    */
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
-
     auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, use_gpu);
 
     communicator->start_server();
@@ -46,4 +46,4 @@ private:
   Endpoint worker_endpoint_;
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -12,14 +12,16 @@
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
-#include "ops/ops.hpp"
 #include <cstdlib>
+
+#include "ops/ops.hpp"
 #ifdef _WIN32
 #include <malloc.h>
 #endif
 
 namespace tnn {
-template <typename T = float> struct Matrix {
+template <typename T = float>
+struct Matrix {
 private:
   size_t rows_, cols_;
   const Device *device_;
@@ -29,8 +31,7 @@ private:
   static constexpr size_t AVX2_ALIGNMENT = 32;
 
   void allocate_aligned(size_t count) {
-    if (count == 0)
-      return;
+    if (count == 0) return;
 
     data_ = make_dptr_t<T>(device_, count, MKL_ALIGNMENT);
   }
@@ -214,4 +215,4 @@ public:
                             static_cast<unsigned long long>(std::random_device{}()));
   }
 };
-} // namespace tnn
+}  // namespace tnn

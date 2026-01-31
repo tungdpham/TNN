@@ -5,10 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/activations_impl/tanh.hpp"
-#include "tensor/tensor.hpp"
+
 #include <cassert>
 
 #include "nn/activations_impl/cpu/tanh_kernels.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/activations_impl/cuda/tanh_kernels.hpp"
 #endif
@@ -94,4 +95,4 @@ std::unique_ptr<Task> Tanh::compute_gradient_impl(const Tensor &input, const Ten
   return nullptr;
 }
 
-} // namespace tnn
+}  // namespace tnn

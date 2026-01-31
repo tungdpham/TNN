@@ -43,4 +43,4 @@ public:
   virtual std::vector<float> get_target_stds() const { return {}; }
 };
 
-} // namespace tnn
+}  // namespace tnn

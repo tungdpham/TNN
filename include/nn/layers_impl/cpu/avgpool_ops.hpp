@@ -22,5 +22,5 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
                       size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h,
                       size_t output_w);
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

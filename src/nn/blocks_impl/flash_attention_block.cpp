@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/blocks_impl/flash_attention_block.hpp"
+
 #include "device/cuda/cuda_context.hpp"
 #include "device/device_type.hpp"
 #include "device/task.hpp"
@@ -18,19 +19,21 @@
 #include "cuda/cudnn/common.hpp"
 #include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
 #endif
-#include "type/type.hpp"
 #include <cmath>
 #include <stdexcept>
 #include <string>
+
+#include "type/type.hpp"
 
 namespace tnn {
 
 // Constructor
 FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal,
                                          const std::string &name)
-    : ParameterizedLayer(name), embed_dim_(embed_dim), num_heads_(num_heads),
+    : ParameterizedLayer(name),
+      embed_dim_(embed_dim),
+      num_heads_(num_heads),
       is_causal_(is_causal) {
-
   if (embed_dim % num_heads != 0) {
     throw std::invalid_argument("embed_dim must be divisible by num_heads");
   }
@@ -344,8 +347,8 @@ std::unique_ptr<Layer> FlashAttentionBlock::clone() const {
   return std::make_unique<FlashAttentionBlock>(embed_dim_, num_heads_, is_causal_, this->name_);
 }
 
-std::vector<size_t>
-FlashAttentionBlock::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> FlashAttentionBlock::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -371,12 +374,12 @@ void FlashAttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
   grads.insert(grads.end(), out_grads.begin(), out_grads.end());
 }
 
-std::unique_ptr<FlashAttentionBlock>
-FlashAttentionBlock::create_from_config(const LayerConfig &config) {
+std::unique_ptr<FlashAttentionBlock> FlashAttentionBlock::create_from_config(
+    const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t num_heads = config.get<size_t>("num_heads");
   bool is_causal = config.get<bool>("is_causal", true);
   return std::make_unique<FlashAttentionBlock>(embed_dim, num_heads, is_causal, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

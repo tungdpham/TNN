@@ -6,13 +6,14 @@
  */
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include "coordinator.hpp"
 #include "device/device_manager.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
 #include "roce_communicator.hpp"
-#include <memory>
-#include <vector>
 
 namespace tnn {
 
@@ -38,7 +39,6 @@ public:
   RoceCoordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
                   Endpoint coordinator_endpoint, const std::vector<Endpoint> &endpoints = {})
       : Coordinator(std::move(model), std::move(optimizer)) {
-
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
     this->worker_endpoints_ = endpoints;
@@ -55,4 +55,4 @@ public:
   ~RoceCoordinator() = default;
 };
 
-} // namespace tnn
+}  // namespace tnn

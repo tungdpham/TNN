@@ -47,7 +47,7 @@ class SliceLayer;
 class TransposeLayer;
 class Sequential;
 
-} // namespace tnn
+}  // namespace tnn
 
 // Wrapper to include all layer implementations
 #include "blocks_impl/attention_block.hpp"
@@ -98,7 +98,8 @@ public:
     creators_[type] = creator;
   }
 
-  template <HasLayerTypeName LayerType> static void register_layer_type() {
+  template <HasLayerTypeName LayerType>
+  static void register_layer_type() {
     register_layer(LayerType::TYPE_NAME, [](const LayerConfig &config) -> std::unique_ptr<Layer> {
       return LayerType::create_from_config(config);
     });
@@ -194,8 +195,9 @@ public:
 
   std::vector<size_t> get_current_shape() const {
     if (!input_shape_set_) {
-      throw std::runtime_error("Input shape must be set before adding layers. "
-                               "Use .input() method first.");
+      throw std::runtime_error(
+          "Input shape must be set before adding layers. "
+          "Use .input() method first.");
     }
     std::vector<size_t> current_shape = input_shape_;
     for (const auto &layer : layers_) {
@@ -249,9 +251,10 @@ public:
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() != 4) {
-      throw std::runtime_error("Conv2D requires 4D input (batch, channels, "
-                               "height, width). Current shape has " +
-                               std::to_string(current_shape.size()) + " dimensions.");
+      throw std::runtime_error(
+          "Conv2D requires 4D input (batch, channels, "
+          "height, width). Current shape has " +
+          std::to_string(current_shape.size()) + " dimensions.");
     }
 
     size_t in_channels = current_shape.back();
@@ -317,9 +320,10 @@ public:
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 4) {
-      throw std::runtime_error("Conv2D requires 4D input (batch, channels, "
-                               "height, width). Current shape has " +
-                               std::to_string(current_shape.size()) + " dimensions.");
+      throw std::runtime_error(
+          "Conv2D requires 4D input (batch, channels, "
+          "height, width). Current shape has " +
+          std::to_string(current_shape.size()) + " dimensions.");
     }
 
     size_t in_channels = current_shape[1];
@@ -625,7 +629,7 @@ public:
 
     // 2. Feed-Forward Sub-block (Residual)
     auto ffn_main = LayerBuilder()
-                        .input(batchless_shape) // Input shape matches (residual preserves shape)
+                        .input(batchless_shape)  // Input shape matches (residual preserves shape)
                         .layernorm(dtype_eps(io_dtype_), true, "ln_2")
                         .dense(ffn_dim, true, "mlp_fc1")
                         .activation(activation_fn)
@@ -668,7 +672,7 @@ public:
 
     // 2. Feed-Forward Sub-block (Residual)
     auto ffn_main = LayerBuilder()
-                        .input(batchless_shape) // Input shape matches (residual preserves shape)
+                        .input(batchless_shape)  // Input shape matches (residual preserves shape)
                         .layernorm(dtype_eps(io_dtype_), true, "ln_2")
                         .dense(ffn_dim, true, "mlp_fc1")
                         .activation(activation_fn)
@@ -690,8 +694,9 @@ public:
 
   std::vector<std::unique_ptr<Layer>> build() {
     if (!input_shape_set_) {
-      throw std::runtime_error("Input shape must be set before building block. "
-                               "Use .input() method.");
+      throw std::runtime_error(
+          "Input shape must be set before building block. "
+          "Use .input() method.");
     }
     return std::move(layers_);
   }
@@ -703,4 +708,4 @@ public:
 inline std::unordered_map<std::string, std::function<std::unique_ptr<Layer>(const LayerConfig &)>>
     LayerFactory::creators_;
 
-} // namespace tnn
+}  // namespace tnn

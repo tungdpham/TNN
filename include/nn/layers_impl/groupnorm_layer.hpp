@@ -6,12 +6,12 @@
  */
 #pragma once
 
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -64,4 +64,4 @@ public:
   static std::unique_ptr<GroupNormLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

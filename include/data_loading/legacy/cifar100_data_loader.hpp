@@ -6,15 +6,15 @@
  */
 #pragma once
 
-#include "data_loading/image_data_loader.hpp"
-#include "tensor/tensor.hpp"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <numeric>
-
 #include <string>
 #include <vector>
+
+#include "data_loading/image_data_loader.hpp"
+#include "tensor/tensor.hpp"
 
 namespace cifar100_constants {
 constexpr size_t IMAGE_HEIGHT = 32;
@@ -25,7 +25,7 @@ constexpr size_t NUM_COARSE_CLASSES = 20;
 constexpr size_t NUM_CHANNELS = 3;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE;
-} // namespace cifar100_constants
+}  // namespace cifar100_constants
 
 namespace tnn {
 namespace legacy {
@@ -85,7 +85,8 @@ private:
                                                   "vehicles_1",
                                                   "vehicles_2"};
 
-  template <typename T> bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
+  template <typename T>
+  bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
     data_.clear();
     fine_labels_.clear();
     coarse_labels_.clear();
@@ -101,7 +102,6 @@ private:
       size_t records_loaded = 0;
 
       while (file.read(buffer, cifar100_constants::RECORD_SIZE)) {
-
         coarse_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[0])));
 
         fine_labels_.push_back(static_cast<int>(static_cast<unsigned char>(buffer[1])));
@@ -176,7 +176,6 @@ private:
 public:
   CIFAR100DataLoader(bool use_coarse_labels = false, DType_t dtype = DType_t::FP32)
       : ImageDataLoader(), use_coarse_labels_(use_coarse_labels), dtype_(dtype) {
-
     data_.reserve(50000);
     fine_labels_.reserve(50000);
     coarse_labels_.reserve(50000);
@@ -190,13 +189,11 @@ public:
    * @return true if successful, false otherwise
    */
   bool load_data(const std::string &source) override {
-
     std::vector<std::string> filenames;
 
     if (source.find(".bin") != std::string::npos) {
       filenames.push_back(source);
     } else {
-
       std::cerr << "Error: For multiple files, use load_multiple_files() method" << std::endl;
       return false;
     }
@@ -230,8 +227,7 @@ public:
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (data_.empty())
-      return;
+    if (data_.empty()) return;
 
     std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
@@ -368,5 +364,5 @@ public:
     }
   }
 };
-} // namespace legacy
-} // namespace tnn
+}  // namespace legacy
+}  // namespace tnn

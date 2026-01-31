@@ -1,11 +1,12 @@
 #include "ops/cpu/skernels.hpp"
 
-#include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <random>
+
+#include "threading/thread_handler.hpp"
 #ifdef __AVX2__
 #include <immintrin.h>
 #endif
@@ -757,7 +758,7 @@ inline float avx2_unaligned_sum_squared_diff(const float *a, float mean, size_t 
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_loadu_ps(&a[i]);
     __m256 diff = _mm256_sub_ps(vec_a, vec_mean);
-    sum = _mm256_fmadd_ps(diff, diff, sum); // sum += diff * diff
+    sum = _mm256_fmadd_ps(diff, diff, sum);  // sum += diff * diff
   }
 
   // Horizontal sum of the vector
@@ -785,7 +786,7 @@ inline float avx2_aligned_sum_squared_diff(const float *a, float mean, size_t si
   for (size_t i = 0; i < vec_size; i += 8) {
     __m256 vec_a = _mm256_load_ps(&a[i]);
     __m256 diff = _mm256_sub_ps(vec_a, vec_mean);
-    sum = _mm256_fmadd_ps(diff, diff, sum); // sum += diff * diff
+    sum = _mm256_fmadd_ps(diff, diff, sum);  // sum += diff * diff
   }
 
   // Horizontal sum of the vector
@@ -876,7 +877,7 @@ inline void avx2_aligned_mul_add_scalar(const float *a, float mul_scalar, float 
   }
 }
 
-#endif // __AVX2__
+#endif  // __AVX2__
 
 // --- Wrapper Implementations (Float) ---
 // These provide the dispatch logic to AVX2/Scalar
@@ -1338,7 +1339,7 @@ float sum_squared_diff(const float *a, float mean, size_t size) {
 inline __m256 _mm256_log_ps(__m256 x) {
   // Constants for log approximation
   const __m256 one = _mm256_set1_ps(1.0f);
-  const __m256 c1 = _mm256_set1_ps(0.693147181f); // ln(2)
+  const __m256 c1 = _mm256_set1_ps(0.693147181f);  // ln(2)
   const __m256 c2 = _mm256_set1_ps(-0.5f);
   const __m256 c3 = _mm256_set1_ps(0.333333333f);
   const __m256 c4 = _mm256_set1_ps(-0.25f);
@@ -1488,7 +1489,7 @@ void fill_random_normal(float *data, size_t size, float mean, float stddev,
 #endif
 }
 
-} // namespace fp
-} // namespace cpu
-} // namespace ops
-} // namespace tnn
+}  // namespace fp
+}  // namespace cpu
+}  // namespace ops
+}  // namespace tnn

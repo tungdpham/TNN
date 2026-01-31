@@ -6,11 +6,12 @@
  */
 #pragma once
 
-#include "nn/layers_impl/stateless_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "nn/layers_impl/stateless_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -38,4 +39,4 @@ public:
   static std::unique_ptr<TransposeLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

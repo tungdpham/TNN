@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/avgpool2d_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/avgpool_ops.hpp"
 #ifdef USE_CUDA
@@ -16,10 +17,13 @@ namespace tnn {
 
 AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
                                size_t pad_h, size_t pad_w, const std::string &name)
-    : StatelessLayer(name), pool_h_(pool_h), pool_w_(pool_w),
-      stride_h_(stride_h == 0 ? pool_h : stride_h), stride_w_(stride_w == 0 ? pool_w : stride_w),
-      pad_h_(pad_h), pad_w_(pad_w) {
-
+    : StatelessLayer(name),
+      pool_h_(pool_h),
+      pool_w_(pool_w),
+      stride_h_(stride_h == 0 ? pool_h : stride_h),
+      stride_w_(stride_w == 0 ? pool_w : stride_w),
+      pad_h_(pad_h),
+      pad_w_(pad_w) {
   if (pool_h_ == 0 || pool_w_ == 0) {
     throw std::invalid_argument("Pool dimensions must be positive");
   }
@@ -106,11 +110,10 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task>
-AvgPool2DLayer::compute_avg_pool_backward_impl(const Tensor &gradient_data, Tensor &grad_input_data,
-                                               size_t batch_size, size_t input_h, size_t input_w,
-                                               size_t channels, size_t output_h, size_t output_w,
-                                               const std::string &flow_id) const {
+std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward_impl(
+    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t input_h,
+    size_t input_w, size_t channels, size_t output_h, size_t output_w,
+    const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
       grad_input_data->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in backward pass");
@@ -154,8 +157,8 @@ std::unique_ptr<Layer> AvgPool2DLayer::clone() const {
                                           this->name_);
 }
 
-std::vector<size_t>
-AvgPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> AvgPool2DLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("AvgPool2DLayer: input shape must be 4D (NHWC format)");
   }
@@ -213,4 +216,4 @@ uint64_t AvgPool2DLayer::backward_flops(const std::vector<size_t> &input_shape) 
   return flops_per_element * total_inputs;
 }
 
-} // namespace tnn
+}  // namespace tnn

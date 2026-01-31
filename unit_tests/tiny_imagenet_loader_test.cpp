@@ -1,6 +1,8 @@
-#include "data_loading/legacy/tiny_imagenet_data_loader.hpp"
 #include <gtest/gtest.h>
+
 #include <iostream>
+
+#include "data_loading/legacy/tiny_imagenet_data_loader.hpp"
 
 using namespace tnn::legacy;
 using namespace tnn;
@@ -55,9 +57,9 @@ TEST_F(TinyImageNetLoaderTest, ValidationDataSize) {
 TEST_F(TinyImageNetLoaderTest, ImageShape) {
   auto shape = train_loader.get_data_shape();
   ASSERT_EQ(shape.size(), 3);
-  EXPECT_EQ(shape[0], 3);  // Channels
-  EXPECT_EQ(shape[1], 64); // Height
-  EXPECT_EQ(shape[2], 64); // Width
+  EXPECT_EQ(shape[0], 3);   // Channels
+  EXPECT_EQ(shape[1], 64);  // Height
+  EXPECT_EQ(shape[2], 64);  // Width
 }
 
 TEST_F(TinyImageNetLoaderTest, NumClasses) { EXPECT_EQ(train_loader.get_num_classes(), 200); }
@@ -102,8 +104,7 @@ TEST_F(TinyImageNetLoaderTest, OneHotLabels) {
     for (size_t j = 0; j < 200; ++j) {
       float val = batch_labels->at<float>({i, j, 0, 0});
       sum += val;
-      if (val > 0.5f)
-        num_ones++;
+      if (val > 0.5f) num_ones++;
     }
 
     EXPECT_NEAR(sum, 1.0f, 1e-5) << "Label sum should be 1.0 for sample " << i;

@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/blocks_impl/attention_block.hpp"
+
 #include "type/type.hpp"
 #ifdef USE_CUDA
 #include "device/cuda/cuda_context.hpp"
@@ -13,17 +14,19 @@
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
 #include "nn/blocks_impl/cuda/softmax.hpp"
 #endif
-#include "tensor/ops.hpp"
 #include <cmath>
 #include <stdexcept>
+
+#include "tensor/ops.hpp"
 
 namespace tnn {
 
 AttentionBlock::AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal,
                                const std::string &name)
-    : ParameterizedLayer(name), embed_dim_(embed_dim), num_heads_(num_heads),
+    : ParameterizedLayer(name),
+      embed_dim_(embed_dim),
+      num_heads_(num_heads),
       is_causal_(is_causal) {
-
   if (embed_dim % num_heads != 0) {
     throw std::invalid_argument("embed_dim must be divisible by num_heads");
   }
@@ -144,8 +147,8 @@ std::unique_ptr<Layer> AttentionBlock::clone() const {
   return std::make_unique<AttentionBlock>(embed_dim_, num_heads_, is_causal_, this->name_);
 }
 
-std::vector<size_t>
-AttentionBlock::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> AttentionBlock::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -377,4 +380,4 @@ std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerCo
   return std::make_unique<AttentionBlock>(embed_dim, num_heads, is_causal, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

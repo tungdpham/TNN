@@ -5,12 +5,15 @@
  * project root for the full license text.
  */
 
-#include "device/device_manager.hpp"
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
+
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 

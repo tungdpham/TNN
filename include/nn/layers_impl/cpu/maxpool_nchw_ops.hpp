@@ -15,6 +15,6 @@ template <typename T>
 void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                                size_t channels, size_t output_h, size_t output_w,
                                const size_t *mask_indices);
-} // namespace maxpool_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace maxpool_nchw
+}  // namespace cpu
+}  // namespace tnn

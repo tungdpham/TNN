@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/dense_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/dense_ops.hpp"
 #ifdef USE_CUDA
@@ -15,19 +16,21 @@
 #include "device/cuda/cuda_context.hpp"
 #include "math/cuda/cudnn_gemm.hpp"
 #endif
-#include "nn/layers_impl/parameterized_layer.hpp"
-#include "type/type.hpp"
-
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
 
+#include "nn/layers_impl/parameterized_layer.hpp"
+#include "type/type.hpp"
+
 namespace tnn {
 
 DenseLayer::DenseLayer(size_t input_features, size_t output_features, bool use_bias,
                        const std::string &name)
-    : ParameterizedLayer(name), input_features_(input_features), output_features_(output_features),
+    : ParameterizedLayer(name),
+      input_features_(input_features),
+      output_features_(output_features),
       use_bias_(use_bias) {}
 
 DenseLayer::~DenseLayer() {
@@ -208,9 +211,10 @@ void DenseLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, size
 #endif
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-DenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient, size_t batch_size,
-                                   size_t output_features, const std::string &flow_id) const {
+std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const Tensor &gradient,
+                                                         Tensor &bias_gradient, size_t batch_size,
+                                                         size_t output_features,
+                                                         const std::string &flow_id) const {
   if (gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer gradient dtype mismatch with dispatch IO_T");
   }
@@ -331,4 +335,4 @@ uint64_t DenseLayer::backward_flops(const std::vector<size_t> &input_shape) cons
   return weight_grad_flops + bias_grad_flops + input_grad_flops;
 }
 
-} // namespace tnn
+}  // namespace tnn

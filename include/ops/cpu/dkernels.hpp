@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cmath>
-#include <cstddef> // For size_t
+#include <cstddef>  // For size_t
 
 namespace tnn {
 namespace ops {
@@ -83,7 +83,7 @@ inline void avx2_unaligned_mul_add_scalar(const double *a, double mul_scalar, do
 inline void avx2_aligned_mul_add_scalar(const double *a, double mul_scalar, double add_scalar,
                                         double *c, size_t size);
 
-#endif // __AVX2__
+#endif  // __AVX2__
 
 // Wrapper Functions (Double)
 void add(const double *a, const double *b, double *c, size_t size);
@@ -129,7 +129,7 @@ void fill_random_uniform(double *data, size_t size, double min_val, double max_v
 void fill_random_normal(double *data, size_t size, double mean, double stddev,
                         unsigned long long seed);
 
-} // namespace dp
-} // namespace cpu
-} // namespace ops
-} // namespace tnn
+}  // namespace dp
+}  // namespace cpu
+}  // namespace ops
+}  // namespace tnn

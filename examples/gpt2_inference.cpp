@@ -121,8 +121,7 @@ int main(int argc, char **argv) {
     string decoded = tokenizer.decode(next_token);
     cout << decoded << flush;
 
-    if (next_token == 50256)
-      break;
+    if (next_token == 50256) break;
   }
 
   cout << "\n\n[FULL TEXT]:\n" << tokenizer.decode(current_tokens) << endl;

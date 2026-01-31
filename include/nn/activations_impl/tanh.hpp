@@ -28,4 +28,4 @@ private:
                                               Tensor &grad_input, const std::string &flow_id) const;
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -7,8 +7,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include "tensor/tensor.hpp"
 #include <cstddef>
+
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -42,10 +43,11 @@ template <typename T>
 void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
            cudaStream_t stream = 0);
 
-template <typename T> void apply_softmax(Tensor &input, cudaStream_t stream = 0);
+template <typename T>
+void apply_softmax(Tensor &input, cudaStream_t stream = 0);
 
-} // namespace cuda
+}  // namespace cuda
 
-} // namespace tnn
+}  // namespace tnn
 
 #endif

@@ -5,10 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cpu/avgpool_ops.hpp"
-#include "type/type.hpp"
 
 #include <algorithm>
 #include <cstddef>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -74,8 +75,7 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
           w_start = std::max(w_start, 0);
 
           int count = (h_end - h_start) * (w_end - w_start);
-          if (count == 0)
-            continue;
+          if (count == 0) continue;
 
           float grad_per_element = grad / count;
           for (int h = h_start; h < h_end; ++h) {
@@ -91,14 +91,14 @@ void avgpool_backward(const T *grad_output, T *grad_input, size_t batch_size, si
   }
 }
 
-#define INSTANTIATE_AVGPOOL(T)                                                                     \
-  template void avgpool_forward<T>(const T *input, T *output, size_t batch_size, size_t height,    \
-                                   size_t width, size_t channels, size_t pool_h, size_t pool_w,    \
-                                   size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,   \
-                                   size_t output_h, size_t output_w);                              \
-  template void avgpool_backward<T>(                                                               \
-      const T *grad_output, T *grad_input, size_t batch_size, size_t input_h, size_t input_w,      \
-      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,             \
+#define INSTANTIATE_AVGPOOL(T)                                                                   \
+  template void avgpool_forward<T>(const T *input, T *output, size_t batch_size, size_t height,  \
+                                   size_t width, size_t channels, size_t pool_h, size_t pool_w,  \
+                                   size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, \
+                                   size_t output_h, size_t output_w);                            \
+  template void avgpool_backward<T>(                                                             \
+      const T *grad_output, T *grad_input, size_t batch_size, size_t input_h, size_t input_w,    \
+      size_t channels, size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,           \
       size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);
 
 INSTANTIATE_AVGPOOL(fp16)
@@ -108,5 +108,5 @@ INSTANTIATE_AVGPOOL(double)
 
 #undef INSTANTIATE_AVGPOOL
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

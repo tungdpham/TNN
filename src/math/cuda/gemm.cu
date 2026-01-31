@@ -1,8 +1,8 @@
+#include <cublas_v2.h>
+
 #include "cuda/error_handler.hpp"
 #include "math/cuda/gemm.hpp"
-
 #include "type/type.hpp"
-#include <cublas_v2.h>
 
 namespace tnn {
 namespace cuda {
@@ -15,36 +15,46 @@ cublasHandle_t get_cublas_handle() {
   return handle;
 }
 
-template <typename T> struct CudaType;
-template <> struct CudaType<fp16> {
+template <typename T>
+struct CudaType;
+template <>
+struct CudaType<fp16> {
   static constexpr cudaDataType_t type = CUDA_R_16F;
 };
-template <> struct CudaType<bf16> {
+template <>
+struct CudaType<bf16> {
   static constexpr cudaDataType_t type = CUDA_R_16BF;
 };
-template <> struct CudaType<float> {
+template <>
+struct CudaType<float> {
   static constexpr cudaDataType_t type = CUDA_R_32F;
 };
-template <> struct CudaType<double> {
+template <>
+struct CudaType<double> {
   static constexpr cudaDataType_t type = CUDA_R_64F;
 };
 
-template <typename T> struct CublasComputeType;
-template <> struct CublasComputeType<fp16> {
+template <typename T>
+struct CublasComputeType;
+template <>
+struct CublasComputeType<fp16> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_16F;
 };
-template <> struct CublasComputeType<bf16> {
+template <>
+struct CublasComputeType<bf16> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_32F;
 };
-template <> struct CublasComputeType<float> {
+template <>
+struct CublasComputeType<float> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_32F;
 };
-template <> struct CublasComputeType<double> {
+template <>
+struct CublasComputeType<double> {
   static constexpr cublasComputeType_t type = CUBLAS_COMPUTE_64F;
 };
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
-void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,
+void gemm_ex(const A_T* A, const B_T* B, C_T* C, const size_t M, const size_t N, const size_t K,
              const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,
              const size_t lda, const size_t ldb, const size_t ldc, cudaStream_t stream) {
   cublasHandle_t handle = get_cublas_handle();
@@ -63,7 +73,7 @@ void gemm_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
 }
 
 template <typename A_T, typename B_T, typename C_T, typename Compute_T>
-void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N,
+void gemm_strided_batched_ex(const A_T* A, const B_T* B, C_T* C, const size_t M, const size_t N,
                              const size_t K, const bool transA, const bool transB,
                              const Compute_T alpha, const Compute_T beta, const size_t lda,
                              const size_t ldb, const size_t ldc, const size_t strideA,
@@ -86,36 +96,36 @@ void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M,
   tnn::cuda::checkCudaError(cudaGetLastError(), "gemm_strided_batched_ex", __FILE__, __LINE__);
 }
 
-#define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                          \
-  template void gemm_ex<A_T, B_T, C_T, Compute_T>(                                                 \
-      const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,          \
-      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,           \
-      const size_t lda, const size_t ldb, const size_t ldc, cudaStream_t stream);                  \
-  template void gemm_strided_batched_ex<A_T, B_T, C_T, Compute_T>(                                 \
-      const A_T *A, const B_T *B, C_T *C, const size_t M, const size_t N, const size_t K,          \
-      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,           \
-      const size_t lda, const size_t ldb, const size_t ldc, const size_t strideA,                  \
+#define INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, Compute_T)                                 \
+  template void gemm_ex<A_T, B_T, C_T, Compute_T>(                                        \
+      const A_T* A, const B_T* B, C_T* C, const size_t M, const size_t N, const size_t K, \
+      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,  \
+      const size_t lda, const size_t ldb, const size_t ldc, cudaStream_t stream);         \
+  template void gemm_strided_batched_ex<A_T, B_T, C_T, Compute_T>(                        \
+      const A_T* A, const B_T* B, C_T* C, const size_t M, const size_t N, const size_t K, \
+      const bool transA, const bool transB, const Compute_T alpha, const Compute_T beta,  \
+      const size_t lda, const size_t ldb, const size_t ldc, const size_t strideA,         \
       const size_t strideB, const size_t strideC, const size_t batch_count, cudaStream_t stream);
 
-#define INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, COMPUTE_T)                                  \
+#define INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, COMPUTE_T) \
   INSTANTIATE_CUBLAS_GEMM(A_T, B_T, C_T, COMPUTE_T)
 
-#define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)                                                   \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)                                             \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, bf16)                                             \
-  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float)                                            \
+#define INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, C_T)        \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, fp16)  \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, bf16)  \
+  INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, float) \
   INSTANTIATE_CUBLAS_GEMM_COMPUTE(A_T, B_T, C_T, double)
 
-#define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)                                                        \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)                                                        \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, bf16)                                                        \
-  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float)                                                       \
+#define INSTANTIATE_CUBLAS_GEMM_B(A_T, B_T)  \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, fp16)  \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, bf16)  \
+  INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, float) \
   INSTANTIATE_CUBLAS_GEMM_C(A_T, B_T, double)
 
-#define INSTANTIATE_CUBLAS_GEMM_A(A_T)                                                             \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)                                                             \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, bf16)                                                             \
-  INSTANTIATE_CUBLAS_GEMM_B(A_T, float)                                                            \
+#define INSTANTIATE_CUBLAS_GEMM_A(A_T)  \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, fp16)  \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, bf16)  \
+  INSTANTIATE_CUBLAS_GEMM_B(A_T, float) \
   INSTANTIATE_CUBLAS_GEMM_B(A_T, double)
 
 INSTANTIATE_CUBLAS_GEMM_A(fp16)
@@ -128,5 +138,5 @@ INSTANTIATE_CUBLAS_GEMM_A(double)
 #undef INSTANTIATE_CUBLAS_GEMM_COMPUTE
 #undef INSTANTIATE_CUBLAS_GEMM
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

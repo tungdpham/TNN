@@ -1,4 +1,5 @@
 #include "logging/logger.hpp"
+
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 
@@ -40,4 +41,4 @@ void Logger::enable_console_logging(bool enable) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

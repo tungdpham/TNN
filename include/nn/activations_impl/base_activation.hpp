@@ -6,8 +6,9 @@
  */
 #pragma once
 
-#include "tensor/tensor.hpp"
 #include <memory>
+
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 class ActivationFunction {
@@ -22,4 +23,4 @@ public:
   virtual std::string name() const = 0;
   virtual std::unique_ptr<ActivationFunction> clone() const = 0;
 };
-} // namespace tnn
+}  // namespace tnn

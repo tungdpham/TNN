@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -26,8 +27,8 @@ void compute_inference_output(const T *input_data, const float *running_mean_dat
                               size_t channels, size_t spatial_size, float epsilon, bool affine,
                               cudaStream_t stream);
 
-} // namespace batchnorm_nchw
-} // namespace cuda
-} // namespace tnn
+}  // namespace batchnorm_nchw
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

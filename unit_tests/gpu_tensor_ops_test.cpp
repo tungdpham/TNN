@@ -5,13 +5,15 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <cmath>
+
 #include "device/device_manager.hpp"
 #include "tensor/cuda/tensor_ops.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
-#include <cmath>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
 
 using namespace tnn;
 
@@ -95,7 +97,6 @@ TEST_F(GPUTensorOpsTest, PadBasic) {
 }
 
 TEST_F(GPUTensorOpsTest, PadMultiChannel) {
-
   Tensor cpu_tensor = Tensor::create<float>({2, 3, 4, 4});
   cpu_tensor->fill_random_uniform(10.0f);
 
@@ -152,7 +153,6 @@ TEST_F(GPUTensorOpsTest, UnpadMultiChannel) {
 }
 
 TEST_F(GPUTensorOpsTest, PadUnpadRoundTrip) {
-
   Tensor cpu_original = Tensor::create<float>({1, 2, 4, 4});
   cpu_original->fill_random_uniform(8.0f);
 
@@ -536,7 +536,6 @@ TEST_F(GPUTensorOpsTest, Col2imWithPadding) {
 }
 
 TEST_F(GPUTensorOpsTest, Im2colCol2imRoundTrip) {
-
   Tensor cpu_input = Tensor::create<float>({1, 1, 6, 6});
   cpu_input->fill_random_uniform(10.0f);
 
@@ -575,7 +574,6 @@ TEST_F(GPUTensorOpsTest, Im2colCol2imRoundTrip) {
 }
 
 TEST_F(GPUTensorOpsTest, CombinedPadCropSlice) {
-
   Tensor cpu_original = Tensor::create<float>({4, 3, 8, 8});
   cpu_original->fill_random_uniform(15.0f);
 
@@ -598,7 +596,6 @@ TEST_F(GPUTensorOpsTest, CombinedPadCropSlice) {
 }
 
 TEST_F(GPUTensorOpsTest, LargeTensorOperations) {
-
   Tensor cpu_tensor = Tensor::create<float>({8, 16, 32, 32});
   cpu_tensor->fill_random_uniform(20.0f);
 
@@ -623,7 +620,6 @@ TEST_F(GPUTensorOpsTest, LargeTensorOperations) {
 }
 
 TEST_F(GPUTensorOpsTest, MinimalTensor) {
-
   Tensor cpu_tensor = Tensor::create<float>({1, 1, 1, 1});
   auto cpu_data = cpu_tensor->data_as<float>();
   cpu_data[0] = 42.0f;
@@ -651,7 +647,6 @@ TEST_F(GPUTensorOpsTest, SinglePixelPadding) {
 }
 
 TEST_F(GPUTensorOpsTest, AsymmetricDimensions) {
-
   Tensor cpu_tensor = Tensor::create<float>({1, 1, 20, 3});
   cpu_tensor->fill_random_uniform(10.0f);
 

@@ -17,7 +17,6 @@ void compute_avg_pool_forward(const T *input_data, T *output_data, size_t batch_
                               size_t channels, size_t input_h, size_t input_w, size_t output_h,
                               size_t output_w, size_t pool_h, size_t pool_w, size_t stride_h,
                               size_t stride_w, size_t pad_h, size_t pad_w) {
-
   const T pool_size_inv = T(1.0) / T(pool_h * pool_w);
 
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
@@ -26,7 +25,6 @@ void compute_avg_pool_forward(const T *input_data, T *output_data, size_t batch_
 
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
-
         long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
         long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
 
@@ -89,15 +87,15 @@ void compute_avg_pool_backward(const T *gradient_data, T *grad_input_data, size_
   });
 }
 
-#define INSTANTIATE_AVGPOOL(T)                                                                     \
-  template void compute_avg_pool_forward<T>(                                                       \
-      const T *input_data, T *output_data, size_t batch_size, size_t channels, size_t input_h,     \
-      size_t input_w, size_t output_h, size_t output_w, size_t pool_h, size_t pool_w,              \
-      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);                               \
-                                                                                                   \
-  template void compute_avg_pool_backward<T>(                                                      \
-      const T *gradient_data, T *grad_input_data, size_t batch_size, size_t channels,              \
-      size_t input_h, size_t input_w, size_t output_h, size_t output_w, size_t pool_h,             \
+#define INSTANTIATE_AVGPOOL(T)                                                                 \
+  template void compute_avg_pool_forward<T>(                                                   \
+      const T *input_data, T *output_data, size_t batch_size, size_t channels, size_t input_h, \
+      size_t input_w, size_t output_h, size_t output_w, size_t pool_h, size_t pool_w,          \
+      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);                           \
+                                                                                               \
+  template void compute_avg_pool_backward<T>(                                                  \
+      const T *gradient_data, T *grad_input_data, size_t batch_size, size_t channels,          \
+      size_t input_h, size_t input_w, size_t output_h, size_t output_w, size_t pool_h,         \
       size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w);
 
 INSTANTIATE_AVGPOOL(fp16)
@@ -106,6 +104,6 @@ INSTANTIATE_AVGPOOL(float)
 INSTANTIATE_AVGPOOL(double)
 #undef INSTANTIATE_AVGPOOL
 
-} // namespace avgpool_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace avgpool_nchw
+}  // namespace cpu
+}  // namespace tnn

@@ -6,10 +6,12 @@
  */
 
 #include "nn/example_models.hpp"
+
+#include <fcntl.h>
+
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "type/type.hpp"
-#include <fcntl.h>
 
 namespace tnn {
 
@@ -80,22 +82,22 @@ Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn1")
                     .conv2d(128, 3, 3, 1, 1, 1, 1, false, "conv2")
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn2")
-                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1") // 32x32 -> 16x16
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool1")  // 32x32 -> 16x16
                     .basic_residual_block(128, 128, 1, "res_block1")
                     .basic_residual_block(128, 128, 1, "res_block2")
                     // Layer 2: 128 -> 256 channels, 16x16 -> 8x8
                     .conv2d(256, 3, 3, 1, 1, 1, 1, false, "conv3")
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn3")
-                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2") // 16x16 -> 8x8
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool2")  // 16x16 -> 8x8
                     .basic_residual_block(256, 256, 1, "res_block3")
                     .basic_residual_block(256, 256, 1, "res_block4")
                     // Layer 3: 256 -> 512 channels, 8x8 -> 4x4
                     .conv2d(512, 3, 3, 1, 1, 1, 1, false, "conv4")
                     .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::TRUE, "bn4")
-                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3") // 8x8 -> 4x4
+                    .maxpool2d(2, 2, 2, 2, 0, 0, "pool3")  // 8x8 -> 4x4
                     .basic_residual_block(512, 512, 1, "res_block5")
                     // Classification head
-                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool") // 4x4 -> 1x1
+                    .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")  // 4x4 -> 1x1
                     .flatten(1, -1, "flatten")
                     // .dense(10, true, "output")
                     .legacy_dense(10, true, "output")
@@ -134,9 +136,9 @@ Sequential create_cifar100_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
-  constexpr size_t c1 = 16 * width_factor; // 128
-  constexpr size_t c2 = 32 * width_factor; // 256
-  constexpr size_t c3 = 64 * width_factor; // 512
+  constexpr size_t c1 = 16 * width_factor;  // 128
+  constexpr size_t c2 = 32 * width_factor;  // 256
+  constexpr size_t c3 = 64 * width_factor;  // 512
 
   auto layers = LayerBuilder()
                     .input({32, 32, 3})
@@ -193,9 +195,9 @@ Sequential create_tiny_imagenet_wrn16_8(DType_t io_dtype_ = DType_t::FP32) {
   constexpr size_t width_factor = 8;
   constexpr float dropout_rate = 0.3f;
 
-  constexpr size_t c1 = 16 * width_factor; // 128
-  constexpr size_t c2 = 32 * width_factor; // 256
-  constexpr size_t c3 = 64 * width_factor; // 512
+  constexpr size_t c1 = 16 * width_factor;  // 128
+  constexpr size_t c2 = 32 * width_factor;  // 256
+  constexpr size_t c3 = 64 * width_factor;  // 512
 
   auto layers = LayerBuilder()
                     .input({64, 64, 3})
@@ -305,7 +307,7 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
   builder.input({64, 64, 3})
       .dtype(io_dtype_)
       .conv2d(embed_dim, patch_size, patch_size, patch_size, patch_size, 0, 0, true, "patch_embed")
-      .flatten(1, 2, "flatten_patches") // Flatten dims 1-2 (H, W), keep dim 3 (C)
+      .flatten(1, 2, "flatten_patches")  // Flatten dims 1-2 (H, W), keep dim 3 (C)
       .class_token(embed_dim)
       .positional_embedding(embed_dim, seq_len)
       .dropout(0.1f);
@@ -420,4 +422,4 @@ void ExampleModels::register_defaults() {
   register_model(create_flash_gpt2_small);
 }
 
-} // namespace tnn
+}  // namespace tnn

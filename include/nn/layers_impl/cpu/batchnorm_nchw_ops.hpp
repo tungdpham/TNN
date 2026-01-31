@@ -23,6 +23,6 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
                         const float *gamma, float *d_gamma, float *d_beta, T *grad_input, size_t N,
                         size_t C, size_t S, bool affine);
 
-} // namespace batchnorm_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace batchnorm_nchw
+}  // namespace cpu
+}  // namespace tnn

@@ -5,18 +5,18 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/conv2d_layer.hpp"
+
+#include <type_traits>
+
 #include "device/cuda/cuda_context.hpp"
 #include "device/device_type.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "tensor/tensor.hpp"
-#include <type_traits>
 #ifdef USE_CUDNN
 #include "cuda/cudnn/common.hpp"
 #include "nn/layers_impl/cuda/cudnn_conv2d_ops.hpp"
 #endif
-#include "type/type.hpp"
-
 #include <cmath>
 #include <cstring>
 #include <iostream>
@@ -24,14 +24,23 @@
 #include <stdexcept>
 #include <string>
 
+#include "type/type.hpp"
+
 namespace tnn {
 
 Conv2DLayer::Conv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h, size_t kernel_w,
                          size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                          bool use_bias, const std::string &name)
-    : ParameterizedLayer(name), in_channels_(in_channels), out_channels_(out_channels),
-      kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {}
+    : ParameterizedLayer(name),
+      in_channels_(in_channels),
+      out_channels_(out_channels),
+      kernel_h_(kernel_h),
+      kernel_w_(kernel_w),
+      stride_h_(stride_h),
+      stride_w_(stride_w),
+      pad_h_(pad_h),
+      pad_w_(pad_w),
+      use_bias_(use_bias) {}
 
 Conv2DLayer::~Conv2DLayer() {
 #ifdef USE_CUDNN
@@ -162,12 +171,11 @@ void Conv2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size
 
 #ifdef USE_CUDNN
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-Conv2DLayer::conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
-                                 const Tensor &input, Tensor &output, const Tensor &weights,
-                                 const Tensor &bias, Tensor &workspace, size_t batch_size,
-                                 size_t input_h, size_t input_w, size_t output_h, size_t output_w,
-                                 const std::string &flow_id) const {
+std::unique_ptr<Task> Conv2DLayer::conv2d_forward_task(
+    cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const Tensor &input,
+    Tensor &output, const Tensor &weights, const Tensor &bias, Tensor &workspace, size_t batch_size,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w,
+    const std::string &flow_id) const {
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
   }
@@ -327,8 +335,8 @@ std::unique_ptr<Layer> Conv2DLayer::clone() const {
                                        stride_w_, pad_h_, pad_w_, use_bias_, this->name_);
 }
 
-std::vector<size_t>
-Conv2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> Conv2DLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("Conv2DLayer expects 4D input including batch size");
   }
@@ -405,4 +413,4 @@ std::unique_ptr<Conv2DLayer> Conv2DLayer::create_from_config(const LayerConfig &
                                        stride_w, pad_h, pad_w, use_bias, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

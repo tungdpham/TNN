@@ -1,11 +1,12 @@
 #pragma once
 
-#include "event.hpp"
 #include <algorithm>
 #include <chrono>
 #include <functional>
 #include <mutex>
 #include <vector>
+
+#include "event.hpp"
 
 namespace tnn {
 class Profiler {
@@ -127,4 +128,4 @@ public:
   static std::vector<Event> get_events() { return global_profiler_.get_events(); }
 };
 
-} // namespace tnn
+}  // namespace tnn

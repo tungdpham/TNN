@@ -1,11 +1,12 @@
+#include <cstddef>
+#include <memory>
+
 #include "device/device_manager.hpp"
 #include "nn/activations_impl/relu.hpp"
 #include "nn/layers_impl/activation_layer.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
 #include "tensor/tensor.hpp"
-#include <cstddef>
-#include <memory>
 
 using namespace tnn;
 using namespace std;

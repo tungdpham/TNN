@@ -5,12 +5,15 @@
  * project root for the full license text.
  */
 
-#include "device/device_manager.hpp"
 #include "nn/layers_impl/groupnorm_layer.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
+
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -208,7 +211,6 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
 }
 
 TEST_F(GroupNormLayerTest, SingleGroup) {
-
   size_t num_groups = 1;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
@@ -234,7 +236,6 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
 }
 
 TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
-
   size_t num_groups = 4;
   size_t num_channels = 4;
   GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
@@ -303,7 +304,6 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 }
 
 TEST_F(GroupNormLayerTest, InvalidConfiguration) {
-
   EXPECT_THROW({ GroupNormLayer layer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
 }
 

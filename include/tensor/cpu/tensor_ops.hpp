@@ -6,10 +6,11 @@
  */
 #pragma once
 
+#include <immintrin.h>
+
 #include "ops/cpu/kernels.hpp"
 #include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
-#include <immintrin.h>
 
 namespace tnn {
 namespace cpu {
@@ -18,7 +19,8 @@ namespace cpu {
  * For GPU tensors, use the GPU-aware versions in gpu namespace.
  * All functions in this file expect CPU tensors and will throw if given GPU tensors.
  */
-template <typename T> void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
+template <typename T>
+void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
   if (!input->is_on_cpu()) {
     throw std::runtime_error("im2col_pad_1_stride_1_kernel_3_cpu requires CPU tensor");
   }
@@ -477,10 +479,10 @@ void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T valu
     const size_t padded_width = width_ + 2 * pad_w;
     // fill top padding rows
     for (size_t h = 0; h < pad_h; ++h) {
-      std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                    padded_width,
-                value);
+      std::fill(
+          &result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+          &result_data[((n * channels_ + c) * padded_height + h) * padded_width] + padded_width,
+          value);
     }
 
     // Copy middle rows with left and right padding
@@ -506,15 +508,16 @@ void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T valu
 
     // fill bottom padding rows
     for (size_t h = height_ + pad_h; h < padded_height; ++h) {
-      std::fill(&result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + h) * padded_width] +
-                    padded_width,
-                value);
+      std::fill(
+          &result_data[((n * channels_ + c) * padded_height + h) * padded_width],
+          &result_data[((n * channels_ + c) * padded_height + h) * padded_width] + padded_width,
+          value);
     }
   });
 }
 
-template <typename T> void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w) {
+template <typename T>
+void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w) {
   if (!input->is_on_cpu()) {
     throw std::runtime_error("unpad requires CPU tensor");
   }
@@ -684,5 +687,5 @@ void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size
   });
 }
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

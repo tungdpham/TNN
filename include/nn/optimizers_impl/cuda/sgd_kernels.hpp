@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -19,8 +20,8 @@ template <typename T>
 void update_sgd_momentum(T *params_data, const T *grads_data, T *velocity_data, const size_t size,
                          const float learning_rate, const float momentum, cudaStream_t stream);
 
-} // namespace sgd
-} // namespace cuda
-} // namespace tnn
+}  // namespace sgd
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

@@ -1,7 +1,8 @@
-#include "device/device_manager.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
+
+#include "device/device_manager.hpp"
 
 using namespace tnn;
 using namespace std;

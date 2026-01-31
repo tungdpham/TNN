@@ -3,5 +3,5 @@
 namespace tnn {
 namespace cuda {
 void synchronize();
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

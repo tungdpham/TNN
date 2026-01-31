@@ -6,12 +6,13 @@
  */
 #pragma once
 
-#include "stateless_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "stateless_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -50,4 +51,4 @@ public:
   static std::unique_ptr<SliceLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

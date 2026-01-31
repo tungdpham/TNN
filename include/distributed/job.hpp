@@ -42,4 +42,4 @@ struct Job {
     return *this;
   }
 };
-} // namespace tnn
+}  // namespace tnn

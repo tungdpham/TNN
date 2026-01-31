@@ -1,14 +1,17 @@
-#include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
 #include <cudnn_graph.h>
+
+#include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
 
 #ifdef USE_CUDNN
 
-#include "type/type.hpp"
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
+
 #include <memory>
 #include <stdexcept>
 #include <unordered_map>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -56,14 +59,14 @@ struct feHandle_t {
 
 cudnnDataType_t get_cudnn_data_type(DType_t dtype) {
   switch (dtype) {
-  case DType_t::FP32:
-    return CUDNN_DATA_FLOAT;
-  case DType_t::FP16:
-    return CUDNN_DATA_HALF;
-  case DType_t::FP64:
-    return CUDNN_DATA_DOUBLE;
-  default:
-    throw std::runtime_error("Unsupported data type for cuDNN BatchNorm");
+    case DType_t::FP32:
+      return CUDNN_DATA_FLOAT;
+    case DType_t::FP16:
+      return CUDNN_DATA_HALF;
+    case DType_t::FP64:
+      return CUDNN_DATA_DOUBLE;
+    default:
+      throw std::runtime_error("Unsupported data type for cuDNN BatchNorm");
   }
 }
 
@@ -76,16 +79,16 @@ static void ensure_ok(fe::error_t status, std::string stage) {
 
 static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
   switch (data_type) {
-  case CUDNN_DATA_HALF:
-    return fe::DataType_t::HALF;
-  case CUDNN_DATA_FLOAT:
-    return fe::DataType_t::FLOAT;
-  case CUDNN_DATA_DOUBLE:
-    return fe::DataType_t::DOUBLE;
-  case CUDNN_DATA_BFLOAT16:
-    return fe::DataType_t::BFLOAT16;
-  default:
-    throw std::runtime_error("Unsupported cuDNN data type for batchnorm");
+    case CUDNN_DATA_HALF:
+      return fe::DataType_t::HALF;
+    case CUDNN_DATA_FLOAT:
+      return fe::DataType_t::FLOAT;
+    case CUDNN_DATA_DOUBLE:
+      return fe::DataType_t::DOUBLE;
+    case CUDNN_DATA_BFLOAT16:
+      return fe::DataType_t::BFLOAT16;
+    default:
+      throw std::runtime_error("Unsupported cuDNN data type for batchnorm");
   }
 }
 
@@ -96,7 +99,7 @@ static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
   return to_fe_data_type(data_type);
 }
 
-static void build_fwd_graph(feHandle_t *handle, BatchNormStats &stats) {
+static void build_fwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.channels);
   const int64_t h = static_cast<int64_t>(stats.height);
@@ -189,7 +192,7 @@ static void build_fwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_inf_graph(feHandle_t *handle, BatchNormStats &stats) {
+static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.channels);
   const int64_t h = static_cast<int64_t>(stats.height);
@@ -278,7 +281,7 @@ static void build_inf_graph(feHandle_t *handle, BatchNormStats &stats) {
   stats.inf_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
+static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.channels);
   const int64_t h = static_cast<int64_t>(stats.height);
@@ -368,15 +371,15 @@ static void build_bwd_graph(feHandle_t *handle, BatchNormStats &stats) {
   stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void rebuild_graphs(feHandle_t *handle, BatchNormStats &stats) {
+static void rebuild_graphs(feHandle_t* handle, BatchNormStats& stats) {
   build_fwd_graph(handle, stats);
   build_inf_graph(handle, stats);
   build_bwd_graph(handle, stats);
 }
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
-                                 cudnnDataType_t compute_type, BatchNormStats &stats) {
-  feHandle_t *fe_handle = new feHandle_t();
+feHandle_t* initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_type, BatchNormStats& stats) {
+  feHandle_t* fe_handle = new feHandle_t();
   fe_handle->cudnn_handle = cudnn_handle;
   fe_handle->io_data_type = io_data_type;
   fe_handle->compute_type = compute_type;
@@ -385,28 +388,28 @@ feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_
   return fe_handle;
 }
 
-void destroy_fe_handle(feHandle_t *handle) {
+void destroy_fe_handle(feHandle_t* handle) {
   if (!handle) {
     return;
   }
   delete handle;
 }
 
-void run_forward_training(feHandle_t *handle, const BatchNormStats &stats, const void *input,
-                          const void *gamma, const void *beta, void *output,
-                          void *prev_running_mean, void *prev_running_var, void *next_running_mean,
-                          void *next_running_var, void *batch_mean, void *batch_invar,
-                          void *workspace, cudaStream_t stream) {
+void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const void* input,
+                          const void* gamma, const void* beta, void* output,
+                          void* prev_running_mean, void* prev_running_var, void* next_running_mean,
+                          void* next_running_var, void* batch_mean, void* batch_invar,
+                          void* workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_training called with null feHandle");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->fwd_x, const_cast<void *>(input)},
-      {handle->fwd_scale, const_cast<void *>(gamma)},
-      {handle->fwd_bias, const_cast<void *>(beta)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->fwd_x, const_cast<void*>(input)},
+      {handle->fwd_scale, const_cast<void*>(gamma)},
+      {handle->fwd_bias, const_cast<void*>(beta)},
       {handle->fwd_y, output},
       {handle->fwd_mean, batch_mean},
       {handle->fwd_invar, batch_invar},
@@ -419,41 +422,41 @@ void run_forward_training(feHandle_t *handle, const BatchNormStats &stats, const
   ensure_ok(status, "batchnorm forward execute");
 }
 
-void run_forward_inference(feHandle_t *handle, const BatchNormStats &stats, const void *input,
-                           const void *gamma, const void *beta, void *saved_mean, void *saved_invar,
-                           void *output, void *workspace, cudaStream_t stream) {
+void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
+                           const void* gamma, const void* beta, void* saved_mean, void* saved_invar,
+                           void* output, void* workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_inference called with null feHandle");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->inf_x, const_cast<void *>(input)},   {handle->inf_scale, const_cast<void *>(gamma)},
-      {handle->inf_bias, const_cast<void *>(beta)}, {handle->inf_y, output},
-      {handle->inf_saved_mean, saved_mean},         {handle->inf_saved_invar, saved_invar}};
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->inf_x, const_cast<void*>(input)},   {handle->inf_scale, const_cast<void*>(gamma)},
+      {handle->inf_bias, const_cast<void*>(beta)}, {handle->inf_y, output},
+      {handle->inf_saved_mean, saved_mean},        {handle->inf_saved_invar, saved_invar}};
 
   auto status = handle->inf_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm inference execute");
 }
 
-void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *input,
-                  const void *grad_output, const void *gamma, const void *beta, void *grad_input,
-                  void *grad_gamma, void *grad_beta, const void *batch_mean,
-                  const void *batch_invar, void *workspace, cudaStream_t stream) {
+void run_backward(feHandle_t* handle, const BatchNormStats& stats, const void* input,
+                  const void* grad_output, const void* gamma, const void* beta, void* grad_input,
+                  void* grad_gamma, void* grad_beta, const void* batch_mean,
+                  const void* batch_invar, void* workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_backward called with null feHandle");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->bwd_dy, const_cast<void *>(grad_output)},
-      {handle->bwd_x, const_cast<void *>(input)},
-      {handle->bwd_scale, const_cast<void *>(gamma)},
-      {handle->bwd_bias, const_cast<void *>(beta)},
-      {handle->bwd_mean, const_cast<void *>(batch_mean)},
-      {handle->bwd_invar, const_cast<void *>(batch_invar)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->bwd_dy, const_cast<void*>(grad_output)},
+      {handle->bwd_x, const_cast<void*>(input)},
+      {handle->bwd_scale, const_cast<void*>(gamma)},
+      {handle->bwd_bias, const_cast<void*>(beta)},
+      {handle->bwd_mean, const_cast<void*>(batch_mean)},
+      {handle->bwd_invar, const_cast<void*>(batch_invar)},
       {handle->bwd_dx, grad_input},
       {handle->bwd_dscale, grad_gamma},
       {handle->bwd_dbias, grad_beta}};
@@ -462,8 +465,8 @@ void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *i
   ensure_ok(status, "batchnorm backward execute");
 }
 
-} // namespace cudnn_batchnorm
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_batchnorm
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

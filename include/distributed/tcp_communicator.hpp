@@ -6,6 +6,21 @@
  */
 #pragma once
 
+#include <asio.hpp>
+#include <asio/error_code.hpp>
+#include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <cstdlib>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <shared_mutex>
+#include <system_error>
+#include <thread>
+#include <unordered_map>
+#include <utility>
+
 #include "asio/buffer.hpp"
 #include "asio/error.hpp"
 #include "binary_serializer.hpp"
@@ -23,25 +38,10 @@
 #include "packet.hpp"
 #include "profiling/event.hpp"
 
-#include <asio.hpp>
-#include <asio/error_code.hpp>
-#include <atomic>
-#include <chrono>
-#include <cstddef>
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <shared_mutex>
-#include <system_error>
-#include <thread>
-#include <unordered_map>
-#include <utility>
-
 namespace tnn {
 
 constexpr uint32_t DEFAULT_IO_THREADS = 1;
-constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 16 * 1024 * 1024 + 64; // 16MB + header
+constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 16 * 1024 * 1024 + 64;  // 16MB + header
 constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
 class TcpCommunicator : public Communicator {
@@ -49,9 +49,12 @@ public:
   explicit TcpCommunicator(const Endpoint &endpoint, size_t num_io_threads = DEFAULT_IO_THREADS,
                            uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT,
                            uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE)
-      : Communicator(endpoint), num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
-        io_context_pool_(num_io_threads_), acceptor_(io_context_pool_.get_acceptor_io_context()),
-        skts_per_endpoint_(skts_per_endpoint), max_packet_size_(max_packet_size) {
+      : Communicator(endpoint),
+        num_io_threads_(num_io_threads > 0 ? num_io_threads : 1),
+        io_context_pool_(num_io_threads_),
+        acceptor_(io_context_pool_.get_acceptor_io_context()),
+        skts_per_endpoint_(skts_per_endpoint),
+        max_packet_size_(max_packet_size) {
     is_running_ = false;
   }
 
@@ -78,8 +81,7 @@ public:
 
   void stop() {
     std::cout << "Closing communication server" << std::endl;
-    if (!is_running_.load(std::memory_order_acquire))
-      return;
+    if (!is_running_.load(std::memory_order_acquire)) return;
 
     is_running_.store(false, std::memory_order_release);
 
@@ -249,8 +251,7 @@ private:
   std::shared_mutex connections_mutex_;
 
   void accept_connections() {
-    if (!is_running_.load(std::memory_order_acquire))
-      return;
+    if (!is_running_.load(std::memory_order_acquire)) return;
 
     asio::io_context &target_context = io_context_pool_.get_io_context();
     std::shared_ptr<Connection> new_connection = std::make_shared<Connection>(target_context);
@@ -300,8 +301,7 @@ private:
   }
 
   void start_read(std::shared_ptr<Connection> connection) {
-    if (!is_running_.load(std::memory_order_acquire))
-      return;
+    if (!is_running_.load(std::memory_order_acquire)) return;
 
     Endpoint current_endpoint = connection->get_peer_endpoint();
 
@@ -608,4 +608,4 @@ private:
         });
   }
 };
-} // namespace tnn
+}  // namespace tnn

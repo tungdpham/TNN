@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -18,8 +19,8 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         size_t num_groups, bool affine, cudaStream_t stream);
 
-} // namespace groupnorm
-} // namespace cuda
-} // namespace tnn
+}  // namespace groupnorm
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

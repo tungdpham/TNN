@@ -1,8 +1,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -18,8 +19,8 @@ template <typename T>
 void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_t batch_size,
                                size_t channels, size_t output_h, size_t output_w,
                                const size_t *mask_indices, cudaStream_t stream);
-} // namespace maxpool_nchw
-} // namespace cuda
-} // namespace tnn
+}  // namespace maxpool_nchw
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

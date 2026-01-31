@@ -6,6 +6,15 @@
  */
 #pragma once
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <string>
+
 #include "communicator.hpp"
 #include "device/allocator.hpp"
 #include "device/device_manager.hpp"
@@ -19,15 +28,6 @@
 #include "stage_config.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
-#include <atomic>
-#include <chrono>
-#include <condition_variable>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <mutex>
-
-#include <string>
 
 namespace tnn {
 
@@ -111,137 +111,137 @@ public:
 protected:
   virtual void process_message(Message &&message) {
     switch (message.header().command_type) {
-    case CommandType::FORWARD_JOB: {
-      auto forward_start = std::chrono::system_clock::now();
-      const Job &forward_job = message.get<Job>();
+      case CommandType::FORWARD_JOB: {
+        auto forward_start = std::chrono::system_clock::now();
+        const Job &forward_job = message.get<Job>();
 
-      IAllocator &out_allocator = communicator_->get_allocator();
-      DType_t input_dtype = forward_job.data->data_type();
-      auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
-      Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
+        IAllocator &out_allocator = communicator_->get_allocator();
+        DType_t input_dtype = forward_job.data->data_type();
+        auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
+        Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
 
-      this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
-      Job output(output_tensor, forward_job.mb_id);
-      auto forward_end = std::chrono::system_clock::now();
-      GlobalProfiler::add_event(
-          {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
-      message = Message(CommandType::FORWARD_JOB, std::move(output));
-      communicator_->send_message(std::move(message), next_stage_endpoint_);
-    } break;
-    case CommandType::BACKWARD_JOB: {
-      auto backward_start = std::chrono::system_clock::now();
-      const Job &backward_job = message.get<Job>();
-      IAllocator &out_allocator = communicator_->get_allocator();
-      Tensor output_tensor =
-          Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
+        this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
+        Job output(output_tensor, forward_job.mb_id);
+        auto forward_end = std::chrono::system_clock::now();
+        GlobalProfiler::add_event(
+            {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
+        message = Message(CommandType::FORWARD_JOB, std::move(output));
+        communicator_->send_message(std::move(message), next_stage_endpoint_);
+      } break;
+      case CommandType::BACKWARD_JOB: {
+        auto backward_start = std::chrono::system_clock::now();
+        const Job &backward_job = message.get<Job>();
+        IAllocator &out_allocator = communicator_->get_allocator();
+        Tensor output_tensor =
+            Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
 
-      this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
-      Job output(output_tensor, backward_job.mb_id);
-      auto backward_end = std::chrono::system_clock::now();
-      GlobalProfiler::add_event(
-          {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
-      message = Message(CommandType::BACKWARD_JOB, std::move(output));
-      communicator_->send_message(std::move(message), prev_stage_endpoint_);
-    } break;
-    case CommandType::UPDATE_PARAMETERS: {
-      auto update_start = std::chrono::system_clock::now();
-      // implicitly clear grads
-      this->optimizer_->update();
-      this->optimizer_->clear_gradients();
-      auto update_end = std::chrono::system_clock::now();
-      GlobalProfiler::add_event(
-          {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
-      Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
-      communicator_->send_message(std::move(response), coordinator_endpoint_);
-    } break;
-    case CommandType::TRAIN_MODE:
-      this->model_->set_training(true);
-      break;
-    case CommandType::EVAL_MODE:
-      this->model_->set_training(false);
-      break;
-    case CommandType::STATUS_REQUEST: {
-      throw std::runtime_error("Not implemented yet");
-      break;
-    }
-    case CommandType::ERROR_REPORT:
-      if (message.has_type<std::string>()) {
-        std::cout << "Stage " << id_ << " received error: " << message.get<std::string>()
+        this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
+        Job output(output_tensor, backward_job.mb_id);
+        auto backward_end = std::chrono::system_clock::now();
+        GlobalProfiler::add_event(
+            {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
+        message = Message(CommandType::BACKWARD_JOB, std::move(output));
+        communicator_->send_message(std::move(message), prev_stage_endpoint_);
+      } break;
+      case CommandType::UPDATE_PARAMETERS: {
+        auto update_start = std::chrono::system_clock::now();
+        // implicitly clear grads
+        this->optimizer_->update();
+        this->optimizer_->clear_gradients();
+        auto update_end = std::chrono::system_clock::now();
+        GlobalProfiler::add_event(
+            {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
+        Message response(CommandType::PARAMETERS_UPDATED, std::monostate{});
+        communicator_->send_message(std::move(response), coordinator_endpoint_);
+      } break;
+      case CommandType::TRAIN_MODE:
+        this->model_->set_training(true);
+        break;
+      case CommandType::EVAL_MODE:
+        this->model_->set_training(false);
+        break;
+      case CommandType::STATUS_REQUEST: {
+        throw std::runtime_error("Not implemented yet");
+        break;
+      }
+      case CommandType::ERROR_REPORT:
+        if (message.has_type<std::string>()) {
+          std::cout << "Stage " << id_ << " received error: " << message.get<std::string>()
+                    << std::endl;
+        }
+        break;
+      case CommandType::START_PROFILING: {
+        GlobalProfiler::init_start_time(std::chrono::system_clock::now());
+        Message response(CommandType::PROFILING_STARTED);
+        communicator_->send_message(std::move(response), coordinator_endpoint_);
+        break;
+      }
+      case CommandType::REPORT_PROFILING: {
+        Message response(CommandType::PROFILING_REPORTED, GlobalProfiler::get_profiler());
+        communicator_->send_message(std::move(response), coordinator_endpoint_);
+        break;
+      }
+      case CommandType::PRINT_PROFILING:
+        if (model_) {
+          model_->print_profiling_info();
+          Message outgoing_message(CommandType::PROFILING_PRINTED);
+          communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
+        } else {
+          std::cout << "Warning: No model available to print profiling data" << std::endl;
+        }
+        break;
+      case CommandType::CLEAR_PROFILING:
+        if (model_) {
+          model_->reset_profiling_info();
+          Message outgoing_message(CommandType::PROFILING_CLEARED);
+          communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
+        } else {
+          std::cout << "Warning: No model available to clear profiling data" << std::endl;
+        }
+        break;
+      case CommandType::CONFIG_TRANSFER: {
+        handle_configuration(message);
+        Message ready_msg(CommandType::CONFIG_RECEIVED, true);
+        this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
+        break;
+      }
+      case CommandType::LOAD_PARAMS: {
+        // // decode and deserialize parameters
+        throw std::runtime_error("Not implemented yet");
+        break;
+      }
+      case CommandType::SEND_PARAMS: {
+        try {
+          // serialize and encode parameters
+        } catch (const std::exception &e) {
+          std::cerr << "Failed to send parameters: " << e.what() << std::endl;
+          std::string error_text = std::string("Failed to send parameters: ") + e.what();
+          Message error_msg(CommandType::ERROR_REPORT, error_text);
+          communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
+        }
+        break;
+      }
+      case CommandType::REPORT_LOAD: {
+        throw std::runtime_error("Not implemented yet");
+        break;
+      }
+      case CommandType::HANDSHAKE: {
+        // do nothing;
+        break;
+      }
+      case CommandType::HANDSHAKE_ACK: {
+        // do nothing;
+        break;
+      }
+      case CommandType::SHUTDOWN:
+        std::cout << "Stage " << id_ << " received SHUTDOWN command. Stopping." << std::endl;
+        this->stop();
+        break;
+      default:
+        std::cerr << "Warning: Unknown command type "
+                  << static_cast<int>(message.header().command_type) << " received by stage " << id_
                   << std::endl;
-      }
-      break;
-    case CommandType::START_PROFILING: {
-      GlobalProfiler::init_start_time(std::chrono::system_clock::now());
-      Message response(CommandType::PROFILING_STARTED);
-      communicator_->send_message(std::move(response), coordinator_endpoint_);
-      break;
-    }
-    case CommandType::REPORT_PROFILING: {
-      Message response(CommandType::PROFILING_REPORTED, GlobalProfiler::get_profiler());
-      communicator_->send_message(std::move(response), coordinator_endpoint_);
-      break;
-    }
-    case CommandType::PRINT_PROFILING:
-      if (model_) {
-        model_->print_profiling_info();
-        Message outgoing_message(CommandType::PROFILING_PRINTED);
-        communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
-      } else {
-        std::cout << "Warning: No model available to print profiling data" << std::endl;
-      }
-      break;
-    case CommandType::CLEAR_PROFILING:
-      if (model_) {
-        model_->reset_profiling_info();
-        Message outgoing_message(CommandType::PROFILING_CLEARED);
-        communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
-      } else {
-        std::cout << "Warning: No model available to clear profiling data" << std::endl;
-      }
-      break;
-    case CommandType::CONFIG_TRANSFER: {
-      handle_configuration(message);
-      Message ready_msg(CommandType::CONFIG_RECEIVED, true);
-      this->communicator_->send_message(std::move(ready_msg), coordinator_endpoint_);
-      break;
-    }
-    case CommandType::LOAD_PARAMS: {
-      // // decode and deserialize parameters
-      throw std::runtime_error("Not implemented yet");
-      break;
-    }
-    case CommandType::SEND_PARAMS: {
-      try {
-        // serialize and encode parameters
-      } catch (const std::exception &e) {
-        std::cerr << "Failed to send parameters: " << e.what() << std::endl;
-        std::string error_text = std::string("Failed to send parameters: ") + e.what();
-        Message error_msg(CommandType::ERROR_REPORT, error_text);
-        communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
-      }
-      break;
-    }
-    case CommandType::REPORT_LOAD: {
-      throw std::runtime_error("Not implemented yet");
-      break;
-    }
-    case CommandType::HANDSHAKE: {
-      // do nothing;
-      break;
-    }
-    case CommandType::HANDSHAKE_ACK: {
-      // do nothing;
-      break;
-    }
-    case CommandType::SHUTDOWN:
-      std::cout << "Stage " << id_ << " received SHUTDOWN command. Stopping." << std::endl;
-      this->stop();
-      break;
-    default:
-      std::cerr << "Warning: Unknown command type "
-                << static_cast<int>(message.header().command_type) << " received by stage " << id_
-                << std::endl;
-      break;
+        break;
     }
   }
 
@@ -274,4 +274,4 @@ protected:
   std::condition_variable message_available_cv_;
 };
 
-} // namespace tnn
+}  // namespace tnn

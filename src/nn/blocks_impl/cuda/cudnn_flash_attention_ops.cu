@@ -3,10 +3,12 @@
 
 #ifdef USE_CUDNN
 
-#include "nn/blocks_impl/common/flash_attention.hpp"
 #include <cudnn_frontend.h>
+
 #include <stdexcept>
 #include <string>
+
+#include "nn/blocks_impl/common/flash_attention.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -48,7 +50,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dV;
 };
 
-static void ensure_fe_ok(const fe::error_t &status, const std::string &stage) {
+static void ensure_fe_ok(const fe::error_t& status, const std::string& stage) {
   if (status.is_bad()) {
     throw std::runtime_error("cuDNN SDPA error at " + stage + ": " + status.err_msg);
   }
@@ -56,16 +58,16 @@ static void ensure_fe_ok(const fe::error_t &status, const std::string &stage) {
 
 static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
   switch (data_type) {
-  case CUDNN_DATA_HALF:
-    return fe::DataType_t::HALF;
-  case CUDNN_DATA_FLOAT:
-    return fe::DataType_t::FLOAT;
-  case CUDNN_DATA_DOUBLE:
-    return fe::DataType_t::DOUBLE;
-  case CUDNN_DATA_BFLOAT16:
-    return fe::DataType_t::BFLOAT16;
-  default:
-    throw std::runtime_error("Unsupported CUDNN data type");
+    case CUDNN_DATA_HALF:
+      return fe::DataType_t::HALF;
+    case CUDNN_DATA_FLOAT:
+      return fe::DataType_t::FLOAT;
+    case CUDNN_DATA_DOUBLE:
+      return fe::DataType_t::DOUBLE;
+    case CUDNN_DATA_BFLOAT16:
+      return fe::DataType_t::BFLOAT16;
+    default:
+      throw std::runtime_error("Unsupported CUDNN data type");
   }
 }
 
@@ -76,7 +78,7 @@ static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
   return to_fe_data_type(data_type);
 }
 
-static void build_fwd_graph(feHandle_t *handle, AttentionStats &stats) {
+static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
   const int64_t b = static_cast<int64_t>(stats.batch_size);
   const int64_t h = static_cast<int64_t>(stats.num_heads);
   const int64_t s = static_cast<int64_t>(stats.seq_len);
@@ -142,7 +144,7 @@ static void build_fwd_graph(feHandle_t *handle, AttentionStats &stats) {
   stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_bwd_graph(feHandle_t *handle, AttentionStats &stats) {
+static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
   const int64_t b = static_cast<int64_t>(stats.batch_size);
   const int64_t h = static_cast<int64_t>(stats.num_heads);
   const int64_t s = static_cast<int64_t>(stats.seq_len);
@@ -230,14 +232,14 @@ static void build_bwd_graph(feHandle_t *handle, AttentionStats &stats) {
   stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void rebuild_all_graphs(feHandle_t *handle, AttentionStats &stats) {
+static void rebuild_all_graphs(feHandle_t* handle, AttentionStats& stats) {
   build_fwd_graph(handle, stats);
   build_bwd_graph(handle, stats);
 }
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
-                                 cudnnDataType_t compute_data_type, AttentionStats &stats) {
-  feHandle_t *handle = new feHandle_t();
+feHandle_t* initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, AttentionStats& stats) {
+  feHandle_t* handle = new feHandle_t();
   handle->cudnn_handle = cudnn_handle;
   handle->io_data_type = io_data_type;
   handle->compute_data_type = compute_data_type;
@@ -247,20 +249,20 @@ feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_
   return handle;
 }
 
-void destroy_fe_handle(feHandle_t *handle) {
+void destroy_fe_handle(feHandle_t* handle) {
   if (handle) {
     delete handle;
   }
 }
 
-void run_forward(feHandle_t *handle, const AttentionStats &stats, const void *q_data,
-                 const void *k_data, const void *v_data, void *o_data, void *stats_data,
-                 void *workspace, cudaStream_t stream) {
+void run_forward(feHandle_t* handle, const AttentionStats& stats, const void* q_data,
+                 const void* k_data, const void* v_data, void* o_data, void* stats_data,
+                 void* workspace, cudaStream_t stream) {
   cudnnSetStream(handle->cudnn_handle, stream);
-  std::unordered_map<fe::graph::Tensor_attributes::uid_t, void *> variant_pack = {
-      {Q_UID, const_cast<void *>(q_data)},
-      {K_UID, const_cast<void *>(k_data)},
-      {V_UID, const_cast<void *>(v_data)},
+  std::unordered_map<fe::graph::Tensor_attributes::uid_t, void*> variant_pack = {
+      {Q_UID, const_cast<void*>(q_data)},
+      {K_UID, const_cast<void*>(k_data)},
+      {V_UID, const_cast<void*>(v_data)},
       {O_UID, o_data},
       {STATS_UID, stats_data}};
 
@@ -268,18 +270,18 @@ void run_forward(feHandle_t *handle, const AttentionStats &stats, const void *q_
   ensure_fe_ok(status, "sdpa execute");
 }
 
-void run_backward(feHandle_t *handle, const AttentionStats &stats, const void *q_data,
-                  const void *k_data, const void *v_data, const void *o_data, const void *dO_data,
-                  const void *stats_data, void *dQ_data, void *dK_data, void *dV_data,
-                  void *workspace, cudaStream_t stream) {
+void run_backward(feHandle_t* handle, const AttentionStats& stats, const void* q_data,
+                  const void* k_data, const void* v_data, const void* o_data, const void* dO_data,
+                  const void* stats_data, void* dQ_data, void* dK_data, void* dV_data,
+                  void* workspace, cudaStream_t stream) {
   cudnnSetStream(handle->cudnn_handle, stream);
-  std::unordered_map<fe::graph::Tensor_attributes::uid_t, void *> variant_pack = {
-      {Q_UID, const_cast<void *>(q_data)},
-      {K_UID, const_cast<void *>(k_data)},
-      {V_UID, const_cast<void *>(v_data)},
-      {O_UID, const_cast<void *>(o_data)},
-      {DO_UID, const_cast<void *>(dO_data)},
-      {STATS_UID, const_cast<void *>(stats_data)},
+  std::unordered_map<fe::graph::Tensor_attributes::uid_t, void*> variant_pack = {
+      {Q_UID, const_cast<void*>(q_data)},
+      {K_UID, const_cast<void*>(k_data)},
+      {V_UID, const_cast<void*>(v_data)},
+      {O_UID, const_cast<void*>(o_data)},
+      {DO_UID, const_cast<void*>(dO_data)},
+      {STATS_UID, const_cast<void*>(stats_data)},
       {DQ_UID, dQ_data},
       {DK_UID, dK_data},
       {DV_UID, dV_data}};
@@ -288,8 +290,8 @@ void run_backward(feHandle_t *handle, const AttentionStats &stats, const void *q
   ensure_fe_ok(status, "sdpa_backward execute");
 }
 
-} // namespace cudnn_flash_attention
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_flash_attention
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

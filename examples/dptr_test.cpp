@@ -1,7 +1,8 @@
-#include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 
 #include <iostream>
+
+#include "device/device_manager.hpp"
 using namespace tnn;
 
 signed main() {

@@ -6,10 +6,11 @@
  */
 #pragma once
 
-#include "math/cpu/gemm.hpp"
 #include <algorithm>
 #include <cmath>
 #include <vector>
+
+#include "math/cpu/gemm.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -83,8 +84,7 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
         for (size_t r = 0; r < br; ++r) {
           T max_val = -INFINITY;
           for (size_t c = 0; c < bc; ++c) {
-            if (S_ij[r * bc + c] > max_val)
-              max_val = S_ij[r * bc + c];
+            if (S_ij[r * bc + c] > max_val) max_val = S_ij[r * bc + c];
           }
           m_block[r] = max_val;
         }
@@ -143,5 +143,5 @@ void flash_attention_forward(T *q, T *k, T *v, T *output, size_t batch_count, si
   }
 }
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

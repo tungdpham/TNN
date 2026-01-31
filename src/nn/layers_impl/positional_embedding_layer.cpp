@@ -86,13 +86,13 @@ void PositionalEmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &gra
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-PositionalEmbeddingLayer::add_positional_embedding(const Tensor &input, Tensor &output,
-                                                   const Tensor &pos_embedding,
-                                                   const std::string &flow_id) const {
+std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
+    const Tensor &input, Tensor &output, const Tensor &pos_embedding,
+    const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error("PositionalEmbeddingLayer mixed dtype dispatch not implemented "
-                             "(io/param/compute must match).");
+    throw std::runtime_error(
+        "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
+        "(io/param/compute must match).");
   }
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error(
@@ -141,8 +141,9 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
     const Tensor &gradient, Tensor &pos_embedding_gradients, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-    throw std::runtime_error("PositionalEmbeddingLayer mixed dtype dispatch not implemented "
-                             "(io/param/compute must match).");
+    throw std::runtime_error(
+        "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
+        "(io/param/compute must match).");
   }
   if (gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("PositionalEmbeddingLayer gradient dtype mismatch with dispatch IO_T");
@@ -205,8 +206,8 @@ std::unique_ptr<Layer> PositionalEmbeddingLayer::clone() const {
   return std::make_unique<PositionalEmbeddingLayer>(embed_dim_, seq_len_, this->name_);
 }
 
-std::vector<size_t>
-PositionalEmbeddingLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> PositionalEmbeddingLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -218,11 +219,11 @@ void PositionalEmbeddingLayer::collect_gradients(std::vector<Tensor> &grads) {
   grads.push_back(pos_embedding_gradients_);
 }
 
-std::unique_ptr<PositionalEmbeddingLayer>
-PositionalEmbeddingLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<PositionalEmbeddingLayer> PositionalEmbeddingLayer::create_from_config(
+    const LayerConfig &config) {
   size_t embed_dim = config.get<size_t>("embed_dim");
   size_t seq_len = config.get<size_t>("seq_len");
   return std::make_unique<PositionalEmbeddingLayer>(embed_dim, seq_len, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

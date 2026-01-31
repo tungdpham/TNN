@@ -6,6 +6,14 @@
  */
 
 #include "nn/train.hpp"
+
+#include <chrono>
+#include <cstddef>
+#include <filesystem>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/sequential.hpp"
@@ -13,12 +21,6 @@
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"
-#include <chrono>
-#include <cstddef>
-#include <filesystem>
-#include <iomanip>
-#include <iostream>
-#include <memory>
 
 using namespace std;
 
@@ -47,7 +49,7 @@ void TrainingConfig::load_from_env() {
   // Get training parameters from environment or use defaults
   epochs = Env::get<int>("EPOCHS", DEFAULT_EPOCH);
   batch_size = Env::get<size_t>("BATCH_SIZE", DEFAULT_BATCH_SIZE);
-  max_steps = Env::get<uint64_t>("MAX_STEPS", -1); // -1 for no limit
+  max_steps = Env::get<uint64_t>("MAX_STEPS", -1);  // -1 for no limit
   lr_initial = Env::get<float>("LR_INITIAL", 0.001f);
   gradient_accumulation_steps = Env::get<int>("GRADIENT_ACCUMULATION_STEPS", 1);
   progress_print_interval = Env::get<int>("PROGRESS_PRINT_INTERVAL", DEFAULT_PRINT_INTERVAL);
@@ -290,7 +292,7 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
   cout << "Validation batches: " << val_loader->size() << endl;
 
   vector<size_t> data_shape = train_loader->get_data_shape();
-  data_shape.insert(data_shape.begin(), config.batch_size); // add batch dimension
+  data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dimension
   model->print_summary(data_shape);
 
   bool is_val = config.max_steps == -1;
@@ -337,4 +339,4 @@ Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
   return {avg_val_loss, avg_val_accuracy};
 }
 
-} // namespace tnn
+}  // namespace tnn

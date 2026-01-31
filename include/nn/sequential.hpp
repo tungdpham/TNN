@@ -6,20 +6,21 @@
  */
 #pragma once
 
-#include "nn/layer.hpp"
-#include "tensor/tensor.hpp"
+#include <fmt/core.h>
 
 #include <cstddef>
-#include <fmt/core.h>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 
+#include "nn/layer.hpp"
+#include "tensor/tensor.hpp"
+
 namespace tnn {
 struct Partition {
   size_t start_layer;
-  size_t end_layer; // exclusive
+  size_t end_layer;  // exclusive
 
   Partition(size_t start, size_t end) : start_layer(start), end_layer(end) {}
 };
@@ -96,4 +97,4 @@ public:
   size_t cached_memory_bytes() const override;
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -1,9 +1,10 @@
 #pragma once
 
-#include <memory>
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/spdlog.h>
+
+#include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -25,69 +26,62 @@ public:
 
   void enable_console_logging(bool enable = true);
 
-  template <typename... Args> void trace(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->trace(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void trace(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->trace(fmt, std::forward<Args>(args)...);
   }
 
   void trace(std::string_view msg) {
-    if (logger_)
-      logger_->trace(msg);
+    if (logger_) logger_->trace(msg);
   }
 
-  template <typename... Args> void debug(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->debug(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void debug(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->debug(fmt, std::forward<Args>(args)...);
   }
 
   void debug(std::string_view msg) {
-    if (logger_)
-      logger_->debug(msg);
+    if (logger_) logger_->debug(msg);
   }
 
-  template <typename... Args> void info(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->info(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void info(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->info(fmt, std::forward<Args>(args)...);
   }
 
   void info(std::string_view msg) {
-    if (logger_)
-      logger_->info(msg);
+    if (logger_) logger_->info(msg);
   }
 
-  template <typename... Args> void warn(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->warn(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void warn(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->warn(fmt, std::forward<Args>(args)...);
   }
 
   void warn(std::string_view msg) {
-    if (logger_)
-      logger_->warn(msg);
+    if (logger_) logger_->warn(msg);
   }
 
-  template <typename... Args> void error(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->error(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void error(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->error(fmt, std::forward<Args>(args)...);
   }
 
   void error(std::string_view msg) {
-    if (logger_)
-      logger_->error(msg);
+    if (logger_) logger_->error(msg);
   }
 
-  template <typename... Args> void critical(spdlog::format_string_t<Args...> fmt, Args &&...args) {
-    if (logger_)
-      logger_->critical(fmt, std::forward<Args>(args)...);
+  template <typename... Args>
+  void critical(spdlog::format_string_t<Args...> fmt, Args &&...args) {
+    if (logger_) logger_->critical(fmt, std::forward<Args>(args)...);
   }
 
   void critical(std::string_view msg) {
-    if (logger_)
-      logger_->critical(msg);
+    if (logger_) logger_->critical(msg);
   }
 
   void log_runtime(LogLevel level, std::string_view msg) {
-    if (logger_)
-      logger_->log(level, msg);
+    if (logger_) logger_->log(level, msg);
   }
 
 private:
@@ -151,4 +145,4 @@ public:
   static void log_runtime(LogLevel level, std::string_view msg) { logger_.log_runtime(level, msg); }
 };
 
-} // namespace tnn
+}  // namespace tnn

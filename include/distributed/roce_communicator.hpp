@@ -6,6 +6,23 @@
  */
 #pragma once
 
+#include <infiniband/verbs.h>
+#include <netinet/in.h>
+
+#include <any>
+#include <asio.hpp>
+#include <atomic>
+#include <cerrno>
+#include <condition_variable>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <mutex>
+#include <queue>
+#include <thread>
+#include <unordered_map>
+#include <vector>
+
 #include "communicator.hpp"
 #include "device/allocator.hpp"
 #include "device/device_manager.hpp"
@@ -15,26 +32,10 @@
 #include "distributed/roce_buffer.hpp"
 #include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
-#include <any>
-#include <cerrno>
-#include <netinet/in.h>
-
-#include <asio.hpp>
-#include <atomic>
-#include <condition_variable>
-#include <cstring>
-#include <infiniband/verbs.h>
-#include <iostream>
-#include <memory>
-#include <mutex>
-#include <queue>
-#include <thread>
-#include <unordered_map>
-#include <vector>
 
 namespace tnn {
 
-constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024; // 4MB
+constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024;  // 4MB
 constexpr int ROCE_SQ_DEPTH = 32;
 constexpr int ROCE_RQ_DEPTH = 32;
 
@@ -81,7 +82,7 @@ private:
 
   std::unordered_map<Endpoint, std::shared_ptr<Connection>> connections_;
   std::unordered_map<uint32_t, std::shared_ptr<Connection>>
-      qp_map_; // Map QPN to Connection* for polling
+      qp_map_;  // Map QPN to Connection* for polling
   std::mutex connections_mutex_;
 
   // Send buffer pool
@@ -141,12 +142,9 @@ public:
     send_buffers_.clear();
     buffer_pool_.reset();
 
-    if (cq_)
-      ibv_destroy_cq(cq_);
-    if (pd_)
-      ibv_dealloc_pd(pd_);
-    if (context_)
-      ibv_close_device(context_);
+    if (cq_) ibv_destroy_cq(cq_);
+    if (pd_) ibv_dealloc_pd(pd_);
+    if (context_) ibv_close_device(context_);
   }
 
   void start_server() {
@@ -221,7 +219,7 @@ public:
     struct ibv_send_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
     wr.wr_id = (uint64_t)send_buf;
-    wr.opcode = IBV_WR_SEND; // Standard Send for handshake
+    wr.opcode = IBV_WR_SEND;  // Standard Send for handshake
     wr.sg_list = &sge;
     wr.num_sge = 1;
     wr.send_flags = IBV_SEND_SIGNALED;
@@ -347,8 +345,7 @@ private:
     buf.push_back(info.psn & 0xFF);
     // gid (16 bytes)
     const uint8_t *gid_ptr = info.gid.raw;
-    for (int i = 0; i < 16; ++i)
-      buf.push_back(gid_ptr[i]);
+    for (int i = 0; i < 16; ++i) buf.push_back(gid_ptr[i]);
   }
 
   RoceConnectionInfo deserialize_info(const std::vector<uint8_t> &buf) {
@@ -373,16 +370,13 @@ private:
         if (ibv_query_gid(context_, ib_port_, i, &gid) == 0) {
           bool empty = true;
           for (int b = 0; b < 16; ++b)
-            if (gid.raw[b] != 0)
-              empty = false;
-          if (empty)
-            continue;
+            if (gid.raw[b] != 0) empty = false;
+          if (empty) continue;
 
           std::cout << "  GID Index " << i << ": ";
           auto old_flags = std::cout.flags();
           std::cout << std::hex;
-          for (int b = 0; b < 16; ++b)
-            std::cout << (int)gid.raw[b] << (b < 15 ? ":" : "");
+          for (int b = 0; b < 16; ++b) std::cout << (int)gid.raw[b] << (b < 15 ? ":" : "");
           std::cout.flags(old_flags);
           std::cout << "\n";
         }
@@ -393,8 +387,7 @@ private:
   void init_rdma() {
     int num_devices;
     struct ibv_device **dev_list = ibv_get_device_list(&num_devices);
-    if (!dev_list)
-      throw std::runtime_error("Failed to get IB devices list");
+    if (!dev_list) throw std::runtime_error("Failed to get IB devices list");
 
     struct ibv_device *ib_dev = nullptr;
     for (int i = 0; i < num_devices; ++i) {
@@ -411,16 +404,13 @@ private:
 
     context_ = ibv_open_device(ib_dev);
     ibv_free_device_list(dev_list);
-    if (!context_)
-      throw std::runtime_error("Failed to open device");
+    if (!context_) throw std::runtime_error("Failed to open device");
 
     pd_ = ibv_alloc_pd(context_);
-    if (!pd_)
-      throw std::runtime_error("Failed to alloc PD");
+    if (!pd_) throw std::runtime_error("Failed to alloc PD");
 
     cq_ = ibv_create_cq(context_, ROCE_SQ_DEPTH + ROCE_RQ_DEPTH, nullptr, nullptr, 0);
-    if (!cq_)
-      throw std::runtime_error("Failed to create CQ");
+    if (!cq_) throw std::runtime_error("Failed to create CQ");
 
     if (gid_index_ == -1) {
       struct ibv_port_attr port_attr;
@@ -438,8 +428,7 @@ private:
                 break;
               }
             }
-            if (empty)
-              continue;
+            if (empty) continue;
 
             // check for IPv4 mapped address ::ffff:x.x.x.x
             // this usually indicates RoCE v2 with IPv4
@@ -495,8 +484,7 @@ private:
     init_attr.qp_type = IBV_QPT_RC;
 
     ibv_qp *qp = ibv_create_qp(pd_, &init_attr);
-    if (!qp)
-      throw std::runtime_error("Failed to create QP");
+    if (!qp) throw std::runtime_error("Failed to create QP");
     return qp;
   }
 
@@ -566,8 +554,7 @@ private:
       std::cerr << "  Remote GID: ";
       auto old_flags = std::cerr.flags();
       std::cerr << std::hex;
-      for (int i = 0; i < 16; ++i)
-        std::cerr << (int)peer_info.gid.raw[i] << ":";
+      for (int i = 0; i < 16; ++i) std::cerr << (int)peer_info.gid.raw[i] << ":";
       std::cerr.flags(old_flags);
       std::cerr << "\n";
 
@@ -575,24 +562,19 @@ private:
       if (ibv_query_gid(context_, ib_port_, gid_index_, &local_gid) == 0) {
         std::cerr << "  Local GID (Index " << gid_index_ << "): ";
         std::cerr << std::hex;
-        for (int i = 0; i < 16; ++i)
-          std::cerr << (int)local_gid.raw[i] << ":";
+        for (int i = 0; i < 16; ++i) std::cerr << (int)local_gid.raw[i] << ":";
         std::cerr.flags(old_flags);
         std::cerr << "\n";
 
         bool remote_ipv4 = true;
         for (int i = 0; i < 10; ++i)
-          if (peer_info.gid.raw[i] != 0)
-            remote_ipv4 = false;
-        if (peer_info.gid.raw[10] != 0xff || peer_info.gid.raw[11] != 0xff)
-          remote_ipv4 = false;
+          if (peer_info.gid.raw[i] != 0) remote_ipv4 = false;
+        if (peer_info.gid.raw[10] != 0xff || peer_info.gid.raw[11] != 0xff) remote_ipv4 = false;
 
         bool local_ipv4 = true;
         for (int i = 0; i < 10; ++i)
-          if (local_gid.raw[i] != 0)
-            local_ipv4 = false;
-        if (local_gid.raw[10] != 0xff || local_gid.raw[11] != 0xff)
-          local_ipv4 = false;
+          if (local_gid.raw[i] != 0) local_ipv4 = false;
+        if (local_gid.raw[10] != 0xff || local_gid.raw[11] != 0xff) local_ipv4 = false;
 
         if (remote_ipv4 != local_ipv4) {
           std::cerr << "Hint: GID Type mismatch detected!\n"
@@ -612,7 +594,7 @@ private:
     attr.timeout = 20;
     attr.retry_cnt = 7;
     attr.rnr_retry = 7;
-    attr.sq_psn = local_psn; // My PSN
+    attr.sq_psn = local_psn;  // My PSN
     attr.max_rd_atomic = 1;
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN |
             IBV_QP_MAX_QP_RD_ATOMIC;
@@ -675,8 +657,7 @@ private:
           {
             std::lock_guard<std::mutex> lock(connections_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
-            if (it != qp_map_.end())
-              conn = it->second;
+            if (it != qp_map_.end()) conn = it->second;
           }
 
           auto *buf = (RoceBuffer *)wc[i].wr_id;
@@ -771,8 +752,7 @@ private:
                 {
                   std::lock_guard<std::mutex> lock(conn->mutex);
                   auto it = conn->pending_sends.find(header.msg_serial_id);
-                  if (it != conn->pending_sends.end())
-                    source_buf = it->second;
+                  if (it != conn->pending_sends.end()) source_buf = it->second;
                 }
 
                 if (source_buf) {
@@ -814,8 +794,7 @@ private:
             {
               std::lock_guard<std::mutex> lock(connections_mutex_);
               auto it = qp_map_.find(wc[i].qp_num);
-              if (it != qp_map_.end())
-                conn = it->second;
+              if (it != qp_map_.end()) conn = it->second;
             }
 
             if (conn) {
@@ -853,15 +832,13 @@ private:
     asio::async_read(
         *socket, asio::buffer(id_len_buf.get(), sizeof(uint32_t)),
         [this, socket, id_len_buf](const asio::error_code &ec, size_t) {
-          if (ec)
-            return;
+          if (ec) return;
           size_t endpoint_len = *id_len_buf;
           auto peer_endpoint_buf = std::make_shared<std::string>(endpoint_len, '\0');
           asio::async_read(
               *socket, asio::buffer(&(*peer_endpoint_buf)[0], endpoint_len),
               [this, socket, peer_endpoint_buf](const asio::error_code &ec, size_t) {
-                if (ec)
-                  return;
+                if (ec) return;
 
                 // Deserialize the peer's endpoint from JSON
                 Endpoint peer_endpoint;
@@ -961,4 +938,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

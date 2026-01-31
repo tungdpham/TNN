@@ -36,20 +36,20 @@ inline void tbb_cleanup();
 constexpr int DEFAULT_EPOCH = 10;
 constexpr size_t DEFAULT_BATCH_SIZE = 32;
 constexpr float DEFAULT_LR_DECAY_FACTOR = 0.9f;
-constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5; // in epochs
+constexpr size_t DEFAULT_LR_DECAY_INTERVAL = 5;  // in epochs
 constexpr int DEFAULT_PRINT_INTERVAL = 100;
-constexpr int64_t DEFAULT_NUM_THREADS = 8; // Typical number of P-Cores on laptop CPUs
+constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on laptop CPUs
 
 struct TrainingConfig {
   // Trainer params
   DType_t dtype = DType_t::FP32;
   int epochs = 10;
   size_t batch_size = 32;
-  int64_t max_steps = -1; // -1 for no limit, otherwise max number of batches per epoch
+  int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
   float lr_initial = 0.001f;
   int gradient_accumulation_steps = 1;
   int progress_print_interval = 100;
-  int64_t num_threads = 8; // Typical number of P-Cores on laptop CPUs
+  int64_t num_threads = 8;  // Typical number of P-Cores on laptop CPUs
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
@@ -77,4 +77,4 @@ void train_model(std::unique_ptr<Sequential> &model, std::unique_ptr<BaseDataLoa
                  std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());
 
-} // namespace tnn
+}  // namespace tnn

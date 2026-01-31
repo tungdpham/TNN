@@ -1,9 +1,9 @@
-#include "nn/layers_impl/cpu/dropout_ops.hpp"
-
-#include "threading/thread_handler.hpp"
-#include "type/type.hpp"
 #include <algorithm>
 #include <random>
+
+#include "nn/layers_impl/cpu/dropout_ops.hpp"
+#include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -48,9 +48,9 @@ void compute_dropout_forward(const T *input_data, T *output_data, T *mask_data, 
   });
 }
 
-#define INSTANTIATE_DROPOUT(T)                                                                     \
-  template void compute_dropout_forward<T>(const T *input_data, T *output_data, T *mask_data,      \
-                                           size_t batch_size, size_t channels,                     \
+#define INSTANTIATE_DROPOUT(T)                                                                \
+  template void compute_dropout_forward<T>(const T *input_data, T *output_data, T *mask_data, \
+                                           size_t batch_size, size_t channels,                \
                                            size_t spatial_size, T dropout_rate);
 INSTANTIATE_DROPOUT(fp16)
 INSTANTIATE_DROPOUT(bf16)
@@ -58,6 +58,6 @@ INSTANTIATE_DROPOUT(float)
 INSTANTIATE_DROPOUT(double)
 #undef INSTANTIATE_DROPOUT
 
-} // namespace dropout
-} // namespace cpu
-} // namespace tnn
+}  // namespace dropout
+}  // namespace cpu
+}  // namespace tnn

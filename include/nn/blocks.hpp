@@ -1,9 +1,10 @@
 #pragma once
 
-#include "blocks_impl/residual_block.hpp"
-#include "nn/layer.hpp"
 #include <memory>
 #include <vector>
+
+#include "blocks_impl/residual_block.hpp"
+#include "nn/layer.hpp"
 
 namespace tnn {
 
@@ -16,4 +17,4 @@ inline std::unique_ptr<ResidualBlock> residual_block(std::vector<std::unique_ptr
       name.empty() ? "residual_block_" + std::to_string(main_path.size()) : name);
 }
 
-} // namespace tnn
+}  // namespace tnn

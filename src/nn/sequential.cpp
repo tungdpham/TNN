@@ -6,16 +6,18 @@
  */
 
 #include "nn/sequential.hpp"
-#include "nn/layers.hpp"
-#include "profiling/event.hpp"
-#include "tensor/tensor.hpp"
+
+#include <fmt/core.h>
 
 #include <algorithm>
-#include <fmt/core.h>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
 #include <stdexcept>
+
+#include "nn/layers.hpp"
+#include "profiling/event.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -176,8 +178,7 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   auto format_shape = [](const std::vector<size_t> &shape) {
     std::string shape_str = "(";
     for (size_t j = 0; j < shape.size(); ++j) {
-      if (j > 0)
-        shape_str += ",";
+      if (j > 0) shape_str += ",";
       shape_str += std::to_string(shape[j]);
     }
     shape_str += ")";
@@ -324,4 +325,4 @@ size_t Sequential::cached_memory_bytes() const {
   return total;
 }
 
-} // namespace tnn
+}  // namespace tnn

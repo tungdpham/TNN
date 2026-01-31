@@ -6,14 +6,15 @@
  */
 #pragma once
 
-#include "data_augmentation/augmentation.hpp"
-#include "tensor/tensor.hpp"
 #include <algorithm>
 #include <memory>
 #include <numeric>
 #include <random>
 #include <string>
 #include <vector>
+
+#include "data_augmentation/augmentation.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -117,4 +118,4 @@ protected:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -54,4 +54,4 @@ private:
   mutable std::mutex connections_mutex_;
   std::vector<std::shared_ptr<Connection>> connections_;
 };
-} // namespace tnn
+}  // namespace tnn

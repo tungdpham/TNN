@@ -57,6 +57,6 @@ template <typename T>
 void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
                             const size_t batch_size, const size_t output_size, T delta);
 
-} // namespace loss
-} // namespace cpu
-} // namespace tnn
+}  // namespace loss
+}  // namespace cpu
+}  // namespace tnn

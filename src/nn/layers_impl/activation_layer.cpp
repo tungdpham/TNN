@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/activation_layer.hpp"
+
 #include "nn/activations.hpp"
 namespace tnn {
 
@@ -47,8 +48,8 @@ std::unique_ptr<Layer> ActivationLayer::clone() const {
   return std::make_unique<ActivationLayer>(activation_->clone(), this->name_);
 }
 
-std::vector<size_t>
-ActivationLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> ActivationLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -73,4 +74,4 @@ std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const Layer
   return std::make_unique<ActivationLayer>(std::move(activation), config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/flatten_layer.hpp"
+
 #include <stdexcept>
 
 namespace tnn {
@@ -50,8 +51,8 @@ std::unique_ptr<Layer> FlattenLayer::clone() const {
   return std::make_unique<FlattenLayer>(this->start_dim_, this->end_dim_, this->name_);
 }
 
-std::vector<size_t>
-FlattenLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> FlattenLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::invalid_argument("FlattenLayer expects non-empty input shape");
   }
@@ -94,4 +95,4 @@ uint64_t FlattenLayer::forward_flops(const std::vector<size_t> &input_shape) con
 
 uint64_t FlattenLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
-} // namespace tnn
+}  // namespace tnn

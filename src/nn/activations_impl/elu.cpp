@@ -5,10 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/activations_impl/elu.hpp"
-#include "tensor/tensor.hpp"
+
 #include <cassert>
 
 #include "nn/activations_impl/cpu/elu_kernels.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/activations_impl/cuda/elu_kernels.hpp"
 #endif
@@ -97,4 +98,4 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const Tensor &input, const Tens
   return nullptr;
 }
 
-} // namespace tnn
+}  // namespace tnn

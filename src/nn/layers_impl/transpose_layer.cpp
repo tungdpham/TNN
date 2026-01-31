@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/transpose_layer.hpp"
+
 #include "nn/blocks_impl/cpu/permute_heads.hpp"
 #ifdef USE_CUDA
 #include "nn/blocks_impl/cuda/permute_heads.hpp"
@@ -72,8 +73,8 @@ void TransposeLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, gradient, grad_input, B, H, L, D, "default");
 }
 
-std::vector<size_t>
-TransposeLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> TransposeLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 3)
     throw std::runtime_error("TransposeLayer expects 3 dims (B, D1, D2)");
   return {input_shape[0], input_shape[2], input_shape[1]};
@@ -94,4 +95,4 @@ std::unique_ptr<TransposeLayer> TransposeLayer::create_from_config(const LayerCo
   return std::make_unique<TransposeLayer>(config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

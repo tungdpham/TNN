@@ -6,18 +6,19 @@
  */
 #pragma once
 
-#include "device/allocator.hpp"
-#include "device/device_manager.hpp"
-#include "device/dptr.hpp"
+#include <infiniband/verbs.h>
 
 #include <cerrno>
 #include <cstddef>
 #include <cstring>
-#include <infiniband/verbs.h>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
+
+#include "device/allocator.hpp"
+#include "device/device_manager.hpp"
+#include "device/dptr.hpp"
 #ifndef NDEBUG
 #include <iostream>
 #endif
@@ -177,7 +178,7 @@ public:
   }
 
 private:
-  std::multimap<size_t, size_t> free_blocks_; // size -> offset
+  std::multimap<size_t, size_t> free_blocks_;  // size -> offset
   const Device &device_;
   ibv_pd *pd_;
   ibv_mr *slab_mr_;
@@ -199,7 +200,7 @@ private:
             storage_info->allocator->reclaim(storage_info->offset, storage_info->size);
           }
           delete storage_info;
-          storage->ptr = nullptr; // Prevent device_storage destructor from freeing
+          storage->ptr = nullptr;  // Prevent device_storage destructor from freeing
           delete storage;
         });
 
@@ -218,4 +219,4 @@ private:
   };
 };
 
-} // namespace tnn
+}  // namespace tnn

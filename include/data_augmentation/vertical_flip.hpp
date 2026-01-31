@@ -1,7 +1,8 @@
 #pragma once
 
-#include "augmentation.hpp"
 #include <random>
+
+#include "augmentation.hpp"
 
 namespace tnn {
 
@@ -25,12 +26,12 @@ public:
 private:
   float probability_;
 
-  template <typename T> void apply_impl(Tensor &data, Tensor &labels) {
+  template <typename T>
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
     const auto shape = data->shape();
-    if (shape.size() != 4)
-      return;
+    if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
     const size_t channels = shape[1];
@@ -51,4 +52,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

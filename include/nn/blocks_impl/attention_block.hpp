@@ -6,15 +6,16 @@
  */
 #pragma once
 
+#include <cmath>
+#include <memory>
+#include <string>
+#include <vector>
+
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
-#include <cmath>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace tnn {
 
@@ -36,10 +37,11 @@ private:
                                                   const std::string &flow_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task>
-  compute_attention_backward(const Tensor &q, const Tensor &k, const Tensor &v,
-                             const Tensor &d_attn_out, Tensor &dq, Tensor &dk, Tensor &dv,
-                             size_t batch_size, size_t seq_len, const std::string &flow_id);
+  std::unique_ptr<Task> compute_attention_backward(const Tensor &q, const Tensor &k,
+                                                   const Tensor &v, const Tensor &d_attn_out,
+                                                   Tensor &dq, Tensor &dk, Tensor &dv,
+                                                   size_t batch_size, size_t seq_len,
+                                                   const std::string &flow_id);
 
   void init_params() override;
   void on_set_io_dtype(DType_t dtype) override;
@@ -67,4 +69,4 @@ protected:
   void collect_gradients(std::vector<Tensor> &grads) override;
 };
 
-} // namespace tnn
+}  // namespace tnn

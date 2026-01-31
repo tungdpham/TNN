@@ -2,12 +2,12 @@
 
 #ifdef USE_CUDNN
 
-#include "type/type.hpp"
-#include <cudnn_frontend.h>
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
 
 #include <string>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -50,16 +50,16 @@ static void ensure_ok(fe::error_t status, std::string stage) {
 
 static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
   switch (data_type) {
-  case CUDNN_DATA_HALF:
-    return fe::DataType_t::HALF;
-  case CUDNN_DATA_FLOAT:
-    return fe::DataType_t::FLOAT;
-  case CUDNN_DATA_DOUBLE:
-    return fe::DataType_t::DOUBLE;
-  case CUDNN_DATA_BFLOAT16:
-    return fe::DataType_t::BFLOAT16;
-  default:
-    throw std::runtime_error("Unsupported cuDNN data type for conv2d");
+    case CUDNN_DATA_HALF:
+      return fe::DataType_t::HALF;
+    case CUDNN_DATA_FLOAT:
+      return fe::DataType_t::FLOAT;
+    case CUDNN_DATA_DOUBLE:
+      return fe::DataType_t::DOUBLE;
+    case CUDNN_DATA_BFLOAT16:
+      return fe::DataType_t::BFLOAT16;
+    default:
+      throw std::runtime_error("Unsupported cuDNN data type for conv2d");
   }
 }
 
@@ -70,7 +70,7 @@ static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
   return to_fe_data_type(data_type);
 }
 
-static void build_fwd_graph(feHandle_t *handle, ConvolutionStats &stats) {
+static void build_fwd_graph(feHandle_t* handle, ConvolutionStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.in_channels);
   const int64_t h = static_cast<int64_t>(stats.input_h);
@@ -142,7 +142,7 @@ static void build_fwd_graph(feHandle_t *handle, ConvolutionStats &stats) {
   stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_dgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
+static void build_dgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.in_channels);
   const int64_t h = static_cast<int64_t>(stats.input_h);
@@ -200,7 +200,7 @@ static void build_dgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   stats.dgrad_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_wgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
+static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t c = static_cast<int64_t>(stats.in_channels);
   const int64_t h = static_cast<int64_t>(stats.input_h);
@@ -258,7 +258,7 @@ static void build_wgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   stats.wgrad_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void build_bgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
+static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   const int64_t n = static_cast<int64_t>(stats.batch_size);
   const int64_t k = static_cast<int64_t>(stats.out_channels);
   const int64_t p = static_cast<int64_t>(stats.output_h);
@@ -302,7 +302,7 @@ static void build_bgrad_graph(feHandle_t *handle, ConvolutionStats &stats) {
   stats.bgrad_workspace_size = static_cast<size_t>(workspace_size);
 }
 
-static void rebuild_all_graphs(feHandle_t *handle, ConvolutionStats &stats) {
+static void rebuild_all_graphs(feHandle_t* handle, ConvolutionStats& stats) {
   build_fwd_graph(handle, stats);
   build_dgrad_graph(handle, stats);
   build_wgrad_graph(handle, stats);
@@ -311,9 +311,9 @@ static void rebuild_all_graphs(feHandle_t *handle, ConvolutionStats &stats) {
   }
 }
 
-feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
-                                 cudnnDataType_t compute_data_type, ConvolutionStats &stats) {
-  auto *handle = new feHandle_t();
+feHandle_t* initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_data_type,
+                                 cudnnDataType_t compute_data_type, ConvolutionStats& stats) {
+  auto* handle = new feHandle_t();
   handle->cudnn_handle = cudnn_handle;
   handle->io_data_type = io_data_type;
   handle->compute_data_type = compute_data_type;
@@ -325,37 +325,37 @@ feHandle_t *initialize_fe_handle(cudnnHandle_t cudnn_handle, cudnnDataType_t io_
   return handle;
 }
 
-void destroy_fe_handle(feHandle_t *handle) {
+void destroy_fe_handle(feHandle_t* handle) {
   if (!handle) {
     return;
   }
   delete handle;
 }
 
-void run_forward(feHandle_t *handle, const ConvolutionStats &stats, const void *input_data,
-                 const void *weight_data, const void *bias_data, void *output_data,
-                 void *workspace_data, cudaStream_t stream) {
+void run_forward(feHandle_t* handle, const ConvolutionStats& stats, const void* input_data,
+                 const void* weight_data, const void* bias_data, void* output_data,
+                 void* workspace_data, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward called with null feHandle_t");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->fwd_x, const_cast<void *>(input_data)},
-      {handle->fwd_w, const_cast<void *>(weight_data)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->fwd_x, const_cast<void*>(input_data)},
+      {handle->fwd_w, const_cast<void*>(weight_data)},
       {handle->fwd_y, output_data}};
 
   if (stats.use_bias && bias_data && handle->fwd_b) {
-    variant_pack[handle->fwd_b] = const_cast<void *>(bias_data);
+    variant_pack[handle->fwd_b] = const_cast<void*>(bias_data);
   }
 
   auto status = handle->fwd_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
   ensure_ok(status, "conv_fprop execute");
 }
 
-void run_backward_data(feHandle_t *handle, const ConvolutionStats &stats, const void *gradient_data,
-                       const void *weight_data, void *input_grad_data, void *workspace_data,
+void run_backward_data(feHandle_t* handle, const ConvolutionStats& stats, const void* gradient_data,
+                       const void* weight_data, void* input_grad_data, void* workspace_data,
                        cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_backward_data called with null feHandle_t");
@@ -363,28 +363,28 @@ void run_backward_data(feHandle_t *handle, const ConvolutionStats &stats, const 
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->dgrad_dy, const_cast<void *>(gradient_data)},
-      {handle->dgrad_w, const_cast<void *>(weight_data)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->dgrad_dy, const_cast<void*>(gradient_data)},
+      {handle->dgrad_w, const_cast<void*>(weight_data)},
       {handle->dgrad_dx, input_grad_data}};
 
   auto status = handle->dgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
   ensure_ok(status, "conv_dgrad execute");
 }
 
-void run_backward_weights_and_bias(feHandle_t *handle, const ConvolutionStats &stats,
-                                   const void *input_data, const void *gradient_data,
-                                   void *weight_grad_data, void *bias_grad_data,
-                                   void *workspace_data, cudaStream_t stream) {
+void run_backward_weights_and_bias(feHandle_t* handle, const ConvolutionStats& stats,
+                                   const void* input_data, const void* gradient_data,
+                                   void* weight_grad_data, void* bias_grad_data,
+                                   void* workspace_data, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_backward_weights_and_bias called with null feHandle_t");
   }
 
   cudnnSetStream(handle->cudnn_handle, stream);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {handle->wgrad_x, const_cast<void *>(input_data)},
-      {handle->wgrad_dy, const_cast<void *>(gradient_data)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {handle->wgrad_x, const_cast<void*>(input_data)},
+      {handle->wgrad_dy, const_cast<void*>(gradient_data)},
       {handle->wgrad_dw, weight_grad_data}};
 
   auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
@@ -392,8 +392,8 @@ void run_backward_weights_and_bias(feHandle_t *handle, const ConvolutionStats &s
 
   // Compute bias gradient separately if needed
   if (stats.use_bias && bias_grad_data && handle->bgrad_graph) {
-    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> bgrad_variant_pack = {
-        {handle->bgrad_dy, const_cast<void *>(gradient_data)}, {handle->bgrad_db, bias_grad_data}};
+    std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> bgrad_variant_pack = {
+        {handle->bgrad_dy, const_cast<void*>(gradient_data)}, {handle->bgrad_db, bias_grad_data}};
 
     auto bgrad_status =
         handle->bgrad_graph->execute(handle->cudnn_handle, bgrad_variant_pack, workspace_data);
@@ -401,8 +401,8 @@ void run_backward_weights_and_bias(feHandle_t *handle, const ConvolutionStats &s
   }
 }
 
-} // namespace cudnn_conv2d
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_conv2d
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

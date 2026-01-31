@@ -6,18 +6,19 @@
  */
 #pragma once
 
-#include "nn/layers_impl/parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
+
+#include "nn/layers_impl/parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
 class LayerNormLayer : public ParameterizedLayer {
 private:
-  size_t normalized_shape_; // Size of C (channels)
+  size_t normalized_shape_;  // Size of C (channels)
   float epsilon_;
-  bool affine_; // Whether to use learnable affine parameters
+  bool affine_;  // Whether to use learnable affine parameters
 
   Tensor gamma_;
   Tensor beta_;
@@ -61,4 +62,4 @@ public:
   static std::unique_ptr<LayerNormLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

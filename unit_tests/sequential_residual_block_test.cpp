@@ -5,14 +5,16 @@
  * project root for the full license text.
  */
 
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <limits>
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
-#include <cmath>
-#include <gtest/gtest.h>
-#include <limits>
-#include <vector>
 
 using namespace tnn;
 
@@ -78,7 +80,6 @@ protected:
 };
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 64, 1, "basic_64_64").build();
   Sequential model("test_basic_identity", std::move(layers));
@@ -106,7 +107,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 128, 1, "basic_64_128").build();
 
@@ -134,7 +134,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedShortcut) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 64, 2, "basic_64_64_stride2")
@@ -154,7 +153,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedAndProjection) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 128, 2, "basic_64_128_stride2")
@@ -174,7 +172,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockStridedAndProjection) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
-
   auto layers =
       LayerBuilder().input({32, 16, 16}).basic_residual_block(32, 32, 1, "basic_32_32").build();
 
@@ -209,7 +206,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockMultipleBlocks) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 64, 1)
@@ -232,7 +228,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockMultipleBlocks) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
-
   auto layers =
       LayerBuilder().input({256, 32, 32}).bottleneck_residual_block(256, 64, 256, 1).build();
 
@@ -260,7 +255,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockProjectionShortcut) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).bottleneck_residual_block(64, 64, 256, 1).build();
 
@@ -279,7 +273,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockProjectionShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedShortcut) {
-
   auto layers =
       LayerBuilder().input({256, 32, 32}).bottleneck_residual_block(256, 64, 256, 2).build();
 
@@ -297,7 +290,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedShortcut) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedAndProjection) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).bottleneck_residual_block(64, 64, 256, 2).build();
 
@@ -316,7 +308,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockStridedAndProjection)
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
-
   auto layers = LayerBuilder().input({64, 16, 16}).bottleneck_residual_block(64, 32, 64, 1).build();
 
   auto model = Sequential("test_bottleneck_backward", std::move(layers));
@@ -350,7 +341,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockMultipleBlocks) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .bottleneck_residual_block(64, 64, 256, 1)
@@ -373,7 +363,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockMultipleBlocks) {
 }
 
 TEST_F(SequentialResidualBlockTest, MixedBasicAndBottleneckBlocks) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 64, 1)
@@ -396,7 +385,6 @@ TEST_F(SequentialResidualBlockTest, MixedBasicAndBottleneckBlocks) {
 }
 
 TEST_F(SequentialResidualBlockTest, ResNet18LikeArchitecture) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 64, 1)
@@ -423,7 +411,6 @@ TEST_F(SequentialResidualBlockTest, ResNet18LikeArchitecture) {
 }
 
 TEST_F(SequentialResidualBlockTest, ResNet50LikeArchitecture) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .bottleneck_residual_block(64, 64, 256, 1)
@@ -451,7 +438,6 @@ TEST_F(SequentialResidualBlockTest, ResNet50LikeArchitecture) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockOutputShapeComputation) {
-
   auto layers = LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 128, 2).build();
 
   auto model = Sequential("test_basic_output_shape", std::move(layers));
@@ -462,7 +448,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockOutputShapeComputation) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockOutputShapeComputation) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).bottleneck_residual_block(64, 64, 256, 2).build();
 
@@ -475,7 +460,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockOutputShapeComputatio
 }
 
 TEST_F(SequentialResidualBlockTest, ChainedOutputShapeComputation) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .basic_residual_block(64, 64, 1)
@@ -491,7 +475,6 @@ TEST_F(SequentialResidualBlockTest, ChainedOutputShapeComputation) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockGetConfig) {
-
   auto layers =
       LayerBuilder().input({64, 32, 32}).basic_residual_block(64, 64, 1, "my_basic_block").build();
   Sequential model("test_basic_config", std::move(layers));
@@ -505,7 +488,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGetConfig) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGetConfig) {
-
   auto layers = LayerBuilder()
                     .input({64, 32, 32})
                     .bottleneck_residual_block(64, 64, 256, 1, "my_bottleneck_block")
@@ -520,7 +502,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGetConfig) {
 }
 
 TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
-
   auto layers = LayerBuilder().input({16, 8, 8}).basic_residual_block(16, 16, 1).build();
   Sequential model("test_basic_numerical", std::move(layers));
   model.set_device(*cpu_device_);
@@ -555,7 +536,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
-
   auto layers = LayerBuilder().input({32, 8, 8}).bottleneck_residual_block(32, 16, 32, 1).build();
   Sequential model("test_bottleneck_numerical", std::move(layers));
   model.set_device(*cpu_device_);
@@ -624,7 +604,6 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
 }
 
 TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
-
   auto layers = LayerBuilder().input({16, 8, 8}).bottleneck_residual_block(16, 8, 16, 1).build();
   Sequential model("test_bottleneck_gradient_finite", std::move(layers));
   model.set_device(*cpu_device_);
@@ -661,7 +640,6 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
 }
 
 TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
-
   auto layers = LayerBuilder()
                     .input({16, 16, 16})
                     .basic_residual_block(16, 16, 1)

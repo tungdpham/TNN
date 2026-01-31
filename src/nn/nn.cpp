@@ -5,4 +5,4 @@
  * project root for the full license text.
  */
 
-namespace tnn {} // namespace tnn
+namespace tnn {}  // namespace tnn

@@ -1,12 +1,14 @@
 #pragma once
 
-#include "distributed/buffer_pool.hpp"
-#include "packet.hpp"
+#include <sys/types.h>
+
 #include <cstdint>
 #include <iostream>
 #include <mutex>
-#include <sys/types.h>
 #include <unordered_map>
+
+#include "distributed/buffer_pool.hpp"
+#include "packet.hpp"
 
 namespace tnn {
 struct MessageState {
@@ -121,8 +123,8 @@ public:
   }
 
 private:
-  static inline std::atomic<uint64_t> cur_serial_id_{101};    // auto increment, for sender side
-  mutable std::mutex message_states_mutex_;                   // protect message_states_
-  std::unordered_map<uint64_t, MessageState> message_states_; // for receiver side
+  static inline std::atomic<uint64_t> cur_serial_id_{101};     // auto increment, for sender side
+  mutable std::mutex message_states_mutex_;                    // protect message_states_
+  std::unordered_map<uint64_t, MessageState> message_states_;  // for receiver side
 };
-} // namespace tnn
+}  // namespace tnn

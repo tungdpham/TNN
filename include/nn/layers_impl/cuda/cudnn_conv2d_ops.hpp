@@ -2,12 +2,11 @@
 
 #ifdef USE_CUDNN
 
+#include <cuda_runtime.h>
 #include <cudnn.h>
 
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "type/type.hpp"
-
-#include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
@@ -35,8 +34,8 @@ void run_backward_weights_and_bias(feHandle_t *handle, const ConvolutionStats &s
                                    void *weight_grad_data, void *bias_grad_data,
                                    void *workspace_data, cudaStream_t stream);
 
-} // namespace cudnn_conv2d
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_conv2d
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "device/device.hpp"
-#include "device/device_type.hpp"
-
 #include <cstddef>
 #include <cstdint>
+
+#include "device/device.hpp"
+#include "device/device_type.hpp"
 
 namespace tnn {
 
@@ -71,14 +71,16 @@ public:
     return storage_->alignment;
   }
 
-  template <typename T> T *get() {
+  template <typename T>
+  T *get() {
     if (!storage_) {
       return nullptr;
     }
     return static_cast<T *>(static_cast<void *>(static_cast<uint8_t *>(storage_->ptr) + offset_));
   }
 
-  template <typename T> const T *get() const {
+  template <typename T>
+  const T *get() const {
     if (!storage_) {
       return nullptr;
     }
@@ -137,4 +139,4 @@ inline dptr make_dptr_t(const Device *device, size_t count, size_t alignment = D
   return make_dptr(device, count * sizeof(T), alignment);
 }
 
-} // namespace tnn
+}  // namespace tnn

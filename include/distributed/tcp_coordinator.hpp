@@ -6,13 +6,14 @@
  */
 #pragma once
 
+#include <asio.hpp>
+#include <memory>
+#include <vector>
+
 #include "coordinator.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
 #include "tcp_communicator.hpp"
-#include <asio.hpp>
-#include <memory>
-#include <vector>
 
 namespace tnn {
 
@@ -50,4 +51,4 @@ public:
   ~NetworkCoordinator() = default;
 };
 
-} // namespace tnn
+}  // namespace tnn

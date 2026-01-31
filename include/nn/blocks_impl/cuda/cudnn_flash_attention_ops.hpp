@@ -32,8 +32,8 @@ void run_backward(feHandle_t *handle, const AttentionStats &stats, const void *q
                   const void *stats_data, void *dQ_data, void *dK_data, void *dV_data,
                   void *workspace, cudaStream_t stream);
 
-} // namespace cudnn_flash_attention
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_flash_attention
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

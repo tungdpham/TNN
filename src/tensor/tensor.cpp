@@ -10,4 +10,4 @@
 namespace tnn {
 template class TypedTensor<float>;
 // template struct Tensor<double>;
-} // namespace tnn
+}  // namespace tnn

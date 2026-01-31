@@ -1,4 +1,10 @@
 #include "distributed/roce_coordinator.hpp"
+
+#include <getopt.h>
+
+#include <iostream>
+#include <vector>
+
 #include "data_loading/data_loader_factory.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
@@ -7,9 +13,6 @@
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "utils/env.hpp"
-#include <getopt.h>
-#include <iostream>
-#include <vector>
 
 using namespace tnn;
 using namespace std;
@@ -40,24 +43,24 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
 
   while ((c = getopt_long(argc, argv, "H:p:d:g:h", long_options, nullptr)) != -1) {
     switch (c) {
-    case 'd':
-      cfg.device_name = optarg;
-      break;
-    case 'g':
-      try {
-        cfg.gid_index = stoi(optarg);
-      } catch (...) {
-        cerr << "Invalid gid-index value: " << optarg << endl;
+      case 'd':
+        cfg.device_name = optarg;
+        break;
+      case 'g':
+        try {
+          cfg.gid_index = stoi(optarg);
+        } catch (...) {
+          cerr << "Invalid gid-index value: " << optarg << endl;
+          return false;
+        }
+        break;
+      case 'h':
+        print_usage(argv[0]);
         return false;
-      }
-      break;
-    case 'h':
-      print_usage(argv[0]);
-      return false;
-    case '?':
-      return false;
-    default:
-      return false;
+      case '?':
+        return false;
+      default:
+        return false;
     }
   }
 

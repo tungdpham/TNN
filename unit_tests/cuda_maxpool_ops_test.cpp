@@ -5,14 +5,16 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/maxpool_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/maxpool_nchw_ops.hpp"
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace tnn;
 
@@ -57,7 +59,6 @@ protected:
   }
 
   void compareMasks(const dptr &expected, const dptr &actual, size_t size) {
-
     std::vector<size_t> expected_host(size);
     std::vector<size_t> actual_host(size);
 
@@ -328,8 +329,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(gpu_device_, gradient_data.size());
-  dptr gpu_grad_input =
-      make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
+  dptr gpu_grad_input = make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -406,8 +406,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(gpu_device_, gradient_data.size());
-  dptr gpu_grad_input =
-      make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
+  dptr gpu_grad_input = make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -484,8 +483,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(gpu_device_, gradient_data.size());
-  dptr gpu_grad_input =
-      make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
+  dptr gpu_grad_input = make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));
@@ -562,8 +560,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
   ASSERT_FALSE(gpu_forward_task->sync()) << "GPU maxpool forward task failed";
 
   dptr gpu_gradient = make_dptr_t<float>(gpu_device_, gradient_data.size());
-  dptr gpu_grad_input =
-      make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
+  dptr gpu_grad_input = make_dptr_t<float>(gpu_device_, batch_size * channels * input_h * input_w);
 
   gpu_device_->copyToDevice(gpu_gradient.get<float>(), gradient_data.data(),
                             gradient_data.size() * sizeof(float));

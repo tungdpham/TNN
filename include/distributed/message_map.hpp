@@ -6,9 +6,10 @@
  */
 #pragma once
 
-#include "message.hpp"
 #include <tbb/concurrent_queue.h>
 #include <tbb/concurrent_unordered_map.h>
+
+#include "message.hpp"
 
 namespace tnn {
 
@@ -87,4 +88,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

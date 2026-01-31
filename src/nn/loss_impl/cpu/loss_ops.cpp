@@ -6,10 +6,11 @@
  */
 #include "nn/loss_impl/cpu/loss_ops.hpp"
 
-#include "threading/thread_handler.hpp"
-#include "type/type.hpp"
 #include <algorithm>
 #include <cmath>
+
+#include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -263,6 +264,6 @@ INSTANTIATE_LOSS_OPS(float)
 INSTANTIATE_LOSS_OPS(double)
 #undef INSTANTIATE_LOSS_OPS
 
-} // namespace loss
-} // namespace cpu
-} // namespace tnn
+}  // namespace loss
+}  // namespace cpu
+}  // namespace tnn

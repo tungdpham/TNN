@@ -141,7 +141,7 @@ void *CPUContext::allocateAlignedMemory(size_t size, size_t alignment) {
                              std::string(cudaGetErrorString(err)));
   }
   return ptr;
-  (void)alignment; // Unused parameter
+  (void)alignment;  // Unused parameter
 #endif
 #endif
 }
@@ -177,4 +177,4 @@ Flow *CPUContext::getFlow(const std::string &flow_id) {
   return flows_[flow_id].get();
 }
 
-} // namespace tnn
+}  // namespace tnn

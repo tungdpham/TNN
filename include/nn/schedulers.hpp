@@ -6,7 +6,6 @@
  */
 #pragma once
 
-#include "optimizers.hpp"
 #include <algorithm>
 #include <any>
 #include <cmath>
@@ -15,6 +14,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "optimizers.hpp"
+
 namespace tnn {
 
 struct SchedulerConfig {
@@ -22,7 +23,8 @@ struct SchedulerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -379,8 +381,11 @@ class WarmupCosineAnnealing : public Scheduler {
 public:
   WarmupCosineAnnealing(Optimizer *optimizer, size_t warmup_steps, size_t total_steps,
                         float start_lr = 0.0f, float eta_min = 0.0f)
-      : Scheduler(optimizer), warmup_steps_(warmup_steps), total_steps_(total_steps),
-        start_lr_(start_lr), eta_min_(eta_min) {
+      : Scheduler(optimizer),
+        warmup_steps_(warmup_steps),
+        total_steps_(total_steps),
+        start_lr_(start_lr),
+        eta_min_(eta_min) {
     this->set_lr(start_lr_);
   }
 
@@ -439,8 +444,13 @@ public:
 
   ReduceLROnPlateau(Optimizer *optimizer, Mode mode = Mode::MIN, float factor = 0.1f,
                     size_t patience = 10, float threshold = 1e-4f, float min_lr = 0.0f)
-      : Scheduler(optimizer), mode_(mode), factor_(factor), patience_(patience),
-        threshold_(threshold), min_lr_(min_lr), best_value_(mode == Mode::MIN ? 1e10f : -1e10f),
+      : Scheduler(optimizer),
+        mode_(mode),
+        factor_(factor),
+        patience_(patience),
+        threshold_(threshold),
+        min_lr_(min_lr),
+        best_value_(mode == Mode::MIN ? 1e10f : -1e10f),
         bad_epochs_(0) {}
 
   void step() override {
@@ -558,8 +568,12 @@ class OneCycleLR : public Scheduler {
 public:
   OneCycleLR(Optimizer *optimizer, float max_lr, size_t total_steps, float pct_start = 0.3f,
              float div_factor = 25.0f, float final_div_factor = 1e4f)
-      : Scheduler(optimizer), max_lr_(max_lr), total_steps_(total_steps), pct_start_(pct_start),
-        div_factor_(div_factor), final_div_factor_(final_div_factor) {
+      : Scheduler(optimizer),
+        max_lr_(max_lr),
+        total_steps_(total_steps),
+        pct_start_(pct_start),
+        div_factor_(div_factor),
+        final_div_factor_(final_div_factor) {
     initial_lr_ = max_lr_ / div_factor_;
     min_lr_ = initial_lr_ / final_div_factor_;
     step_up_ = static_cast<size_t>(total_steps_ * pct_start_);
@@ -654,9 +668,9 @@ public:
                                                    eta_min);
   }
 
-  static std::unique_ptr<Scheduler>
-  create(const std::string &name, Optimizer *optimizer,
-         const std::unordered_map<std::string, float> &params = {}) {
+  static std::unique_ptr<Scheduler> create(
+      const std::string &name, Optimizer *optimizer,
+      const std::unordered_map<std::string, float> &params = {}) {
     if (name == "step_lr") {
       size_t step_size =
           static_cast<size_t>(params.count("step_size") ? params.at("step_size") : 10);
@@ -751,4 +765,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

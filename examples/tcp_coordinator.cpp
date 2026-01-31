@@ -5,6 +5,12 @@
  * project root for the full license text.
  */
 #include "distributed/tcp_coordinator.hpp"
+
+#include <cstdlib>
+#include <iostream>
+#include <memory>
+#include <vector>
+
 #include "data_loading/data_loader_factory.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/tcp_worker.hpp"
@@ -15,11 +21,6 @@
 #include "partitioner/naive_partitioner.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
-
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-#include <vector>
 
 using namespace tnn;
 using namespace std;

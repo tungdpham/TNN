@@ -6,15 +6,15 @@
  */
 #pragma once
 
-#include "nn/activations_impl/base_activation.hpp"
-#include "nn/layer.hpp"
-#include "nn/layers_impl/parameterized_layer.hpp"
-
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "nn/activations_impl/base_activation.hpp"
+#include "nn/layer.hpp"
+#include "nn/layers_impl/parameterized_layer.hpp"
 
 namespace tnn {
 
@@ -76,4 +76,4 @@ public:
 
   size_t cached_memory_bytes() const override;
 };
-} // namespace tnn
+}  // namespace tnn

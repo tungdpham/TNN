@@ -6,12 +6,12 @@
  */
 #pragma once
 
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -45,16 +45,18 @@ private:
                                                       const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task>
-  compute_inference_output(const Tensor &input, Tensor &output, size_t batch_size, size_t channels,
-                           size_t spatial_size, const std::string &flow_id = "default");
+  std::unique_ptr<Task> compute_inference_output(const Tensor &input, Tensor &output,
+                                                 size_t batch_size, size_t channels,
+                                                 size_t spatial_size,
+                                                 const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task>
-  run_forward_fused(const Tensor &input, Tensor &batch_mean, Tensor &batch_inv_std,
-                    Tensor &running_mean, Tensor &running_var, const Tensor &gamma,
-                    const Tensor &beta, Tensor &output, Tensor &norm, size_t batch_size,
-                    size_t channels, size_t spatial_size, const std::string &flow_id = "default");
+  std::unique_ptr<Task> run_forward_fused(const Tensor &input, Tensor &batch_mean,
+                                          Tensor &batch_inv_std, Tensor &running_mean,
+                                          Tensor &running_var, const Tensor &gamma,
+                                          const Tensor &beta, Tensor &output, Tensor &norm,
+                                          size_t batch_size, size_t channels, size_t spatial_size,
+                                          const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_backward_fused(const Tensor &grad_output, const Tensor &norm_input,
@@ -85,4 +87,4 @@ public:
   static std::unique_ptr<LegacyBatchNormLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

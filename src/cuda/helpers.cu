@@ -1,9 +1,9 @@
-#include "cuda/helpers.hpp"
-
 #include <cuda_runtime.h>
+
+#include "cuda/helpers.hpp"
 
 namespace tnn {
 namespace cuda {
 void synchronize() { cudaDeviceSynchronize(); }
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

@@ -6,9 +6,10 @@
  */
 #include "nn/optimizers_impl/cpu/adam_kernels.hpp"
 
+#include <cmath>
+
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
-#include <cmath>
 
 namespace tnn {
 namespace cpu {
@@ -19,7 +20,6 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
                  const float learning_rate, const float beta1, const float beta2,
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay) {
-
   const T one_minus_beta1 = T(1.0) - static_cast<T>(beta1);
   const T one_minus_beta2 = T(1.0) - static_cast<T>(beta2);
 
@@ -38,11 +38,9 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
 
     if (weight_decay > 0.0f) {
       if (decouple_weight_decay) {
-
         params_data[i] -=
             static_cast<T>(weight_decay) * static_cast<T>(learning_rate) * params_data[i];
       } else {
-
         update += static_cast<T>(weight_decay) * static_cast<T>(learning_rate) * params_data[i];
       }
     }
@@ -51,11 +49,11 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
   });
 }
 
-#define INSTANTIATE_ADAM(T)                                                                        \
-  template void update_adam<T>(T * params_data, const T *grads_data, T *m_data, T *v_data,         \
-                               const size_t size, const float learning_rate, const float beta1,    \
-                               const float beta2, const float epsilon,                             \
-                               const float bias_correction1, const float bias_correction2,         \
+#define INSTANTIATE_ADAM(T)                                                                     \
+  template void update_adam<T>(T * params_data, const T *grads_data, T *m_data, T *v_data,      \
+                               const size_t size, const float learning_rate, const float beta1, \
+                               const float beta2, const float epsilon,                          \
+                               const float bias_correction1, const float bias_correction2,      \
                                const float weight_decay, const bool decouple_weight_decay);
 INSTANTIATE_ADAM(fp16)
 INSTANTIATE_ADAM(bf16)
@@ -63,6 +61,6 @@ INSTANTIATE_ADAM(float)
 INSTANTIATE_ADAM(double)
 #undef INSTANTIATE_ADAM
 
-} // namespace adam
-} // namespace cpu
-} // namespace tnn
+}  // namespace adam
+}  // namespace cpu
+}  // namespace tnn

@@ -5,11 +5,12 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/slice_layer.hpp"
+
+#include <stdexcept>
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 #include "nn/layers_impl/cuda/slice_ops.hpp"
-
-#include <stdexcept>
 
 namespace tnn {
 
@@ -142,4 +143,4 @@ uint64_t SliceLayer::forward_flops(const std::vector<size_t> &input_shape) const
 
 uint64_t SliceLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
-} // namespace tnn
+}  // namespace tnn

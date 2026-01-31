@@ -6,9 +6,10 @@
  */
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
 
+#include <cmath>
+
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
-#include <cmath>
 
 namespace tnn {
 namespace cpu {
@@ -111,8 +112,7 @@ void run_forward_fused(const T *input, float *mean, float *inv_std, float *runni
       float x = static_cast<float>(input_ptr[s]);
       float norm = (x - mu) * istd;
 
-      if (norm_ptr)
-        norm_ptr[s] = norm;
+      if (norm_ptr) norm_ptr[s] = norm;
 
       if (affine) {
         output_ptr[s] = static_cast<T>(norm * gamma[c] + beta[c]);
@@ -154,7 +154,6 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
       d_gamma[c] += sum_dy_x_norm;
       d_beta[c] += sum_dy;
     } else {
-
       d_gamma[c] = sum_dy_x_norm;
       d_beta[c] = sum_dy;
     }
@@ -184,19 +183,19 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
   });
 }
 
-#define INSTANTIATE_BATCHNORM(T)                                                                   \
-  template void compute_inference_output<T>(                                                       \
-      const T *input_data, const float *running_mean_data, const float *running_var_data,          \
-      const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,          \
-      size_t channels, size_t spatial_size, float epsilon, bool affine);                           \
-                                                                                                   \
-  template void run_forward_fused<T>(                                                              \
-      const T *input, float *mean, float *inv_std, float *running_mean, float *running_var,        \
-      const float *gamma, const float *beta, T *output, float *norm_cache, size_t N, size_t C,     \
-      size_t S, float momentum, float epsilon, bool affine);                                       \
-                                                                                                   \
-  template void run_backward_fused<T>(                                                             \
-      const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma,     \
+#define INSTANTIATE_BATCHNORM(T)                                                               \
+  template void compute_inference_output<T>(                                                   \
+      const T *input_data, const float *running_mean_data, const float *running_var_data,      \
+      const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,      \
+      size_t channels, size_t spatial_size, float epsilon, bool affine);                       \
+                                                                                               \
+  template void run_forward_fused<T>(                                                          \
+      const T *input, float *mean, float *inv_std, float *running_mean, float *running_var,    \
+      const float *gamma, const float *beta, T *output, float *norm_cache, size_t N, size_t C, \
+      size_t S, float momentum, float epsilon, bool affine);                                   \
+                                                                                               \
+  template void run_backward_fused<T>(                                                         \
+      const T *grad_output, const float *norm_input, const float *inv_std, const float *gamma, \
       float *d_gamma, float *d_beta, T *grad_input, size_t N, size_t C, size_t S, bool affine);
 INSTANTIATE_BATCHNORM(fp16)
 INSTANTIATE_BATCHNORM(bf16)
@@ -204,6 +203,6 @@ INSTANTIATE_BATCHNORM(float)
 INSTANTIATE_BATCHNORM(double)
 #undef INSTANTIATE_BATCHNORM
 
-} // namespace batchnorm_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace batchnorm_nchw
+}  // namespace cpu
+}  // namespace tnn

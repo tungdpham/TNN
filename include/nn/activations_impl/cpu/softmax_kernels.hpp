@@ -13,5 +13,5 @@ template <typename T>
 void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_t batch_size,
                       size_t channels, size_t height, size_t width);
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

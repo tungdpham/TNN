@@ -1,12 +1,12 @@
 #pragma once
 
-#include "parser.hpp"
-
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <unordered_map>
+
+#include "parser.hpp"
 
 namespace tnn {
 
@@ -30,8 +30,7 @@ public:
 
     while (std::getline(file, line)) {
       size_t first = line.find_first_not_of(" \t\r\n");
-      if (first == std::string::npos)
-        continue;
+      if (first == std::string::npos) continue;
       line.erase(0, first);
       line.erase(line.find_last_not_of(" \t\r\n") + 1);
 
@@ -70,7 +69,7 @@ public:
 
       // 4. Validate Key (Security)
       if (key.empty() || key.find_first_of("= \t") != std::string::npos) {
-        continue; // Skip keys with invalid characters
+        continue;  // Skip keys with invalid characters
       }
 
       env_vars_[key] = value;
@@ -86,7 +85,8 @@ public:
     return true;
   }
 
-  template <typename T = std::string> T get(const std::string &env_var, const T &default_value) {
+  template <typename T = std::string>
+  T get(const std::string &env_var, const T &default_value) {
     auto it = env_vars_.find(env_var);
     if (it != env_vars_.end()) {
       return from_str<T>(it->second);
@@ -134,4 +134,4 @@ public:
     return instance().get<T>(env_var, default_value);
   }
 };
-} // namespace tnn
+}  // namespace tnn

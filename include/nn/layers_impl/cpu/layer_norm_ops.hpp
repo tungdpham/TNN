@@ -15,6 +15,6 @@ void layer_norm_backward(const T *grad_output, const T *input, const T *gamma, T
                          T *grad_gamma, T *grad_beta, size_t batch_size, size_t channels,
                          T epsilon);
 
-} // namespace layer_norm
-} // namespace cpu
-} // namespace tnn
+}  // namespace layer_norm
+}  // namespace cpu
+}  // namespace tnn

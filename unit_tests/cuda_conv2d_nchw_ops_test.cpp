@@ -5,14 +5,16 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/conv2d_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/conv2d_nchw_ops.hpp"
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace tnn;
 
@@ -118,7 +120,7 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsBasic) {
 
 TEST_F(CUDAConv2dOpsTest, WeightGradientsMultiOutput) {
   const size_t output_size = 9;
-  const size_t kernel_size = 16; // 4x4 kernel
+  const size_t kernel_size = 16;  // 4x4 kernel
   const size_t out_channels = 8;
 
   std::vector<float> col_data(kernel_size * output_size);
@@ -165,7 +167,7 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsMultiOutput) {
 
 TEST_F(CUDAConv2dOpsTest, WeightGradientsLargeKernel) {
   const size_t output_size = 25;
-  const size_t kernel_size = 25; // 5x5 kernel
+  const size_t kernel_size = 25;  // 5x5 kernel
   const size_t out_channels = 16;
 
   std::vector<float> col_data(kernel_size * output_size);
@@ -563,4 +565,4 @@ int main(int argc, char **argv) {
   return RUN_ALL_TESTS();
 }
 
-#endif // USE_CUDA
+#endif  // USE_CUDA

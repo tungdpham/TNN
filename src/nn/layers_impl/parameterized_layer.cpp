@@ -22,4 +22,4 @@ std::vector<Tensor> ParameterizedLayer::gradients() {
   return grads;
 }
 
-} // namespace tnn
+}  // namespace tnn

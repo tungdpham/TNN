@@ -6,15 +6,15 @@
  */
 #pragma once
 
-#include "data_loading/image_data_loader.hpp"
-#include "tensor/tensor.hpp"
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <numeric>
-
 #include <string>
 #include <vector>
+
+#include "data_loading/image_data_loader.hpp"
+#include "tensor/tensor.hpp"
 
 namespace cifar100_constants {
 constexpr size_t IMAGE_HEIGHT = 32;
@@ -25,7 +25,7 @@ constexpr size_t NUM_COARSE_CLASSES = 20;
 constexpr size_t NUM_CHANNELS = 3;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t RECORD_SIZE = 1 + 1 + IMAGE_SIZE;
-} // namespace cifar100_constants
+}  // namespace cifar100_constants
 
 namespace tnn {
 /**
@@ -84,7 +84,8 @@ private:
                                                   "vehicles_1",
                                                   "vehicles_2"};
 
-  template <typename T> bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
+  template <typename T>
+  bool load_multiple_files_impl(const std::vector<std::string> &filenames) {
     data_.clear();
     fine_labels_.clear();
     coarse_labels_.clear();
@@ -221,8 +222,7 @@ public:
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (data_.empty())
-      return;
+    if (data_.empty()) return;
 
     std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
@@ -329,4 +329,4 @@ public:
     }
   }
 };
-} // namespace tnn
+}  // namespace tnn

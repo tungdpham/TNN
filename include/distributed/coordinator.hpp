@@ -6,21 +6,6 @@
  */
 #pragma once
 
-#include "device/pool_allocator.hpp"
-#include "distributed/endpoint.hpp"
-#include "distributed/worker.hpp"
-#include "logging/logger.hpp"
-#include "nn/loss.hpp"
-#include "nn/optimizers.hpp"
-#include "nn/sequential.hpp"
-
-#include "communicator.hpp"
-#include "partitioner/partitioner.hpp"
-#include "profiling/event.hpp"
-#include "profiling/profiler.hpp"
-#include "stage_config.hpp"
-#include "tensor/tensor.hpp"
-
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -29,13 +14,28 @@
 #include <mutex>
 #include <vector>
 
+#include "communicator.hpp"
+#include "device/pool_allocator.hpp"
+#include "distributed/endpoint.hpp"
+#include "distributed/worker.hpp"
+#include "logging/logger.hpp"
+#include "nn/loss.hpp"
+#include "nn/optimizers.hpp"
+#include "nn/sequential.hpp"
+#include "partitioner/partitioner.hpp"
+#include "profiling/event.hpp"
+#include "profiling/profiler.hpp"
+#include "stage_config.hpp"
+#include "tensor/tensor.hpp"
+
 namespace tnn {
 
 class Coordinator {
 public:
   Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
               std::unique_ptr<Worker> local_worker = nullptr)
-      : model_(std::move(model)), optimizer_(std::move(optimizer)),
+      : model_(std::move(model)),
+        optimizer_(std::move(optimizer)),
         local_worker_(std::move(local_worker)) {}
 
   virtual ~Coordinator() { comm_.reset(); }
@@ -412,4 +412,4 @@ protected:
   mutable std::condition_variable message_notification_cv_;
 };
 
-} // namespace tnn
+}  // namespace tnn

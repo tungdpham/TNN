@@ -6,11 +6,12 @@
  */
 #pragma once
 
-#include "nn/layers_impl/parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "nn/layers_impl/parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -58,4 +59,4 @@ public:
   static std::unique_ptr<PositionalEmbeddingLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

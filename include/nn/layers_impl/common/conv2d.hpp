@@ -68,4 +68,4 @@ inline void round_workspace_size(ConvolutionStats &stats, size_t alignment = 16)
       ((stats.bgrad_workspace_size + alignment - 1) / alignment) * alignment;
 }
 
-} // namespace tnn
+}  // namespace tnn

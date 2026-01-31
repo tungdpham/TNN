@@ -1,8 +1,9 @@
 #include "math/cpu/sgemm.hpp"
-#include "threading/thread_handler.hpp"
 
-#include <algorithm> // For std::min
+#include <algorithm>  // For std::min
 #include <cstring>
+
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -487,7 +488,6 @@ void transpose_matrix(const float *src, float *dst, const size_t rows, const siz
 
 void sgemm(const float *A, const float *B, float *C, const size_t M, const size_t N, const size_t K,
            const bool trans_A, const bool trans_B, const float alpha, const float beta) {
-
   if (beta == 0.0f) {
     parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] = 0.0f; });
   } else if (beta != 1.0f) {
@@ -653,5 +653,5 @@ void sgemm(const float *A, const float *B, float *C, const size_t M, const size_
   }
 #endif
 }
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

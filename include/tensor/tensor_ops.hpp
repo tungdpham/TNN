@@ -35,7 +35,7 @@ std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_
   else {
     throw std::runtime_error("im2col: Unsupported device type");
   }
-} // namespace std::unique_ptr
+}  // namespace std::unique_ptr
 
 template <typename T>
 std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t batch_size,
@@ -232,5 +232,5 @@ std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n
   }
 }
 
-} // namespace TensorOps
-} // namespace tnn
+}  // namespace TensorOps
+}  // namespace tnn

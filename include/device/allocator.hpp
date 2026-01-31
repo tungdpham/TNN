@@ -11,4 +11,4 @@ public:
 
   virtual dptr allocate(size_t size) = 0;
 };
-} // namespace tnn
+}  // namespace tnn

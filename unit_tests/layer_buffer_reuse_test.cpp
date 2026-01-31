@@ -4,6 +4,7 @@
  */
 
 #include <gtest/gtest.h>
+
 #include <memory>
 
 #include "nn/activations.hpp"

@@ -6,11 +6,14 @@
  */
 
 #include "nn/blocks_impl/attention_block.hpp"
-#include "nn/layers.hpp"
-#include "tensor/tensor.hpp"
+
 #include <gtest/gtest.h>
+
 #include <memory>
 #include <vector>
+
+#include "nn/layers.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 

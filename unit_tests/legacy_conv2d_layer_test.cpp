@@ -5,12 +5,15 @@
  * project root for the full license text.
  */
 
-#include "device/device_manager.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
+
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -146,7 +149,6 @@ protected:
             for (size_t oc = 0; oc < out_channels; ++oc) {
               for (size_t kh = 0; kh < kernel_h; ++kh) {
                 for (size_t kw = 0; kw < kernel_w; ++kw) {
-
                   int oh = (static_cast<int>(ih) + static_cast<int>(pad_h) - static_cast<int>(kh));
                   int ow = (static_cast<int>(iw) + static_cast<int>(pad_w) - static_cast<int>(kw));
 
@@ -652,7 +654,6 @@ TEST_F(LegacyConv2DLayerTest, GradientCollectionWithoutBias) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
-
   LegacyConv2DLayer layer(64, 256, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_increase");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -686,7 +687,6 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelIncrease) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
-
   LegacyConv2DLayer layer(256, 64, 1, 1, 1, 1, 0, 0, false, "resnet_1x1_decrease");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -720,7 +720,6 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1ChannelDecrease) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
-
   LegacyConv2DLayer layer(64, 128, 3, 3, 2, 2, 0, 0, false, "resnet_strided_downsample");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -754,7 +753,6 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedDownsample) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
-
   LegacyConv2DLayer layer(64, 128, 3, 3, 2, 2, 1, 1, false, "resnet_strided_padded");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -788,7 +786,6 @@ TEST_F(LegacyConv2DLayerTest, ResNetStridedWithPadding) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
-
   LegacyConv2DLayer layer(64, 256, 1, 1, 2, 2, 0, 0, false, "resnet_1x1_strided");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -822,7 +819,6 @@ TEST_F(LegacyConv2DLayerTest, ResNet1x1StridedDownsample) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
-
   LegacyConv2DLayer layer(64, 64, 3, 3, 1, 1, 1, 1, false, "resnet_bottleneck_3x3");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -856,7 +852,6 @@ TEST_F(LegacyConv2DLayerTest, ResNetBottleneck3x3) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
-
   LegacyConv2DLayer layer(3, 64, 7, 7, 2, 2, 3, 3, true, "resnet_first_conv");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -891,7 +886,6 @@ TEST_F(LegacyConv2DLayerTest, ResNetFirstConv7x7) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
-
   LegacyConv2DLayer layer(32, 64, 3, 3, 2, 1, 1, 1, false, "resnet_asymmetric_stride");
   layer.set_device(*cpu_device_);
   layer.init();
@@ -925,7 +919,6 @@ TEST_F(LegacyConv2DLayerTest, ResNetAsymmetricStride) {
 }
 
 TEST_F(LegacyConv2DLayerTest, ResNetSmallFeatureMap) {
-
   LegacyConv2DLayer layer(64, 64, 3, 3, 2, 2, 1, 1, false, "resnet_small_feature");
   layer.set_device(*cpu_device_);
   layer.init();

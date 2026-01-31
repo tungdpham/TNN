@@ -5,24 +5,28 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/maxpool2d_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/maxpool_ops.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/maxpool_ops.hpp"
 #endif
-#include "tensor/tensor.hpp"
-
 #include <cstddef>
 #include <stdexcept>
+
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
 MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
                                size_t pad_h, size_t pad_w, const std::string &name)
-    : StatelessLayer(name), pool_h_(pool_h), pool_w_(pool_w),
-      stride_h_(stride_h == 0 ? pool_h : stride_h), stride_w_(stride_w == 0 ? pool_w : stride_w),
-      pad_h_(pad_h), pad_w_(pad_w) {
-
+    : StatelessLayer(name),
+      pool_h_(pool_h),
+      pool_w_(pool_w),
+      stride_h_(stride_h == 0 ? pool_h : stride_h),
+      stride_w_(stride_w == 0 ? pool_w : stride_w),
+      pad_h_(pad_h),
+      pad_w_(pad_w) {
   if (pool_h_ == 0 || pool_w_ == 0) {
     throw std::invalid_argument("Pool dimensions must be positive");
   }
@@ -121,22 +125,20 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
   return nullptr;
 }
 
-std::unique_ptr<Task>
-MaxPool2DLayer::compute_max_pool_forward(const Tensor &input_data, Tensor &output_data,
-                                         size_t batch_size, size_t height, size_t width,
-                                         size_t channels, size_t output_h, size_t output_w,
-                                         Tensor &mask_indices, const std::string &flow_id) const {
+std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward(
+    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t height, size_t width,
+    size_t channels, size_t output_h, size_t output_w, Tensor &mask_indices,
+    const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_forward_impl, input_data, output_data, batch_size,
                               height, width, channels, output_h, output_w, mask_indices, flow_id);
   return nullptr;
 }
 
 template <typename IO_T>
-std::unique_ptr<Task>
-MaxPool2DLayer::compute_max_pool_backward_impl(const Tensor &gradient_data, Tensor &grad_input_data,
-                                               size_t batch_size, size_t channels, size_t output_h,
-                                               size_t output_w, const Tensor &mask_indices,
-                                               const std::string &flow_id) const {
+std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward_impl(
+    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
+    size_t output_h, size_t output_w, const Tensor &mask_indices,
+    const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayer: data type mismatch in backward pass");
@@ -189,8 +191,8 @@ std::unique_ptr<Layer> MaxPool2DLayer::clone() const {
                                           this->name_);
 }
 
-std::vector<size_t>
-MaxPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> MaxPool2DLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("MaxPool2DLayer: input shape must be 4D (NHWC format)");
   }
@@ -244,4 +246,4 @@ uint64_t MaxPool2DLayer::backward_flops(const std::vector<size_t> &input_shape) 
   return batch_size * output_h * output_w * channels;
 }
 
-} // namespace tnn
+}  // namespace tnn

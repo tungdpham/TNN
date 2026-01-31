@@ -1,12 +1,15 @@
 #include "nn/activations_impl/cpu/gelu_kernels.hpp"
-#include "type/type.hpp"
+
 #include <cmath>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
 
-template <typename T> void gelu(const T *input, T *output, size_t size) {
-  const double k0 = 0.7978845608028654; // sqrt(2/pi)
+template <typename T>
+void gelu(const T *input, T *output, size_t size) {
+  const double k0 = 0.7978845608028654;  // sqrt(2/pi)
   const double k1 = 0.044715;
 
   for (size_t i = 0; i < size; ++i) {
@@ -19,7 +22,7 @@ template <typename T> void gelu(const T *input, T *output, size_t size) {
 
 template <typename T>
 void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t size) {
-  const double k0 = 0.7978845608028654; // sqrt(2/pi)
+  const double k0 = 0.7978845608028654;  // sqrt(2/pi)
   const double k1 = 0.044715;
 
   for (size_t i = 0; i < size; ++i) {
@@ -40,8 +43,8 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
   }
 }
 
-#define INSTANTIATE_GELU(T)                                                                        \
-  template void gelu<T>(const T *input, T *output, size_t size);                                   \
+#define INSTANTIATE_GELU(T)                                      \
+  template void gelu<T>(const T *input, T *output, size_t size); \
   template void gelu_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size);
 INSTANTIATE_GELU(fp16)
 INSTANTIATE_GELU(bf16)
@@ -49,5 +52,5 @@ INSTANTIATE_GELU(float)
 INSTANTIATE_GELU(double)
 #undef INSTANTIATE_GELU
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

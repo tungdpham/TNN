@@ -6,19 +6,19 @@
  */
 #pragma once
 
-#include "data_loading/image_data_loader.hpp"
-#include "tensor/tensor.hpp"
-#include "threading/thread_handler.hpp"
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <map>
 #include <numeric>
-
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "data_loading/image_data_loader.hpp"
+#include "tensor/tensor.hpp"
+#include "threading/thread_handler.hpp"
 
 // Forward declare stb_image functions
 extern "C" {
@@ -36,7 +36,7 @@ constexpr float NORMALIZATION_FACTOR = 255.0f;
 constexpr size_t TRAIN_IMAGES_PER_CLASS = 500;
 constexpr size_t VAL_IMAGES = 10000;
 constexpr size_t IMAGE_SIZE = NUM_CHANNELS * IMAGE_HEIGHT * IMAGE_WIDTH;
-} // namespace tiny_imagenet_constants
+}  // namespace tiny_imagenet_constants
 
 namespace tnn {
 /**
@@ -58,9 +58,9 @@ private:
   std::vector<Tensor> batched_labels_;
   DType_t dtype_ = DType_t::FP32;
 
-  std::vector<std::string> class_ids_;                  // WordNet IDs (wnids)
-  std::map<std::string, int> class_id_to_index_;        // Map wnid to class index
-  std::map<std::string, std::string> class_id_to_name_; // Map wnid to human-readable name
+  std::vector<std::string> class_ids_;                   // WordNet IDs (wnids)
+  std::map<std::string, int> class_id_to_index_;         // Map wnid to class index
+  std::map<std::string, std::string> class_id_to_name_;  // Map wnid to human-readable name
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
@@ -338,7 +338,7 @@ private:
 
 public:
   TinyImageNetDataLoader(DType_t dtype = DType_t::FP32) : ImageDataLoader(), dtype_(dtype) {
-    data_.reserve(100000 * tiny_imagenet_constants::IMAGE_SIZE); // Reserve for training set
+    data_.reserve(100000 * tiny_imagenet_constants::IMAGE_SIZE);  // Reserve for training set
     labels_.reserve(100000);
   }
 
@@ -381,7 +381,7 @@ public:
    * Overload for compatibility with BaseDataLoader interface
    */
   bool load_data(const std::string &source) override {
-    return load_data(source, true); // Default to training data
+    return load_data(source, true);  // Default to training data
   }
 
   /**
@@ -401,8 +401,7 @@ public:
    */
   void shuffle() override {
     // Shuffle raw data
-    if (labels_.empty())
-      return;
+    if (labels_.empty()) return;
 
     const size_t num_samples = labels_.size();
     std::vector<size_t> indices = this->generate_shuffled_indices(num_samples);
@@ -457,7 +456,7 @@ public:
       if (it != class_id_to_name_.end()) {
         names.push_back(it->second);
       } else {
-        names.push_back(class_id); // Fall back to wnid if name not found
+        names.push_back(class_id);  // Fall back to wnid if name not found
       }
     }
 
@@ -529,4 +528,4 @@ public:
     }
   }
 };
-} // namespace tnn
+}  // namespace tnn

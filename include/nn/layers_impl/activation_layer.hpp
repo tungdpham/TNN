@@ -38,4 +38,4 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 
-} // namespace tnn
+}  // namespace tnn

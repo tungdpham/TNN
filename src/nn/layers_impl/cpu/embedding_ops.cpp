@@ -6,8 +6,9 @@
  */
 #include "nn/layers_impl/cpu/embedding_ops.hpp"
 
-#include "type/type.hpp"
 #include <cstring>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -41,12 +42,10 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
                                 size_t padding_idx) {
   for (size_t i = 0; i < num_indices; ++i) {
     size_t idx = static_cast<size_t>(input_data[i]);
-    if (idx >= vocab_size)
-      idx = 0;
+    if (idx >= vocab_size) idx = 0;
 
     // Skip padding index updates if desired?
-    if (padding_idx < vocab_size && idx == padding_idx)
-      continue;
+    if (padding_idx < vocab_size && idx == padding_idx) continue;
 
     const T *g_row = gradient_data + i * embed_dim;
     T *w_grad_row = weight_grad_data + idx * embed_dim;
@@ -58,11 +57,11 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
   }
 }
 
-#define INSTANTIATE_EMBEDDING(T)                                                                   \
-  template void compute_embedding_forward<T>(const T *, const T *, T *, size_t, size_t, size_t,    \
-                                             size_t);                                              \
-                                                                                                   \
-  template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t,   \
+#define INSTANTIATE_EMBEDDING(T)                                                                 \
+  template void compute_embedding_forward<T>(const T *, const T *, T *, size_t, size_t, size_t,  \
+                                             size_t);                                            \
+                                                                                                 \
+  template void compute_embedding_backward<T>(const T *, const T *, T *, size_t, size_t, size_t, \
                                               size_t);
 INSTANTIATE_EMBEDDING(fp16)
 INSTANTIATE_EMBEDDING(bf16)
@@ -70,6 +69,6 @@ INSTANTIATE_EMBEDDING(float)
 INSTANTIATE_EMBEDDING(double)
 #undef INSTANTIATE_EMBEDDING
 
-} // namespace embedding
-} // namespace cpu
-} // namespace tnn
+}  // namespace embedding
+}  // namespace cpu
+}  // namespace tnn

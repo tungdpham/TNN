@@ -1,13 +1,14 @@
 #pragma once
 
-#include "buffer_pool.hpp"
-#include "distributed/endpoint.hpp"
-#include "packet.hpp"
 #include <asio.hpp>
 #include <memory>
 #include <mutex>
 #include <queue>
 #include <utility>
+
+#include "buffer_pool.hpp"
+#include "distributed/endpoint.hpp"
+#include "packet.hpp"
 
 namespace tnn {
 class WriteOperation {
@@ -55,7 +56,7 @@ private:
   std::mutex mutex_;
 };
 
-class Connection; // forward decl
+class Connection;  // forward decl
 
 // RAII for write queue
 class WriteHandle {
@@ -135,4 +136,4 @@ private:
 inline WriteQueue &WriteHandle::queue() { return conn_->write_queue_; }
 inline void WriteHandle::release() { conn_->release_write(); }
 
-} // namespace tnn
+}  // namespace tnn

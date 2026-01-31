@@ -1,7 +1,8 @@
+#include "nn/sequential.hpp"
+
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layer.hpp"
-#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 
 using namespace std;

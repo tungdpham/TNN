@@ -66,4 +66,4 @@ public:
 inline std::unordered_map<std::string, std::function<std::unique_ptr<ActivationFunction>()>>
     ActivationFactory::creators_;
 
-} // namespace tnn
+}  // namespace tnn

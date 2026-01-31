@@ -6,11 +6,11 @@
  */
 #pragma once
 
-#include "nn/layer.hpp"
-#include "tensor/tensor.hpp"
-
 #include <string>
 #include <vector>
+
+#include "nn/layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -30,4 +30,4 @@ protected:
   virtual void collect_parameters(std::vector<Tensor> &params) = 0;
   virtual void collect_gradients(std::vector<Tensor> &grads) = 0;
 };
-} // namespace tnn
+}  // namespace tnn

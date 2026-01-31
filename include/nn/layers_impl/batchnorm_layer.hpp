@@ -6,18 +6,20 @@
  */
 #pragma once
 
-#include "nn/layers_impl/common/batchnorm.hpp"
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <cstddef>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "nn/layers_impl/common/batchnorm.hpp"
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
+
 #ifdef USE_CUDNN
-#include "cuda/cudnn_batchnorm_ops.hpp"
 #include <cudnn.h>
+
+#include "cuda/cudnn_batchnorm_ops.hpp"
 #endif
 
 namespace tnn {
@@ -46,19 +48,19 @@ private:
 #ifdef USE_CUDNN
   std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task>
-  forward_training_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
-                        const Tensor &input, Tensor &output, const Tensor &gamma,
-                        const Tensor &beta, Tensor &prev_running_mean, Tensor &prev_running_var,
-                        Tensor &next_running_mean, Tensor &next_running_var, Tensor &batch_mean,
-                        Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const;
+  std::unique_ptr<Task> forward_training_task(
+      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
+      Tensor &output, const Tensor &gamma, const Tensor &beta, Tensor &prev_running_mean,
+      Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
+      Tensor &batch_mean, Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task>
-  forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
-                         const Tensor &input, Tensor &output, const Tensor &gamma,
-                         const Tensor &beta, const Tensor &saved_mean, const Tensor &saved_invar,
-                         Tensor &workspace, const std::string &flow_id) const;
+  std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
+                                               BatchNormStats &stats, const Tensor &input,
+                                               Tensor &output, const Tensor &gamma,
+                                               const Tensor &beta, const Tensor &saved_mean,
+                                               const Tensor &saved_invar, Tensor &workspace,
+                                               const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
@@ -96,4 +98,4 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 
-} // namespace tnn
+}  // namespace tnn

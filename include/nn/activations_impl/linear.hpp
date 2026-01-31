@@ -20,4 +20,4 @@ public:
   std::unique_ptr<ActivationFunction> clone() const override;
 };
 
-} // namespace tnn
+}  // namespace tnn

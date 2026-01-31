@@ -5,20 +5,24 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/groupnorm_layer.hpp"
-#include "device/task.hpp"
-#include "nn/layers_impl/cpu/groupnorm_ops.hpp"
-#include "nn/layers_impl/cuda/groupnorm_ops.hpp"
 
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 
+#include "device/task.hpp"
+#include "nn/layers_impl/cpu/groupnorm_ops.hpp"
+#include "nn/layers_impl/cuda/groupnorm_ops.hpp"
+
 namespace tnn {
 
 GroupNormLayer::GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon, bool affine,
                                const std::string &name)
-    : ParameterizedLayer(name), num_groups_(num_groups), num_channels_(num_channels),
-      epsilon_(epsilon), affine_(affine) {
+    : ParameterizedLayer(name),
+      num_groups_(num_groups),
+      num_channels_(num_channels),
+      epsilon_(epsilon),
+      affine_(affine) {
   if (num_channels_ % num_groups_ != 0) {
     throw std::invalid_argument("num_channels must be divisible by num_groups in GroupNormLayer");
   }
@@ -109,11 +113,12 @@ void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-GroupNormLayer::run_forward_fused(const Tensor &input, Tensor &group_mean, Tensor &group_inv_std,
-                                  const Tensor &gamma, const Tensor &beta, Tensor &output,
-                                  Tensor &norm_cache, size_t batch_size, size_t channels,
-                                  size_t spatial_size, const std::string &flow_id) const {
+std::unique_ptr<Task> GroupNormLayer::run_forward_fused(const Tensor &input, Tensor &group_mean,
+                                                        Tensor &group_inv_std, const Tensor &gamma,
+                                                        const Tensor &beta, Tensor &output,
+                                                        Tensor &norm_cache, size_t batch_size,
+                                                        size_t channels, size_t spatial_size,
+                                                        const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -196,8 +201,8 @@ std::unique_ptr<Layer> GroupNormLayer::clone() const {
                                           this->name_);
 }
 
-std::vector<size_t>
-GroupNormLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> GroupNormLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -263,4 +268,4 @@ uint64_t GroupNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
   return param_grad_flops + input_grad_flops;
 }
 
-} // namespace tnn
+}  // namespace tnn

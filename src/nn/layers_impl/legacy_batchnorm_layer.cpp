@@ -5,20 +5,24 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
-#include "device/task.hpp"
-#include "nn/layer.hpp"
-#include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
-#include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 
 #include <cmath>
 #include <memory>
 #include <stdexcept>
 
+#include "device/task.hpp"
+#include "nn/layer.hpp"
+#include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
+#include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
+
 namespace tnn {
 
 LegacyBatchNormLayer::LegacyBatchNormLayer(size_t num_features, float epsilon, float momentum,
                                            bool affine, const std::string &name)
-    : ParameterizedLayer(name), num_features_(num_features), epsilon_(epsilon), momentum_(momentum),
+    : ParameterizedLayer(name),
+      num_features_(num_features),
+      epsilon_(epsilon),
+      momentum_(momentum),
       affine_(affine) {}
 
 void LegacyBatchNormLayer::init_params() {
@@ -164,10 +168,9 @@ std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyBatchNormLayer::compute_inference_output(const Tensor &input, Tensor &output,
-                                               size_t batch_size, size_t channels,
-                                               size_t spatial_size, const std::string &flow_id) {
+std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output(
+    const Tensor &input, Tensor &output, size_t batch_size, size_t channels, size_t spatial_size,
+    const std::string &flow_id) {
   return compute_inference_output_impl<IO_T, Param_T, Compute_T>(input, output, batch_size,
                                                                  channels, spatial_size, flow_id);
 }
@@ -244,8 +247,8 @@ std::unique_ptr<Layer> LegacyBatchNormLayer::clone() const {
                                                 this->name_);
 }
 
-std::vector<size_t>
-LegacyBatchNormLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> LegacyBatchNormLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -267,8 +270,8 @@ void LegacyBatchNormLayer::collect_gradients(std::vector<Tensor> &grads) {
   grads.push_back(dummy_var_gradients_);
 }
 
-std::unique_ptr<LegacyBatchNormLayer>
-LegacyBatchNormLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LegacyBatchNormLayer> LegacyBatchNormLayer::create_from_config(
+    const LayerConfig &config) {
   size_t num_features = config.get<size_t>("num_features");
   float epsilon = config.get<float>("epsilon");
   float momentum = config.get<float>("momentum");
@@ -308,4 +311,4 @@ uint64_t LegacyBatchNormLayer::backward_flops(const std::vector<size_t> &input_s
   return param_grad_flops + input_grad_flops;
 }
 
-} // namespace tnn
+}  // namespace tnn

@@ -43,4 +43,4 @@ inline void round_workspace_size(BatchNormStats &stats, size_t alignment = 16) {
   stats.inf_workspace_size = ((stats.inf_workspace_size + alignment - 1) / alignment) * alignment;
 }
 
-} // namespace tnn
+}  // namespace tnn

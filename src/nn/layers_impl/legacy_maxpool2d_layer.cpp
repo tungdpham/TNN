@@ -5,23 +5,27 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/legacy_maxpool2d_layer.hpp"
+
+#include <cstddef>
+#include <stdexcept>
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/maxpool_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/maxpool_nchw_ops.hpp"
 #include "tensor/tensor.hpp"
-
-#include <cstddef>
-#include <stdexcept>
 
 namespace tnn {
 
 LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h,
                                            size_t stride_w, size_t pad_h, size_t pad_w,
                                            const std::string &name)
-    : StatelessLayer(name), pool_h_(pool_h), pool_w_(pool_w),
-      stride_h_(stride_h == 0 ? pool_h : stride_h), stride_w_(stride_w == 0 ? pool_w : stride_w),
-      pad_h_(pad_h), pad_w_(pad_w) {
-
+    : StatelessLayer(name),
+      pool_h_(pool_h),
+      pool_w_(pool_w),
+      stride_h_(stride_h == 0 ? pool_h : stride_h),
+      stride_w_(stride_w == 0 ? pool_w : stride_w),
+      pad_h_(pad_h),
+      pad_w_(pad_w) {
   if (pool_h_ == 0 || pool_w_ == 0) {
     throw std::invalid_argument("Pool dimensions must be positive");
   }
@@ -196,8 +200,8 @@ std::unique_ptr<Layer> LegacyMaxPool2DLayer::clone() const {
                                                 pad_w_, this->name_);
 }
 
-std::vector<size_t>
-LegacyMaxPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> LegacyMaxPool2DLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("LegacyMaxPool2DLayer expects 4D input including batch size");
   }
@@ -210,8 +214,8 @@ LegacyMaxPool2DLayer::compute_output_shape(const std::vector<size_t> &input_shap
   return {batch_size, channels, output_h, output_w};
 }
 
-std::unique_ptr<LegacyMaxPool2DLayer>
-LegacyMaxPool2DLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LegacyMaxPool2DLayer> LegacyMaxPool2DLayer::create_from_config(
+    const LayerConfig &config) {
   size_t pool_h = config.get<size_t>("pool_h");
   size_t pool_w = config.get<size_t>("pool_w");
   size_t stride_h = config.get<size_t>("stride_h");
@@ -252,4 +256,4 @@ uint64_t LegacyMaxPool2DLayer::backward_flops(const std::vector<size_t> &input_s
   return batch_size * channels * output_h * output_w;
 }
 
-} // namespace tnn
+}  // namespace tnn

@@ -1,16 +1,17 @@
 /*
  * Copyright (c) 2025 Tung D. Pham
  */
-#include "nn/blocks_impl/cuda/permute_heads.hpp"
-#include "type/type.hpp"
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+
+#include "nn/blocks_impl/cuda/permute_heads.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
 
 template <typename I_T, typename O_T>
-__global__ void permute_heads_kernel(const I_T *input, O_T *output, size_t B, size_t L, size_t H,
+__global__ void permute_heads_kernel(const I_T* input, O_T* output, size_t B, size_t L, size_t H,
                                      size_t D, size_t total_elements) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < total_elements) {
@@ -30,7 +31,7 @@ __global__ void permute_heads_kernel(const I_T *input, O_T *output, size_t B, si
 }
 
 template <typename I_T, typename O_T>
-void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, size_t D,
+void permute_heads(const I_T* input, O_T* output, size_t B, size_t L, size_t H, size_t D,
                    cudaStream_t stream) {
   size_t total_elements = B * L * H * D;
   int blockSize = 256;
@@ -39,13 +40,13 @@ void permute_heads(const I_T *input, O_T *output, size_t B, size_t L, size_t H, 
                                                             total_elements);
 }
 
-#define INSTANTIATE_PERMUTE_HEADS(I_T, O_T)                                                        \
-  template void permute_heads<I_T, O_T>(const I_T *input, O_T *output, size_t B, size_t L,         \
+#define INSTANTIATE_PERMUTE_HEADS(I_T, O_T)                                                \
+  template void permute_heads<I_T, O_T>(const I_T* input, O_T* output, size_t B, size_t L, \
                                         size_t H, size_t D, cudaStream_t stream);
-#define INSTANTIATE_PERMUTE_HEADS_BOTH(I_T)                                                        \
-  INSTANTIATE_PERMUTE_HEADS(I_T, fp16)                                                             \
-  INSTANTIATE_PERMUTE_HEADS(I_T, bf16)                                                             \
-  INSTANTIATE_PERMUTE_HEADS(I_T, float)                                                            \
+#define INSTANTIATE_PERMUTE_HEADS_BOTH(I_T) \
+  INSTANTIATE_PERMUTE_HEADS(I_T, fp16)      \
+  INSTANTIATE_PERMUTE_HEADS(I_T, bf16)      \
+  INSTANTIATE_PERMUTE_HEADS(I_T, float)     \
   INSTANTIATE_PERMUTE_HEADS(I_T, double)
 
 INSTANTIATE_PERMUTE_HEADS_BOTH(fp16)
@@ -56,5 +57,5 @@ INSTANTIATE_PERMUTE_HEADS_BOTH(double)
 #undef INSTANTIATE_PERMUTE_HEADS_BOTH
 #undef INSTANTIATE_PERMUTE_HEADS
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

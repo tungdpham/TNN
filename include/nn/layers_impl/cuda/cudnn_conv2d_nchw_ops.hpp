@@ -7,9 +7,10 @@
 #pragma once
 
 #ifdef USE_CUDNN
-#include <cstddef>
 #include <cuda_runtime.h>
 #include <cudnn.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -85,7 +86,7 @@ struct WorkspaceSizes {
 
 WorkspaceSizes get_workspace_sizes(ConvolutionHandle *handle, size_t batch_size);
 
-} // namespace cudnn_conv2d
-} // namespace cuda
-} // namespace tnn
+}  // namespace cudnn_conv2d
+}  // namespace cuda
+}  // namespace tnn
 #endif

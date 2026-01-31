@@ -157,8 +157,8 @@ std::unique_ptr<Layer> ClassTokenLayer::clone() const {
   return std::make_unique<ClassTokenLayer>(embed_dim_, this->name_);
 }
 
-std::vector<size_t>
-ClassTokenLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> ClassTokenLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() < 3) {
     throw std::runtime_error("ClassTokenLayer: Input shape must have at least 3 dimensions");
   }
@@ -181,4 +181,4 @@ std::unique_ptr<ClassTokenLayer> ClassTokenLayer::create_from_config(const Layer
   return std::make_unique<ClassTokenLayer>(embed_dim, config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

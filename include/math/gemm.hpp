@@ -42,4 +42,4 @@ void gemm(const dptr &A, const dptr &B, const dptr &C, const size_t M, const siz
     throw std::runtime_error("Unsupported device type for gemm.");
   }
 }
-} // namespace tnn
+}  // namespace tnn

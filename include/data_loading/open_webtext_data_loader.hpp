@@ -1,9 +1,10 @@
-#include "data_loader.hpp"
-#include "tokenizer/tokenizer.hpp"
 #include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
+
+#include "data_loader.hpp"
+#include "tokenizer/tokenizer.hpp"
 
 namespace tnn {
 
@@ -11,7 +12,7 @@ class OpenWebTextDataLoader : public BaseDataLoader {
 private:
   DType_t dtype_ = DType_t::FP32;
   size_t context_length_;
-  int padding_token_id_ = -1; // -1 means no padding token (default behavior)
+  int padding_token_id_ = -1;  // -1 means no padding token (default behavior)
 
   template <typename T>
   bool get_batch_impl(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) {
@@ -72,8 +73,7 @@ public:
     }
 
     struct stat sb;
-    if (fstat(fd_, &sb) == -1)
-      return false;
+    if (fstat(fd_, &sb) == -1) return false;
     file_size_ = sb.st_size;
 
     mapped_data_ = (uint16_t *)mmap(NULL, file_size_, PROT_READ, MAP_PRIVATE, fd_, 0);
@@ -84,8 +84,7 @@ public:
 
     total_tokens_ = file_size_ / sizeof(uint16_t);
 
-    if (total_tokens_ <= context_length_ + 1)
-      return false;
+    if (total_tokens_ <= context_length_ + 1) return false;
     num_samples_ = total_tokens_ - context_length_ - 1;
 
     std::cout << "Total tokens in dataset: " << total_tokens_ << std::endl;
@@ -132,4 +131,4 @@ private:
   std::uniform_int_distribution<size_t> dist_;
 };
 
-} // namespace tnn
+}  // namespace tnn

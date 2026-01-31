@@ -1,9 +1,10 @@
 #pragma once
 
+#include <nlohmann/json.hpp>
+
 #include "endpoint.hpp"
 #include "nn/layer.hpp"
 #include "nn/optimizers.hpp"
-#include <nlohmann/json.hpp>
 
 namespace tnn {
 struct StageConfig {
@@ -32,4 +33,4 @@ struct StageConfig {
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -93,4 +93,4 @@ DataLoaderPair DataLoaderFactory::create(const std::string &dataset_type,
 
   return pair;
 }
-} // namespace tnn
+}  // namespace tnn

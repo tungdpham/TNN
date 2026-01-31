@@ -6,6 +6,13 @@
  */
 #pragma once
 
+#include <any>
+#include <cmath>
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "device/task.hpp"
 #include "nlohmann/json.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
@@ -13,12 +20,6 @@
 #include "optimizers_impl/cuda/adam_kernels.hpp"
 #include "optimizers_impl/cuda/sgd_kernels.hpp"
 #include "tensor/tensor.hpp"
-#include <any>
-#include <cmath>
-#include <memory>
-#include <string>
-#include <unordered_map>
-#include <vector>
 
 namespace tnn {
 
@@ -27,7 +28,8 @@ struct OptimizerConfig {
   std::string name;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const {
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const {
     auto it = parameters.find(key);
     if (it != parameters.end()) {
       try {
@@ -174,7 +176,8 @@ private:
   float momentum_;
   std::vector<Tensor> velocities_;
 
-  template <typename T> void update_impl(Tensor &param, Tensor &grad, Tensor &velocity) {
+  template <typename T>
+  void update_impl(Tensor &param, Tensor &grad, Tensor &velocity) {
     const size_t size = param->size();
 
     if (param->device_type() == DeviceType::CPU) {
@@ -209,8 +212,13 @@ class Adam : public Optimizer {
 public:
   Adam(float learning_rate = 0.001f, float beta1 = 0.9f, float beta2 = 0.999f,
        float epsilon = 1e-8f, float weight_decay = 0.0f, bool decouple_weight_decay = false)
-      : Optimizer(learning_rate), beta1_(beta1), beta2_(beta2), epsilon_(epsilon),
-        weight_decay_(weight_decay), decouple_weight_decay_(decouple_weight_decay), t_(0) {}
+      : Optimizer(learning_rate),
+        beta1_(beta1),
+        beta2_(beta2),
+        epsilon_(epsilon),
+        weight_decay_(weight_decay),
+        decouple_weight_decay_(decouple_weight_decay),
+        t_(0) {}
 
   void update() override {
     auto &params = this->parameters_;
@@ -333,4 +341,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

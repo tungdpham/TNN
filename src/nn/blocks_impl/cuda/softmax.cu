@@ -1,9 +1,8 @@
-#include "nn/blocks_impl/cuda/softmax.hpp"
 #include <cudnn_graph.h>
 
-#ifdef USE_CUDNN
+#include "nn/blocks_impl/cuda/softmax.hpp"
 
-#include "type/type.hpp"
+#ifdef USE_CUDNN
 
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
@@ -13,12 +12,14 @@
 #include <stdexcept>
 #include <unordered_map>
 
+#include "type/type.hpp"
+
 namespace tnn {
 namespace cuda {
 
 namespace fe = cudnn_frontend;
 
-static void ensure_ok(fe::error_t status, const char *stage) {
+static void ensure_ok(fe::error_t status, const char* stage) {
   if (status.is_bad()) {
     throw std::runtime_error(std::string("cuDNN frontend error at ") + stage + ": " +
                              status.get_message());
@@ -27,16 +28,16 @@ static void ensure_ok(fe::error_t status, const char *stage) {
 
 static fe::DataType_t to_fe_data_type(cudnnDataType_t data_type) {
   switch (data_type) {
-  case CUDNN_DATA_HALF:
-    return fe::DataType_t::HALF;
-  case CUDNN_DATA_BFLOAT16:
-    return fe::DataType_t::BFLOAT16;
-  case CUDNN_DATA_FLOAT:
-    return fe::DataType_t::FLOAT;
-  case CUDNN_DATA_DOUBLE:
-    return fe::DataType_t::DOUBLE;
-  default:
-    throw std::runtime_error("Unsupported cuDNN data type for softmax");
+    case CUDNN_DATA_HALF:
+      return fe::DataType_t::HALF;
+    case CUDNN_DATA_BFLOAT16:
+      return fe::DataType_t::BFLOAT16;
+    case CUDNN_DATA_FLOAT:
+      return fe::DataType_t::FLOAT;
+    case CUDNN_DATA_DOUBLE:
+      return fe::DataType_t::DOUBLE;
+    default:
+      throw std::runtime_error("Unsupported cuDNN data type for softmax");
   }
 }
 
@@ -47,28 +48,41 @@ static fe::DataType_t to_fe_compute_type(cudnnDataType_t data_type) {
   return to_fe_data_type(data_type);
 }
 
-template <typename T> cudnnDataType_t get_cudnn_data_type();
+template <typename T>
+cudnnDataType_t get_cudnn_data_type();
 
-template <> inline cudnnDataType_t get_cudnn_data_type<float>() { return CUDNN_DATA_FLOAT; }
+template <>
+inline cudnnDataType_t get_cudnn_data_type<float>() {
+  return CUDNN_DATA_FLOAT;
+}
 
-template <> inline cudnnDataType_t get_cudnn_data_type<double>() { return CUDNN_DATA_DOUBLE; }
+template <>
+inline cudnnDataType_t get_cudnn_data_type<double>() {
+  return CUDNN_DATA_DOUBLE;
+}
 
-template <> inline cudnnDataType_t get_cudnn_data_type<fp16>() { return CUDNN_DATA_HALF; }
+template <>
+inline cudnnDataType_t get_cudnn_data_type<fp16>() {
+  return CUDNN_DATA_HALF;
+}
 
-template <> inline cudnnDataType_t get_cudnn_data_type<bf16>() { return CUDNN_DATA_BFLOAT16; }
+template <>
+inline cudnnDataType_t get_cudnn_data_type<bf16>() {
+  return CUDNN_DATA_BFLOAT16;
+}
 
 struct SoftmaxKey {
   size_t rows = 0;
   size_t cols = 0;
   cudnnDataType_t data_type = CUDNN_DATA_FLOAT;
 
-  bool operator==(const SoftmaxKey &other) const {
+  bool operator==(const SoftmaxKey& other) const {
     return rows == other.rows && cols == other.cols && data_type == other.data_type;
   }
 };
 
 struct SoftmaxKeyHash {
-  size_t operator()(const SoftmaxKey &key) const {
+  size_t operator()(const SoftmaxKey& key) const {
     size_t h1 = std::hash<size_t>()(key.rows);
     size_t h2 = std::hash<size_t>()(key.cols);
     size_t h3 = std::hash<int>()(static_cast<int>(key.data_type));
@@ -90,7 +104,7 @@ struct SoftmaxHandle {
   std::shared_ptr<fe::graph::Tensor_attributes> fwd_p;
   std::shared_ptr<fe::graph::Tensor_attributes> fwd_s;
   size_t fwd_workspace = 0;
-  void *fwd_workspace_ptr = nullptr;
+  void* fwd_workspace_ptr = nullptr;
   size_t fwd_workspace_capacity = 0;
 
   std::shared_ptr<fe::graph::Graph> bwd_graph;
@@ -98,11 +112,11 @@ struct SoftmaxHandle {
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dy;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dx;
   size_t bwd_workspace = 0;
-  void *bwd_workspace_ptr = nullptr;
+  void* bwd_workspace_ptr = nullptr;
   size_t bwd_workspace_capacity = 0;
 };
 
-static void ensure_workspace(void **ptr, size_t *capacity, size_t required_bytes) {
+static void ensure_workspace(void** ptr, size_t* capacity, size_t required_bytes) {
   if (required_bytes == 0) {
     return;
   }
@@ -118,7 +132,7 @@ static void ensure_workspace(void **ptr, size_t *capacity, size_t required_bytes
   *capacity = required_bytes;
 }
 
-static void build_forward_graph(SoftmaxHandle *handle) {
+static void build_forward_graph(SoftmaxHandle* handle) {
   const int64_t rows = static_cast<int64_t>(handle->rows);
   const int64_t cols = static_cast<int64_t>(handle->cols);
 
@@ -189,7 +203,7 @@ static void build_forward_graph(SoftmaxHandle *handle) {
   handle->fwd_workspace = static_cast<size_t>(workspace_size);
 }
 
-static void build_backward_graph(SoftmaxHandle *handle) {
+static void build_backward_graph(SoftmaxHandle* handle) {
   const int64_t rows = static_cast<int64_t>(handle->rows);
   const int64_t cols = static_cast<int64_t>(handle->cols);
 
@@ -260,7 +274,7 @@ static void build_backward_graph(SoftmaxHandle *handle) {
   handle->bwd_workspace = static_cast<size_t>(workspace_size);
 }
 
-static SoftmaxHandle *get_softmax_handle(cudnnHandle_t cudnn_handle, size_t rows, size_t cols,
+static SoftmaxHandle* get_softmax_handle(cudnnHandle_t cudnn_handle, size_t rows, size_t cols,
                                          cudnnDataType_t data_type) {
   static std::unordered_map<SoftmaxKey, std::unique_ptr<SoftmaxHandle>, SoftmaxKeyHash> cache;
   static std::mutex cache_mutex;
@@ -283,19 +297,19 @@ static SoftmaxHandle *get_softmax_handle(cudnnHandle_t cudnn_handle, size_t rows
   try {
     build_forward_graph(handle.get());
     build_backward_graph(handle.get());
-  } catch (const std::exception &) {
+  } catch (const std::exception&) {
     handle->use_legacy = true;
   }
 
-  auto *ptr = handle.get();
+  auto* ptr = handle.get();
   cache.emplace(key, std::move(handle));
   return ptr;
 }
 
 template <typename T>
-void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t rows, size_t cols,
+void softmax_forward(cudnnHandle_t handle, const T* input, T* output, size_t rows, size_t cols,
                      cudaStream_t stream) {
-  auto *softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
+  auto* softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
   cudnnSetStream(handle, stream);
 
   if (softmax_handle->use_legacy) {
@@ -314,8 +328,8 @@ void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t row
   ensure_workspace(&softmax_handle->fwd_workspace_ptr, &softmax_handle->fwd_workspace_capacity,
                    softmax_handle->fwd_workspace);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {softmax_handle->fwd_p, const_cast<T *>(input)}, {softmax_handle->fwd_s, output}};
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {softmax_handle->fwd_p, const_cast<T*>(input)}, {softmax_handle->fwd_s, output}};
 
   auto status =
       softmax_handle->fwd_graph->execute(handle, variant_pack, softmax_handle->fwd_workspace_ptr);
@@ -323,9 +337,9 @@ void softmax_forward(cudnnHandle_t handle, const T *input, T *output, size_t row
 }
 
 template <typename T>
-void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_output, T *grad_input,
+void softmax_backward(cudnnHandle_t handle, const T* output, const T* grad_output, T* grad_input,
                       size_t rows, size_t cols, cudaStream_t stream) {
-  auto *softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
+  auto* softmax_handle = get_softmax_handle(handle, rows, cols, get_cudnn_data_type<T>());
   cudnnSetStream(handle, stream);
 
   if (softmax_handle->use_legacy) {
@@ -344,9 +358,9 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
   ensure_workspace(&softmax_handle->bwd_workspace_ptr, &softmax_handle->bwd_workspace_capacity,
                    softmax_handle->bwd_workspace);
 
-  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
-      {softmax_handle->bwd_s, const_cast<T *>(output)},
-      {softmax_handle->bwd_dy, const_cast<T *>(grad_output)},
+  std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
+      {softmax_handle->bwd_s, const_cast<T*>(output)},
+      {softmax_handle->bwd_dy, const_cast<T*>(grad_output)},
       {softmax_handle->bwd_dx, grad_input}};
 
   auto status =
@@ -354,18 +368,18 @@ void softmax_backward(cudnnHandle_t handle, const T *output, const T *grad_outpu
   ensure_ok(status, "softmax backward execute");
 }
 
-#define INSTANTIATE_SOFTMAX(T)                                                                     \
-  template void softmax_forward<T>(cudnnHandle_t handle, const T *input, T *output, size_t rows,   \
-                                   size_t cols, cudaStream_t stream);                              \
-  template void softmax_backward<T>(cudnnHandle_t handle, const T *output, const T *grad_output,   \
-                                    T *grad_input, size_t rows, size_t cols, cudaStream_t stream);
+#define INSTANTIATE_SOFTMAX(T)                                                                   \
+  template void softmax_forward<T>(cudnnHandle_t handle, const T* input, T* output, size_t rows, \
+                                   size_t cols, cudaStream_t stream);                            \
+  template void softmax_backward<T>(cudnnHandle_t handle, const T* output, const T* grad_output, \
+                                    T* grad_input, size_t rows, size_t cols, cudaStream_t stream);
 INSTANTIATE_SOFTMAX(fp16);
 INSTANTIATE_SOFTMAX(bf16);
 INSTANTIATE_SOFTMAX(float);
 INSTANTIATE_SOFTMAX(double);
 #undef INSTANTIATE_SOFTMAX
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

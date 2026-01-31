@@ -1,7 +1,8 @@
+#include <iostream>
+
 #include "data_loading/open_webtext_data_loader.hpp"
 #include "tensor/tensor.hpp"
 #include "tokenizer/tokenizer.hpp"
-#include <iostream>
 
 using namespace tnn;
 
@@ -51,8 +52,7 @@ int main(int argc, char **argv) {
       tokens.push_back(token_id);
       std::cout << token_id << " ";
 
-      if ((i + 1) % 16 == 0)
-        std::cout << "\n";
+      if ((i + 1) % 16 == 0) std::cout << "\n";
     }
 
     std::string decoded_text = tokenizer.decode(tokens);

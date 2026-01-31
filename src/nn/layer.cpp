@@ -6,11 +6,13 @@
  */
 
 #include "nn/layer.hpp"
+
 #include "logging/logger.hpp"
 
 namespace tnn {
 
-template <typename T> T LayerConfig::get(const std::string &key, const T &default_value) const {
+template <typename T>
+T LayerConfig::get(const std::string &key, const T &default_value) const {
   auto it = parameters.find(key);
   if (it != parameters.end()) {
     try {
@@ -314,4 +316,4 @@ void Layer::clear_cache(size_t mb_id) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

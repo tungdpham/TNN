@@ -4,25 +4,25 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/loss_impl/cuda/loss_ops.hpp"
-
-#include "type/type.hpp"
-#include <cmath>
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
+
+#include <cmath>
+
+#include "nn/loss_impl/cuda/loss_ops.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
 namespace loss {
 
 template <typename T>
-__global__ void crossentropy_loss_kernel(const T *predictions, const T *targets, T *loss_values,
+__global__ void crossentropy_loss_kernel(const T* predictions, const T* targets, T* loss_values,
                                          const size_t total_instances, const size_t num_classes,
                                          T epsilon) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_instances)
-    return;
+  if (idx >= total_instances) return;
 
   size_t b = idx;
   size_t base_ptr = b * num_classes;
@@ -42,13 +42,12 @@ __global__ void crossentropy_loss_kernel(const T *predictions, const T *targets,
 }
 
 template <>
-__global__ void crossentropy_loss_kernel<double>(const double *predictions, const double *targets,
-                                                 double *loss_values, const size_t total_instances,
+__global__ void crossentropy_loss_kernel<double>(const double* predictions, const double* targets,
+                                                 double* loss_values, const size_t total_instances,
                                                  const size_t num_classes, double epsilon) {
   using ComputeT = typename TypeTraits<double>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_instances)
-    return;
+  if (idx >= total_instances) return;
 
   size_t b = idx;
   size_t base_ptr = b * num_classes;
@@ -67,13 +66,12 @@ __global__ void crossentropy_loss_kernel<double>(const double *predictions, cons
 }
 
 template <typename T>
-__global__ void crossentropy_gradient_kernel(const T *predictions, const T *targets, T *gradient,
+__global__ void crossentropy_gradient_kernel(const T* predictions, const T* targets, T* gradient,
                                              const size_t total_elements, T epsilon,
                                              T inv_batch_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_elements)
-    return;
+  if (idx >= total_elements) return;
 
   ComputeT pred = static_cast<ComputeT>(predictions[idx]);
   ComputeT eps = static_cast<ComputeT>(epsilon);
@@ -85,13 +83,12 @@ __global__ void crossentropy_gradient_kernel(const T *predictions, const T *targ
 }
 
 template <typename T>
-__global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *targets,
-                                                    T *loss_values, const size_t total_instances,
+__global__ void logsoftmax_crossentropy_loss_kernel(const T* logits, const T* targets,
+                                                    T* loss_values, const size_t total_instances,
                                                     const size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_instances)
-    return;
+  if (idx >= total_instances) return;
 
   size_t b = idx;
   size_t base_ptr = b * num_classes;
@@ -119,8 +116,8 @@ __global__ void logsoftmax_crossentropy_loss_kernel(const T *logits, const T *ta
 }
 
 template <typename T>
-__global__ void batch_max_kernel(const T *logits,
-                                 typename TypeTraits<T>::ComputePrecision *max_vals,
+__global__ void batch_max_kernel(const T* logits,
+                                 typename TypeTraits<T>::ComputePrecision* max_vals,
                                  const size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t idx = blockIdx.x;
@@ -155,9 +152,10 @@ __global__ void batch_max_kernel(const T *logits,
 }
 
 template <typename T>
-__global__ void
-batch_sumexp_kernel(const T *logits, const typename TypeTraits<T>::ComputePrecision *max_vals,
-                    typename TypeTraits<T>::ComputePrecision *sum_vals, const size_t num_classes) {
+__global__ void batch_sumexp_kernel(const T* logits,
+                                    const typename TypeTraits<T>::ComputePrecision* max_vals,
+                                    typename TypeTraits<T>::ComputePrecision* sum_vals,
+                                    const size_t num_classes) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t idx = blockIdx.x;
   size_t b = idx;
@@ -189,14 +187,13 @@ batch_sumexp_kernel(const T *logits, const typename TypeTraits<T>::ComputePrecis
 
 template <typename T>
 __global__ void logsoftmax_crossentropy_gradient_kernel(
-    const T *logits, const T *targets, T *gradient,
-    const typename TypeTraits<T>::ComputePrecision *max_vals,
-    const typename TypeTraits<T>::ComputePrecision *sum_vals, const size_t total_elements,
+    const T* logits, const T* targets, T* gradient,
+    const typename TypeTraits<T>::ComputePrecision* max_vals,
+    const typename TypeTraits<T>::ComputePrecision* sum_vals, const size_t total_elements,
     const size_t num_classes, typename TypeTraits<T>::ComputePrecision inv_total_instances) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_elements)
-    return;
+  if (idx >= total_elements) return;
 
   size_t b = idx / num_classes;
 
@@ -209,24 +206,22 @@ __global__ void logsoftmax_crossentropy_gradient_kernel(
 }
 
 template <typename T>
-__global__ void mse_loss_kernel(const T *predictions, const T *targets, T *loss_values,
+__global__ void mse_loss_kernel(const T* predictions, const T* targets, T* loss_values,
                                 const size_t total_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   ComputeT diff = static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx]);
   loss_values[idx] = static_cast<T>(diff * diff);
 }
 
 template <typename T>
-__global__ void mse_gradient_kernel(const T *predictions, const T *targets, T *gradient,
+__global__ void mse_gradient_kernel(const T* predictions, const T* targets, T* gradient,
                                     const size_t total_size, T scale) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   gradient[idx] = static_cast<T>(
       (static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx])) *
@@ -234,24 +229,22 @@ __global__ void mse_gradient_kernel(const T *predictions, const T *targets, T *g
 }
 
 template <typename T>
-__global__ void mae_loss_kernel(const T *predictions, const T *targets, T *loss_values,
+__global__ void mae_loss_kernel(const T* predictions, const T* targets, T* loss_values,
                                 const size_t total_size) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   ComputeT diff = static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx]);
   loss_values[idx] = static_cast<T>((diff > ComputeT(0)) ? diff : -diff);
 }
 
 template <typename T>
-__global__ void mae_gradient_kernel(const T *predictions, const T *targets, T *gradient,
+__global__ void mae_gradient_kernel(const T* predictions, const T* targets, T* gradient,
                                     const size_t total_size, T scale) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   ComputeT diff = static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx]);
   gradient[idx] = static_cast<T>(
@@ -259,12 +252,11 @@ __global__ void mae_gradient_kernel(const T *predictions, const T *targets, T *g
 }
 
 template <typename T>
-__global__ void huber_loss_kernel(const T *predictions, const T *targets, T *loss_values,
+__global__ void huber_loss_kernel(const T* predictions, const T* targets, T* loss_values,
                                   const size_t total_size, T delta) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   ComputeT diff = static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx]);
   ComputeT abs_diff = (diff > ComputeT(0)) ? diff : -diff;
@@ -277,12 +269,11 @@ __global__ void huber_loss_kernel(const T *predictions, const T *targets, T *los
 }
 
 template <typename T>
-__global__ void huber_gradient_kernel(const T *predictions, const T *targets, T *gradient,
+__global__ void huber_gradient_kernel(const T* predictions, const T* targets, T* gradient,
                                       const size_t total_size, T delta, T scale) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
-  if (idx >= total_size)
-    return;
+  if (idx >= total_size) return;
 
   ComputeT diff = static_cast<ComputeT>(predictions[idx]) - static_cast<ComputeT>(targets[idx]);
   ComputeT abs_diff = (diff > ComputeT(0)) ? diff : -diff;
@@ -297,9 +288,9 @@ __global__ void huber_gradient_kernel(const T *predictions, const T *targets, T 
 }
 
 template <typename T>
-__global__ void sum_reduce_kernel_stage1(const T *values, T *block_results, const size_t size) {
+__global__ void sum_reduce_kernel_stage1(const T* values, T* block_results, const size_t size) {
   extern __shared__ char shared_mem[];
-  T *shared_data = (T *)shared_mem;
+  T* shared_data = (T*)shared_mem;
 
   int tid = threadIdx.x;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -326,10 +317,10 @@ __global__ void sum_reduce_kernel_stage1(const T *values, T *block_results, cons
 
 // Overload for mixed types: reduce from InputT to OutputT (for higher precision accumulation)
 template <typename OutputT, typename InputT>
-__global__ void sum_reduce_kernel_stage1(const InputT *values, OutputT *block_results,
+__global__ void sum_reduce_kernel_stage1(const InputT* values, OutputT* block_results,
                                          const size_t size) {
   extern __shared__ char shared_mem[];
-  OutputT *shared_data = (OutputT *)shared_mem;
+  OutputT* shared_data = (OutputT*)shared_mem;
 
   int tid = threadIdx.x;
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -355,10 +346,10 @@ __global__ void sum_reduce_kernel_stage1(const InputT *values, OutputT *block_re
 }
 
 template <typename T>
-__global__ void sum_reduce_kernel_stage2(const T *block_results, T *result,
+__global__ void sum_reduce_kernel_stage2(const T* block_results, T* result,
                                          const size_t num_blocks) {
   extern __shared__ char shared_mem[];
-  T *shared_data = (T *)shared_mem;
+  T* shared_data = (T*)shared_mem;
 
   int tid = threadIdx.x;
 
@@ -383,12 +374,12 @@ __global__ void sum_reduce_kernel_stage2(const T *block_results, T *result,
 }
 
 template <typename T>
-void compute_crossentropy_loss(const T *predictions, const T *targets, float &loss,
+void compute_crossentropy_loss(const T* predictions, const T* targets, float& loss,
                                const size_t batch_size, const size_t num_classes, T epsilon,
                                cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
-  T *d_loss_values;
+  T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
 
   int threads_per_block = 256;
@@ -400,14 +391,14 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, float &lo
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
 
-  ComputeT *d_block_results;
+  ComputeT* d_block_results;
   cudaMallocAsync(&d_block_results, grid_size * sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage1<ComputeT>
       <<<grid_size, block_size, block_size * sizeof(ComputeT), stream>>>(
           d_loss_values, d_block_results, total_instances);
 
-  ComputeT *d_total_loss;
+  ComputeT* d_total_loss;
   cudaMallocAsync(&d_total_loss, sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage2<ComputeT><<<1, block_size, block_size * sizeof(ComputeT), stream>>>(
@@ -425,7 +416,7 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, float &lo
 }
 
 template <typename T>
-void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_crossentropy_gradient(const T* predictions, const T* targets, T* gradient,
                                    const size_t batch_size, const size_t num_classes, T epsilon,
                                    cudaStream_t stream) {
   size_t total_elements = batch_size * num_classes;
@@ -441,12 +432,12 @@ void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gr
 }
 
 template <typename T>
-void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, float &loss,
+void compute_logsoftmax_crossentropy_loss(const T* logits, const T* targets, float& loss,
                                           const size_t batch_size, const size_t num_classes,
                                           cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_instances = batch_size;
-  T *d_loss_values;
+  T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_instances * sizeof(T), stream);
   cudaMemsetAsync(d_loss_values, 0, total_instances * sizeof(T), stream);
 
@@ -459,14 +450,14 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, flo
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_instances + block_size - 1) / block_size));
 
-  ComputeT *d_block_results;
+  ComputeT* d_block_results;
   cudaMallocAsync(&d_block_results, grid_size * sizeof(ComputeT), stream);
   cudaMemsetAsync(d_block_results, 0, grid_size * sizeof(ComputeT), stream);
   sum_reduce_kernel_stage1<ComputeT>
       <<<grid_size, block_size, block_size * sizeof(ComputeT), stream>>>(
           d_loss_values, d_block_results, total_instances);
 
-  ComputeT *d_total_loss;
+  ComputeT* d_total_loss;
   cudaMallocAsync(&d_total_loss, sizeof(ComputeT), stream);
   cudaMemsetAsync(d_total_loss, 0, sizeof(ComputeT), stream);
 
@@ -485,7 +476,7 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, flo
 }
 
 template <typename T>
-void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
+void compute_logsoftmax_crossentropy_gradient(const T* logits, const T* targets, T* gradient,
                                               const size_t batch_size, const size_t num_classes,
                                               cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
@@ -493,8 +484,8 @@ void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets,
   ComputeT inv_total_instances =
       static_cast<ComputeT>(1.0) / static_cast<ComputeT>(total_instances);
 
-  ComputeT *d_max_vals;
-  ComputeT *d_sum_vals;
+  ComputeT* d_max_vals;
+  ComputeT* d_sum_vals;
   cudaMallocAsync(&d_max_vals, total_instances * sizeof(ComputeT), stream);
   cudaMallocAsync(&d_sum_vals, total_instances * sizeof(ComputeT), stream);
 
@@ -519,11 +510,11 @@ void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets,
 }
 
 template <typename T>
-void compute_mse_loss(const T *predictions, const T *targets, float &loss, const size_t batch_size,
+void compute_mse_loss(const T* predictions, const T* targets, float& loss, const size_t batch_size,
                       const size_t output_size, cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_size = batch_size * output_size;
-  T *d_loss_values;
+  T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
@@ -535,14 +526,14 @@ void compute_mse_loss(const T *predictions, const T *targets, float &loss, const
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
-  ComputeT *d_block_results;
+  ComputeT* d_block_results;
   cudaMallocAsync(&d_block_results, grid_size * sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage1<ComputeT>
       <<<grid_size, block_size, block_size * sizeof(ComputeT), stream>>>(
           d_loss_values, d_block_results, total_size);
 
-  ComputeT *d_total_loss;
+  ComputeT* d_total_loss;
   cudaMallocAsync(&d_total_loss, sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage2<ComputeT><<<1, block_size, block_size * sizeof(ComputeT), stream>>>(
@@ -559,7 +550,7 @@ void compute_mse_loss(const T *predictions, const T *targets, float &loss, const
 }
 
 template <typename T>
-void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_mse_gradient(const T* predictions, const T* targets, T* gradient,
                           const size_t batch_size, const size_t output_size, cudaStream_t stream) {
   T scale = static_cast<T>(2.0) / static_cast<T>(batch_size * output_size);
   size_t total_size = batch_size * output_size;
@@ -574,11 +565,11 @@ void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
 }
 
 template <typename T>
-void compute_mae_loss(const T *predictions, const T *targets, float &loss, const size_t batch_size,
+void compute_mae_loss(const T* predictions, const T* targets, float& loss, const size_t batch_size,
                       const size_t output_size, cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_size = batch_size * output_size;
-  T *d_loss_values;
+  T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
@@ -590,14 +581,14 @@ void compute_mae_loss(const T *predictions, const T *targets, float &loss, const
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
-  ComputeT *d_block_results;
+  ComputeT* d_block_results;
   cudaMallocAsync(&d_block_results, grid_size * sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage1<ComputeT>
       <<<grid_size, block_size, block_size * sizeof(ComputeT), stream>>>(
           d_loss_values, d_block_results, total_size);
 
-  ComputeT *d_total_loss;
+  ComputeT* d_total_loss;
   cudaMallocAsync(&d_total_loss, sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage2<ComputeT><<<1, block_size, block_size * sizeof(ComputeT), stream>>>(
@@ -614,7 +605,7 @@ void compute_mae_loss(const T *predictions, const T *targets, float &loss, const
 }
 
 template <typename T>
-void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_mae_gradient(const T* predictions, const T* targets, T* gradient,
                           const size_t batch_size, const size_t output_size, cudaStream_t stream) {
   T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
   size_t total_size = batch_size * output_size;
@@ -629,12 +620,12 @@ void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
 }
 
 template <typename T>
-void compute_huber_loss(const T *predictions, const T *targets, float &loss,
+void compute_huber_loss(const T* predictions, const T* targets, float& loss,
                         const size_t batch_size, const size_t output_size, T delta,
                         cudaStream_t stream) {
   using ComputeT = typename TypeTraits<T>::ComputePrecision;
   size_t total_size = batch_size * output_size;
-  T *d_loss_values;
+  T* d_loss_values;
   cudaMallocAsync(&d_loss_values, total_size * sizeof(T), stream);
 
   int threads_per_block = 256;
@@ -646,14 +637,14 @@ void compute_huber_loss(const T *predictions, const T *targets, float &loss,
   int block_size = 256;
   int grid_size = std::min(256, (int)((total_size + block_size - 1) / block_size));
 
-  ComputeT *d_block_results;
+  ComputeT* d_block_results;
   cudaMallocAsync(&d_block_results, grid_size * sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage1<ComputeT>
       <<<grid_size, block_size, block_size * sizeof(ComputeT), stream>>>(
           d_loss_values, d_block_results, total_size);
 
-  ComputeT *d_total_loss;
+  ComputeT* d_total_loss;
   cudaMallocAsync(&d_total_loss, sizeof(ComputeT), stream);
 
   sum_reduce_kernel_stage2<ComputeT><<<1, block_size, block_size * sizeof(ComputeT), stream>>>(
@@ -670,7 +661,7 @@ void compute_huber_loss(const T *predictions, const T *targets, float &loss,
 }
 
 template <typename T>
-void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_huber_gradient(const T* predictions, const T* targets, T* gradient,
                             const size_t batch_size, const size_t output_size, T delta,
                             cudaStream_t stream) {
   T scale = static_cast<T>(1.0) / static_cast<T>(batch_size * output_size);
@@ -685,36 +676,36 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
   cudaDeviceSynchronize();
 }
 
-#define INSTANTIATE_LOSS_OPS(T)                                                                    \
-  template void compute_crossentropy_loss<T>(const T *predictions, const T *targets, float &loss,  \
-                                             const size_t batch_size, const size_t num_classes,    \
-                                             T epsilon, cudaStream_t stream);                      \
-  template void compute_crossentropy_gradient<T>(                                                  \
-      const T *predictions, const T *targets, T *gradient, const size_t batch_size,                \
-      const size_t num_classes, T epsilon, cudaStream_t stream);                                   \
-  template void compute_logsoftmax_crossentropy_loss<T>(                                           \
-      const T *logits, const T *targets, float &loss, const size_t batch_size,                     \
-      const size_t num_classes, cudaStream_t stream);                                              \
-  template void compute_logsoftmax_crossentropy_gradient<T>(                                       \
-      const T *logits, const T *targets, T *gradient, const size_t batch_size,                     \
-      const size_t num_classes, cudaStream_t stream);                                              \
-  template void compute_mse_loss<T>(const T *predictions, const T *targets, float &loss,           \
-                                    const size_t batch_size, const size_t output_size,             \
-                                    cudaStream_t stream);                                          \
-  template void compute_mse_gradient<T>(const T *predictions, const T *targets, T *gradient,       \
-                                        const size_t batch_size, const size_t output_size,         \
-                                        cudaStream_t stream);                                      \
-  template void compute_mae_loss<T>(const T *predictions, const T *targets, float &loss,           \
-                                    const size_t batch_size, const size_t output_size,             \
-                                    cudaStream_t stream);                                          \
-  template void compute_mae_gradient<T>(const T *predictions, const T *targets, T *gradient,       \
-                                        const size_t batch_size, const size_t output_size,         \
-                                        cudaStream_t stream);                                      \
-  template void compute_huber_loss<T>(const T *predictions, const T *targets, float &loss,         \
-                                      const size_t batch_size, const size_t output_size, T delta,  \
-                                      cudaStream_t stream);                                        \
-  template void compute_huber_gradient<T>(const T *predictions, const T *targets, T *gradient,     \
-                                          const size_t batch_size, const size_t output_size,       \
+#define INSTANTIATE_LOSS_OPS(T)                                                                   \
+  template void compute_crossentropy_loss<T>(const T* predictions, const T* targets, float& loss, \
+                                             const size_t batch_size, const size_t num_classes,   \
+                                             T epsilon, cudaStream_t stream);                     \
+  template void compute_crossentropy_gradient<T>(                                                 \
+      const T* predictions, const T* targets, T* gradient, const size_t batch_size,               \
+      const size_t num_classes, T epsilon, cudaStream_t stream);                                  \
+  template void compute_logsoftmax_crossentropy_loss<T>(                                          \
+      const T* logits, const T* targets, float& loss, const size_t batch_size,                    \
+      const size_t num_classes, cudaStream_t stream);                                             \
+  template void compute_logsoftmax_crossentropy_gradient<T>(                                      \
+      const T* logits, const T* targets, T* gradient, const size_t batch_size,                    \
+      const size_t num_classes, cudaStream_t stream);                                             \
+  template void compute_mse_loss<T>(const T* predictions, const T* targets, float& loss,          \
+                                    const size_t batch_size, const size_t output_size,            \
+                                    cudaStream_t stream);                                         \
+  template void compute_mse_gradient<T>(const T* predictions, const T* targets, T* gradient,      \
+                                        const size_t batch_size, const size_t output_size,        \
+                                        cudaStream_t stream);                                     \
+  template void compute_mae_loss<T>(const T* predictions, const T* targets, float& loss,          \
+                                    const size_t batch_size, const size_t output_size,            \
+                                    cudaStream_t stream);                                         \
+  template void compute_mae_gradient<T>(const T* predictions, const T* targets, T* gradient,      \
+                                        const size_t batch_size, const size_t output_size,        \
+                                        cudaStream_t stream);                                     \
+  template void compute_huber_loss<T>(const T* predictions, const T* targets, float& loss,        \
+                                      const size_t batch_size, const size_t output_size, T delta, \
+                                      cudaStream_t stream);                                       \
+  template void compute_huber_gradient<T>(const T* predictions, const T* targets, T* gradient,    \
+                                          const size_t batch_size, const size_t output_size,      \
                                           T delta, cudaStream_t stream);
 
 INSTANTIATE_LOSS_OPS(fp16)
@@ -723,6 +714,6 @@ INSTANTIATE_LOSS_OPS(float)
 INSTANTIATE_LOSS_OPS(double)
 #undef INSTANTIATE_LOSS_OPS
 
-} // namespace loss
-} // namespace cuda
-} // namespace tnn
+}  // namespace loss
+}  // namespace cuda
+}  // namespace tnn

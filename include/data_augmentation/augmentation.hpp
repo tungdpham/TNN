@@ -1,9 +1,10 @@
 #pragma once
 
-#include "tensor/tensor.hpp"
 #include <algorithm>
 #include <memory>
 #include <random>
+
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -29,7 +30,7 @@ protected:
   mutable std::mt19937 rng_{std::random_device{}()};
 };
 
-} // namespace tnn
+}  // namespace tnn
 
 // Include concrete augmentation implementations
 #include "brightness.hpp"
@@ -72,8 +73,7 @@ public:
   }
 
   void remove_augmentation(size_t index) {
-    if (index >= augmentations_.size())
-      return;
+    if (index >= augmentations_.size()) return;
     augmentations_.erase(augmentations_.begin() + index);
   }
 
@@ -168,4 +168,4 @@ private:
   AugmentationStrategy strategy_;
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -1,8 +1,11 @@
-#include "device/device.hpp"
 #include "device/device_manager.hpp"
+
 #include <gtest/gtest.h>
+
 #include <string>
 #include <vector>
+
+#include "device/device.hpp"
 
 using namespace tnn;
 
@@ -100,7 +103,6 @@ TEST_F(DeviceManagerTest, DeviceRemoval) {
   size_t initial_count = initial_ids.size();
 
   if (initial_count > 1) {
-
     std::string device_to_remove = initial_ids[1];
     manager.removeDevice(device_to_remove);
 

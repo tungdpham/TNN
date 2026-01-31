@@ -6,11 +6,12 @@
  */
 #pragma once
 
-#include "roce_buffer.hpp"
 #include <atomic>
 #include <deque>
 #include <memory>
 #include <mutex>
+
+#include "roce_buffer.hpp"
 
 namespace tnn {
 
@@ -103,4 +104,4 @@ inline void RoceBufferDeleter::operator()(RoceBuffer *ptr) const {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

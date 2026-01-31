@@ -4,11 +4,12 @@
 #ifdef USE_CUDA
 #include "ops/cuda/kernels.hpp"
 #endif
-#include "device/task.hpp"
-#include "tensor/tensor.hpp"
 #include <cstddef>
 #include <memory>
 #include <stdexcept>
+
+#include "device/task.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 namespace TensorOps {
@@ -738,7 +739,8 @@ std::unique_ptr<Task> zero(Tensor &c, size_t size, const std::string &flow_id = 
   }
 }
 
-template <typename T> T sum(const Tensor &a, size_t size) {
+template <typename T>
+T sum(const Tensor &a, size_t size) {
   if (!a->device()) {
     throw std::runtime_error("sum: Device pointer has no associated device");
   }
@@ -758,7 +760,8 @@ template <typename T> T sum(const Tensor &a, size_t size) {
   }
 }
 
-template <typename T> T dot_product(const Tensor &a, const Tensor &b, size_t size) {
+template <typename T>
+T dot_product(const Tensor &a, const Tensor &b, size_t size) {
   if (!a->device() || !b->device()) {
     throw std::runtime_error("dot_product: Device pointer has no associated device");
   }
@@ -781,7 +784,8 @@ template <typename T> T dot_product(const Tensor &a, const Tensor &b, size_t siz
   }
 }
 
-template <typename T> T norm_squared(const Tensor &a, size_t size) {
+template <typename T>
+T norm_squared(const Tensor &a, size_t size) {
   if (!a->device()) {
     throw std::runtime_error("norm_squared: Device pointer has no associated device");
   }
@@ -801,7 +805,8 @@ template <typename T> T norm_squared(const Tensor &a, size_t size) {
   }
 }
 
-template <typename T> T sum_squared_diff(const Tensor &a, T mean, size_t size) {
+template <typename T>
+T sum_squared_diff(const Tensor &a, T mean, size_t size) {
   if (!a->device()) {
     throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
   }
@@ -928,5 +933,5 @@ std::unique_ptr<Task> fill_random_normal(Tensor &data, size_t size, T mean, T st
     throw std::runtime_error("Unsupported device type");
   }
 }
-}; // namespace TensorOps
-} // namespace tnn
+};  // namespace TensorOps
+}  // namespace tnn

@@ -5,6 +5,14 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
+
+#include <cmath>
+#include <cstring>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <string>
+
 #include "device/cuda/cuda_context.hpp"
 #include "device/device_type.hpp"
 #include "device/task.hpp"
@@ -15,22 +23,22 @@
 #include "tensor/tensor_ops.hpp"
 #include "type/type.hpp"
 
-#include <cmath>
-#include <cstring>
-#include <iostream>
-#include <memory>
-#include <stdexcept>
-#include <string>
-
 namespace tnn {
 
 LegacyConv2DLayer::LegacyConv2DLayer(size_t in_channels, size_t out_channels, size_t kernel_h,
                                      size_t kernel_w, size_t stride_h, size_t stride_w,
                                      size_t pad_h, size_t pad_w, bool use_bias,
                                      const std::string &name)
-    : ParameterizedLayer(name), in_channels_(in_channels), out_channels_(out_channels),
-      kernel_h_(kernel_h), kernel_w_(kernel_w), stride_h_(stride_h), stride_w_(stride_w),
-      pad_h_(pad_h), pad_w_(pad_w), use_bias_(use_bias) {}
+    : ParameterizedLayer(name),
+      in_channels_(in_channels),
+      out_channels_(out_channels),
+      kernel_h_(kernel_h),
+      kernel_w_(kernel_w),
+      stride_h_(stride_h),
+      stride_w_(stride_w),
+      pad_h_(pad_h),
+      pad_w_(pad_w),
+      use_bias_(use_bias) {}
 
 LegacyConv2DLayer::~LegacyConv2DLayer() {}
 
@@ -183,7 +191,7 @@ void LegacyConv2DLayer::def_backward(const Tensor &gradient, Tensor &grad_input,
   const size_t output_w = gradient->dimension(3);
 
   grad_input->ensure(input_shape);
-  grad_input->fill(0); // col2im accumulates, so we need to zero first
+  grad_input->fill(0);  // col2im accumulates, so we need to zero first
 
   auto it_col_buffer = micro_batch_col_buffers_.find(mb_id);
   if (it_col_buffer == micro_batch_col_buffers_.end()) {
@@ -309,11 +317,10 @@ void LegacyConv2DLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_inpu
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::cudnn_compute_fwd(const Tensor &input, const Tensor &weight, const Tensor bias,
-                                     Tensor &output, size_t batch_size, size_t input_h,
-                                     size_t input_w, size_t output_h, size_t output_w,
-                                     Tensor &cudnn_workspace, const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_compute_fwd(
+    const Tensor &input, const Tensor &weight, const Tensor bias, Tensor &output, size_t batch_size,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w, Tensor &cudnn_workspace,
+    const std::string &flow_id) {
   if (input->device_type() != DeviceType::GPU) {
     throw std::runtime_error("cuDNN forward requires GPU device");
   }
@@ -326,11 +333,10 @@ LegacyConv2DLayer::cudnn_compute_fwd(const Tensor &input, const Tensor &weight, 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::cudnn_backward_data(const Tensor &gradient, const Tensor &weight,
-                                       Tensor &input_grad, size_t batch_size, size_t input_h,
-                                       size_t input_w, size_t output_h, size_t output_w,
-                                       Tensor &cudnn_workspace, const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_data(
+    const Tensor &gradient, const Tensor &weight, Tensor &input_grad, size_t batch_size,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w, Tensor &cudnn_workspace,
+    const std::string &flow_id) {
   if (gradient->device_type() != DeviceType::GPU) {
     throw std::runtime_error("cuDNN backward data requires GPU device");
   }
@@ -343,11 +349,10 @@ LegacyConv2DLayer::cudnn_backward_data(const Tensor &gradient, const Tensor &wei
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::cudnn_backward_filter(const Tensor &input, const Tensor &gradient,
-                                         Tensor &weight_grad, size_t batch_size, size_t input_h,
-                                         size_t input_w, size_t output_h, size_t output_w,
-                                         Tensor &cudnn_workspace, const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_filter(
+    const Tensor &input, const Tensor &gradient, Tensor &weight_grad, size_t batch_size,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w, Tensor &cudnn_workspace,
+    const std::string &flow_id) {
   if (gradient->device_type() != DeviceType::GPU) {
     throw std::runtime_error("cuDNN backward filter requires GPU device");
   }
@@ -360,10 +365,11 @@ LegacyConv2DLayer::cudnn_backward_filter(const Tensor &input, const Tensor &grad
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::cudnn_backward_bias(const Tensor &gradient, Tensor &bias_grad, size_t batch_size,
-                                       size_t output_h, size_t output_w, size_t out_channels,
-                                       const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::cudnn_backward_bias(const Tensor &gradient,
+                                                             Tensor &bias_grad, size_t batch_size,
+                                                             size_t output_h, size_t output_w,
+                                                             size_t out_channels,
+                                                             const std::string &flow_id) {
   if (gradient->device_type() != DeviceType::GPU) {
     throw std::runtime_error("cuDNN backward bias requires GPU device");
   }
@@ -375,11 +381,10 @@ LegacyConv2DLayer::cudnn_backward_bias(const Tensor &gradient, Tensor &bias_grad
 #endif
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::compute_conv_forward_impl(const Tensor &col_data, const Tensor &weight_data,
-                                             Tensor &output_data, const size_t output_size,
-                                             const size_t kernel_size, const size_t out_channels,
-                                             const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::compute_conv_forward_impl(
+    const Tensor &col_data, const Tensor &weight_data, Tensor &output_data,
+    const size_t output_size, const size_t kernel_size, const size_t out_channels,
+    const std::string &flow_id) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyConv2DLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -500,11 +505,10 @@ std::unique_ptr<Task> LegacyConv2DLayer::compute_input_gradients_impl(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyConv2DLayer::compute_bias_gradients_impl(const Tensor &gradient_data, Tensor &bias_grad_data,
-                                               const size_t batch_size, const size_t output_h,
-                                               const size_t output_w, const size_t out_channels,
-                                               const std::string &flow_id) {
+std::unique_ptr<Task> LegacyConv2DLayer::compute_bias_gradients_impl(
+    const Tensor &gradient_data, Tensor &bias_grad_data, const size_t batch_size,
+    const size_t output_h, const size_t output_w, const size_t out_channels,
+    const std::string &flow_id) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LegacyConv2DLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -598,8 +602,8 @@ std::unique_ptr<Layer> LegacyConv2DLayer::clone() const {
                                              this->name_);
 }
 
-std::vector<size_t>
-LegacyConv2DLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> LegacyConv2DLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
     throw std::invalid_argument("LegacyConv2DLayer expects 4D input including batch size");
   }
@@ -681,8 +685,8 @@ size_t LegacyConv2DLayer::cached_memory_bytes() const {
   return total_bytes;
 }
 
-std::unique_ptr<LegacyConv2DLayer>
-LegacyConv2DLayer::create_from_config(const LayerConfig &config) {
+std::unique_ptr<LegacyConv2DLayer> LegacyConv2DLayer::create_from_config(
+    const LayerConfig &config) {
   size_t in_channels = config.get<size_t>("in_channels");
   size_t out_channels = config.get<size_t>("out_channels");
   size_t kernel_h = config.get<size_t>("kernel_h");
@@ -697,4 +701,4 @@ LegacyConv2DLayer::create_from_config(const LayerConfig &config) {
                                              config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

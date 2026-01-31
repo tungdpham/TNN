@@ -1,8 +1,10 @@
 #include "math/cpu/dgemm.hpp"
-#include "threading/thread_handler.hpp"
-#include <algorithm> // For std::min
+
+#include <algorithm>  // For std::min
 #include <cstddef>
 #include <cstring>
+
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -460,7 +462,6 @@ inline void dgemm_kernel_avx2_tn_aligned(const double *A, const double *B, doubl
 void dgemm(const double *A, const double *B, double *C, const size_t M, const size_t N,
            const size_t K, const bool trans_A, const bool trans_B, const double alpha,
            const double beta) {
-
   if (beta == 0.0) {
     parallel_for<size_t>(0, M * N, [&](size_t i) { C[i] = 0.0; });
   } else if (beta != 1.0) {
@@ -613,5 +614,5 @@ void dgemm(const double *A, const double *B, double *C, const size_t M, const si
 #endif
 }
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

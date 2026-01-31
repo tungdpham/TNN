@@ -5,27 +5,28 @@
  * project root for the full license text.
  */
 #include "nn/blocks_impl/cpu/softmax.hpp"
-#include "threading/thread_handler.hpp"
-#include "type/type.hpp"
+
 #include <algorithm>
 #include <cmath>
+
+#include "threading/thread_handler.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
 
-template <typename T> void softmax_forward(const T *input, T *output, size_t rows, size_t cols) {
+template <typename T>
+void softmax_forward(const T *input, T *output, size_t rows, size_t cols) {
   parallel_for<size_t>(0, rows, [&](size_t i) {
     const T *row_in = input + i * cols;
     T *row_out = output + i * cols;
 
     T max_val = -INFINITY;
     for (size_t j = 0; j < cols; ++j) {
-      if (row_in[j] > max_val)
-        max_val = row_in[j];
+      if (row_in[j] > max_val) max_val = row_in[j];
     }
 
-    if (std::isinf(static_cast<float>(max_val)) && max_val < T(0))
-      max_val = T(0);
+    if (std::isinf(static_cast<float>(max_val)) && max_val < T(0)) max_val = T(0);
 
     T sum = 0;
     for (size_t j = 0; j < cols; ++j) {
@@ -61,10 +62,10 @@ void softmax_backward(const T *output, const T *grad_output, T *grad_input, size
   });
 }
 
-#define INSTANTIATE_SOFTMAX(T)                                                                     \
-  template void softmax_forward<T>(const T *input, T *output, size_t rows, size_t cols);           \
-                                                                                                   \
-  template void softmax_backward<T>(const T *output, const T *grad_output, T *grad_input,          \
+#define INSTANTIATE_SOFTMAX(T)                                                            \
+  template void softmax_forward<T>(const T *input, T *output, size_t rows, size_t cols);  \
+                                                                                          \
+  template void softmax_backward<T>(const T *output, const T *grad_output, T *grad_input, \
                                     size_t rows, size_t cols);
 
 INSTANTIATE_SOFTMAX(fp16)
@@ -73,5 +74,5 @@ INSTANTIATE_SOFTMAX(float)
 INSTANTIATE_SOFTMAX(double)
 #undef INSTANTIATE_SOFTMAX
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

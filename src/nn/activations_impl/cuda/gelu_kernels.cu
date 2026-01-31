@@ -4,15 +4,18 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
+#include <cuda_runtime.h>
+
+#include <cmath>
+
 #include "nn/activations_impl/cuda/gelu_kernels.hpp"
 #include "type/type.hpp"
-#include <cmath>
-#include <cuda_runtime.h>
 
 namespace tnn {
 namespace cuda {
 
-template <typename T> __global__ void gelu_kernel(const T *input, T *output, size_t size) {
+template <typename T>
+__global__ void gelu_kernel(const T* input, T* output, size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
     T x = input[idx];
@@ -24,14 +27,15 @@ template <typename T> __global__ void gelu_kernel(const T *input, T *output, siz
   }
 }
 
-template <typename T> void gelu(const T *input, T *output, size_t size, cudaStream_t stream) {
+template <typename T>
+void gelu(const T* input, T* output, size_t size, cudaStream_t stream) {
   int threads = 256;
   int blocks = (size + threads - 1) / threads;
   gelu_kernel<T><<<blocks, threads, 0, stream>>>(input, output, size);
 }
 
 template <typename T>
-__global__ void gelu_gradient_kernel(const T *input, const T *grad_output, T *grad_input,
+__global__ void gelu_gradient_kernel(const T* input, const T* grad_output, T* grad_input,
                                      size_t size) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   if (idx < size) {
@@ -55,7 +59,7 @@ __global__ void gelu_gradient_kernel(const T *input, const T *grad_output, T *gr
 }
 
 template <typename T>
-void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t size,
+void gelu_gradient(const T* input, const T* grad_output, T* grad_input, size_t size,
                    cudaStream_t stream) {
   int threads = 256;
   int blocks = (size + threads - 1) / threads;
@@ -63,8 +67,8 @@ void gelu_gradient(const T *input, const T *grad_output, T *grad_input, size_t s
 }
 
 #define INSTANTIATE(T)                                                                             \
-  template void gelu<T>(const T *input, T *output, size_t size, cudaStream_t stream);              \
-  template void gelu_gradient<T>(const T *input, const T *grad_output, T *grad_input, size_t size, \
+  template void gelu<T>(const T* input, T* output, size_t size, cudaStream_t stream);              \
+  template void gelu_gradient<T>(const T* input, const T* grad_output, T* grad_input, size_t size, \
                                  cudaStream_t stream);
 
 INSTANTIATE(fp16);
@@ -73,5 +77,5 @@ INSTANTIATE(float);
 INSTANTIATE(double);
 
 #undef INSTANTIATE
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

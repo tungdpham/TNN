@@ -6,12 +6,13 @@
  */
 #pragma once
 
-#include "device/task.hpp"
-#include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 #include <memory>
 #include <string>
 #include <vector>
+
+#include "device/task.hpp"
+#include "parameterized_layer.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -77,4 +78,4 @@ public:
   static std::unique_ptr<LegacyDenseLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

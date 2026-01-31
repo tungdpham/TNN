@@ -18,5 +18,5 @@ void sgemm_strided(const float *A, const float *B, float *C, const size_t M, con
                    const size_t K, const bool trans_A, const bool trans_B, const float alpha,
                    const float beta, const size_t lda, const size_t ldb, const size_t ldc);
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

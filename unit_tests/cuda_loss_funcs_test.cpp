@@ -5,14 +5,16 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/loss_impl/cpu/loss_ops.hpp"
 #include "nn/loss_impl/cuda/loss_ops.hpp"
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace tnn;
 

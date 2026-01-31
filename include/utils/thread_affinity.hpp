@@ -6,11 +6,13 @@
  */
 #pragma once
 
-#include "utils/hardware_info.hpp"
 #include <pthread.h>
 #include <sched.h>
+
 #include <thread>
 #include <vector>
+
+#include "utils/hardware_info.hpp"
 
 namespace tnn {
 
@@ -18,10 +20,10 @@ namespace tnn {
  * @brief CPU Core Types for thread affinity
  */
 enum class CoreType {
-  PERFORMANCE_CORES, // P-cores (high performance)
-  EFFICIENCY_CORES,  // E-cores (energy efficient)
-  ALL_CORES,         // All available cores
-  AUTO               // Let system decide
+  PERFORMANCE_CORES,  // P-cores (high performance)
+  EFFICIENCY_CORES,   // E-cores (energy efficient)
+  ALL_CORES,          // All available cores
+  AUTO                // Let system decide
 };
 
 /**
@@ -29,10 +31,10 @@ enum class CoreType {
  */
 struct AffinityConfig {
   CoreType core_type = CoreType::AUTO;
-  int max_threads = -1;              // -1 means use all available cores of the type
-  bool numa_aware = true;            // Consider NUMA topology
-  bool avoid_hyperthreading = false; // Only use physical cores, avoid logical cores
-  int numa_node = -1;                // -1 means any NUMA node, >=0 specific node
+  int max_threads = -1;               // -1 means use all available cores of the type
+  bool numa_aware = true;             // Consider NUMA topology
+  bool avoid_hyperthreading = false;  // Only use physical cores, avoid logical cores
+  int numa_node = -1;                 // -1 means any NUMA node, >=0 specific node
 };
 
 /**
@@ -185,4 +187,4 @@ private:
   bool saved_affinity_ = false;
 };
 
-} // namespace tnn
+}  // namespace tnn

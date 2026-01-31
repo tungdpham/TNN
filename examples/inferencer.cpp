@@ -1,3 +1,5 @@
+#include <memory>
+
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
@@ -7,7 +9,6 @@
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
-#include <memory>
 
 using namespace std;
 using namespace tnn;

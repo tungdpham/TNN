@@ -33,7 +33,6 @@ bool check_match(const float *a, const float *b, size_t size, float max_acceptab
 }
 
 int main() {
-
 #ifdef USE_TBB
   tbb::task_arena arena(tbb::task_arena::constraints{}.set_max_concurrency(8));
 

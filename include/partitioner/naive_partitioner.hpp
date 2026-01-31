@@ -1,12 +1,13 @@
 #pragma once
 
-#include "partitioner.hpp"
 #include <vector>
+
+#include "partitioner.hpp"
 
 namespace tnn {
 
 struct NaivePartitionerConfig {
-  std::vector<size_t> weights; // weight for each partition
+  std::vector<size_t> weights;  // weight for each partition
 
   NaivePartitionerConfig(const std::vector<size_t> &weights) {
     assert(!weights.empty() && "Weights vector must not be empty");
@@ -48,4 +49,4 @@ private:
   NaivePartitionerConfig config_;
 };
 
-} // namespace tnn
+}  // namespace tnn

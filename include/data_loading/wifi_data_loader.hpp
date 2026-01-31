@@ -6,19 +6,18 @@
  */
 #pragma once
 
-#include "data_loader.hpp"
-#include "tensor/tensor.hpp"
-
 #include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <numeric>
-
 #include <random>
 #include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#include "data_loader.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -41,7 +40,6 @@ private:
 public:
   WiFiDataLoader(bool is_regression = true)
       : num_features_(0), num_outputs_(0), is_regression_(is_regression), is_normalized_(false) {
-
     features_.reserve(20000);
     targets_.reserve(20000);
   }
@@ -78,17 +76,14 @@ public:
         row.push_back(cell);
       }
 
-      if (row.empty())
-        continue;
+      if (row.empty()) continue;
 
       if (feature_end_col == 0) {
         if (is_regression_) {
-
           feature_end_col = row.size() - 2;
           target_start_col = row.size() - 2;
           target_end_col = row.size();
         } else {
-
           feature_end_col = row.size() - 1;
           target_start_col = row.size() - 1;
           target_end_col = row.size();
@@ -143,8 +138,7 @@ public:
         std::cout << "  Sample " << i << ": (";
         for (size_t j = 0; j < targets_[i].size(); ++j) {
           std::cout << targets_[i][j];
-          if (j < targets_[i].size() - 1)
-            std::cout << ", ";
+          if (j < targets_[i].size() - 1) std::cout << ", ";
         }
         std::cout << ")" << std::endl;
       }
@@ -310,8 +304,7 @@ public:
   std::vector<float> get_target_stds() const { return target_stds_; }
 
   void shuffle() override {
-    if (features_.empty())
-      return;
+    if (features_.empty()) return;
 
     std::vector<size_t> indices = this->generate_shuffled_indices(features_.size());
 
@@ -351,4 +344,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

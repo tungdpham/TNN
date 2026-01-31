@@ -4,10 +4,10 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/layers_impl/cuda/groupnorm_ops.hpp"
-
-#include "type/type.hpp"
 #include <cuda_runtime.h>
+
+#include "nn/layers_impl/cuda/groupnorm_ops.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -17,42 +17,40 @@ namespace groupnorm {
 #define THREADS_PER_BLOCK 256
 #define WARP_SIZE 32
 
-template <typename T> __inline__ __device__ T warpReduceSum(T val) {
+template <typename T>
+__inline__ __device__ T warpReduceSum(T val) {
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
     val += __shfl_down_sync(0xffffffff, val, offset);
   }
   return val;
 }
 
-template <typename T> __inline__ __device__ T blockReduceSum(T val) {
+template <typename T>
+__inline__ __device__ T blockReduceSum(T val) {
   static __shared__ T shared[WARP_SIZE];
   int lane = threadIdx.x % WARP_SIZE;
   int wid = threadIdx.x / WARP_SIZE;
 
   val = warpReduceSum(val);
 
-  if (lane == 0)
-    shared[wid] = val;
+  if (lane == 0) shared[wid] = val;
   __syncthreads();
 
   val = (threadIdx.x < blockDim.x / WARP_SIZE) ? shared[lane] : T(0);
-  if (wid == 0)
-    val = warpReduceSum(val);
+  if (wid == 0) val = warpReduceSum(val);
 
   return val;
 }
 
 template <typename T>
-__global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restrict__ mean_out,
-                                         T *__restrict__ inv_std_out, size_t N, size_t C, size_t S,
+__global__ void fused_group_stats_kernel(const T* __restrict__ input, T* __restrict__ mean_out,
+                                         T* __restrict__ inv_std_out, size_t N, size_t C, size_t S,
                                          size_t num_groups, T epsilon) {
-
   size_t group_idx = blockIdx.x;
   size_t n = group_idx / num_groups;
   size_t g = group_idx % num_groups;
 
-  if (n >= N || g >= num_groups)
-    return;
+  if (n >= N || g >= num_groups) return;
 
   size_t channels_per_group = C / num_groups;
   size_t group_size = channels_per_group * S;
@@ -101,10 +99,10 @@ __global__ void fused_group_stats_kernel(const T *__restrict__ input, T *__restr
 }
 
 template <typename T>
-__global__ void fused_group_apply_kernel(const T *__restrict__ input, const T *__restrict__ mean,
-                                         const T *__restrict__ inv_std, const T *__restrict__ gamma,
-                                         const T *__restrict__ beta, T *__restrict__ output,
-                                         T *__restrict__ normalized_cache, size_t N, size_t C,
+__global__ void fused_group_apply_kernel(const T* __restrict__ input, const T* __restrict__ mean,
+                                         const T* __restrict__ inv_std, const T* __restrict__ gamma,
+                                         const T* __restrict__ beta, T* __restrict__ output,
+                                         T* __restrict__ normalized_cache, size_t N, size_t C,
                                          size_t S, size_t num_groups, bool affine) {
   size_t total_elements = N * C * S;
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -123,8 +121,7 @@ __global__ void fused_group_apply_kernel(const T *__restrict__ input, const T *_
 
     T norm = (x - mu) * istd;
 
-    if (normalized_cache)
-      normalized_cache[idx] = norm;
+    if (normalized_cache) normalized_cache[idx] = norm;
 
     T res = norm;
     if (affine) {
@@ -135,14 +132,12 @@ __global__ void fused_group_apply_kernel(const T *__restrict__ input, const T *_
 }
 
 template <typename T>
-__global__ void fused_group_backward_reduce_kernel(const T *__restrict__ grad_output,
-                                                   const T *__restrict__ normalized_input,
-                                                   T *__restrict__ d_gamma, T *__restrict__ d_beta,
+__global__ void fused_group_backward_reduce_kernel(const T* __restrict__ grad_output,
+                                                   const T* __restrict__ normalized_input,
+                                                   T* __restrict__ d_gamma, T* __restrict__ d_beta,
                                                    size_t N, size_t C, size_t S) {
-
   int c = blockIdx.x;
-  if (c >= C)
-    return;
+  if (c >= C) return;
 
   size_t count = N * S;
   T sum_dy = T(0);
@@ -173,19 +168,17 @@ __global__ void fused_group_backward_reduce_kernel(const T *__restrict__ grad_ou
 }
 
 template <typename T>
-__global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_output,
-                                                  const T *__restrict__ normalized_input,
-                                                  const T *__restrict__ inv_std,
-                                                  const T *__restrict__ gamma,
-                                                  T *__restrict__ grad_input, size_t N, size_t C,
+__global__ void fused_group_backward_apply_kernel(const T* __restrict__ grad_output,
+                                                  const T* __restrict__ normalized_input,
+                                                  const T* __restrict__ inv_std,
+                                                  const T* __restrict__ gamma,
+                                                  T* __restrict__ grad_input, size_t N, size_t C,
                                                   size_t S, size_t num_groups, bool affine) {
-
   size_t group_idx = blockIdx.x;
   size_t n = group_idx / num_groups;
   size_t g = group_idx % num_groups;
 
-  if (n >= N || g >= num_groups)
-    return;
+  if (n >= N || g >= num_groups) return;
 
   size_t channels_per_group = C / num_groups;
   size_t group_size = channels_per_group * S;
@@ -243,10 +236,9 @@ __global__ void fused_group_backward_apply_kernel(const T *__restrict__ grad_out
 }
 
 template <typename T>
-void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, const T *beta,
-                       T *output, T *norm_cache, size_t N, size_t C, size_t S, size_t num_groups,
+void run_forward_fused(const T* input, T* mean, T* inv_std, const T* gamma, const T* beta,
+                       T* output, T* norm_cache, size_t N, size_t C, size_t S, size_t num_groups,
                        T epsilon, bool affine, cudaStream_t stream) {
-
   size_t total_groups = N * num_groups;
   fused_group_stats_kernel<<<total_groups, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, N, C, S,
                                                                     num_groups, epsilon);
@@ -258,10 +250,9 @@ void run_forward_fused(const T *input, T *mean, T *inv_std, const T *gamma, cons
 }
 
 template <typename T>
-void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_std, const T *gamma,
-                        T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
+void run_backward_fused(const T* grad_output, const T* norm_input, const T* inv_std, const T* gamma,
+                        T* d_gamma, T* d_beta, T* grad_input, size_t N, size_t C, size_t S,
                         size_t num_groups, bool affine, cudaStream_t stream) {
-
   if (affine) {
     fused_group_backward_reduce_kernel<<<C, BLOCK_SIZE, 0, stream>>>(grad_output, norm_input,
                                                                      d_gamma, d_beta, N, C, S);
@@ -273,13 +264,13 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
 }
 
 #define INSTANTIATE_GROUPNORM(T)                                                                   \
-  template void run_forward_fused<T>(const T *input, T *mean, T *inv_std, const T *gamma,          \
-                                     const T *beta, T *output, T *norm_cache, size_t N, size_t C,  \
+  template void run_forward_fused<T>(const T* input, T* mean, T* inv_std, const T* gamma,          \
+                                     const T* beta, T* output, T* norm_cache, size_t N, size_t C,  \
                                      size_t S, size_t num_groups, T epsilon, bool affine,          \
                                      cudaStream_t stream);                                         \
                                                                                                    \
-  template void run_backward_fused<T>(const T *grad_output, const T *norm_input, const T *inv_std, \
-                                      const T *gamma, T *d_gamma, T *d_beta, T *grad_input,        \
+  template void run_backward_fused<T>(const T* grad_output, const T* norm_input, const T* inv_std, \
+                                      const T* gamma, T* d_gamma, T* d_beta, T* grad_input,        \
                                       size_t N, size_t C, size_t S, size_t num_groups,             \
                                       bool affine, cudaStream_t stream);
 INSTANTIATE_GROUPNORM(fp16)
@@ -288,6 +279,6 @@ INSTANTIATE_GROUPNORM(float)
 INSTANTIATE_GROUPNORM(double)
 #undef INSTANTIATE_GROUPNORM
 
-} // namespace groupnorm
-} // namespace cuda
-} // namespace tnn
+}  // namespace groupnorm
+}  // namespace cuda
+}  // namespace tnn

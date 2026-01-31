@@ -11,4 +11,4 @@ public:
   virtual std::vector<Partition> get_partitions(const std::vector<Layer *> &layers) = 0;
 };
 
-} // namespace tnn
+}  // namespace tnn

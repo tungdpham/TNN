@@ -39,4 +39,4 @@ inline void round_attention_workspace_size(AttentionStats &stats, size_t alignme
   stats.bwd_workspace_size = ((stats.bwd_workspace_size + alignment - 1) / alignment) * alignment;
 }
 
-} // namespace tnn
+}  // namespace tnn

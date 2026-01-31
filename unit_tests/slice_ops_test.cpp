@@ -1,8 +1,9 @@
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 
 #ifdef USE_CUDA
-#include "nn/layers_impl/cuda/slice_ops.hpp"
 #include <cuda_runtime.h>
+
+#include "nn/layers_impl/cuda/slice_ops.hpp"
 #endif
 
 #include <gtest/gtest.h>
@@ -73,7 +74,7 @@ static void reference_slice_backward(const std::vector<T> &gradient, std::vector
   }
 }
 
-} // namespace
+}  // namespace
 
 TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
   using T = float;

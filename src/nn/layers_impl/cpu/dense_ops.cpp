@@ -6,8 +6,7 @@
  */
 #include "nn/layers_impl/cpu/dense_ops.hpp"
 
-#include "math/gemm.hpp"
-#include "ops/ops.hpp"
+#include "math/cpu/gemm.hpp"
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
 
@@ -58,29 +57,29 @@ void add_bias_vector(T *output_data, const T *bias_data, const size_t batch_size
   });
 }
 
-#define INSTANTIATE_DENSE(T)                                                                       \
-  template void compute_dense_forward<T>(                                                          \
-      const T *input_data, const T *weight_data, T *output_data, const size_t batch_size,          \
-      const size_t input_features, const size_t output_features);                                  \
-                                                                                                   \
-  template void compute_weight_gradients<T>(                                                       \
-      const T *input_data, const T *gradient_data, T *weight_grad_data, const size_t batch_size,   \
-      const size_t input_features, const size_t output_features);                                  \
-                                                                                                   \
-  template void compute_input_gradients<T>(                                                        \
-      const T *gradient_data, const T *weight_data, T *grad_input_data, const size_t batch_size,   \
-      const size_t input_features, const size_t output_features);                                  \
-                                                                                                   \
-  template void compute_bias_gradients<T>(const T *current_grad_data, T *bias_gradient_data,       \
-                                          const size_t batch_size, const size_t output_features);  \
-                                                                                                   \
-  template void add_bias_vector<T>(T * output_data, const T *bias_data, const size_t batch_size,   \
+#define INSTANTIATE_DENSE(T)                                                                      \
+  template void compute_dense_forward<T>(                                                         \
+      const T *input_data, const T *weight_data, T *output_data, const size_t batch_size,         \
+      const size_t input_features, const size_t output_features);                                 \
+                                                                                                  \
+  template void compute_weight_gradients<T>(                                                      \
+      const T *input_data, const T *gradient_data, T *weight_grad_data, const size_t batch_size,  \
+      const size_t input_features, const size_t output_features);                                 \
+                                                                                                  \
+  template void compute_input_gradients<T>(                                                       \
+      const T *gradient_data, const T *weight_data, T *grad_input_data, const size_t batch_size,  \
+      const size_t input_features, const size_t output_features);                                 \
+                                                                                                  \
+  template void compute_bias_gradients<T>(const T *current_grad_data, T *bias_gradient_data,      \
+                                          const size_t batch_size, const size_t output_features); \
+                                                                                                  \
+  template void add_bias_vector<T>(T * output_data, const T *bias_data, const size_t batch_size,  \
                                    const size_t output_features);
 INSTANTIATE_DENSE(fp16)
 INSTANTIATE_DENSE(bf16)
 INSTANTIATE_DENSE(float)
 INSTANTIATE_DENSE(double)
 #undef INSTANTIATE_DENSE
-} // namespace legacy_dense
-} // namespace cpu
-} // namespace tnn
+}  // namespace legacy_dense
+}  // namespace cpu
+}  // namespace tnn

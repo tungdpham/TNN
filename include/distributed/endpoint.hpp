@@ -6,9 +6,10 @@
  */
 #pragma once
 
-#include "nlohmann/json.hpp"
 #include <string>
 #include <unordered_map>
+
+#include "nlohmann/json.hpp"
 
 namespace tnn {
 
@@ -28,7 +29,8 @@ public:
 
   CommunicationType type() const { return type_; }
 
-  template <typename T> T get_parameter(const std::string &key) const {
+  template <typename T>
+  T get_parameter(const std::string &key) const {
     auto it = parameters_.find(key);
     if (it == parameters_.end()) {
       throw std::runtime_error("Parameter " + key + " not found");
@@ -40,7 +42,8 @@ public:
     }
   }
 
-  template <typename T> void set_parameter(const std::string &key, T value) {
+  template <typename T>
+  void set_parameter(const std::string &key, T value) {
     parameters_[key] = std::move(value);
   }
 
@@ -74,16 +77,18 @@ public:
 
   std::string id() const {
     switch (type_) {
-    case CommunicationType::IN_PROCESS:
-      return "IN_PROCESS";
-    case CommunicationType::TCP:
-      return get_parameter<std::string>("host") + ":" + std::to_string(get_parameter<int>("port"));
-    case CommunicationType::ROCE:
-      return get_parameter<std::string>("host") + ":" + std::to_string(get_parameter<int>("port"));
-    case CommunicationType::NONE:
-      return "NONE";
-    default:
-      return "UNKNOWN";
+      case CommunicationType::IN_PROCESS:
+        return "IN_PROCESS";
+      case CommunicationType::TCP:
+        return get_parameter<std::string>("host") + ":" +
+               std::to_string(get_parameter<int>("port"));
+      case CommunicationType::ROCE:
+        return get_parameter<std::string>("host") + ":" +
+               std::to_string(get_parameter<int>("port"));
+      case CommunicationType::NONE:
+        return "NONE";
+      default:
+        return "UNKNOWN";
     }
   }
 
@@ -207,11 +212,12 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn
 
 // Hash function specialization for tnn::Endpoint
 namespace std {
-template <> struct hash<tnn::Endpoint> {
+template <>
+struct hash<tnn::Endpoint> {
   size_t operator()(const tnn::Endpoint &endpoint) const noexcept { return endpoint.hash(); }
 };
-} // namespace std
+}  // namespace std

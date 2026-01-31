@@ -45,5 +45,5 @@ void gemm(const T *A, const T *B, T *C, const size_t M, const size_t N, const si
 #endif
 }
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

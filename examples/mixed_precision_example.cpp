@@ -2,8 +2,9 @@
  * Example of using type-erased tensors for mixed precision operations
  */
 
-#include "tensor/tensor.hpp"
 #include <iostream>
+
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -17,9 +18,9 @@ int main() {
   tensor_f64->fill_scalar(2.0);
 
   // Use operator overloads
-  Tensor result1 = tensor_f32 + tensor_f32; // Works!
-  Tensor result2 = tensor_f32 * 2.5;        // Scalar multiplication
-  Tensor result3 = 3.0 * tensor_f32;        // Scalar on left
+  Tensor result1 = tensor_f32 + tensor_f32;  // Works!
+  Tensor result2 = tensor_f32 * 2.5;         // Scalar multiplication
+  Tensor result3 = 3.0 * tensor_f32;         // Scalar on left
 
   // Print results
   std::cout << "Result 1 (f32 + f32): ";
@@ -40,8 +41,8 @@ int main() {
 
   // Option 2: Use tensor_cast for type-safe access (RECOMMENDED)
   auto typed_f32 = Tensor::cast<float>(tensor_f32);
-  float *typed_ptr = typed_f32->data(); // Now you have float*
-  float value = (*typed_f32)(0, 0);     // Direct element access
+  float *typed_ptr = typed_f32->data();  // Now you have float*
+  float value = (*typed_f32)(0, 0);      // Direct element access
   std::cout << "Option 2 - tensor_cast: First element = " << value << std::endl;
 
   // Option 3: Access dptr through tensor_cast

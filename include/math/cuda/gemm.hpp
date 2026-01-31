@@ -7,8 +7,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -27,7 +28,7 @@ void gemm_strided_batched_ex(const A_T *A, const B_T *B, C_T *C, const size_t M,
                              const size_t strideB, const size_t strideC, const size_t batch_count,
                              cudaStream_t stream);
 
-} // namespace cuda
+}  // namespace cuda
 
-} // namespace tnn
+}  // namespace tnn
 #endif

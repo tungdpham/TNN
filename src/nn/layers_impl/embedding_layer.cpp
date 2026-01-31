@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/embedding_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/embedding_ops.hpp"
 #include "type/type.hpp"
@@ -53,8 +54,7 @@ void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
   }
 
   size_t num_tokens = input->size();
-  if (num_tokens == 0)
-    return;
+  if (num_tokens == 0) return;
 
   std::vector<size_t> out_shape = input->shape();
   out_shape.push_back(embed_dim_);
@@ -83,10 +83,11 @@ void EmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-EmbeddingLayer::compute_forward_impl(const Tensor &input, const Tensor &weight, Tensor &output,
-                                     size_t num_indices, size_t vocab_size, size_t embed_dim,
-                                     size_t padding_idx, const std::string &flow_id) const {
+std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(const Tensor &input,
+                                                           const Tensor &weight, Tensor &output,
+                                                           size_t num_indices, size_t vocab_size,
+                                                           size_t embed_dim, size_t padding_idx,
+                                                           const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "EmbeddingLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -159,8 +160,8 @@ void EmbeddingLayer::collect_gradients(std::vector<Tensor> &grads) {
   grads.push_back(grad_weight_);
 }
 
-std::vector<size_t>
-EmbeddingLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> EmbeddingLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   std::vector<size_t> out = input_shape;
   out.push_back(embed_dim_);
   return out;
@@ -201,4 +202,4 @@ std::unique_ptr<EmbeddingLayer> EmbeddingLayer::create_from_config(const LayerCo
   return std::make_unique<EmbeddingLayer>(vocab_size, embed_dim, config.name, padding_idx);
 }
 
-} // namespace tnn
+}  // namespace tnn

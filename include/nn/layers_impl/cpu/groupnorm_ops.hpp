@@ -16,6 +16,6 @@ void run_backward_fused(const T *grad_output, const T *norm_input, const T *inv_
                         T *d_gamma, T *d_beta, T *grad_input, size_t N, size_t C, size_t S,
                         size_t num_groups, bool affine);
 
-} // namespace groupnorm
-} // namespace cpu
-} // namespace tnn
+}  // namespace groupnorm
+}  // namespace cpu
+}  // namespace tnn

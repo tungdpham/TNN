@@ -1,9 +1,10 @@
 #pragma once
 
-#include "augmentation.hpp"
-#include "tensor/tensor.hpp"
 #include <cmath>
 #include <random>
+
+#include "augmentation.hpp"
+#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -29,13 +30,13 @@ private:
   float probability_;
   float max_angle_degrees_;
 
-  template <typename T> void apply_impl(Tensor &data, Tensor &labels) {
+  template <typename T>
+  void apply_impl(Tensor &data, Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> angle_dist(-max_angle_degrees_, max_angle_degrees_);
 
     const auto shape = data->shape();
-    if (shape.size() != 4)
-      return;
+    if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
     const size_t channels = shape[1];
@@ -104,4 +105,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

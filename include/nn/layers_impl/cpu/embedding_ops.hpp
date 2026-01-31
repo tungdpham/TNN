@@ -16,6 +16,6 @@ void compute_embedding_backward(const T *input_data, const T *gradient_data, T *
                                 size_t num_indices, size_t vocab_size, size_t embed_dim,
                                 size_t padding_idx);
 
-} // namespace embedding
-} // namespace cpu
-} // namespace tnn
+}  // namespace embedding
+}  // namespace cpu
+}  // namespace tnn

@@ -34,4 +34,4 @@ public:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

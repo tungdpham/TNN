@@ -35,4 +35,4 @@ protected:
   using BaseDataLoader::rng_;
 };
 
-} // namespace tnn
+}  // namespace tnn

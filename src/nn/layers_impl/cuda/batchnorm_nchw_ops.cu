@@ -4,10 +4,10 @@
  * This software is licensed under the MIT License. See the LICENSE file in the
  * project root for the full license text.
  */
-#include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
-
-#include "type/type.hpp"
 #include <cuda_runtime.h>
+
+#include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cuda {
@@ -16,25 +16,31 @@ namespace batchnorm_nchw {
 #define BLOCK_SIZE 256
 #define WARP_SIZE 32
 
-template <typename T> struct VectorType;
-template <> struct VectorType<fp16> {
+template <typename T>
+struct VectorType;
+template <>
+struct VectorType<fp16> {
   using type = half2;
   static constexpr int size = 2;
 };
-template <> struct VectorType<bf16> {
+template <>
+struct VectorType<bf16> {
   using type = __nv_bfloat162;
   static constexpr int size = 2;
 };
-template <> struct VectorType<float> {
+template <>
+struct VectorType<float> {
   using type = float4;
   static constexpr int size = 4;
 };
-template <> struct VectorType<double> {
+template <>
+struct VectorType<double> {
   using type = double2;
   static constexpr int size = 2;
 };
 
-template <typename T> struct WelfordData {
+template <typename T>
+struct WelfordData {
   T mean;
   T m2;
   T count;
@@ -43,11 +49,10 @@ template <typename T> struct WelfordData {
   __device__ WelfordData(T m, T v, T c) : mean(m), m2(v), count(c) {}
 };
 
-template <typename T> __device__ WelfordData<T> welford_merge(WelfordData<T> a, WelfordData<T> b) {
-  if (b.count == T(0))
-    return a;
-  if (a.count == T(0))
-    return b;
+template <typename T>
+__device__ WelfordData<T> welford_merge(WelfordData<T> a, WelfordData<T> b) {
+  if (b.count == T(0)) return a;
+  if (a.count == T(0)) return b;
 
   T new_count = a.count + b.count;
   T delta = b.mean - a.mean;
@@ -57,7 +62,8 @@ template <typename T> __device__ WelfordData<T> welford_merge(WelfordData<T> a, 
   return WelfordData<T>(new_mean, new_m2, new_count);
 }
 
-template <typename T> __device__ WelfordData<T> warpReduceWelford(WelfordData<T> val) {
+template <typename T>
+__device__ WelfordData<T> warpReduceWelford(WelfordData<T> val) {
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
     T other_mean = __shfl_down_sync(0xffffffff, val.mean, offset);
     T other_m2 = __shfl_down_sync(0xffffffff, val.m2, offset);
@@ -67,7 +73,8 @@ template <typename T> __device__ WelfordData<T> warpReduceWelford(WelfordData<T>
   return val;
 }
 
-template <typename T> __device__ WelfordData<T> blockReduceWelford(WelfordData<T> val) {
+template <typename T>
+__device__ WelfordData<T> blockReduceWelford(WelfordData<T> val) {
   static __shared__ T shared_mean[32];
   static __shared__ T shared_m2[32];
   static __shared__ T shared_count[32];
@@ -99,40 +106,39 @@ template <typename T> __device__ WelfordData<T> blockReduceWelford(WelfordData<T
   return block_val;
 }
 
-template <typename T> __inline__ __device__ T warpReduceSum(T val) {
+template <typename T>
+__inline__ __device__ T warpReduceSum(T val) {
   for (int offset = WARP_SIZE / 2; offset > 0; offset /= 2) {
     val += __shfl_down_sync(0xffffffff, val, offset);
   }
   return val;
 }
 
-template <typename T> __inline__ __device__ T blockReduceSum(T val) {
+template <typename T>
+__inline__ __device__ T blockReduceSum(T val) {
   static __shared__ T shared[32];
   int lane = threadIdx.x % WARP_SIZE;
   int wid = threadIdx.x / WARP_SIZE;
 
   val = warpReduceSum(val);
 
-  if (lane == 0)
-    shared[wid] = val;
+  if (lane == 0) shared[wid] = val;
   __syncthreads();
 
   val = (threadIdx.x < blockDim.x / WARP_SIZE) ? shared[lane] : T(0);
-  if (wid == 0)
-    val = warpReduceSum(val);
+  if (wid == 0) val = warpReduceSum(val);
 
   return val;
 }
 
 template <typename T>
-__global__ void fused_stats_kernel(const T *__restrict__ input, float *__restrict__ mean_out,
-                                   float *__restrict__ inv_std_out,
-                                   float *__restrict__ running_mean,
-                                   float *__restrict__ running_var, size_t N, size_t C, size_t S,
+__global__ void fused_stats_kernel(const T* __restrict__ input, float* __restrict__ mean_out,
+                                   float* __restrict__ inv_std_out,
+                                   float* __restrict__ running_mean,
+                                   float* __restrict__ running_var, size_t N, size_t C, size_t S,
                                    float momentum, float epsilon) {
   int c = blockIdx.x;
-  if (c >= C)
-    return;
+  if (c >= C) return;
 
   size_t channel_stride = C * S;
   size_t channel_offset = c * S;
@@ -174,17 +180,16 @@ __global__ void fused_stats_kernel(const T *__restrict__ input, float *__restric
 }
 
 template <typename T>
-__global__ void fused_stats_kernel_vec(const T *__restrict__ input, float *__restrict__ mean_out,
-                                       float *__restrict__ inv_std_out,
-                                       float *__restrict__ running_mean,
-                                       float *__restrict__ running_var, size_t N, size_t C,
+__global__ void fused_stats_kernel_vec(const T* __restrict__ input, float* __restrict__ mean_out,
+                                       float* __restrict__ inv_std_out,
+                                       float* __restrict__ running_mean,
+                                       float* __restrict__ running_var, size_t N, size_t C,
                                        size_t S, float momentum, float epsilon) {
   using VecT = typename VectorType<T>::type;
   constexpr int vec_size = VectorType<T>::size;
 
   int c = blockIdx.x;
-  if (c >= C)
-    return;
+  if (c >= C) return;
 
   size_t channel_stride = C * S;
   size_t channel_offset = c * S;
@@ -199,8 +204,8 @@ __global__ void fused_stats_kernel_vec(const T *__restrict__ input, float *__res
     size_t s = scalar_idx_start % S;
     size_t idx = n * channel_stride + channel_offset + s;
 
-    VecT val_vec = *reinterpret_cast<const VecT *>(&input[idx]);
-    const T *val_arr = reinterpret_cast<const T *>(&val_vec);
+    VecT val_vec = *reinterpret_cast<const VecT*>(&input[idx]);
+    const T* val_arr = reinterpret_cast<const T*>(&val_vec);
 
 #pragma unroll
     for (int k = 0; k < vec_size; ++k) {
@@ -228,10 +233,10 @@ __global__ void fused_stats_kernel_vec(const T *__restrict__ input, float *__res
 }
 
 template <typename T>
-__global__ void fused_apply_kernel(const T *__restrict__ input, const float *__restrict__ mean,
-                                   const float *__restrict__ inv_std,
-                                   const float *__restrict__ gamma, const float *__restrict__ beta,
-                                   T *__restrict__ output, float *__restrict__ normalized_cache,
+__global__ void fused_apply_kernel(const T* __restrict__ input, const float* __restrict__ mean,
+                                   const float* __restrict__ inv_std,
+                                   const float* __restrict__ gamma, const float* __restrict__ beta,
+                                   T* __restrict__ output, float* __restrict__ normalized_cache,
                                    size_t N, size_t C, size_t S, bool affine) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_elements = N * C * S;
@@ -245,8 +250,7 @@ __global__ void fused_apply_kernel(const T *__restrict__ input, const float *__r
 
     float norm = (x - mu) * istd;
 
-    if (normalized_cache)
-      normalized_cache[idx] = norm;
+    if (normalized_cache) normalized_cache[idx] = norm;
 
     float res = norm;
     if (affine) {
@@ -257,11 +261,11 @@ __global__ void fused_apply_kernel(const T *__restrict__ input, const float *__r
 }
 
 template <typename T>
-__global__ void fused_apply_kernel_vec(const T *__restrict__ input, const float *__restrict__ mean,
-                                       const float *__restrict__ inv_std,
-                                       const float *__restrict__ gamma,
-                                       const float *__restrict__ beta, T *__restrict__ output,
-                                       float *__restrict__ normalized_cache, size_t N, size_t C,
+__global__ void fused_apply_kernel_vec(const T* __restrict__ input, const float* __restrict__ mean,
+                                       const float* __restrict__ inv_std,
+                                       const float* __restrict__ gamma,
+                                       const float* __restrict__ beta, T* __restrict__ output,
+                                       float* __restrict__ normalized_cache, size_t N, size_t C,
                                        size_t S, bool affine) {
   using VecT = typename VectorType<T>::type;
   constexpr int vec_size = VectorType<T>::size;
@@ -278,18 +282,17 @@ __global__ void fused_apply_kernel_vec(const T *__restrict__ input, const float 
     float g = (affine && gamma) ? gamma[c] : 1.0f;
     float b = (affine && beta) ? beta[c] : 0.0f;
 
-    VecT x_vec = reinterpret_cast<const VecT *>(input)[idx];
-    const T *x_arr = reinterpret_cast<const T *>(&x_vec);
+    VecT x_vec = reinterpret_cast<const VecT*>(input)[idx];
+    const T* x_arr = reinterpret_cast<const T*>(&x_vec);
 
     VecT out_vec;
-    T *out_arr = reinterpret_cast<T *>(&out_vec);
+    T* out_arr = reinterpret_cast<T*>(&out_vec);
 
 #pragma unroll
     for (int k = 0; k < vec_size; ++k) {
       float x = static_cast<float>(x_arr[k]);
       float norm = (x - mu) * istd;
-      if (normalized_cache)
-        normalized_cache[scalar_idx + k] = norm;
+      if (normalized_cache) normalized_cache[scalar_idx + k] = norm;
 
       float res = norm;
       if (affine) {
@@ -298,19 +301,18 @@ __global__ void fused_apply_kernel_vec(const T *__restrict__ input, const float 
       out_arr[k] = static_cast<T>(res);
     }
 
-    reinterpret_cast<VecT *>(output)[idx] = out_vec;
+    reinterpret_cast<VecT*>(output)[idx] = out_vec;
   }
 }
 
 template <typename T>
-__global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
-                                             const float *__restrict__ normalized_input,
-                                             float *__restrict__ d_gamma,
-                                             float *__restrict__ d_beta, size_t N, size_t C,
+__global__ void fused_backward_reduce_kernel(const T* __restrict__ grad_output,
+                                             const float* __restrict__ normalized_input,
+                                             float* __restrict__ d_gamma,
+                                             float* __restrict__ d_beta, size_t N, size_t C,
                                              size_t S) {
   int c = blockIdx.x;
-  if (c >= C)
-    return;
+  if (c >= C) return;
 
   size_t count = N * S;
   float sum_dy = 0.0f;
@@ -341,17 +343,16 @@ __global__ void fused_backward_reduce_kernel(const T *__restrict__ grad_output,
 }
 
 template <typename T>
-__global__ void fused_backward_reduce_kernel_vec(const T *__restrict__ grad_output,
-                                                 const float *__restrict__ normalized_input,
-                                                 float *__restrict__ d_gamma,
-                                                 float *__restrict__ d_beta, size_t N, size_t C,
+__global__ void fused_backward_reduce_kernel_vec(const T* __restrict__ grad_output,
+                                                 const float* __restrict__ normalized_input,
+                                                 float* __restrict__ d_gamma,
+                                                 float* __restrict__ d_beta, size_t N, size_t C,
                                                  size_t S) {
   using VecT = typename VectorType<T>::type;
   constexpr int vec_size = VectorType<T>::size;
 
   int c = blockIdx.x;
-  if (c >= C)
-    return;
+  if (c >= C) return;
 
   size_t count = N * S;
   size_t num_vectors = count / vec_size;
@@ -368,8 +369,8 @@ __global__ void fused_backward_reduce_kernel_vec(const T *__restrict__ grad_outp
     size_t s = scalar_idx_start % S;
     size_t idx = n * stride + offset + s;
 
-    VecT dy_vec = *reinterpret_cast<const VecT *>(&grad_output[idx]);
-    const T *dy_arr = reinterpret_cast<const T *>(&dy_vec);
+    VecT dy_vec = *reinterpret_cast<const VecT*>(&grad_output[idx]);
+    const T* dy_arr = reinterpret_cast<const T*>(&dy_vec);
 
 #pragma unroll
     for (int k = 0; k < vec_size; ++k) {
@@ -390,12 +391,11 @@ __global__ void fused_backward_reduce_kernel_vec(const T *__restrict__ grad_outp
 }
 
 template <typename T>
-__global__ void
-fused_backward_apply_kernel(const T *__restrict__ grad_output,
-                            const float *__restrict__ normalized_input,
-                            const float *__restrict__ inv_std, const float *__restrict__ gamma,
-                            const float *__restrict__ d_gamma, const float *__restrict__ d_beta,
-                            T *__restrict__ grad_input, size_t N, size_t C, size_t S, bool affine) {
+__global__ void fused_backward_apply_kernel(
+    const T* __restrict__ grad_output, const float* __restrict__ normalized_input,
+    const float* __restrict__ inv_std, const float* __restrict__ gamma,
+    const float* __restrict__ d_gamma, const float* __restrict__ d_beta, T* __restrict__ grad_input,
+    size_t N, size_t C, size_t S, bool affine) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
   size_t total_elements = N * C * S;
 
@@ -421,9 +421,9 @@ fused_backward_apply_kernel(const T *__restrict__ grad_output,
 
 template <typename T>
 __global__ void fused_backward_apply_kernel_vec(
-    const T *__restrict__ grad_output, const float *__restrict__ normalized_input,
-    const float *__restrict__ inv_std, const float *__restrict__ gamma,
-    const float *__restrict__ d_gamma, const float *__restrict__ d_beta, T *__restrict__ grad_input,
+    const T* __restrict__ grad_output, const float* __restrict__ normalized_input,
+    const float* __restrict__ inv_std, const float* __restrict__ gamma,
+    const float* __restrict__ d_gamma, const float* __restrict__ d_beta, T* __restrict__ grad_input,
     size_t N, size_t C, size_t S, bool affine) {
   using VecT = typename VectorType<T>::type;
   constexpr int vec_size = VectorType<T>::size;
@@ -443,11 +443,11 @@ __global__ void fused_backward_apply_kernel_vec(
 
     float term1 = (g * istd) / M;
 
-    VecT dy_vec = reinterpret_cast<const VecT *>(grad_output)[idx];
-    const T *dy_arr = reinterpret_cast<const T *>(&dy_vec);
+    VecT dy_vec = reinterpret_cast<const VecT*>(grad_output)[idx];
+    const T* dy_arr = reinterpret_cast<const T*>(&dy_vec);
 
     VecT dx_vec;
-    T *dx_arr = reinterpret_cast<T *>(&dx_vec);
+    T* dx_arr = reinterpret_cast<T*>(&dx_vec);
 
 #pragma unroll
     for (int k = 0; k < vec_size; ++k) {
@@ -457,22 +457,21 @@ __global__ void fused_backward_apply_kernel_vec(
       dx_arr[k] = static_cast<T>(term1 * term2);
     }
 
-    reinterpret_cast<VecT *>(grad_input)[idx] = dx_vec;
+    reinterpret_cast<VecT*>(grad_input)[idx] = dx_vec;
   }
 }
 
 template <typename T>
-__global__ void compute_inference_output_kernel(const T *input_data, const float *running_mean_data,
-                                                const float *running_var_data,
-                                                const float *gamma_data, const float *beta_data,
-                                                T *output_data, size_t batch_size, size_t channels,
+__global__ void compute_inference_output_kernel(const T* input_data, const float* running_mean_data,
+                                                const float* running_var_data,
+                                                const float* gamma_data, const float* beta_data,
+                                                T* output_data, size_t batch_size, size_t channels,
                                                 size_t spatial_size, float epsilon, bool affine) {
-
   extern __shared__ char shared_mem[];
-  float *s_mean = reinterpret_cast<float *>(shared_mem);
-  float *s_inv_std = s_mean + channels;
-  float *s_gamma = s_inv_std + channels;
-  float *s_beta = s_gamma + channels;
+  float* s_mean = reinterpret_cast<float*>(shared_mem);
+  float* s_inv_std = s_mean + channels;
+  float* s_gamma = s_inv_std + channels;
+  float* s_beta = s_gamma + channels;
 
   for (int c = threadIdx.x; c < channels; c += blockDim.x) {
     s_mean[c] = running_mean_data[c];
@@ -488,8 +487,7 @@ __global__ void compute_inference_output_kernel(const T *input_data, const float
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
   int total_elements = batch_size * channels * spatial_size;
 
-  if (idx >= total_elements)
-    return;
+  if (idx >= total_elements) return;
 
   int c = (idx / spatial_size) % channels;
 
@@ -504,11 +502,10 @@ __global__ void compute_inference_output_kernel(const T *input_data, const float
 }
 
 template <typename T>
-void run_forward_fused(const T *input, float *mean, float *inv_std, float *running_mean,
-                       float *running_var, const float *gamma, const float *beta, T *output,
-                       float *norm_cache, size_t N, size_t C, size_t S, float momentum,
+void run_forward_fused(const T* input, float* mean, float* inv_std, float* running_mean,
+                       float* running_var, const float* gamma, const float* beta, T* output,
+                       float* norm_cache, size_t N, size_t C, size_t S, float momentum,
                        float epsilon, bool affine, cudaStream_t stream) {
-
   constexpr int vec_size = VectorType<T>::size;
   if (S % vec_size == 0) {
     fused_stats_kernel_vec<<<C, BLOCK_SIZE, 0, stream>>>(input, mean, inv_std, running_mean,
@@ -531,8 +528,8 @@ void run_forward_fused(const T *input, float *mean, float *inv_std, float *runni
 }
 
 template <typename T>
-void run_backward_fused(const T *grad_output, const float *norm_input, const float *inv_std,
-                        const float *gamma, float *d_gamma, float *d_beta, T *grad_input, size_t N,
+void run_backward_fused(const T* grad_output, const float* norm_input, const float* inv_std,
+                        const float* gamma, float* d_gamma, float* d_beta, T* grad_input, size_t N,
                         size_t C, size_t S, bool affine, cudaStream_t stream) {
   constexpr int vec_size = VectorType<T>::size;
   if (S % vec_size == 0) {
@@ -556,9 +553,9 @@ void run_backward_fused(const T *grad_output, const float *norm_input, const flo
 }
 
 template <typename T>
-void compute_inference_output(const T *input_data, const float *running_mean_data,
-                              const float *running_var_data, const float *gamma_data,
-                              const float *beta_data, T *output_data, size_t batch_size,
+void compute_inference_output(const T* input_data, const float* running_mean_data,
+                              const float* running_var_data, const float* gamma_data,
+                              const float* beta_data, T* output_data, size_t batch_size,
                               size_t channels, size_t spatial_size, float epsilon, bool affine,
                               cudaStream_t stream) {
   size_t total_elements = batch_size * channels * spatial_size;
@@ -572,20 +569,20 @@ void compute_inference_output(const T *input_data, const float *running_mean_dat
       batch_size, channels, spatial_size, epsilon, affine);
 }
 
-#define INSTANTIATE_BATCHNORM(T)                                                                   \
-  template void compute_inference_output<T>(                                                       \
-      const T *input_data, const float *running_mean_data, const float *running_var_data,          \
-      const float *gamma_data, const float *beta_data, T *output_data, size_t batch_size,          \
-      size_t channels, size_t spatial_size, float epsilon, bool affine, cudaStream_t stream);      \
-                                                                                                   \
-  template void run_forward_fused<T>(                                                              \
-      const T *input, float *mean, float *inv_std, float *running_mean, float *running_var,        \
-      const float *gamma, const float *beta, T *output, float *norm_cache, size_t N, size_t C,     \
-      size_t S, float momentum, float epsilon, bool affine, cudaStream_t stream);                  \
-                                                                                                   \
-  template void run_backward_fused<T>(const T *grad_output, const float *norm_input,               \
-                                      const float *inv_std, const float *gamma, float *d_gamma,    \
-                                      float *d_beta, T *grad_input, size_t N, size_t C, size_t S,  \
+#define INSTANTIATE_BATCHNORM(T)                                                                  \
+  template void compute_inference_output<T>(                                                      \
+      const T* input_data, const float* running_mean_data, const float* running_var_data,         \
+      const float* gamma_data, const float* beta_data, T* output_data, size_t batch_size,         \
+      size_t channels, size_t spatial_size, float epsilon, bool affine, cudaStream_t stream);     \
+                                                                                                  \
+  template void run_forward_fused<T>(                                                             \
+      const T* input, float* mean, float* inv_std, float* running_mean, float* running_var,       \
+      const float* gamma, const float* beta, T* output, float* norm_cache, size_t N, size_t C,    \
+      size_t S, float momentum, float epsilon, bool affine, cudaStream_t stream);                 \
+                                                                                                  \
+  template void run_backward_fused<T>(const T* grad_output, const float* norm_input,              \
+                                      const float* inv_std, const float* gamma, float* d_gamma,   \
+                                      float* d_beta, T* grad_input, size_t N, size_t C, size_t S, \
                                       bool affine, cudaStream_t stream);
 
 INSTANTIATE_BATCHNORM(fp16)
@@ -594,6 +591,6 @@ INSTANTIATE_BATCHNORM(float)
 INSTANTIATE_BATCHNORM(double)
 #undef INSTANTIATE_BATCHNORM
 
-} // namespace batchnorm_nchw
-} // namespace cuda
-} // namespace tnn
+}  // namespace batchnorm_nchw
+}  // namespace cuda
+}  // namespace tnn

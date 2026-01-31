@@ -40,4 +40,4 @@ public:
   static void register_defaults();
 };
 
-} // namespace tnn
+}  // namespace tnn

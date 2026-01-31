@@ -1,10 +1,10 @@
 #pragma once
 
-#include "device/context.hpp"
-
 #include <cstddef>
 #include <memory>
 #include <unordered_map>
+
+#include "device/context.hpp"
 
 namespace tnn {
 class CPUContext : public Context {
@@ -24,4 +24,4 @@ public:
   void createFlow(const std::string &flow_id) override;
   Flow *getFlow(const std::string &flow_id) override;
 };
-} // namespace tnn
+}  // namespace tnn

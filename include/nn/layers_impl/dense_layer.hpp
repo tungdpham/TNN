@@ -92,4 +92,4 @@ public:
   static std::unique_ptr<DenseLayer> create_from_config(const LayerConfig &config);
 };
 
-} // namespace tnn
+}  // namespace tnn

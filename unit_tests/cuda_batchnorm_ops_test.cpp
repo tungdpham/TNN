@@ -5,15 +5,17 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <cmath>
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
-#include <cmath>
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace tnn;
 
@@ -71,8 +73,7 @@ TEST_F(CUDABatchNormOpsTest, InferenceOutputAffine) {
   const bool affine = true;
 
   std::vector<float> input_data(total_size);
-  for (size_t i = 0; i < total_size; ++i)
-    input_data[i] = static_cast<float>(i) * 0.1f;
+  for (size_t i = 0; i < total_size; ++i) input_data[i] = static_cast<float>(i) * 0.1f;
 
   std::vector<float> running_mean(channels);
   std::vector<float> running_var(channels);

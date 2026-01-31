@@ -7,10 +7,10 @@
 
 #pragma once
 
-#include "nn/layer.hpp"
-
 #include <string>
 #include <vector>
+
+#include "nn/layer.hpp"
 
 namespace tnn {
 
@@ -24,14 +24,14 @@ public:
 private:
   // Stateless layers do not need initialization
   void init_impl() override {
-    (void)this; // no-op
+    (void)this;  // no-op
   }
 
   // stateless layers don't have params so device change don't really matter but there may be
   // special cases.
   void on_set_device(const Device &device) override {
-    (void)device; // no-op
+    (void)device;  // no-op
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

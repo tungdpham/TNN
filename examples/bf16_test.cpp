@@ -1,3 +1,5 @@
+#include <cstddef>
+
 #include "device/device_manager.hpp"
 #include "nn/blocks_impl/attention_block.hpp"
 #include "nn/example_models.hpp"
@@ -5,7 +7,6 @@
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/loss.hpp"
 #include "type/type.hpp"
-#include <cstddef>
 
 using namespace std;
 using namespace tnn;

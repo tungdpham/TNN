@@ -6,14 +6,6 @@
  */
 #pragma once
 
-#include "device/allocator.hpp"
-#include "device/device.hpp"
-#include "device/device_manager.hpp"
-#include "device/dptr.hpp"
-#include "device/task.hpp"
-#include "ops/ops.hpp"
-#include "type/type.hpp"
-
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -29,6 +21,14 @@
 #include <string>
 #include <type_traits>
 #include <vector>
+
+#include "device/allocator.hpp"
+#include "device/device.hpp"
+#include "device/device_manager.hpp"
+#include "device/dptr.hpp"
+#include "device/task.hpp"
+#include "ops/ops.hpp"
+#include "type/type.hpp"
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -46,7 +46,8 @@ class ITensor;
 
 class Tensor;
 
-template <typename T> class TypedTensor;
+template <typename T>
+class TypedTensor;
 
 class ITensor {
 public:
@@ -81,27 +82,31 @@ public:
   virtual double variance() const = 0;
 
   // Data access
-  template <typename U> U &at(std::initializer_list<size_t> indices) {
+  template <typename U>
+  U &at(std::initializer_list<size_t> indices) {
     assert(device()->device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
     assert(indices.size() == shape().size());
     size_t index = compute_index(indices);
     return data_as<U>()[index];
   }
 
-  template <typename U> const U &at(std::initializer_list<size_t> indices) const {
+  template <typename U>
+  const U &at(std::initializer_list<size_t> indices) const {
     assert(device()->device_type() == DeviceType::CPU && "at() is only available for CPU tensors");
     assert(indices.size() == shape().size());
     size_t index = compute_index(indices);
     return data_as<U>()[index];
   }
 
-  template <typename U> U *data_as() {
+  template <typename U>
+  U *data_as() {
     if (this->data_type() != dtype_of<U>()) {
       throw std::runtime_error("Tensor data type mismatch in data_as()");
     }
     return static_cast<U *>(data());
   }
-  template <typename U> const U *data_as() const {
+  template <typename U>
+  const U *data_as() const {
     if (this->data_type() != dtype_of<U>()) {
       throw std::runtime_error("Tensor data type mismatch in data_as()");
     }
@@ -182,9 +187,11 @@ public:
   static Tensor create_pooled(IAllocator &allocator, DType_t dtype,
                               std::initializer_list<size_t> shape = {});
 
-  template <typename T> static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
+  template <typename T>
+  static std::shared_ptr<TypedTensor<T>> cast(const Tensor &tensor);
 
-  template <typename T> static Tensor load(std::ifstream &in, const Device *device = &getCPU());
+  template <typename T>
+  static Tensor load(std::ifstream &in, const Device *device = &getCPU());
 
   static void load_into(std::ifstream &in, Tensor &target);
 
@@ -198,7 +205,8 @@ public:
  * Generic N-dimensional tensor with various functions. How layers interpret
  * the dimensions is up to the layer implementation.
  */
-template <typename T = float> class TypedTensor : public ITensor {
+template <typename T = float>
+class TypedTensor : public ITensor {
 protected:
   size_t data_size_;
   dptr data_;
@@ -212,7 +220,8 @@ protected:
     return stride;
   }
 
-  template <typename... Indices> inline size_t compute_index(Indices... indices) const {
+  template <typename... Indices>
+  inline size_t compute_index(Indices... indices) const {
     assert(sizeof...(indices) == shape_.size());
 
     size_t index = [this, ... indices = indices]<size_t... I>(std::index_sequence<I...>) {
@@ -293,7 +302,8 @@ public:
     other.data_size_ = 0;
   }
 
-  template <typename... Indices> T &operator()(Indices... indices) {
+  template <typename... Indices>
+  T &operator()(Indices... indices) {
     assert(device()->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices...)];
@@ -305,7 +315,8 @@ public:
     return data_.get<T>()[compute_index(indices)];
   }
 
-  template <typename... Indices> const T &operator()(Indices... indices) const {
+  template <typename... Indices>
+  const T &operator()(Indices... indices) const {
     assert(device()->device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices...)];
@@ -706,8 +717,9 @@ public:
     }
 
     if (device() != other.device()) {
-      throw std::runtime_error("Cannot copy batch between tensors on different devices. Transfer "
-                               "to same device first.");
+      throw std::runtime_error(
+          "Cannot copy batch between tensors on different devices. Transfer "
+          "to same device first.");
     }
 
     size_t batch_stride = compute_stride(0);
@@ -816,7 +828,8 @@ public:
   }
 };
 
-template <typename T> class PooledTypedTensor : public TypedTensor<T> {
+template <typename T>
+class PooledTypedTensor : public TypedTensor<T> {
 public:
   using TypedTensor<T>::TypedTensor;
 
@@ -881,22 +894,22 @@ void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_n
 inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
   DType_t dtype = tensor->data_type();
   switch (dtype) {
-  case DType_t::FP32: {
-    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<float>>(tensor);
-    check_nan_and_inf<float>(*typed_tensor, tensor_name);
-    break;
-  }
-  case DType_t::FP64: {
-    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<double>>(tensor);
-    check_nan_and_inf<double>(*typed_tensor, tensor_name);
-    break;
-  }
-  case DType_t::FP16: {
-    throw std::runtime_error("check_nan_and_inf not implemented for FP16 tensors");
-    break;
-  }
-  default:
-    throw std::runtime_error("Unsupported data type for check_nan_and_inf");
+    case DType_t::FP32: {
+      auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<float>>(tensor);
+      check_nan_and_inf<float>(*typed_tensor, tensor_name);
+      break;
+    }
+    case DType_t::FP64: {
+      auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<double>>(tensor);
+      check_nan_and_inf<double>(*typed_tensor, tensor_name);
+      break;
+    }
+    case DType_t::FP16: {
+      throw std::runtime_error("check_nan_and_inf not implemented for FP16 tensors");
+      break;
+    }
+    default:
+      throw std::runtime_error("Unsupported data type for check_nan_and_inf");
   }
 }
 
@@ -948,18 +961,18 @@ inline void print_data_distribution(const Tensor &tensor, const std::string &ten
   };
 
   switch (dtype) {
-  case DType_t::FP32:
-    process_data.template operator()<float>();
-    break;
-  case DType_t::FP64:
-    process_data.template operator()<double>();
-    break;
-  case DType_t::FP16:
-    process_data.template operator()<fp16>();
-    break;
-  default:
-    std::cerr << "Unsupported data type for print_data_distribution" << std::endl;
-    return;
+    case DType_t::FP32:
+      process_data.template operator()<float>();
+      break;
+    case DType_t::FP64:
+      process_data.template operator()<double>();
+      break;
+    case DType_t::FP16:
+      process_data.template operator()<fp16>();
+      break;
+    default:
+      std::cerr << "Unsupported data type for print_data_distribution" << std::endl;
+      return;
   }
 
   // Print distribution
@@ -999,35 +1012,35 @@ inline void print_data_distribution(const Tensor &tensor, const std::string &ten
   std::cout << std::endl;
 }
 
-#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)                                            \
-  do {                                                                                             \
-    switch (dtype_value) {                                                                         \
-    case DType_t::FP16: {                                                                          \
-      using type_alias = fp16;                                                                     \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::BF16: {                                                                          \
-      using type_alias = bf16;                                                                     \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::FP32: {                                                                          \
-      using type_alias = float;                                                                    \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    case DType_t::FP64: {                                                                          \
-      using type_alias = double;                                                                   \
-      __VA_ARGS__;                                                                                 \
-      break;                                                                                       \
-    }                                                                                              \
-    default:                                                                                       \
-      throw std::runtime_error("Unknown dtype in dispatch");                                       \
-    }                                                                                              \
+#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)        \
+  do {                                                         \
+    switch (dtype_value) {                                     \
+      case DType_t::FP16: {                                    \
+        using type_alias = fp16;                               \
+        __VA_ARGS__;                                           \
+        break;                                                 \
+      }                                                        \
+      case DType_t::BF16: {                                    \
+        using type_alias = bf16;                               \
+        __VA_ARGS__;                                           \
+        break;                                                 \
+      }                                                        \
+      case DType_t::FP32: {                                    \
+        using type_alias = float;                              \
+        __VA_ARGS__;                                           \
+        break;                                                 \
+      }                                                        \
+      case DType_t::FP64: {                                    \
+        using type_alias = double;                             \
+        __VA_ARGS__;                                           \
+        break;                                                 \
+      }                                                        \
+      default:                                                 \
+        throw std::runtime_error("Unknown dtype in dispatch"); \
+    }                                                          \
   } while (0)
 
-#define DISPATCH_AUTO(type_alias, func_body, ...)                                                  \
+#define DISPATCH_AUTO(type_alias, func_body, ...) \
   DISPATCH_ON_DTYPE(tnn::find_and_verify_dtype(__VA_ARGS__), type_alias, func_body)
 
 #define DISPATCH_AUTO_T(func, ...) DISPATCH_AUTO(T, func<T>(__VA_ARGS__), __VA_ARGS__)
@@ -1055,47 +1068,47 @@ inline Tensor Tensor::create(std::initializer_list<size_t> shape, const dptr &da
 
 inline Tensor Tensor::create(DType_t dtype, std::vector<size_t> shape, const Device *device) {
   switch (dtype) {
-  case DType_t::FP16:
-    return create<fp16>(shape, device);
-  case DType_t::BF16:
-    return create<bf16>(shape, device);
-  case DType_t::FP32:
-    return create<float>(shape, device);
-  case DType_t::FP64:
-    return create<double>(shape, device);
-  default:
-    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
+    case DType_t::FP16:
+      return create<fp16>(shape, device);
+    case DType_t::BF16:
+      return create<bf16>(shape, device);
+    case DType_t::FP32:
+      return create<float>(shape, device);
+    case DType_t::FP64:
+      return create<double>(shape, device);
+    default:
+      throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
 }
 
 inline Tensor Tensor::create(DType_t dtype, std::initializer_list<size_t> shape,
                              const Device *device) {
   switch (dtype) {
-  case DType_t::FP16:
-    return create<fp16>(shape, device);
-  case DType_t::BF16:
-    return create<bf16>(shape, device);
-  case DType_t::FP32:
-    return create<float>(shape, device);
-  case DType_t::FP64:
-    return create<double>(shape, device);
-  default:
-    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
+    case DType_t::FP16:
+      return create<fp16>(shape, device);
+    case DType_t::BF16:
+      return create<bf16>(shape, device);
+    case DType_t::FP32:
+      return create<float>(shape, device);
+    case DType_t::FP64:
+      return create<double>(shape, device);
+    default:
+      throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
 }
 
 inline Tensor Tensor::create(DType_t dtype, dptr &&data, std::vector<size_t> shape) {
   switch (dtype) {
-  case DType_t::FP16:
-    return create<fp16>(shape, std::move(data));
-  case DType_t::BF16:
-    return create<bf16>(shape, std::move(data));
-  case DType_t::FP32:
-    return create<float>(shape, std::move(data));
-  case DType_t::FP64:
-    return create<double>(shape, std::move(data));
-  default:
-    throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
+    case DType_t::FP16:
+      return create<fp16>(shape, std::move(data));
+    case DType_t::BF16:
+      return create<bf16>(shape, std::move(data));
+    case DType_t::FP32:
+      return create<float>(shape, std::move(data));
+    case DType_t::FP64:
+      return create<double>(shape, std::move(data));
+    default:
+      throw std::runtime_error("Unsupported data type for Tensor::create_from_dtype");
   }
 }
 
@@ -1112,36 +1125,37 @@ inline Tensor Tensor::create_pooled(IAllocator &allocator, std::initializer_list
 inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
                                     std::vector<size_t> shape) {
   switch (dtype) {
-  case DType_t::FP16:
-    return create_pooled<fp16>(allocator, shape);
-  case DType_t::BF16:
-    return create_pooled<bf16>(allocator, shape);
-  case DType_t::FP32:
-    return create_pooled<float>(allocator, shape);
-  case DType_t::FP64:
-    return create_pooled<double>(allocator, shape);
-  default:
-    throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
+    case DType_t::FP16:
+      return create_pooled<fp16>(allocator, shape);
+    case DType_t::BF16:
+      return create_pooled<bf16>(allocator, shape);
+    case DType_t::FP32:
+      return create_pooled<float>(allocator, shape);
+    case DType_t::FP64:
+      return create_pooled<double>(allocator, shape);
+    default:
+      throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
 }
 
 inline Tensor Tensor::create_pooled(IAllocator &allocator, DType_t dtype,
                                     std::initializer_list<size_t> shape) {
   switch (dtype) {
-  case DType_t::BF16:
-    return create_pooled<bf16>(allocator, shape);
-  case DType_t::FP16:
-    return create_pooled<fp16>(allocator, shape);
-  case DType_t::FP32:
-    return create_pooled<float>(allocator, shape);
-  case DType_t::FP64:
-    return create_pooled<double>(allocator, shape);
-  default:
-    throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
+    case DType_t::BF16:
+      return create_pooled<bf16>(allocator, shape);
+    case DType_t::FP16:
+      return create_pooled<fp16>(allocator, shape);
+    case DType_t::FP32:
+      return create_pooled<float>(allocator, shape);
+    case DType_t::FP64:
+      return create_pooled<double>(allocator, shape);
+    default:
+      throw std::runtime_error("Unsupported data type for Tensor::create_pooled");
   }
 }
 
-template <typename T> inline std::shared_ptr<TypedTensor<T>> Tensor::cast(const Tensor &tensor) {
+template <typename T>
+inline std::shared_ptr<TypedTensor<T>> Tensor::cast(const Tensor &tensor) {
   auto typed = std::dynamic_pointer_cast<TypedTensor<T>>(tensor);
   if (!typed) {
     throw std::runtime_error("Invalid tensor type cast");
@@ -1163,7 +1177,8 @@ inline Tensor Tensor::dtype_cast(const Tensor &input, DType_t target_dtype) {
   return Tensor::create(target_dtype, std::move(output_data), input->shape());
 }
 
-template <typename T> inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
+template <typename T>
+inline Tensor Tensor::load(std::ifstream &in, const Device *device) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }
@@ -1291,14 +1306,16 @@ inline Tensor load_tensor(std::ifstream &in, const Device *device = &getCPU()) {
   return Tensor::load<T>(in, device);
 }
 
-template <typename T> DType_t get_dtype_if_tensor(const T &val) {
+template <typename T>
+DType_t get_dtype_if_tensor(const T &val) {
   if constexpr (std::is_convertible_v<T, tnn::Tensor>) {
     return val ? val->data_type() : DType_t::UNKNOWN;
   }
   return DType_t::UNKNOWN;
 }
 
-template <typename... Args> void check_all_match(DType_t expected, const Args &...args) {
+template <typename... Args>
+void check_all_match(DType_t expected, const Args &...args) {
   auto validator = [&](DType_t current) {
     if (current != DType_t::UNKNOWN && current != expected) {
       throw std::runtime_error("Tensor DType mismatch in operation!");
@@ -1307,7 +1324,8 @@ template <typename... Args> void check_all_match(DType_t expected, const Args &.
   (validator(get_dtype_if_tensor(args)), ...);
 }
 
-template <typename... Args> DType_t find_and_verify_dtype(const Args &...args) {
+template <typename... Args>
+DType_t find_and_verify_dtype(const Args &...args) {
   DType_t found = DType_t::UNKNOWN;
 
   auto find_first = [&](DType_t current) {
@@ -1325,4 +1343,4 @@ template <typename... Args> DType_t find_and_verify_dtype(const Args &...args) {
   return found;
 }
 
-} // namespace tnn
+}  // namespace tnn

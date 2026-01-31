@@ -16,7 +16,7 @@ inline dim3 get_2d_blocks(size_t height, size_t width) {
 }
 
 template <typename T>
-__global__ void cuda_im2col_kernel(const T *input, T *col_data, size_t batch_size, size_t channels,
+__global__ void cuda_im2col_kernel(const T* input, T* col_data, size_t batch_size, size_t channels,
                                    size_t height, size_t width, size_t kernel_h, size_t kernel_w,
                                    size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                                    size_t output_h, size_t output_w) {
@@ -54,7 +54,7 @@ __global__ void cuda_im2col_kernel(const T *input, T *col_data, size_t batch_siz
 }
 
 template <typename T>
-void cuda_im2col(const T *input, T *col_data, size_t batch_size, size_t channels, size_t height,
+void cuda_im2col(const T* input, T* col_data, size_t batch_size, size_t channels, size_t height,
                  size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                  size_t pad_h, size_t pad_w, size_t output_h, size_t output_w,
                  cudaStream_t stream) {
@@ -69,7 +69,7 @@ void cuda_im2col(const T *input, T *col_data, size_t batch_size, size_t channels
 }
 
 template <typename T>
-__global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_size, size_t channels,
+__global__ void cuda_col2im_kernel(const T* col_data, T* output, size_t batch_size, size_t channels,
                                    size_t height, size_t width, size_t kernel_h, size_t kernel_w,
                                    size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                                    size_t output_h, size_t output_w) {
@@ -77,7 +77,6 @@ __global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_si
   size_t total_elements = batch_size * channels * height * width;
 
   if (idx < total_elements) {
-
     size_t w_in = idx % width;
     size_t temp = idx / width;
     size_t h_in = temp % height;
@@ -92,22 +91,18 @@ __global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_si
     for (size_t kh = 0; kh < kernel_h; ++kh) {
       int h_out_base = (int)h_in + (int)pad_h - (int)kh;
 
-      if (h_out_base < 0 || (h_out_base % (int)stride_h) != 0)
-        continue;
+      if (h_out_base < 0 || (h_out_base % (int)stride_h) != 0) continue;
 
       size_t h_out = (size_t)h_out_base / stride_h;
-      if (h_out >= output_h)
-        continue;
+      if (h_out >= output_h) continue;
 
       for (size_t kw = 0; kw < kernel_w; ++kw) {
         int w_out_base = (int)w_in + (int)pad_w - (int)kw;
 
-        if (w_out_base < 0 || (w_out_base % (int)stride_w) != 0)
-          continue;
+        if (w_out_base < 0 || (w_out_base % (int)stride_w) != 0) continue;
 
         size_t w_out = (size_t)w_out_base / stride_w;
-        if (w_out >= output_w)
-          continue;
+        if (w_out >= output_w) continue;
 
         size_t c_kh_kw = (c * kernel_h + kh) * kernel_w + kw;
         size_t col_idx = c_kh_kw * batch_spatial + n * spatial_out + h_out * output_w + w_out;
@@ -120,11 +115,10 @@ __global__ void cuda_col2im_kernel(const T *col_data, T *output, size_t batch_si
 }
 
 template <typename T>
-void cuda_col2im(const T *col_data, T *output, size_t batch_size, size_t channels, size_t height,
+void cuda_col2im(const T* col_data, T* output, size_t batch_size, size_t channels, size_t height,
                  size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                  size_t pad_h, size_t pad_w, size_t output_h, size_t output_w,
                  cudaStream_t stream) {
-
   size_t output_size = batch_size * channels * height * width;
   cudaMemsetAsync(output, 0, output_size * sizeof(T), stream);
 
@@ -138,7 +132,7 @@ void cuda_col2im(const T *col_data, T *output, size_t batch_size, size_t channel
 }
 
 template <typename T>
-__global__ void pad_kernel(const T *input, T *output, size_t batch_size, size_t channels,
+__global__ void pad_kernel(const T* input, T* output, size_t batch_size, size_t channels,
                            size_t height, size_t width, size_t pad_h, size_t pad_w, T value) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -147,7 +141,6 @@ __global__ void pad_kernel(const T *input, T *output, size_t batch_size, size_t 
   size_t total_elements = batch_size * channels * padded_height * padded_width;
 
   if (idx < total_elements) {
-
     size_t w_pad = idx % padded_width;
     size_t temp = idx / padded_width;
     size_t h_pad = temp % padded_height;
@@ -160,7 +153,6 @@ __global__ void pad_kernel(const T *input, T *output, size_t batch_size, size_t 
     if (h_pad < pad_h || h_pad >= height + pad_h || w_pad < pad_w || w_pad >= width + pad_w) {
       result = value;
     } else {
-
       size_t h = h_pad - pad_h;
       size_t w = w_pad - pad_w;
       size_t input_idx = ((n * channels + c) * height + h) * width + w;
@@ -172,7 +164,7 @@ __global__ void pad_kernel(const T *input, T *output, size_t batch_size, size_t 
 }
 
 template <typename T>
-void cuda_pad(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+void cuda_pad(const T* input, T* output, size_t batch_size, size_t channels, size_t height,
               size_t width, size_t pad_h, size_t pad_w, T value, cudaStream_t stream) {
   int num_blocks =
       get_num_blocks(batch_size * channels * (height + 2 * pad_h) * (width + 2 * pad_w));
@@ -183,7 +175,7 @@ void cuda_pad(const T *input, T *output, size_t batch_size, size_t channels, siz
 }
 
 template <typename T>
-__global__ void unpad_kernel(const T *input, T *output, size_t batch_size, size_t channels,
+__global__ void unpad_kernel(const T* input, T* output, size_t batch_size, size_t channels,
                              size_t height, size_t width, size_t pad_h, size_t pad_w) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -194,7 +186,6 @@ __global__ void unpad_kernel(const T *input, T *output, size_t batch_size, size_
   size_t total_elements = batch_size * channels * output_height * output_width;
 
   if (idx < total_elements) {
-
     size_t w = idx % output_width;
     size_t temp = idx / output_width;
     size_t h = temp % output_height;
@@ -211,7 +202,7 @@ __global__ void unpad_kernel(const T *input, T *output, size_t batch_size, size_
 }
 
 template <typename T>
-void cuda_unpad(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+void cuda_unpad(const T* input, T* output, size_t batch_size, size_t channels, size_t height,
                 size_t width, size_t pad_h, size_t pad_w, cudaStream_t stream) {
   int num_blocks = get_num_blocks(batch_size * channels * height * width);
   unpad_kernel<T><<<num_blocks, BLOCK_SIZE, 0, stream>>>(input, output, batch_size, channels,
@@ -221,7 +212,7 @@ void cuda_unpad(const T *input, T *output, size_t batch_size, size_t channels, s
 }
 
 template <typename T>
-__global__ void crop_kernel(const T *input, T *output, size_t batch_size, size_t channels,
+__global__ void crop_kernel(const T* input, T* output, size_t batch_size, size_t channels,
                             size_t height, size_t width, size_t start_h, size_t start_w,
                             size_t new_height, size_t new_width) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -229,7 +220,6 @@ __global__ void crop_kernel(const T *input, T *output, size_t batch_size, size_t
   size_t total_elements = batch_size * channels * new_height * new_width;
 
   if (idx < total_elements) {
-
     size_t w = idx % new_width;
     size_t temp = idx / new_width;
     size_t h = temp % new_height;
@@ -246,7 +236,7 @@ __global__ void crop_kernel(const T *input, T *output, size_t batch_size, size_t
 }
 
 template <typename T>
-void cuda_crop(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+void cuda_crop(const T* input, T* output, size_t batch_size, size_t channels, size_t height,
                size_t width, size_t start_h, size_t start_w, size_t new_height, size_t new_width,
                cudaStream_t stream) {
   int num_blocks = get_num_blocks(batch_size * channels * new_height * new_width);
@@ -257,7 +247,7 @@ void cuda_crop(const T *input, T *output, size_t batch_size, size_t channels, si
 }
 
 template <typename T>
-__global__ void softmax_kernel(T *data, size_t batch_size, size_t num_classes, size_t height,
+__global__ void softmax_kernel(T* data, size_t batch_size, size_t num_classes, size_t height,
                                size_t width) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -299,7 +289,7 @@ __global__ void softmax_kernel(T *data, size_t batch_size, size_t num_classes, s
 }
 
 template <typename T>
-void cuda_softmax(T *data, size_t batch_size, size_t num_classes, size_t height, size_t width,
+void cuda_softmax(T* data, size_t batch_size, size_t num_classes, size_t height, size_t width,
                   cudaStream_t stream) {
   int num_blocks = get_num_blocks(batch_size * height * width);
   softmax_kernel<T>
@@ -309,7 +299,7 @@ void cuda_softmax(T *data, size_t batch_size, size_t num_classes, size_t height,
 }
 
 template <typename T>
-__global__ void transpose_2d_kernel(const T *input, T *output, size_t rows, size_t cols) {
+__global__ void transpose_2d_kernel(const T* input, T* output, size_t rows, size_t cols) {
   __shared__ T tile[TILE_DIM][TILE_DIM + 1];
   int x = blockIdx.x * TILE_DIM + threadIdx.x;
   int y = blockIdx.y * TILE_DIM + threadIdx.y;
@@ -328,7 +318,7 @@ __global__ void transpose_2d_kernel(const T *input, T *output, size_t rows, size
 }
 
 template <typename T>
-__global__ void nchw_cnhw_transpose_tiled(const T *__restrict__ input, T *__restrict__ output,
+__global__ void nchw_cnhw_transpose_tiled(const T* __restrict__ input, T* __restrict__ output,
                                           int N, int C, int HW) {
   __shared__ T tile[TILE_DIM][TILE_DIM + 1];
   int x = blockIdx.x * TILE_DIM + threadIdx.x;
@@ -351,9 +341,8 @@ __global__ void nchw_cnhw_transpose_tiled(const T *__restrict__ input, T *__rest
 }
 
 template <typename T>
-void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cudaStream_t stream) {
-  if (rows == 0 || cols == 0)
-    return;
+void cuda_transpose_2d(const T* input, T* output, size_t rows, size_t cols, cudaStream_t stream) {
+  if (rows == 0 || cols == 0) return;
   dim3 block(TILE_DIM, TILE_DIM);
   dim3 grid((cols + TILE_DIM - 1) / TILE_DIM, (rows + TILE_DIM - 1) / TILE_DIM);
   transpose_2d_kernel<<<grid, block, 0, stream>>>(input, output, rows, cols);
@@ -361,10 +350,9 @@ void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cuda
 }
 
 template <typename T>
-void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+void cuda_nchw_to_cnhw(const T* input, T* output, size_t n, size_t c, size_t h, size_t w,
                        cudaStream_t stream) {
-  if (n == 0 || c == 0 || h == 0 || w == 0)
-    return;
+  if (n == 0 || c == 0 || h == 0 || w == 0) return;
   dim3 grid((c + TILE_DIM - 1) / TILE_DIM, (n + TILE_DIM - 1) / TILE_DIM);
   dim3 block(TILE_DIM, TILE_DIM);
   nchw_cnhw_transpose_tiled<<<grid, block, 0, stream>>>(input, output, n, c, h * w);
@@ -372,40 +360,39 @@ void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, 
 }
 
 template <typename T>
-void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+void cuda_cnhw_to_nchw(const T* input, T* output, size_t n, size_t c, size_t h, size_t w,
                        cudaStream_t stream) {
   cuda_nchw_to_cnhw(input, output, c, n, h, w, stream);
 }
 
-#define INSTANTIATE_KERNEL_FUNC(T)                                                                 \
-  template void cuda_im2col<T>(const T *input, T *col_data, size_t batch_size, size_t channels,    \
-                               size_t height, size_t width, size_t kernel_h, size_t kernel_w,      \
-                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,       \
-                               size_t output_h, size_t output_w, cudaStream_t);                    \
-  template void cuda_col2im<T>(const T *col_data, T *output, size_t batch_size, size_t channels,   \
-                               size_t height, size_t width, size_t kernel_h, size_t kernel_w,      \
-                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,       \
-                               size_t output_h, size_t output_w, cudaStream_t);                    \
-  template void cuda_pad<T>(const T *input, T *output, size_t batch_size, size_t channels,         \
-                            size_t height, size_t width, size_t pad_h, size_t pad_w, T value,      \
-                            cudaStream_t);                                                         \
-  template void cuda_unpad<T>(const T *input, T *output, size_t batch_size, size_t channels,       \
-                              size_t height, size_t width, size_t pad_h, size_t pad_w,             \
-                              cudaStream_t);                                                       \
-  template void cuda_crop<T>(const T *input, T *output, size_t batch_size, size_t channels,        \
-                             size_t height, size_t width, size_t start_h, size_t start_w,          \
-                             size_t new_height, size_t new_width, cudaStream_t);                   \
-  template void cuda_softmax<T>(T * data, size_t batch_size, size_t num_classes, size_t height,    \
-                                size_t width, cudaStream_t);                                       \
-  template void cuda_transpose_2d<T>(const T *, T *, size_t, size_t, cudaStream_t);                \
-  template void cuda_nchw_to_cnhw<T>(const T *, T *, size_t, size_t, size_t, size_t,               \
-                                     cudaStream_t);                                                \
-  template void cuda_cnhw_to_nchw<T>(const T *, T *, size_t, size_t, size_t, size_t, cudaStream_t);
+#define INSTANTIATE_KERNEL_FUNC(T)                                                                \
+  template void cuda_im2col<T>(const T* input, T* col_data, size_t batch_size, size_t channels,   \
+                               size_t height, size_t width, size_t kernel_h, size_t kernel_w,     \
+                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,      \
+                               size_t output_h, size_t output_w, cudaStream_t);                   \
+  template void cuda_col2im<T>(const T* col_data, T* output, size_t batch_size, size_t channels,  \
+                               size_t height, size_t width, size_t kernel_h, size_t kernel_w,     \
+                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,      \
+                               size_t output_h, size_t output_w, cudaStream_t);                   \
+  template void cuda_pad<T>(const T* input, T* output, size_t batch_size, size_t channels,        \
+                            size_t height, size_t width, size_t pad_h, size_t pad_w, T value,     \
+                            cudaStream_t);                                                        \
+  template void cuda_unpad<T>(const T* input, T* output, size_t batch_size, size_t channels,      \
+                              size_t height, size_t width, size_t pad_h, size_t pad_w,            \
+                              cudaStream_t);                                                      \
+  template void cuda_crop<T>(const T* input, T* output, size_t batch_size, size_t channels,       \
+                             size_t height, size_t width, size_t start_h, size_t start_w,         \
+                             size_t new_height, size_t new_width, cudaStream_t);                  \
+  template void cuda_softmax<T>(T * data, size_t batch_size, size_t num_classes, size_t height,   \
+                                size_t width, cudaStream_t);                                      \
+  template void cuda_transpose_2d<T>(const T*, T*, size_t, size_t, cudaStream_t);                 \
+  template void cuda_nchw_to_cnhw<T>(const T*, T*, size_t, size_t, size_t, size_t, cudaStream_t); \
+  template void cuda_cnhw_to_nchw<T>(const T*, T*, size_t, size_t, size_t, size_t, cudaStream_t);
 
 INSTANTIATE_KERNEL_FUNC(fp16)
 INSTANTIATE_KERNEL_FUNC(bf16)
 INSTANTIATE_KERNEL_FUNC(float)
 INSTANTIATE_KERNEL_FUNC(double)
 
-} // namespace cuda
-} // namespace tnn
+}  // namespace cuda
+}  // namespace tnn

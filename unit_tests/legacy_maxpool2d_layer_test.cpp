@@ -5,12 +5,15 @@
  * project root for the full license text.
  */
 
-#include "device/device_manager.hpp"
 #include "nn/layers_impl/legacy_maxpool2d_layer.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
+
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -207,10 +210,10 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 
   const float *output_data = output->data_as<float>();
-  EXPECT_NEAR(output_data[0], 6.0f, 1e-5f);  // max of [1,2,5,6]
-  EXPECT_NEAR(output_data[1], 8.0f, 1e-5f);  // max of [3,4,7,8]
-  EXPECT_NEAR(output_data[2], 14.0f, 1e-5f); // max of [9,10,13,14]
-  EXPECT_NEAR(output_data[3], 16.0f, 1e-5f); // max of [11,12,15,16]
+  EXPECT_NEAR(output_data[0], 6.0f, 1e-5f);   // max of [1,2,5,6]
+  EXPECT_NEAR(output_data[1], 8.0f, 1e-5f);   // max of [3,4,7,8]
+  EXPECT_NEAR(output_data[2], 14.0f, 1e-5f);  // max of [9,10,13,14]
+  EXPECT_NEAR(output_data[3], 16.0f, 1e-5f);  // max of [11,12,15,16]
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
@@ -658,10 +661,10 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
   verify_max_selection(input, output, 2, 2, 2, 2, 0, 0);
 
   const float *output_data = output->data_as<float>();
-  EXPECT_NEAR(output_data[0], -12.0f, 1e-5f); // max of [-17,-16,-13,-12]
-  EXPECT_NEAR(output_data[1], -10.0f, 1e-5f); // max of [-15,-14,-11,-10]
-  EXPECT_NEAR(output_data[2], -4.0f, 1e-5f);  // max of [-9,-8,-5,-4]
-  EXPECT_NEAR(output_data[3], -2.0f, 1e-5f);  // max of [-7,-6,-3,-2]
+  EXPECT_NEAR(output_data[0], -12.0f, 1e-5f);  // max of [-17,-16,-13,-12]
+  EXPECT_NEAR(output_data[1], -10.0f, 1e-5f);  // max of [-15,-14,-11,-10]
+  EXPECT_NEAR(output_data[2], -4.0f, 1e-5f);   // max of [-9,-8,-5,-4]
+  EXPECT_NEAR(output_data[3], -2.0f, 1e-5f);   // max of [-7,-6,-3,-2]
 }
 
 TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {

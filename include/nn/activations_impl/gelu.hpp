@@ -27,4 +27,4 @@ private:
   std::unique_ptr<Task> compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
                                               Tensor &grad_input, const std::string &flow_id) const;
 };
-} // namespace tnn
+}  // namespace tnn

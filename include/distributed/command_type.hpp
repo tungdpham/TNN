@@ -76,4 +76,4 @@ enum CommandType : uint16_t {
   _COUNT
 };
 
-} // namespace tnn
+}  // namespace tnn

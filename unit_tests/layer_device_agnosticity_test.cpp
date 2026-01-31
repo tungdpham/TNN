@@ -5,14 +5,16 @@
  * project root for the full license text.
  */
 
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+
+#include <vector>
+
 #include "device/device_manager.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/legacy_conv2d_layer.hpp"
 #include "nn/layers_impl/legacy_maxpool2d_layer.hpp"
 #include "tensor/tensor.hpp"
-#include <gmock/gmock.h>
-#include <gtest/gtest.h>
-#include <vector>
 
 using namespace tnn;
 

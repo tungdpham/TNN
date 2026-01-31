@@ -1,8 +1,5 @@
 #pragma once
 
-#include "device/device_manager.hpp"
-#include "flow.hpp"
-
 #include <atomic>
 #include <functional>
 #include <iostream>
@@ -11,6 +8,9 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#include "device/device_manager.hpp"
+#include "flow.hpp"
 
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
@@ -195,4 +195,4 @@ inline void task_sync_all(const std::initializer_list<Task *> &tasks) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

@@ -1,17 +1,18 @@
 #ifdef USE_CUDA
 
-#include "ops/cuda/kernels.hpp"
+#include <gtest/gtest.h>
+
 #include <algorithm>
 #include <cmath>
-#include <gtest/gtest.h>
 #include <vector>
+
+#include "ops/cuda/kernels.hpp"
 
 using namespace tnn;
 
 class CudaKernelsTest : public ::testing::Test {
 protected:
   void SetUp() override {
-
     size = 1000;
     host_a.resize(size);
     host_b.resize(size);
@@ -34,16 +35,12 @@ protected:
   }
 
   void TearDown() override {
-    if (dev_a)
-      cudaFree(dev_a);
-    if (dev_b)
-      cudaFree(dev_b);
-    if (dev_c)
-      cudaFree(dev_c);
+    if (dev_a) cudaFree(dev_a);
+    if (dev_b) cudaFree(dev_b);
+    if (dev_c) cudaFree(dev_c);
   }
 
   void CompareCudaWithCPU(const std::vector<float> &expected) {
-
     cudaMemcpy(host_c.data(), dev_c, size * sizeof(float), cudaMemcpyDeviceToHost);
     cudaDeviceSynchronize();
 
@@ -59,7 +56,6 @@ protected:
 };
 
 TEST_F(CudaKernelsTest, AddTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_expected[i] = host_a[i] + host_b[i];
   }
@@ -69,7 +65,6 @@ TEST_F(CudaKernelsTest, AddTest) {
 }
 
 TEST_F(CudaKernelsTest, SubTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_expected[i] = host_a[i] - host_b[i];
   }
@@ -79,7 +74,6 @@ TEST_F(CudaKernelsTest, SubTest) {
 }
 
 TEST_F(CudaKernelsTest, MulTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_expected[i] = host_a[i] * host_b[i];
   }
@@ -89,7 +83,6 @@ TEST_F(CudaKernelsTest, MulTest) {
 }
 
 TEST_F(CudaKernelsTest, DivTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_expected[i] = host_a[i] / host_b[i];
   }
@@ -110,7 +103,6 @@ TEST_F(CudaKernelsTest, AddScalarTest) {
 }
 
 TEST_F(CudaKernelsTest, SqrtTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_a[i] = static_cast<float>(i + 1);
     host_expected[i] = std::sqrt(host_a[i]);
@@ -123,7 +115,6 @@ TEST_F(CudaKernelsTest, SqrtTest) {
 }
 
 TEST_F(CudaKernelsTest, MaxTest) {
-
   for (size_t i = 0; i < size; ++i) {
     host_expected[i] = std::max(host_a[i], host_b[i]);
   }
@@ -133,7 +124,6 @@ TEST_F(CudaKernelsTest, MaxTest) {
 }
 
 TEST_F(CudaKernelsTest, SumReductionTest) {
-
   float expected_sum = 0.0f;
   for (size_t i = 0; i < size; ++i) {
     expected_sum += host_a[i];
@@ -144,7 +134,6 @@ TEST_F(CudaKernelsTest, SumReductionTest) {
 }
 
 TEST_F(CudaKernelsTest, DotProductTest) {
-
   float expected_dot = 0.0f;
   for (size_t i = 0; i < size; ++i) {
     expected_dot += host_a[i] * host_b[i];
@@ -190,12 +179,9 @@ protected:
   }
 
   void TearDown() override {
-    if (dev_a)
-      cudaFree(dev_a);
-    if (dev_b)
-      cudaFree(dev_b);
-    if (dev_c)
-      cudaFree(dev_c);
+    if (dev_a) cudaFree(dev_a);
+    if (dev_b) cudaFree(dev_b);
+    if (dev_c) cudaFree(dev_c);
   }
 
   size_t size;

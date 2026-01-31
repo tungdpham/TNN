@@ -1,5 +1,10 @@
 #pragma once
 
+#include <sys/types.h>
+
+#include <concepts>
+#include <cstdint>
+
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/pool_allocator.hpp"
@@ -9,11 +14,9 @@
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
-#include <concepts>
-#include <cstdint>
-#include <sys/types.h>
 
-template <typename VariantType, typename T, uint64_t index = 0> constexpr uint64_t variant_index() {
+template <typename VariantType, typename T, uint64_t index = 0>
+constexpr uint64_t variant_index() {
   static_assert(std::variant_size_v<VariantType> > index, "Type not found in variant");
   if constexpr (index == std::variant_size_v<VariantType>) {
     return index;
@@ -247,40 +250,40 @@ public:
     buffer.read(offset, payload_type);
     data.payload_type = payload_type;
     switch (data.payload_type) {
-    case variant_index<PayloadType, std::monostate>(): // std::monostate
-      data.payload = std::monostate{};
-      break;
-    case variant_index<PayloadType, Job>(): { // Job
-      Job job;
-      deserialize(buffer, offset, job);
-      data.payload = std::move(job);
-    } break;
-    case variant_index<PayloadType, std::string>(): { // std::string
-      std::string str;
-      deserialize(buffer, offset, str);
-      data.payload = std::move(str);
-    } break;
-    case variant_index<PayloadType, bool>(): { // bool
-      bool flag;
-      deserialize(buffer, offset, flag);
-      data.payload = flag;
-    } break;
-    case variant_index<PayloadType, Profiler>(): { // Profiler
-      Profiler profiler;
-      deserialize(buffer, offset, profiler);
-      data.payload = std::move(profiler);
-    } break;
-    case variant_index<PayloadType, StageConfig>(): { // StageConfig
-      uint64_t json_size;
-      buffer.read(offset, json_size);
-      std::string json_str;
-      json_str.resize(json_size);
-      buffer.read(offset, json_str.data(), json_size);
-      StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
-      data.payload = std::move(config);
-    } break;
-    default:
-      throw std::runtime_error("Unsupported payload type in MessageData deserialization");
+      case variant_index<PayloadType, std::monostate>():  // std::monostate
+        data.payload = std::monostate{};
+        break;
+      case variant_index<PayloadType, Job>(): {  // Job
+        Job job;
+        deserialize(buffer, offset, job);
+        data.payload = std::move(job);
+      } break;
+      case variant_index<PayloadType, std::string>(): {  // std::string
+        std::string str;
+        deserialize(buffer, offset, str);
+        data.payload = std::move(str);
+      } break;
+      case variant_index<PayloadType, bool>(): {  // bool
+        bool flag;
+        deserialize(buffer, offset, flag);
+        data.payload = flag;
+      } break;
+      case variant_index<PayloadType, Profiler>(): {  // Profiler
+        Profiler profiler;
+        deserialize(buffer, offset, profiler);
+        data.payload = std::move(profiler);
+      } break;
+      case variant_index<PayloadType, StageConfig>(): {  // StageConfig
+        uint64_t json_size;
+        buffer.read(offset, json_size);
+        std::string json_str;
+        json_str.resize(json_size);
+        buffer.read(offset, json_str.data(), json_size);
+        StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
+        data.payload = std::move(config);
+      } break;
+      default:
+        throw std::runtime_error("Unsupported payload type in MessageData deserialization");
     }
   }
 
@@ -290,6 +293,6 @@ public:
     deserialize(buffer, offset, message.data());
   }
 
-}; // namespace BinarySerializer
+};  // namespace BinarySerializer
 
-} // namespace tnn
+}  // namespace tnn

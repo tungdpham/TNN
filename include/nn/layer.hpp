@@ -6,20 +6,22 @@
  */
 #pragma once
 
-#include "device/pool_allocator.hpp"
-#include "profiling/profiler.hpp"
-#include "tensor/tensor.hpp"
-#include "type/type.hpp"
+#include <fmt/core.h>
+
 #include <any>
 #include <cstddef>
 #include <cstring>
-#include <fmt/core.h>
 #include <map>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "device/pool_allocator.hpp"
+#include "profiling/profiler.hpp"
+#include "tensor/tensor.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 
@@ -28,7 +30,8 @@ struct LayerConfig {
   std::string type;
   std::unordered_map<std::string, std::any> parameters;
 
-  template <typename T> T get(const std::string &key, const T &default_value = T{}) const;
+  template <typename T>
+  T get(const std::string &key, const T &default_value = T{}) const;
 
   nlohmann::json to_json() const;
 
@@ -94,8 +97,8 @@ public:
 
   bool is_training() const;
 
-  virtual std::vector<size_t>
-  compute_output_shape(const std::vector<size_t> &input_shape) const = 0;
+  virtual std::vector<size_t> compute_output_shape(
+      const std::vector<size_t> &input_shape) const = 0;
 
   void enable_profiling(bool enable);
 
@@ -126,9 +129,9 @@ protected:
   PoolAllocator *mem_pool_;
   const Device *device_;
   std::string name_;
-  DType_t io_dtype_ = DType_t::FP32;      // data type for input/output tensors
-  DType_t param_dtype_ = DType_t::FP32;   // data type for parameters/gradients
-  DType_t compute_dtype_ = DType_t::FP32; // data type for internal computations
+  DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
+  DType_t param_dtype_ = DType_t::FP32;    // data type for parameters/gradients
+  DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   virtual void on_set_device(const Device &device) {}
   virtual void on_set_training(bool training) {}
@@ -154,17 +157,17 @@ private:
   void clear_cache(size_t mb_id);
 };
 
-#define DISPATCH_ON_DTYPE_TO_METHOD(method_name, ...)                                              \
-  do {                                                                                             \
-    DISPATCH_ON_DTYPE(this->io_dtype_, IO_T, method_name<IO_T>(__VA_ARGS__));                      \
+#define DISPATCH_ON_DTYPE_TO_METHOD(method_name, ...)                         \
+  do {                                                                        \
+    DISPATCH_ON_DTYPE(this->io_dtype_, IO_T, method_name<IO_T>(__VA_ARGS__)); \
   } while (0)
 
-#define DISPATCH_ON_3_DTYPES_TO_METHOD(method_name, ...)                                           \
-  do {                                                                                             \
-    DISPATCH_ON_DTYPE(                                                                             \
-        this->io_dtype_, IO_T,                                                                     \
-        DISPATCH_ON_DTYPE(this->param_dtype_, PARAM_T,                                             \
-                          DISPATCH_ON_DTYPE(this->compute_dtype_, COMP_T,                          \
-                                            method_name<IO_T, PARAM_T, COMP_T>(__VA_ARGS__);)));   \
+#define DISPATCH_ON_3_DTYPES_TO_METHOD(method_name, ...)                                         \
+  do {                                                                                           \
+    DISPATCH_ON_DTYPE(                                                                           \
+        this->io_dtype_, IO_T,                                                                   \
+        DISPATCH_ON_DTYPE(this->param_dtype_, PARAM_T,                                           \
+                          DISPATCH_ON_DTYPE(this->compute_dtype_, COMP_T,                        \
+                                            method_name<IO_T, PARAM_T, COMP_T>(__VA_ARGS__);))); \
   } while (0)
-} // namespace tnn
+}  // namespace tnn

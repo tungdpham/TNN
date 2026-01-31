@@ -7,8 +7,9 @@
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
 #include <cuda_runtime.h>
+
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
@@ -65,8 +66,8 @@ void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
                             const size_t batch_size, const size_t output_size, T delta,
                             cudaStream_t stream);
 
-} // namespace loss
-} // namespace cuda
-} // namespace tnn
+}  // namespace loss
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

@@ -1,9 +1,10 @@
 #pragma once
 
-#include "tbuffer.hpp"
 #include <deque>
 #include <memory>
 #include <mutex>
+
+#include "tbuffer.hpp"
 
 namespace tnn {
 class BufferPool;
@@ -106,4 +107,4 @@ inline void BufferDeleter::operator()(TBuffer *ptr) const {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

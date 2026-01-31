@@ -42,7 +42,7 @@ inline int compute_class_corrects_impl(const Tensor &predictions, const Tensor &
   throw std::runtime_error("Unsupported device type for compute_class_corrects.");
 }
 
-} // namespace detail
+}  // namespace detail
 
 inline float compute_class_accuracy(const Tensor &predictions, const Tensor &targets) {
   const size_t batch_size = predictions->shape()[0];
@@ -63,4 +63,4 @@ inline int compute_class_corrects(const Tensor &predictions, const Tensor &targe
                                                                   num_classes, threshold));
 }
 
-} // namespace tnn
+}  // namespace tnn

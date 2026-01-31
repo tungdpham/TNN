@@ -6,11 +6,12 @@
  */
 #include "nn/layers_impl/cpu/conv2d_nchw_ops.hpp"
 
+#include <numeric>
+
 #include "math/cpu/gemm.hpp"
 #include "ops/cpu/kernels.hpp"
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
-#include <numeric>
 
 namespace tnn {
 namespace cpu {
@@ -66,25 +67,25 @@ void add_bias_to_output(T *output_data, const T *bias_data, const size_t batch_s
   });
 }
 
-#define INSTANTIATE_CONV2D(T)                                                                      \
-  template void compute_conv_forward<T>(const T *col_data, const T *weight_data, T *output_data,   \
-                                        const size_t output_size, const size_t kernel_size,        \
-                                        const size_t out_channels);                                \
-                                                                                                   \
-  template void compute_weight_gradients<T>(const T *col_data, const T *gradient_data,             \
-                                            T *weight_grad_data, const size_t output_size,         \
-                                            const size_t kernel_size, const size_t out_channels);  \
-                                                                                                   \
-  template void compute_input_gradients<T>(const T *gradient_data, const T *weight_data,           \
-                                           T *col_grad_data, const size_t output_size,             \
-                                           const size_t kernel_size, const size_t out_channels);   \
-                                                                                                   \
-  template void compute_bias_gradients<T>(const T *gradient_data, T *bias_grad_data,               \
-                                          const size_t batch_size, const size_t output_h,          \
-                                          const size_t output_w, const size_t out_channels);       \
-                                                                                                   \
-  template void add_bias_to_output<T>(T * output_data, const T *bias_data,                         \
-                                      const size_t batch_size, const size_t output_h,              \
+#define INSTANTIATE_CONV2D(T)                                                                     \
+  template void compute_conv_forward<T>(const T *col_data, const T *weight_data, T *output_data,  \
+                                        const size_t output_size, const size_t kernel_size,       \
+                                        const size_t out_channels);                               \
+                                                                                                  \
+  template void compute_weight_gradients<T>(const T *col_data, const T *gradient_data,            \
+                                            T *weight_grad_data, const size_t output_size,        \
+                                            const size_t kernel_size, const size_t out_channels); \
+                                                                                                  \
+  template void compute_input_gradients<T>(const T *gradient_data, const T *weight_data,          \
+                                           T *col_grad_data, const size_t output_size,            \
+                                           const size_t kernel_size, const size_t out_channels);  \
+                                                                                                  \
+  template void compute_bias_gradients<T>(const T *gradient_data, T *bias_grad_data,              \
+                                          const size_t batch_size, const size_t output_h,         \
+                                          const size_t output_w, const size_t out_channels);      \
+                                                                                                  \
+  template void add_bias_to_output<T>(T * output_data, const T *bias_data,                        \
+                                      const size_t batch_size, const size_t output_h,             \
                                       const size_t output_w, const size_t out_channels);
 INSTANTIATE_CONV2D(fp16)
 INSTANTIATE_CONV2D(bf16)
@@ -92,6 +93,6 @@ INSTANTIATE_CONV2D(float)
 INSTANTIATE_CONV2D(double)
 #undef INSTANTIATE_CONV2D
 
-} // namespace conv2d_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace conv2d_nchw
+}  // namespace cpu
+}  // namespace tnn

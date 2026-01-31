@@ -6,8 +6,9 @@
  */
 #pragma once
 
-#include "augmentation.hpp"
 #include <array>
+
+#include "augmentation.hpp"
 
 namespace tnn {
 
@@ -55,10 +56,10 @@ public:
   const std::array<float, 3> &get_std() const { return std_; }
 
 private:
-  template <typename T> void apply_impl(Tensor &data, Tensor &labels) {
+  template <typename T>
+  void apply_impl(Tensor &data, Tensor &labels) {
     const auto shape = data->shape();
-    if (shape.size() != 4)
-      return;
+    if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
     const size_t channels = shape[1];
@@ -90,4 +91,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

@@ -6,16 +6,15 @@
  */
 #pragma once
 
-#include "data_loading/image_data_loader.hpp"
-#include "tensor/tensor.hpp"
-
 #include <algorithm>
 #include <fstream>
 #include <iostream>
-
 #include <sstream>
 #include <string>
 #include <vector>
+
+#include "data_loading/image_data_loader.hpp"
+#include "tensor/tensor.hpp"
 
 namespace mnist_constants {
 constexpr size_t IMAGE_HEIGHT = 28;
@@ -24,7 +23,7 @@ constexpr size_t IMAGE_SIZE = IMAGE_HEIGHT * IMAGE_WIDTH;
 constexpr size_t NUM_CLASSES = 10;
 constexpr size_t NUM_CHANNELS = 1;
 constexpr float NORMALIZATION_FACTOR = 255.0f;
-} // namespace mnist_constants
+}  // namespace mnist_constants
 
 namespace tnn {
 /**
@@ -41,7 +40,8 @@ private:
   std::vector<Tensor> batched_labels_;
   DType_t dtype_ = DType_t::FP32;
 
-  template <typename T> bool load_data_impl(const std::string &source) {
+  template <typename T>
+  bool load_data_impl(const std::string &source) {
     std::ifstream file{source};
     if (!file.is_open()) {
       std::cerr << "Error: Could not open file " << source << std::endl;
@@ -63,8 +63,7 @@ private:
       std::stringstream ss(line);
       std::string cell;
 
-      if (!std::getline(ss, cell, ','))
-        continue;
+      if (!std::getline(ss, cell, ',')) continue;
       labels_.push_back(std::stoi(cell));
 
       std::vector<float> row;
@@ -157,8 +156,7 @@ public:
    * Shuffle the dataset
    */
   void shuffle() override {
-    if (data_.empty())
-      return;
+    if (data_.empty()) return;
 
     std::vector<size_t> indices = this->generate_shuffled_indices(data_.size());
 
@@ -252,4 +250,4 @@ public:
     }
   }
 };
-} // namespace tnn
+}  // namespace tnn

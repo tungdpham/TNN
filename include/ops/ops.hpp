@@ -5,11 +5,11 @@
 #ifdef USE_CUDA
 #include "ops/cuda/kernels.hpp"
 #endif
-#include "device/task.hpp"
-
 #include <cstddef>
 #include <memory>
 #include <stdexcept>
+
+#include "device/task.hpp"
 
 namespace tnn {
 namespace ops {
@@ -704,7 +704,8 @@ std::unique_ptr<Task> zero(dptr c, size_t size, const std::string &flow_id = "de
   }
 }
 
-template <typename T> T sum(dptr a, size_t size) {
+template <typename T>
+T sum(dptr a, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("sum: Device pointer has no associated device");
   }
@@ -724,7 +725,8 @@ template <typename T> T sum(dptr a, size_t size) {
   }
 }
 
-template <typename T> T dot_product(dptr a, dptr b, size_t size) {
+template <typename T>
+T dot_product(dptr a, dptr b, size_t size) {
   if (!a.getDevice() || !b.getDevice()) {
     throw std::runtime_error("dot_product: Device pointer has no associated device");
   }
@@ -747,7 +749,8 @@ template <typename T> T dot_product(dptr a, dptr b, size_t size) {
   }
 }
 
-template <typename T> T norm_squared(dptr a, size_t size) {
+template <typename T>
+T norm_squared(dptr a, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("norm_squared: Device pointer has no associated device");
   }
@@ -767,7 +770,8 @@ template <typename T> T norm_squared(dptr a, size_t size) {
   }
 }
 
-template <typename T> T sum_squared_diff(const dptr a, T mean, size_t size) {
+template <typename T>
+T sum_squared_diff(const dptr a, T mean, size_t size) {
   if (!a.getDevice()) {
     throw std::runtime_error("sum_squared_diff: Device pointer has no associated device");
   }
@@ -919,5 +923,5 @@ std::unique_ptr<Task> cast(dptr a, dptr b, size_t size, const std::string &flow_
     throw std::runtime_error("Unsupported device type");
   }
 }
-} // namespace ops
-} // namespace tnn
+}  // namespace ops
+}  // namespace tnn

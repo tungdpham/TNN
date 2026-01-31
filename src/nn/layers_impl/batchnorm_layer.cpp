@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/batchnorm_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/common/batchnorm.hpp"
@@ -21,8 +22,12 @@ namespace tnn {
 
 BatchNormLayer::BatchNormLayer(size_t num_features, float epsilon, float momentum, bool affine,
                                bool use_relu, const std::string &name)
-    : ParameterizedLayer(name), num_features_(num_features), epsilon_(epsilon), momentum_(momentum),
-      affine_(affine), use_relu_(use_relu) {}
+    : ParameterizedLayer(name),
+      num_features_(num_features),
+      epsilon_(epsilon),
+      momentum_(momentum),
+      affine_(affine),
+      use_relu_(use_relu) {}
 
 BatchNormLayer::~BatchNormLayer() {
 #ifdef USE_CUDNN
@@ -270,12 +275,11 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-BatchNormLayer::backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
-                              const Tensor &gradient, const Tensor &input, Tensor &grad_input,
-                              const Tensor &gamma, Tensor &gamma_gradients, Tensor &beta_gradients,
-                              const Tensor &batch_mean, const Tensor &batch_invar,
-                              Tensor &workspace, const std::string &flow_id) const {
+std::unique_ptr<Task> BatchNormLayer::backward_task(
+    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &gradient,
+    const Tensor &input, Tensor &grad_input, const Tensor &gamma, Tensor &gamma_gradients,
+    Tensor &beta_gradients, const Tensor &batch_mean, const Tensor &batch_invar, Tensor &workspace,
+    const std::string &flow_id) const {
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -314,8 +318,8 @@ std::unique_ptr<Layer> BatchNormLayer::clone() const {
                                           this->name_);
 }
 
-std::vector<size_t>
-BatchNormLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> BatchNormLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   return input_shape;
 }
 
@@ -370,4 +374,4 @@ uint64_t BatchNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
   return param_grad_flops + input_grad_flops;
 }
 
-} // namespace tnn
+}  // namespace tnn

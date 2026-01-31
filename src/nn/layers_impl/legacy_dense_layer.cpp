@@ -5,24 +5,27 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/legacy_dense_layer.hpp"
+
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/dense_ops.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/dense_ops.hpp"
 #endif
-#include "nn/layers_impl/parameterized_layer.hpp"
-#include "type/type.hpp"
-
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <type_traits>
 
+#include "nn/layers_impl/parameterized_layer.hpp"
+#include "type/type.hpp"
+
 namespace tnn {
 
 LegacyDenseLayer::LegacyDenseLayer(size_t input_features, size_t output_features, bool use_bias,
                                    const std::string &name)
-    : ParameterizedLayer(name), input_features_(input_features), output_features_(output_features),
+    : ParameterizedLayer(name),
+      input_features_(input_features),
+      output_features_(output_features),
       use_bias_(use_bias) {}
 
 void LegacyDenseLayer::init_params() {
@@ -113,10 +116,9 @@ void LegacyDenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyDenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weights, Tensor &output,
-                                        size_t batch_size, size_t input_features,
-                                        size_t output_features, const std::string &flow_id) const {
+std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
+    const Tensor &input, const Tensor &weights, Tensor &output, size_t batch_size,
+    size_t input_features, size_t output_features, const std::string &flow_id) const {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -126,8 +128,9 @@ LegacyDenseLayer::compute_dense_forward(const Tensor &input, const Tensor &weigh
 
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error("LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
-                               "(io/param/compute must match).");
+      throw std::runtime_error(
+          "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
+          "(io/param/compute must match).");
     }
     return create_cpu_task(flow_id, cpu::legacy_dense::compute_dense_forward<Compute_T>,
                            input->data_as<Compute_T>(), weights->data_as<Compute_T>(),
@@ -161,8 +164,9 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
   }
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error("LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
-                               "(io/param/compute must match).");
+      throw std::runtime_error(
+          "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
+          "(io/param/compute must match).");
     }
     return create_cpu_task(flow_id, cpu::legacy_dense::compute_weight_gradients<IO_T>,
                            input->data_as<IO_T>(), gradient->data_as<IO_T>(),
@@ -195,8 +199,9 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
   }
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error("LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
-                               "(io/param/compute must match).");
+      throw std::runtime_error(
+          "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
+          "(io/param/compute must match).");
     }
     return create_cpu_task(flow_id, cpu::legacy_dense::compute_input_gradients<IO_T>,
                            gradient->data_as<IO_T>(), weights->data_as<IO_T>(),
@@ -218,10 +223,11 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task>
-LegacyDenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient,
-                                         size_t batch_size, size_t output_features,
-                                         const std::string &flow_id) const {
+std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const Tensor &gradient,
+                                                               Tensor &bias_gradient,
+                                                               size_t batch_size,
+                                                               size_t output_features,
+                                                               const std::string &flow_id) const {
   if (gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer gradient dtype mismatch with dispatch IO_T");
   }
@@ -230,8 +236,9 @@ LegacyDenseLayer::compute_bias_gradients(const Tensor &gradient, Tensor &bias_gr
   }
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error("LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
-                               "(io/param/compute must match).");
+      throw std::runtime_error(
+          "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
+          "(io/param/compute must match).");
     }
     return create_cpu_task(flow_id, cpu::legacy_dense::compute_bias_gradients<IO_T>,
                            gradient->data_as<IO_T>(), bias_gradient->data_as<IO_T>(), batch_size,
@@ -262,8 +269,9 @@ std::unique_ptr<Task> LegacyDenseLayer::add_bias_vector(Tensor &output, const Te
   }
   if (this->device_->device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
-      throw std::runtime_error("LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
-                               "(io/param/compute must match).");
+      throw std::runtime_error(
+          "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
+          "(io/param/compute must match).");
     }
     return create_cpu_task(flow_id, cpu::legacy_dense::add_bias_vector<IO_T>,
                            output->data_as<IO_T>(), bias->data_as<IO_T>(), batch_size,
@@ -297,8 +305,8 @@ std::unique_ptr<Layer> LegacyDenseLayer::clone() const {
                                             this->name_);
 }
 
-std::vector<size_t>
-LegacyDenseLayer::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> LegacyDenseLayer::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   if (input_shape.empty()) {
     throw std::runtime_error("LegacyDenseLayer::compute_output_shape: Input shape is empty.");
   }
@@ -344,4 +352,4 @@ uint64_t LegacyDenseLayer::backward_flops(const std::vector<size_t> &input_shape
   return weight_grad_flops + bias_grad_flops + input_grad_flops;
 }
 
-} // namespace tnn
+}  // namespace tnn

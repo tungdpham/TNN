@@ -7,7 +7,8 @@
 
 namespace tnn {
 
-template <typename T> T from_str(const std::string &str) {
+template <typename T>
+T from_str(const std::string &str) {
   if constexpr (std::is_same_v<T, std::string>) {
     return str;
   } else if constexpr (std::is_arithmetic_v<T>) {
@@ -24,4 +25,4 @@ template <typename T> T from_str(const std::string &str) {
   }
 }
 
-} // namespace tnn
+}  // namespace tnn

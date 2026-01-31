@@ -1,11 +1,11 @@
 #pragma once
 
-#include "context.hpp"
-#include "device_type.hpp"
-
 #include <cstring>
 #include <memory>
 #include <string>
+
+#include "context.hpp"
+#include "device_type.hpp"
 
 namespace tnn {
 
@@ -43,4 +43,4 @@ private:
   std::unique_ptr<Context> context_;
 };
 
-} // namespace tnn
+}  // namespace tnn

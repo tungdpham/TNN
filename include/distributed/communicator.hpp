@@ -6,11 +6,6 @@
  */
 #pragma once
 
-#include "device/allocator.hpp"
-#include "endpoint.hpp"
-#include "message.hpp"
-#include "message_map.hpp"
-#include "utils/misc.hpp"
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -18,6 +13,12 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include "device/allocator.hpp"
+#include "endpoint.hpp"
+#include "message.hpp"
+#include "message_map.hpp"
+#include "utils/misc.hpp"
 
 namespace tnn {
 /**
@@ -187,6 +188,6 @@ protected:
 
 private:
   std::mutex profile_mutex_;
-  std::unordered_map<std::string, int64_t> profile_data_; // profiling data in microseconds
+  std::unordered_map<std::string, int64_t> profile_data_;  // profiling data in microseconds
 };
-} // namespace tnn
+}  // namespace tnn

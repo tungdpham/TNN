@@ -14,15 +14,14 @@ namespace cuda {
 namespace adam {
 
 template <typename T>
-__global__ void update_adam_kernel(T *params_data, const T *grads_data, T *m_data, T *v_data,
+__global__ void update_adam_kernel(T* params_data, const T* grads_data, T* m_data, T* v_data,
                                    const size_t size, const float learning_rate, const float beta1,
                                    const float beta2, const float epsilon,
                                    const float bias_correction1, const float bias_correction2,
                                    const float weight_decay, const bool decouple_weight_decay) {
   int idx = blockIdx.x * blockDim.x + threadIdx.x;
 
-  if (idx >= size)
-    return;
+  if (idx >= size) return;
 
   float grad = static_cast<float>(grads_data[idx]);
   float param = static_cast<float>(params_data[idx]);
@@ -53,7 +52,7 @@ __global__ void update_adam_kernel(T *params_data, const T *grads_data, T *m_dat
 }
 
 template <typename T>
-void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, const size_t size,
+void update_adam(T* params_data, const T* grads_data, T* m_data, T* v_data, const size_t size,
                  const float learning_rate, const float beta1, const float beta2,
                  const float epsilon, const float bias_correction1, const float bias_correction2,
                  const float weight_decay, const bool decouple_weight_decay, cudaStream_t stream) {
@@ -65,11 +64,11 @@ void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, cons
       bias_correction1, bias_correction2, weight_decay, decouple_weight_decay);
 }
 
-#define INSTANTIATE_ADAM_KERNELS(T)                                                                \
-  template void update_adam<T>(                                                                    \
-      T * params_data, const T *grads_data, T *m_data, T *v_data, const size_t size,               \
-      const float learning_rate, const float beta1, const float beta2, const float epsilon,        \
-      const float bias_correction1, const float bias_correction2, const float weight_decay,        \
+#define INSTANTIATE_ADAM_KERNELS(T)                                                         \
+  template void update_adam<T>(                                                             \
+      T * params_data, const T* grads_data, T* m_data, T* v_data, const size_t size,        \
+      const float learning_rate, const float beta1, const float beta2, const float epsilon, \
+      const float bias_correction1, const float bias_correction2, const float weight_decay, \
       const bool decouple_weight_decay, cudaStream_t stream);
 INSTANTIATE_ADAM_KERNELS(fp16)
 INSTANTIATE_ADAM_KERNELS(bf16)
@@ -77,8 +76,8 @@ INSTANTIATE_ADAM_KERNELS(float)
 INSTANTIATE_ADAM_KERNELS(double)
 #undef INSTANTIATE_ADAM_KERNELS
 
-} // namespace adam
-} // namespace cuda
-} // namespace tnn
+}  // namespace adam
+}  // namespace cuda
+}  // namespace tnn
 
 #endif

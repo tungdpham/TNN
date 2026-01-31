@@ -5,10 +5,11 @@
  * project root for the full license text.
  */
 #include "nn/activations_impl/leaky_relu.hpp"
-#include "tensor/tensor.hpp"
+
 #include <cassert>
 
 #include "nn/activations_impl/cpu/leaky_relu_kernels.hpp"
+#include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "nn/activations_impl/cuda/leaky_relu_kernels.hpp"
 #endif
@@ -71,9 +72,10 @@ std::unique_ptr<Task> LeakyReLU::apply_impl(const Tensor &input, Tensor &output,
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task>
-LeakyReLU::compute_gradient_impl(const Tensor &input, const Tensor &grad_output, Tensor &grad_input,
-                                 const std::string &flow_id) const {
+std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const Tensor &input,
+                                                       const Tensor &grad_output,
+                                                       Tensor &grad_input,
+                                                       const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||
       grad_input->data_type() != dtype_of<Compute_T>()) {
@@ -100,4 +102,4 @@ LeakyReLU::compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
   return nullptr;
 }
 
-} // namespace tnn
+}  // namespace tnn

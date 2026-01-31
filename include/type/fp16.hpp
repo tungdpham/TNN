@@ -151,4 +151,4 @@ inline fp16 operator-(const fp16 &a) { return fp16(-static_cast<float>(a)); }
 
 inline fp16 operator+(const fp16 &a) { return a; }
 
-} // namespace tnn
+}  // namespace tnn

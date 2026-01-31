@@ -6,13 +6,14 @@
  */
 #pragma once
 
+#include <memory>
+
 #include "coordinator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/train.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
-#include <memory>
 
 namespace tnn {
 
@@ -159,4 +160,4 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader &train_loader,
   });
 }
 
-} // namespace tnn
+}  // namespace tnn

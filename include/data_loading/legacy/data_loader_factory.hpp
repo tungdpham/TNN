@@ -33,5 +33,5 @@ public:
     return {"mnist", "cifar10", "cifar100", "tiny_imagenet"};
   }
 };
-} // namespace legacy
-} // namespace tnn
+}  // namespace legacy
+}  // namespace tnn

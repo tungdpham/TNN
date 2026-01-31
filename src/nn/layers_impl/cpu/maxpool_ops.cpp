@@ -5,11 +5,12 @@
  * project root for the full license text.
  */
 #include "nn/layers_impl/cpu/maxpool_ops.hpp"
-#include "type/type.hpp"
 
 #include <algorithm>
 #include <cstddef>
 #include <limits>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -71,13 +72,13 @@ void maxpool_backward(const T *grad_output, T *grad_input, const int *mask_indic
   }
 }
 
-#define INSTANTIATE_MAXPOOL(T)                                                                     \
-  template void maxpool_forward<T>(                                                                \
-      const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,              \
-      size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,                \
-      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);              \
-  template void maxpool_backward<T>(const T *grad_output, T *grad_input, const int *mask_indices,  \
-                                    size_t batch_size, size_t channels, size_t output_h,           \
+#define INSTANTIATE_MAXPOOL(T)                                                                    \
+  template void maxpool_forward<T>(                                                               \
+      const T *input, T *output, int *mask_indices, size_t batch_size, size_t height,             \
+      size_t width, size_t channels, size_t pool_h, size_t pool_w, size_t stride_h,               \
+      size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w);             \
+  template void maxpool_backward<T>(const T *grad_output, T *grad_input, const int *mask_indices, \
+                                    size_t batch_size, size_t channels, size_t output_h,          \
                                     size_t output_w);
 
 INSTANTIATE_MAXPOOL(fp16)
@@ -87,5 +88,5 @@ INSTANTIATE_MAXPOOL(double)
 
 #undef INSTANTIATE_MAXPOOL
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

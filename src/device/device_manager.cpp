@@ -151,4 +151,4 @@ const Device &getCPU() {
   throw std::runtime_error("CPU device not found");
 }
 
-} // namespace tnn
+}  // namespace tnn

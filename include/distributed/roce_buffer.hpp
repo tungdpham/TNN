@@ -6,16 +6,18 @@
  */
 #pragma once
 
-#include "device/dptr.hpp"
-#include "endian.hpp"
-#include "threading/thread_handler.hpp"
+#include <infiniband/verbs.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <infiniband/verbs.h>
 #include <stdexcept>
 #include <string>
+
+#include "device/dptr.hpp"
+#include "endian.hpp"
+#include "threading/thread_handler.hpp"
 
 namespace tnn {
 
@@ -45,7 +47,7 @@ private:
   }
 
   void allocate(size_t new_capacity) {
-    constexpr size_t alignment = 4096; // Page alignment is good for RDMA
+    constexpr size_t alignment = 4096;  // Page alignment is good for RDMA
 
     void *ptr = nullptr;
     if (posix_memalign(&ptr, alignment, new_capacity) != 0) {
@@ -96,7 +98,10 @@ public:
   RoceBuffer &operator=(const RoceBuffer &) = delete;
 
   RoceBuffer(RoceBuffer &&other) noexcept
-      : data_(other.data_), size_(other.size_), capacity_(other.capacity_), pd_(other.pd_),
+      : data_(other.data_),
+        size_(other.size_),
+        capacity_(other.capacity_),
+        pd_(other.pd_),
         mr_(other.mr_) {
     other.data_ = nullptr;
     other.size_ = 0;
@@ -140,7 +145,8 @@ public:
   void reserve(size_t new_capacity) { ensure_capacity(new_capacity); }
   void clear() { size_ = 0; }
 
-  template <typename T> inline void write(size_t &offset, const T &value) {
+  template <typename T>
+  inline void write(size_t &offset, const T &value) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     ensure_capacity(offset + sizeof(T));
@@ -151,7 +157,8 @@ public:
     offset += sizeof(T);
   }
 
-  template <typename T> inline void write(size_t &offset, const T *arr, size_t length) {
+  template <typename T>
+  inline void write(size_t &offset, const T *arr, size_t length) {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
@@ -180,7 +187,8 @@ public:
     }
   }
 
-  template <typename T> inline void read(size_t &offset, T &value) const {
+  template <typename T>
+  inline void read(size_t &offset, T &value) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     if (offset + sizeof(T) > size_) {
@@ -193,7 +201,8 @@ public:
     }
   }
 
-  template <typename T> inline void read(size_t &offset, T *arr, size_t length) const {
+  template <typename T>
+  inline void read(size_t &offset, T *arr, size_t length) const {
     static_assert(std::is_trivially_copyable<T>::value,
                   "Type must be trivially copyable (primitive or POD type)");
     size_t byte_size = sizeof(T) * length;
@@ -277,4 +286,4 @@ private:
   }
 };
 
-} // namespace tnn
+}  // namespace tnn

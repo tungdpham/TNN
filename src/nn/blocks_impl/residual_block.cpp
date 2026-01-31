@@ -6,19 +6,21 @@
  */
 
 #include "nn/blocks_impl/residual_block.hpp"
-#include "nn/activations.hpp"
-#include "nn/layers.hpp"
-#include "tensor/ops.hpp"
 
 #include <algorithm>
 #include <numeric>
+
+#include "nn/activations.hpp"
+#include "nn/layers.hpp"
+#include "tensor/ops.hpp"
 
 namespace tnn {
 
 ResidualBlock::ResidualBlock(std::vector<std::unique_ptr<Layer>> main_path,
                              std::vector<std::unique_ptr<Layer>> shortcut_path,
                              const std::string &final_activation, const std::string &name)
-    : main_path_(std::move(main_path)), shortcut_path_(std::move(shortcut_path)),
+    : main_path_(std::move(main_path)),
+      shortcut_path_(std::move(shortcut_path)),
       activation_type_(final_activation) {
   this->name_ = name;
 
@@ -234,8 +236,8 @@ void ResidualBlock::on_set_device(const Device &device) {
   }
 }
 
-std::vector<size_t>
-ResidualBlock::compute_output_shape(const std::vector<size_t> &input_shape) const {
+std::vector<size_t> ResidualBlock::compute_output_shape(
+    const std::vector<size_t> &input_shape) const {
   std::vector<size_t> shape = input_shape;
   for (const auto &layer : main_path_) {
     shape = layer->compute_output_shape(shape);
@@ -373,4 +375,4 @@ std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConf
                                          config.name);
 }
 
-} // namespace tnn
+}  // namespace tnn

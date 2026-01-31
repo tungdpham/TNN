@@ -1,8 +1,9 @@
 #include "nn/activations_impl/cpu/softmax_kernels.hpp"
 
+#include <cmath>
+
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
-#include <cmath>
 
 namespace tnn {
 namespace cpu {
@@ -78,11 +79,11 @@ void softmax_gradient(const T *input, const T *grad_output, T *grad_input, size_
   delete[] softmax_values;
 }
 
-#define INSTANTIATE_SOFTMAX(T)                                                                     \
-  template void softmax<T>(const T *input, T *output, size_t batch_size, size_t channels,          \
-                           size_t height, size_t width);                                           \
-  template void softmax_gradient<T>(const T *input, const T *grad_output, T *grad_input,           \
-                                    size_t batch_size, size_t channels, size_t height,             \
+#define INSTANTIATE_SOFTMAX(T)                                                            \
+  template void softmax<T>(const T *input, T *output, size_t batch_size, size_t channels, \
+                           size_t height, size_t width);                                  \
+  template void softmax_gradient<T>(const T *input, const T *grad_output, T *grad_input,  \
+                                    size_t batch_size, size_t channels, size_t height,    \
                                     size_t width);
 INSTANTIATE_SOFTMAX(fp16)
 INSTANTIATE_SOFTMAX(bf16)
@@ -90,5 +91,5 @@ INSTANTIATE_SOFTMAX(float)
 INSTANTIATE_SOFTMAX(double)
 #undef INSTANTIATE_SOFTMAX
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn

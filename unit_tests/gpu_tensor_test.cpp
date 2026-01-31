@@ -1,9 +1,11 @@
-#include "device/device_manager.hpp"
-#include "tensor/tensor.hpp"
-#include <cmath>
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
+
+#include <cmath>
 #include <memory>
+
+#include "device/device_manager.hpp"
+#include "tensor/tensor.hpp"
 
 using namespace tnn;
 
@@ -37,7 +39,6 @@ protected:
   }
 
   void TearDown() override {
-
     small_tensor = Tensor();
     large_tensor = Tensor();
   }
@@ -611,7 +612,6 @@ INSTANTIATE_TEST_SUITE_P(DifferentShapes, GPUTensorSizeTest,
                                            std::make_tuple(32, 128, 14, 14)));
 
 TEST_F(GPUTensorTest, LargeTensorOperations) {
-
   Tensor tensor1 = Tensor::create<float>({4, 16, 64, 64}, gpu_device_);
   Tensor tensor2 = Tensor::create<float>({4, 16, 64, 64}, gpu_device_);
 

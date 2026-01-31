@@ -6,9 +6,10 @@
  */
 #include "nn/layers_impl/cpu/maxpool_nchw_ops.hpp"
 
+#include <limits>
+
 #include "threading/thread_handler.hpp"
 #include "type/type.hpp"
-#include <limits>
 
 namespace tnn {
 namespace cpu {
@@ -26,7 +27,6 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
 
     for (size_t out_h = 0; out_h < output_h; ++out_h) {
       for (size_t out_w = 0; out_w < output_w; ++out_w) {
-
         long h_start = static_cast<long>(out_h * stride_h) - static_cast<long>(pad_h);
         long w_start = static_cast<long>(out_w * stride_w) - static_cast<long>(pad_w);
         long h_end = h_start + pool_h;
@@ -42,7 +42,6 @@ void compute_max_pool_forward(const T *input_data, T *output_data, size_t batch_
 
         for (long ih = h_start_valid; ih < h_end_valid; ++ih) {
           for (long iw = w_start_valid; iw < w_end_valid; ++iw) {
-
             const size_t cur_input_idx = input_offset + ih * input_w + iw;
             T val = input_data[cur_input_idx];
 
@@ -76,14 +75,14 @@ void compute_max_pool_backward(const T *gradient_data, T *grad_input_data, size_
   });
 }
 
-#define INSTANTIATE_MAXPOOL(T)                                                                     \
-  template void compute_max_pool_forward<T>(                                                       \
-      const T *input_data, T *output_data, size_t batch_size, size_t channels, size_t input_h,     \
-      size_t input_w, size_t output_h, size_t output_w, size_t pool_h, size_t pool_w,              \
-      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t *mask_indices);         \
-                                                                                                   \
-  template void compute_max_pool_backward<T>(const T *gradient_data, T *grad_input_data,           \
-                                             size_t batch_size, size_t channels, size_t output_h,  \
+#define INSTANTIATE_MAXPOOL(T)                                                                    \
+  template void compute_max_pool_forward<T>(                                                      \
+      const T *input_data, T *output_data, size_t batch_size, size_t channels, size_t input_h,    \
+      size_t input_w, size_t output_h, size_t output_w, size_t pool_h, size_t pool_w,             \
+      size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w, size_t *mask_indices);        \
+                                                                                                  \
+  template void compute_max_pool_backward<T>(const T *gradient_data, T *grad_input_data,          \
+                                             size_t batch_size, size_t channels, size_t output_h, \
                                              size_t output_w, const size_t *mask_indices);
 INSTANTIATE_MAXPOOL(fp16)
 INSTANTIATE_MAXPOOL(bf16)
@@ -91,6 +90,6 @@ INSTANTIATE_MAXPOOL(float)
 INSTANTIATE_MAXPOOL(double)
 #undef INSTANTIATE_MAXPOOL
 
-} // namespace maxpool_nchw
-} // namespace cpu
-} // namespace tnn
+}  // namespace maxpool_nchw
+}  // namespace cpu
+}  // namespace tnn

@@ -1,7 +1,8 @@
 #include "nn/layers_impl/cpu/class_token_ops.hpp"
 
-#include "type/type.hpp"
 #include <cstring>
+
+#include "type/type.hpp"
 
 namespace tnn {
 namespace cpu {
@@ -49,11 +50,11 @@ void class_token_backward(const T *grad_output, T *grad_input, T *grad_token, si
   }
 }
 
-#define INSTANTIATE_CLASS_TOKEN(T)                                                                 \
-  template void class_token_forward<T>(const T *input, const T *token, T *output,                  \
-                                       size_t batch_size, size_t seq_len, size_t embed_dim);       \
-                                                                                                   \
-  template void class_token_backward<T>(const T *grad_output, T *grad_input, T *grad_token,        \
+#define INSTANTIATE_CLASS_TOKEN(T)                                                           \
+  template void class_token_forward<T>(const T *input, const T *token, T *output,            \
+                                       size_t batch_size, size_t seq_len, size_t embed_dim); \
+                                                                                             \
+  template void class_token_backward<T>(const T *grad_output, T *grad_input, T *grad_token,  \
                                         size_t batch_size, size_t seq_len, size_t embed_dim);
 INSTANTIATE_CLASS_TOKEN(fp16)
 INSTANTIATE_CLASS_TOKEN(bf16)
@@ -61,5 +62,5 @@ INSTANTIATE_CLASS_TOKEN(float)
 INSTANTIATE_CLASS_TOKEN(double)
 #undef INSTANTIATE_CLASS_TOKEN
 
-} // namespace cpu
-} // namespace tnn
+}  // namespace cpu
+}  // namespace tnn
