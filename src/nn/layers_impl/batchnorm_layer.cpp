@@ -361,6 +361,9 @@ uint64_t BatchNormLayer::forward_flops(const std::vector<size_t> &input_shape) c
   uint64_t var_flops = 2 * num_elements + mean_flops;
   uint64_t norm_flops = 3 * num_elements;
   uint64_t affine_flops = affine_ ? (2 * num_elements) : 0;
+  if (use_relu_) {
+    affine_flops += num_elements;  // ReLU activation
+  }
   return mean_flops + var_flops + norm_flops + affine_flops;
 }
 
@@ -371,6 +374,9 @@ uint64_t BatchNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
   size_t spatial_size = num_elements / (batch_size * num_features_);
   uint64_t param_grad_flops = affine_ ? (2 * batch_size * spatial_size * num_features_) : 0;
   uint64_t input_grad_flops = 9 * num_elements;
+  if (use_relu_) {
+    input_grad_flops += num_elements;  // ReLU activation
+  }
   return param_grad_flops + input_grad_flops;
 }
 

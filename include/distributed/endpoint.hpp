@@ -149,8 +149,8 @@ public:
     return endpoint;
   }
 
-  static Endpoint roce(const std::string &host, int port, const std::string &device_name,
-                       int gid_index) {
+  static Endpoint roce(const std::string &host, int port, const std::string &device_name = "",
+                       int gid_index = -1) {
     Endpoint endpoint(CommunicationType::ROCE);
     endpoint.set_parameter("host", host);
     endpoint.set_parameter("port", port);
