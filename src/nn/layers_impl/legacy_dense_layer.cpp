@@ -37,7 +37,7 @@ void LegacyDenseLayer::init_params() {
     bias_gradients_ = make_param_tensor({output_features_});
     bias_gradients_->fill(0);
   }
-  // PyTorch default Kaiming Uniform: Uniform(-bound, bound) where bound = 1 / sqrt(fan_in)
+
   double bound = 1.0 / std::sqrt(static_cast<double>(input_features_));
 
   if (this->use_seed_) {

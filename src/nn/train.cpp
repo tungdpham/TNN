@@ -224,11 +224,12 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
   // cold pass
   train_loader->get_batch(config.batch_size, batch_data, batch_labels);
+  std::cout << "Input batch shape: " << batch_data->shape_str() << std::endl;
+
   device_labels = batch_labels->to_device(model_device);
   model->forward(batch_data, predictions);
 
   train_loader->reset();
-
   auto start_time = chrono::high_resolution_clock::now();
 
   thread_wrapper.execute([&]() -> void {
@@ -242,6 +243,8 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
       model->forward(batch_data, predictions);
       float loss;
       criterion->compute_loss(predictions, device_labels, loss);
+
+      int corrects = compute_class_corrects(predictions, device_labels);
 
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
@@ -267,7 +270,8 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
           model->print_profiling_info();
         }
         cout << "Batch ID: " << steps << ", Batch's Loss: " << fixed << setprecision(4) << loss
-             << endl;
+             << ", Batch's Accuracy: " << setprecision(2) << (corrects * 100.0 / config.batch_size)
+             << "%" << endl;
       }
       if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
         model->reset_profiling_info();

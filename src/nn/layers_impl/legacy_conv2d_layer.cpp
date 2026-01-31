@@ -326,9 +326,9 @@ std::unique_ptr<Task> LegacyConv2DLayer::cudnn_compute_fwd(
   }
 
   return create_cuda_task(flow_id, cuda::cudnn_conv2d::forward_with_bias<IO_T>, convolution_handle_,
-                          input->data(), weight->data(), bias->data(), output->data(), batch_size,
-                          in_channels_, input_h, input_w, out_channels_, output_h, output_w,
-                          cudnn_workspace->data(),
+                          input->data(), weight->data(), bias ? bias->data() : nullptr,
+                          output->data(), batch_size, in_channels_, input_h, input_w, out_channels_,
+                          output_h, output_w, cudnn_workspace->data(),
                           cudnn_workspace->capacity() * get_dtype_size(io_dtype_));
 }
 

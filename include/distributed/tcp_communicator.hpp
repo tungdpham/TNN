@@ -41,7 +41,7 @@
 namespace tnn {
 
 constexpr uint32_t DEFAULT_IO_THREADS = 1;
-constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 16 * 1024 * 1024 + 64;  // 16MB + header
+constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 8 * 1024 * 1024 + 64;  // 8MB + header
 constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
 class TcpCommunicator : public Communicator {
@@ -160,9 +160,42 @@ public:
 
         std::string host = endpoint.get_parameter<std::string>("host");
         int port = endpoint.get_parameter<int>("port");
+
         auto endpoints = resolver.resolve(host, std::to_string(port));
 
-        asio::connect(connection->socket, endpoints);
+        asio::steady_timer timer(ctx);
+        timer.expires_after(std::chrono::seconds(10));
+
+        std::atomic<bool> connected{false};
+        std::error_code connect_ec;
+
+        asio::async_connect(connection->socket, endpoints,
+                            [&](std::error_code ec, const asio::ip::tcp::endpoint &) {
+                              connect_ec = ec;
+                              connected.store(true);
+                              timer.cancel();
+                            });
+
+        timer.async_wait([&](std::error_code ec) {
+          if (!ec && !connected.load()) {
+            connection->socket.close();
+            connect_ec = asio::error::timed_out;
+            connected.store(true);
+          }
+        });
+
+        // Run until connected or timeout
+        while (!connected.load()) {
+          ctx.poll_one();
+        }
+
+        if (connect_ec) {
+          std::cerr << "Failed to connect to " << host << ":" << port << " - "
+                    << connect_ec.message() << std::endl;
+          return false;
+        }
+
+        std::cout << "Successfully connected to " << host << ":" << port << std::endl;
 
         std::error_code ec;
         asio::error_code err = connection->socket.set_option(asio::ip::tcp::no_delay(true), ec);

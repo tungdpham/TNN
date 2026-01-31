@@ -336,7 +336,7 @@ public:
   }
 
   LayerBuilder &legacy_batchnorm(float epsilon = 1e-5f, float momentum = 0.1f, bool affine = true,
-                                 bool use_relu = false, const std::string &name = "") {
+                                 const std::string &name = "") {
     std::vector<size_t> current_shape = get_current_shape();
 
     if (current_shape.size() < 2) {
@@ -345,8 +345,8 @@ public:
 
     size_t num_features = current_shape[1];
 
-    auto layer = std::make_unique<BatchNormLayer>(
-        num_features, epsilon, momentum, affine, use_relu,
+    auto layer = std::make_unique<LegacyBatchNormLayer>(
+        num_features, epsilon, momentum, affine,
         name.empty() ? "batchnorm_" + std::to_string(layers_.size()) : name);
     layers_.push_back(std::move(layer));
     return *this;
@@ -593,6 +593,113 @@ public:
                      .input(input_shape)
                      .conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
                      .batchnorm(dtype_eps(io_dtype_), 0.1f, true, SBool::FALSE, "bn3")
+                     .build();
+    }
+
+    auto res_block =
+        std::make_unique<ResidualBlock>(std::move(main_path), std::move(shortcut), "relu", name);
+    layers_.push_back(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * Two 3x3 convolutions with batch normalization
+   */
+  LayerBuilder &legacy_basic_residual_block(size_t in_channels, size_t out_channels,
+                                            size_t stride = 1,
+                                            const std::string &name = "basic_residual_block") {
+    std::vector<size_t> current_shape = get_current_shape();
+    std::vector<size_t> input_shape =
+        std::vector<size_t>{current_shape[1], current_shape[2], current_shape[3]};
+    auto main_path = LayerBuilder()
+                         .input(input_shape)
+                         .legacy_conv2d(out_channels, 3, 3, stride, stride, 1, 1, false)
+                         .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                         .legacy_conv2d(out_channels, 3, 3, 1, 1, 1, 1, false)
+                         .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                         .build();
+
+    std::vector<std::unique_ptr<Layer>> shortcut;
+    if (stride != 1 || in_channels != out_channels) {
+      shortcut = LayerBuilder()
+                     .input(input_shape)
+                     .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                     .build();
+    }
+
+    auto res_block = std::make_unique<ResidualBlock>(
+        std::move(main_path), std::move(shortcut), "relu",
+        name.empty() ? "basic_residual_block_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * Two 3x3 convolutions with batch normalization and optional dropout
+   * Uses pre-activation (BN-ReLU-Conv) ordering as in the original WRN paper
+   */
+  LayerBuilder &legacy_wide_residual_block(size_t in_channels, size_t out_channels,
+                                           size_t stride = 1, float dropout_rate = 0.0f,
+                                           const std::string &name = "wide_residual_block") {
+    auto current_shape = get_current_shape();
+    auto input_shape = std::vector<size_t>{current_shape[1], current_shape[2], current_shape[3]};
+
+    // Build main path with pre-activation (BN-ReLU-Conv) ordering
+    LayerBuilder main_builder;
+    main_builder.input(input_shape)
+        .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
+        .legacy_conv2d(out_channels, 3, 3, stride, stride, 1, 1, true)
+        .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2");
+
+    if (dropout_rate > 0.0f) {
+      main_builder.dropout(dropout_rate);
+    }
+
+    main_builder.legacy_conv2d(out_channels, 3, 3, 1, 1, 1, 1, true);
+
+    auto main_path = main_builder.build();
+
+    std::vector<std::unique_ptr<Layer>> shortcut;
+    if (stride != 1 || in_channels != out_channels) {
+      shortcut = LayerBuilder()
+                     .input(input_shape)
+                     .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .build();
+    }
+
+    // Note: WRN uses identity activation after addition (no ReLU)
+    auto res_block = std::make_unique<ResidualBlock>(
+        std::move(main_path), std::move(shortcut), "linear",
+        name.empty() ? "wide_residual_block_" + std::to_string(layers_.size()) : name);
+    layers_.push_back(std::move(res_block));
+    return *this;
+  }
+
+  /**
+   * 1x1 conv, 3x3 conv, 1x1 conv, bn
+   */
+  LayerBuilder &legacy_bottleneck_residual_block(
+      size_t in_channels, size_t mid_channels, size_t out_channels, size_t stride = 1,
+      const std::string &name = "bottleneck_residual_block") {
+    auto current_shape = get_current_shape();
+    auto input_shape = std::vector<size_t>{current_shape[1], current_shape[2], current_shape[3]};
+    auto main_path = LayerBuilder()
+                         .input(input_shape)
+                         .legacy_conv2d(mid_channels, 1, 1, 1, 1, 0, 0, false)
+                         .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn0")
+                         .legacy_conv2d(mid_channels, 3, 3, stride, stride, 1, 1, false)
+                         .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn1")
+                         .legacy_conv2d(out_channels, 1, 1, 1, 1, 0, 0, false)
+                         .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn2")
+                         .build();
+
+    std::vector<std::unique_ptr<Layer>> shortcut;
+    if (stride != 1 || in_channels != out_channels) {
+      shortcut = LayerBuilder()
+                     .input(input_shape)
+                     .legacy_conv2d(out_channels, 1, 1, stride, stride, 0, 0, false)
+                     .legacy_batchnorm(dtype_eps(io_dtype_), 0.1f, true, "bn3")
                      .build();
     }
 

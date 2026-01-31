@@ -45,6 +45,11 @@ void LegacyBatchNormLayer::init_params() {
   running_mean_->fill(0.0f);
   running_var_->fill(1.0f);
 
+  dummy_mean_gradients_ = make_param_tensor({num_features_});
+  dummy_var_gradients_ = make_param_tensor({num_features_});
+  dummy_mean_gradients_->fill(0.0f);
+  dummy_var_gradients_->fill(0.0f);
+
   this->initialized_ = true;
 }
 
