@@ -218,17 +218,6 @@ protected:
     return stride;
   }
 
-  template <typename... Indices>
-  inline size_t compute_index(Indices... indices) const {
-    assert(sizeof...(indices) == shape_.size());
-
-    size_t index = [this, ... indices = indices]<size_t... I>(std::index_sequence<I...>) {
-      return ((static_cast<size_t>(indices) * compute_stride(I)) + ... + 0);
-    }(std::make_index_sequence<sizeof...(Indices)>{});
-
-    return index;
-  }
-
   inline size_t compute_index(std::initializer_list<size_t> indices) const override {
     assert(indices.size() == shape_.size());
     size_t index = 0;
@@ -311,24 +300,10 @@ public:
     other.data_size_ = 0;
   }
 
-  template <typename... Indices>
-  T &operator()(Indices... indices) {
-    assert(device().device_type() == DeviceType::CPU &&
-           "Operator() is only available for CPU tensors");
-    return data_.get<T>()[compute_index(indices...)];
-  }
-
   T &operator()(std::initializer_list<size_t> indices) {
     assert(device().device_type() == DeviceType::CPU &&
            "Operator() is only available for CPU tensors");
     return data_.get<T>()[compute_index(indices)];
-  }
-
-  template <typename... Indices>
-  const T &operator()(Indices... indices) const {
-    assert(device().device_type() == DeviceType::CPU &&
-           "Operator() is only available for CPU tensors");
-    return data_.get<T>()[compute_index(indices...)];
   }
 
   const T &operator()(std::initializer_list<size_t> indices) const {

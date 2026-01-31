@@ -78,16 +78,6 @@ signed main() {
   // auto scheduler = SchedulerFactory::create_warmup_cosine(
   //     optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
 
-  if (train_loader->get_data_shape().size() == 3) {
-    auto train_aug = AugmentationBuilder()
-                         .horizontal_flip(0.5f)
-                         .brightness(0.5, 0.2f)
-                         .gaussian_noise(0.4f, 0.05f)
-                         .build();
-
-    train_loader->set_augmentation(std::move(train_aug));
-  }
-
   try {
     train_model(model, train_loader, val_loader, optimizer, criterion, scheduler, train_config);
   } catch (const std::exception &e) {
