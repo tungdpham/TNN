@@ -86,6 +86,9 @@ int main() {
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
 
+  Endpoint local_worker_endpoint =
+      Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
+                    Env::get<int>("LOCAL_WORKER_PORT", 8000));
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
                     Env::get<int>("WORKER1_PORT", 8001)),
@@ -97,9 +100,11 @@ int main() {
     cout << ep.to_json().dump(4) << endl;
   }
 
+  cout << "Local worker endpoint: " << local_worker_endpoint.to_json().dump(4) << endl;
+
   // hard-coded for now
-  auto worker = std::make_unique<TCPWorker>(Endpoint::tcp("localhost", 8000),
-                                            device_type == DeviceType::GPU, 4);
+  auto worker =
+      std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
   NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
                                  coordinator_endpoint, endpoints);
@@ -109,11 +114,6 @@ int main() {
 
   coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
-
-  cout << "Deploying stages to remote endpoints." << endl;
-  for (const auto &ep : endpoints) {
-    cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
-  }
 
   if (!coordinator.deploy_stages()) {
     cerr << "Failed to deploy stages. Make sure workers are running." << endl;

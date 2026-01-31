@@ -313,6 +313,10 @@ public:
   }
 
   bool deploy_stages() {
+    for (const auto &endpoint : worker_endpoints_) {
+      std::cout << "Expecting worker at " << endpoint.to_json().dump(4) << std::endl;
+    }
+
     bool all_connected = true;
     for (const auto &worker_endpoint : this->worker_endpoints_) {
       all_connected &= this->comm_->connect(worker_endpoint);

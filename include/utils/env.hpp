@@ -14,11 +14,6 @@ class EnvLoader {
 public:
   EnvLoader(std::string file_path = "./.env") { load_env_file(file_path); }
 
-  /**
-   * Load environment variables from a .env file
-   * @param file_path Path to the .env file (default: "./.env")
-   * @return true if file was loaded successfully, false otherwise
-   */
   bool load_env_file(const std::string &file_path = "./.env") {
     std::ifstream file(file_path);
     if (!file.is_open()) {
@@ -27,12 +22,18 @@ public:
     }
 
     std::string line;
+    auto trim = [](std::string &s) {
+      size_t first = s.find_first_not_of(" \t\r\n");
+      if (first == std::string::npos) {
+        s.clear();
+        return;
+      }
+      size_t last = s.find_last_not_of(" \t\r\n");
+      s = s.substr(first, (last - first + 1));
+    };
 
     while (std::getline(file, line)) {
-      size_t first = line.find_first_not_of(" \t\r\n");
-      if (first == std::string::npos) continue;
-      line.erase(0, first);
-      line.erase(line.find_last_not_of(" \t\r\n") + 1);
+      trim(line);
 
       if (line.empty() || line[0] == '#') {
         continue;
@@ -46,20 +47,17 @@ public:
       std::string key = line.substr(0, equals_pos);
       std::string value = line.substr(equals_pos + 1);
 
-      // 2. Trim key and value again after split
-      auto trim = [](std::string &s) {
-        size_t first = s.find_first_not_of(" \t");
-        if (first == std::string::npos) {
-          s.clear();
-          return;
-        }
-        s.erase(0, first);
-        s.erase(s.find_last_not_of(" \t") + 1);
-      };
       trim(key);
       trim(value);
 
-      // 3. Robust quote stripping
+      if (!value.empty() && value.front() != '"' && value.front() != '\'') {
+        size_t comment_pos = value.find('#');
+        if (comment_pos != std::string::npos) {
+          value = value.substr(0, comment_pos);
+          trim(value);
+        }
+      }
+
       if (value.size() >= 2) {
         if ((value.front() == '"' && value.back() == '"') ||
             (value.front() == '\'' && value.back() == '\'')) {
@@ -67,14 +65,12 @@ public:
         }
       }
 
-      // 4. Validate Key (Security)
       if (key.empty() || key.find_first_of("= \t") != std::string::npos) {
-        continue;  // Skip keys with invalid characters
+        continue;
       }
 
       env_vars_[key] = value;
 
-      // set in system environment (note: this may not work on all systems)
 #ifdef _WIN32
       _putenv_s(key.c_str(), value.c_str());
 #else

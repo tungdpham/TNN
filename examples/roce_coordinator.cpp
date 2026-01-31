@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "distributed/roce_worker.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
@@ -144,16 +145,21 @@ int main(int argc, char *argv[]) {
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
                      Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
-      Endpoint::roce(Env::get<std::string>("WORKER2_HOST", "10.10.0.1"),
-                     Env::get<int>("WORKER2_PORT", 8002), "rocep5s0f0", -1),
   };
 
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
-  RoceCoordinator coordinator(std::move(model), std::move(optimizer), coordinator_endpoint,
-                              endpoints);
+  Endpoint local_worker_endpoint =
+      Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
+                     Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
+
+  auto local_worker =
+      std::make_unique<RoceWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
+
+  RoceCoordinator coordinator(std::move(model), std::move(optimizer), std::move(local_worker),
+                              coordinator_endpoint, endpoints);
 
   // initialize a partitioner with weights 2:1
   auto partitioner = std::make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));

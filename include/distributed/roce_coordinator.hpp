@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "coordinator.hpp"
-#include "device/device_manager.hpp"
+#include "distributed/worker.hpp"
 #include "endpoint.hpp"
 #include "nn/sequential.hpp"
 #include "roce_communicator.hpp"
@@ -37,8 +37,9 @@ public:
    * @param endpoints The list of worker endpoints
    */
   RoceCoordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
-                  Endpoint coordinator_endpoint, const std::vector<Endpoint> &endpoints = {})
-      : Coordinator(std::move(model), std::move(optimizer)) {
+                  std::unique_ptr<Worker> local_worker, Endpoint coordinator_endpoint,
+                  const std::vector<Endpoint> &endpoints = {})
+      : Coordinator(std::move(model), std::move(optimizer), std::move(local_worker)) {
     // Initialize coordinator and remote endpoints
     this->coordinator_endpoint_ = coordinator_endpoint;
     this->worker_endpoints_ = endpoints;
