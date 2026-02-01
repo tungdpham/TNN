@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "data_loading/legacy/data_loader_factory.hpp"
+#include "distributed/coordinator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
@@ -95,6 +96,9 @@ int main() {
 
   };
 
+  unique_ptr<Partitioner> partitioner =
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+
   cout << "Configured " << endpoints.size() << " remote endpoints:" << endl;
   for (const auto &ep : endpoints) {
     cout << ep.to_json().dump(4) << endl;
@@ -106,13 +110,16 @@ int main() {
   auto worker =
       std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
-                                 coordinator_endpoint, endpoints);
+  CoordinatorConfig config{ParallelMode_t::PIPELINE,
+                           std::move(model),
+                           std::move(optimizer),
+                           std::move(partitioner),
+                           std::move(worker),
+                           coordinator_endpoint,
+                           endpoints};
 
-  unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
+  NetworkCoordinator coordinator(std::move(config));
 
-  coordinator.set_partitioner(std::move(partitioner));
   coordinator.initialize();
 
   if (!coordinator.deploy_stages()) {

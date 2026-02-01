@@ -30,13 +30,28 @@
 
 namespace tnn {
 
+enum class ParallelMode_t { DATA, PIPELINE };
+
+struct CoordinatorConfig {
+  ParallelMode_t parallel_mode = ParallelMode_t::DATA;
+  std::unique_ptr<Sequential> model;
+  std::unique_ptr<Optimizer> optimizer;
+  std::unique_ptr<Partitioner> partitioner;
+  std::unique_ptr<Worker> local_worker = nullptr;
+  Endpoint coordinator_endpoint;
+  std::vector<Endpoint> worker_endpoints;
+};
+
 class Coordinator {
 public:
-  Coordinator(std::unique_ptr<Sequential> model, std::unique_ptr<Optimizer> optimizer,
-              std::unique_ptr<Worker> local_worker = nullptr)
-      : model_(std::move(model)),
-        optimizer_(std::move(optimizer)),
-        local_worker_(std::move(local_worker)) {
+  Coordinator(CoordinatorConfig config)
+      : parallel_mode_(config.parallel_mode),
+        model_(std::move(config.model)),
+        optimizer_(std::move(config.optimizer)),
+        partitioner_(std::move(config.partitioner)),
+        local_worker_(std::move(config.local_worker)),
+        coordinator_endpoint_(config.coordinator_endpoint),
+        worker_endpoints_(config.worker_endpoints) {
     if (local_worker_) {
       std::thread worker_thread([this]() { local_worker_->start(); });
       worker_thread.detach();
@@ -53,19 +68,6 @@ public:
   void set_partitioner(std::unique_ptr<Partitioner> partitioner) {
     partitioner_ = std::move(partitioner);
   }
-
-  int num_stages() const { return num_stages_; }
-
-  bool set_num_microbatches(int num_microbatches) {
-    if (num_microbatches <= 0) {
-      std::cerr << "Number of microbatches must be positive\n";
-      return false;
-    }
-    num_microbatches_ = num_microbatches;
-    return true;
-  }
-
-  int num_microbatches() const { return num_microbatches_; }
 
   void add_message_callback() {
     this->comm_->set_callback([this]() {
@@ -131,7 +133,7 @@ public:
       Message update_msg(CommandType::UPDATE_PARAMETERS, std::monostate{});
       this->comm_->send_message(std::move(update_msg), worker_endpoint);
     }
-    bool success = join(CommandType::PARAMETERS_UPDATED, this->num_stages_, 60);
+    bool success = join(CommandType::PARAMETERS_UPDATED, this->worker_endpoints_.size(), 60);
     if (!success) {
       std::cerr << "Warning: Timeout waiting for parameter update confirmations from all stages\n";
     }
@@ -166,19 +168,19 @@ public:
   float async_process_batch(std::vector<Tensor> &microbatch_inputs,
                             std::vector<Tensor> &microbatch_labels,
                             const std::unique_ptr<Loss> &criterion) {
-    if (microbatch_inputs.size() != static_cast<size_t>(this->num_microbatches_) ||
-        microbatch_labels.size() != static_cast<size_t>(this->num_microbatches_)) {
-      throw std::invalid_argument("Microbatch size mismatch with coordinator configuration");
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in async_process_batch");
     }
+    size_t num_microbatches = microbatch_inputs.size();
 
-    for (int i = 0; i < this->num_microbatches_; ++i) {
+    for (size_t i = 0; i < num_microbatches; ++i) {
       this->forward(std::move(microbatch_inputs[i]), i);
     }
 
     float total_loss = 0.0f;
 
-    int processed_microbatches_ = 0;
-    while (processed_microbatches_ < this->num_microbatches_) {
+    size_t processed_microbatches_ = 0;
+    while (processed_microbatches_ < num_microbatches) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
       message_notification_cv_.wait(
           lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
@@ -206,16 +208,13 @@ public:
 
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
-    message_notification_cv_.wait(lock, [this]() {
-      return this->comm_->message_count(CommandType::BACKWARD_JOB) >=
-             static_cast<size_t>(this->num_microbatches_);
+    message_notification_cv_.wait(lock, [this, num_microbatches]() {
+      return this->comm_->message_count(CommandType::BACKWARD_COMPLETE) >= num_microbatches;
     });
 
-    this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_JOB);
+    this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
 
-    return (this->num_microbatches_ > 0)
-               ? (total_loss / static_cast<float>(this->num_microbatches_))
-               : total_loss;
+    return total_loss / static_cast<float>(num_microbatches);
   }
 
   /**
@@ -226,7 +225,7 @@ public:
       Message profiling_msg(CommandType::PRINT_PROFILING, std::monostate{});
       this->comm_->send_message(std::move(profiling_msg), worker_endpoint);
     }
-    bool all_printed = join(CommandType::PROFILING_PRINTED, this->num_stages_, 30);
+    bool all_printed = join(CommandType::PROFILING_PRINTED, this->worker_endpoints_.size(), 30);
     if (!all_printed) {
       std::cerr << "Warning: Not all stages confirmed profiling print within timeout.\n";
     }
@@ -241,7 +240,7 @@ public:
       Message start_msg(CommandType::START_PROFILING, std::monostate{});
       this->comm_->send_message(std::move(start_msg), worker_endpoint);
     }
-    bool all_started = join(CommandType::PROFILING_STARTED, this->num_stages_, 30);
+    bool all_started = join(CommandType::PROFILING_STARTED, this->worker_endpoints_.size(), 30);
     if (!all_started) {
       std::cerr << "Warning: Not all stages confirmed profiling start within timeout.\n";
     }
@@ -255,7 +254,7 @@ public:
       Message report_msg(CommandType::REPORT_PROFILING, std::monostate{});
       this->comm_->send_message(std::move(report_msg), worker_endpoint);
     }
-    bool all_reported = join(CommandType::PROFILING_REPORTED, this->num_stages_, 30);
+    bool all_reported = join(CommandType::PROFILING_REPORTED, this->worker_endpoints_.size(), 30);
     if (!all_reported) {
       std::cerr << "Warning: Not all stages reported profiling data within timeout.\n";
     }
@@ -333,7 +332,7 @@ public:
       deploy_stage_config(stage_configs_[i], worker_endpoints_[i]);
     }
 
-    if (!join(CommandType::CONFIG_RECEIVED, this->num_stages_, 60)) {
+    if (!join(CommandType::CONFIG_RECEIVED, this->worker_endpoints_.size(), 60)) {
       std::cerr << "Not all stages reported ready\n";
       throw std::runtime_error("Stage deployment failed");
     }
@@ -346,30 +345,36 @@ private:
     if (!partitioner_) {
       throw std::runtime_error("Partitioner must be set before initialization");
     }
-    this->partitions_ = partitioner_->get_partitions(this->model_->get_layers());
+    this->partitions_ = partitioner_->partition_model(this->model_->get_layers());
   }
 
   void initialize_topology() {
-    if (worker_endpoints_.size() != static_cast<size_t>(num_stages_)) {
-      throw std::runtime_error("Worker endpoints size does not match number of stages");
-    }
-    auto splitted_model = this->model_->split(this->partitions_);
+    auto splitted_layers = split(this->model_->get_layers(), this->partitions_);
 
     for (size_t i = 0; i < worker_endpoints_.size(); ++i) {
+      Sequential stage_model("stage_" + std::to_string(i), std::move(splitted_layers[i]));
       StageConfig config;
-      config.model_config = splitted_model[i].get_config();
+      config.model_config = stage_model.get_config();
       config.optimizer_config = optimizer_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
 
-      if (i > 0) {
-        config.prev_stage_endpoint = worker_endpoints_[i - 1];
-      } else {
-        config.prev_stage_endpoint = coordinator_endpoint_;
-      }
-      if (i < worker_endpoints_.size() - 1) {
-        config.next_stage_endpoint = worker_endpoints_[i + 1];
-      } else {
+      if (parallel_mode_ == ParallelMode_t::DATA) {
         config.next_stage_endpoint = coordinator_endpoint_;
+        config.prev_stage_endpoint = coordinator_endpoint_;
+
+      } else if (parallel_mode_ == ParallelMode_t::PIPELINE) {
+        if (i > 0) {
+          config.prev_stage_endpoint = worker_endpoints_[i - 1];
+        } else {
+          config.prev_stage_endpoint = Endpoint::empty();
+        }
+        if (i < worker_endpoints_.size() - 1) {
+          config.next_stage_endpoint = worker_endpoints_[i + 1];
+        } else {
+          config.next_stage_endpoint = coordinator_endpoint_;
+        }
+
+        // minor optimization
       }
 
       stage_configs_.push_back(config);
@@ -388,24 +393,25 @@ private:
   }
 
 protected:
-  // Training Parameters
-  int num_stages_;
-  int num_microbatches_ = 1;
-  bool should_stop_ = true;
-
   // Components of the coordinator
+  ParallelMode_t parallel_mode_ = ParallelMode_t::DATA;
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
-  std::unique_ptr<Communicator> comm_;
   std::unique_ptr<Partitioner> partitioner_;
   std::unique_ptr<Worker> local_worker_;
+
+  // Communication
+  std::unique_ptr<Communicator> comm_;
   Endpoint coordinator_endpoint_;
 
   // Topology information
-  std::vector<Partition> partitions_;
+  std::vector<SeqPartition> partitions_;
   std::vector<Endpoint> worker_endpoints_;
   std::vector<StageConfig> stage_configs_;
   Logger logger_{"profiler", "logs/profiler.log", LogLevel::info};
+
+  // Training Parameters
+  bool should_stop_ = true;
 
   // Message synchronization
   mutable std::mutex message_notification_mutex_;

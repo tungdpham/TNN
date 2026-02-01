@@ -213,28 +213,6 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-std::vector<Sequential> Sequential::split(std::vector<Partition> &partitions) const {
-  if (partitions.empty()) {
-    throw std::invalid_argument("Partitions vector is empty");
-  }
-  std::vector<Sequential> stages;
-  stages.reserve(partitions.size());
-  for (const auto &part : partitions) {
-    if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
-        part.start_layer >= part.end_layer) {
-      throw std::out_of_range("Invalid partition range");
-    }
-
-    auto layers = std::vector<std::unique_ptr<Layer>>();
-    for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      layers.push_back(layers_[i]->clone());
-    }
-    Sequential stage(name_ + "_part_" + std::to_string(stages.size()), std::move(layers));
-    stages.push_back(std::move(stage));
-  }
-  return stages;
-}
-
 const std::vector<Layer *> &Sequential::get_layers() const {
   static std::vector<Layer *> layer_ptrs;
   layer_ptrs.clear();

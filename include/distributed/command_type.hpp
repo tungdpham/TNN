@@ -23,6 +23,7 @@ enum CommandType : uint16_t {
   // core commands
   FORWARD_JOB,
   BACKWARD_JOB,
+  BACKWARD_COMPLETE,
   UPDATE_PARAMETERS,
 
   // mode switching

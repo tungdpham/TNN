@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "distributed/coordinator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
@@ -116,13 +117,19 @@ int main() {
   auto worker =
       std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
-                                 coordinator_endpoint, endpoints);
-
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
-  coordinator.set_partitioner(std::move(partitioner));
+  CoordinatorConfig config{ParallelMode_t::PIPELINE,
+                           std::move(model),
+                           std::move(optimizer),
+                           std::move(partitioner),
+                           std::move(worker),
+                           coordinator_endpoint,
+                           endpoints};
+
+  NetworkCoordinator coordinator(std::move(config));
+
   coordinator.initialize();
 
   if (!coordinator.deploy_stages()) {

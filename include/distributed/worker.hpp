@@ -91,9 +91,10 @@ public:
     coordinator_endpoint_ = config.coordinator_endpoint;
     next_stage_endpoint_ = config.next_stage_endpoint;
     prev_stage_endpoint_ = config.prev_stage_endpoint;
-    this->communicator_->connect(coordinator_endpoint_);
-    this->communicator_->connect(next_stage_endpoint_);
-    this->communicator_->connect(prev_stage_endpoint_);
+
+    if (coordinator_endpoint_) this->communicator_->connect(coordinator_endpoint_);
+    if (next_stage_endpoint_) this->communicator_->connect(next_stage_endpoint_);
+    if (prev_stage_endpoint_) this->communicator_->connect(prev_stage_endpoint_);
 
     is_configured_ = true;
   }
@@ -121,10 +122,10 @@ protected:
         Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
 
         this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
-        Job output(output_tensor, forward_job.mb_id);
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
+        Job output(output_tensor, forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
@@ -136,10 +137,16 @@ protected:
             Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
 
         this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
-        Job output(output_tensor, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
+        if (prev_stage_endpoint_ == Endpoint::empty()) {
+          // only send backward complete if there is no previous stage
+          Message complete_msg(CommandType::BACKWARD_COMPLETE);
+          communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
+          break;
+        }
+        Job output(output_tensor, backward_job.mb_id);
         message = Message(CommandType::BACKWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;

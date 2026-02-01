@@ -23,7 +23,7 @@ private:
   std::unordered_map<std::string, std::any> parameters_;
 
 public:
-  Endpoint() = default;
+  Endpoint() : type_(CommunicationType::NONE) {}
 
   explicit Endpoint(CommunicationType comm_type) : type_(comm_type) {}
 
@@ -91,6 +91,8 @@ public:
         return "UNKNOWN";
     }
   }
+
+  operator bool() const { return !is_empty(); }
 
   bool operator==(const Endpoint &other) const {
     if (type_ != other.type_) {

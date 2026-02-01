@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "distributed/coordinator.hpp"
 #include "distributed/roce_worker.hpp"
 #include "distributed/train.hpp"
 #include "nn/example_models.hpp"
@@ -165,13 +166,19 @@ int main(int argc, char *argv[]) {
   auto local_worker =
       std::make_unique<RoceWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
-  RoceCoordinator coordinator(std::move(model), std::move(optimizer), std::move(local_worker),
-                              coordinator_endpoint, endpoints);
-
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
-  coordinator.set_partitioner(std::move(partitioner));
+  CoordinatorConfig config{ParallelMode_t::PIPELINE,
+                           std::move(model),
+                           std::move(optimizer),
+                           std::move(partitioner),
+                           std::move(local_worker),
+                           coordinator_endpoint,
+                           endpoints};
+
+  RoceCoordinator coordinator(std::move(config));
+
   coordinator.initialize();
 
   std::cout << "Deploying stages to remote endpoints." << std::endl;

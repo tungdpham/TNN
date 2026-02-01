@@ -33,9 +33,9 @@ inline Result train_semi_async_epoch(Coordinator &coordinator, BaseDataLoader &t
   while (train_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
     std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, config.num_microbatches);
     std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, config.num_microbatches);
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
@@ -81,23 +81,23 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader
 
   while (test_loader.get_batch(config.batch_size, batch_data, batch_labels)) {
     std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, config.num_microbatches);
 
     std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, coordinator.num_microbatches());
+    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, config.num_microbatches);
 
     for (size_t i = 0; i < micro_batch_inputs.size(); ++i) {
       coordinator.forward(std::move(micro_batch_inputs[i]), i);
     }
 
-    coordinator.join(CommandType::FORWARD_JOB, coordinator.num_microbatches(), 60);
+    coordinator.join(CommandType::FORWARD_JOB, config.num_microbatches, 60);
 
     std::vector<Message> all_messages = coordinator.dequeue_all_messages(CommandType::FORWARD_JOB);
 
-    if (all_messages.size() != static_cast<size_t>(coordinator.num_microbatches())) {
+    if (all_messages.size() != static_cast<size_t>(config.num_microbatches)) {
       throw std::runtime_error(
           "Unexpected number of messages: " + std::to_string(all_messages.size()) +
-          ", expected: " + std::to_string(coordinator.num_microbatches()));
+          ", expected: " + std::to_string(config.num_microbatches));
     }
 
     std::vector<Job *> forward_jobs;
@@ -118,8 +118,8 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader
       val_correct += compute_class_corrects(job->data, device_labels);
     }
     // Normalize loss by number of microbatches to match training loss semantics
-    if (coordinator.num_microbatches() > 0) {
-      val_loss /= static_cast<double>(coordinator.num_microbatches());
+    if (config.num_microbatches > 0) {
+      val_loss /= static_cast<double>(config.num_microbatches);
     }
     total_val_loss += val_loss;
     total_val_correct += val_correct;
@@ -138,7 +138,6 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader &train_loader,
                         TrainingConfig config = TrainingConfig()) {
   coordinator.start_profiling();
   ThreadWrapper thread_wrapper({config.num_threads});
-  coordinator.set_num_microbatches(config.num_microbatches);
 
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {

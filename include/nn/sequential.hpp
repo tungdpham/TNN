@@ -18,13 +18,6 @@
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-struct Partition {
-  size_t start_layer;
-  size_t end_layer;  // exclusive
-
-  Partition(size_t start, size_t end) : start_layer(start), end_layer(end) {}
-};
-
 class Sequential : public Layer {
 private:
   std::vector<std::unique_ptr<Layer>> layers_;
@@ -73,8 +66,6 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   void print_summary(const std::vector<size_t> &input_shape) const;
-
-  std::vector<Sequential> split(std::vector<Partition> &partitions) const;
 
   const std::vector<Layer *> &get_layers() const;
 
