@@ -90,11 +90,23 @@ int main() {
   Endpoint local_worker_endpoint =
       Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
                     Env::get<int>("LOCAL_WORKER_PORT", 8000));
+  int local_worker_position = 0;  // default to first
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
+  if (position_str == "last") {
+    local_worker_position = 1;
+  }
+
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
                     Env::get<int>("WORKER1_PORT", 8001)),
 
   };
+
+  if (local_worker_position) {
+    endpoints.push_back(local_worker_endpoint);
+  } else {
+    endpoints.insert(endpoints.begin(), local_worker_endpoint);
+  }
 
   unique_ptr<Partitioner> partitioner =
       make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));

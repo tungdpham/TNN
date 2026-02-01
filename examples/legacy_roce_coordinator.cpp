@@ -143,11 +143,6 @@ int main(int argc, char *argv[]) {
   float lr_initial = Env::get("LR_INITIAL", 0.001f);
   auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
 
-  std::vector<Endpoint> endpoints = {
-      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
-                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
-  };
-
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
@@ -155,6 +150,22 @@ int main(int argc, char *argv[]) {
   Endpoint local_worker_endpoint =
       Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
                      Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
+  int local_worker_position = 0;  // default to first
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
+  if (position_str == "last") {
+    local_worker_position = 1;
+  }
+
+  std::vector<Endpoint> endpoints = {
+      Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
+                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+  };
+
+  if (local_worker_position) {
+    endpoints.push_back(local_worker_endpoint);
+  } else {
+    endpoints.insert(endpoints.begin(), local_worker_endpoint);
+  }
 
   auto local_worker =
       std::make_unique<RoceWorker>(local_worker_endpoint, device_type == DeviceType::GPU);

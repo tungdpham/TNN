@@ -561,7 +561,7 @@ void compute_mse_gradient(const T* predictions, const T* targets, T* gradient,
   mse_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, scale);
 
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
 }
 
 template <typename T>
@@ -616,7 +616,7 @@ void compute_mae_gradient(const T* predictions, const T* targets, T* gradient,
   mae_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, scale);
 
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
 }
 
 template <typename T>
@@ -673,7 +673,7 @@ void compute_huber_gradient(const T* predictions, const T* targets, T* gradient,
   huber_gradient_kernel<T>
       <<<num_blocks, threads_per_block>>>(predictions, targets, gradient, total_size, delta, scale);
 
-  cudaDeviceSynchronize();
+  cudaStreamSynchronize(stream);
 }
 
 #define INSTANTIATE_LOSS_OPS(T)                                                                   \
