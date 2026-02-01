@@ -113,8 +113,8 @@ public:
   }
   virtual void *data() = 0;
   virtual const void *data() const = 0;
-  virtual dptr &data_ptr() = 0;
-  virtual const dptr &data_ptr() const = 0;
+  virtual dptr data_ptr() = 0;
+  virtual const dptr data_ptr() const = 0;
 
   // Operations
   virtual Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const = 0;
@@ -183,6 +183,9 @@ public:
   static Tensor create_pooled(IAllocator &allocator, std::initializer_list<size_t> shape = {});
 
   static Tensor create_pooled(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape);
+
+  static Tensor create_pooled(IAllocator &allocator, DType_t dtype, dptr &&data,
+                              std::vector<size_t> shape);
 
   static Tensor create_pooled(IAllocator &allocator, DType_t dtype,
                               std::initializer_list<size_t> shape = {});
@@ -315,8 +318,8 @@ public:
   void *data() override { return static_cast<void *>(data_.get<T>()); }
   const void *data() const override { return static_cast<const void *>(data_.get<T>()); }
 
-  dptr &data_ptr() override { return data_; }
-  const dptr &data_ptr() const override { return data_; }
+  dptr data_ptr() override { return data_; }
+  const dptr data_ptr() const override { return data_; }
 
   // Operators
   TypedTensor<T> &operator=(const TypedTensor<T> &other) = delete;
