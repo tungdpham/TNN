@@ -140,8 +140,8 @@ int main(int argc, char *argv[]) {
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  float lr_initial = Env::get("LR_INITIAL", 0.001f);
-  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto optimizer =
+      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
 

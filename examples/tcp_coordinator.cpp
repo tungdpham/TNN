@@ -20,7 +20,6 @@
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 
 using namespace tnn;
@@ -82,7 +81,8 @@ int main() {
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto optimizer =
+      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
 
@@ -97,8 +97,8 @@ int main() {
     local_worker_position = 1;
   }
   vector<Endpoint> endpoints = {
-      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
-                    Env::get<int>("WORKER1_PORT", 8001)),
+      // Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
+      //               Env::get<int>("WORKER1_PORT", 8001)),
 
   };
 
@@ -120,7 +120,7 @@ int main() {
       std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1}));
 
   CoordinatorConfig config{ParallelMode_t::PIPELINE,
                            std::move(model),

@@ -9,6 +9,7 @@
 #include <mutex>
 #include <string>
 
+#include "device/device_manager.hpp"
 #include "distributed/message.hpp"
 #include "distributed/tcp_communicator.hpp"
 #include "tensor/tensor.hpp"
@@ -152,12 +153,17 @@ int main(int argc, char *argv[]) {
   }
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
+  Tensor master_tensor = make_tensor<float>({128, 512, 16, 16}, getCPU());
+  float *master_data = master_tensor->data_as<float>();
+  for (size_t i = 0; i < master_tensor->size(); ++i) {
+    master_data[i] = static_cast<float>(i);
+  }
 
   for (int i = 0; i < 4; i++) {
-    Tensor tensor = make_tensor<float>({128, 512, 16, 16});
-    tensor->fill_random_normal(0.0f, .2f, 12345);
+    Tensor tensor = make_tensor<float>(master_tensor->shape(), getGPU());
+    master_tensor->copy_to(tensor);
     Job job;
-    job.mb_id = 0;
+    job.mb_id = 10;
     job.data = std::move(tensor);
     Message message(CommandType::FORWARD_JOB, std::move(job));
     communicator.send_message(std::move(message), peer_endpoint);
@@ -187,6 +193,25 @@ int main(int argc, char *argv[]) {
         if (message.header().command_type != CommandType::FORWARD_JOB) {
           continue;
         }
+        // verify integrity of received tensor
+        Job &job = message.get<Job>();
+        Tensor &tensor = job.data;
+        Tensor cpu_tensor = tensor->to_device(getCPU());
+        assert(cpu_tensor->shape() == master_tensor->shape());
+        assert(cpu_tensor->data_type() == master_tensor->data_type());
+        assert(cpu_tensor->size() == master_tensor->size());
+        assert(job.mb_id == 10 && "Unexpected mb_id in received job");
+        // float *recv_data = cpu_tensor->data_as<float>();
+        // bool valid = true;
+        // for (size_t i = 0; i < tensor->size(); ++i) {
+        //   if (recv_data[i] != master_data[i]) {
+        //     valid = false;
+        //     break;
+        //   }
+        // }
+        // if (!valid) {
+        //   throw std::runtime_error("Data integrity check failed for received tensor");
+        // }
         num_messages_received++;
         communicator.send_message(std::move(message), peer_endpoint);
       }

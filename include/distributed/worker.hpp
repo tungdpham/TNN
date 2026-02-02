@@ -163,9 +163,11 @@ protected:
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
       case CommandType::TRAIN_MODE:
+        std::cout << "Stage " << id_ << " switching to TRAIN mode." << std::endl;
         this->model_->set_training(true);
         break;
       case CommandType::EVAL_MODE:
+        std::cout << "Stage " << id_ << " switching to EVAL mode." << std::endl;
         this->model_->set_training(false);
         break;
       case CommandType::STATUS_REQUEST: {
