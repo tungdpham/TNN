@@ -272,15 +272,11 @@ LayerConfig Sequential::get_config() const {
 
 std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
   std::vector<std::unique_ptr<Layer>> layers;
-  std::cout << "Creating Sequential layer from config: " << config.to_json().dump(2) << std::endl;
-  // Get the layers as nlohmann::json first, then convert to vector
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
   LayerFactory::register_defaults();
-
   if (!layers_json.is_array()) {
     throw std::runtime_error("Expected 'layers' to be an array in Sequential config");
   }
-
   for (const auto &layer_json : layers_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);

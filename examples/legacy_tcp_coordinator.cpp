@@ -83,6 +83,8 @@ int main() {
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto scheduler = SchedulerFactory::create_step_lr(
+      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -141,10 +143,7 @@ int main() {
 
   coordinator.start();
 
-  ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
-
-  thread_wrapper.execute(
-      [&]() { train_model(coordinator, *train_loader, *val_loader, criterion, train_config); });
+  train_model(coordinator, train_loader, val_loader, criterion, scheduler, train_config);
 
   coordinator.stop();
 

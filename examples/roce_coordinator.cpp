@@ -177,6 +177,9 @@ int main(int argc, char *argv[]) {
                            coordinator_endpoint,
                            endpoints};
 
+  auto scheduler = SchedulerFactory::create_step_lr(
+      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
+
   RoceCoordinator coordinator(std::move(config));
 
   coordinator.initialize();
@@ -192,7 +195,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    train_model(coordinator, *train_loader, *val_loader, criterion, train_config);
+    train_model(coordinator, train_loader, val_loader, criterion, scheduler, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;
