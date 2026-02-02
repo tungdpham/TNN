@@ -117,10 +117,9 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator, BaseDataLoader
       val_loss += loss;
       val_correct += compute_class_corrects(job->data, device_labels);
     }
-    // Normalize loss by number of microbatches to match training loss semantics
-    if (config.num_microbatches > 0) {
-      val_loss /= static_cast<double>(config.num_microbatches);
-    }
+
+    val_loss /= static_cast<double>(config.num_microbatches);
+
     total_val_loss += val_loss;
     total_val_correct += val_correct;
     ++val_batches;
@@ -149,9 +148,9 @@ inline void train_model(Coordinator &coordinator, BaseDataLoader &train_loader,
       train_semi_async_epoch(coordinator, train_loader, criterion, config);
 
       validate_semi_async_epoch(coordinator, test_loader, criterion, config);
-
-      coordinator.fetch_profiling();
     }
+
+    coordinator.fetch_profiling();
   });
 }
 

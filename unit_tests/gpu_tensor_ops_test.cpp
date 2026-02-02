@@ -297,6 +297,18 @@ TEST_F(GPUopsTest, SplitMultiple) {
 
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
+  float *original_data = cpu_tensor->data_as<float>();
+  int original_idx = 0;
+  for (size_t i = 0; i < cpu_splits.size(); ++i) {
+    float *split_data = cpu_splits[i]->data_as<float>();
+    for (size_t idx = 0; idx < cpu_splits[i]->size(); ++idx) {
+      EXPECT_EQ(original_data[original_idx++], split_data[idx])
+          << "Mismatch in CPU split at index " << idx << " of split " << i;
+    }
+  }
+
+  ASSERT_EQ(original_idx, cpu_tensor->size());
+
   for (size_t i = 0; i < cpu_splits.size(); ++i) {
     compareTensors<float>(cpu_splits[i], gpu_splits[i]);
   }

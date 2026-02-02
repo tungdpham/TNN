@@ -84,6 +84,8 @@ public:
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
     this->model_->init();
+    auto parsed_config = this->model_->get_config();
+    std::cout << parsed_config.to_json().dump(4) << std::endl;
     this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
     this->model_->enable_profiling(true);
 

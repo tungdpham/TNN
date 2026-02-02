@@ -26,7 +26,14 @@ T LayerConfig::get(const std::string &key, const T &default_value) const {
 
 template size_t LayerConfig::get<size_t>(const std::string &, const size_t &) const;
 template int LayerConfig::get<int>(const std::string &, const int &) const;
+template long LayerConfig::get<long>(const std::string &, const long &) const;
+template long long LayerConfig::get<long long>(const std::string &, const long long &) const;
+template unsigned int LayerConfig::get<unsigned int>(const std::string &,
+                                                     const unsigned int &) const;
+template unsigned long long LayerConfig::get<unsigned long long>(const std::string &,
+                                                                 const unsigned long long &) const;
 template float LayerConfig::get<float>(const std::string &, const float &) const;
+template double LayerConfig::get<double>(const std::string &, const double &) const;
 template bool LayerConfig::get<bool>(const std::string &, const bool &) const;
 template std::string LayerConfig::get<std::string>(const std::string &, const std::string &) const;
 template nlohmann::json LayerConfig::get<nlohmann::json>(const std::string &,
@@ -40,8 +47,22 @@ nlohmann::json LayerConfig::to_json() const {
   for (const auto &[key, value] : parameters) {
     if (value.type() == typeid(size_t)) {
       param_json[key] = std::any_cast<size_t>(value);
+    } else if (value.type() == typeid(int)) {
+      param_json[key] = std::any_cast<int>(value);
+    } else if (value.type() == typeid(long)) {
+      param_json[key] = std::any_cast<long>(value);
+    } else if (value.type() == typeid(long long)) {
+      param_json[key] = std::any_cast<long long>(value);
+    } else if (value.type() == typeid(unsigned int)) {
+      param_json[key] = std::any_cast<unsigned int>(value);
+    } else if (value.type() == typeid(unsigned long)) {
+      param_json[key] = std::any_cast<unsigned long>(value);
+    } else if (value.type() == typeid(unsigned long long)) {
+      param_json[key] = std::any_cast<unsigned long long>(value);
     } else if (value.type() == typeid(float)) {
       param_json[key] = std::any_cast<float>(value);
+    } else if (value.type() == typeid(double)) {
+      param_json[key] = std::any_cast<double>(value);
     } else if (value.type() == typeid(bool)) {
       param_json[key] = std::any_cast<bool>(value);
     } else if (value.type() == typeid(std::string)) {
@@ -61,10 +82,15 @@ LayerConfig LayerConfig::from_json(const nlohmann::json &j) {
   config.name = j.value("name", "");
   config.type = j.value("type", "");
   nlohmann::json param_json = j.value("parameters", nlohmann::json::object());
-  if (j.contains("parameters")) {
+  if (j.contains("parameters") && !param_json.is_null()) {
     for (const auto &[key, value] : param_json.items()) {
       if (value.is_number_integer()) {
-        config.parameters[key] = value.template get<size_t>();
+        int64_t int_val = value.template get<int64_t>();
+        if (int_val >= 0) {
+          config.parameters[key] = static_cast<size_t>(int_val);
+        } else {
+          config.parameters[key] = static_cast<int>(int_val);
+        }
       } else if (value.is_number_float()) {
         config.parameters[key] = value.template get<float>();
       } else if (value.is_boolean()) {
