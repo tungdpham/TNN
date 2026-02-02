@@ -10,8 +10,8 @@
 #include <cstring>
 #include <vector>
 
-#include "device/allocator.hpp"
 #include "device/dptr.hpp"
+#include "device/iallocator.hpp"
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
@@ -170,7 +170,7 @@ public:
     size_t byte_size =
         dtype_size * std::accumulate(shape.begin(), shape.end(), 1ULL, std::multiplies<size_t>());
     dptr tensor_data = buffer.get(offset).span(0, byte_size);
-    tensor = Tensor::create_pooled(allocator_, dtype, std::move(tensor_data), shape);
+    tensor = make_tensor(allocator_, dtype, std::move(tensor_data), shape);
   }
 
   void deserialize(VBuffer &buffer, size_t &offset, Job &job) {

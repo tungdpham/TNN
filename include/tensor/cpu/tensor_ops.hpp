@@ -21,7 +21,7 @@ namespace cpu {
  */
 template <typename T>
 void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
-  if (!input->is_on_cpu()) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("im2col_pad_1_stride_1_kernel_3_cpu requires CPU tensor");
   }
 
@@ -202,14 +202,14 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
 }
 
 template <typename T>
-void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_h,
-                   const size_t kernel_w, const size_t stride_h, const size_t stride_w,
-                   const size_t pad_h, const size_t pad_w) {
-  if (!input_tensor->is_on_cpu()) {
+void im2col_padded(const Tensor &input, T *col_data, const size_t kernel_h, const size_t kernel_w,
+                   const size_t stride_h, const size_t stride_w, const size_t pad_h,
+                   const size_t pad_w) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("im2col_padded_cpu requires CPU tensor");
   }
 
-  const auto &shape = input_tensor->shape();
+  const auto &shape = input->shape();
   const size_t in_h = shape[2];
   const size_t in_w = shape[3];
   const size_t padded_h = in_h + 2 * pad_h;
@@ -221,7 +221,7 @@ void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_
 
   size_t col_width = out_h * out_w;
 
-  const T *input_data = input_tensor->data_as<T>();
+  const T *input_data = input->data_as<T>();
 
   parallel_for_2d<size_t>(
       batch_size, channels,
@@ -273,7 +273,7 @@ void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_
 
 /**
  * @brief Convert a 4D image tensor to a column buffer for convolution (raw pointer version).
- * @param input_tensor The input tensor to convert.
+ * @param input The input tensor to convert.
  * @param col_data Pointer to the output column buffer.
  * @param kernel_h Height of the convolution kernel.
  * @param kernel_w Width of the convolution kernel.
@@ -283,22 +283,22 @@ void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_
  * @param pad_w Horizontal padding to be applied to the input tensor.
  */
 template <typename T>
-void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
-            size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
-  if (!input_tensor->is_on_cpu()) {
+void im2col(const Tensor &input, T *col_data, size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+            size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("im2col_cpu requires CPU tensor");
   }
 
   if (pad_h > 0 || pad_w > 0) {
     if (pad_h == 1 && pad_w == 1 && stride_h == 1 && stride_w == 1 && kernel_h == 3 &&
         kernel_w == 3)
-      im2col_pad_1_stride_1_kernel_3(input_tensor, col_data);
+      im2col_pad_1_stride_1_kernel_3(input, col_data);
     else
-      im2col_padded(input_tensor, col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+      im2col_padded(input, col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
     return;
   }
 
-  const auto &shape = input_tensor->shape();
+  const auto &shape = input->shape();
   const size_t in_h = shape[2];
   const size_t in_w = shape[3];
   const size_t out_h = (in_h - kernel_h) / stride_h + 1;
@@ -308,7 +308,7 @@ void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t ker
 
   size_t col_width = out_h * out_w;
 
-  const T *input_data = input_tensor->data_as<T>();
+  const T *input_data = input->data_as<T>();
 
   parallel_for_2d<size_t>(
       batch_size, channels,
@@ -461,7 +461,7 @@ static void col2im(const T *col_data, T *result_data, size_t batch_size, size_t 
 
 template <typename T>
 void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T value = T(0)) {
-  if (!input->is_on_cpu()) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("pad requires CPU tensor");
   }
 
@@ -518,7 +518,7 @@ void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T valu
 
 template <typename T>
 void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w) {
-  if (!input->is_on_cpu()) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("unpad requires CPU tensor");
   }
 
@@ -550,7 +550,7 @@ void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w) {
 template <typename T>
 void crop(const Tensor &input, Tensor &result, const size_t start_h, const size_t start_w,
           const size_t end_h, const size_t end_w) {
-  if (!input->is_on_cpu()) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("crop requires CPU tensor");
   }
 
@@ -587,7 +587,7 @@ void crop(const Tensor &input, Tensor &result, const size_t start_h, const size_
  */
 template <typename T>
 void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t end_batch) {
-  if (!input->is_on_cpu()) {
+  if (!(input->device_type() == DeviceType::CPU)) {
     throw std::runtime_error("slice_batch requires CPU tensor");
   }
 
@@ -598,7 +598,7 @@ void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t
 
   std::vector<size_t> result_shape = input_shape;
   result_shape[0] = end_batch - start_batch;
-  result = Tensor::create(input->data_type(), result_shape, input->device());
+  result = make_tensor(input->data_type(), result_shape, input->device());
 
   const T *input_data = input->data_as<T>();
   size_t stride_0 = 1;

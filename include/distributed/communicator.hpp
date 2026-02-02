@@ -14,7 +14,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "device/allocator.hpp"
+#include "device/iallocator.hpp"
 #include "endpoint.hpp"
 #include "message.hpp"
 #include "message_map.hpp"

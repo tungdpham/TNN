@@ -8,10 +8,10 @@ using namespace tnn;
 class TensorTest : public ::testing::Test {
 protected:
   void SetUp() override {
-    small_tensor = Tensor::create<float>({1, 1, 2, 2});
+    small_tensor = make_tensor<float>({1, 1, 2, 2});
     small_tensor->fill(1.0f);
 
-    large_tensor = Tensor::create<float>({2, 3, 4, 4});
+    large_tensor = make_tensor<float>({2, 3, 4, 4});
     large_tensor->fill(2.0f);
   }
 
@@ -20,7 +20,7 @@ protected:
 };
 
 TEST_F(TensorTest, Constructor4D) {
-  Tensor tensor = Tensor::create<float>({2, 3, 4, 4});
+  Tensor tensor = make_tensor<float>({2, 3, 4, 4});
 
   EXPECT_EQ(tensor->shape()[0], 2);
   EXPECT_EQ(tensor->shape()[1], 3);
@@ -31,7 +31,7 @@ TEST_F(TensorTest, Constructor4D) {
 
 TEST_F(TensorTest, ConstructorWithShape) {
   std::vector<size_t> shape = {2, 3, 4, 4};
-  Tensor tensor = Tensor::create<float>(shape);
+  Tensor tensor = make_tensor<float>(shape);
 
   EXPECT_EQ(tensor->shape(), shape);
   EXPECT_EQ(tensor->size(), 96);
@@ -42,7 +42,7 @@ TEST_F(TensorTest, ConstructorWithShape) {
 }
 
 TEST_F(TensorTest, ElementAccess) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
 
   tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   tensor->at<float>({0, 0, 0, 1}) = 2.0f;
@@ -56,8 +56,8 @@ TEST_F(TensorTest, ElementAccess) {
 }
 
 TEST_F(TensorTest, TensorAddition) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2});
 
   tensor1->fill(2.0f);
   tensor2->fill(3.0f);
@@ -71,8 +71,8 @@ TEST_F(TensorTest, TensorAddition) {
 }
 
 TEST_F(TensorTest, TensorSubtraction) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2});
 
   tensor1->fill(5.0f);
   tensor2->fill(2.0f);
@@ -86,8 +86,8 @@ TEST_F(TensorTest, TensorSubtraction) {
 }
 
 TEST_F(TensorTest, TensorMultiplication) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2});
 
   tensor1->fill(3.0f);
   tensor2->fill(4.0f);
@@ -101,7 +101,7 @@ TEST_F(TensorTest, TensorMultiplication) {
 }
 
 TEST_F(TensorTest, ScalarMultiplication) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
   tensor->fill(3.0f);
 
   Tensor result = tensor * 2.0f;
@@ -113,7 +113,7 @@ TEST_F(TensorTest, ScalarMultiplication) {
 }
 
 TEST_F(TensorTest, ScalarDivision) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
   tensor->fill(8.0f);
 
   Tensor result = tensor / 2.0f;
@@ -125,8 +125,8 @@ TEST_F(TensorTest, ScalarDivision) {
 }
 
 TEST_F(TensorTest, InPlaceAddition) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2});
 
   tensor1->fill(2.0f);
   tensor2->fill(3.0f);
@@ -140,7 +140,7 @@ TEST_F(TensorTest, InPlaceAddition) {
 }
 
 TEST_F(TensorTest, InPlaceScalarMultiplication) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
   tensor->fill(3.0f);
 
   tensor->mul_scalar(2.0f);
@@ -152,29 +152,29 @@ TEST_F(TensorTest, InPlaceScalarMultiplication) {
 }
 
 TEST_F(TensorTest, SameShapeComparison) {
-  Tensor tensor1 = Tensor::create<float>({2, 3, 4, 5});
-  Tensor tensor2 = Tensor::create<float>({2, 3, 4, 5});
-  Tensor tensor3 = Tensor::create<float>({2, 3, 4, 6});
+  Tensor tensor1 = make_tensor<float>({2, 3, 4, 5});
+  Tensor tensor2 = make_tensor<float>({2, 3, 4, 5});
+  Tensor tensor3 = make_tensor<float>({2, 3, 4, 6});
 
   EXPECT_TRUE(tensor1->shape() == tensor2->shape());
   EXPECT_FALSE(tensor1->shape() == tensor3->shape());
 }
 
 TEST_F(TensorTest, AdditionShapeMismatch) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 3, 3});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 3, 3});
 
   EXPECT_THROW(tensor1 + tensor2, std::invalid_argument);
 }
 
 TEST_F(TensorTest, DivisionByZero) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
 
   EXPECT_THROW(tensor / 0.0f, std::invalid_argument);
 }
 
 TEST_F(TensorTest, FillOperation) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
   tensor->fill(42.0f);
 
   EXPECT_FLOAT_EQ(tensor->at<float>({0, 0, 0, 0}), 42.0f);
@@ -184,7 +184,7 @@ TEST_F(TensorTest, FillOperation) {
 }
 
 TEST_F(TensorTest, CloneOperation) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2});
+  Tensor original = make_tensor<float>({1, 1, 2, 2});
   original->fill(5.0f);
 
   Tensor cloned = original->clone();
@@ -197,7 +197,7 @@ TEST_F(TensorTest, CloneOperation) {
 }
 
 TEST_F(TensorTest, MeanCalculation) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2});
   tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   tensor->at<float>({0, 0, 0, 1}) = 2.0f;
   tensor->at<float>({0, 0, 1, 0}) = 3.0f;
@@ -208,13 +208,13 @@ TEST_F(TensorTest, MeanCalculation) {
 }
 
 TEST_F(TensorTest, DataAlignment) {
-  Tensor tensor = Tensor::create<float>({10, 10, 10, 10});
+  Tensor tensor = make_tensor<float>({10, 10, 10, 10});
 
   EXPECT_TRUE(tensor->is_aligned(16));
 }
 
 TEST_F(TensorTest, MoveConstructor) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2});
+  Tensor original = make_tensor<float>({1, 1, 2, 2});
   original->fill(42.0f);
 
   Tensor moved(std::move(original));
@@ -225,7 +225,7 @@ TEST_F(TensorTest, MoveConstructor) {
 }
 
 TEST_F(TensorTest, MultiBatchAccess) {
-  Tensor tensor = Tensor::create<float>({2, 1, 2, 2});
+  Tensor tensor = make_tensor<float>({2, 1, 2, 2});
 
   tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   tensor->at<float>({1, 0, 0, 0}) = 2.0f;
@@ -235,7 +235,7 @@ TEST_F(TensorTest, MultiBatchAccess) {
 }
 
 TEST_F(TensorTest, MultiChannelAccess) {
-  Tensor tensor = Tensor::create<float>({1, 3, 2, 2});
+  Tensor tensor = make_tensor<float>({1, 3, 2, 2});
 
   tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   tensor->at<float>({0, 1, 0, 0}) = 2.0f;
@@ -251,7 +251,7 @@ class TensorSizeTest : public ::testing::TestWithParam<std::tuple<size_t, size_t
 
 TEST_P(TensorSizeTest, ConstructorAndSize) {
   auto [batch, channels, height, width] = GetParam();
-  Tensor tensor = Tensor::create<float>({batch, channels, height, width});
+  Tensor tensor = make_tensor<float>({batch, channels, height, width});
 
   EXPECT_EQ(tensor->shape()[0], batch);
   EXPECT_EQ(tensor->shape()[1], channels);
@@ -267,8 +267,8 @@ INSTANTIATE_TEST_SUITE_P(DifferentShapes, TensorSizeTest,
                                            std::make_tuple(64, 128, 28, 28)));
 
 TEST(TensorFloatingPointTest, FloatingPointComparisons) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2});
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2});
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2});
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2});
 
   tensor1->fill(0.1f + 0.2f);
   tensor2->fill(0.3f);

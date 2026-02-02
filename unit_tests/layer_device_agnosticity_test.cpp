@@ -121,14 +121,14 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerForwardBasic) {
     *gpu_layer.parameters()[1] = *cpu_layer.parameters()[1]->to_device(getGPU());
   }
 
-  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
 
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayer Forward:");
@@ -163,23 +163,22 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerBackwardBasic) {
     *gpu_layer.parameters()[1] = *cpu_layer.parameters()[1]->to_device(getGPU());
   }
 
-  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
-  Tensor grad_output =
-      Tensor::create<float>({batch_size, out_channels, input_h, input_w}, getCPU());
+  Tensor grad_output = make_tensor<float>({batch_size, out_channels, input_h, input_w}, getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
 
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f,
@@ -220,23 +219,23 @@ TEST_F(LayerIntegrationTest, LegacyConv2DLayerStridedConvolution) {
 
   *gpu_layer.parameters()[0] = *cpu_layer.parameters()[0]->to_device(getGPU());
 
-  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "LegacyConv2DLayer Strided Forward:");
 
-  Tensor grad_output = Tensor::create<float>(cpu_output->shape(), getCPU());
+  Tensor grad_output = make_tensor<float>(cpu_output->shape(), getCPU());
   grad_output->fill_random_uniform(1.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "LegacyConv2DLayer Strided Backward:");
   compareTensors(cpu_layer.gradients()[0], gpu_layer.gradients()[0], 1e-2f,
@@ -262,13 +261,13 @@ TEST_F(LayerIntegrationTest, DenseLayerForwardBasic) {
     *gpu_layer.parameters()[1] = *cpu_layer.parameters()[1]->to_device(getGPU());
   }
 
-  Tensor input = Tensor::create<float>({batch_size, input_features}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, input_features}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Forward:");
@@ -293,21 +292,21 @@ TEST_F(LayerIntegrationTest, DenseLayerBackwardBasic) {
     *gpu_layer.parameters()[1] = *cpu_layer.parameters()[1]->to_device(getGPU());
   }
 
-  Tensor input = Tensor::create<float>({batch_size, input_features}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, input_features}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
-  Tensor grad_output = Tensor::create<float>({batch_size, output_features}, getCPU());
+  Tensor grad_output = make_tensor<float>({batch_size, output_features}, getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Backward Input Gradient:");
@@ -336,23 +335,23 @@ TEST_F(LayerIntegrationTest, DenseLayerLargeMatrix) {
 
   *gpu_layer.parameters()[0] = *cpu_layer.parameters()[0]->to_device(getGPU());
 
-  Tensor input = Tensor::create<float>({batch_size, input_features}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, input_features}, getCPU());
   input->fill_random_uniform(1.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-3f, "DenseLayer Large Forward:");
 
-  Tensor grad_output = Tensor::create<float>({batch_size, output_features}, getCPU());
+  Tensor grad_output = make_tensor<float>({batch_size, output_features}, getCPU());
   grad_output->fill_random_uniform(1.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-2f, "DenseLayer Large Backward:");
 }
@@ -378,13 +377,13 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerForwardBasic) {
   cpu_layer.init();
   gpu_layer.init();
 
-  Tensor input = Tensor::create<float>({batch_size, channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(10.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Forward:");
@@ -411,21 +410,21 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerBackwardBasic) {
   cpu_layer.init();
   gpu_layer.init();
 
-  Tensor input = Tensor::create<float>({batch_size, channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(20.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
-  Tensor grad_output = Tensor::create<float>(cpu_output->shape(), getCPU());
+  Tensor grad_output = make_tensor<float>(cpu_output->shape(), getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayer Backward:");
@@ -454,23 +453,23 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerWithPadding) {
   cpu_layer.init();
   gpu_layer.init();
 
-  Tensor input = Tensor::create<float>({batch_size, channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(10.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Padded Forward:");
 
-  Tensor grad_output = Tensor::create<float>(cpu_output->shape(), getCPU());
+  Tensor grad_output = make_tensor<float>(cpu_output->shape(), getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f, "LegacyMaxPool2DLayer Padded Backward:");
@@ -499,23 +498,23 @@ TEST_F(LayerIntegrationTest, LegacyMaxPool2DLayerNonSquare) {
   cpu_layer.init();
   gpu_layer.init();
 
-  Tensor input = Tensor::create<float>({batch_size, channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(16.0f);
 
   std::vector<size_t> output_shape = cpu_layer.compute_output_shape(input->shape());
-  Tensor cpu_output = Tensor::create<float>(output_shape, getCPU());
+  Tensor cpu_output = make_tensor<float>(output_shape, getCPU());
   cpu_layer.forward(input, cpu_output);
-  Tensor gpu_output = Tensor::create<float>(output_shape, getGPU());
+  Tensor gpu_output = make_tensor<float>(output_shape, getGPU());
   gpu_layer.forward(input, gpu_output);
 
   compareTensors(cpu_output, gpu_output, 1e-4f, "LegacyMaxPool2DLayer Non-square Forward:");
 
-  Tensor grad_output = Tensor::create<float>(cpu_output->shape(), getCPU());
+  Tensor grad_output = make_tensor<float>(cpu_output->shape(), getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_input = make_tensor<float>(input->shape(), getCPU());
   cpu_layer.backward(grad_output, cpu_grad_input);
-  Tensor gpu_grad_input = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_input = make_tensor<float>(input->shape(), getGPU());
   gpu_layer.backward(grad_output, gpu_grad_input);
 
   compareTensors(cpu_grad_input, gpu_grad_input, 1e-4f,
@@ -548,34 +547,34 @@ TEST_F(LayerIntegrationTest, Conv2DMaxPoolPipeline) {
   *gpu_conv.parameters()[0] = *cpu_conv.parameters()[0]->to_device(getGPU());
   *gpu_conv.parameters()[1] = *cpu_conv.parameters()[1]->to_device(getGPU());
 
-  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> conv_output_shape = cpu_conv.compute_output_shape(input->shape());
-  Tensor cpu_conv_out = Tensor::create<float>(conv_output_shape, getCPU());
+  Tensor cpu_conv_out = make_tensor<float>(conv_output_shape, getCPU());
   cpu_conv.forward(input, cpu_conv_out);
   std::vector<size_t> pool_output_shape = cpu_pool.compute_output_shape(cpu_conv_out->shape());
-  Tensor cpu_pool_out = Tensor::create<float>(pool_output_shape, getCPU());
+  Tensor cpu_pool_out = make_tensor<float>(pool_output_shape, getCPU());
   cpu_pool.forward(cpu_conv_out, cpu_pool_out);
 
-  Tensor gpu_conv_out = Tensor::create<float>(conv_output_shape, getGPU());
+  Tensor gpu_conv_out = make_tensor<float>(conv_output_shape, getGPU());
   gpu_conv.forward(input, gpu_conv_out);
-  Tensor gpu_pool_out = Tensor::create<float>(pool_output_shape, getGPU());
+  Tensor gpu_pool_out = make_tensor<float>(pool_output_shape, getGPU());
   gpu_pool.forward(gpu_conv_out, gpu_pool_out);
 
   compareTensors(cpu_pool_out, gpu_pool_out, 1e-3f, "Conv2D-MaxPool Pipeline Forward:");
 
-  Tensor grad_output = Tensor::create<float>(cpu_pool_out->shape(), getCPU());
+  Tensor grad_output = make_tensor<float>(cpu_pool_out->shape(), getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_pool = Tensor::create<float>(cpu_conv_out->shape(), getCPU());
+  Tensor cpu_grad_pool = make_tensor<float>(cpu_conv_out->shape(), getCPU());
   cpu_pool.backward(grad_output, cpu_grad_pool);
-  Tensor cpu_grad_conv = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_conv = make_tensor<float>(input->shape(), getCPU());
   cpu_conv.backward(cpu_grad_pool, cpu_grad_conv);
 
-  Tensor gpu_grad_pool = Tensor::create<float>(gpu_conv_out->shape(), getGPU());
+  Tensor gpu_grad_pool = make_tensor<float>(gpu_conv_out->shape(), getGPU());
   gpu_pool.backward(grad_output, gpu_grad_pool);
-  Tensor gpu_grad_conv = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_conv = make_tensor<float>(input->shape(), getGPU());
   gpu_conv.backward(gpu_grad_pool, gpu_grad_conv);
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-MaxPool Pipeline Backward:");
@@ -611,45 +610,45 @@ TEST_F(LayerIntegrationTest, Conv2DDensePipeline) {
   *gpu_dense.parameters()[0] = *cpu_dense.parameters()[0]->to_device(getGPU());
   *gpu_dense.parameters()[1] = *cpu_dense.parameters()[1]->to_device(getGPU());
 
-  Tensor input = Tensor::create<float>({batch_size, in_channels, input_h, input_w}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, in_channels, input_h, input_w}, getCPU());
   input->fill_random_uniform(2.0f);
 
   std::vector<size_t> conv_output_shape = cpu_conv.compute_output_shape(input->shape());
-  Tensor cpu_conv_out = Tensor::create<float>(conv_output_shape, getCPU());
+  Tensor cpu_conv_out = make_tensor<float>(conv_output_shape, getCPU());
   cpu_conv.forward(input, cpu_conv_out);
 
-  Tensor cpu_conv_flat = Tensor::create<float>({batch_size, flattened_size}, getCPU());
+  Tensor cpu_conv_flat = make_tensor<float>({batch_size, flattened_size}, getCPU());
   std::vector<size_t> dense_output_shape = cpu_dense.compute_output_shape(cpu_conv_flat->shape());
-  Tensor cpu_dense_out = Tensor::create<float>(dense_output_shape, getCPU());
+  Tensor cpu_dense_out = make_tensor<float>(dense_output_shape, getCPU());
   cpu_conv_out->copy_to(cpu_conv_flat);
   cpu_dense.forward(cpu_conv_flat, cpu_dense_out);
 
-  Tensor gpu_conv_out = Tensor::create<float>(conv_output_shape, getGPU());
+  Tensor gpu_conv_out = make_tensor<float>(conv_output_shape, getGPU());
   gpu_conv.forward(input, gpu_conv_out);
-  Tensor gpu_conv_flat = Tensor::create<float>({batch_size, flattened_size}, getGPU());
-  Tensor gpu_dense_out = Tensor::create<float>(dense_output_shape, getGPU());
+  Tensor gpu_conv_flat = make_tensor<float>({batch_size, flattened_size}, getGPU());
+  Tensor gpu_dense_out = make_tensor<float>(dense_output_shape, getGPU());
   gpu_conv_out->copy_to(gpu_conv_flat);
   gpu_dense.forward(gpu_conv_flat, gpu_dense_out);
 
   compareTensors(cpu_dense_out, gpu_dense_out, 1e-3f, "Conv2D-Dense Pipeline Forward:");
 
-  Tensor grad_output = Tensor::create<float>({batch_size, dense_output}, getCPU());
+  Tensor grad_output = make_tensor<float>({batch_size, dense_output}, getCPU());
   grad_output->fill_random_uniform(2.0f);
 
-  Tensor cpu_grad_dense = Tensor::create<float>(cpu_conv_flat->shape(), getCPU());
+  Tensor cpu_grad_dense = make_tensor<float>(cpu_conv_flat->shape(), getCPU());
   cpu_dense.backward(grad_output, cpu_grad_dense);
   Tensor cpu_grad_dense_reshape =
-      Tensor::create<float>({batch_size, out_channels, input_h, input_w}, getCPU());
+      make_tensor<float>({batch_size, out_channels, input_h, input_w}, getCPU());
   cpu_grad_dense->copy_to(cpu_grad_dense_reshape);
-  Tensor cpu_grad_conv = Tensor::create<float>(input->shape(), getCPU());
+  Tensor cpu_grad_conv = make_tensor<float>(input->shape(), getCPU());
   cpu_conv.backward(cpu_grad_dense_reshape, cpu_grad_conv);
 
-  Tensor gpu_grad_dense = Tensor::create<float>(gpu_conv_flat->shape(), getGPU());
+  Tensor gpu_grad_dense = make_tensor<float>(gpu_conv_flat->shape(), getGPU());
   gpu_dense.backward(grad_output, gpu_grad_dense);
   Tensor gpu_grad_dense_reshape =
-      Tensor::create<float>({batch_size, out_channels, input_h, input_w}, getGPU());
+      make_tensor<float>({batch_size, out_channels, input_h, input_w}, getGPU());
   gpu_grad_dense->copy_to(gpu_grad_dense_reshape);
-  Tensor gpu_grad_conv = Tensor::create<float>(input->shape(), getGPU());
+  Tensor gpu_grad_conv = make_tensor<float>(input->shape(), getGPU());
   gpu_conv.backward(gpu_grad_dense_reshape, gpu_grad_conv);
 
   compareTensors(cpu_grad_conv, gpu_grad_conv, 1e-2f, "Conv2D-Dense Pipeline Backward:");

@@ -60,7 +60,7 @@ private:
     const float center_x = width / 2.0f;
     const float center_y = height / 2.0f;
 
-    auto rotated = Tensor::create(data->data_type(), {1, channels, height, width}, data->device());
+    auto rotated = make_tensor(data->data_type(), {1, channels, height, width}, data->device());
 
     rotated->fill(0.0);
 

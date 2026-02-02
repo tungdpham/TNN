@@ -20,8 +20,8 @@ private:
       return false;
     }
 
-    batch_data = Tensor::create<T>({batch_size, context_length_});
-    batch_labels = Tensor::create<T>({batch_size, context_length_, vocab_size_});
+    batch_data = make_tensor<T>({batch_size, context_length_});
+    batch_labels = make_tensor<T>({batch_size, context_length_, vocab_size_});
 
     T *label_ptr = static_cast<T *>(batch_labels->data());
     std::fill(label_ptr, label_ptr + batch_labels->size(), static_cast<T>(0));

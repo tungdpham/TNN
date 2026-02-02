@@ -281,15 +281,15 @@ void Layer::reset_profiling_info() { profiler_.reset(); }
 std::string Layer::name() const { return name_; }
 
 Tensor Layer::make_param_tensor(std::vector<size_t> shape) {
-  return Tensor::create(param_dtype_, shape, this->device_);
+  return make_tensor(param_dtype_, shape, this->device_);
 }
 
 Tensor Layer::make_io_tensor(std::vector<size_t> shape) {
-  return Tensor::create(io_dtype_, shape, this->device_);
+  return make_tensor(io_dtype_, shape, this->device_);
 }
 
 Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
-  return Tensor::create(compute_dtype_, shape, this->device_);
+  return make_tensor(compute_dtype_, shape, this->device_);
 }
 
 Tensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
@@ -300,7 +300,7 @@ Tensor Layer::get_buffer(const std::vector<size_t> &shape, DType_t dtype) {
   if (!mem_pool_) {
     throw std::runtime_error("PoolAllocator not set for layer: " + name_);
   }
-  return Tensor::create_pooled(*mem_pool_, dtype, shape);
+  return make_tensor(*mem_pool_, dtype, shape);
 }
 
 void Layer::clear_cache(size_t mb_id) {

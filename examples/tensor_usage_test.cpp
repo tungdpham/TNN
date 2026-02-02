@@ -14,8 +14,8 @@ void test_tensor_assignment(Tensor &a, Tensor &b) {
 void test_tensor_swap(Tensor &a, Tensor &b) { std::swap(a, b); }
 
 signed main() {
-  Tensor a = Tensor::create<float>({64, 32, 32, 3});
-  Tensor b = Tensor::create<float>({128, 224, 224, 3});
+  Tensor a = make_tensor<float>({64, 32, 32, 3});
+  Tensor b = make_tensor<float>({128, 224, 224, 3});
 
   std::cout << "Tensor a shape: " << a->shape_str() << std::endl;
   std::cout << "Tensor b shape: " << b->shape_str() << std::endl;

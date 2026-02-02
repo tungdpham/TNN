@@ -145,14 +145,14 @@ TEST_F(LegacyBatchNormLayerTest, BasicForwardPassTraining) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -169,14 +169,14 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassWithAffineTraining) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -196,11 +196,11 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassSingleChannel) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({4, 1, 8, 8}, getCPU());
+  Tensor input = make_tensor<float>({4, 1, 8, 8}, getCPU());
   input->fill(2.5f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -217,14 +217,14 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassMultiBatch) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({8, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({8, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>((i % 20) - 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -237,14 +237,14 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassLargeFeatures) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 64, 8, 8}, getCPU());
+  Tensor input = make_tensor<float>({2, 64, 8, 8}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 100) / 10.0f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -257,14 +257,14 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInference) {
   layer.init();
   layer.set_training(false);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -282,11 +282,11 @@ TEST_F(LegacyBatchNormLayerTest, ForwardPassInferenceWithAffine) {
   layer.init();
   layer.set_training(false);
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -298,20 +298,20 @@ TEST_F(LegacyBatchNormLayerTest, BasicBackwardPass) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -323,23 +323,23 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassWithAffine) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 3, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = static_cast<float>(i % 5) / 5.0f;
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -354,17 +354,17 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassMultiBatch) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({8, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({8, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   auto grad_input_shape = grad_input->shape();
@@ -378,17 +378,17 @@ TEST_F(LegacyBatchNormLayerTest, BackwardPassZeroGradient) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(0.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   EXPECT_EQ(grad_input->shape(), input->shape());
@@ -493,14 +493,14 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallBatch) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({1, 3, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 3, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i % 10);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -512,11 +512,11 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeEpsilon) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -528,14 +528,14 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseSmallSpatialSize) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({4, 4, 1, 1}, getCPU());
+  Tensor input = make_tensor<float>({4, 4, 1, 1}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(i);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -549,11 +549,11 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseLargeValues) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   input->fill(1e6f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -570,14 +570,14 @@ TEST_F(LegacyBatchNormLayerTest, EdgeCaseNegativeValues) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = -static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -589,11 +589,11 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilitySmallValues) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   input->fill(1e-6f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);
@@ -605,14 +605,14 @@ TEST_F(LegacyBatchNormLayerTest, NumericalStabilityMixedValues) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = (i % 2 == 0) ? 1e6f : 1e-6f;
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output);

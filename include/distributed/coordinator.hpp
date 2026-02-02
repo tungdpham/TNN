@@ -198,8 +198,8 @@ public:
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
           total_loss += loss;
-          Tensor gradient = Tensor::create_pooled(PoolAllocator::instance(predictions->device()),
-                                                  predictions->data_type(), predictions->shape());
+          Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
+                                        predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
           this->backward(std::move(gradient), job.mb_id);
         }

@@ -187,8 +187,8 @@ public:
       buffer.template read<uint64_t>(offset, shape[i]);
     }
     auto &device = use_gpu_ ? getGPU() : getCPU();
-    tensor = Tensor::create_pooled(PoolAllocator::instance(device), dtype,
-                                   std::vector<size_t>(shape.begin(), shape.end()));
+    tensor = make_tensor(PoolAllocator::instance(device), dtype,
+                         std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       auto dptr = tensor->data_ptr();
       size_t byte_size = tensor->size() * dtype_size;

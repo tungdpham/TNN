@@ -29,10 +29,10 @@ protected:
       GTEST_SKIP() << "No GPU device available, skipping GPU tensor tests";
     }
 
-    small_tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+    small_tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
     small_tensor->fill(1.0);
 
-    large_tensor = Tensor::create<float>({2, 3, 4, 4}, getGPU());
+    large_tensor = make_tensor<float>({2, 3, 4, 4}, getGPU());
     large_tensor->fill(2.0);
   }
 
@@ -49,7 +49,7 @@ protected:
 };
 
 TEST_F(GPUTensorTest, Constructor4D) {
-  Tensor tensor = Tensor::create<float>({2, 3, 4, 4}, getGPU());
+  Tensor tensor = make_tensor<float>({2, 3, 4, 4}, getGPU());
 
   auto shape = tensor->shape();
   EXPECT_EQ(shape[0], 2);
@@ -57,13 +57,13 @@ TEST_F(GPUTensorTest, Constructor4D) {
   EXPECT_EQ(shape[2], 4);
   EXPECT_EQ(shape[3], 4);
   EXPECT_EQ(tensor->size(), 96);
-  EXPECT_TRUE(tensor->is_on_gpu());
-  EXPECT_FALSE(tensor->is_on_cpu());
+  EXPECT_TRUE(tensor->device_type() == DeviceType::GPU);
+  EXPECT_FALSE(tensor->device_type() == DeviceType::CPU);
 }
 
 TEST_F(GPUTensorTest, ConstructorWithShape) {
   std::vector<size_t> shape = {2, 3, 4, 4};
-  Tensor tensor = Tensor::create<float>(shape, getGPU());
+  Tensor tensor = make_tensor<float>(shape, getGPU());
 
   EXPECT_EQ(tensor->shape(), shape);
   EXPECT_EQ(tensor->size(), 96);
@@ -72,20 +72,20 @@ TEST_F(GPUTensorTest, ConstructorWithShape) {
   EXPECT_EQ(tensor_shape[1], 3);
   EXPECT_EQ(tensor_shape[2], 4);
   EXPECT_EQ(tensor_shape[3], 4);
-  EXPECT_TRUE(tensor->is_on_gpu());
+  EXPECT_TRUE(tensor->device_type() == DeviceType::GPU);
 }
 
 TEST_F(GPUTensorTest, DeviceTypeCheck) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   EXPECT_EQ(tensor->device_type(), DeviceType::GPU);
-  EXPECT_TRUE(tensor->is_on_gpu());
-  EXPECT_FALSE(tensor->is_on_cpu());
+  EXPECT_TRUE(tensor->device_type() == DeviceType::GPU);
+  EXPECT_FALSE(tensor->device_type() == DeviceType::CPU);
 }
 
 TEST_F(GPUTensorTest, TensorAddition) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(2.0);
   tensor2->fill(3.0);
@@ -101,8 +101,8 @@ TEST_F(GPUTensorTest, TensorAddition) {
 }
 
 TEST_F(GPUTensorTest, TensorSubtraction) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(5.0);
   tensor2->fill(2.0);
@@ -118,8 +118,8 @@ TEST_F(GPUTensorTest, TensorSubtraction) {
 }
 
 TEST_F(GPUTensorTest, TensorMultiplication) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(3.0);
   tensor2->fill(4.0);
@@ -135,8 +135,8 @@ TEST_F(GPUTensorTest, TensorMultiplication) {
 }
 
 TEST_F(GPUTensorTest, TensorDivision) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(12.0);
   tensor2->fill(4.0);
@@ -152,7 +152,7 @@ TEST_F(GPUTensorTest, TensorDivision) {
 }
 
 TEST_F(GPUTensorTest, ScalarMultiplication) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   tensor->fill(3.0);
 
   Tensor result = tensor * 2.0;
@@ -166,7 +166,7 @@ TEST_F(GPUTensorTest, ScalarMultiplication) {
 }
 
 TEST_F(GPUTensorTest, ScalarDivision) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   tensor->fill(8.0);
 
   Tensor result = tensor / 2.0;
@@ -180,8 +180,8 @@ TEST_F(GPUTensorTest, ScalarDivision) {
 }
 
 TEST_F(GPUTensorTest, InPlaceAddition) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(2.0);
   tensor2->fill(3.0);
@@ -197,8 +197,8 @@ TEST_F(GPUTensorTest, InPlaceAddition) {
 }
 
 TEST_F(GPUTensorTest, InPlaceSubtraction) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(5.0);
   tensor2->fill(2.0);
@@ -214,8 +214,8 @@ TEST_F(GPUTensorTest, InPlaceSubtraction) {
 }
 
 TEST_F(GPUTensorTest, InPlaceMultiplication) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   tensor1->fill(3.0);
   tensor2->fill(4.0);
@@ -231,7 +231,7 @@ TEST_F(GPUTensorTest, InPlaceMultiplication) {
 }
 
 TEST_F(GPUTensorTest, InPlaceScalarMultiplication) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   tensor->fill(3.0);
 
   tensor->mul_scalar(2.0);
@@ -245,7 +245,7 @@ TEST_F(GPUTensorTest, InPlaceScalarMultiplication) {
 }
 
 TEST_F(GPUTensorTest, InPlaceScalarDivision) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   tensor->fill(8.0);
 
   tensor->div_scalar(2.0);
@@ -259,29 +259,29 @@ TEST_F(GPUTensorTest, InPlaceScalarDivision) {
 }
 
 TEST_F(GPUTensorTest, SameShapeComparison) {
-  Tensor tensor1 = Tensor::create<float>({2, 3, 4, 5}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({2, 3, 4, 5}, getGPU());
-  Tensor tensor3 = Tensor::create<float>({2, 3, 4, 6}, getGPU());
+  Tensor tensor1 = make_tensor<float>({2, 3, 4, 5}, getGPU());
+  Tensor tensor2 = make_tensor<float>({2, 3, 4, 5}, getGPU());
+  Tensor tensor3 = make_tensor<float>({2, 3, 4, 6}, getGPU());
 
   EXPECT_TRUE(tensor1->shape() == tensor2->shape());
   EXPECT_FALSE(tensor1->shape() == tensor3->shape());
 }
 
 TEST_F(GPUTensorTest, AdditionShapeMismatch) {
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({1, 1, 3, 3}, getGPU());
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor2 = make_tensor<float>({1, 1, 3, 3}, getGPU());
 
   EXPECT_THROW(tensor1 + tensor2, std::invalid_argument);
 }
 
 TEST_F(GPUTensorTest, DivisionByZero) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
   EXPECT_THROW(tensor / 0.0, std::invalid_argument);
 }
 
 TEST_F(GPUTensorTest, FillOperation) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   tensor->fill(42.0);
 
   Tensor cpu_result = tensor->to_cpu();
@@ -293,13 +293,13 @@ TEST_F(GPUTensorTest, FillOperation) {
 }
 
 TEST_F(GPUTensorTest, CloneOperation) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor original = make_tensor<float>({1, 1, 2, 2}, getGPU());
   original->fill(5.0);
 
   Tensor cloned = original->clone();
 
   EXPECT_TRUE(original->shape() == cloned->shape());
-  EXPECT_TRUE(cloned->is_on_gpu());
+  EXPECT_TRUE(cloned->device_type() == DeviceType::GPU);
 
   Tensor cpu_result = cloned->to_cpu();
 
@@ -310,9 +310,9 @@ TEST_F(GPUTensorTest, CloneOperation) {
 }
 
 TEST_F(GPUTensorTest, MeanCalculation) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
-  Tensor cpu_tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({1, 1, 2, 2});
   cpu_tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   cpu_tensor->at<float>({0, 0, 0, 1}) = 2.0f;
   cpu_tensor->at<float>({0, 0, 1, 0}) = 3.0f;
@@ -325,9 +325,9 @@ TEST_F(GPUTensorTest, MeanCalculation) {
 }
 
 TEST_F(GPUTensorTest, VarianceCalculation) {
-  Tensor tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
 
-  Tensor cpu_tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({1, 1, 2, 2});
   cpu_tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   cpu_tensor->at<float>({0, 0, 0, 1}) = 2.0f;
   cpu_tensor->at<float>({0, 0, 1, 0}) = 3.0f;
@@ -340,13 +340,13 @@ TEST_F(GPUTensorTest, VarianceCalculation) {
 }
 
 TEST_F(GPUTensorTest, MoveConstructor) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor original = make_tensor<float>({1, 1, 2, 2}, getGPU());
   original->fill(42.0);
 
   Tensor moved(std::move(original));
 
   EXPECT_EQ(moved->size(), 4);
-  EXPECT_TRUE(moved->is_on_gpu());
+  EXPECT_TRUE(moved->device_type() == DeviceType::GPU);
 
   Tensor cpu_result = moved->to_cpu();
   EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 0}), 42.0f);
@@ -354,21 +354,21 @@ TEST_F(GPUTensorTest, MoveConstructor) {
 }
 
 TEST_F(GPUTensorTest, MoveAssignment) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor original = make_tensor<float>({1, 1, 2, 2}, getGPU());
   original->fill(42.0);
 
-  Tensor moved = Tensor::create<float>({1, 1, 1, 1}, getGPU());
+  Tensor moved = make_tensor<float>({1, 1, 1, 1}, getGPU());
   moved = std::move(original);
 
   EXPECT_EQ(moved->size(), 4);
-  EXPECT_TRUE(moved->is_on_gpu());
+  EXPECT_TRUE(moved->device_type() == DeviceType::GPU);
 
   Tensor cpu_result = moved->to_cpu();
   EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 0}), 42.0f);
 }
 
 TEST_F(GPUTensorTest, MultiBatchAccess) {
-  Tensor cpu_tensor = Tensor::create<float>({2, 1, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({2, 1, 2, 2});
 
   cpu_tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   cpu_tensor->at<float>({1, 0, 0, 0}) = 2.0f;
@@ -381,7 +381,7 @@ TEST_F(GPUTensorTest, MultiBatchAccess) {
 }
 
 TEST_F(GPUTensorTest, MultiChannelAccess) {
-  Tensor cpu_tensor = Tensor::create<float>({1, 3, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({1, 3, 2, 2});
 
   cpu_tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   cpu_tensor->at<float>({0, 1, 0, 0}) = 2.0f;
@@ -396,27 +396,27 @@ TEST_F(GPUTensorTest, MultiChannelAccess) {
 }
 
 TEST_F(GPUTensorTest, CopyConstructor) {
-  Tensor original = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor original = make_tensor<float>({1, 1, 2, 2}, getGPU());
   original->fill(42.0);
 
   Tensor copy = original->clone();
 
   EXPECT_EQ(copy->size(), original->size());
   EXPECT_TRUE(copy->shape() == original->shape());
-  EXPECT_TRUE(copy->is_on_gpu());
+  EXPECT_TRUE(copy->device_type() == DeviceType::GPU);
 
   Tensor cpu_copy = copy->to_cpu();
   EXPECT_FLOAT_EQ(cpu_copy->at<float>({0, 0, 0, 0}), 42.0f);
 }
 
 TEST_F(GPUTensorTest, ToCPU) {
-  Tensor gpu_tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor gpu_tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   gpu_tensor->fill(42.0);
 
   Tensor cpu_tensor = gpu_tensor->to_cpu();
 
-  EXPECT_TRUE(cpu_tensor->is_on_cpu());
-  EXPECT_FALSE(cpu_tensor->is_on_gpu());
+  EXPECT_TRUE(cpu_tensor->device_type() == DeviceType::CPU);
+  EXPECT_FALSE(cpu_tensor->device_type() == DeviceType::GPU);
   EXPECT_EQ(cpu_tensor->size(), 4);
 
   EXPECT_FLOAT_EQ(cpu_tensor->at<float>({0, 0, 0, 0}), 42.0f);
@@ -426,7 +426,7 @@ TEST_F(GPUTensorTest, ToCPU) {
 }
 
 TEST_F(GPUTensorTest, ToGPUFromCPU) {
-  Tensor cpu_tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({1, 1, 2, 2});
   cpu_tensor->at<float>({0, 0, 0, 0}) = 1.0f;
   cpu_tensor->at<float>({0, 0, 0, 1}) = 2.0f;
   cpu_tensor->at<float>({0, 0, 1, 0}) = 3.0f;
@@ -434,8 +434,8 @@ TEST_F(GPUTensorTest, ToGPUFromCPU) {
 
   Tensor gpu_tensor = cpu_tensor->to_device(getGPU());
 
-  EXPECT_TRUE(gpu_tensor->is_on_gpu());
-  EXPECT_FALSE(gpu_tensor->is_on_cpu());
+  EXPECT_TRUE(gpu_tensor->device_type() == DeviceType::GPU);
+  EXPECT_FALSE(gpu_tensor->device_type() == DeviceType::CPU);
   EXPECT_EQ(gpu_tensor->size(), 4);
 
   Tensor result = gpu_tensor->to_cpu();
@@ -446,29 +446,29 @@ TEST_F(GPUTensorTest, ToGPUFromCPU) {
 }
 
 TEST_F(GPUTensorTest, ToGPUIdempotent) {
-  Tensor gpu_tensor = Tensor::create<float>({1, 1, 2, 2}, getGPU());
+  Tensor gpu_tensor = make_tensor<float>({1, 1, 2, 2}, getGPU());
   gpu_tensor->fill(42.0);
 
   Tensor still_gpu = gpu_tensor->to_device(getGPU());
 
-  EXPECT_TRUE(still_gpu->is_on_gpu());
+  EXPECT_TRUE(still_gpu->device_type() == DeviceType::GPU);
 
   Tensor cpu_result = still_gpu->to_cpu();
   EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 0}), 42.0f);
 }
 
 TEST_F(GPUTensorTest, ToCPUIdempotent) {
-  Tensor cpu_tensor = Tensor::create<float>({1, 1, 2, 2});
+  Tensor cpu_tensor = make_tensor<float>({1, 1, 2, 2});
   cpu_tensor->at<float>({0, 0, 0, 0}) = 42.0f;
 
   Tensor still_cpu = cpu_tensor->to_cpu();
 
-  EXPECT_TRUE(still_cpu->is_on_cpu());
+  EXPECT_TRUE(still_cpu->device_type() == DeviceType::CPU);
   EXPECT_FLOAT_EQ(still_cpu->at<float>({0, 0, 0, 0}), 42.0f);
 }
 
 TEST_F(GPUTensorTest, FillRandomUniform) {
-  Tensor tensor = Tensor::create<float>({1, 10, 10, 10}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 10, 10, 10}, getGPU());
   tensor->fill_random_uniform(1.0);
 
   Tensor cpu_result = tensor->to_cpu();
@@ -495,7 +495,7 @@ TEST_F(GPUTensorTest, FillRandomUniform) {
 }
 
 TEST_F(GPUTensorTest, FillRandomNormal) {
-  Tensor tensor = Tensor::create<float>({1, 10, 10, 10}, getGPU());
+  Tensor tensor = make_tensor<float>({1, 10, 10, 10}, getGPU());
   tensor->fill_random_normal(0.0, 1.0);
 
   Tensor cpu_result = tensor->to_cpu();
@@ -554,7 +554,7 @@ protected:
 
 TEST_P(GPUTensorSizeTest, ConstructorAndSize) {
   auto [batch, channels, height, width] = GetParam();
-  Tensor tensor = Tensor::create<float>({batch, channels, height, width}, getGPU());
+  Tensor tensor = make_tensor<float>({batch, channels, height, width}, getGPU());
 
   auto tensor_shape = tensor->shape();
   EXPECT_EQ(tensor_shape[0], batch);
@@ -562,7 +562,7 @@ TEST_P(GPUTensorSizeTest, ConstructorAndSize) {
   EXPECT_EQ(tensor_shape[2], height);
   EXPECT_EQ(tensor_shape[3], width);
   EXPECT_EQ(tensor->size(), batch * channels * height * width);
-  EXPECT_TRUE(tensor->is_on_gpu());
+  EXPECT_TRUE(tensor->device_type() == DeviceType::GPU);
 }
 
 INSTANTIATE_TEST_SUITE_P(DifferentShapes, GPUTensorSizeTest,
@@ -572,8 +572,8 @@ INSTANTIATE_TEST_SUITE_P(DifferentShapes, GPUTensorSizeTest,
                                            std::make_tuple(32, 128, 14, 14)));
 
 TEST_F(GPUTensorTest, LargeTensorOperations) {
-  Tensor tensor1 = Tensor::create<float>({4, 16, 64, 64}, getGPU());
-  Tensor tensor2 = Tensor::create<float>({4, 16, 64, 64}, getGPU());
+  Tensor tensor1 = make_tensor<float>({4, 16, 64, 64}, getGPU());
+  Tensor tensor2 = make_tensor<float>({4, 16, 64, 64}, getGPU());
 
   tensor1->fill(1.5);
   tensor2->fill(2.5);
@@ -581,7 +581,7 @@ TEST_F(GPUTensorTest, LargeTensorOperations) {
   Tensor result = tensor1 + tensor2;
 
   EXPECT_EQ(result->size(), 4 * 16 * 64 * 64);
-  EXPECT_TRUE(result->is_on_gpu());
+  EXPECT_TRUE(result->device_type() == DeviceType::GPU);
 
   Tensor cpu_result = result->to_cpu();
   EXPECT_FLOAT_EQ(cpu_result->at<float>({0, 0, 0, 0}), 4.0f);
@@ -602,8 +602,8 @@ TEST(GPUTensorFloatingPointTest, FloatingPointComparisons) {
     GTEST_SKIP() << "No GPU device available";
   }
 
-  Tensor tensor1 = Tensor::create<float>({1, 1, 2, 2}, gpu_device);
-  Tensor tensor2 = Tensor::create<float>({1, 1, 2, 2}, gpu_device);
+  Tensor tensor1 = make_tensor<float>({1, 1, 2, 2}, gpu_device);
+  Tensor tensor2 = make_tensor<float>({1, 1, 2, 2}, gpu_device);
 
   tensor1->fill(0.1 + 0.2);
   tensor2->fill(0.3);

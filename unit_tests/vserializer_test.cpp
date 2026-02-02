@@ -44,7 +44,7 @@ protected:
 
 TEST_F(VSerializerTest, SerializeDeserializeTensor1D) {
   // Create a 1D tensor
-  Tensor tensor = Tensor::create<float>({10}, getCPU());
+  Tensor tensor = make_tensor<float>({10}, getCPU());
   std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f, 7.0f, 8.0f, 9.0f, 10.0f};
   std::memcpy(tensor->data_as<float>(), data.data(), data.size() * sizeof(float));
 
@@ -76,7 +76,7 @@ TEST_F(VSerializerTest, SerializeDeserializeTensor1D) {
 
 TEST_F(VSerializerTest, SerializeDeserializeTensor2D) {
   // Create a 2D tensor
-  Tensor tensor = Tensor::create<float>({3, 4}, getCPU());
+  Tensor tensor = make_tensor<float>({3, 4}, getCPU());
   std::vector<float> data(12);
   for (int i = 0; i < 12; ++i) {
     data[i] = static_cast<float>(i);
@@ -110,7 +110,7 @@ TEST_F(VSerializerTest, SerializeDeserializeTensor2D) {
 
 TEST_F(VSerializerTest, SerializeDeserializeTensor4D) {
   // Create a 4D tensor (common in CNN: batch, channels, height, width)
-  Tensor tensor = Tensor::create<float>({2, 3, 4, 5}, getCPU());
+  Tensor tensor = make_tensor<float>({2, 3, 4, 5}, getCPU());
   size_t total_size = 2 * 3 * 4 * 5;
   std::vector<float> data(total_size);
   for (size_t i = 0; i < total_size; ++i) {
@@ -148,7 +148,7 @@ TEST_F(VSerializerTest, SerializeDeserializeTensor4D) {
 
 TEST_F(VSerializerTest, SerializeDeserializeInt32Tensor) {
   // Create an int32 tensor
-  Tensor tensor = Tensor::create<int32_t>({5, 6}, getCPU());
+  Tensor tensor = make_tensor<int32_t>({5, 6}, getCPU());
   std::vector<int32_t> data(30);
   for (int i = 0; i < 30; ++i) {
     data[i] = i * 10;
@@ -491,7 +491,7 @@ TEST_F(VSerializerTest, SerializeDeserializeMessageDataBool) {
 }
 
 TEST_F(VSerializerTest, SerializeDeserializeMessageDataJob) {
-  Tensor tensor = Tensor::create<float>({2, 3}, getCPU());
+  Tensor tensor = make_tensor<float>({2, 3}, getCPU());
   std::vector<float> data = {1.0f, 2.0f, 3.0f, 4.0f, 5.0f, 6.0f};
   std::memcpy(tensor->data_as<float>(), data.data(), data.size() * sizeof(float));
 
@@ -583,7 +583,7 @@ TEST_F(VSerializerTest, SerializeDeserializeMessageWithString) {
 }
 
 TEST_F(VSerializerTest, SerializeDeserializeMessageWithJob) {
-  Tensor tensor = Tensor::create<float>({3, 3}, getCPU());
+  Tensor tensor = make_tensor<float>({3, 3}, getCPU());
   std::vector<float> data(9);
   for (int i = 0; i < 9; ++i) {
     data[i] = static_cast<float>(i);
@@ -626,9 +626,9 @@ TEST_F(VSerializerTest, SerializeDeserializeMessageWithJob) {
 
 TEST_F(VSerializerTest, SerializeDeserializeMultipleTensors) {
   std::vector<Tensor> tensors;
-  tensors.push_back(Tensor::create<float>({5}, getCPU()));
-  tensors.push_back(Tensor::create<float>({3, 4}, getCPU()));
-  tensors.push_back(Tensor::create<float>({2, 2, 2}, getCPU()));
+  tensors.push_back(make_tensor<float>({5}, getCPU()));
+  tensors.push_back(make_tensor<float>({3, 4}, getCPU()));
+  tensors.push_back(make_tensor<float>({2, 2, 2}, getCPU()));
 
   for (auto &tensor : tensors) {
     size_t size = tensor->size();
@@ -675,7 +675,7 @@ TEST_F(VSerializerTest, SerializeDeserializeMultipleTensors) {
 
 TEST_F(VSerializerTest, SerializeDeserializeFullWorkflow) {
   // Simulate a complete message workflow
-  Tensor tensor = Tensor::create<float>({4, 4}, getCPU());
+  Tensor tensor = make_tensor<float>({4, 4}, getCPU());
   std::vector<float> data(16);
   for (int i = 0; i < 16; ++i) {
     data[i] = static_cast<float>(i) * 0.5f;
@@ -733,7 +733,7 @@ TEST_F(VSerializerTest, SerializeDeserializeFullWorkflow) {
 // Edge Cases and Error Handling
 
 TEST_F(VSerializerTest, SerializeDeserializeEmptyTensor) {
-  Tensor tensor = Tensor::create<float>({0}, getCPU());
+  Tensor tensor = make_tensor<float>({0}, getCPU());
 
   // Serialize
   VBuffer buffer;

@@ -53,7 +53,7 @@ void LegacyMaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, siz
 
   Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
   if (mask_indices == nullptr)
-    mask_indices = Tensor::create<size_t>({batch_size, channels, output_h, output_w});
+    mask_indices = make_tensor<size_t>({batch_size, channels, output_h, output_w});
   else {
     mask_indices->ensure({batch_size, channels, output_h, output_w});
   }

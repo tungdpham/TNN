@@ -22,12 +22,12 @@ std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_
   if (input_tensor->device_type() != col_data->device_type()) {
     throw std::runtime_error("im2col: Mismatched device types between input tensor and col_data");
   }
-  if (input_tensor->is_on_cpu()) {
+  if (input_tensor->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::im2col<T>, input_tensor, col_data->data_as<T>(),
                            kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
 #ifdef USE_CUDA
-  else if (input_tensor->is_on_gpu()) {
+  else if (input_tensor->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::im2col<T>, input_tensor, col_data->data_as<T>(),
                             kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
   }
@@ -66,11 +66,11 @@ std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t
 template <typename T>
 std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                           T value = T(0), const std::string &flow_id = "default") {
-  if (input->is_on_cpu()) {
+  if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::pad<T>, input, result, pad_h, pad_w, value);
   }
 #ifdef USE_CUDA
-  else if (input->is_on_gpu()) {
+  else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::pad<T>, input, result, pad_h, pad_w, value);
   }
 #endif
@@ -82,11 +82,11 @@ std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, siz
 template <typename T>
 std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                             const std::string &flow_id = "default") {
-  if (input->is_on_cpu()) {
+  if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::unpad<T>, input, result, pad_h, pad_w);
   }
 #ifdef USE_CUDA
-  else if (input->is_on_gpu()) {
+  else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::unpad<T>, input, result, pad_h, pad_w);
   }
 #endif
@@ -100,12 +100,12 @@ template <typename T>
 std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t start_h,
                            const size_t start_w, const size_t end_h, const size_t end_w,
                            const std::string &flow_id = "default") {
-  if (input->is_on_cpu()) {
+  if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::crop<T>, input, result, start_h, start_w, end_h,
                            end_w);
   }
 #ifdef USE_CUDA
-  else if (input->is_on_gpu()) {
+  else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::crop<T>, input, result, start_h, start_w, end_h,
                             end_w);
   }
@@ -119,12 +119,12 @@ std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t sta
 template <typename T>
 std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t start_batch,
                                   size_t end_batch, const std::string &flow_id = "default") {
-  if (input->is_on_cpu()) {
+  if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::slice_batch<T>, input, result, start_batch,
                            end_batch);
   }
 #ifdef USE_CUDA
-  else if (input->is_on_gpu()) {
+  else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::slice_batch<T>, input, result, start_batch,
                             end_batch);
   }
@@ -138,11 +138,11 @@ std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t st
 template <typename T>
 std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
                             const std::string &flow_id = "default") {
-  if (input->is_on_cpu()) {
+  if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, tnn::cpu::split<T>, input, results, num_splits);
   }
 #ifdef USE_CUDA
-  else if (input->is_on_gpu()) {
+  else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(flow_id, tnn::cuda::split<T>, input, results, num_splits);
   }
 #endif

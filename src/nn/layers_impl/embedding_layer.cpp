@@ -46,7 +46,7 @@ void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
   if (this->is_training_) {
     auto &cached_input = micro_batch_inputs_[mb_id];
     if (!cached_input) {
-      cached_input = Tensor::create(input->data_type(), input->shape(), this->device_);
+      cached_input = make_tensor(input->data_type(), input->shape(), this->device_);
     } else {
       cached_input->ensure(input->shape());
     }

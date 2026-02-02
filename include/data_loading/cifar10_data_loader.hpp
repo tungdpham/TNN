@@ -92,9 +92,9 @@ private:
     const size_t channels = cifar10_constants::NUM_CHANNELS;
     const size_t num_classes = cifar10_constants::NUM_CLASSES;
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = Tensor::create<T>({actual_batch_size, height, width, channels});
+    batch_data = make_tensor<T>({actual_batch_size, height, width, channels});
 
-    batch_labels = Tensor::create<T>({actual_batch_size, num_classes, 1, 1});
+    batch_labels = make_tensor<T>({actual_batch_size, num_classes, 1, 1});
     batch_labels->fill(0.0);
 
     T *data = batch_data->data_as<T>();

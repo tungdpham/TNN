@@ -15,7 +15,7 @@ using namespace tnn;
 constexpr size_t microbatch_id = 2;
 
 signed main() {
-  Tensor tensor = Tensor::create<float>({256, 512, 16, 16});
+  Tensor tensor = make_tensor<float>({256, 512, 16, 16});
   Job job;
   job.mb_id = microbatch_id;
   job.data = std::move(tensor);
@@ -26,7 +26,7 @@ signed main() {
   thread_wrapper.execute([&]() -> void {
     size_t data_size = 256 * 512 * 16 * 16 * sizeof(float);
     uint8_t *data_ptr = (uint8_t *)std::aligned_alloc(64, data_size);
-    Tensor temp = Tensor::create<float>({256, 512, 16, 16});
+    Tensor temp = make_tensor<float>({256, 512, 16, 16});
     for (int i = 0; i < 10; i++) {
       // Serialize the message
       PooledBuffer pooled_buffer = BufferPool::instance().get_buffer(message.size());

@@ -2,9 +2,9 @@
 
 #include <unordered_map>
 
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
+#include "device/iallocator.hpp"
 
 namespace tnn {
 

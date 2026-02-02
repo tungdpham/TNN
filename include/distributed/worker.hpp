@@ -16,8 +16,8 @@
 #include <string>
 
 #include "communicator.hpp"
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/iallocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
 #include "message.hpp"
@@ -119,7 +119,7 @@ protected:
         IAllocator &out_allocator = communicator_->get_allocator();
         DType_t input_dtype = forward_job.data->data_type();
         auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
-        Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
+        Tensor output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
 
         this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
         auto forward_end = std::chrono::system_clock::now();
@@ -133,8 +133,7 @@ protected:
         auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
         IAllocator &out_allocator = communicator_->get_allocator();
-        Tensor output_tensor =
-            Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
+        Tensor output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
 
         this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();

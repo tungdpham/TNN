@@ -85,17 +85,17 @@ void LegacyBatchNormLayer::def_forward(const Tensor &input, Tensor &output, size
   Tensor &batch_mean = this->get_cached_tensor(mb_id, "mean");
 
   if (!norm)
-    norm = Tensor::create<float>({input->size()}, this->device_);
+    norm = make_tensor<float>({input->size()}, this->device_);
   else
     norm->ensure({input->size()});
 
   if (!batch_inv_std)
-    batch_inv_std = Tensor::create<float>({num_features_}, this->device_);
+    batch_inv_std = make_tensor<float>({num_features_}, this->device_);
   else
     batch_inv_std->ensure({num_features_});
 
   if (!batch_mean)
-    batch_mean = Tensor::create<float>({num_features_}, this->device_);
+    batch_mean = make_tensor<float>({num_features_}, this->device_);
   else
     batch_mean->ensure({num_features_});
 
