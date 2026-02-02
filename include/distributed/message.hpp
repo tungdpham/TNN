@@ -100,7 +100,8 @@ struct MessageData {
       }
     } else if (std::holds_alternative<StageConfig>(payload)) {
       const auto &stage_config = std::get<StageConfig>(payload);
-      size += sizeof(uint64_t) + stage_config.to_json().dump().size();  // JSON string size
+      auto json_str = stage_config.to_json().dump();
+      size += sizeof(uint64_t) + json_str.size();  // JSON string size
     } else {
       throw new std::runtime_error("Unknown payload type in MessageData");
     }

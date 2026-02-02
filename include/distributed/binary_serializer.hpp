@@ -274,11 +274,8 @@ public:
         data.payload = std::move(profiler);
       } break;
       case variant_index<PayloadType, StageConfig>(): {  // StageConfig
-        uint64_t json_size;
-        buffer.read(offset, json_size);
         std::string json_str;
-        json_str.resize(json_size);
-        buffer.read(offset, json_str.data(), json_size);
+        buffer.read(offset, json_str);
         StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
         data.payload = std::move(config);
       } break;
