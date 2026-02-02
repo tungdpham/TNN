@@ -152,7 +152,7 @@ void Layer::set_seed(unsigned long long seed) {
   srand_seed_ = seed;
 }
 
-void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
+void Layer::forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before forward."
               << std::endl;
@@ -170,18 +170,18 @@ void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
     throw std::runtime_error("Layer " + name_ +
                              " output tensor dtype does not match layer io_dtype.");
   }
-  const Tensor *current = &input;
+  ConstTensor current = input;
   Tensor device_input;
   if (input->device() != this->device_) {
     device_input = this->get_buffer(input->shape(), input->data_type());
     input->copy_to(device_input);
-    current = &device_input;
+    current = device_input;
   }
   if (output->device() != this->device_) {
     throw std::runtime_error("Layer " + name_ +
                              " output tensor device does not match layer device.");
   }
-  forward_impl(*current, output, mb_id);
+  forward_impl(current, output, mb_id);
 #ifndef NDEBUG
   this->device_->getFlow("default")->synchronize();
 #endif
@@ -189,7 +189,7 @@ void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
   profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
 }
 
-void Layer::backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Layer::backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before backward."
               << std::endl;
@@ -207,18 +207,18 @@ void Layer::backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
     throw std::runtime_error("Layer " + name_ +
                              " grad_input tensor dtype does not match layer io_dtype.");
   }
-  const Tensor *current_gradient = &gradient;
+  ConstTensor current_gradient = gradient;
   Tensor device_gradient;
   if (gradient->device() != this->device_) {
     device_gradient = this->get_buffer(gradient->shape(), gradient->data_type());
     gradient->copy_to(device_gradient);
-    current_gradient = &device_gradient;
+    current_gradient = device_gradient;
   }
   if (grad_input->device() != this->device_) {
     throw std::runtime_error("Layer " + name_ +
                              " grad_input tensor device does not match layer device.");
   }
-  backward_impl(*current_gradient, grad_input, mb_id);
+  backward_impl(current_gradient, grad_input, mb_id);
 #ifndef NDEBUG
   this->device_->getFlow("default")->synchronize();
 #endif
@@ -318,8 +318,12 @@ Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
   return make_tensor(compute_dtype_, shape, this->device_);
 }
 
-Tensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
+ConstTensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
   return cached_tensors_[{mb_id, key}];
+}
+
+Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
+  return mutable_tensors_[{mb_id, key}];
 }
 
 Tensor Layer::get_buffer(const std::vector<size_t> &shape, DType_t dtype) {

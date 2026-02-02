@@ -13,9 +13,9 @@ class ReLU : public ActivationFunction {
 public:
   explicit ReLU();
 
-  std::unique_ptr<Task> apply(const Tensor &input, Tensor &output) const override;
+  std::unique_ptr<Task> apply(const ConstTensor &input, Tensor &output) const override;
 
-  std::unique_ptr<Task> compute_gradient(const Tensor &input, const Tensor &grad_output,
+  std::unique_ptr<Task> compute_gradient(const ConstTensor &input, const ConstTensor &grad_output,
                                          Tensor &grad_input) const override;
 
   std::string name() const override;
@@ -23,12 +23,13 @@ public:
 
 private:
   template <typename Compute_T>
-  std::unique_ptr<Task> apply_impl(const Tensor &input, Tensor &output,
+  std::unique_ptr<Task> apply_impl(const ConstTensor &input, Tensor &output,
                                    const std::string &flow_id) const;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
-                                              Tensor &grad_input, const std::string &flow_id) const;
+  std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &input,
+                                              const ConstTensor &grad_output, Tensor &grad_input,
+                                              const std::string &flow_id) const;
 };
 
 }  // namespace tnn

@@ -59,7 +59,7 @@ public:
   void set_use_gpu(bool flag) { use_gpu_ = flag; }
 
   template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
+  void serialize(BufferType &buffer, size_t &offset, const ConstTensor &tensor) {
     DType_t dtype = tensor->data_type();
     buffer.template write<uint32_t>(offset, static_cast<uint32_t>(dtype));
     std::vector<size_t> shape = tensor->shape();

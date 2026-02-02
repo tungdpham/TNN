@@ -46,8 +46,9 @@ protected:
   }
 
   // Verify forward pass output shape
-  void verify_output_shape(const Tensor &input, const Tensor &output, size_t pool_h, size_t pool_w,
-                           size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
+                           size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                           size_t pad_w) {
     auto input_shape = input->shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
@@ -65,8 +66,8 @@ protected:
   }
 
   // Verify backward pass gradient shape
-  void verify_gradient_shape(const Tensor &gradient, const Tensor &grad_input,
-                             const Tensor &original_input) {
+  void verify_gradient_shape(const ConstTensor &gradient, const ConstTensor &grad_input,
+                             const ConstTensor &original_input) {
     auto grad_input_shape = grad_input->shape();
     auto original_input_shape = original_input->shape();
     EXPECT_EQ(grad_input_shape[0], original_input_shape[0]);
@@ -76,8 +77,8 @@ protected:
   }
 
   // Verify backward pass numerical correctness
-  void verify_backward_result(const Tensor &input, const Tensor &grad_output,
-                              const Tensor &grad_input, size_t pool_h, size_t pool_w,
+  void verify_backward_result(const ConstTensor &input, const ConstTensor &grad_output,
+                              const ConstTensor &grad_input, size_t pool_h, size_t pool_w,
                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                               float tolerance = 1e-5f) {
     const float *input_data = input->data_as<float>();
@@ -139,9 +140,9 @@ protected:
   }
 
   // Verify that max values are correctly selected
-  void verify_max_selection(const Tensor &input, const Tensor &output, size_t pool_h, size_t pool_w,
-                            size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
-                            float tolerance = 1e-5f) {
+  void verify_max_selection(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
+                            size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                            size_t pad_w, float tolerance = 1e-5f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
 

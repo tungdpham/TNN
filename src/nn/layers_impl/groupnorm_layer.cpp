@@ -48,7 +48,7 @@ void GroupNormLayer::init_params() {
   this->initialized_ = true;
 }
 
-void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void GroupNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (input->shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -63,39 +63,34 @@ void GroupNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
 
   output->ensure(input->shape());
 
-  Tensor &norm = this->get_cached_tensor(mb_id, "norm");
+  Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
   if (norm == nullptr) {
     norm = make_io_tensor(input->shape());
-  } else {
-    norm->ensure(input->shape());
   }
 
-  Tensor &mean = this->get_cached_tensor(mb_id, "mean");
+  Tensor &mean = this->get_mutable_tensor(mb_id, "mean");
   if (mean == nullptr) {
     mean = make_io_tensor({batch_size * num_groups_});
-  } else {
-    mean->ensure({batch_size * num_groups_});
   }
-  Tensor &inv_std = this->get_cached_tensor(mb_id, "inv_std");
+
+  Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
   if (inv_std == nullptr) {
     inv_std = make_io_tensor({batch_size * num_groups_});
-  } else {
-    inv_std->ensure({batch_size * num_groups_});
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, mean, inv_std, gamma_, beta_, output,
                                  norm, batch_size, channels, spatial_size, "default");
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 }
 
-void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
-  Tensor &normalized = this->get_cached_tensor(mb_id, "norm");
-  Tensor &inv_std = this->get_cached_tensor(mb_id, "inv_std");
-  const Tensor &input = this->get_cached_tensor(mb_id, "input");
+void GroupNormLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &normalized = this->get_mutable_tensor(mb_id, "norm");
+  Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
+  const ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!normalized || !inv_std || !input) {
     throw std::runtime_error("No cached tensors found for micro-batch ID in GroupNormLayer: " +
                              std::to_string(mb_id));
@@ -113,12 +108,10 @@ void GroupNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> GroupNormLayer::run_forward_fused(const Tensor &input, Tensor &group_mean,
-                                                        Tensor &group_inv_std, const Tensor &gamma,
-                                                        const Tensor &beta, Tensor &output,
-                                                        Tensor &norm_cache, size_t batch_size,
-                                                        size_t channels, size_t spatial_size,
-                                                        const std::string &flow_id) const {
+std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
+    const ConstTensor &input, Tensor &group_mean, Tensor &group_inv_std, const ConstTensor &gamma,
+    const ConstTensor &beta, Tensor &output, Tensor &norm_cache, size_t batch_size, size_t channels,
+    size_t spatial_size, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -153,9 +146,9 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(const Tensor &input, Ten
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
-    const Tensor &grad_output, const Tensor &norm_input, const Tensor &inv_std, const Tensor &gamma,
-    Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input, size_t batch_size, size_t channels,
-    size_t spatial_size, const std::string &flow_id) const {
+    const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
+    const ConstTensor &gamma, Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
+    size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");

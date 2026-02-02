@@ -55,8 +55,8 @@ protected:
 
   static void TearDownTestSuite() {}
 
-  void compareTensors(const Tensor &expected, const Tensor &actual, float tolerance = 1e-3f,
-                      const std::string &context = "") {
+  void compareTensors(const ConstTensor &expected, const ConstTensor &actual,
+                      float tolerance = 1e-3f, const std::string &context = "") {
     ASSERT_EQ(expected->shape(), actual->shape()) << context << " Tensors have different shapes";
 
     Tensor expected_cpu = expected->device().device_type() == DeviceType::CPU

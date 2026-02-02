@@ -50,7 +50,8 @@ protected:
    * Verify forward pass mathematically for identity shortcut
    * output = activation(F(x) + x)
    */
-  void verify_identity_shortcut_forward(const Tensor &main_path_output, const Tensor &actual_output,
+  void verify_identity_shortcut_forward(const ConstTensor &main_path_output,
+                                        const ConstTensor &actual_output,
                                         const std::string &activation_type = "relu",
                                         float tolerance = 1e-5f) {
     EXPECT_EQ(main_path_output->shape(), actual_output->shape());
@@ -82,8 +83,9 @@ protected:
    * Verify backward pass for residual block
    * Gradients are summed from both paths: grad_input = grad_main + grad_shortcut
    */
-  void verify_backward_gradient_distribution(const Tensor &grad_main, const Tensor &grad_shortcut,
-                                             const Tensor &actual_grad_input,
+  void verify_backward_gradient_distribution(const ConstTensor &grad_main,
+                                             const ConstTensor &grad_shortcut,
+                                             const ConstTensor &actual_grad_input,
                                              float tolerance = 1e-5f) {
     EXPECT_EQ(grad_main->shape(), actual_grad_input->shape());
     EXPECT_EQ(grad_shortcut->shape(), actual_grad_input->shape());

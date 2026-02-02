@@ -32,7 +32,7 @@ LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -54,7 +54,8 @@ void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, siz
                            output_w, "default");
 }
 
-void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void LegacyAvgPool2DLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+                                         size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
@@ -84,7 +85,7 @@ void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_in
 
 template <typename Compute_T>
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward_impl(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
+    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   if (input_data->data_type() != dtype_of<Compute_T>() ||
@@ -116,7 +117,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward_impl(
 }
 
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
+    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_forward_impl, input_data, output_data, batch_size,
@@ -126,7 +127,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward(
 
 template <typename Compute_T>
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward_impl(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
+    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
@@ -160,7 +161,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward_impl(
 }
 
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
+    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_backward_impl, gradient_data, grad_input_data,

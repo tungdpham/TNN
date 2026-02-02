@@ -45,7 +45,7 @@ protected:
   static void TearDownTestSuite() {}
 
   template <typename T>
-  void compareTensors(const Tensor &expected, const Tensor &actual,
+  void compareTensors(const ConstTensor &expected, const ConstTensor &actual,
                       T tolerance = static_cast<T>(1e-5)) {
     ASSERT_TRUE(expected->shape() == actual->shape())
         << "Tensors have different shapes. Expected: " << expected->shape_str()

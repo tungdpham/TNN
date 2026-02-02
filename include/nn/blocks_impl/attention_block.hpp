@@ -32,23 +32,24 @@ private:
   std::unique_ptr<DenseLayer> out_proj_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_attention_forward(const Tensor &q, const Tensor &k, const Tensor &v,
-                                                  Tensor &output, size_t batch_size, size_t seq_len,
+  std::unique_ptr<Task> compute_attention_forward(const ConstTensor &q, const ConstTensor &k,
+                                                  const ConstTensor &v, Tensor &output,
+                                                  size_t batch_size, size_t seq_len,
                                                   const std::string &flow_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_attention_backward(const Tensor &q, const Tensor &k,
-                                                   const Tensor &v, const Tensor &d_attn_out,
-                                                   Tensor &dq, Tensor &dk, Tensor &dv,
-                                                   size_t batch_size, size_t seq_len,
-                                                   const std::string &flow_id);
+  std::unique_ptr<Task> compute_attention_backward(const ConstTensor &q, const ConstTensor &k,
+                                                   const ConstTensor &v,
+                                                   const ConstTensor &d_attn_out, Tensor &dq,
+                                                   Tensor &dk, Tensor &dv, size_t batch_size,
+                                                   size_t seq_len, const std::string &flow_id);
 
   void init_params() override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_device(const Device &device) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,

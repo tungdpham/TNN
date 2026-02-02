@@ -55,7 +55,7 @@ void LegacyDenseLayer::init_params() {
   }
 }
 
-void LegacyDenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void LegacyDenseLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   const std::vector<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
   size_t batch_size = 1;
@@ -70,7 +70,7 @@ void LegacyDenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t 
   }
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
@@ -87,11 +87,12 @@ void LegacyDenseLayer::forward_impl(const Tensor &input, Tensor &output, size_t 
   }
 }
 
-void LegacyDenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void LegacyDenseLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+                                     size_t mb_id) {
   if (gradient->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayer");
   }
-  Tensor &input = this->get_cached_tensor(mb_id, "input");
+  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
   }
@@ -117,7 +118,7 @@ void LegacyDenseLayer::backward_impl(const Tensor &gradient, Tensor &grad_input,
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
-    const Tensor &input, const Tensor &weights, Tensor &output, size_t batch_size,
+    const ConstTensor &input, const ConstTensor &weights, Tensor &output, size_t batch_size,
     size_t input_features, size_t output_features, const std::string &flow_id) const {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
@@ -153,7 +154,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
-    const Tensor &input, const Tensor &gradient, Tensor &weight_grad, size_t batch_size,
+    const ConstTensor &input, const ConstTensor &gradient, Tensor &weight_grad, size_t batch_size,
     size_t input_features, size_t output_features, const std::string &flow_id) const {
   if (input->data_type() != dtype_of<IO_T>() || gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
@@ -189,7 +190,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
-    const Tensor &gradient, const Tensor &weights, Tensor &grad_input, size_t batch_size,
+    const ConstTensor &gradient, const ConstTensor &weights, Tensor &grad_input, size_t batch_size,
     size_t input_features, size_t output_features, const std::string &flow_id) const {
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
@@ -223,7 +224,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const Tensor &gradient,
+std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const ConstTensor &gradient,
                                                                Tensor &bias_gradient,
                                                                size_t batch_size,
                                                                size_t output_features,
@@ -258,7 +259,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const Tensor &gra
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyDenseLayer::add_bias_vector(Tensor &output, const Tensor &bias,
+std::unique_ptr<Task> LegacyDenseLayer::add_bias_vector(Tensor &output, const ConstTensor &bias,
                                                         size_t batch_size, size_t output_features,
                                                         const std::string &flow_id) const {
   if (output->data_type() != dtype_of<IO_T>()) {

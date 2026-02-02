@@ -17,7 +17,6 @@
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/sequential.hpp"
-#include "tensor/tensor.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"

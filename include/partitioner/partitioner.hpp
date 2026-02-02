@@ -49,8 +49,8 @@ public:
   virtual std::vector<SeqPartition> partition_model(const std::vector<Layer *> &layers) = 0;
 
   // splits the input data for each stage.
-  virtual std::vector<InputPartition> partition_input(const Tensor &input,
-                                                      const Tensor &labels) = 0;
+  virtual std::vector<InputPartition> partition_input(const ConstTensor &input,
+                                                      const ConstTensor &labels) = 0;
 
 protected:
   size_t num_partitions_;

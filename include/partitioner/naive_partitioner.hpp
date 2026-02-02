@@ -46,7 +46,8 @@ public:
     return partitions;
   }
 
-  std::vector<InputPartition> partition_input(const Tensor &input, const Tensor &labels) override {
+  std::vector<InputPartition> partition_input(const ConstTensor &input,
+                                              const ConstTensor &labels) override {
     if (!input || input->shape().empty()) {
       throw std::runtime_error("Input tensor is null or has empty shape");
     }
@@ -75,7 +76,8 @@ public:
     return partitions;
   }
 
-  std::vector<InputPartition> partition_input(const Tensor &input, const Tensor &labels) override {
+  std::vector<InputPartition> partition_input(const ConstTensor &input,
+                                              const ConstTensor &labels) override {
     if (this->num_partitions_ == 0) {
       throw std::runtime_error("Number of partitions must be greater than zero");
     }

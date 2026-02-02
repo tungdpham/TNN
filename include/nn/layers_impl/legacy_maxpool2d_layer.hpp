@@ -13,7 +13,6 @@
 
 #include "device/task.hpp"
 #include "stateless_layer.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -33,34 +32,35 @@ private:
   std::unique_ptr<Task> backward_task_;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_max_pool_forward_impl(const Tensor &input_data, Tensor &output_data,
-                                                      size_t batch_size, size_t channels,
-                                                      size_t input_h, size_t input_w,
-                                                      size_t output_h, size_t output_w,
-                                                      Tensor &mask_indices,
+  std::unique_ptr<Task> compute_max_pool_forward_impl(const ConstTensor &input_data,
+                                                      Tensor &output_data, size_t batch_size,
+                                                      size_t channels, size_t input_h,
+                                                      size_t input_w, size_t output_h,
+                                                      size_t output_w, Tensor &mask_indices,
                                                       const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_max_pool_forward(const Tensor &input_data, Tensor &output_data,
+  std::unique_ptr<Task> compute_max_pool_forward(const ConstTensor &input_data, Tensor &output_data,
                                                  size_t batch_size, size_t channels, size_t input_h,
                                                  size_t input_w, size_t output_h, size_t output_w,
                                                  Tensor &mask_indices,
                                                  const std::string &flow_id) const;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_max_pool_backward_impl(const Tensor &gradient_data,
+  std::unique_ptr<Task> compute_max_pool_backward_impl(const ConstTensor &gradient_data,
                                                        Tensor &grad_input_data, size_t batch_size,
                                                        size_t channels, size_t output_h,
-                                                       size_t output_w, const Tensor &mask_indices,
+                                                       size_t output_w,
+                                                       const ConstTensor &mask_indices,
                                                        const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_max_pool_backward(const Tensor &gradient_data,
+  std::unique_ptr<Task> compute_max_pool_backward(const ConstTensor &gradient_data,
                                                   Tensor &grad_input_data, size_t batch_size,
                                                   size_t channels, size_t output_h, size_t output_w,
-                                                  const Tensor &mask_indices,
+                                                  const ConstTensor &mask_indices,
                                                   const std::string &flow_id) const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 0, size_t stride_w = 0,

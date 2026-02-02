@@ -6,6 +6,7 @@
  */
 #include "nn/blocks_impl/attention_block.hpp"
 
+#include "tensor/tensor.hpp"
 #include "type/type.hpp"
 #ifdef USE_CUDA
 #include "device/cuda/cuda_context.hpp"
@@ -66,20 +67,20 @@ void AttentionBlock::on_set_device(const Device &device) {
   out_proj_->set_device(device);
 }
 
-void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void AttentionBlock::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   const auto &input_shape = input->shape();
 
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
 
-  Tensor &q = this->get_cached_tensor(mb_id, "q");
-  Tensor &k = this->get_cached_tensor(mb_id, "k");
-  Tensor &v = this->get_cached_tensor(mb_id, "v");
-  if (!q) {
-    q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
-    k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
-    v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  if (this->is_training_) {
+    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    cached_input = input;
   }
+
+  Tensor q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
 
   q_proj_->forward(input, q, mb_id);
   k_proj_->forward(input, k, mb_id);
@@ -94,17 +95,25 @@ void AttentionBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb
   out_proj_->forward(attn_out, output, mb_id);
 }
 
-void AttentionBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
-  Tensor &q = this->get_cached_tensor(mb_id, "q");
-  Tensor &k = this->get_cached_tensor(mb_id, "k");
-  Tensor &v = this->get_cached_tensor(mb_id, "v");
+void AttentionBlock::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  if (!input) {
+    throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
+  }
+
+  size_t batch_size = input->dimension(0);
+  size_t seq_len = input->dimension(1);
+
+  Tensor q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+
+  q_proj_->forward(input, q, mb_id);
+  k_proj_->forward(input, k, mb_id);
+  v_proj_->forward(input, v, mb_id);
 
   Tensor d_attn_out = this->get_buffer(gradient->shape(), io_dtype_);
   out_proj_->backward(gradient, d_attn_out, mb_id);
-
-  const auto &q_shape = q->shape();
-  size_t batch_size = q_shape[0];
-  size_t seq_len = q_shape[1];
 
   Tensor dq = this->get_buffer(q->shape(), io_dtype_);
   Tensor dk = this->get_buffer(k->shape(), io_dtype_);
@@ -177,10 +186,9 @@ void AttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q, const Tensor &k,
-                                                                const Tensor &v, Tensor &output,
-                                                                size_t batch_size, size_t seq_len,
-                                                                const std::string &flow_id) {
+std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
+    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, Tensor &output,
+    size_t batch_size, size_t seq_len, const std::string &flow_id) {
   if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
       v->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AttentionBlock IO tensor dtype mismatch with dispatch IO_T");
@@ -259,8 +267,9 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(const Tensor &q,
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
-    const Tensor &q, const Tensor &k, const Tensor &v, const Tensor &d_attn_out, Tensor &dq,
-    Tensor &dk, Tensor &dv, size_t batch_size, size_t seq_len, const std::string &flow_id) {
+    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &d_attn_out,
+    Tensor &dq, Tensor &dk, Tensor &dv, size_t batch_size, size_t seq_len,
+    const std::string &flow_id) {
   if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
       v->data_type() != dtype_of<IO_T>() || d_attn_out->data_type() != dtype_of<IO_T>() ||
       dq->data_type() != dtype_of<IO_T>() || dk->data_type() != dtype_of<IO_T>() ||

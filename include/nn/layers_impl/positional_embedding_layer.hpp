@@ -23,18 +23,18 @@ private:
   Tensor pos_embedding_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_positional_embedding(const Tensor &input, Tensor &output,
-                                                 const Tensor &pos_embedding,
+  std::unique_ptr<Task> add_positional_embedding(const ConstTensor &input, Tensor &output,
+                                                 const ConstTensor &pos_embedding,
                                                  const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> accumulate_pos_gradients(const Tensor &gradient,
+  std::unique_ptr<Task> accumulate_pos_gradients(const ConstTensor &gradient,
                                                  Tensor &pos_embedding_gradients,
                                                  const std::string &flow_id) const;
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

@@ -45,7 +45,7 @@ protected:
     }
   }
 
-  void verify_output_shape(const Tensor &input, const Tensor &output, size_t out_channels,
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output, size_t out_channels,
                            size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
                            size_t pad_h, size_t pad_w) {
     auto input_shape = input->shape();
@@ -63,9 +63,10 @@ protected:
     EXPECT_EQ(output_shape[3], expected_w);
   }
 
-  void verify_forward_result(const Tensor &input, const Tensor &output, const Tensor &weights,
-                             const Tensor &bias, size_t kernel_h, size_t kernel_w, size_t stride_h,
-                             size_t stride_w, size_t pad_h, size_t pad_w, float tolerance = 1e-4f) {
+  void verify_forward_result(const ConstTensor &input, const ConstTensor &output,
+                             const ConstTensor &weights, const ConstTensor &bias, size_t kernel_h,
+                             size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                             size_t pad_w, float tolerance = 1e-4f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
     const float *weight_data = weights->data_as<float>();
@@ -113,13 +114,13 @@ protected:
     }
   }
 
-  void verify_gradient_shape(const Tensor &gradient, const Tensor &grad_input,
-                             const Tensor &original_input) {
+  void verify_gradient_shape(const ConstTensor &gradient, const ConstTensor &grad_input,
+                             const ConstTensor &original_input) {
     EXPECT_EQ(grad_input->shape(), original_input->shape());
   }
 
-  void verify_backward_result(const Tensor &grad_output, const Tensor &grad_input,
-                              const Tensor &weights, size_t kernel_h, size_t kernel_w,
+  void verify_backward_result(const ConstTensor &grad_output, const ConstTensor &grad_input,
+                              const ConstTensor &weights, size_t kernel_h, size_t kernel_w,
                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                               float tolerance = 1e-4f) {
     const float *grad_output_data = grad_output->data_as<float>();

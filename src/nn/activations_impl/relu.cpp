@@ -17,7 +17,7 @@
 namespace tnn {
 ReLU::ReLU() {}
 
-std::unique_ptr<Task> ReLU::apply(const Tensor &input, Tensor &output) const {
+std::unique_ptr<Task> ReLU::apply(const ConstTensor &input, Tensor &output) const {
   if (input->shape() != output->shape()) {
     throw std::runtime_error("Input and output shapes must match for ReLU");
   }
@@ -28,7 +28,8 @@ std::unique_ptr<Task> ReLU::apply(const Tensor &input, Tensor &output) const {
   DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
 }
 
-std::unique_ptr<Task> ReLU::compute_gradient(const Tensor &input, const Tensor &grad_output,
+std::unique_ptr<Task> ReLU::compute_gradient(const ConstTensor &input,
+                                             const ConstTensor &grad_output,
                                              Tensor &grad_input) const {
   assert(grad_output->shape() == grad_input->shape() &&
          "Shapes must match for in-place gradient computation");
@@ -44,7 +45,7 @@ std::string ReLU::name() const { return "relu"; }
 std::unique_ptr<ActivationFunction> ReLU::clone() const { return std::make_unique<ReLU>(*this); }
 
 template <typename Compute_T>
-std::unique_ptr<Task> ReLU::apply_impl(const Tensor &input, Tensor &output,
+std::unique_ptr<Task> ReLU::apply_impl(const ConstTensor &input, Tensor &output,
                                        const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("ReLU tensor dtype mismatch with dispatch type");
@@ -68,7 +69,8 @@ std::unique_ptr<Task> ReLU::apply_impl(const Tensor &input, Tensor &output,
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> ReLU::compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
+std::unique_ptr<Task> ReLU::compute_gradient_impl(const ConstTensor &input,
+                                                  const ConstTensor &grad_output,
                                                   Tensor &grad_input,
                                                   const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() ||

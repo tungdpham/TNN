@@ -12,7 +12,6 @@
 #include "nn/accuracy.hpp"
 #include "nn/schedulers.hpp"
 #include "nn/train.hpp"
-#include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
 
@@ -24,7 +23,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
                                      std::unique_ptr<Scheduler> &scheduler,
                                      const TrainingConfig &config) {
   Tensor batch_data, batch_labels;
-  size_t batch_index = 0, accumulation_steps = 0;
+  size_t batch_index = 0;
+  int accumulation_steps = 0;
   auto epoch_start = std::chrono::high_resolution_clock::now();
   float total_loss = 0.0f;
   coordinator.set_training(true);

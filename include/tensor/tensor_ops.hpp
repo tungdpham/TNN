@@ -11,7 +11,7 @@ namespace tnn {
 namespace ops {
 
 template <typename T>
-std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_t kernel_h,
+std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, Tensor &col_data, size_t kernel_h,
                              size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
                              size_t pad_h = 0, size_t pad_w = 0,
                              const std::string &flow_id = "default") {
@@ -55,7 +55,7 @@ std::unique_ptr<Task> im2col(const Tensor &input_tensor, Tensor &col_data, size_
 }
 
 template <typename T>
-std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t batch_size,
+std::unique_ptr<Task> col2im(const ConstTensor &col_data, Tensor &result_data, size_t batch_size,
                              size_t channels, size_t height, size_t width, size_t kernel_h,
                              size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
                              size_t pad_w, const std::string &flow_id = "default") {
@@ -89,7 +89,7 @@ std::unique_ptr<Task> col2im(const Tensor &col_data, Tensor &result_data, size_t
 }
 
 template <typename T>
-std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+std::unique_ptr<Task> pad(const ConstTensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                           T value = T(0), const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
@@ -120,7 +120,7 @@ std::unique_ptr<Task> pad(const Tensor &input, Tensor &result, size_t pad_h, siz
 }
 
 template <typename T>
-std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
+std::unique_ptr<Task> unpad(const ConstTensor &input, Tensor &result, size_t pad_h, size_t pad_w,
                             const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
@@ -158,7 +158,7 @@ std::unique_ptr<Task> unpad(const Tensor &input, Tensor &result, size_t pad_h, s
 }
 
 template <typename T>
-std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t start_h,
+std::unique_ptr<Task> crop(const ConstTensor &input, Tensor &result, const size_t start_h,
                            const size_t start_w, const size_t end_h, const size_t end_w,
                            const std::string &flow_id = "default") {
   const auto &shape = input->shape();
@@ -197,7 +197,7 @@ std::unique_ptr<Task> crop(const Tensor &input, Tensor &result, const size_t sta
 }
 
 template <typename T>
-std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t start_batch,
+std::unique_ptr<Task> slice_batch(const ConstTensor &input, Tensor &result, size_t start_batch,
                                   size_t end_batch, const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
@@ -238,8 +238,8 @@ std::unique_ptr<Task> slice_batch(const Tensor &input, Tensor &result, size_t st
 }
 
 template <typename T>
-std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
-                            const std::string &flow_id = "default") {
+std::unique_ptr<Task> split(const ConstTensor &input, std::vector<Tensor> &results,
+                            size_t num_splits, const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
 
@@ -269,8 +269,8 @@ std::unique_ptr<Task> split(const Tensor &input, std::vector<Tensor> &results, s
 }
 
 template <typename T>
-std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t rows, size_t cols,
-                                   const std::string &flow_id = "default") {
+std::unique_ptr<Task> transpose_2d(const ConstTensor &input, Tensor &output, size_t rows,
+                                   size_t cols, const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("transpose_2d: Input and output must be on the same device");
   }
@@ -297,7 +297,7 @@ std::unique_ptr<Task> transpose_2d(const Tensor &input, Tensor &output, size_t r
 }
 
 template <typename T>
-std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n, size_t c,
+std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, Tensor &output, size_t n, size_t c,
                                    size_t h, size_t w, const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
@@ -325,7 +325,7 @@ std::unique_ptr<Task> nchw_to_cnhw(const Tensor &input, Tensor &output, size_t n
 }
 
 template <typename T>
-std::unique_ptr<Task> cnhw_to_nchw(const Tensor &input, Tensor &output, size_t n, size_t c,
+std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, Tensor &output, size_t n, size_t c,
                                    size_t h, size_t w, const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");

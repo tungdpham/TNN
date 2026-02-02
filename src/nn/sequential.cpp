@@ -17,7 +17,6 @@
 
 #include "nn/layers.hpp"
 #include "profiling/event.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -70,14 +69,14 @@ void Sequential::on_set_training(bool training) {
   }
 }
 
-void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void Sequential::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
   auto start = Clock::now();
   compute_max_size(input->shape(), input->data_type());
 
-  Tensor current_input = input;
+  ConstTensor current_input = input;
   Tensor current_output = nullptr;
   for (size_t i = 0; i < layers_.size(); ++i) {
     try {
@@ -103,20 +102,21 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
 }
 
-void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Sequential::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
   auto start = Clock::now();
-  Tensor current_gradient = gradient;
-  Tensor current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
+  ConstTensor current_gradient = gradient;
+  Tensor current_grad_input;
   for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
     try {
       // no need to renew buffer since backward doesn't cache inputs
       auto start = Clock::now();
       if (i > 0) {
+        current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
         layers_[i]->backward(current_gradient, current_grad_input, mb_id);
-        std::swap(current_gradient, current_grad_input);
+        current_gradient = current_grad_input;
       } else {
         layers_[i]->backward(current_gradient, grad_input, mb_id);
       }

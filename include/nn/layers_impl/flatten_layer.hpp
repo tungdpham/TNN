@@ -22,8 +22,8 @@ private:
   int start_dim_;
   int end_dim_;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   explicit FlattenLayer(int start_dim = 1, int end_dim = -1, const std::string &name = "flatten");

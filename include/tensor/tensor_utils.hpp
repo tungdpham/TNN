@@ -23,7 +23,7 @@ void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_n
   check_nan_and_inf(data, total_elements, tensor_name);
 }
 
-inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
+inline void check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
   DType_t dtype = tensor->data_type();
   switch (dtype) {
     case DType_t::FP32: {
@@ -46,7 +46,8 @@ inline void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_na
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
-inline void print_data_distribution(const Tensor &tensor, const std::string &tensor_name = "") {
+inline void print_data_distribution(const ConstTensor &tensor,
+                                    const std::string &tensor_name = "") {
   if (!tensor) {
     std::cerr << "Cannot print distribution of null tensor" << std::endl;
     return;

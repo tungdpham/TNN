@@ -12,7 +12,6 @@
 #include "device/sref.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
-#include "tensor/itensor.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
@@ -391,8 +390,8 @@ public:
   }
 
   // Arithmetic operations returning shared_ptr
-  void add(const Tensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<TypedTensor<T>>(other);
+  void add(const ConstTensor &other) override {
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor addition");
     }
@@ -402,8 +401,8 @@ public:
     ops::add<T>(data_, other_typed->data_, data_, data_size_);
   }
 
-  void sub(const Tensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<TypedTensor<T>>(other);
+  void sub(const ConstTensor &other) override {
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor subtraction");
     }
@@ -413,8 +412,8 @@ public:
     ops::sub<T>(data_, other_typed->data_, data_, data_size_);
   }
 
-  void mul(const Tensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<TypedTensor<T>>(other);
+  void mul(const ConstTensor &other) override {
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor multiplication");
     }
@@ -424,8 +423,8 @@ public:
     ops::mul<T>(data_, other_typed->data_, data_, data_size_);
   }
 
-  void div(const Tensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<TypedTensor<T>>(other);
+  void div(const ConstTensor &other) override {
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor division");
     }

@@ -42,7 +42,7 @@ void EmbeddingLayer::init_params() {
   grad_weight_->fill(0);
 }
 
-void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void EmbeddingLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (this->is_training_) {
     auto &cached_input = micro_batch_inputs_[mb_id];
     if (!cached_input) {
@@ -64,14 +64,14 @@ void EmbeddingLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
                                  vocab_size_, embed_dim_, padding_idx_, "default");
 }
 
-void EmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void EmbeddingLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   auto it = micro_batch_inputs_.find(mb_id);
   if (it == micro_batch_inputs_.end()) {
     throw std::runtime_error("EmbeddingLayer::backward: No cached input for mb_id " +
                              std::to_string(mb_id));
   }
 
-  const Tensor &input = it->second;
+  const ConstTensor &input = it->second;
 
   grad_input->ensure(input->shape());
   grad_input->fill(0);
@@ -83,11 +83,9 @@ void EmbeddingLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(const Tensor &input,
-                                                           const Tensor &weight, Tensor &output,
-                                                           size_t num_indices, size_t vocab_size,
-                                                           size_t embed_dim, size_t padding_idx,
-                                                           const std::string &flow_id) const {
+std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(
+    const ConstTensor &input, const ConstTensor &weight, Tensor &output, size_t num_indices,
+    size_t vocab_size, size_t embed_dim, size_t padding_idx, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "EmbeddingLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -121,7 +119,7 @@ std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(const Tensor &input,
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(
-    const Tensor &input, const Tensor &gradient, Tensor &grad_weight, size_t num_indices,
+    const ConstTensor &input, const ConstTensor &gradient, Tensor &grad_weight, size_t num_indices,
     size_t vocab_size, size_t embed_dim, size_t padding_idx, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(

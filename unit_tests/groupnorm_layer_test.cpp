@@ -45,7 +45,7 @@ protected:
     }
   }
 
-  void verify_output_shape(const Tensor &input, const Tensor &output) {
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output) {
     auto input_shape = input->shape();
     auto output_shape = output->shape();
     EXPECT_EQ(output_shape[0], input_shape[0]);
@@ -54,8 +54,8 @@ protected:
     EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  void compute_group_statistics(const Tensor &input, size_t num_groups, std::vector<float> &means,
-                                std::vector<float> &vars) {
+  void compute_group_statistics(const ConstTensor &input, size_t num_groups,
+                                std::vector<float> &means, std::vector<float> &vars) {
     const float *data = input->data_as<float>();
     auto input_shape = input->shape();
     size_t batch_size = input_shape[0];
@@ -105,10 +105,10 @@ protected:
     }
   }
 
-  void verify_forward_result(const Tensor &input, const Tensor &output, size_t num_groups,
+  void verify_forward_result(const ConstTensor &input, const ConstTensor &output, size_t num_groups,
                              const std::vector<float> &expected_mean,
                              const std::vector<float> &expected_var, float epsilon,
-                             const Tensor gamma = nullptr, const Tensor beta = nullptr,
+                             const ConstTensor gamma = nullptr, const ConstTensor beta = nullptr,
                              float tolerance = 1e-4f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();

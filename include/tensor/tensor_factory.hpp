@@ -197,7 +197,7 @@ inline Tensor make_tensor(IAllocator &allocator, DType_t dtype,
   }
 }
 
-inline Tensor dtype_cast(const Tensor &input, DType_t target_dtype) {
+inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
   if (input->data_type() == target_dtype) {
     return input->clone();
   }

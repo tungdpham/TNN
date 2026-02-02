@@ -11,7 +11,6 @@
 #include <vector>
 
 #include "parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -35,39 +34,40 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  void def_forward(const Tensor &input, Tensor &output, size_t mb_id);
-  void def_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
+  void def_forward(const ConstTensor &input, Tensor &output, size_t mb_id);
+  void def_backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output_impl(const Tensor &input, Tensor &output,
+  std::unique_ptr<Task> compute_inference_output_impl(const ConstTensor &input, Tensor &output,
                                                       size_t batch_size, size_t channels,
                                                       size_t spatial_size,
                                                       const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output(const Tensor &input, Tensor &output,
+  std::unique_ptr<Task> compute_inference_output(const ConstTensor &input, Tensor &output,
                                                  size_t batch_size, size_t channels,
                                                  size_t spatial_size,
                                                  const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward_fused(const Tensor &input, Tensor &batch_mean,
+  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, Tensor &batch_mean,
                                           Tensor &batch_inv_std, Tensor &running_mean,
-                                          Tensor &running_var, const Tensor &gamma,
-                                          const Tensor &beta, Tensor &output, Tensor &norm,
+                                          Tensor &running_var, const ConstTensor &gamma,
+                                          const ConstTensor &beta, Tensor &output, Tensor &norm,
                                           size_t batch_size, size_t channels, size_t spatial_size,
                                           const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_backward_fused(const Tensor &grad_output, const Tensor &norm_input,
-                                           const Tensor &inv_std, const Tensor &gamma,
+  std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
+                                           const ConstTensor &norm_input,
+                                           const ConstTensor &inv_std, const ConstTensor &gamma,
                                            Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
                                            size_t batch_size, size_t channels, size_t spatial_size,
                                            const std::string &flow_id = "default");
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

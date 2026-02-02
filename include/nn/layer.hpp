@@ -72,9 +72,9 @@ public:
 
   void set_seed(unsigned long long seed);
 
-  void forward(const Tensor &input, Tensor &output, size_t mb_id = 0);
+  void forward(const ConstTensor &input, Tensor &output, size_t mb_id = 0);
 
-  void backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0);
+  void backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0);
 
   virtual std::vector<Tensor> parameters();
 
@@ -125,7 +125,9 @@ protected:
   bool enable_profiling_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
-  std::map<std::pair<size_t, std::string>, Tensor> cached_tensors_;
+  std::map<std::pair<size_t, std::string>, Tensor> mutable_tensors_;
+  std::map<std::pair<size_t, std::string>, ConstTensor>
+      cached_tensors_;  // for immutable cache (e.g., inputs)
   Profiler profiler_;
   PoolAllocator *mem_pool_;
   csref<Device> device_ = getCPU();
@@ -140,8 +142,8 @@ protected:
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
   virtual void init_impl() = 0;
-  virtual void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) = 0;
-  virtual void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) = 0;
+  virtual void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) = 0;
+  virtual void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) = 0;
 
   // helpers
   Tensor make_param_tensor(std::vector<size_t> shape);
@@ -150,7 +152,9 @@ protected:
 
   Tensor make_compute_tensor(std::vector<size_t> shape);
 
-  Tensor &get_cached_tensor(size_t mb_id, const std::string &key);
+  ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
+
+  Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
 
   Tensor get_buffer(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
 

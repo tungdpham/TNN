@@ -24,16 +24,16 @@ private:
   size_t length_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> slice_forward(const Tensor &input, Tensor &output,
+  std::unique_ptr<Task> slice_forward(const ConstTensor &input, Tensor &output,
                                       const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> slice_backward(const Tensor &gradient, Tensor &grad_input,
+  std::unique_ptr<Task> slice_backward(const ConstTensor &gradient, Tensor &grad_input,
                                        const std::vector<size_t> &original_shape,
                                        const std::string &flow_id) const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "slice";

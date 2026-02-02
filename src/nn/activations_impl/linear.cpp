@@ -15,7 +15,7 @@
 
 namespace tnn {
 
-std::unique_ptr<Task> Linear::apply(const Tensor &input, Tensor &output) const {
+std::unique_ptr<Task> Linear::apply(const ConstTensor &input, Tensor &output) const {
   if (input->shape() != output->shape()) {
     throw std::runtime_error("Input and output shapes must match for Linear");
   }
@@ -23,13 +23,14 @@ std::unique_ptr<Task> Linear::apply(const Tensor &input, Tensor &output) const {
     throw std::runtime_error("Input and output must be on the same device for Linear");
   }
   // Linear activation is just identity, copy input to output
-  if (&input != &output) {
+  if (input.get() != output.get()) {
     input->copy_to(output);
   }
   return nullptr;
 }
 
-std::unique_ptr<Task> Linear::compute_gradient(const Tensor &input, const Tensor &grad_output,
+std::unique_ptr<Task> Linear::compute_gradient(const ConstTensor &input,
+                                               const ConstTensor &grad_output,
                                                Tensor &grad_input) const {
   if (grad_input->shape() != grad_output->shape()) {
     throw std::invalid_argument(

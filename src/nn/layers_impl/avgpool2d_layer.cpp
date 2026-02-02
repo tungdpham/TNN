@@ -32,7 +32,7 @@ AvgPool2DLayer::AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void AvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void AvgPool2DLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: input must be 4D (NHWC format)");
   }
@@ -54,7 +54,7 @@ void AvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
                               input_w, channels, output_h, output_w, "default");
 }
 
-void AvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void AvgPool2DLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::runtime_error("AvgPool2DLayer: gradient must be 4D (NHWC format)");
   }
@@ -82,8 +82,9 @@ void AvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 
 template <typename IO_T>
 std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t height, size_t width,
-    size_t channels, size_t output_h, size_t output_w, const std::string &flow_id) const {
+    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t height,
+    size_t width, size_t channels, size_t output_h, size_t output_w,
+    const std::string &flow_id) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("AvgPool2DLayer: data type mismatch in forward pass");
   }
@@ -108,7 +109,7 @@ std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_forward_impl(
 
 template <typename IO_T>
 std::unique_ptr<Task> AvgPool2DLayer::compute_avg_pool_backward_impl(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t input_h,
+    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t input_h,
     size_t input_w, size_t channels, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||

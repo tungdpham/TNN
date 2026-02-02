@@ -39,8 +39,8 @@ private:
   void on_set_compute_dtype(DType_t dtype) override;
   void on_set_training(bool training) override;
   void on_set_device(const Device &device) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

@@ -14,8 +14,6 @@
 #include <cstddef>
 #include <stdexcept>
 
-#include "tensor/tensor.hpp"
-
 namespace tnn {
 
 MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
@@ -35,7 +33,7 @@ MaxPool2DLayer::MaxPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h, si
   }
 }
 
-void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void MaxPool2DLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::runtime_error("MaxPool2DLayer: input must be 4D (NHWC format)");
@@ -63,7 +61,7 @@ void MaxPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
                            output_w, micro_batch_mask_indices_[mb_id], "default");
 }
 
-void MaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void MaxPool2DLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   auto it_mask = micro_batch_mask_indices_.find(mb_id);
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
@@ -74,7 +72,7 @@ void MaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
     throw std::runtime_error("MaxPool2DLayer: forward must be called before backward");
   }
 
-  const Tensor &mask_indices = it_mask->second;
+  const ConstTensor &mask_indices = it_mask->second;
   const std::vector<size_t> &input_shape = it_shape->second;
 
   const size_t batch_size = input_shape[0];
@@ -98,8 +96,8 @@ void MaxPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 
 template <typename IO_T>
 std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t height, size_t width,
-    size_t channels, size_t output_h, size_t output_w, Tensor &mask_indices,
+    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t height,
+    size_t width, size_t channels, size_t output_h, size_t output_w, Tensor &mask_indices,
     const std::string &flow_id) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("MaxPool2DLayer: data type mismatch in forward pass");
@@ -126,8 +124,8 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward_impl(
 }
 
 std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t height, size_t width,
-    size_t channels, size_t output_h, size_t output_w, Tensor &mask_indices,
+    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t height,
+    size_t width, size_t channels, size_t output_h, size_t output_w, Tensor &mask_indices,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_forward_impl, input_data, output_data, batch_size,
                               height, width, channels, output_h, output_w, mask_indices, flow_id);
@@ -136,8 +134,8 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward(
 
 template <typename IO_T>
 std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward_impl(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
-    size_t output_h, size_t output_w, const Tensor &mask_indices,
+    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
+    size_t output_h, size_t output_w, const ConstTensor &mask_indices,
     const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
@@ -162,11 +160,11 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward_impl(
   return nullptr;
 }
 
-std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward(const Tensor &gradient_data,
+std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward(const ConstTensor &gradient_data,
                                                                 Tensor &grad_input_data,
                                                                 size_t batch_size, size_t channels,
                                                                 size_t output_h, size_t output_w,
-                                                                const Tensor &mask_indices,
+                                                                const ConstTensor &mask_indices,
                                                                 const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_backward_impl, gradient_data, grad_input_data,
                               batch_size, channels, output_h, output_w, mask_indices, flow_id);

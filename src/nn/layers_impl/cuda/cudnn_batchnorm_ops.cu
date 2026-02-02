@@ -423,8 +423,9 @@ void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const
 }
 
 void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
-                           const void* gamma, const void* beta, void* saved_mean, void* saved_invar,
-                           void* output, void* workspace, cudaStream_t stream) {
+                           const void* gamma, const void* beta, const void* saved_mean,
+                           const void* saved_invar, void* output, void* workspace,
+                           cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_inference called with null feHandle");
   }
@@ -432,9 +433,12 @@ void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, cons
   cudnnSetStream(handle->cudnn_handle, stream);
 
   std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
-      {handle->inf_x, const_cast<void*>(input)},   {handle->inf_scale, const_cast<void*>(gamma)},
-      {handle->inf_bias, const_cast<void*>(beta)}, {handle->inf_y, output},
-      {handle->inf_saved_mean, saved_mean},        {handle->inf_saved_invar, saved_invar}};
+      {handle->inf_x, const_cast<void*>(input)},
+      {handle->inf_scale, const_cast<void*>(gamma)},
+      {handle->inf_bias, const_cast<void*>(beta)},
+      {handle->inf_y, output},
+      {handle->inf_saved_mean, const_cast<void*>(saved_mean)},
+      {handle->inf_saved_invar, const_cast<void*>(saved_invar)}};
 
   auto status = handle->inf_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm inference execute");

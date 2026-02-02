@@ -49,36 +49,38 @@ private:
   std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_training_task(
-      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
-      Tensor &output, const Tensor &gamma, const Tensor &beta, Tensor &prev_running_mean,
+      cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
+      Tensor &output, const ConstTensor &gamma, const ConstTensor &beta, Tensor &prev_running_mean,
       Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
-      Tensor &batch_mean, Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const;
+      Tensor &batch_mean, Tensor &batch_invar, Tensor &workspace, const std::string &flow_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                               BatchNormStats &stats, const Tensor &input,
-                                               Tensor &output, const Tensor &gamma,
-                                               const Tensor &beta, const Tensor &saved_mean,
-                                               const Tensor &saved_invar, Tensor &workspace,
-                                               const std::string &flow_id) const;
+                                               BatchNormStats &stats, const ConstTensor &input,
+                                               Tensor &output, const ConstTensor &gamma,
+                                               const ConstTensor &beta,
+                                               const ConstTensor &saved_mean,
+                                               const ConstTensor &saved_invar, Tensor &workspace,
+                                               const std::string &flow_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                      BatchNormStats &stats, const Tensor &gradient,
-                                      const Tensor &input, Tensor &grad_input, const Tensor &gamma,
-                                      Tensor &gamma_gradients, Tensor &beta_gradients,
-                                      const Tensor &batch_mean, const Tensor &batch_var,
-                                      Tensor &workspace, const std::string &flow_id) const;
+                                      BatchNormStats &stats, const ConstTensor &gradient,
+                                      const ConstTensor &input, Tensor &grad_input,
+                                      const ConstTensor &gamma, Tensor &gamma_gradients,
+                                      Tensor &beta_gradients, const ConstTensor &batch_mean,
+                                      const ConstTensor &batch_var, Tensor &workspace,
+                                      const std::string &flow_id);
 
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
+  void cudnn_forward(const ConstTensor &input, Tensor &output, size_t mb_id);
+  void cudnn_backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id);
 #endif
 
   void init_params() override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
 
 public:
   explicit BatchNormLayer(size_t num_features, float epsilon = 1e-5f, float momentum = 0.1f,

@@ -22,6 +22,9 @@ ResidualBlock::ResidualBlock(std::vector<std::unique_ptr<Layer>> main_path,
     : main_path_(std::move(main_path)),
       shortcut_path_(std::move(shortcut_path)),
       activation_type_(final_activation) {
+  if (main_path_.empty()) {
+    throw std::runtime_error("Main path of ResidualBlock cannot be empty.");
+  }
   this->name_ = name;
 
   if (final_activation != "none" && final_activation != "linear") {
@@ -87,7 +90,7 @@ void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
   }
 }
 
-void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void ResidualBlock::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   input_shape_cache_[mb_id] = input->shape();
 
   size_t max_size = 0;
@@ -101,26 +104,24 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_
     current_shape = layer_shape;
   }
 
-  Tensor current_input = input;
-  Tensor main_output = input;
+  ConstTensor main_output = input;  // main output = f exist ? input : f(input)
   for (auto &layer : main_path_) {
-    main_output = this->get_buffer(layer->compute_output_shape(current_input->shape()),
-                                   current_input->data_type());
-    layer->forward(current_input, main_output, mb_id);
-    current_input = main_output;
+    Tensor temp_output = this->get_buffer(layer->compute_output_shape(main_output->shape()),
+                                          main_output->data_type());
+    layer->forward(main_output, temp_output, mb_id);
+    main_output = temp_output;
   }
 
-  current_input = input;
-  Tensor shortcut_output = input;
+  ConstTensor shortcut_output = input;  // shortcut output = g exist ? input : g(input)
   for (auto &layer : shortcut_path_) {
-    shortcut_output = this->get_buffer(layer->compute_output_shape(current_input->shape()),
-                                       current_input->data_type());
-    layer->forward(current_input, shortcut_output, mb_id);
-    current_input = shortcut_output;
+    Tensor temp_output = this->get_buffer(layer->compute_output_shape(shortcut_output->shape()),
+                                          shortcut_output->data_type());
+    layer->forward(shortcut_output, temp_output, mb_id);
+    shortcut_output = temp_output;
   }
 
   if (final_activation_) {
-    Tensor &pre_act = this->get_cached_tensor(mb_id, "pre_activation");
+    Tensor &pre_act = this->get_mutable_tensor(mb_id, "pre_activation");
     if (!pre_act)
       pre_act = this->get_buffer(main_output->shape(), main_output->data_type());
     else
@@ -137,18 +138,19 @@ void ResidualBlock::forward_impl(const Tensor &input, Tensor &output, size_t mb_
   }
 }
 
-void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
-  Tensor &pre_act = this->get_cached_tensor(mb_id, "pre_activation");
+void ResidualBlock::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+  Tensor &pre_act = this->get_mutable_tensor(mb_id, "pre_activation");
   if (final_activation_ && !pre_act) {
     throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                              std::to_string(mb_id));
   }
 
-  Tensor grad_to_propagate = gradient;
+  ConstTensor grad_to_propagate = gradient;
 
   if (final_activation_) {
-    grad_to_propagate = this->get_buffer(pre_act->shape(), gradient->data_type());
-    final_activation_->compute_gradient(pre_act, gradient, grad_to_propagate);
+    Tensor dpre_act = this->get_buffer(pre_act->shape(), pre_act->data_type());
+    final_activation_->compute_gradient(pre_act, gradient, dpre_act);
+    grad_to_propagate = dpre_act;
   }
 
   auto it_input_shape = input_shape_cache_.find(mb_id);
@@ -170,21 +172,20 @@ void ResidualBlock::backward_impl(const Tensor &gradient, Tensor &grad_input, si
     current_shape = layer_shape;
   }
 
-  Tensor current_grad = grad_to_propagate;
-  Tensor main_grad = grad_to_propagate;
+  // little trick to avoid const correctness issue
+  ConstTensor main_grad = grad_to_propagate;
   for (int i = static_cast<int>(main_path_.size()) - 1; i >= 0; --i) {
-    main_grad = this->get_buffer({max_size}, current_grad->data_type());
-    main_path_[i]->backward(current_grad, main_grad, mb_id);
-    current_grad = main_grad;
+    Tensor temp_grad = this->get_buffer({max_size}, gradient->data_type());
+    main_path_[i]->backward(main_grad, temp_grad, mb_id);
+    main_grad = temp_grad;
   }
 
-  current_grad = grad_to_propagate;
-  Tensor shortcut_grad = grad_to_propagate;
+  ConstTensor shortcut_grad = grad_to_propagate;  // same here
   if (!shortcut_path_.empty()) {
     for (int i = static_cast<int>(shortcut_path_.size()) - 1; i >= 0; --i) {
-      shortcut_grad = this->get_buffer({max_size}, current_grad->data_type());
-      shortcut_path_[i]->backward(current_grad, shortcut_grad, mb_id);
-      current_grad = shortcut_grad;
+      Tensor temp_grad = this->get_buffer({max_size}, gradient->data_type());
+      shortcut_path_[i]->backward(shortcut_grad, temp_grad, mb_id);
+      shortcut_grad = temp_grad;
     }
   }
 

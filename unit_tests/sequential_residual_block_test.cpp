@@ -62,7 +62,7 @@ protected:
   /**
    * Helper to verify numerical output values
    */
-  void verify_output_values(const Tensor &output, float expected_min, float expected_max,
+  void verify_output_values(const ConstTensor &output, float expected_min, float expected_max,
                             const std::string &test_name = "") {
     const float *output_data = output->data_as<float>();
     for (size_t i = 0; i < output->size(); ++i) {

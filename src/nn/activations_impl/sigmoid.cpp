@@ -16,7 +16,7 @@
 
 namespace tnn {
 
-std::unique_ptr<Task> Sigmoid::apply(const Tensor &input, Tensor &output) const {
+std::unique_ptr<Task> Sigmoid::apply(const ConstTensor &input, Tensor &output) const {
   if (input->shape() != output->shape()) {
     throw std::runtime_error("Input and output shapes must match for Sigmoid");
   }
@@ -27,7 +27,8 @@ std::unique_ptr<Task> Sigmoid::apply(const Tensor &input, Tensor &output) const 
   DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
 }
 
-std::unique_ptr<Task> Sigmoid::compute_gradient(const Tensor &input, const Tensor &grad_output,
+std::unique_ptr<Task> Sigmoid::compute_gradient(const ConstTensor &input,
+                                                const ConstTensor &grad_output,
                                                 Tensor &grad_input) const {
   assert(grad_output->shape() == grad_input->shape() &&
          "Shapes must match for in-place gradient computation");
@@ -45,7 +46,7 @@ std::unique_ptr<ActivationFunction> Sigmoid::clone() const {
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> Sigmoid::apply_impl(const Tensor &input, Tensor &output,
+std::unique_ptr<Task> Sigmoid::apply_impl(const ConstTensor &input, Tensor &output,
                                           const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("Sigmoid tensor dtype mismatch with dispatch type");
@@ -69,7 +70,8 @@ std::unique_ptr<Task> Sigmoid::apply_impl(const Tensor &input, Tensor &output,
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const Tensor &input, const Tensor &grad_output,
+std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const ConstTensor &input,
+                                                     const ConstTensor &grad_output,
                                                      Tensor &grad_input,
                                                      const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() ||

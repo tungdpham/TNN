@@ -16,7 +16,7 @@ namespace tnn {
 TransposeLayer::TransposeLayer(const std::string &name) : StatelessLayer(name) {}
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> TransposeLayer::permute(const Tensor &input, Tensor &output, size_t B,
+std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, Tensor &output, size_t B,
                                               size_t L, size_t H, size_t D,
                                               const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
@@ -43,7 +43,7 @@ std::unique_ptr<Task> TransposeLayer::permute(const Tensor &input, Tensor &outpu
   return nullptr;
 }
 
-void TransposeLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void TransposeLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error("TransposeLayer expects 3D input (Batch, D1, D2)");
   }
@@ -57,7 +57,7 @@ void TransposeLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, "default");
 }
 
-void TransposeLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void TransposeLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   // Gradient is (B, H, L). We want (B, L, H).
   if (gradient->dims() != 3) {
     throw std::runtime_error("TransposeLayer: Gradient must be 3D");

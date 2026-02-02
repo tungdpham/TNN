@@ -35,9 +35,10 @@ void ClassTokenLayer::init_params() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayer::forward_task(const Tensor &input, Tensor &output,
-                                                    const Tensor &class_token, size_t batch_size,
-                                                    size_t seq_len, size_t embed_dim,
+std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, Tensor &output,
+                                                    const ConstTensor &class_token,
+                                                    size_t batch_size, size_t seq_len,
+                                                    size_t embed_dim,
                                                     const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
@@ -69,11 +70,10 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const Tensor &input, Tensor 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayer::backward_task(const Tensor &gradient, Tensor &grad_input,
-                                                     Tensor &class_token_gradients,
-                                                     const Tensor &class_token, size_t batch_size,
-                                                     size_t seq_len, size_t embed_dim,
-                                                     const std::string &flow_id) const {
+std::unique_ptr<Task> ClassTokenLayer::backward_task(
+    const ConstTensor &gradient, Tensor &grad_input, Tensor &class_token_gradients,
+    const ConstTensor &class_token, size_t batch_size, size_t seq_len, size_t embed_dim,
+    const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -106,7 +106,7 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(const Tensor &gradient, Ten
   return nullptr;
 }
 
-void ClassTokenLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void ClassTokenLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
   if (input->dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayer: Input tensor must have 3 dimensions (Batch, Seq, Embed)");
@@ -125,7 +125,7 @@ void ClassTokenLayer::forward_impl(const Tensor &input, Tensor &output, size_t m
                                  embed_dim, "default");
 }
 
-void ClassTokenLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void ClassTokenLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
   if (gradient->dims() != 3) {
     throw std::runtime_error(
         "ClassTokenLayer: Gradient tensor must have 3 dimensions (Batch, Seq, Embed)");

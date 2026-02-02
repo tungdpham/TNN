@@ -44,7 +44,7 @@ protected:
     }
   }
 
-  void verify_forward_result(const Tensor &input, const Tensor &output, size_t pool_h,
+  void verify_forward_result(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
                              size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
                              size_t pad_w, float tolerance = 1e-5f) {
     const float *input_data = input->data_as<float>();
@@ -98,9 +98,9 @@ protected:
     }
   }
 
-  void verify_backward_result(const Tensor &gradient, const Tensor &grad_input, size_t pool_h,
-                              size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
-                              size_t pad_w, float tolerance = 1e-5f) {
+  void verify_backward_result(const ConstTensor &gradient, const ConstTensor &grad_input,
+                              size_t pool_h, size_t pool_w, size_t stride_h, size_t stride_w,
+                              size_t pad_h, size_t pad_w, float tolerance = 1e-5f) {
     const float *grad_data = gradient->data_as<float>();
     const float *grad_input_data = grad_input->data_as<float>();
 

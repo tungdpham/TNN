@@ -45,7 +45,8 @@ protected:
     }
   }
 
-  void verify_output_shape(const Tensor &input, const Tensor &output, size_t output_features) {
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output,
+                           size_t output_features) {
     auto input_shape = input->shape();
     auto output_shape = output->shape();
     size_t batch_size = input_shape[0];
@@ -54,8 +55,9 @@ protected:
     EXPECT_EQ(output_shape[1], output_features);
   }
 
-  void verify_forward_result(const Tensor &input, const Tensor &output, const Tensor &weights,
-                             const Tensor bias, float tolerance = 1e-4f) {
+  void verify_forward_result(const ConstTensor &input, const ConstTensor &output,
+                             const ConstTensor &weights, const ConstTensor bias,
+                             float tolerance = 1e-4f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
     const float *weight_data = weights->data_as<float>();
@@ -84,13 +86,13 @@ protected:
     }
   }
 
-  void verify_gradient_shape(const Tensor &gradient, const Tensor &grad_input,
-                             const Tensor &original_input) {
+  void verify_gradient_shape(const ConstTensor &gradient, const ConstTensor &grad_input,
+                             const ConstTensor &original_input) {
     EXPECT_EQ(grad_input->shape(), original_input->shape());
   }
 
-  void verify_backward_result(const Tensor &grad_output, const Tensor &grad_input,
-                              const Tensor &weights, float tolerance = 1e-4f) {
+  void verify_backward_result(const ConstTensor &grad_output, const ConstTensor &grad_input,
+                              const ConstTensor &weights, float tolerance = 1e-4f) {
     const float *grad_output_data = grad_output->data_as<float>();
     const float *grad_input_data = grad_input->data_as<float>();
     const float *weight_data = weights->data_as<float>();

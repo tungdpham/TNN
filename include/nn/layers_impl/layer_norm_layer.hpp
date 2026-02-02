@@ -26,19 +26,20 @@ private:
   Tensor beta_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> layer_norm_forward(const Tensor &input, Tensor &output, const Tensor &gamma,
-                                           const Tensor &beta, size_t batch_size, size_t channels,
+  std::unique_ptr<Task> layer_norm_forward(const ConstTensor &input, Tensor &output,
+                                           const ConstTensor &gamma, const ConstTensor &beta,
+                                           size_t batch_size, size_t channels,
                                            const std::string &flow_id = "default") const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> layer_norm_backward(const Tensor &gradient, const Tensor &input,
-                                            const Tensor &gamma, Tensor &grad_input,
+  std::unique_ptr<Task> layer_norm_backward(const ConstTensor &gradient, const ConstTensor &input,
+                                            const ConstTensor &gamma, Tensor &grad_input,
                                             Tensor &gamma_gradients, Tensor &beta_gradients,
                                             size_t batch_size, size_t channels,
                                             const std::string &flow_id = "default") const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 
