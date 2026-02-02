@@ -316,7 +316,7 @@ public:
       std::shared_ptr<TypedTensor<T>> cpu_tensor =
           std::make_shared<TypedTensor<T>>(HostAllocator(), shape_vec);
       // Copy from GPU to CPU
-      ops::cd_copy<T>(data_, cpu_tensor->data_, sizeof(T) * data_size_);
+      ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_);
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_cpu()");

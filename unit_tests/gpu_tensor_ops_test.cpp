@@ -11,7 +11,6 @@
 #include <cmath>
 
 #include "device/device_manager.hpp"
-#include "tensor/cuda/tensor_ops.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/tensor_ops.hpp"
 
@@ -278,7 +277,7 @@ TEST_F(GPUopsTest, SplitBasic) {
   ops::split<float>(cpu_tensor, cpu_splits, 2);
 
   Tensor gpu_tensor = cpu_tensor->to_gpu();
-  ops::split<float>(gpu_tensor, gpu_splits, 2, 0);
+  ops::split<float>(gpu_tensor, gpu_splits, 2);
   ASSERT_EQ(cpu_splits.size(), gpu_splits.size());
 
   for (size_t i = 0; i < cpu_splits.size(); ++i) {
@@ -336,20 +335,21 @@ TEST_F(GPUopsTest, Im2colBasicKernel3x3) {
   size_t output_w = (input_shape[3] - kernel_w) / stride_w + 1;
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
-  std::vector<float> cpu_col_data(col_size);
-  cpu::im2col<float>(cpu_input, cpu_col_data.data(), kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                     pad_w);
+  Tensor cpu_col_data = make_tensor<float>({col_size});
+  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_gpu();
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  cuda::im2col<float>(gpu_input, gpu_col_data->data_as<float>(), kernel_h, kernel_w, stride_h,
-                      stride_w, pad_h, pad_w);
+  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_col_cpu(col_size);
   std::vector<float> gpu_col_cpu(col_size);
+  std::copy(cpu_col_data->data_as<float>(), cpu_col_data->data_as<float>() + col_size,
+            cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
   for (size_t i = 0; i < col_size; ++i) {
-    EXPECT_NEAR(cpu_col_data[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
+    EXPECT_NEAR(cpu_col_cpu[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
   }
 }
 
@@ -368,20 +368,21 @@ TEST_F(GPUopsTest, Im2colWithPadding) {
   size_t output_w = (padded_w - kernel_w) / stride_w + 1;
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
-  std::vector<float> cpu_col_data(col_size);
-  cpu::im2col<float>(cpu_input, cpu_col_data.data(), kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                     pad_w);
+  Tensor cpu_col_data = make_tensor<float>({col_size});
+  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_gpu();
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  cuda::im2col<float>(gpu_input, gpu_col_data->data_as<float>(), kernel_h, kernel_w, stride_h,
-                      stride_w, pad_h, pad_w);
+  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_col_cpu(col_size);
   std::vector<float> gpu_col_cpu(col_size);
-  getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data.get(), col_size * sizeof(float));
+  std::copy(cpu_col_data->data_as<float>(), cpu_col_data->data_as<float>() + col_size,
+            cpu_col_cpu.data());
+  getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
   for (size_t i = 0; i < col_size; ++i) {
-    EXPECT_NEAR(cpu_col_data[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
+    EXPECT_NEAR(cpu_col_cpu[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
   }
 }
 
@@ -399,20 +400,19 @@ TEST_F(GPUopsTest, Im2colWithStride) {
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
   Tensor cpu_col = make_tensor<float>({col_size});
-  cpu::im2col<float>(cpu_input, cpu_col->data_as<float>(), kernel_h, kernel_w, stride_h, stride_w,
-                     pad_h, pad_w);
+  ops::im2col<float>(cpu_input, cpu_col, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_input = cpu_input->to_gpu();
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  cuda::im2col<float>(gpu_input, gpu_col_data->data_as<float>(), kernel_h, kernel_w, stride_h,
-                      stride_w, pad_h, pad_w);
+  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_col_cpu(col_size);
   std::vector<float> gpu_col_cpu(col_size);
+  std::copy(cpu_col->data_as<float>(), cpu_col->data_as<float>() + col_size, cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
-  float *cpu_col_data = cpu_col->data_as<float>();
   for (size_t i = 0; i < col_size; ++i) {
-    EXPECT_NEAR(cpu_col_data[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
+    EXPECT_NEAR(cpu_col_cpu[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
   }
 }
 
@@ -436,15 +436,15 @@ TEST_F(GPUopsTest, Im2colMultiBatch) {
 
   Tensor gpu_input = cpu_input->to_gpu();
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  cuda::im2col<float>(gpu_input, gpu_col_data->data_as<float>(), kernel_h, kernel_w, stride_h,
-                      stride_w, pad_h, pad_w);
+  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_col_cpu(col_size);
   std::vector<float> gpu_col_cpu(col_size);
+  std::copy(cpu_col->data_as<float>(), cpu_col->data_as<float>() + col_size, cpu_col_cpu.data());
   getGPU().copyToHost(gpu_col_cpu.data(), gpu_col_data->data_as<float>(), col_size * sizeof(float));
 
-  float *cpu_col_data = cpu_col->data_as<float>();
   for (size_t i = 0; i < col_size; ++i) {
-    EXPECT_NEAR(cpu_col_data[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
+    EXPECT_NEAR(cpu_col_cpu[i], gpu_col_cpu[i], 1e-5f) << "Mismatch at index " << i;
   }
 }
 
@@ -458,31 +458,34 @@ TEST_F(GPUopsTest, Col2imBasic) {
   size_t output_w = (width - kernel_w) / stride_w + 1;
   size_t col_size = batch_size * channels * kernel_h * kernel_w * output_h * output_w;
 
-  std::vector<float> col_data(col_size);
+  Tensor cpu_col_data = make_tensor<float>({col_size});
+  auto cpu_col_ptr = cpu_col_data->data_as<float>();
   for (size_t i = 0; i < col_size; ++i) {
-    col_data[i] = static_cast<float>(i % 10);
+    cpu_col_ptr[i] = static_cast<float>(i % 10);
   }
 
-  std::vector<float> cpu_result(batch_size * channels * height * width, 0.0f);
-  cpu::col2im<float>(col_data.data(), cpu_result.data(), batch_size, channels, height, width,
-                     kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  Tensor cpu_result = make_tensor<float>({batch_size * channels * height * width});
+  cpu_result->fill(0.0f);
+  ops::col2im<float>(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h,
+                     kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  getGPU().copyToDevice(gpu_col_data->data_as<float>(), col_data.data(), col_size * sizeof(float));
+  Tensor gpu_col_data = cpu_col_data->to_gpu();
 
   Tensor gpu_result = make_tensor<float>({batch_size * channels * height * width}, getGPU());
   gpu_result->fill(0.0f);
 
-  cuda::col2im<float>(gpu_col_data->data_as<float>(), gpu_result->data_as<float>(), batch_size,
-                      channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                      pad_w);
+  ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
+                     kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_result_cpu(batch_size * channels * height * width);
   std::vector<float> gpu_result_cpu(batch_size * channels * height * width);
+  std::copy(cpu_result->data_as<float>(), cpu_result->data_as<float>() + cpu_result_cpu.size(),
+            cpu_result_cpu.data());
   getGPU().copyToHost(gpu_result_cpu.data(), gpu_result->data_as<float>(),
                       batch_size * channels * height * width * sizeof(float));
 
-  for (size_t i = 0; i < cpu_result.size(); ++i) {
-    EXPECT_NEAR(cpu_result[i], gpu_result_cpu[i], 1e-4f) << "Mismatch at index " << i;
+  for (size_t i = 0; i < cpu_result_cpu.size(); ++i) {
+    EXPECT_NEAR(cpu_result_cpu[i], gpu_result_cpu[i], 1e-4f) << "Mismatch at index " << i;
   }
 }
 
@@ -498,31 +501,34 @@ TEST_F(GPUopsTest, Col2imWithPadding) {
   size_t output_w = (padded_w - kernel_w) / stride_w + 1;
   size_t col_size = batch_size * channels * kernel_h * kernel_w * output_h * output_w;
 
-  std::vector<float> col_data(col_size);
+  Tensor cpu_col_data = make_tensor<float>({col_size});
+  auto cpu_col_ptr = cpu_col_data->data_as<float>();
   for (size_t i = 0; i < col_size; ++i) {
-    col_data[i] = static_cast<float>((i % 20) - 10);
+    cpu_col_ptr[i] = static_cast<float>((i % 20) - 10);
   }
 
-  std::vector<float> cpu_result(batch_size * channels * height * width, 0.0f);
-  cpu::col2im<float>(col_data.data(), cpu_result.data(), batch_size, channels, height, width,
-                     kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  Tensor cpu_result = make_tensor<float>({batch_size * channels * height * width});
+  cpu_result->fill(0.0f);
+  ops::col2im<float>(cpu_col_data, cpu_result, batch_size, channels, height, width, kernel_h,
+                     kernel_w, stride_h, stride_w, pad_h, pad_w);
 
-  Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  getGPU().copyToDevice(gpu_col_data->data_as<float>(), col_data.data(), col_size * sizeof(float));
+  Tensor gpu_col_data = cpu_col_data->to_gpu();
 
   Tensor gpu_result = make_tensor<float>({batch_size * channels * height * width}, getGPU());
   gpu_result->fill(0.0f);
 
-  cuda::col2im<float>(gpu_col_data->data_as<float>(), gpu_result->data_as<float>(), batch_size,
-                      channels, height, width, kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                      pad_w);
+  ops::col2im<float>(gpu_col_data, gpu_result, batch_size, channels, height, width, kernel_h,
+                     kernel_w, stride_h, stride_w, pad_h, pad_w);
 
+  std::vector<float> cpu_result_cpu(batch_size * channels * height * width);
   std::vector<float> gpu_result_cpu(batch_size * channels * height * width);
+  std::copy(cpu_result->data_as<float>(), cpu_result->data_as<float>() + cpu_result_cpu.size(),
+            cpu_result_cpu.data());
   getGPU().copyToHost(gpu_result_cpu.data(), gpu_result->data_as<float>(),
                       batch_size * channels * height * width * sizeof(float));
 
-  for (size_t i = 0; i < cpu_result.size(); ++i) {
-    EXPECT_NEAR(cpu_result[i], gpu_result_cpu[i], 1e-4f) << "Mismatch at index " << i;
+  for (size_t i = 0; i < cpu_result_cpu.size(); ++i) {
+    EXPECT_NEAR(cpu_result_cpu[i], gpu_result_cpu[i], 1e-4f) << "Mismatch at index " << i;
   }
 }
 
@@ -539,27 +545,25 @@ TEST_F(GPUopsTest, Im2colCol2imRoundTrip) {
   size_t output_w = (input_shape[3] - kernel_w) / stride_w + 1;
   size_t col_size = input_shape[0] * input_shape[1] * kernel_h * kernel_w * output_h * output_w;
 
-  std::vector<float> cpu_col_data(col_size);
-  cpu::im2col<float>(cpu_input, cpu_col_data.data(), kernel_h, kernel_w, stride_h, stride_w, pad_h,
-                     pad_w);
+  Tensor cpu_col_data = make_tensor<float>({col_size});
+  ops::im2col<float>(cpu_input, cpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor cpu_reconstructed = make_tensor<float>({1, 1, 6, 6});
   cpu_reconstructed->fill(0.0f);
-  cpu::col2im<float>(cpu_col_data.data(), cpu_reconstructed->data_as<float>(), input_shape[0],
-                     input_shape[1], input_shape[2], input_shape[3], kernel_h, kernel_w, stride_h,
-                     stride_w, pad_h, pad_w);
+  ops::col2im<float>(cpu_col_data, cpu_reconstructed, input_shape[0], input_shape[1],
+                     input_shape[2], input_shape[3], kernel_h, kernel_w, stride_h, stride_w, pad_h,
+                     pad_w);
 
   Tensor gpu_input = cpu_input->to_gpu();
   Tensor gpu_col_data = make_tensor<float>({col_size}, getGPU());
-  cuda::im2col<float>(gpu_input, gpu_col_data->data_as<float>(), kernel_h, kernel_w, stride_h,
-                      stride_w, pad_h, pad_w);
+  ops::im2col<float>(gpu_input, gpu_col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
 
   Tensor gpu_reconstructed = make_tensor<float>({1, 1, 6, 6}, getGPU());
   gpu_reconstructed->fill(0.0f);
   auto gpu_input_shape = gpu_input->shape();
-  cuda::col2im<float>(gpu_col_data->data_as<float>(), gpu_reconstructed->data_as<float>(),
-                      gpu_input_shape[0], gpu_input_shape[1], gpu_input_shape[2],
-                      gpu_input_shape[3], kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
+  ops::col2im<float>(gpu_col_data, gpu_reconstructed, gpu_input_shape[0], gpu_input_shape[1],
+                     gpu_input_shape[2], gpu_input_shape[3], kernel_h, kernel_w, stride_h, stride_w,
+                     pad_h, pad_w);
 
   compareTensors<float>(cpu_reconstructed, gpu_reconstructed, 1e-4f);
 }

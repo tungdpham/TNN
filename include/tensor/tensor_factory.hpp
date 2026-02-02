@@ -1,3 +1,5 @@
+#pragma once
+
 #include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/typed_tensor.hpp"

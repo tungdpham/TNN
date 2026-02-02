@@ -1,6 +1,7 @@
 #include "cuda/error_handler.hpp"
-#include "tensor/cuda/tensor_kernels.hpp"
+#include "tensor/cuda/tensor_ops.hpp"
 #include "type/type.hpp"
+
 namespace tnn {
 namespace cuda {
 

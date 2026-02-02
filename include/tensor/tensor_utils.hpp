@@ -1,3 +1,6 @@
+#include <iomanip>
+
+#include "tensor.hpp"
 
 namespace tnn {
 
