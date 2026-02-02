@@ -201,6 +201,7 @@ public:
           Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
                                         predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
+          gradient->mul_scalar(1.0f / static_cast<float>(num_microbatches));
           this->backward(std::move(gradient), job.mb_id);
         }
       }
