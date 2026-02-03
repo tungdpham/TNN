@@ -83,7 +83,8 @@ size_t FlashAttentionBlock::get_shape_hash(size_t b, size_t h, size_t s, size_t 
   return seed;
 }
 
-void FlashAttentionBlock::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void FlashAttentionBlock::forward_impl(const ConstTensor &input, const Tensor &output,
+                                       size_t mb_id) {
   if (input->dims() != 3) {
     throw std::invalid_argument("FlashAttentionBlock: Input must be 3D (B, S, E)");
   }
@@ -109,7 +110,8 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> FlashAttentionBlock::flash_attention_forward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
     const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-    Tensor &attn_heads, Tensor &stats_tensor, Tensor &workspace, const std::string &flow_id) const {
+    const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
+    const std::string &flow_id) const {
   return create_cuda_task("default", cuda::cudnn_flash_attention::run_forward, fe_handle, stats,
                           q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
                           stats_tensor->data(), workspace->data());
@@ -120,15 +122,16 @@ std::unique_ptr<Task> FlashAttentionBlock::flash_attention_backward_task(
     cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
     const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
     const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
-    const ConstTensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
-    Tensor &grad_v_heads, Tensor &workspace, const std::string &flow_id) const {
+    const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
+    const Tensor &grad_v_heads, const Tensor &workspace, const std::string &flow_id) const {
   return create_cuda_task("default", cuda::cudnn_flash_attention::run_backward, fe_handle, stats,
                           q_heads->data(), k_heads->data(), v_heads->data(), attn_heads->data(),
                           grad_attn_heads->data(), stats_tensor->data(), grad_q_heads->data(),
                           grad_k_heads->data(), grad_v_heads->data(), workspace->data());
 }
 
-void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &output,
+                                        size_t mb_id) {
   const auto &input_shape = input->shape();
   size_t batch_size = input_shape[0];
   size_t seq_len = input_shape[1];
@@ -212,7 +215,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, Tensor &output
   out_proj_->forward(attn_out, output, mb_id);
 }
 
-void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, Tensor &grad_input,
+void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input,
                                          size_t mb_id) {
   const auto &grad_shape = gradient->shape();
   size_t batch_size = grad_shape[0];
@@ -225,8 +228,8 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, Tensor &gr
 
   // Get cached forward tensors
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
-  Tensor &attn_out = this->get_mutable_tensor(mb_id, "attn_out");
-  Tensor &stats_tensor = this->get_mutable_tensor(mb_id, "stats_tensor");
+  const Tensor &attn_out = this->get_mutable_tensor(mb_id, "attn_out");
+  const Tensor &stats_tensor = this->get_mutable_tensor(mb_id, "stats_tensor");
 
   // Backprop through out_proj
   Tensor grad_attn_out = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
@@ -314,7 +317,7 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, Tensor &gr
 }
 #endif
 
-void FlashAttentionBlock::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+void FlashAttentionBlock::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                                         size_t mb_id) {
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {

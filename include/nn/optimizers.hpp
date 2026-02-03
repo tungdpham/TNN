@@ -176,7 +176,7 @@ private:
   std::vector<Tensor> velocities_;
 
   template <typename T>
-  void update_impl(Tensor &param, Tensor &grad, Tensor &velocity) {
+  void update_impl(const Tensor &param, const Tensor &grad, const Tensor &velocity) {
     const size_t size = param->size();
 
     if (param->device_type() == DeviceType::CPU) {
@@ -282,8 +282,8 @@ private:
   std::vector<Tensor> v_;
 
   template <typename T>
-  void update_impl(Tensor &param, Tensor &grad, Tensor &m, Tensor &v, float bias_correction1,
-                   float bias_correction2) {
+  void update_impl(const Tensor &param, const Tensor &grad, const Tensor &m, const Tensor &v,
+                   float bias_correction1, float bias_correction2) {
     const size_t size = param->size();
     if (param->device_type() == DeviceType::CPU) {
       create_cpu_task("default", cpu::adam::update_adam<T>, param->data_as<T>(), grad->data_as<T>(),

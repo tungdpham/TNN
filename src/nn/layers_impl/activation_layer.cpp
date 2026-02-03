@@ -17,7 +17,7 @@ ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
   }
 }
 
-void ActivationLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void ActivationLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
@@ -27,7 +27,8 @@ void ActivationLayer::forward_impl(const ConstTensor &input, Tensor &output, siz
   activation_->apply(input, output);
 }
 
-void ActivationLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void ActivationLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                    size_t mb_id) {
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ActivationLayer");

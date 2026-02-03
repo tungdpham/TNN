@@ -78,7 +78,7 @@ void DenseLayer::init_params() {
   }
 }
 
-void DenseLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void DenseLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   const std::vector<size_t> &in_shape = input->shape();
   size_t last_dim = in_shape.back();
 
@@ -105,7 +105,8 @@ void DenseLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t m
 #endif
 }
 
-void DenseLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void DenseLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                               size_t mb_id) {
   if (gradient->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in DenseLayer");
   }
@@ -118,7 +119,7 @@ void DenseLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, 
 }
 
 #ifdef USE_CUDNN
-void DenseLayer::cudnn_forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void DenseLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   const std::vector<size_t> &in_shape = input->shape();
   size_t batch_size = 1;
   for (size_t i = 0; i < in_shape.size() - 1; ++i) {
@@ -165,7 +166,8 @@ void DenseLayer::cudnn_forward(const ConstTensor &input, Tensor &output, size_t 
   }
 }
 
-void DenseLayer::cudnn_backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void DenseLayer::cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input,
+                                size_t mb_id) {
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
@@ -207,8 +209,8 @@ void DenseLayer::cudnn_backward(const ConstTensor &gradient, Tensor &grad_input,
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &gradient,
-                                                         Tensor &bias_gradient, size_t batch_size,
-                                                         size_t output_features,
+                                                         const Tensor &bias_gradient,
+                                                         size_t batch_size, size_t output_features,
                                                          const std::string &flow_id) const {
   if (gradient->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("DenseLayer gradient dtype mismatch with dispatch IO_T");
@@ -239,7 +241,7 @@ std::unique_ptr<Task> DenseLayer::compute_bias_gradients(const ConstTensor &grad
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DenseLayer::add_bias_vector(Tensor &output, const ConstTensor &bias,
+std::unique_ptr<Task> DenseLayer::add_bias_vector(const Tensor &output, const ConstTensor &bias,
                                                   size_t batch_size, size_t output_features,
                                                   const std::string &flow_id) const {
   if (output->data_type() != dtype_of<IO_T>()) {

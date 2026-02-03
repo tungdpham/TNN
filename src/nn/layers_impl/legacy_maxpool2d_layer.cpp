@@ -33,7 +33,8 @@ LegacyMaxPool2DLayer::LegacyMaxPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output,
+                                        size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("MaxPool2D: Input tensor must be 4-dimensional (NCHW)");
@@ -61,7 +62,7 @@ void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, Tensor &output
                            output_w, micro_batch_mask_indices_[mb_id], "default");
 }
 
-void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                                          size_t mb_id) {
   auto it_mask = micro_batch_mask_indices_.find(mb_id);
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
@@ -100,8 +101,8 @@ void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &gradient, Tensor &gr
 
 template <typename IO_T>
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
-    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
-    size_t input_h, size_t input_w, size_t output_h, size_t output_w, Tensor &mask_indices,
+    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     const std::string &flow_id) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
@@ -131,8 +132,8 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
 }
 
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward(
-    const ConstTensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
-    size_t input_h, size_t input_w, size_t output_h, size_t output_w, Tensor &mask_indices,
+    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
+    size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_forward_impl, input_data, output_data, batch_size,
                               channels, input_h, input_w, output_h, output_w, mask_indices,
@@ -142,8 +143,8 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward(
 
 template <typename IO_T>
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
-    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
-    size_t output_h, size_t output_w, const ConstTensor &mask_indices,
+    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
+    size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
     const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
@@ -174,8 +175,8 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
 }
 
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward(
-    const ConstTensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
-    size_t output_h, size_t output_w, const ConstTensor &mask_indices,
+    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
+    size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_backward_impl, gradient_data, grad_input_data,
                               batch_size, channels, output_h, output_w, mask_indices, flow_id);

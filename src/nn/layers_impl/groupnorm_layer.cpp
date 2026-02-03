@@ -48,7 +48,7 @@ void GroupNormLayer::init_params() {
   this->initialized_ = true;
 }
 
-void GroupNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (input->shape()[1] != num_channels_) {
     throw std::invalid_argument("Input channels must match num_channels in GroupNormLayer");
   }
@@ -87,7 +87,8 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size
   }
 }
 
-void GroupNormLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void GroupNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                   size_t mb_id) {
   Tensor &normalized = this->get_mutable_tensor(mb_id, "norm");
   Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
   const ConstTensor &input = this->get_cached_tensor(mb_id, "input");
@@ -109,9 +110,10 @@ void GroupNormLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_inp
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
-    const ConstTensor &input, Tensor &group_mean, Tensor &group_inv_std, const ConstTensor &gamma,
-    const ConstTensor &beta, Tensor &output, Tensor &norm_cache, size_t batch_size, size_t channels,
-    size_t spatial_size, const std::string &flow_id) const {
+    const ConstTensor &input, const Tensor &group_mean, const Tensor &group_inv_std,
+    const ConstTensor &gamma, const ConstTensor &beta, const Tensor &output,
+    const Tensor &norm_cache, size_t batch_size, size_t channels, size_t spatial_size,
+    const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -147,7 +149,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
-    const ConstTensor &gamma, Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
+    const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
     size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(

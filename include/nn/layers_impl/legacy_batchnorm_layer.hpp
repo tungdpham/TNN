@@ -34,40 +34,43 @@ private:
   std::unique_ptr<Task> forward_task_;
   std::unique_ptr<Task> backward_task_;
 
-  void def_forward(const ConstTensor &input, Tensor &output, size_t mb_id);
-  void def_backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id);
+  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
+  void def_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output_impl(const ConstTensor &input, Tensor &output,
-                                                      size_t batch_size, size_t channels,
-                                                      size_t spatial_size,
+  std::unique_ptr<Task> compute_inference_output_impl(const ConstTensor &input,
+                                                      const Tensor &output, size_t batch_size,
+                                                      size_t channels, size_t spatial_size,
                                                       const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_inference_output(const ConstTensor &input, Tensor &output,
+  std::unique_ptr<Task> compute_inference_output(const ConstTensor &input, const Tensor &output,
                                                  size_t batch_size, size_t channels,
                                                  size_t spatial_size,
                                                  const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, Tensor &batch_mean,
-                                          Tensor &batch_inv_std, Tensor &running_mean,
-                                          Tensor &running_var, const ConstTensor &gamma,
-                                          const ConstTensor &beta, Tensor &output, Tensor &norm,
-                                          size_t batch_size, size_t channels, size_t spatial_size,
+  std::unique_ptr<Task> run_forward_fused(const ConstTensor &input, const Tensor &batch_mean,
+                                          const Tensor &batch_inv_std, const Tensor &running_mean,
+                                          const Tensor &running_var, const ConstTensor &gamma,
+                                          const ConstTensor &beta, const Tensor &output,
+                                          const Tensor &norm, size_t batch_size, size_t channels,
+                                          size_t spatial_size,
                                           const std::string &flow_id = "default");
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
                                            const ConstTensor &norm_input,
                                            const ConstTensor &inv_std, const ConstTensor &gamma,
-                                           Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
-                                           size_t batch_size, size_t channels, size_t spatial_size,
+                                           const Tensor &d_gamma, const Tensor &d_beta,
+                                           const Tensor &grad_input, size_t batch_size,
+                                           size_t channels, size_t spatial_size,
                                            const std::string &flow_id = "default");
 
   void init_params() override;
-  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

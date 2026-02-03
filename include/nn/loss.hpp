@@ -46,7 +46,8 @@ public:
   virtual std::unique_ptr<Task> compute_loss(const ConstTensor &predictions,
                                              const ConstTensor &targets, float &loss) = 0;
   virtual std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions,
-                                                 const ConstTensor &targets, Tensor &gradient) = 0;
+                                                 const ConstTensor &targets,
+                                                 const Tensor &gradient) = 0;
 
   virtual std::string name() const = 0;
   virtual LossConfig get_config() const = 0;
@@ -72,7 +73,7 @@ public:
   }
 
   std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions, const ConstTensor &targets,
-                                         Tensor &gradient) override {
+                                         const Tensor &gradient) override {
     if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for CrossEntropyLoss.");
@@ -124,7 +125,7 @@ private:
 
   template <typename T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets, Tensor &gradient) {
+                                              const ConstTensor &targets, const Tensor &gradient) {
     gradient->ensure(predictions->shape());
     const size_t num_classes = predictions->shape().back();
     size_t batch_size = 1;
@@ -165,7 +166,7 @@ public:
   }
 
   std::unique_ptr<Task> compute_gradient(const ConstTensor &logits, const ConstTensor &targets,
-                                         Tensor &gradient) override {
+                                         const Tensor &gradient) override {
     if (logits->device() != targets->device() || logits->device() != gradient->device()) {
       throw std::runtime_error(
           "Logits, targets, and gradient must be on the same device for "
@@ -215,7 +216,7 @@ private:
 
   template <typename T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &logits, const ConstTensor &targets,
-                                              Tensor &gradient) {
+                                              const Tensor &gradient) {
     gradient->ensure(logits->shape());
     const size_t num_classes = logits->shape().back();
     size_t batch_size = 1;
@@ -253,7 +254,7 @@ public:
   }
 
   std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions, const ConstTensor &targets,
-                                         Tensor &gradient) override {
+                                         const Tensor &gradient) override {
     if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for MSELoss.");
@@ -298,7 +299,7 @@ private:
 
   template <typename T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets, Tensor &gradient) {
+                                              const ConstTensor &targets, const Tensor &gradient) {
     gradient->ensure(predictions->shape());
     const size_t batch_size = predictions->shape()[0];
     size_t output_size = 1;
@@ -336,7 +337,7 @@ public:
   }
 
   std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions, const ConstTensor &targets,
-                                         Tensor &gradient) override {
+                                         const Tensor &gradient) override {
     if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for MAELoss.");
@@ -381,7 +382,7 @@ private:
 
   template <typename T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets, Tensor &gradient) {
+                                              const ConstTensor &targets, const Tensor &gradient) {
     gradient->ensure(predictions->shape());
     const size_t batch_size = predictions->shape()[0];
     size_t output_size = 1;
@@ -419,7 +420,7 @@ public:
   }
 
   std::unique_ptr<Task> compute_gradient(const ConstTensor &predictions, const ConstTensor &targets,
-                                         Tensor &gradient) override {
+                                         const Tensor &gradient) override {
     if (predictions->device() != targets->device() || predictions->device() != gradient->device()) {
       throw std::runtime_error(
           "Predictions, targets, and gradient must be on the same device for HuberLoss.");
@@ -472,7 +473,7 @@ private:
 
   template <typename T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &predictions,
-                                              const ConstTensor &targets, Tensor &gradient) {
+                                              const ConstTensor &targets, const Tensor &gradient) {
     gradient->ensure(predictions->shape());
     const size_t batch_size = predictions->shape()[0];
     size_t output_size = 1;

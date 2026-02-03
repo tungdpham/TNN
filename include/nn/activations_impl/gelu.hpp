@@ -11,21 +11,22 @@
 namespace tnn {
 class GELU : public ActivationFunction {
 public:
-  std::unique_ptr<Task> apply(const ConstTensor &input, Tensor &output) const override;
+  std::unique_ptr<Task> apply(const ConstTensor &input, const Tensor &output) const override;
   std::unique_ptr<Task> compute_gradient(const ConstTensor &input, const ConstTensor &grad_output,
-                                         Tensor &grad_input) const override;
+                                         const Tensor &grad_input) const override;
 
   std::string name() const override { return "gelu"; }
   std::unique_ptr<ActivationFunction> clone() const override { return std::make_unique<GELU>(); }
 
 private:
   template <typename Compute_T>
-  std::unique_ptr<Task> apply_impl(const ConstTensor &input, Tensor &output,
+  std::unique_ptr<Task> apply_impl(const ConstTensor &input, const Tensor &output,
                                    const std::string &flow_id) const;
 
   template <typename Compute_T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &input,
-                                              const ConstTensor &grad_output, Tensor &grad_input,
+                                              const ConstTensor &grad_output,
+                                              const Tensor &grad_input,
                                               const std::string &flow_id) const;
 };
 }  // namespace tnn

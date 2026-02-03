@@ -67,7 +67,7 @@ void AttentionBlock::on_set_device(const Device &device) {
   out_proj_->set_device(device);
 }
 
-void AttentionBlock::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void AttentionBlock::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   const auto &input_shape = input->shape();
 
   size_t batch_size = input_shape[0];
@@ -95,7 +95,8 @@ void AttentionBlock::forward_impl(const ConstTensor &input, Tensor &output, size
   out_proj_->forward(attn_out, output, mb_id);
 }
 
-void AttentionBlock::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void AttentionBlock::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                   size_t mb_id) {
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID: " + std::to_string(mb_id));
@@ -187,7 +188,7 @@ void AttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
-    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, Tensor &output,
+    const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const Tensor &output,
     size_t batch_size, size_t seq_len, const std::string &flow_id) {
   if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
       v->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
@@ -268,7 +269,7 @@ std::unique_ptr<Task> AttentionBlock::compute_attention_forward(
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> AttentionBlock::compute_attention_backward(
     const ConstTensor &q, const ConstTensor &k, const ConstTensor &v, const ConstTensor &d_attn_out,
-    Tensor &dq, Tensor &dk, Tensor &dv, size_t batch_size, size_t seq_len,
+    const Tensor &dq, const Tensor &dk, const Tensor &dv, size_t batch_size, size_t seq_len,
     const std::string &flow_id) {
   if (q->data_type() != dtype_of<IO_T>() || k->data_type() != dtype_of<IO_T>() ||
       v->data_type() != dtype_of<IO_T>() || d_attn_out->data_type() != dtype_of<IO_T>() ||

@@ -17,7 +17,7 @@
 namespace tnn {
 LeakyReLU::LeakyReLU(float negative_slope) : negative_slope_(negative_slope) {}
 
-std::unique_ptr<Task> LeakyReLU::apply(const ConstTensor &input, Tensor &output) const {
+std::unique_ptr<Task> LeakyReLU::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
     throw std::runtime_error("Input and output shapes must match for LeakyReLU");
   }
@@ -30,7 +30,7 @@ std::unique_ptr<Task> LeakyReLU::apply(const ConstTensor &input, Tensor &output)
 
 std::unique_ptr<Task> LeakyReLU::compute_gradient(const ConstTensor &input,
                                                   const ConstTensor &grad_output,
-                                                  Tensor &grad_input) const {
+                                                  const Tensor &grad_input) const {
   assert(grad_output->shape() == grad_input->shape() &&
          "Shapes must match for in-place gradient computation");
   if (grad_output->device() != grad_input->device()) {
@@ -48,7 +48,7 @@ std::unique_ptr<ActivationFunction> LeakyReLU::clone() const {
 }
 
 template <typename Compute_T>
-std::unique_ptr<Task> LeakyReLU::apply_impl(const ConstTensor &input, Tensor &output,
+std::unique_ptr<Task> LeakyReLU::apply_impl(const ConstTensor &input, const Tensor &output,
                                             const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
@@ -75,7 +75,7 @@ std::unique_ptr<Task> LeakyReLU::apply_impl(const ConstTensor &input, Tensor &ou
 template <typename Compute_T>
 std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const ConstTensor &input,
                                                        const ConstTensor &grad_output,
-                                                       Tensor &grad_input,
+                                                       const Tensor &grad_input,
                                                        const std::string &flow_id) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||

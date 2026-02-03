@@ -27,19 +27,20 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_forward_impl(const ConstTensor &input, const ConstTensor &weight,
-                                             Tensor &output, size_t num_indices, size_t vocab_size,
-                                             size_t embed_dim, size_t padding_idx,
-                                             const std::string &flow_id) const;
+                                             const Tensor &output, size_t num_indices,
+                                             size_t vocab_size, size_t embed_dim,
+                                             size_t padding_idx, const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_backward_impl(const ConstTensor &input, const ConstTensor &gradient,
-                                              Tensor &grad_weight, size_t num_indices,
+                                              const Tensor &grad_weight, size_t num_indices,
                                               size_t vocab_size, size_t embed_dim,
                                               size_t padding_idx, const std::string &flow_id) const;
 
   void init_params() override;
-  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

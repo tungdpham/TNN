@@ -17,7 +17,7 @@ public:
     this->name_ = "Contrast";
   }
 
-  void apply(Tensor &data, Tensor &labels) override {
+  void apply(const Tensor &data, const Tensor &labels) override {
     DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -30,7 +30,7 @@ private:
   float contrast_range_;
 
   template <typename T>
-  void apply_impl(Tensor &data, Tensor &labels) {
+  void apply_impl(const Tensor &data, const Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> contrast_dist(1.0f - contrast_range_,
                                                         1.0f + contrast_range_);

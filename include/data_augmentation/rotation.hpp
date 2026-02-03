@@ -18,7 +18,7 @@ public:
     this->name_ = "Rotation";
   }
 
-  void apply(Tensor &data, Tensor &labels) override {
+  void apply(const Tensor &data, const Tensor &labels) override {
     DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -31,7 +31,7 @@ private:
   float max_angle_degrees_;
 
   template <typename T>
-  void apply_impl(Tensor &data, Tensor &labels) {
+  void apply_impl(const Tensor &data, const Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::uniform_real_distribution<float> angle_dist(-max_angle_degrees_, max_angle_degrees_);
 
@@ -52,8 +52,8 @@ private:
   }
 
   template <typename T>
-  void rotate_image(Tensor &data, size_t batch_idx, size_t channels, size_t height, size_t width,
-                    float angle_degrees) {
+  void rotate_image(const Tensor &data, size_t batch_idx, size_t channels, size_t height,
+                    size_t width, float angle_degrees) {
     const float angle_rad = angle_degrees * M_PI / 180.0f;
     const float cos_angle = std::cos(angle_rad);
     const float sin_angle = std::sin(angle_rad);

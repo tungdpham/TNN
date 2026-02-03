@@ -24,7 +24,7 @@ DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
   }
 }
 
-void DropoutLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (!this->is_training_) {
     output->ensure(input->shape());
     input->copy_to(output);
@@ -42,7 +42,8 @@ void DropoutLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_forward, input, output, mask, "default");
 }
 
-void DropoutLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void DropoutLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                 size_t mb_id) {
   if (!this->is_training_) {
     grad_input->ensure(gradient->shape());
     gradient->copy_to(grad_input);
@@ -63,7 +64,8 @@ void DropoutLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const ConstTensor &input,
-                                                            Tensor &output, Tensor &mask,
+                                                            const Tensor &output,
+                                                            const Tensor &mask,
                                                             const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(

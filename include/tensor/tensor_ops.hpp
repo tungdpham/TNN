@@ -11,9 +11,9 @@ namespace tnn {
 namespace ops {
 
 template <typename T>
-std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, Tensor &col_data, size_t kernel_h,
-                             size_t kernel_w, size_t stride_h = 1, size_t stride_w = 1,
-                             size_t pad_h = 0, size_t pad_w = 0,
+std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, const Tensor &col_data,
+                             size_t kernel_h, size_t kernel_w, size_t stride_h = 1,
+                             size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
                              const std::string &flow_id = "default") {
   if (col_data->device_type() != input_tensor->device_type()) {
     throw std::runtime_error("im2col: Mismatched device types between col_data and input_tensor");
@@ -55,10 +55,10 @@ std::unique_ptr<Task> im2col(const ConstTensor &input_tensor, Tensor &col_data, 
 }
 
 template <typename T>
-std::unique_ptr<Task> col2im(const ConstTensor &col_data, Tensor &result_data, size_t batch_size,
-                             size_t channels, size_t height, size_t width, size_t kernel_h,
-                             size_t kernel_w, size_t stride_h, size_t stride_w, size_t pad_h,
-                             size_t pad_w, const std::string &flow_id = "default") {
+std::unique_ptr<Task> col2im(const ConstTensor &col_data, const Tensor &result_data,
+                             size_t batch_size, size_t channels, size_t height, size_t width,
+                             size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
+                             size_t pad_h, size_t pad_w, const std::string &flow_id = "default") {
   if (col_data->device_type() != result_data->device_type()) {
     throw std::runtime_error("col2im: Mismatched device types between col_data and result_data");
   }
@@ -89,8 +89,8 @@ std::unique_ptr<Task> col2im(const ConstTensor &col_data, Tensor &result_data, s
 }
 
 template <typename T>
-std::unique_ptr<Task> pad(const ConstTensor &input, Tensor &result, size_t pad_h, size_t pad_w,
-                          T value = T(0), const std::string &flow_id = "default") {
+std::unique_ptr<Task> pad(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                          size_t pad_w, T value = T(0), const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("pad: Input tensor must be 4-dimensional (NCHW)");
@@ -120,8 +120,8 @@ std::unique_ptr<Task> pad(const ConstTensor &input, Tensor &result, size_t pad_h
 }
 
 template <typename T>
-std::unique_ptr<Task> unpad(const ConstTensor &input, Tensor &result, size_t pad_h, size_t pad_w,
-                            const std::string &flow_id = "default") {
+std::unique_ptr<Task> unpad(const ConstTensor &input, const Tensor &result, size_t pad_h,
+                            size_t pad_w, const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   if (shape.size() != 4) {
     throw std::invalid_argument("unpad: Input tensor must be 4-dimensional (NCHW)");
@@ -158,7 +158,7 @@ std::unique_ptr<Task> unpad(const ConstTensor &input, Tensor &result, size_t pad
 }
 
 template <typename T>
-std::unique_ptr<Task> crop(const ConstTensor &input, Tensor &result, const size_t start_h,
+std::unique_ptr<Task> crop(const ConstTensor &input, const Tensor &result, const size_t start_h,
                            const size_t start_w, const size_t end_h, const size_t end_w,
                            const std::string &flow_id = "default") {
   const auto &shape = input->shape();
@@ -197,8 +197,9 @@ std::unique_ptr<Task> crop(const ConstTensor &input, Tensor &result, const size_
 }
 
 template <typename T>
-std::unique_ptr<Task> slice_batch(const ConstTensor &input, Tensor &result, size_t start_batch,
-                                  size_t end_batch, const std::string &flow_id = "default") {
+std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result,
+                                  size_t start_batch, size_t end_batch,
+                                  const std::string &flow_id = "default") {
   const auto &shape = input->shape();
   const size_t batch_size = shape[0];
 
@@ -269,7 +270,7 @@ std::unique_ptr<Task> split(const ConstTensor &input, std::vector<Tensor> &resul
 }
 
 template <typename T>
-std::unique_ptr<Task> transpose_2d(const ConstTensor &input, Tensor &output, size_t rows,
+std::unique_ptr<Task> transpose_2d(const ConstTensor &input, const Tensor &output, size_t rows,
                                    size_t cols, const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("transpose_2d: Input and output must be on the same device");
@@ -297,8 +298,9 @@ std::unique_ptr<Task> transpose_2d(const ConstTensor &input, Tensor &output, siz
 }
 
 template <typename T>
-std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, Tensor &output, size_t n, size_t c,
-                                   size_t h, size_t w, const std::string &flow_id = "default") {
+std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, const Tensor &output, size_t n,
+                                   size_t c, size_t h, size_t w,
+                                   const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("nchw_to_cnhw: Input and output must be on the same device");
   }
@@ -325,8 +327,9 @@ std::unique_ptr<Task> nchw_to_cnhw(const ConstTensor &input, Tensor &output, siz
 }
 
 template <typename T>
-std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, Tensor &output, size_t n, size_t c,
-                                   size_t h, size_t w, const std::string &flow_id = "default") {
+std::unique_ptr<Task> cnhw_to_nchw(const ConstTensor &input, const Tensor &output, size_t n,
+                                   size_t c, size_t h, size_t w,
+                                   const std::string &flow_id = "default") {
   if (output->device() != input->device()) {
     throw std::runtime_error("cnhw_to_nchw: Input and output must be on the same device");
   }

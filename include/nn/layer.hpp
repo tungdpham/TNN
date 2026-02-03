@@ -72,9 +72,9 @@ public:
 
   void set_seed(unsigned long long seed);
 
-  void forward(const ConstTensor &input, Tensor &output, size_t mb_id = 0);
+  void forward(const ConstTensor &input, const Tensor &output, size_t mb_id = 0);
 
-  void backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0);
+  void backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id = 0);
 
   virtual std::vector<Tensor> parameters();
 
@@ -142,8 +142,9 @@ protected:
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
   virtual void init_impl() = 0;
-  virtual void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) = 0;
-  virtual void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) = 0;
+  virtual void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) = 0;
+  virtual void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                             size_t mb_id = 0) = 0;
 
   // helpers
   Tensor make_param_tensor(std::vector<size_t> shape);

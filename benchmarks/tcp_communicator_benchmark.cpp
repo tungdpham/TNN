@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
         }
         // verify integrity of received tensor
         Job &job = message.get<Job>();
-        Tensor &tensor = job.data;
+        const Tensor &tensor = job.data;
         Tensor cpu_tensor = tensor->to_device(getCPU());
         assert(cpu_tensor->shape() == master_tensor->shape());
         assert(cpu_tensor->data_type() == master_tensor->data_type());

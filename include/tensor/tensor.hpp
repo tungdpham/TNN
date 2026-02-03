@@ -94,7 +94,7 @@ public:
   virtual Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const = 0;
   virtual void resize(const std::vector<size_t> &new_shape) = 0;
   virtual void ensure(const std::vector<size_t> &new_shape) = 0;
-  virtual void copy_to(Tensor &target) const = 0;
+  virtual void copy_to(const Tensor &target) const = 0;
   virtual Tensor to_cpu() const = 0;
   virtual Tensor to_gpu(int gpu_id = 0) const = 0;
   virtual Tensor to_device(const Device &target_device) const = 0;

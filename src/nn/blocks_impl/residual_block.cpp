@@ -90,7 +90,7 @@ void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
   }
 }
 
-void ResidualBlock::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void ResidualBlock::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   input_shape_cache_[mb_id] = input->shape();
 
   size_t max_size = 0;
@@ -138,8 +138,9 @@ void ResidualBlock::forward_impl(const ConstTensor &input, Tensor &output, size_
   }
 }
 
-void ResidualBlock::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
-  Tensor &pre_act = this->get_mutable_tensor(mb_id, "pre_activation");
+void ResidualBlock::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                  size_t mb_id) {
+  const Tensor &pre_act = this->get_mutable_tensor(mb_id, "pre_activation");
   if (final_activation_ && !pre_act) {
     throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                              std::to_string(mb_id));

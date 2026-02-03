@@ -42,11 +42,9 @@ void LayerNormLayer::init_params() {
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(const ConstTensor &input, Tensor &output,
-                                                         const ConstTensor &gamma,
-                                                         const ConstTensor &beta, size_t batch_size,
-                                                         size_t channels,
-                                                         const std::string &flow_id) const {
+std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(
+    const ConstTensor &input, const Tensor &output, const ConstTensor &gamma,
+    const ConstTensor &beta, size_t batch_size, size_t channels, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LayerNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -80,8 +78,8 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_forward(const ConstTensor &inpu
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
     const ConstTensor &gradient, const ConstTensor &input, const ConstTensor &gamma,
-    Tensor &grad_input, Tensor &gamma_gradients, Tensor &beta_gradients, size_t batch_size,
-    size_t channels, const std::string &flow_id) const {
+    const Tensor &grad_input, const Tensor &gamma_gradients, const Tensor &beta_gradients,
+    size_t batch_size, size_t channels, const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "LayerNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -118,7 +116,7 @@ std::unique_ptr<Task> LayerNormLayer::layer_norm_backward(
   }
 }
 
-void LayerNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void LayerNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
@@ -144,7 +142,8 @@ void LayerNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size
                                  channels, "default");
 }
 
-void LayerNormLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void LayerNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                   size_t mb_id) {
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("LayerNorm backward called without forward for this micro-batch");

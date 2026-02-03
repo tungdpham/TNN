@@ -37,7 +37,7 @@ private:
   std::unique_ptr<Task> flash_attention_forward_task(
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
       const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
-      Tensor &attn_heads, Tensor &stats_tensor, Tensor &workspace,
+      const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
       const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
@@ -45,11 +45,11 @@ private:
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
       const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
       const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
-      const ConstTensor &stats_tensor, Tensor &grad_q_heads, Tensor &grad_k_heads,
-      Tensor &grad_v_heads, Tensor &workspace, const std::string &flow_id) const;
+      const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
+      const Tensor &grad_v_heads, const Tensor &workspace, const std::string &flow_id) const;
 
-  void cudnn_forward(const ConstTensor &input, Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id);
+  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
+  void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
 
   std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
 #endif
@@ -61,8 +61,9 @@ private:
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,

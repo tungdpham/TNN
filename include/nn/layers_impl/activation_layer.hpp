@@ -19,8 +19,9 @@ class ActivationLayer : public StatelessLayer {
 private:
   std::unique_ptr<ActivationFunction> activation_;
 
-  void forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "activation";

@@ -152,7 +152,7 @@ void Layer::set_seed(unsigned long long seed) {
   srand_seed_ = seed;
 }
 
-void Layer::forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void Layer::forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before forward."
               << std::endl;
@@ -189,7 +189,7 @@ void Layer::forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
   profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
 }
 
-void Layer::backward(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Layer::backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before backward."
               << std::endl;

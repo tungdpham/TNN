@@ -15,7 +15,7 @@
 
 namespace tnn {
 
-std::unique_ptr<Task> Linear::apply(const ConstTensor &input, Tensor &output) const {
+std::unique_ptr<Task> Linear::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
     throw std::runtime_error("Input and output shapes must match for Linear");
   }
@@ -31,7 +31,7 @@ std::unique_ptr<Task> Linear::apply(const ConstTensor &input, Tensor &output) co
 
 std::unique_ptr<Task> Linear::compute_gradient(const ConstTensor &input,
                                                const ConstTensor &grad_output,
-                                               Tensor &grad_input) const {
+                                               const Tensor &grad_input) const {
   if (grad_input->shape() != grad_output->shape()) {
     throw std::invalid_argument(
         "Upstream gradient must have the same "

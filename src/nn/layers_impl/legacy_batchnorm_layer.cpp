@@ -53,7 +53,8 @@ void LegacyBatchNormLayer::init_params() {
   this->initialized_ = true;
 }
 
-void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &output,
+                                        size_t mb_id) {
   if (input->dims() < 3) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 3 dimensions");
   }
@@ -64,12 +65,13 @@ void LegacyBatchNormLayer::forward_impl(const ConstTensor &input, Tensor &output
   def_forward(input, output, mb_id);
 }
 
-void LegacyBatchNormLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+void LegacyBatchNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                                          size_t mb_id) {
   def_backward(gradient, grad_input, mb_id);
 }
 
-void LegacyBatchNormLayer::def_forward(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &output,
+                                       size_t mb_id) {
   size_t batch_size, channels, spatial_size;
   batch_size = input->dimension(0);
   channels = input->dimension(1);
@@ -110,11 +112,11 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, Tensor &output,
   }
 }
 
-void LegacyBatchNormLayer::def_backward(const ConstTensor &gradient, Tensor &grad_input,
+void LegacyBatchNormLayer::def_backward(const ConstTensor &gradient, const Tensor &grad_input,
                                         size_t mb_id) {
-  Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
-  Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
-  Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
+  const Tensor &norm = this->get_mutable_tensor(mb_id, "norm");
+  const Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
+  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "mean");
 
   if (!norm || !inv_std || !batch_mean) {
     throw std::runtime_error("Missing cached tensors for backward pass in LegacyBatchNormLayer");
@@ -132,7 +134,7 @@ void LegacyBatchNormLayer::def_backward(const ConstTensor &gradient, Tensor &gra
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
-    const ConstTensor &input, Tensor &output, size_t batch_size, size_t channels,
+    const ConstTensor &input, const Tensor &output, size_t batch_size, size_t channels,
     size_t spatial_size, const std::string &flow_id) {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
@@ -176,7 +178,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output_impl(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output(
-    const ConstTensor &input, Tensor &output, size_t batch_size, size_t channels,
+    const ConstTensor &input, const Tensor &output, size_t batch_size, size_t channels,
     size_t spatial_size, const std::string &flow_id) {
   return compute_inference_output_impl<IO_T, Param_T, Compute_T>(input, output, batch_size,
                                                                  channels, spatial_size, flow_id);
@@ -184,10 +186,10 @@ std::unique_ptr<Task> LegacyBatchNormLayer::compute_inference_output(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayer::run_forward_fused(
-    const ConstTensor &input, Tensor &batch_mean, Tensor &batch_inv_std, Tensor &running_mean,
-    Tensor &running_var, const ConstTensor &gamma, const ConstTensor &beta, Tensor &output,
-    Tensor &norm, size_t batch_size, size_t channels, size_t spatial_size,
-    const std::string &flow_id) {
+    const ConstTensor &input, const Tensor &batch_mean, const Tensor &batch_inv_std,
+    const Tensor &running_mean, const Tensor &running_var, const ConstTensor &gamma,
+    const ConstTensor &beta, const Tensor &output, const Tensor &norm, size_t batch_size,
+    size_t channels, size_t spatial_size, const std::string &flow_id) {
   if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(flow_id, cpu::batchnorm_nchw::run_forward_fused<IO_T>,
                            input->data_as<IO_T>(), batch_mean->data_as<float>(),
@@ -215,7 +217,7 @@ std::unique_ptr<Task> LegacyBatchNormLayer::run_forward_fused(
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyBatchNormLayer::run_backward_fused(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
-    const ConstTensor &gamma, Tensor &d_gamma, Tensor &d_beta, Tensor &grad_input,
+    const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
     size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) {
   if (grad_output->device_type() == DeviceType::CPU) {
     return create_cpu_task(

@@ -69,7 +69,7 @@ void Sequential::on_set_training(bool training) {
   }
 }
 
-void Sequential::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void Sequential::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
@@ -102,7 +102,8 @@ void Sequential::forward_impl(const ConstTensor &input, Tensor &output, size_t m
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
 }
 
-void Sequential::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Sequential::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                               size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }

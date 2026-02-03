@@ -216,7 +216,7 @@ inline Tensor load(std::ifstream &in, const Device &device) {
   return tensor;
 }
 
-inline void load_into(std::ifstream &in, Tensor &target) {
+inline void load_into(std::ifstream &in, const Tensor &target) {
   if (!in.is_open()) {
     throw std::runtime_error("File is not open for reading");
   }

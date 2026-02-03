@@ -485,7 +485,7 @@ public:
    * @brief Copy between typed tensors
    * @param target Target tensor to copy data into
    */
-  void copy_to(Tensor &target) const override {
+  void copy_to(const Tensor &target) const override {
     if (target == nullptr || target->size() < size()) {
       throw std::invalid_argument("Target tensor is null or smaller than source in tensor copy");
     }

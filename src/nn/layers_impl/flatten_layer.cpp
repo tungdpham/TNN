@@ -13,7 +13,7 @@ namespace tnn {
 FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
     : StatelessLayer(name), start_dim_(start_dim), end_dim_(end_dim) {}
 
-void FlattenLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t mb_id) {
+void FlattenLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   std::vector<size_t> output_shape = compute_output_shape(input->shape());
@@ -22,7 +22,8 @@ void FlattenLayer::forward_impl(const ConstTensor &input, Tensor &output, size_t
   input->copy_to(output);
 }
 
-void FlattenLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input, size_t mb_id) {
+void FlattenLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                 size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in FlattenLayer: " +

@@ -30,7 +30,7 @@ void PositionalEmbeddingLayer::init_params() {
   pos_embedding_gradients_->fill(0.0f);
 }
 
-void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, Tensor &output,
+void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output,
                                             size_t mb_id) {
   const auto &shape = input->shape();
   if (shape.size() < 2) {
@@ -57,7 +57,7 @@ void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, Tensor &ou
                                  "default");
 }
 
-void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, Tensor &grad_input,
+void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                                              size_t mb_id) {
   const auto &shape = gradient->shape();
   if (shape.size() < 2) {
@@ -88,7 +88,7 @@ void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, Tensor
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
-    const ConstTensor &input, Tensor &output, const ConstTensor &pos_embedding,
+    const ConstTensor &input, const Tensor &output, const ConstTensor &pos_embedding,
     const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
@@ -140,7 +140,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
-    const ConstTensor &gradient, Tensor &pos_embedding_gradients,
+    const ConstTensor &gradient, const Tensor &pos_embedding_gradients,
     const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
