@@ -6,7 +6,6 @@
 
 #include "device/device.hpp"
 #include "device/device_allocator.hpp"
-#include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
 #include "device/sref.hpp"
@@ -329,9 +328,7 @@ public:
       std::vector<size_t> shape_vec(shape_);
       auto gpu_tensor = std::make_shared<TypedTensor<T>>(GPUAllocator(), shape_vec);
 
-      // Copy from CPU to GPU
-      getGPU(gpu_id).copyToDevice(gpu_tensor->data_.template get<T>(), data_.template get<T>(),
-                                  data_size_ * sizeof(T));
+      ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_);
       return gpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_gpu()");

@@ -201,8 +201,9 @@ public:
           Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
                                         predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
-          gradient->mul_scalar(1.0f / static_cast<float>(num_microbatches));
           this->backward(std::move(gradient), job.mb_id);
+        } else {
+          throw std::runtime_error("Unexpected message type in FORWARD_JOB");
         }
       }
     }
@@ -215,7 +216,7 @@ public:
 
     this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
 
-    return total_loss / static_cast<float>(num_microbatches);
+    return total_loss;
   }
 
   /**

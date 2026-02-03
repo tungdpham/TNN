@@ -78,6 +78,7 @@ public:
 
   void set_config(const StageConfig &config) {
     // setup model, optimizer, criterion
+    std::cout << "Received config: " << config.to_json().dump(4) << std::endl;
     LayerConfig model_config = config.model_config;
     this->model_ = Sequential::create_from_config(model_config);
     OptimizerConfig optimizer_config = config.optimizer_config;
@@ -117,7 +118,6 @@ protected:
       case CommandType::FORWARD_JOB: {
         auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
-
         IAllocator &out_allocator = communicator_->get_allocator();
         DType_t input_dtype = forward_job.data->data_type();
         auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());

@@ -47,8 +47,7 @@ private:
 
         for (size_t i = 0; i < data->size() / batch_size; ++i) {
           size_t idx = b * (data->size() / batch_size) + i;
-          ptr[idx] = std::clamp(ptr[idx] * static_cast<T>(contrast_factor), static_cast<T>(0),
-                                static_cast<T>(1));
+          ptr[idx] = std::clamp(static_cast<float>(ptr[idx]) * contrast_factor, 0.0f, 1.0f);
         }
       }
     }

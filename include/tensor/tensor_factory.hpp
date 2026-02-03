@@ -43,33 +43,62 @@ DType_t find_and_verify_dtype(const Args &...args) {
   return found;
 }
 
-#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)        \
-  do {                                                         \
-    switch (dtype_value) {                                     \
-      case DType_t::FP16: {                                    \
-        using type_alias = fp16;                               \
-        __VA_ARGS__;                                           \
-        break;                                                 \
-      }                                                        \
-      case DType_t::BF16: {                                    \
-        using type_alias = bf16;                               \
-        __VA_ARGS__;                                           \
-        break;                                                 \
-      }                                                        \
-      case DType_t::FP32: {                                    \
-        using type_alias = float;                              \
-        __VA_ARGS__;                                           \
-        break;                                                 \
-      }                                                        \
-      case DType_t::FP64: {                                    \
-        using type_alias = double;                             \
-        __VA_ARGS__;                                           \
-        break;                                                 \
-      }                                                        \
-      default:                                                 \
-        throw std::runtime_error("Unknown dtype in dispatch"); \
-    }                                                          \
-  } while (0)
+#define DISPATCH_ON_DTYPE(dtype_value, type_alias, ...)      \
+  switch (dtype_value) {                                     \
+    case DType_t::FP16: {                                    \
+      using type_alias = fp16;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::BF16: {                                    \
+      using type_alias = bf16;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::FP32: {                                    \
+      using type_alias = float;                              \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::FP64: {                                    \
+      using type_alias = double;                             \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    default:                                                 \
+      throw std::runtime_error("Unknown dtype in dispatch"); \
+  }
+
+#define DISPATCH_ON_ANY_DTYPE(dtype_value, type_alias, ...)  \
+  switch (dtype_value) {                                     \
+    case DType_t::UINT8_T: {                                 \
+      using type_alias = uint8_t;                            \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::FP16: {                                    \
+      using type_alias = fp16;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::BF16: {                                    \
+      using type_alias = bf16;                               \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::FP32: {                                    \
+      using type_alias = float;                              \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    case DType_t::FP64: {                                    \
+      using type_alias = double;                             \
+      __VA_ARGS__;                                           \
+      break;                                                 \
+    }                                                        \
+    default:                                                 \
+      throw std::runtime_error("Unknown dtype in dispatch"); \
+  }
 
 #define DISPATCH_AUTO(type_alias, func_body, ...) \
   DISPATCH_ON_DTYPE(tnn::find_and_verify_dtype(__VA_ARGS__), type_alias, func_body)
@@ -105,34 +134,12 @@ inline Tensor make_tensor(std::initializer_list<size_t> shape, const dptr &data,
 
 inline Tensor make_tensor(DType_t dtype, std::vector<size_t> shape,
                           const Device &device = getCPU()) {
-  switch (dtype) {
-    case DType_t::FP16:
-      return make_tensor<fp16>(shape, device);
-    case DType_t::BF16:
-      return make_tensor<bf16>(shape, device);
-    case DType_t::FP32:
-      return make_tensor<float>(shape, device);
-    case DType_t::FP64:
-      return make_tensor<double>(shape, device);
-    default:
-      throw std::runtime_error("Unsupported data type for make_tensor");
-  }
+  DISPATCH_ON_ANY_DTYPE(dtype, T, return make_tensor<T>(shape, device));
 }
 
 inline Tensor make_tensor(DType_t dtype, std::initializer_list<size_t> shape = {},
                           const Device &device = getCPU()) {
-  switch (dtype) {
-    case DType_t::FP16:
-      return make_tensor<fp16>(shape, device);
-    case DType_t::BF16:
-      return make_tensor<bf16>(shape, device);
-    case DType_t::FP32:
-      return make_tensor<float>(shape, device);
-    case DType_t::FP64:
-      return make_tensor<double>(shape, device);
-    default:
-      throw std::runtime_error("Unsupported data type for make_tensor");
-  }
+  DISPATCH_ON_ANY_DTYPE(dtype, T, return make_tensor<T>(shape, device));
 }
 
 template <typename T>
@@ -142,18 +149,7 @@ inline Tensor make_tensor(IAllocator &allocator, dptr &&data, std::vector<size_t
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, dptr &&data,
                           std::vector<size_t> shape) {
-  switch (dtype) {
-    case DType_t::FP16:
-      return make_tensor<fp16>(allocator, std::move(data), shape);
-    case DType_t::BF16:
-      return make_tensor<bf16>(allocator, std::move(data), shape);
-    case DType_t::FP32:
-      return make_tensor<float>(allocator, std::move(data), shape);
-    case DType_t::FP64:
-      return make_tensor<double>(allocator, std::move(data), shape);
-    default:
-      throw std::runtime_error("Unsupported data type for make_tensor");
-  }
+  DISPATCH_ON_ANY_DTYPE(dtype, T, return make_tensor<T>(allocator, std::move(data), shape));
 }
 
 template <typename T>
@@ -167,34 +163,12 @@ inline Tensor make_tensor(IAllocator &allocator, std::initializer_list<size_t> s
 }
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype, std::vector<size_t> shape) {
-  switch (dtype) {
-    case DType_t::FP16:
-      return make_tensor<fp16>(allocator, shape);
-    case DType_t::BF16:
-      return make_tensor<bf16>(allocator, shape);
-    case DType_t::FP32:
-      return make_tensor<float>(allocator, shape);
-    case DType_t::FP64:
-      return make_tensor<double>(allocator, shape);
-    default:
-      throw std::runtime_error("Unsupported data type for make_tensor");
-  }
+  DISPATCH_ON_ANY_DTYPE(dtype, T, return make_tensor<T>(allocator, shape));
 }
 
 inline Tensor make_tensor(IAllocator &allocator, DType_t dtype,
                           std::initializer_list<size_t> shape = {}) {
-  switch (dtype) {
-    case DType_t::BF16:
-      return make_tensor<bf16>(allocator, shape);
-    case DType_t::FP16:
-      return make_tensor<fp16>(allocator, shape);
-    case DType_t::FP32:
-      return make_tensor<float>(allocator, shape);
-    case DType_t::FP64:
-      return make_tensor<double>(allocator, shape);
-    default:
-      throw std::runtime_error("Unsupported data type for make_tensor");
-  }
+  DISPATCH_ON_ANY_DTYPE(dtype, T, return make_tensor<T>(allocator, shape));
 }
 
 inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
@@ -205,9 +179,10 @@ inline Tensor dtype_cast(const ConstTensor &input, DType_t target_dtype) {
   const dptr &input_data = input->data_ptr();
   size_t input_size = input->size();
   dptr output_data = make_dptr(input->device(), input_size * get_dtype_size(target_dtype));
-  DISPATCH_ON_DTYPE(input->data_type(), A_T,
-                    DISPATCH_ON_DTYPE(target_dtype, B_T,
-                                      ops::cast<A_T, B_T>(input_data, output_data, input_size)));
+  DISPATCH_ON_ANY_DTYPE(
+      input->data_type(), A_T,
+      DISPATCH_ON_DTYPE(target_dtype, B_T,
+                        ops::cast<A_T, B_T>(input_data, output_data, input_size)));
   return make_tensor(input->allocator(), target_dtype, std::move(output_data), input->shape());
 }
 
