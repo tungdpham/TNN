@@ -28,7 +28,7 @@ void run_forward_training(feHandle_t *handle, const BatchNormStats &stats, const
 
 void run_forward_inference(feHandle_t *handle, const BatchNormStats &stats, const void *input,
                            const void *gamma, const void *beta, const void *saved_mean,
-                           const void *saved_invar, void *output, void *workspace,
+                           const void *saved_var, void *output, void *workspace,
                            cudaStream_t stream);
 
 void run_backward(feHandle_t *handle, const BatchNormStats &stats, const void *input,

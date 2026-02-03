@@ -60,7 +60,7 @@ private:
                                                Tensor &output, const ConstTensor &gamma,
                                                const ConstTensor &beta,
                                                const ConstTensor &saved_mean,
-                                               const ConstTensor &saved_invar, Tensor &workspace,
+                                               const ConstTensor &saved_var, Tensor &workspace,
                                                const std::string &flow_id);
 
   template <typename IO_T, typename Param_T, typename Compute_T>

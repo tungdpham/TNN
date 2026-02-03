@@ -42,7 +42,7 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Tensor_attributes> inf_scale;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_bias;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_mean;
-  std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_invar;
+  std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_var;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_y;
 
   std::shared_ptr<fe::graph::Graph> bwd_graph;
@@ -236,6 +236,7 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
                                      .set_data_type(compute_type));
 
   // Y = scale * (X - mean) / sqrt(var + epsilon) + bias
+  // Note: saved_var is the running variance (σ²), so we compute inv_std from it
   auto epsilon_tensor = graph->tensor(static_cast<float>(stats.epsilon));
   auto var_plus_eps =
       graph->pointwise(saved_var, epsilon_tensor,
@@ -275,7 +276,7 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->inf_scale = scale;
   handle->inf_bias = bias;
   handle->inf_saved_mean = saved_mean;
-  handle->inf_saved_invar = saved_var;
+  handle->inf_saved_var = saved_var;
   handle->inf_y = Y;
 
   stats.inf_workspace_size = static_cast<size_t>(workspace_size);
@@ -424,7 +425,7 @@ void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const
 
 void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
                            const void* gamma, const void* beta, const void* saved_mean,
-                           const void* saved_invar, void* output, void* workspace,
+                           const void* saved_var, void* output, void* workspace,
                            cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_inference called with null feHandle");
@@ -438,7 +439,7 @@ void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, cons
       {handle->inf_bias, const_cast<void*>(beta)},
       {handle->inf_y, output},
       {handle->inf_saved_mean, const_cast<void*>(saved_mean)},
-      {handle->inf_saved_invar, const_cast<void*>(saved_invar)}};
+      {handle->inf_saved_var, const_cast<void*>(saved_var)}};
 
   auto status = handle->inf_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm inference execute");

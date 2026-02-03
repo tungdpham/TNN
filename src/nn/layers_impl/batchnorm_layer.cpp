@@ -254,7 +254,7 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
     cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
     Tensor &output, const ConstTensor &gamma, const ConstTensor &beta,
-    const ConstTensor &saved_mean, const ConstTensor &saved_invar, Tensor &workspace,
+    const ConstTensor &saved_mean, const ConstTensor &saved_var, Tensor &workspace,
     const std::string &flow_id) {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
@@ -267,7 +267,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 #ifdef USE_CUDNN
     return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), saved_mean->data(),
-                            saved_invar->data(), output->data(), workspace->data());
+                            saved_var->data(), output->data(), workspace->data());
 #endif
   } else {
     throw std::runtime_error("BatchNormLayer forward only implemented for GPU with cuDNN");
