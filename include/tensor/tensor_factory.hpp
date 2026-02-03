@@ -231,7 +231,12 @@ inline void load_into(std::ifstream &in, Tensor &target) {
     throw std::runtime_error("Failed to read tensor shape from file");
   }
 
-  target = make_tensor(target->allocator(), dtype, target->data_ptr(), shape);
+  if (shape != target->shape()) {
+    throw std::runtime_error("Target tensor shape does not match loaded tensor");
+  }
+  if (dtype != target->data_type()) {
+    throw std::runtime_error("Target tensor dtype does not match loaded tensor");
+  }
 
   if (target->device_type() == DeviceType::CPU) {
     in.read(reinterpret_cast<char *>(target->data()), target->size() * get_dtype_size(dtype));

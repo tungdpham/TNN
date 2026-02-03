@@ -122,7 +122,6 @@ protected:
         DType_t input_dtype = forward_job.data->data_type();
         auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
         Tensor output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
-
         this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
