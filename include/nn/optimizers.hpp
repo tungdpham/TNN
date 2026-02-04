@@ -8,6 +8,7 @@
 
 #include <any>
 #include <cmath>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -35,6 +36,8 @@ struct OptimizerConfig {
       try {
         return std::any_cast<T>(it->second);
       } catch (const std::bad_any_cast &) {
+        std::cerr << "Warning: OptimizerConfig parameter '" << key
+                  << "' type mismatch. Returning default value." << std::endl;
         return default_value;
       }
     }

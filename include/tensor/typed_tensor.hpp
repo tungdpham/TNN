@@ -540,7 +540,8 @@ public:
     size_t src_offset = src_batch_idx * other.compute_stride(0);
     size_t dest_offset = dest_batch_idx * batch_stride;
 
-    ops::copy<T>(other.data_ + src_offset, data_ + dest_offset, batch_stride);
+    ops::copy<T>(other.data_ + src_offset * sizeof(T), data_ + dest_offset * sizeof(T),
+                 batch_stride);
   }
 
   double min() const override {

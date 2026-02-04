@@ -216,7 +216,7 @@ protected:
         break;
       }
       case CommandType::LOAD_PARAMS: {
-        // // decode and deserialize parameters
+        // decode and deserialize parameters
         throw std::runtime_error("Not implemented yet");
         break;
       }
@@ -241,6 +241,24 @@ protected:
       }
       case CommandType::HANDSHAKE_ACK: {
         // do nothing;
+        break;
+      }
+      case CommandType::SAVE_TO_FILE: {
+        try {
+          const std::string &filepath = message.get<std::string>();
+          std::ofstream file(filepath, std::ios::binary);
+          if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath);
+          }
+          this->model_->save_state(file);
+          file.close();
+          std::cout << "Model saved to " << filepath << std::endl;
+        } catch (const std::exception &e) {
+          std::cerr << "Failed to save model: " << e.what() << std::endl;
+          std::string error_text = std::string("Failed to save model: ") + e.what();
+          Message error_msg(CommandType::ERROR_REPORT, error_text);
+          communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
+        }
         break;
       }
       case CommandType::SHUTDOWN:

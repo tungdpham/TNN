@@ -18,6 +18,8 @@ T LayerConfig::get(const std::string &key, const T &default_value) const {
     try {
       return std::any_cast<T>(it->second);
     } catch (const std::bad_any_cast &) {
+      std::cerr << "Warning: LayerConfig parameter '" << key
+                << "' type mismatch. Returning default value." << std::endl;
       return default_value;
     }
   }

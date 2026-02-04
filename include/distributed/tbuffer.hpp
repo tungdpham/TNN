@@ -196,7 +196,7 @@ public:
     uint64_t str_length = static_cast<uint64_t>(str.size());
     write<uint64_t>(offset, str_length);
     if (str_length > 0) {
-      write(offset, reinterpret_cast<const uint8_t *>(str.data()), str_length);
+      write(offset, str.data(), str_length);
     }
   }
 
@@ -246,7 +246,7 @@ public:
     }
     if (str_length > 0) {
       str.resize(str_length);
-      read(offset, reinterpret_cast<uint8_t *>(str.data()), str_length);
+      read(offset, str.data(), str_length);
     } else {
       str.clear();
     }

@@ -38,6 +38,7 @@ enum CommandType : uint16_t {
   PARAMS_LOADED,
   SEND_PARAMS,
   PARAMS_TRANSFER,
+  SAVE_TO_FILE,
 
   // status and monitoring
   STATUS_REQUEST,

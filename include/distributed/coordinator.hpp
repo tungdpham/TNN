@@ -12,7 +12,6 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
-#include <numeric>
 #include <vector>
 
 #include "communicator.hpp"
