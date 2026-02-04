@@ -15,6 +15,7 @@
 #include <numeric>
 #include <stdexcept>
 
+#include "nlohmann/json_fwd.hpp"
 #include "nn/layers.hpp"
 #include "profiling/event.hpp"
 
@@ -262,7 +263,7 @@ LayerConfig Sequential::get_config() const {
   LayerConfig config;
   config.name = name_;
   config.type = TYPE_NAME;
-  std::vector<nlohmann::json> layers_config = nlohmann::json::array();
+  nlohmann::json layers_config = nlohmann::json::array();
   for (const auto &layer : layers_) {
     auto layer_config = layer->get_config();
     layers_config.push_back(layer_config.to_json());
@@ -274,10 +275,10 @@ LayerConfig Sequential::get_config() const {
 std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
   std::vector<std::unique_ptr<Layer>> layers;
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
-  LayerFactory::register_defaults();
   if (!layers_json.is_array()) {
-    throw std::runtime_error("Expected 'layers' to be an array in Sequential config");
+    throw std::runtime_error("Sequential layer config 'layers' parameter must be an array");
   }
+  LayerFactory::register_defaults();
   for (const auto &layer_json : layers_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);

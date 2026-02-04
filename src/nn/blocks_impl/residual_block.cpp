@@ -313,8 +313,8 @@ LayerConfig ResidualBlock::get_config() const {
     shortcut_array.push_back(sub_json);
   }
 
-  config.parameters["main_path"] = main_array.dump();
-  config.parameters["shortcut_path"] = shortcut_array.dump();
+  config.parameters["main_path"] = main_array;
+  config.parameters["shortcut_path"] = shortcut_array;
 
   return config;
 }
@@ -358,14 +358,15 @@ size_t ResidualBlock::cached_memory_bytes() const {
 std::unique_ptr<ResidualBlock> ResidualBlock::create_from_config(const LayerConfig &config) {
   std::vector<std::unique_ptr<Layer>> main_path;
   std::vector<std::unique_ptr<Layer>> shortcut_path;
-  nlohmann::json main_json = nlohmann::json::parse(config.get<std::string>("main_path"));
+  nlohmann::json main_json = config.get<nlohmann::json>("main_path", nlohmann::json::array());
   LayerFactory::register_defaults();
   for (const auto &layer_json : main_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);
     main_path.push_back(std::move(layer));
   }
-  nlohmann::json shortcut_json = nlohmann::json::parse(config.get<std::string>("shortcut_path"));
+  nlohmann::json shortcut_json =
+      config.get<nlohmann::json>("shortcut_path", nlohmann::json::array());
   for (const auto &layer_json : shortcut_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);

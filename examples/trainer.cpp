@@ -6,6 +6,7 @@
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/schedulers.hpp"
+#include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 
@@ -52,6 +53,9 @@ signed main() {
     try {
       Sequential temp_model = ExampleModels::create(model_name);
       model = std::make_unique<Sequential>(std::move(temp_model));
+      auto model_config = model->get_config();
+      cout << model_config.to_json().dump(4) << endl;
+      model = Sequential::create_from_config(model_config);
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
