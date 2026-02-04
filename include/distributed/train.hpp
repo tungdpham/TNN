@@ -21,6 +21,9 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
                                      const std::unique_ptr<Loss> &criterion,
                                      std::unique_ptr<Scheduler> &scheduler,
                                      const TrainingConfig &config) {
+  train_loader->shuffle();
+  train_loader->reset();
+
   Tensor batch_data, batch_labels;
   size_t batch_index = 0;
   int accumulation_steps = 0;
@@ -76,6 +79,8 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
                                         std::unique_ptr<BaseDataLoader> &val_loader,
                                         const std::unique_ptr<Loss> &criterion,
                                         const TrainingConfig &config) {
+  val_loader->reset();
+
   Tensor batch_data, batch_labels;
   float total_val_loss = 0.0f;
   float total_val_correct = 0.0f;
@@ -114,10 +119,6 @@ inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader
   thread_wrapper.execute([&]() -> void {
     for (int epoch = 0; epoch < config.epochs; ++epoch) {
       std::cout << "Epoch " << (epoch + 1) << "/" << config.epochs << " ===" << std::endl;
-      train_loader->reset();
-      val_loader->reset();
-      train_loader->shuffle();
-
       train_semi_async_epoch(coordinator, train_loader, criterion, scheduler, config);
 
       validate_semi_async_epoch(coordinator, val_loader, criterion, config);

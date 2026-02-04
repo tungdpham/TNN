@@ -154,10 +154,8 @@ int main(int argc, char *argv[]) {
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
   Tensor master_tensor = make_tensor<float>({128, 512, 16, 16}, getCPU());
-  float *master_data = master_tensor->data_as<float>();
-  for (size_t i = 0; i < master_tensor->size(); ++i) {
-    master_data[i] = static_cast<float>(i);
-  }
+  master_tensor->fill_random_normal(0.0f, 1.0f, 123456);
+  // float *master_data = master_tensor->data_as<float>();
 
   for (int i = 0; i < 4; i++) {
     Tensor tensor = make_tensor<float>(master_tensor->shape(), getGPU());
@@ -201,17 +199,6 @@ int main(int argc, char *argv[]) {
         assert(cpu_tensor->data_type() == master_tensor->data_type());
         assert(cpu_tensor->size() == master_tensor->size());
         assert(job.mb_id == 10 && "Unexpected mb_id in received job");
-        // float *recv_data = cpu_tensor->data_as<float>();
-        // bool valid = true;
-        // for (size_t i = 0; i < tensor->size(); ++i) {
-        //   if (recv_data[i] != master_data[i]) {
-        //     valid = false;
-        //     break;
-        //   }
-        // }
-        // if (!valid) {
-        //   throw std::runtime_error("Data integrity check failed for received tensor");
-        // }
         num_messages_received++;
         communicator.send_message(std::move(message), peer_endpoint);
       }
