@@ -57,11 +57,6 @@ public:
     return headers;
   }
 
-  bool message_exists(uint64_t msg_serial_id) const {
-    std::lock_guard<std::mutex> lock(message_states_mutex_);
-    return message_states_.find(msg_serial_id) != message_states_.end();
-  }
-
   // initiate the packet storage
   void register_packet(uint64_t msg_serial_id, const PacketHeader &header) {
     std::lock_guard<std::mutex> lock(message_states_mutex_);

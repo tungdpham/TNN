@@ -103,7 +103,7 @@ struct MessageData {
       auto json_str = stage_config.to_json().dump();
       size += sizeof(uint64_t) + json_str.size();  // JSON string size
     } else {
-      throw new std::runtime_error("Unknown payload type in MessageData");
+      throw std::runtime_error("Unknown payload type in MessageData");
     }
     return size;
   }

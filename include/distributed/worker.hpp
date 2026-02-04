@@ -289,7 +289,7 @@ protected:
   bool use_gpu_;
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
-  std::shared_ptr<Communicator> communicator_;
+  std::unique_ptr<Communicator> communicator_;
 
   std::string id_;
   Endpoint coordinator_endpoint_;
