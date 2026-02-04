@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
   }
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
-  Tensor master_tensor = make_tensor<float>({128, 512, 16, 16}, getCPU());
+  Tensor master_tensor = make_tensor<float>({256, 32, 32, 3}, getCPU());
   master_tensor->fill_random_normal(0.0f, 1.0f, 123456);
   // float *master_data = master_tensor->data_as<float>();
 

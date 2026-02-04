@@ -77,12 +77,13 @@ int main() {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;
   }
+  train_loader->set_seed(123456);
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
-      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
+      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
 

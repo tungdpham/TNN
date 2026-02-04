@@ -78,12 +78,7 @@ public:
     });
   }
 
-  void start() {
-    for (const auto &worker_endpoint : this->worker_endpoints_) {
-      Message start_msg(CommandType::TRAIN_MODE, std::monostate{});
-      this->comm_->send_message(std::move(start_msg), worker_endpoint);
-    }
-  }
+  void start() {}
 
   void stop() {
     for (const auto &worker_endpoint : this->worker_endpoints_) {

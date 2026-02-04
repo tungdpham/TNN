@@ -137,6 +137,7 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   virtual void on_set_device(const Device &device) {}
+  virtual void on_set_seed(unsigned long long seed) {}
   virtual void on_set_training(bool training) {}
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}

@@ -21,6 +21,7 @@
 #include "distributed/command_type.hpp"
 #include "job.hpp"
 #include "message.hpp"
+#include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
 #include "profiling/event.hpp"
@@ -82,6 +83,7 @@ public:
     LayerConfig model_config = config.model_config;
     this->model_ = Sequential::create_from_config(model_config);
     this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
+    this->model_->set_seed(123456);
     this->model_->init();
     this->model_->enable_profiling(true);
     auto parsed_config = this->model_->get_config();
@@ -136,7 +138,6 @@ protected:
         const Job &backward_job = message.get<Job>();
         IAllocator &out_allocator = communicator_->get_allocator();
         Tensor output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
-
         this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(

@@ -63,6 +63,15 @@ void ResidualBlock::init_params() {
   }
 }
 
+void ResidualBlock::on_set_seed(unsigned long long seed) {
+  for (auto &layer : main_path_) {
+    layer->set_seed(seed);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_seed(seed);
+  }
+}
+
 void ResidualBlock::on_set_io_dtype(DType_t dtype) {
   for (auto &layer : main_path_) {
     layer->set_io_dtype(dtype);

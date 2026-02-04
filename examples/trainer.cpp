@@ -38,6 +38,7 @@ signed main() {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;
   }
+  train_loader->set_seed(123456);
 
   std::unique_ptr<Sequential> model;
   if (!model_path.empty()) {
@@ -63,30 +64,17 @@ signed main() {
       return 1;
     }
     model->set_device(device);
+    model->set_seed(123456);
     model->init();
   }
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
-  float lr_initial = Env::get("LR_INITIAL", 0.001f);
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
+  auto optimizer =
+      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
   auto scheduler = SchedulerFactory::create_step_lr(
       optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
-  // size_t max_steps = train_config.max_steps > 0
-  //                        ? train_config.max_steps
-  //                        : train_loader->size() / train_config.batch_size * train_config.epochs;
-  // auto scheduler = SchedulerFactory::create_warmup_cosine(
-  //     optimizer.get(), max_steps * 0.1f, max_steps, 0.0f, train_config.lr_initial * 0.1f);
-
-  // if (train_loader->get_data_shape().size() == 3) {
-  //   auto train_augmentation = AugmentationBuilder()
-  //                                 .horizontal_flip(0.5)
-  //                                 .gaussian_noise(0.25, 0.05)
-  //                                 .random_crop(0.5, 4)
-  //                                 .build();
-  //   train_loader->set_augmentation(std::move(train_augmentation));
-  // }
 
   try {
     train_model(model, train_loader, val_loader, optimizer, criterion, scheduler, train_config);

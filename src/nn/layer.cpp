@@ -152,6 +152,7 @@ void Layer::init() {
 void Layer::set_seed(unsigned long long seed) {
   use_seed_ = true;
   srand_seed_ = seed;
+  on_set_seed(seed);
 }
 
 void Layer::forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {

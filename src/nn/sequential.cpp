@@ -40,6 +40,12 @@ void Sequential::init_impl() {
   }
 }
 
+void Sequential::on_set_seed(unsigned long long seed) {
+  for (auto &layer : layers_) {
+    layer->set_seed(seed);
+  }
+}
+
 void Sequential::on_set_io_dtype(DType_t dtype) {
   for (auto &layer : layers_) {
     layer->set_io_dtype(dtype);

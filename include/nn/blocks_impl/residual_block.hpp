@@ -34,6 +34,7 @@ private:
   std::string activation_type_;
 
   void init_params() override;
+  void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;

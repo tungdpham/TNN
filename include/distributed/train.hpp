@@ -63,6 +63,8 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
       if (config.profiler_type != ProfilerType::NONE) {
         coordinator.print_profiling();
       }
+    }
+    if (config.profiler_type != ProfilerType::NONE) {
       coordinator.clear_profiling();
     }
     ++batch_index;
@@ -89,11 +91,8 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
   coordinator.set_training(false);
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, config.num_microbatches);
-    std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, config.num_microbatches);
-
+    std::vector<Tensor> micro_batch_inputs{std::move(batch_data)};
+    std::vector<Tensor> micro_batch_labels{std::move(batch_labels)};
     auto [val_loss, val_correct] =
         coordinator.async_val_batch(micro_batch_inputs, micro_batch_labels, criterion);
     total_val_loss += val_loss;

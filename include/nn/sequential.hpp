@@ -27,6 +27,7 @@ private:
 
 protected:
   void init_impl() override;
+  void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;
