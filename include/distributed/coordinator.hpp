@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <vector>
 
 #include "communicator.hpp"
@@ -19,9 +20,11 @@
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
+#include "nn/accuracy.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/sequential.hpp"
+#include "nn/train.hpp"
 #include "partitioner/partitioner.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
@@ -165,11 +168,11 @@ public:
    * @param microbatch_inputs A vector of input tensors for each microbatch.
    * @param microbatch_labels A vector of target tensors for each microbatch.
    */
-  float async_process_batch(std::vector<Tensor> &microbatch_inputs,
-                            std::vector<Tensor> &microbatch_labels,
-                            const std::unique_ptr<Loss> &criterion) {
+  Result async_train_batch(std::vector<Tensor> &microbatch_inputs,
+                           std::vector<Tensor> &microbatch_labels,
+                           const std::unique_ptr<Loss> &criterion) {
     if (microbatch_inputs.size() != microbatch_labels.size()) {
-      throw std::runtime_error("Mismatched number of inputs and labels in async_process_batch");
+      throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
     }
     size_t num_microbatches = microbatch_inputs.size();
 
@@ -178,6 +181,7 @@ public:
     }
 
     float total_loss = 0.0f;
+    int total_corrects = 0;
 
     size_t processed_microbatches_ = 0;
     while (processed_microbatches_ < num_microbatches) {
@@ -197,6 +201,8 @@ public:
           Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
+          total_corrects += compute_class_corrects(predictions, device_targets);
+
           total_loss += loss;
           Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
                                         predictions->data_type(), predictions->shape());
@@ -216,7 +222,56 @@ public:
 
     this->comm_->dequeue_all_messages_by_type(CommandType::BACKWARD_COMPLETE);
 
-    return total_loss;
+    return {total_loss, static_cast<double>(total_corrects)};
+  }
+
+  /**
+   * @brief Forwards all microbatches and immediately compute loss and backward pass as results
+   * arrive.
+   * @param microbatch_inputs A vector of input tensors for each microbatch.
+   * @param microbatch_labels A vector of target tensors for each microbatch.
+   */
+  Result async_val_batch(std::vector<Tensor> &microbatch_inputs,
+                         std::vector<Tensor> &microbatch_labels,
+                         const std::unique_ptr<Loss> &criterion) {
+    if (microbatch_inputs.size() != microbatch_labels.size()) {
+      throw std::runtime_error("Mismatched number of inputs and labels in async_train_batch");
+    }
+    size_t num_microbatches = microbatch_inputs.size();
+    for (size_t i = 0; i < num_microbatches; ++i) {
+      this->forward(std::move(microbatch_inputs[i]), i);
+    }
+    float total_loss = 0.0f;
+    int total_corrects = 0;
+
+    size_t processed_microbatches_ = 0;
+    while (processed_microbatches_ < num_microbatches) {
+      std::unique_lock<std::mutex> lock(message_notification_mutex_);
+      message_notification_cv_.wait(
+          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
+      std::vector<Message> FORWARD_JOBs =
+          this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
+
+      for (auto &forward_msg : FORWARD_JOBs) {
+        if (forward_msg.has_type<Job>()) {
+          ++processed_microbatches_;
+
+          Job &job = forward_msg.get<Job>();
+          Tensor &predictions = job.data;
+          Tensor &targets = microbatch_labels[job.mb_id];
+          Tensor device_targets = targets->to_device(predictions->device());
+          float loss = 0.0f;
+          criterion->compute_loss(predictions, device_targets, loss);
+          total_corrects += compute_class_corrects(predictions, device_targets);
+
+          total_loss += loss;
+        } else {
+          throw std::runtime_error("Unexpected message type in FORWARD_JOB");
+        }
+      }
+    }
+
+    return {total_loss, static_cast<double>(total_corrects)};
   }
 
   /**

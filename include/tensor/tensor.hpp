@@ -20,8 +20,8 @@ namespace tnn {
 
 class ITensor;
 
-using Tensor = std::shared_ptr<ITensor>;
-using ConstTensor = std::shared_ptr<const ITensor>;
+using Tensor = std::shared_ptr<ITensor>;             // ref to mutable tensor
+using ConstTensor = std::shared_ptr<const ITensor>;  // ref to immutable tensor
 
 class ITensor {
 public:

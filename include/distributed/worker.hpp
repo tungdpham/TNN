@@ -81,14 +81,15 @@ public:
     std::cout << "Received config: " << config.to_json().dump(4) << std::endl;
     LayerConfig model_config = config.model_config;
     this->model_ = Sequential::create_from_config(model_config);
-    OptimizerConfig optimizer_config = config.optimizer_config;
-    this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
     this->model_->init();
+    this->model_->enable_profiling(true);
     auto parsed_config = this->model_->get_config();
     std::cout << parsed_config.to_json().dump(4) << std::endl;
+
+    OptimizerConfig optimizer_config = config.optimizer_config;
+    this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
-    this->model_->enable_profiling(true);
 
     // setup connections
     coordinator_endpoint_ = config.coordinator_endpoint;
