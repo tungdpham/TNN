@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
   auto scheduler =
       SchedulerFactory::create_step_lr(optimizer.get(),
                                        5 * train_loader->size() / train_config.batch_size,
-                                       0.1f);
+                                       0.6f);
 
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
@@ -157,7 +157,7 @@ int main(int argc, char *argv[]) {
                      cfg.device_name,
                      cfg.gid_index);
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
   if (position_str == "last") {
     local_worker_position = 1;
   }

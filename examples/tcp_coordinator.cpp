@@ -87,7 +87,7 @@ int main() {
   auto scheduler =
       SchedulerFactory::create_step_lr(optimizer.get(),
                                        5 * train_loader->size() / train_config.batch_size,
-                                       0.5f);
+                                       0.6f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -100,9 +100,8 @@ int main() {
     local_worker_position = 1;
   }
   vector<Endpoint> endpoints = {
-      // Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
-      //               Env::get<int>("WORKER1_PORT", 8001)),
-
+      Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
+                    Env::get<int>("WORKER1_PORT", 8001)),
   };
 
   if (local_worker_position) {
@@ -123,7 +122,7 @@ int main() {
       std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
   CoordinatorConfig config{ParallelMode_t::PIPELINE,
                            std::move(model),

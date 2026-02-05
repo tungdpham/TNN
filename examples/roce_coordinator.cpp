@@ -145,7 +145,7 @@ int main(int argc, char *argv[]) {
   auto scheduler =
       SchedulerFactory::create_step_lr(optimizer.get(),
                                        5 * train_loader->size() / train_config.batch_size,
-                                       0.5f);
+                                       0.6f);
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
 

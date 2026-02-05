@@ -86,7 +86,7 @@ int main() {
   auto scheduler =
       SchedulerFactory::create_step_lr(optimizer.get(),
                                        5 * train_loader->size() / train_config.batch_size,
-                                       0.1f);
+                                       0.6f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -95,7 +95,7 @@ int main() {
       Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
                     Env::get<int>("LOCAL_WORKER_PORT", 8000));
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
   if (position_str == "last") {
     local_worker_position = 1;
   }
