@@ -589,15 +589,15 @@ LayerConfig LegacyConv2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["in_channels"] = in_channels_;
-  config.parameters["out_channels"] = out_channels_;
-  config.parameters["kernel_h"] = kernel_h_;
-  config.parameters["kernel_w"] = kernel_w_;
-  config.parameters["stride_h"] = stride_h_;
-  config.parameters["stride_w"] = stride_w_;
-  config.parameters["pad_h"] = pad_h_;
-  config.parameters["pad_w"] = pad_w_;
-  config.parameters["use_bias"] = use_bias_;
+  config.set("in_channels", in_channels_);
+  config.set("out_channels", out_channels_);
+  config.set("kernel_h", kernel_h_);
+  config.set("kernel_w", kernel_w_);
+  config.set("stride_h", stride_h_);
+  config.set("stride_w", stride_w_);
+  config.set("pad_h", pad_h_);
+  config.set("pad_w", pad_w_);
+  config.set("use_bias", use_bias_);
   return config;
 }
 

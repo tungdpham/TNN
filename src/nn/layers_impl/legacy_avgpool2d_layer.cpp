@@ -174,12 +174,12 @@ LayerConfig LegacyAvgPool2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["pool_h"] = pool_h_;
-  config.parameters["pool_w"] = pool_w_;
-  config.parameters["stride_h"] = stride_h_;
-  config.parameters["stride_w"] = stride_w_;
-  config.parameters["pad_h"] = pad_h_;
-  config.parameters["pad_w"] = pad_w_;
+  config.set("pool_h", pool_h_);
+  config.set("pool_w", pool_w_);
+  config.set("stride_h", stride_h_);
+  config.set("stride_w", stride_w_);
+  config.set("pad_h", pad_h_);
+  config.set("pad_w", pad_w_);
   return config;
 }
 

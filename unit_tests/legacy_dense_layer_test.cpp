@@ -419,9 +419,9 @@ TEST_F(LegacyLegacyDenseLayerTest, GetConfig) {
 TEST_F(LegacyLegacyDenseLayerTest, CreateFromConfig) {
   LayerConfig config;
   config.name = "test_dense_recreate";
-  config.parameters["input_features"] = size_t(64);
-  config.parameters["output_features"] = size_t(32);
-  config.parameters["use_bias"] = true;
+  config.set("input_features", size_t(64));
+  config.set("output_features", size_t(32));
+  config.set("use_bias", true);
 
   auto layer = LegacyDenseLayer::create_from_config(config);
 

@@ -26,7 +26,7 @@ using namespace tnn::legacy;
 using namespace std;
 
 int main() {
-  ExampleModels::register_defaults();
+  legacy::ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -63,12 +63,12 @@ int main() {
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      Sequential temp_model = ExampleModels::create(model_name);
+      Sequential temp_model = legacy::ExampleModels::create(model_name);
       model = std::make_unique<Sequential>(std::move(temp_model));
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
-      for (const auto &name : ExampleModels::available_models()) {
+      for (const auto &name : legacy::ExampleModels::available_models()) {
         cout << name << "\n";
       }
       cout << endl;
@@ -83,8 +83,10 @@ int main() {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
+  auto scheduler =
+      SchedulerFactory::create_step_lr(optimizer.get(),
+                                       5 * train_loader->size() / train_config.batch_size,
+                                       0.1f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -127,6 +129,7 @@ int main() {
   CoordinatorConfig config{ParallelMode_t::PIPELINE,
                            std::move(model),
                            std::move(optimizer),
+                           std::move(scheduler),
                            std::move(partitioner),
                            std::move(worker),
                            coordinator_endpoint,
@@ -143,7 +146,7 @@ int main() {
 
   coordinator.start();
 
-  train_model(coordinator, train_loader, val_loader, criterion, scheduler, train_config);
+  train_model(coordinator, train_loader, val_loader, criterion, train_config);
 
   coordinator.stop();
 

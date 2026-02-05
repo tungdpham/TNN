@@ -7,35 +7,18 @@
 #pragma once
 
 #include <algorithm>
-#include <any>
 #include <cmath>
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+#include "common/config.hpp"
 #include "optimizers.hpp"
 
 namespace tnn {
 
-struct SchedulerConfig {
-  std::string type;
-  std::string name;
-  std::unordered_map<std::string, std::any> parameters;
-
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
-    auto it = parameters.find(key);
-    if (it != parameters.end()) {
-      try {
-        return std::any_cast<T>(it->second);
-      } catch (const std::bad_any_cast &) {
-        return default_value;
-      }
-    }
-    return default_value;
-  }
-};
+using SchedulerConfig = TConfig;
 
 /**
  * @brief Base class for learning rate schedulers.
@@ -114,7 +97,7 @@ public:
     SchedulerConfig config;
     config.type = "no_op";
     config.name = "NoOpScheduler";
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -145,9 +128,9 @@ public:
     SchedulerConfig config;
     config.type = "step_lr";
     config.name = "StepLR";
-    config.parameters["step_size"] = step_size_;
-    config.parameters["gamma"] = gamma_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("step_size", step_size_);
+    config.set("gamma", gamma_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -190,9 +173,9 @@ public:
     SchedulerConfig config;
     config.type = "multi_step_lr";
     config.name = "MultiStepLR";
-    config.parameters["milestones"] = milestones_;
-    config.parameters["gamma"] = gamma_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("milestones", milestones_);
+    config.set("gamma", gamma_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -225,8 +208,8 @@ public:
     SchedulerConfig config;
     config.type = "exponential_lr";
     config.name = "ExponentialLR";
-    config.parameters["gamma"] = gamma_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("gamma", gamma_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -261,9 +244,9 @@ public:
     SchedulerConfig config;
     config.type = "cosine_annealing_lr";
     config.name = "CosineAnnealingLR";
-    config.parameters["T_max"] = T_max_;
-    config.parameters["eta_min"] = eta_min_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("T_max", T_max_);
+    config.set("eta_min", eta_min_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -312,10 +295,10 @@ public:
     SchedulerConfig config;
     config.type = "cosine_annealing_warm_restarts";
     config.name = "CosineAnnealingWarmRestarts";
-    config.parameters["T_0"] = T_0_;
-    config.parameters["T_mult"] = T_mult_;
-    config.parameters["eta_min"] = eta_min_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("T_0", T_0_);
+    config.set("T_mult", T_mult_);
+    config.set("eta_min", eta_min_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -359,9 +342,9 @@ public:
     SchedulerConfig config;
     config.type = "linear_warmup";
     config.name = "LinearWarmup";
-    config.parameters["warmup_steps"] = warmup_steps_;
-    config.parameters["start_lr"] = start_lr_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("warmup_steps", warmup_steps_);
+    config.set("start_lr", start_lr_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -415,11 +398,11 @@ public:
     SchedulerConfig config;
     config.type = "warmup_cosine_annealing";
     config.name = "WarmupCosineAnnealing";
-    config.parameters["warmup_steps"] = warmup_steps_;
-    config.parameters["total_steps"] = total_steps_;
-    config.parameters["start_lr"] = start_lr_;
-    config.parameters["eta_min"] = eta_min_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("warmup_steps", warmup_steps_);
+    config.set("total_steps", total_steps_);
+    config.set("start_lr", start_lr_);
+    config.set("eta_min", eta_min_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -498,12 +481,12 @@ public:
     SchedulerConfig config;
     config.type = "reduce_lr_on_plateau";
     config.name = "ReduceLROnPlateau";
-    config.parameters["mode"] = (mode_ == Mode::MIN) ? std::string("min") : std::string("max");
-    config.parameters["factor"] = factor_;
-    config.parameters["patience"] = patience_;
-    config.parameters["threshold"] = threshold_;
-    config.parameters["min_lr"] = min_lr_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("mode", (mode_ == Mode::MIN) ? std::string("min") : std::string("max"));
+    config.set("factor", factor_);
+    config.set("patience", patience_);
+    config.set("threshold", threshold_);
+    config.set("min_lr", min_lr_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -544,10 +527,10 @@ public:
     SchedulerConfig config;
     config.type = "polynomial_lr";
     config.name = "PolynomialLR";
-    config.parameters["total_steps"] = total_steps_;
-    config.parameters["power"] = power_;
-    config.parameters["end_lr"] = end_lr_;
-    config.parameters["base_lr"] = this->base_lr_;
+    config.set("total_steps", total_steps_);
+    config.set("power", power_);
+    config.set("end_lr", end_lr_);
+    config.set("base_lr", this->base_lr_);
     return config;
   }
 
@@ -605,11 +588,11 @@ public:
     SchedulerConfig config;
     config.type = "one_cycle_lr";
     config.name = "OneCycleLR";
-    config.parameters["max_lr"] = max_lr_;
-    config.parameters["total_steps"] = total_steps_;
-    config.parameters["pct_start"] = pct_start_;
-    config.parameters["div_factor"] = div_factor_;
-    config.parameters["final_div_factor"] = final_div_factor_;
+    config.set("max_lr", max_lr_);
+    config.set("total_steps", total_steps_);
+    config.set("pct_start", pct_start_);
+    config.set("div_factor", div_factor_);
+    config.set("final_div_factor", final_div_factor_);
     return config;
   }
 

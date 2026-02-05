@@ -245,10 +245,10 @@ LayerConfig LegacyBatchNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["num_features"] = num_features_;
-  config.parameters["epsilon"] = epsilon_;
-  config.parameters["momentum"] = momentum_;
-  config.parameters["affine"] = affine_;
+  config.set("num_features", num_features_);
+  config.set("epsilon", epsilon_);
+  config.set("momentum", momentum_);
+  config.set("affine", affine_);
   return config;
 }
 

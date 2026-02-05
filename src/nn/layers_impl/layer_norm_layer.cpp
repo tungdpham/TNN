@@ -182,9 +182,9 @@ LayerConfig LayerNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["normalized_shape"] = normalized_shape_;
-  config.parameters["epsilon"] = epsilon_;
-  config.parameters["affine"] = affine_;
+  config.set("normalized_shape", normalized_shape_);
+  config.set("epsilon", epsilon_);
+  config.set("affine", affine_);
   return config;
 }
 

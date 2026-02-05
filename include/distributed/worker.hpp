@@ -23,6 +23,7 @@
 #include "message.hpp"
 #include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
@@ -93,6 +94,9 @@ public:
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
     this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
 
+    this->scheduler_ =
+        SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
+
     // setup connections
     coordinator_endpoint_ = config.coordinator_endpoint;
     next_stage_endpoint_ = config.next_stage_endpoint;
@@ -157,6 +161,9 @@ protected:
         // implicitly clear grads
         this->optimizer_->update();
         this->optimizer_->clear_gradients();
+        if (scheduler_) {
+          this->scheduler_->step();
+        }
         auto update_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
@@ -290,6 +297,7 @@ protected:
   bool use_gpu_;
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
+  std::unique_ptr<Scheduler> scheduler_;
   std::unique_ptr<Communicator> communicator_;
 
   std::string id_;

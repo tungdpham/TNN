@@ -435,10 +435,10 @@ TEST_F(LegacyBatchNormLayerTest, Clone) {
 TEST_F(LegacyBatchNormLayerTest, CreateFromConfig) {
   LayerConfig config;
   config.name = "test_bn_from_config";
-  config.parameters["num_features"] = size_t(64);
-  config.parameters["epsilon"] = 1e-5f;
-  config.parameters["momentum"] = 0.1f;
-  config.parameters["affine"] = true;
+  config.set("num_features", size_t(64));
+  config.set("epsilon", 1e-5f);
+  config.set("momentum", 0.1f);
+  config.set("affine", true);
 
   auto layer = LegacyBatchNormLayer::create_from_config(config);
 

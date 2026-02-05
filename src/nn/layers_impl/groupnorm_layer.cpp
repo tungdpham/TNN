@@ -184,10 +184,10 @@ LayerConfig GroupNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["num_groups"] = num_groups_;
-  config.parameters["num_channels"] = num_channels_;
-  config.parameters["epsilon"] = epsilon_;
-  config.parameters["affine"] = affine_;
+  config.set("num_groups", num_groups_);
+  config.set("num_channels", num_channels_);
+  config.set("epsilon", epsilon_);
+  config.set("affine", affine_);
   return config;
 }
 

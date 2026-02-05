@@ -150,8 +150,8 @@ LayerConfig AttentionBlock::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["embed_dim"] = embed_dim_;
-  config.parameters["num_heads"] = num_heads_;
+  config.set("embed_dim", embed_dim_);
+  config.set("num_heads", num_heads_);
   return config;
 }
 

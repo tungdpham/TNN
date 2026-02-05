@@ -177,9 +177,9 @@ LayerConfig EmbeddingLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["vocab_size"] = vocab_size_;
-  config.parameters["embed_dim"] = embed_dim_;
-  config.parameters["padding_idx"] = padding_idx_;
+  config.set("vocab_size", vocab_size_);
+  config.set("embed_dim", embed_dim_);
+  config.set("padding_idx", padding_idx_);
   return config;
 }
 

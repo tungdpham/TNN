@@ -43,8 +43,8 @@ LayerConfig FlattenLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["start_dim"] = start_dim_;
-  config.parameters["end_dim"] = end_dim_;
+  config.set("start_dim", start_dim_);
+  config.set("end_dim", end_dim_);
   return config;
 }
 

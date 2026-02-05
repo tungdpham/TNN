@@ -41,7 +41,7 @@ LayerConfig ActivationLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["activation"] = activation_->name();
+  config.set("activation", activation_->name());
   return config;
 }
 

@@ -6,16 +6,14 @@
  */
 #pragma once
 
-#include <any>
 #include <cmath>
 #include <iostream>
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "common/config.hpp"
 #include "device/task.hpp"
-#include "nlohmann/json.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
 #include "optimizers_impl/cuda/adam_kernels.hpp"
@@ -24,72 +22,7 @@
 
 namespace tnn {
 
-struct OptimizerConfig {
-  std::string type;
-  std::string name;
-  std::unordered_map<std::string, std::any> parameters;
-
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
-    auto it = parameters.find(key);
-    if (it != parameters.end()) {
-      try {
-        return std::any_cast<T>(it->second);
-      } catch (const std::bad_any_cast &) {
-        std::cerr << "Warning: OptimizerConfig parameter '" << key
-                  << "' type mismatch. Returning default value." << std::endl;
-        return default_value;
-      }
-    }
-    return default_value;
-  }
-
-  nlohmann::json to_json() const {
-    nlohmann::json j;
-    j["type"] = type;
-    j["name"] = name;
-    j["parameters"] = nlohmann::json::object();
-    for (const auto &[key, value] : parameters) {
-      try {
-        if (auto *int_ptr = std::any_cast<int>(&value)) {
-          j["parameters"][key] = *int_ptr;
-        } else if (auto *size_ptr = std::any_cast<size_t>(&value)) {
-          j["parameters"][key] = *size_ptr;
-        } else if (auto *float_ptr = std::any_cast<float>(&value)) {
-          j["parameters"][key] = *float_ptr;
-        } else if (auto *double_ptr = std::any_cast<double>(&value)) {
-          j["parameters"][key] = *double_ptr;
-        } else if (auto *bool_ptr = std::any_cast<bool>(&value)) {
-          j["parameters"][key] = *bool_ptr;
-        } else if (auto *string_ptr = std::any_cast<std::string>(&value)) {
-          j["parameters"][key] = *string_ptr;
-        }
-      } catch (const std::bad_any_cast &) {
-      }
-    }
-    return j;
-  }
-
-  static OptimizerConfig from_json(const nlohmann::json &j) {
-    OptimizerConfig config;
-    config.type = j.value("type", "");
-    config.name = j.value("name", "");
-    if (j.contains("parameters")) {
-      for (const auto &[key, value] : j["parameters"].items()) {
-        if (value.is_number_integer()) {
-          config.parameters[key] = value.template get<size_t>();
-        } else if (value.is_number_float()) {
-          config.parameters[key] = value.template get<float>();
-        } else if (value.is_boolean()) {
-          config.parameters[key] = value.template get<bool>();
-        } else if (value.is_string()) {
-          config.parameters[key] = value.template get<std::string>();
-        }
-      }
-    }
-    return config;
-  }
-};
+using OptimizerConfig = TConfig;
 
 class Optimizer {
 public:
@@ -153,8 +86,8 @@ public:
     OptimizerConfig config;
     config.type = "sgd";
     config.name = "SGD";
-    config.parameters["learning_rate"] = this->learning_rate_;
-    config.parameters["momentum"] = momentum_;
+    config.set("learning_rate", this->learning_rate_);
+    config.set("momentum", momentum_);
     return config;
   }
 
@@ -245,12 +178,12 @@ public:
     OptimizerConfig config;
     config.type = decouple_weight_decay_ ? "adamw" : "adam";
     config.name = decouple_weight_decay_ ? "AdamW" : "Adam";
-    config.parameters["learning_rate"] = this->learning_rate_;
-    config.parameters["beta1"] = beta1_;
-    config.parameters["beta2"] = beta2_;
-    config.parameters["epsilon"] = epsilon_;
-    config.parameters["weight_decay"] = weight_decay_;
-    config.parameters["decouple_weight_decay"] = decouple_weight_decay_;
+    config.set("learning_rate", this->learning_rate_);
+    config.set("beta1", beta1_);
+    config.set("beta2", beta2_);
+    config.set("epsilon", epsilon_);
+    config.set("weight_decay", weight_decay_);
+    config.set("decouple_weight_decay", decouple_weight_decay_);
     return config;
   }
 

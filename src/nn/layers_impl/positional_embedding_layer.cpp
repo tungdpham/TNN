@@ -199,8 +199,8 @@ LayerConfig PositionalEmbeddingLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["embed_dim"] = embed_dim_;
-  config.parameters["seq_len"] = seq_len_;
+  config.set("embed_dim", embed_dim_);
+  config.set("seq_len", seq_len_);
   return config;
 }
 

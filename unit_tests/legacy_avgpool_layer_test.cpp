@@ -450,12 +450,12 @@ TEST_F(LegacyAvgPool2DLayerTest, GetConfig) {
 TEST_F(LegacyAvgPool2DLayerTest, CreateFromConfig) {
   LayerConfig config;
   config.name = "test_avgpool_recreate";
-  config.parameters["pool_h"] = size_t(2);
-  config.parameters["pool_w"] = size_t(2);
-  config.parameters["stride_h"] = size_t(2);
-  config.parameters["stride_w"] = size_t(2);
-  config.parameters["pad_h"] = size_t(0);
-  config.parameters["pad_w"] = size_t(0);
+  config.set("pool_h", size_t(2));
+  config.set("pool_w", size_t(2));
+  config.set("stride_h", size_t(2));
+  config.set("stride_w", size_t(2));
+  config.set("pad_h", size_t(0));
+  config.set("pad_w", size_t(0));
 
   auto layer = LegacyAvgPool2DLayer::create_from_config(config);
 

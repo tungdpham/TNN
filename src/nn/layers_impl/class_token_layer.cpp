@@ -150,7 +150,7 @@ LayerConfig ClassTokenLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["embed_dim"] = embed_dim_;
+  config.set("embed_dim", embed_dim_);
   return config;
 }
 

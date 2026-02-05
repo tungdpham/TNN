@@ -124,9 +124,9 @@ LayerConfig SliceLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["axis"] = (int)axis_;
-  config.parameters["start"] = (int)start_;
-  config.parameters["length"] = (int)length_;
+  config.set("axis", (int)axis_);
+  config.set("start", (int)start_);
+  config.set("length", (int)length_);
   return config;
 }
 

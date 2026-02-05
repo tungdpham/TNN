@@ -274,7 +274,7 @@ LayerConfig Sequential::get_config() const {
     auto layer_config = layer->get_config();
     layers_config.push_back(layer_config.to_json());
   }
-  config.parameters["layers"] = layers_config;
+  config.set("layers", layers_config);
   return config;
 }
 

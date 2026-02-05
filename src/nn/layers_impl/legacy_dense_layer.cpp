@@ -298,9 +298,9 @@ LayerConfig LegacyDenseLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["input_features"] = input_features_;
-  config.parameters["output_features"] = output_features_;
-  config.parameters["use_bias"] = use_bias_;
+  config.set("input_features", input_features_);
+  config.set("output_features", output_features_);
+  config.set("use_bias", use_bias_);
   return config;
 }
 

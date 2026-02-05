@@ -59,6 +59,21 @@ target_include_directories(tnn_threading PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
+# Common module
+file(GLOB_RECURSE TNN_COMMON_SOURCES 
+    "common/*.cpp"
+)
+add_library(tnn_common STATIC ${TNN_COMMON_SOURCES})
+target_include_directories(tnn_common PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+target_link_libraries(tnn_common PUBLIC tnn_type)
+target_link_libraries(tnn_common PUBLIC nlohmann_json::nlohmann_json)
+if(NOT MSVC)
+    target_link_libraries(tnn_common PUBLIC m)
+endif()
+
 # Operations Module
 file(GLOB_RECURSE TNN_OPS_SOURCES 
     "ops/*.cpp"
@@ -229,8 +244,9 @@ target_include_directories(tnn_nn PUBLIC
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
-target_link_libraries(tnn_nn PUBLIC tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading tnn_type tnn_logging)
-target_link_libraries(tnn_nn PUBLIC nlohmann_json::nlohmann_json spdlog::spdlog)
+target_link_libraries(tnn_nn PUBLIC 
+    tnn_tensor tnn_utils tnn_data_loading tnn_data_augmentation tnn_math tnn_device tnn_ops tnn_threading tnn_type tnn_logging tnn_common
+)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)
 endif()

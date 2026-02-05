@@ -8,16 +8,14 @@
 
 #include <fmt/core.h>
 
-#include <any>
 #include <cstddef>
 #include <cstring>
 #include <map>
 #include <memory>
-#include <nlohmann/json.hpp>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
+#include "common/config.hpp"
 #include "device/device_manager.hpp"
 #include "device/pool_allocator.hpp"
 #include "profiling/profiler.hpp"
@@ -26,18 +24,7 @@
 
 namespace tnn {
 
-struct LayerConfig {
-  std::string name;
-  std::string type;
-  std::unordered_map<std::string, std::any> parameters;
-
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const;
-
-  nlohmann::json to_json() const;
-
-  static LayerConfig from_json(const nlohmann::json &j);
-};
+using LayerConfig = TConfig;
 
 class Layer {
 public:

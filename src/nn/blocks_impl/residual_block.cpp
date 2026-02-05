@@ -306,7 +306,7 @@ LayerConfig ResidualBlock::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["activation"] = activation_type_;
+  config.set("activation", activation_type_);
 
   nlohmann::json main_array = nlohmann::json::array();
   for (const auto &layer : main_path_) {
@@ -322,8 +322,8 @@ LayerConfig ResidualBlock::get_config() const {
     shortcut_array.push_back(sub_json);
   }
 
-  config.parameters["main_path"] = main_array;
-  config.parameters["shortcut_path"] = shortcut_array;
+  config.set("main_path", main_array);
+  config.set("shortcut_path", shortcut_array);
 
   return config;
 }

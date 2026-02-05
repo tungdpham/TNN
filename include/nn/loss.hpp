@@ -6,38 +6,20 @@
  */
 #pragma once
 
+#include "common/config.hpp"
 #include "device/task.hpp"
 #include "loss_impl/cpu/loss_ops.hpp"
 #include "tensor/tensor.hpp"
 #ifdef USE_CUDA
 #include "loss_impl/cuda/loss_ops.hpp"
 #endif
-#include <any>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <unordered_map>
 
 namespace tnn {
 
-struct LossConfig {
-  std::string type;
-  std::string name;
-  std::unordered_map<std::string, std::any> parameters;
-
-  template <typename T>
-  T get(const std::string &key, const T &default_value = T{}) const {
-    auto it = parameters.find(key);
-    if (it != parameters.end()) {
-      try {
-        return std::any_cast<T>(it->second);
-      } catch (const std::bad_any_cast &) {
-        return default_value;
-      }
-    }
-    return default_value;
-  }
-};
+using LossConfig = TConfig;
 
 class Loss {
 public:
@@ -88,7 +70,7 @@ public:
     LossConfig config;
     config.type = "crossentropy";
     config.name = "CrossEntropyLoss";
-    config.parameters["epsilon"] = epsilon_;
+    config.set("epsilon", epsilon_);
     return config;
   }
 
@@ -435,7 +417,7 @@ public:
     LossConfig config;
     config.type = "huber";
     config.name = "HuberLoss";
-    config.parameters["delta"] = delta_;
+    config.set("delta", delta_);
     return config;
   }
 

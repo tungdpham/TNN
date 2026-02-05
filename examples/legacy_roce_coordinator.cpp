@@ -85,7 +85,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  ExampleModels::register_defaults();
+  legacy::ExampleModels::register_defaults();
 
   TrainingConfig train_config;
   train_config.load_from_env();
@@ -122,12 +122,12 @@ int main(int argc, char *argv[]) {
   } else {
     cout << "Creating model: " << model_name << endl;
     try {
-      Sequential temp_model = ExampleModels::create(model_name);
+      Sequential temp_model = legacy::ExampleModels::create(model_name);
       model = std::make_unique<Sequential>(std::move(temp_model));
     } catch (const std::exception &e) {
       cerr << "Error creating model: " << e.what() << endl;
       cout << "Available models are: ";
-      for (const auto &name : ExampleModels::available_models()) {
+      for (const auto &name : legacy::ExampleModels::available_models()) {
         cout << name << "\n";
       }
       cout << endl;
@@ -142,8 +142,10 @@ int main(int argc, char *argv[]) {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
+  auto scheduler =
+      SchedulerFactory::create_step_lr(optimizer.get(),
+                                       5 * train_loader->size() / train_config.batch_size,
+                                       0.1f);
 
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
@@ -151,7 +153,9 @@ int main(int argc, char *argv[]) {
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
   Endpoint local_worker_endpoint =
       Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                     Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
+                     Env::get<int>("LOCAL_WORKER_PORT", 8000),
+                     cfg.device_name,
+                     cfg.gid_index);
   int local_worker_position = 0;  // default to first
   std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
   if (position_str == "last") {
@@ -160,7 +164,9 @@ int main(int argc, char *argv[]) {
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
-                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
+                     Env::get<int>("WORKER1_PORT", 8001),
+                     "rocep131s0f0",
+                     -1),
   };
 
   if (local_worker_position) {
@@ -178,6 +184,7 @@ int main(int argc, char *argv[]) {
   CoordinatorConfig coord_config{ParallelMode_t::PIPELINE,
                                  std::move(model),
                                  std::move(optimizer),
+                                 std::move(scheduler),
                                  std::move(partitioner),
                                  std::move(local_worker),
                                  coordinator_endpoint,
@@ -198,7 +205,7 @@ int main(int argc, char *argv[]) {
   }
 
   try {
-    train_model(coordinator, train_loader, val_loader, criterion, scheduler, train_config);
+    train_model(coordinator, train_loader, val_loader, criterion, train_config);
     std::cout << "Coordinator initialized successfully." << std::endl;
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

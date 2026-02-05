@@ -22,6 +22,7 @@
 #include "nn/accuracy.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "partitioner/partitioner.hpp"
@@ -38,6 +39,7 @@ struct CoordinatorConfig {
   ParallelMode_t parallel_mode = ParallelMode_t::DATA;
   std::unique_ptr<Sequential> model;
   std::unique_ptr<Optimizer> optimizer;
+  std::unique_ptr<Scheduler> scheduler;
   std::unique_ptr<Partitioner> partitioner;
   std::unique_ptr<Worker> local_worker = nullptr;
   Endpoint coordinator_endpoint;
@@ -50,6 +52,7 @@ public:
       : parallel_mode_(config.parallel_mode),
         model_(std::move(config.model)),
         optimizer_(std::move(config.optimizer)),
+        scheduler_(std::move(config.scheduler)),
         partitioner_(std::move(config.partitioner)),
         local_worker_(std::move(config.local_worker)),
         coordinator_endpoint_(config.coordinator_endpoint),
@@ -142,7 +145,8 @@ public:
    * @param expected_count The number of confirmations to wait for.
    * @param timeout The maximum time to wait in seconds (default is 60 seconds).
    */
-  bool join(const CommandType type, const size_t expected_count,
+  bool join(const CommandType type,
+            const size_t expected_count,
             const size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
@@ -180,8 +184,9 @@ public:
     size_t processed_microbatches_ = 0;
     while (processed_microbatches_ < num_microbatches) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(
-          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
+      message_notification_cv_.wait(lock, [this]() {
+        return this->comm_->message_count(CommandType::FORWARD_JOB) > 0;
+      });
       std::vector<Message> FORWARD_JOBs =
           this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
@@ -199,8 +204,10 @@ public:
 
           total_loss += loss;
           Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
-                                        predictions->data_type(), predictions->shape());
+                                        predictions->data_type(),
+                                        predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
+          gradient->mul_scalar(1.0 / num_microbatches);
           this->backward(std::move(gradient), job.mb_id);
         } else {
           throw std::runtime_error("Unexpected message type in FORWARD_JOB");
@@ -241,8 +248,9 @@ public:
     size_t processed_microbatches_ = 0;
     while (processed_microbatches_ < num_microbatches) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(
-          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
+      message_notification_cv_.wait(lock, [this]() {
+        return this->comm_->message_count(CommandType::FORWARD_JOB) > 0;
+      });
       std::vector<Message> FORWARD_JOBs =
           this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
@@ -343,7 +351,11 @@ public:
 
       logger_.info(
           "Event: {}, Source: {}, Type: {}, Start: {:.2f} ms, End: {:.2f} ms, Duration: {:.2f} ms",
-          event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
+          event.name,
+          event.source,
+          event_type_to_string(event.type),
+          start_ms,
+          end_ms,
           duration_ms);
     }
   }
@@ -407,6 +419,7 @@ private:
       StageConfig config;
       config.model_config = stage_model.get_config();
       config.optimizer_config = optimizer_->get_config();
+      config.scheduler_config = scheduler_->get_config();
       config.coordinator_endpoint = coordinator_endpoint_;
 
       if (parallel_mode_ == ParallelMode_t::DATA) {
@@ -448,6 +461,7 @@ protected:
   ParallelMode_t parallel_mode_ = ParallelMode_t::DATA;
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
+  std::unique_ptr<Scheduler> scheduler_;
   std::unique_ptr<Partitioner> partitioner_;
   std::unique_ptr<Worker> local_worker_;
 

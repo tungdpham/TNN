@@ -103,7 +103,7 @@ LayerConfig DropoutLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["dropout_rate"] = dropout_rate_;
+  config.set("dropout_rate", dropout_rate_);
   return config;
 }
 

@@ -84,8 +84,10 @@ int main() {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
-  auto scheduler = SchedulerFactory::create_step_lr(
-      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.1f);
+  auto scheduler =
+      SchedulerFactory::create_step_lr(optimizer.get(),
+                                       5 * train_loader->size() / train_config.batch_size,
+                                       0.5f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -93,7 +95,7 @@ int main() {
       Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
                     Env::get<int>("LOCAL_WORKER_PORT", 8000));
   int local_worker_position = 0;  // default to first
-  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSTION", "first");
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
   if (position_str == "last") {
     local_worker_position = 1;
   }
@@ -126,6 +128,7 @@ int main() {
   CoordinatorConfig config{ParallelMode_t::PIPELINE,
                            std::move(model),
                            std::move(optimizer),
+                           std::move(scheduler),
                            std::move(partitioner),
                            std::move(worker),
                            coordinator_endpoint,
@@ -142,7 +145,7 @@ int main() {
 
   coordinator.start();
 
-  train_model(coordinator, train_loader, val_loader, criterion, scheduler, train_config);
+  train_model(coordinator, train_loader, val_loader, criterion, train_config);
 
   coordinator.stop();
 
