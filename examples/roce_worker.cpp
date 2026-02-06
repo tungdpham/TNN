@@ -109,7 +109,7 @@ int main(int argc, char *argv[]) {
 
   try {
     Endpoint worker_endpoint = Endpoint::roce(cfg.host, cfg.port, cfg.device_name, cfg.gid_index);
-    RoceWorker worker(worker_endpoint, cfg.use_gpu);
+    RoCEWorker worker(worker_endpoint, cfg.use_gpu);
     worker.start();
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << std::endl;

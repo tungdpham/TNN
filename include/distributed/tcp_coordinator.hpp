@@ -29,11 +29,13 @@ public:
    * @param endpoints The list of worker endpoints
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  NetworkCoordinator(CoordinatorConfig config)
+  NetworkCoordinator(CoordinatorConfig config,
+                     TCPCommunicator::Config tcp_config = TCPCommunicator::Config())
       : Coordinator(std::move(config)) {
     auto &allocator = PoolAllocator::instance(getCPU());
     // Initialize TCP communicator for the coordinator
-    auto communicator = std::make_unique<TcpCommunicator>(this->coordinator_endpoint_, allocator);
+    auto communicator =
+        std::make_unique<TCPCommunicator>(this->coordinator_endpoint_, allocator, tcp_config);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

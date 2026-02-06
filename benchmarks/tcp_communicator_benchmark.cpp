@@ -150,7 +150,8 @@ int main(int argc, char *argv[]) {
 
   auto &allocator = PoolAllocator::instance(getCPU());
 
-  TcpCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), allocator);
+  TCPCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), allocator,
+                               TCPCommunicator::Config());
 
   communicator.start_server();
 

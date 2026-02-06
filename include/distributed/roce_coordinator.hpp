@@ -19,7 +19,7 @@ namespace tnn {
  * Handles deployment of pipeline stages to remote machines, establishes
  * RDMA communication topology, and coordinates distributed training.
  */
-class RoceCoordinator : public Coordinator {
+class RoCECoordinator : public Coordinator {
 public:
   /**
    * @brief Constructor for distributed coordinator using RoCE
@@ -32,17 +32,17 @@ public:
    * @param gid_index GID index for RoCE
    * @param endpoints The list of worker endpoints
    */
-  RoceCoordinator(CoordinatorConfig config)
+  RoCECoordinator(CoordinatorConfig config)
       : Coordinator(std::move(config)) {
     // Initialize RoCE communicator for the coordinator
     auto &allocator = PoolAllocator::instance(getCPU());
-    auto communicator = std::make_unique<RoceCommunicator>(this->coordinator_endpoint_, allocator);
+    auto communicator = std::make_unique<RoCECommunicator>(this->coordinator_endpoint_, allocator);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();
   }
 
-  ~RoceCoordinator() = default;
+  ~RoCECoordinator() = default;
 };
 
 }  // namespace tnn

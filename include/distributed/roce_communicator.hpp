@@ -39,24 +39,24 @@ constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024;  // 4MB
 constexpr int ROCE_SQ_DEPTH = 32;
 constexpr int ROCE_RQ_DEPTH = 32;
 
-struct RoceConnectionInfo {
+struct RoCEConnectionInfo {
   uint16_t lid;
   uint32_t qpn;
   uint32_t psn;
   union ibv_gid gid;
 };
 
-class RoceCommunicator : public Communicator {
+class RoCECommunicator : public Communicator {
 private:
   struct Connection {
     ibv_qp *qp = nullptr;
     Endpoint endpoint;
     uint32_t psn = 0;
-    std::vector<std::unique_ptr<RoceBuffer>> recv_buffers;
+    std::vector<std::unique_ptr<RoCEBuffer>> recv_buffers;
 
     std::mutex mutex;
-    std::unordered_map<uint64_t, PooledRoceBuffer> pending_sends;
-    std::unordered_map<uint64_t, PooledRoceBuffer> pending_receives;
+    std::unordered_map<uint64_t, PooledRoCEBuffer> pending_sends;
+    std::unordered_map<uint64_t, PooledRoCEBuffer> pending_receives;
     std::any attached_context;
 
     ~Connection() {
@@ -86,13 +86,13 @@ private:
   std::mutex connections_mutex_;
 
   // Send buffer pool
-  std::vector<std::unique_ptr<RoceBuffer>> send_buffers_;
-  std::queue<RoceBuffer *> free_send_buffers_;
+  std::vector<std::unique_ptr<RoCEBuffer>> send_buffers_;
+  std::queue<RoCEBuffer *> free_send_buffers_;
   std::mutex send_buffers_mutex_;
   std::condition_variable send_buffers_cv_;
   BinarySerializer serializer_;
 
-  std::unique_ptr<RoceBufferPool> buffer_pool_;
+  std::unique_ptr<RoCEBufferPool> buffer_pool_;
 
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
@@ -100,7 +100,7 @@ private:
   std::thread io_thread_;
 
 public:
-  explicit RoceCommunicator(const Endpoint &endpoint, IAllocator &allocator)
+  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &allocator)
       : Communicator(endpoint),
         serializer_(allocator),
         acceptor_(io_context_) {
@@ -115,14 +115,14 @@ public:
 
     init_rdma();
     print_gid_table();
-    buffer_pool_ = std::make_unique<RoceBufferPool>(pd_);
+    buffer_pool_ = std::make_unique<RoCEBufferPool>(pd_);
     init_send_buffers();
 
     is_running_ = true;
-    poll_thread_ = std::thread(&RoceCommunicator::poll_cq, this);
+    poll_thread_ = std::thread(&RoCECommunicator::poll_cq, this);
   }
 
-  ~RoceCommunicator() override { stop(); }
+  ~RoCECommunicator() override { stop(); }
 
   void stop() {
     is_running_ = false;
@@ -162,7 +162,7 @@ public:
 
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     size_t msg_size = message.size();
-    PooledRoceBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
+    PooledRoCEBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
     size_t offset = 0;
     serializer_.serialize(*data_buffer, offset, message);
 
@@ -198,7 +198,7 @@ public:
       conn->pending_sends[msg_id] = data_buffer;
     }
 
-    RoceBuffer *send_buf = nullptr;
+    RoCEBuffer *send_buf = nullptr;
     {
       std::unique_lock<std::mutex> lock(send_buffers_mutex_);
       send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
@@ -272,20 +272,20 @@ protected:
       conn->endpoint = endpoint;
       conn->qp = create_qp();
 
-      RoceConnectionInfo my_info = get_local_info(conn->qp);
+      RoCEConnectionInfo my_info = get_local_info(conn->qp);
       std::vector<uint8_t> my_info_buf;
       serialize_info(my_info, my_info_buf);
       asio::write(socket, asio::buffer(my_info_buf));
 
       std::vector<uint8_t> peer_info_buf(26);
       asio::read(socket, asio::buffer(peer_info_buf));
-      RoceConnectionInfo peer_info = deserialize_info(peer_info_buf);
+      RoCEConnectionInfo peer_info = deserialize_info(peer_info_buf);
 
       modify_qp_to_rts(conn->qp, peer_info, my_info.psn);
 
       // Initialize receive buffers for this connection
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+        auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
         buf->resize(ROCE_BUFFER_SIZE);
         post_recv_buffer(conn->qp, buf.get());
         conn->recv_buffers.push_back(std::move(buf));
@@ -330,7 +330,7 @@ protected:
   }
 
 private:
-  void serialize_info(const RoceConnectionInfo &info, std::vector<uint8_t> &buf) {
+  void serialize_info(const RoCEConnectionInfo &info, std::vector<uint8_t> &buf) {
     buf.reserve(26);
     // lid (16)
     buf.push_back((info.lid >> 8) & 0xFF);
@@ -350,8 +350,8 @@ private:
     for (int i = 0; i < 16; ++i) buf.push_back(gid_ptr[i]);
   }
 
-  RoceConnectionInfo deserialize_info(const std::vector<uint8_t> &buf) {
-    RoceConnectionInfo info;
+  RoCEConnectionInfo deserialize_info(const std::vector<uint8_t> &buf) {
+    RoCEConnectionInfo info;
     int idx = 0;
     info.lid = (buf[idx] << 8) | buf[idx + 1];
     idx += 2;
@@ -467,7 +467,7 @@ private:
 
   void init_send_buffers() {
     for (int i = 0; i < ROCE_SQ_DEPTH; ++i) {
-      auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+      auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
       buf->resize(ROCE_BUFFER_SIZE);
       free_send_buffers_.push(buf.get());
       send_buffers_.push_back(std::move(buf));
@@ -490,8 +490,8 @@ private:
     return qp;
   }
 
-  RoceConnectionInfo get_local_info(ibv_qp *qp) {
-    RoceConnectionInfo info;
+  RoCEConnectionInfo get_local_info(ibv_qp *qp) {
+    RoCEConnectionInfo info;
     info.qpn = qp->qp_num;
     info.psn = lrand48() & 0xffffff;
 
@@ -503,7 +503,7 @@ private:
     return info;
   }
 
-  void modify_qp_to_rts(ibv_qp *qp, const RoceConnectionInfo &peer_info, uint32_t local_psn) {
+  void modify_qp_to_rts(ibv_qp *qp, const RoCEConnectionInfo &peer_info, uint32_t local_psn) {
     struct ibv_qp_attr attr;
     int flags;
     int ret;
@@ -606,7 +606,7 @@ private:
     }
   }
 
-  void post_recv_buffer(ibv_qp *qp, RoceBuffer *buf) {
+  void post_recv_buffer(ibv_qp *qp, RoCEBuffer *buf) {
     struct ibv_sge sge;
     sge.addr = (uint64_t)buf->get();
     sge.length = ROCE_BUFFER_SIZE;
@@ -662,12 +662,12 @@ private:
             if (it != qp_map_.end()) conn = it->second;
           }
 
-          auto *buf = (RoceBuffer *)wc[i].wr_id;
+          auto *buf = (RoCEBuffer *)wc[i].wr_id;
 
           if (conn) {
             if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
               uint32_t imm = ntohl(wc[i].imm_data);
-              PooledRoceBuffer dest_buf;
+              PooledRoCEBuffer dest_buf;
               {
                 std::lock_guard<std::mutex> lock(conn->mutex);
                 auto it = conn->pending_receives.find(imm);
@@ -704,7 +704,7 @@ private:
                   conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
                 }
 
-                RoceBuffer *send_buf = nullptr;
+                RoCEBuffer *send_buf = nullptr;
                 {
                   std::unique_lock<std::mutex> lock(send_buffers_mutex_);
                   send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
@@ -750,7 +750,7 @@ private:
                 buf->read(offset, remote_addr);
                 buf->read(offset, rkey);
 
-                PooledRoceBuffer source_buf;
+                PooledRoCEBuffer source_buf;
                 {
                   std::lock_guard<std::mutex> lock(conn->mutex);
                   auto it = conn->pending_sends.find(header.msg_serial_id);
@@ -805,7 +805,7 @@ private:
             }
             delete ctx;
           } else {
-            auto *buf = (RoceBuffer *)wc[i].wr_id;
+            auto *buf = (RoCEBuffer *)wc[i].wr_id;
             std::lock_guard<std::mutex> lock(send_buffers_mutex_);
             free_send_buffers_.push(buf);
             send_buffers_cv_.notify_one();
@@ -862,7 +862,7 @@ private:
                   return;
                 }
 
-                RoceConnectionInfo my_info = get_local_info(conn->qp);
+                RoCEConnectionInfo my_info = get_local_info(conn->qp);
                 uint32_t my_psn = my_info.psn;
                 auto my_info_buf = std::make_shared<std::vector<uint8_t>>();
                 serialize_info(my_info, *my_info_buf);
@@ -884,11 +884,11 @@ private:
                               return;
                             }
                             try {
-                              RoceConnectionInfo peer_info = deserialize_info(*peer_info_buf);
+                              RoCEConnectionInfo peer_info = deserialize_info(*peer_info_buf);
                               modify_qp_to_rts(conn->qp, peer_info, my_psn);
 
                               for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-                                auto buf = std::make_unique<RoceBuffer>(pd_, ROCE_BUFFER_SIZE);
+                                auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
                                 buf->resize(ROCE_BUFFER_SIZE);
                                 post_recv_buffer(conn->qp, buf.get());
                                 conn->recv_buffers.push_back(std::move(buf));

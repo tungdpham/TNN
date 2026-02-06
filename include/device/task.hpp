@@ -1,13 +1,10 @@
 #pragma once
 
 #include <atomic>
-#include <functional>
 #include <iostream>
-#include <mutex>
 #include <system_error>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #include "device/device_manager.hpp"
 #include "flow.hpp"
@@ -32,7 +29,6 @@ public:
 
   bool ready() const { return is_ready_.load(std::memory_order_acquire); }
 
-  virtual void execute() = 0;
   virtual ErrorStatus sync() = 0;
 
 protected:
@@ -44,36 +40,24 @@ protected:
 
 class CPUTask : public Task {
 private:
-  std::function<void()> work_function_;
-  CPUFlow *flow_;
+  [[maybe_unused]] CPUFlow *flow_;
 
 public:
   template <typename Func, typename... Args>
-  explicit CPUTask(CPUFlow *flow, Func &&func, Args &&...args) : flow_(flow) {
+  explicit CPUTask(CPUFlow *flow, Func &&func, Args &&...args)
+      : flow_(flow) {
     auto bound_work = [f = std::forward<Func>(func),
                        args_tuple = std::tuple<Args...>(std::forward<Args>(args)...)]() mutable {
       std::apply(f, std::move(args_tuple));
     };
 
-    // Store the work function
-    work_function_ = std::move(bound_work);
-    execute();
+    bound_work();
+    set_ready_state(ErrorStatus{});
   }
 
   ~CPUTask() override = default;
 
-  void execute() override {
-    (void)flow_;
-    work_function_();
-    set_ready_state(ErrorStatus{});
-  }
-
-  ErrorStatus sync() override {
-    // while (!ready()) {
-    //   std::this_thread::yield();
-    // }
-    return this->status_;
-  }
+  ErrorStatus sync() override { return this->status_; }
 
   CPUTask(const CPUTask &) = delete;
   CPUTask &operator=(const CPUTask &) = delete;
@@ -94,49 +78,20 @@ inline tnn::ErrorStatus cuda_error_to_status(cudaError_t err) {
 class CUDATask : public Task {
 private:
   CUDAFlow *flow_;
-  std::function<void()> launch_function_;
-
-  static inline std::vector<cudaEvent_t> event_pool_;
-  static inline std::mutex pool_mutex_;
-
-  static cudaEvent_t get_event() {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    if (event_pool_.empty()) {
-      cudaEvent_t e;
-      cudaEventCreateWithFlags(&e, cudaEventDisableTiming);
-      return e;
-    }
-    cudaEvent_t e = event_pool_.back();
-    event_pool_.pop_back();
-    return e;
-  }
-
-  static void release_event(cudaEvent_t e) {
-    std::lock_guard<std::mutex> lock(pool_mutex_);
-    event_pool_.push_back(e);
-  }
 
 public:
   template <typename Func, typename... Args>
-  explicit CUDATask(CUDAFlow *flow, Func &&func, Args &&...args) : flow_(flow) {
-    // event_ = get_event();
-
+  explicit CUDATask(CUDAFlow *flow, Func &&func, Args &&...args)
+      : flow_(flow) {
     cudaStream_t stream = flow_->get_stream();
 
-    // Automatically append cudaStream_t as the last parameter
     auto launch_func = [f = std::forward<Func>(func),
                         args_tuple = std::tuple<Args...>(std::forward<Args>(args)...),
                         stream]() mutable {
       std::apply(f, std::tuple_cat(std::move(args_tuple), std::make_tuple(stream)));
     };
 
-    launch_function_ = std::move(launch_func);
-    execute();
-  }
-
-  void execute() override {
-    launch_function_();
-    // cudaEventRecord(event_, flow_->get_stream());
+    launch_func();
   }
 
   ErrorStatus sync() override {
@@ -144,7 +99,6 @@ public:
       return status_;
     }
 
-    // cudaError_t err = cudaStreamWaitEvent(flow_->get_stream(), event_, 0);
     cudaError_t err = cudaStreamSynchronize(flow_->get_stream());
     ErrorStatus status = cuda_error_to_status(err);
     set_ready_state(status);
@@ -172,6 +126,7 @@ std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&.
 }
 
 #ifdef USE_CUDA
+// bundle the function and inject a stream based on the flow_id
 template <typename Func, typename... Args>
 std::unique_ptr<Task> create_cuda_task(std::string flow_id, Func &&func, Args &&...args) {
   auto &GPUDevice = getGPU();

@@ -15,31 +15,33 @@
 
 namespace tnn {
 
-class RoceBufferPool;
+class RoCEBufferPool;
 
-class RoceBufferDeleter {
+class RoCEBufferDeleter {
 public:
-  explicit RoceBufferDeleter(RoceBufferPool *pool = nullptr) : pool_(pool) {}
-  void operator()(RoceBuffer *ptr) const;
+  explicit RoCEBufferDeleter(RoCEBufferPool *pool = nullptr)
+      : pool_(pool) {}
+  void operator()(RoCEBuffer *ptr) const;
 
 private:
-  RoceBufferPool *pool_;
+  RoCEBufferPool *pool_;
 };
 
-using PooledRoceBuffer = std::shared_ptr<RoceBuffer>;
+using PooledRoCEBuffer = std::shared_ptr<RoCEBuffer>;
 
-class RoceBufferPool {
+class RoCEBufferPool {
 public:
   static constexpr size_t DEFAULT_BUFFER_SIZE = 8192;
   static constexpr size_t MAX_POOL_SIZE = 128;
 
-  explicit RoceBufferPool(ibv_pd *pd) : pd_(pd) {}
+  explicit RoCEBufferPool(ibv_pd *pd)
+      : pd_(pd) {}
 
-  PooledRoceBuffer get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
-    RoceBufferDeleter deleter(this);
+  PooledRoCEBuffer get_buffer(size_t min_size = DEFAULT_BUFFER_SIZE) {
+    RoCEBufferDeleter deleter(this);
 
     if (is_shutting_down_.load(std::memory_order_relaxed)) {
-      return PooledRoceBuffer(new RoceBuffer(pd_, min_size), deleter);
+      return PooledRoCEBuffer(new RoCEBuffer(pd_, min_size), deleter);
     }
 
     {
@@ -47,30 +49,30 @@ public:
 
       auto it = pool_.begin();
       while (it != pool_.end()) {
-        RoceBuffer *raw_buf = *it;
+        RoCEBuffer *raw_buf = *it;
 
         if (raw_buf->capacity() >= min_size && raw_buf->capacity() <= min_size * 2) {
           pool_.erase(it);
           raw_buf->clear();
-          return PooledRoceBuffer(raw_buf, deleter);
+          return PooledRoCEBuffer(raw_buf, deleter);
         }
         ++it;
       }
     }
 
-    return PooledRoceBuffer(new RoceBuffer(pd_, min_size), deleter);
+    return PooledRoCEBuffer(new RoCEBuffer(pd_, min_size), deleter);
   }
 
-  ~RoceBufferPool() {
+  ~RoCEBufferPool() {
     is_shutting_down_.store(true, std::memory_order_release);
     std::lock_guard<std::mutex> lock(pool_mutex_);
-    for (RoceBuffer *buf : pool_) {
+    for (RoCEBuffer *buf : pool_) {
       delete buf;
     }
     pool_.clear();
   }
 
-  void return_buffer_internal(RoceBuffer *buffer) {
+  void return_buffer_internal(RoCEBuffer *buffer) {
     if (buffer == nullptr) {
       return;
     }
@@ -92,11 +94,11 @@ public:
 private:
   ibv_pd *pd_;
   std::atomic<bool> is_shutting_down_{false};
-  std::deque<RoceBuffer *> pool_;
+  std::deque<RoCEBuffer *> pool_;
   mutable std::mutex pool_mutex_;
 };
 
-inline void RoceBufferDeleter::operator()(RoceBuffer *ptr) const {
+inline void RoCEBufferDeleter::operator()(RoCEBuffer *ptr) const {
   if (pool_) {
     pool_->return_buffer_internal(ptr);
   } else {

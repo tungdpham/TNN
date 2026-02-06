@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <fstream>
 #include <sstream>
@@ -55,7 +56,9 @@ protected:
 
 public:
   // Constructors and Destructor
-  TypedTensor(IAllocator &allocator) : allocator_(allocator), data_size_(0) {
+  TypedTensor(IAllocator &allocator)
+      : allocator_(allocator),
+        data_size_(0) {
     for (size_t i = 0; i < shape_.size(); ++i) {
       shape_[i] = 0;
     }
@@ -63,14 +66,16 @@ public:
   }
 
   TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list)
-      : allocator_(allocator), shape_(shape_list) {
+      : allocator_(allocator),
+        shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
   }
 
   TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list, const dptr &data)
-      : allocator_(allocator), shape_(shape_list) {
+      : allocator_(allocator),
+        shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -80,14 +85,16 @@ public:
   }
 
   TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape)
-      : allocator_(allocator), shape_(shape) {
+      : allocator_(allocator),
+        shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
   }
 
   TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape, const dptr &data)
-      : allocator_(allocator), shape_(shape) {
+      : allocator_(allocator),
+        shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
@@ -97,7 +104,9 @@ public:
   }
 
   TypedTensor(IAllocator &allocator, dptr &&data, const std::vector<size_t> &shape)
-      : allocator_(allocator), data_(std::move(data)), shape_(shape) {
+      : allocator_(allocator),
+        data_(std::move(data)),
+        shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
   }
@@ -105,7 +114,9 @@ public:
   ~TypedTensor() = default;
 
   TypedTensor(const TypedTensor &other)
-      : allocator_(other.allocator_), data_size_(other.data_size_), shape_(other.shape_) {
+      : allocator_(other.allocator_),
+        data_size_(other.data_size_),
+        shape_(other.shape_) {
     if (data_size_ > 0) {
       data_ = allocate_data(data_size_);
       ops::copy<T>(other.data_, data_, data_size_);

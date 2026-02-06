@@ -21,7 +21,7 @@
 
 namespace tnn {
 
-class RoceBuffer {
+class RoCEBuffer {
 private:
   uint8_t *data_;
   size_t size_;
@@ -82,8 +82,12 @@ private:
   }
 
 public:
-  RoceBuffer(ibv_pd *pd, size_t initial_capacity = 0)
-      : data_(nullptr), size_(0), capacity_(0), pd_(pd), mr_(nullptr) {
+  RoCEBuffer(ibv_pd *pd, size_t initial_capacity = 0)
+      : data_(nullptr),
+        size_(0),
+        capacity_(0),
+        pd_(pd),
+        mr_(nullptr) {
     if (initial_capacity > MAX_ARRAY_SIZE) {
       throw std::invalid_argument("Illegal Capacity: " + std::to_string(initial_capacity));
     }
@@ -92,12 +96,12 @@ public:
     }
   }
 
-  ~RoceBuffer() { deallocate(); }
+  ~RoCEBuffer() { deallocate(); }
 
-  RoceBuffer(const RoceBuffer &) = delete;
-  RoceBuffer &operator=(const RoceBuffer &) = delete;
+  RoCEBuffer(const RoCEBuffer &) = delete;
+  RoCEBuffer &operator=(const RoCEBuffer &) = delete;
 
-  RoceBuffer(RoceBuffer &&other) noexcept
+  RoCEBuffer(RoCEBuffer &&other) noexcept
       : data_(other.data_),
         size_(other.size_),
         capacity_(other.capacity_),
@@ -109,7 +113,7 @@ public:
     other.mr_ = nullptr;
   }
 
-  RoceBuffer &operator=(RoceBuffer &&other) noexcept {
+  RoCEBuffer &operator=(RoCEBuffer &&other) noexcept {
     if (this != &other) {
       deallocate();
       data_ = other.data_;

@@ -142,26 +142,20 @@ int main(int argc, char *argv[]) {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler =
-      SchedulerFactory::create_step_lr(optimizer.get(),
-                                       5 * train_loader->size() / train_config.batch_size,
-                                       0.6f);
+  auto scheduler = SchedulerFactory::create_step_lr(
+      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
   std::string host = Env::get<std::string>("COORDINATOR_HOST", "localhost");
   int port = Env::get<int>("COORDINATOR_PORT", 9000);
 
   Endpoint coordinator_endpoint = Endpoint::roce(host, port, cfg.device_name, cfg.gid_index);
   Endpoint local_worker_endpoint =
       Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
-                     Env::get<int>("LOCAL_WORKER_PORT", 8000),
-                     cfg.device_name,
-                     cfg.gid_index);
+                     Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
   int worker_position = Env::get<std::string>("LOCAL_WORKER_POSITION", "first") == "first" ? 0 : 1;
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
-                     Env::get<int>("WORKER1_PORT", 8001),
-                     "rocep131s0f0",
-                     -1),
+                     Env::get<int>("WORKER1_PORT", 8001), "rocep131s0f0", -1),
   };
 
   if (worker_position) {
@@ -171,21 +165,16 @@ int main(int argc, char *argv[]) {
   }
 
   auto local_worker =
-      std::make_unique<RoceWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
+      std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
   // initialize a partitioner with weights 2:1
   auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
-  CoordinatorConfig config{ParallelMode_t::PIPELINE,
-                           std::move(model),
-                           std::move(optimizer),
-                           std::move(scheduler),
-                           std::move(partitioner),
-                           std::move(local_worker),
-                           coordinator_endpoint,
-                           endpoints};
+  CoordinatorConfig config{
+      ParallelMode_t::PIPELINE, std::move(model),        std::move(optimizer), std::move(scheduler),
+      std::move(partitioner),   std::move(local_worker), coordinator_endpoint, endpoints};
 
-  RoceCoordinator coordinator(std::move(config));
+  RoCECoordinator coordinator(std::move(config));
 
   coordinator.initialize();
 

@@ -48,31 +48,27 @@ constexpr uint32_t DEFAULT_IO_THREADS = 4;
 constexpr uint32_t DEFAULT_MAX_PACKET_SIZE = 4 * 1024 * 1024 + 64;  // 4MB + header
 constexpr uint32_t DEFAULT_SOCKETS_PER_ENDPOINT = 4;
 
-class TcpCommunicator;
-
-struct TcpCommunicatorConfig {
-  uint32_t num_io_threads = DEFAULT_IO_THREADS;
-  uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE;
-  uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT;
-};
-
-class TcpCommunicator : public Communicator {
+class TCPCommunicator : public Communicator {
 public:
-  explicit TcpCommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
-                           TcpCommunicatorConfig config = TcpCommunicatorConfig())
+  struct Config {
+    uint32_t num_io_threads = DEFAULT_IO_THREADS;
+    uint32_t max_packet_size = DEFAULT_MAX_PACKET_SIZE;
+    uint32_t skts_per_endpoint = DEFAULT_SOCKETS_PER_ENDPOINT;
+  };
+
+  explicit TCPCommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
+                           TCPCommunicator::Config config)
       : Communicator(endpoint),
         int_allocator_(PoolAllocator::instance(getCPU())),
         out_allocator_(out_allocator),
         serializer_(out_allocator),
-        num_io_threads_(config.num_io_threads > 0 ? config.num_io_threads : 1),
-        io_context_pool_(num_io_threads_),
-        acceptor_(io_context_pool_.get_acceptor_io_context()),
-        skts_per_endpoint_(config.skts_per_endpoint),
-        max_packet_size_(config.max_packet_size) {
+        config_(config),
+        io_context_pool_(config.num_io_threads),
+        acceptor_(io_context_pool_.get_acceptor_io_context()) {
     is_running_ = false;
   }
 
-  ~TcpCommunicator() override { stop(); }
+  ~TCPCommunicator() override { stop(); }
 
   void start_server() {
     if (endpoint_.get_parameter<int>("port") <= 0) {
@@ -139,7 +135,7 @@ public:
 
   bool connect_to_endpoint(const Endpoint &endpoint) override {
     try {
-      for (size_t i = 0; i < skts_per_endpoint_; ++i) {
+      for (size_t i = 0; i < config_.skts_per_endpoint; ++i) {
         asio::io_context &ctx = io_context_pool_.get_io_context();
         auto connection = std::make_shared<Connection>(ctx);
         asio::ip::tcp::resolver resolver(ctx);
@@ -241,12 +237,10 @@ private:
   IAllocator &int_allocator_;
   IAllocator &out_allocator_;
   BinarySerializer serializer_;
-  size_t num_io_threads_;
+  Config config_;
   IoContextPool io_context_pool_;
   asio::ip::tcp::acceptor acceptor_;
   std::thread pool_thread_;
-  uint32_t skts_per_endpoint_;
-  uint32_t max_packet_size_;
   std::atomic<bool> is_running_;
   std::unordered_map<Endpoint, ConnectionGroup> connection_groups_;
   std::shared_mutex connections_mutex_;
@@ -447,7 +441,7 @@ private:
     size_t offset = 0;
     serializer_.serialize(buffer, offset, message);
     uint32_t packets_per_msg =
-        static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / max_packet_size_));
+        static_cast<uint32_t>(std::ceil(static_cast<double>(msg_size) / config_.max_packet_size));
     std::vector<Packet> packets;
     {
       std::shared_lock<std::shared_mutex> lock(connections_mutex_);

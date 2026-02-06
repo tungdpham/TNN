@@ -19,7 +19,7 @@ namespace tnn {
  * Standalone worker process that listens for stage configurations
  * from a coordinator and processes distributed pipeline jobs using RDMA.
  */
-class RoceWorker : public Worker {
+class RoCEWorker : public Worker {
 public:
   /**
    * @brief Constructor for RoCE worker
@@ -29,17 +29,17 @@ public:
    * @param gid_index GID index for RoCE
    * @param use_gpu Whether to use GPU for processing
    */
-  explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
+  explicit RoCEWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu) {
     auto &allocator = PoolAllocator::instance(use_gpu ? getGPU() : getCPU());
-    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint, allocator);
+    auto communicator = std::make_unique<RoCECommunicator>(worker_endpoint, allocator);
 
     communicator->start_server();
 
     this->communicator_ = std::move(communicator);
   }
 
-  ~RoceWorker() override { stop(); }
+  ~RoCEWorker() override { stop(); }
 };
 
 }  // namespace tnn

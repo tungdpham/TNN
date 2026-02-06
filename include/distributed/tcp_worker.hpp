@@ -34,11 +34,11 @@ public:
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
   explicit TCPWorker(Endpoint endpoint, bool use_gpu,
-                     TcpCommunicatorConfig config = TcpCommunicatorConfig())
+                     TCPCommunicator::Config config = TCPCommunicator::Config())
       : Worker(use_gpu) {
     const auto &device = use_gpu ? getGPU() : getCPU();
     auto &allocator = PoolAllocator::instance(device);
-    auto communicator = std::make_unique<TcpCommunicator>(endpoint, allocator, config);
+    auto communicator = std::make_unique<TCPCommunicator>(endpoint, allocator, config);
 
     communicator->start_server();
 
