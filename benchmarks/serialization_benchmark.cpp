@@ -38,7 +38,7 @@ signed main() {
   Tensor temp = make_tensor<float>({data_size});
 
   VSerializer vserializer(device_allocator);
-  VBuffer vbuffer;
+  VBuffer vbuffer(DeviceAllocator::instance(getCPU()));
   vbuffer.alloc(device_allocator.allocate(message.size()));
   vbuffer.resize(message.size());
 

@@ -26,9 +26,8 @@ set(TEST_FILES
     legacy_conv2d_layer_test.cpp
     groupnorm_layer_test.cpp
     attention_block_test.cpp
-    vbuffer_test.cpp
-    vserializer_test.cpp
     partitioner_test.cpp
+    vbuffer_serializer_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)

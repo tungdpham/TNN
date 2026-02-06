@@ -113,29 +113,25 @@ public:
 
   template <Buffer BufferType>
   void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
-    buffer.write(offset, data.payload.index());  // Write payload type index
-    if (std::holds_alternative<std::monostate>(data.payload)) {
-      // No additional data to write
-    } else if (std::holds_alternative<Job>(data.payload)) {
-      const auto &job = std::get<Job>(data.payload);
-      buffer.write(offset, static_cast<uint64_t>(job.mb_id));
-      serialize(buffer, offset, job.data);
-    } else if (std::holds_alternative<std::string>(data.payload)) {
-      const auto &str = std::get<std::string>(data.payload);
-      buffer.write(offset, str);
-    } else if (std::holds_alternative<bool>(data.payload)) {
-      const auto &flag = std::get<bool>(data.payload);
-      buffer.write(offset, static_cast<uint8_t>(flag ? 1 : 0));
-    } else if (std::holds_alternative<Profiler>(data.payload)) {
-      const auto &profiler = std::get<Profiler>(data.payload);
-      serialize(buffer, offset, profiler);
-    } else if (std::holds_alternative<StageConfig>(data.payload)) {
-      const auto &stage_config = std::get<StageConfig>(data.payload);
-      std::string json_dump = stage_config.to_json().dump();
-      buffer.write(offset, json_dump);
-    } else {
-      throw std::runtime_error("Unsupported payload type in MessageData");
-    }
+    buffer.write(offset, static_cast<uint64_t>(data.payload.index()));
+    std::visit(
+        [&]<typename T>(const T &v) {
+          if constexpr (std::is_same_v<T, std::monostate>) {
+          } else if constexpr (std::is_same_v<T, Job>) {
+            buffer.write(offset, static_cast<uint64_t>(v.mb_id));
+            serialize(buffer, offset, v.data);
+          } else if constexpr (std::is_same_v<T, std::string>) {
+            buffer.write(offset, v);
+          } else if constexpr (std::is_same_v<T, bool>) {
+            buffer.write(offset, static_cast<uint8_t>(v ? 1 : 0));
+          } else if constexpr (std::is_same_v<T, Profiler>) {
+            serialize(buffer, offset, v);
+          } else if constexpr (std::is_same_v<T, StageConfig>) {
+            std::string json_dump = v.to_json().dump();
+            buffer.write(offset, json_dump);
+          }
+        },
+        data.payload);
   }
 
   template <Buffer BufferType>

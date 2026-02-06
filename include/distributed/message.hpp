@@ -81,7 +81,7 @@ struct MessageHeader {
 struct MessageData {
   PayloadType payload;
 
-  MessageData(PayloadType &&pay)
+  MessageData(PayloadType &&pay = std::monostate{})
       : payload(std::move(pay)) {}
 
   MessageData(const MessageData &other) = delete;

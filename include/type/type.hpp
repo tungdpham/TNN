@@ -16,6 +16,7 @@ typedef __nv_bfloat16 bf16;
 #endif
 typedef float fp32;
 typedef double fp64;
+typedef unsigned char uchar;
 
 template <typename T>
 struct TypeTraits;

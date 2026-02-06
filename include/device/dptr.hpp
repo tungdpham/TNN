@@ -21,7 +21,10 @@ private:
 public:
   device_storage(csref<Device> device, void *ptr = nullptr, size_t capacity = 0,
                  size_t alignment = DEFAULT_ALIGNMENT)
-      : device_(device), ptr_(ptr), capacity_(capacity), alignment_(alignment) {}
+      : device_(device),
+        ptr_(ptr),
+        capacity_(capacity),
+        alignment_(alignment) {}
 
   ~device_storage() {
     if (ptr_) {
@@ -46,13 +49,18 @@ protected:
 
 public:
   dptr(std::shared_ptr<device_storage> storage = nullptr, size_t offset = 0, size_t capacity = 0)
-      : storage_(storage), offset_(offset), capacity_(capacity) {
-    if (offset_ > capacity_) {
+      : storage_(storage),
+        offset_(offset),
+        capacity_(capacity) {
+    if (storage_ && (offset_ + capacity_ > storage_->capacity())) {
       throw std::out_of_range("Bro what? dptr offset out of range in dptr constructor");
     }
   }
 
-  dptr(std::nullptr_t) : storage_(nullptr), offset_(0), capacity_(0) {}
+  dptr(std::nullptr_t)
+      : storage_(nullptr),
+        offset_(0),
+        capacity_(0) {}
 
   operator bool() const { return storage_ != nullptr && storage_->data() != nullptr; }
 
@@ -93,11 +101,10 @@ public:
   }
 
   dptr span(size_t start_offset, size_t span_size) const {
-    size_t new_offset = offset_ + start_offset;
-    if (new_offset + span_size > capacity_) {
+    if (start_offset + span_size > capacity_) {
       throw std::out_of_range("dptr span size out of range");
     }
-    return dptr(storage_, new_offset, span_size);
+    return dptr(storage_, offset_ + start_offset, span_size);
   }
 
   dptr operator+(size_t offset) const {
