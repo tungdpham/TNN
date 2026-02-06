@@ -30,8 +30,9 @@ public:
    * @param use_gpu Whether to use GPU for processing
    */
   explicit RoceWorker(Endpoint worker_endpoint, bool use_gpu)
-      : Worker(use_gpu), worker_endpoint_(worker_endpoint) {
-    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint_, use_gpu);
+      : Worker(use_gpu) {
+    auto &allocator = PoolAllocator::instance(use_gpu ? getGPU() : getCPU());
+    auto communicator = std::make_unique<RoceCommunicator>(worker_endpoint, allocator);
 
     communicator->start_server();
 
@@ -39,9 +40,6 @@ public:
   }
 
   ~RoceWorker() override { stop(); }
-
-private:
-  Endpoint worker_endpoint_;
 };
 
 }  // namespace tnn

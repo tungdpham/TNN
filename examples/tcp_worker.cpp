@@ -17,7 +17,7 @@ using namespace std;
 struct Config {
   int listen_port = 0;
   bool use_gpu = false;
-  size_t io_threads = 2;
+  uint32_t io_threads = 2;
   size_t num_threads = 8;
 };
 
@@ -60,7 +60,7 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
             cerr << "Invalid io-threads value: " << optarg << endl;
             return false;
           }
-          cfg.io_threads = static_cast<size_t>(threads);
+          cfg.io_threads = static_cast<uint32_t>(threads);
         } catch (...) {
           cerr << "--io-threads requires a valid number argument" << endl;
           return false;
@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
 
   thread_wrapper.execute([&]() {
-    TCPWorker worker(Endpoint::tcp("0.0.0.0", cfg.listen_port), cfg.use_gpu, cfg.io_threads);
+    TCPWorker worker(Endpoint::tcp("0.0.0.0", cfg.listen_port), cfg.use_gpu, {cfg.io_threads});
     worker.start();
   });
 

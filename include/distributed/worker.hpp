@@ -129,7 +129,7 @@ protected:
       case CommandType::FORWARD_JOB: {
         auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->get_allocator();
+        IAllocator &out_allocator = communicator_->out_allocator();
         DType_t input_dtype = forward_job.data->data_type();
         auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
         Tensor output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
@@ -144,7 +144,7 @@ protected:
       case CommandType::BACKWARD_JOB: {
         auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
-        IAllocator &out_allocator = communicator_->get_allocator();
+        IAllocator &out_allocator = communicator_->out_allocator();
         Tensor output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
         this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();

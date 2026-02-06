@@ -31,7 +31,8 @@ private:
   std::vector<CommandType> all_command_types_ = get_enum_vector<CommandType>();
 
 public:
-  Communicator(Endpoint endpoint) : endpoint_(endpoint) {}
+  Communicator(Endpoint endpoint)
+      : endpoint_(endpoint) {}
 
   virtual ~Communicator() {
     std::lock_guard<std::mutex> out_lock(out_message_mutex_);
@@ -160,7 +161,7 @@ public:
     profile_data_.clear();
   }
 
-  virtual IAllocator &get_allocator() = 0;
+  virtual IAllocator &out_allocator() = 0;
 
 protected:
   virtual void send_impl(Message &&message, const Endpoint &endpoint) = 0;

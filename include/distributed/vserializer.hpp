@@ -85,7 +85,7 @@ public:
     buffer.write(offset, header.PROTOCOL_VERSION);
     buffer.write(offset, header.endianess);
     buffer.write(offset, header.type);
-    buffer.write(offset, header.length);
+    buffer.write(offset, header.packet_length);
     buffer.write(offset, header.msg_length);
     buffer.write(offset, header.msg_serial_id);
     buffer.write(offset, header.packet_offset);
@@ -131,7 +131,7 @@ public:
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.read(offset, header.type);
-    buffer.read(offset, header.length);
+    buffer.read(offset, header.packet_length);
     buffer.read(offset, header.msg_length);
     buffer.read(offset, header.msg_serial_id);
     buffer.read(offset, header.packet_offset);
@@ -140,7 +140,7 @@ public:
 
     if (header.endianess != get_system_endianness()) {
       bswap(header.type);
-      bswap(header.length);
+      bswap(header.packet_length);
       bswap(header.msg_length);
       bswap(header.msg_serial_id);
       bswap(header.packet_offset);

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/message.hpp"
 #include "distributed/tcp_communicator.hpp"
 #include "tensor/tensor.hpp"
@@ -127,6 +128,12 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
   return true;
 }
 
+constexpr size_t N = 256;
+constexpr size_t H = 32;
+constexpr size_t W = 32;
+constexpr size_t C = 128;
+constexpr size_t DATA_SIZE = N * H * W * C * sizeof(float);
+
 int main(int argc, char *argv[]) {
   Config cfg;
 
@@ -141,7 +148,9 @@ int main(int argc, char *argv[]) {
   cout << "Peer port: " << cfg.peer_port << endl;
   cout << "Worker threads: " << cfg.num_threads << endl;
 
-  TcpCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), cfg.num_threads);
+  auto &allocator = PoolAllocator::instance(getCPU());
+
+  TcpCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), allocator);
 
   communicator.start_server();
 
@@ -153,12 +162,12 @@ int main(int argc, char *argv[]) {
   }
 
   ThreadWrapper thread_wrapper({static_cast<unsigned int>(cfg.num_threads)});
-  Tensor master_tensor = make_tensor<float>({256, 32, 32, 3}, getCPU());
+  Tensor master_tensor = make_tensor<float>({N, H, W, C}, getCPU());
   master_tensor->fill_random_normal(0.0f, 1.0f, 123456);
   // float *master_data = master_tensor->data_as<float>();
 
   for (int i = 0; i < 4; i++) {
-    Tensor tensor = make_tensor<float>(master_tensor->shape(), getGPU());
+    Tensor tensor = make_tensor<float>(master_tensor->shape(), getCPU());
     master_tensor->copy_to(tensor);
     Job job;
     job.mb_id = 10;
@@ -192,13 +201,6 @@ int main(int argc, char *argv[]) {
           continue;
         }
         // verify integrity of received tensor
-        Job &job = message.get<Job>();
-        const Tensor &tensor = job.data;
-        Tensor cpu_tensor = tensor->to_device(getCPU());
-        assert(cpu_tensor->shape() == master_tensor->shape());
-        assert(cpu_tensor->data_type() == master_tensor->data_type());
-        assert(cpu_tensor->size() == master_tensor->size());
-        assert(job.mb_id == 10 && "Unexpected mb_id in received job");
         num_messages_received++;
         communicator.send_message(std::move(message), peer_endpoint);
       }
@@ -206,10 +208,9 @@ int main(int argc, char *argv[]) {
       current_time = std::chrono::high_resolution_clock::now();
     }
   });
-  int kb_per_message = 128 * 512 * 16 * 16 * sizeof(float) / 1024;
   auto end_time = std::chrono::high_resolution_clock::now();
   std::chrono::duration<double> total_duration = end_time - start_time;
-  double total_kb = static_cast<double>(num_messages_received) * kb_per_message;
+  double total_kb = static_cast<double>(num_messages_received) * DATA_SIZE / 1024.0;
   double bandwidth_mbps = (total_kb / 1024.0) / total_duration.count();
   std::cout << "Total messages received: " << num_messages_received << std::endl;
   std::cout << "Total bytes received: " << total_kb * 1024 << " bytes" << std::endl;

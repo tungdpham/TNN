@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <random>
 #include <type_traits>
 
@@ -318,15 +319,7 @@ void greater(const T *a, const T *b, T *c, size_t size) {
 // Memory Operations
 template <typename T>
 void copy(const T *a, T *c, size_t size) {
-  if constexpr (std::is_same_v<T, float>) {
-    fp::copy(a, c, size);
-  } else if constexpr (std::is_same_v<T, double>) {
-    dp::copy(a, c, size);
-  } else {
-    for (size_t i = 0; i < size; ++i) {
-      c[i] = a[i];
-    }
-  }
+  std::memcpy(c, a, size * sizeof(T));
 }
 
 template <typename T>

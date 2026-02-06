@@ -9,6 +9,8 @@
 #include <csignal>
 #include <memory>
 
+#include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "tcp_communicator.hpp"
 #include "worker.hpp"
@@ -31,20 +33,18 @@ public:
    * @param max_ecore_threads Maximum number of E-cores to use (-1 for all available)
    * @param io_threads Number of IO threads for the TCP communicator (default: 1)
    */
-  explicit TCPWorker(Endpoint endpoint, bool use_gpu, size_t io_threads = 1)
-      : Worker(use_gpu), io_threads_(io_threads) {
-    auto communicator = std::make_unique<TcpCommunicator>(endpoint, io_threads_);
+  explicit TCPWorker(Endpoint endpoint, bool use_gpu,
+                     TcpCommunicatorConfig config = TcpCommunicatorConfig())
+      : Worker(use_gpu) {
+    const auto &device = use_gpu ? getGPU() : getCPU();
+    auto &allocator = PoolAllocator::instance(device);
+    auto communicator = std::make_unique<TcpCommunicator>(endpoint, allocator, config);
 
     communicator->start_server();
-
-    communicator->set_use_gpu(use_gpu);
 
     this->communicator_ = std::move(communicator);
   }
 
   ~TCPWorker() {}
-
-private:
-  size_t io_threads_;
 };
 }  // namespace tnn

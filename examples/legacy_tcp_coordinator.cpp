@@ -83,10 +83,8 @@ int main() {
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
   auto optimizer =
       OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-5f, 1e-4f, false);
-  auto scheduler =
-      SchedulerFactory::create_step_lr(optimizer.get(),
-                                       5 * train_loader->size() / train_config.batch_size,
-                                       0.6f);
+  auto scheduler = SchedulerFactory::create_step_lr(
+      optimizer.get(), 5 * train_loader->size() / train_config.batch_size, 0.6f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
@@ -123,17 +121,11 @@ int main() {
   cout << "Local worker endpoint: " << local_worker_endpoint.to_json().dump(4) << endl;
 
   // hard-coded for now
-  auto worker =
-      std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
+  auto worker = std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
-  CoordinatorConfig config{ParallelMode_t::PIPELINE,
-                           std::move(model),
-                           std::move(optimizer),
-                           std::move(scheduler),
-                           std::move(partitioner),
-                           std::move(worker),
-                           coordinator_endpoint,
-                           endpoints};
+  CoordinatorConfig config{
+      ParallelMode_t::PIPELINE, std::move(model),  std::move(optimizer), std::move(scheduler),
+      std::move(partitioner),   std::move(worker), coordinator_endpoint, endpoints};
 
   NetworkCoordinator coordinator(std::move(config));
 

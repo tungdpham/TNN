@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "device/dptr.hpp"
 #include "endian.hpp"
 
 namespace tnn {
@@ -16,7 +17,7 @@ struct PacketHeader {
   uint8_t PROTOCOL_VERSION = 1;
   PacketType type = PacketType::DATA_FRAGMENT;  // Type of packet
   Endianness endianess;                         // 1 for little-endian, 0 for big-endian
-  uint64_t length = 0;  // Length of the rest of the packet (excluding fixed header part)
+  uint64_t packet_length = 0;  // Length of the rest of the packet (excluding fixed header part)
 
   // For fragmentation
   uint64_t msg_length = 0;     // Total length for the entire message.
@@ -26,12 +27,13 @@ struct PacketHeader {
 
   CompressionType compression_type = CompressionType::NONE;
 
-  PacketHeader() : endianess(get_system_endianness()) {}
+  PacketHeader()
+      : endianess(get_system_endianness()) {}
 
-  PacketHeader(PacketType t, uint64_t len, uint64_t msg_len, uint32_t pkt_offset,
+  PacketHeader(PacketType t, uint64_t packet_len, uint64_t msg_len, uint32_t pkt_offset,
                uint32_t total_pkts, CompressionType comp_type = CompressionType::NONE)
       : type(t),
-        length(len),
+        packet_length(packet_len),
         msg_length(msg_len),
         packet_offset(pkt_offset),
         total_packets(total_pkts),
@@ -43,7 +45,7 @@ struct PacketHeader {
     return sizeof(uint8_t) +         // PROTOCOL_VERSION
            sizeof(PacketType) +      // type
            sizeof(Endianness) +      // endianess
-           sizeof(uint64_t) +        // length
+           sizeof(uint64_t) +        // packet_length
            sizeof(uint64_t) +        // msg_length
            sizeof(uint64_t) +        // msg_serial_id
            sizeof(uint32_t) +        // packet_offset
@@ -51,4 +53,10 @@ struct PacketHeader {
            sizeof(CompressionType);  // compression_type
   }
 };
+
+struct Packet {
+  PacketHeader header;
+  dptr data;
+};
+
 }  // namespace tnn

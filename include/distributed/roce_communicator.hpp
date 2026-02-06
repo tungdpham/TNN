@@ -100,8 +100,10 @@ private:
   std::thread io_thread_;
 
 public:
-  explicit RoceCommunicator(const Endpoint &endpoint, bool use_gpu)
-      : Communicator(endpoint), acceptor_(io_context_), use_gpu_(use_gpu) {
+  explicit RoceCommunicator(const Endpoint &endpoint, IAllocator &allocator)
+      : Communicator(endpoint),
+        serializer_(allocator),
+        acceptor_(io_context_) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
       port_ = endpoint.get_parameter<int>("port");
@@ -245,7 +247,7 @@ public:
     }
   }
 
-  IAllocator &get_allocator() override {
+  IAllocator &out_allocator() override {
     return PoolAllocator::instance(use_gpu_ ? getGPU() : getCPU());
   }
 

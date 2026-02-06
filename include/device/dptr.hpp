@@ -82,7 +82,7 @@ public:
     return storage_->alignment();
   }
 
-  template <typename T>
+  template <typename T = void>
   T *get() {
     if (!storage_) {
       return nullptr;
@@ -91,7 +91,7 @@ public:
         static_cast<void *>(static_cast<uint8_t *>(storage_->data()) + offset_));
   }
 
-  template <typename T>
+  template <typename T = void>
   const T *get() const {
     if (!storage_) {
       return nullptr;
@@ -100,7 +100,14 @@ public:
         static_cast<const void *>(static_cast<const uint8_t *>(storage_->data()) + offset_));
   }
 
-  dptr span(size_t start_offset, size_t span_size) const {
+  dptr span(size_t start_offset, size_t span_size) {
+    if (start_offset + span_size > capacity_) {
+      throw std::out_of_range("dptr span size out of range");
+    }
+    return dptr(storage_, offset_ + start_offset, span_size);
+  }
+
+  const dptr span(size_t start_offset, size_t span_size) const {
     if (start_offset + span_size > capacity_) {
       throw std::out_of_range("dptr span size out of range");
     }

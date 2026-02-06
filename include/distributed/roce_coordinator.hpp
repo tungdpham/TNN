@@ -32,10 +32,11 @@ public:
    * @param gid_index GID index for RoCE
    * @param endpoints The list of worker endpoints
    */
-  RoceCoordinator(CoordinatorConfig config) : Coordinator(std::move(config)) {
+  RoceCoordinator(CoordinatorConfig config)
+      : Coordinator(std::move(config)) {
     // Initialize RoCE communicator for the coordinator
-    auto communicator =
-        std::make_unique<RoceCommunicator>(this->coordinator_endpoint_, false /* use_gpu */);
+    auto &allocator = PoolAllocator::instance(getCPU());
+    auto communicator = std::make_unique<RoceCommunicator>(this->coordinator_endpoint_, allocator);
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

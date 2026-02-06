@@ -6,53 +6,31 @@
 #include <queue>
 #include <utility>
 
-#include "buffer_pool.hpp"
 #include "distributed/endpoint.hpp"
 #include "packet.hpp"
 
 namespace tnn {
-class WriteOperation {
-public:
-  explicit WriteOperation(PacketHeader header, PooledBuffer data, size_t data_offset)
-      : packet_header_(header), data_(data), data_offset_(data_offset) {}
-
-  explicit WriteOperation() = default;
-
-  WriteOperation(WriteOperation &&) noexcept = default;
-  WriteOperation &operator=(WriteOperation &&) noexcept = default;
-  WriteOperation(const WriteOperation &) = delete;
-  WriteOperation &operator=(const WriteOperation &) = delete;
-
-  PacketHeader packet_header() const { return packet_header_; }
-
-  uint8_t *packet_data() const { return data_->get() + data_offset_; }
-
-private:
-  PacketHeader packet_header_;
-  PooledBuffer data_;
-  size_t data_offset_;
-};
 
 // Simple thread-unsafe queue for write operations
 class WriteQueue {
 public:
-  bool try_pop(WriteOperation &op) {
+  bool try_pop(Packet &packet) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (queue_.empty()) {
       return false;
     }
-    op = std::move(queue_.front());
+    packet = std::move(queue_.front());
     queue_.pop();
     return true;
   }
 
-  void enqueue(WriteOperation &&op) {
+  void enqueue(Packet &&packet) {
     std::lock_guard<std::mutex> lock(mutex_);
-    queue_.emplace(std::move(op));
+    queue_.emplace(std::move(packet));
   }
 
 private:
-  std::queue<WriteOperation> queue_;
+  std::queue<Packet> queue_;
   std::mutex mutex_;
 };
 
@@ -64,7 +42,10 @@ public:
   WriteHandle(const WriteHandle &) = delete;
   WriteHandle &operator=(const WriteHandle &) = delete;
 
-  WriteHandle(WriteHandle &&other) noexcept : conn_(other.conn_) { other.conn_ = nullptr; }
+  WriteHandle(WriteHandle &&other) noexcept
+      : conn_(other.conn_) {
+    other.conn_ = nullptr;
+  }
   WriteHandle &operator=(WriteHandle &&other) noexcept {
     if (this != &other) {
       conn_ = other.conn_;
@@ -73,7 +54,8 @@ public:
     return *this;
   }
 
-  explicit WriteHandle(Connection *conn) : conn_(conn) {}
+  explicit WriteHandle(Connection *conn)
+      : conn_(conn) {}
 
   ~WriteHandle() {
     if (conn_) {
@@ -92,9 +74,11 @@ class Connection {
 public:
   asio::ip::tcp::socket socket;
 
-  explicit Connection(asio::io_context &io_ctx) : socket(io_ctx) {}
+  explicit Connection(asio::io_context &io_ctx)
+      : socket(io_ctx) {}
 
-  explicit Connection(asio::ip::tcp::socket sock) : socket(std::move(sock)) {}
+  explicit Connection(asio::ip::tcp::socket sock)
+      : socket(std::move(sock)) {}
   ~Connection() = default;
 
   void set_peer_endpoint(const Endpoint &new_endpoint) {
@@ -116,7 +100,7 @@ public:
     return std::make_unique<WriteHandle>(this);
   }
 
-  void enqueue_write(WriteOperation &&op) { write_queue_.enqueue(std::move(op)); }
+  void enqueue_write(Packet &&packet) { write_queue_.enqueue(std::move(packet)); }
 
 private:
   friend class WriteHandle;

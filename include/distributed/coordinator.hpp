@@ -145,8 +145,7 @@ public:
    * @param expected_count The number of confirmations to wait for.
    * @param timeout The maximum time to wait in seconds (default is 60 seconds).
    */
-  bool join(const CommandType type,
-            const size_t expected_count,
+  bool join(const CommandType type, const size_t expected_count,
             const size_t timeout_duration = 60) {
     std::unique_lock<std::mutex> lock(message_notification_mutex_);
 
@@ -184,9 +183,8 @@ public:
     size_t processed_microbatches_ = 0;
     while (processed_microbatches_ < num_microbatches) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(lock, [this]() {
-        return this->comm_->message_count(CommandType::FORWARD_JOB) > 0;
-      });
+      message_notification_cv_.wait(
+          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
       std::vector<Message> FORWARD_JOBs =
           this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
@@ -204,8 +202,7 @@ public:
 
           total_loss += loss;
           Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
-                                        predictions->data_type(),
-                                        predictions->shape());
+                                        predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
           gradient->mul_scalar(1.0 / num_microbatches);
           this->backward(std::move(gradient), job.mb_id);
@@ -248,9 +245,8 @@ public:
     size_t processed_microbatches_ = 0;
     while (processed_microbatches_ < num_microbatches) {
       std::unique_lock<std::mutex> lock(message_notification_mutex_);
-      message_notification_cv_.wait(lock, [this]() {
-        return this->comm_->message_count(CommandType::FORWARD_JOB) > 0;
-      });
+      message_notification_cv_.wait(
+          lock, [this]() { return this->comm_->message_count(CommandType::FORWARD_JOB) > 0; });
       std::vector<Message> FORWARD_JOBs =
           this->comm_->dequeue_all_messages_by_type(CommandType::FORWARD_JOB);
 
@@ -351,11 +347,7 @@ public:
 
       logger_.info(
           "Event: {}, Source: {}, Type: {}, Start: {:.2f} ms, End: {:.2f} ms, Duration: {:.2f} ms",
-          event.name,
-          event.source,
-          event_type_to_string(event.type),
-          start_ms,
-          end_ms,
+          event.name, event.source, event_type_to_string(event.type), start_ms, end_ms,
           duration_ms);
     }
   }
@@ -436,12 +428,22 @@ private:
           config.next_stage_endpoint = worker_endpoints_[i + 1];
         } else {
           config.next_stage_endpoint = coordinator_endpoint_;
+          // minor optimization
+          if (worker_endpoints_[i] == local_worker_->endpoint()) {
+            config.next_stage_endpoint = Endpoint::in_process(this->comm_.get());
+          }
         }
-
-        // minor optimization
       }
 
       stage_configs_.push_back(config);
+    }
+
+    if (local_worker_) {
+      for (auto &endpoint : worker_endpoints_) {
+        if (endpoint == local_worker_->endpoint()) {
+          endpoint = Endpoint::in_process(local_worker_->get_communicator());
+        }
+      }
     }
   }
 

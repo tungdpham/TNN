@@ -5,9 +5,8 @@
 #include <concepts>
 #include <cstdint>
 
-#include "device/device_manager.hpp"
 #include "device/dptr.hpp"
-#include "device/pool_allocator.hpp"
+#include "device/iallocator.hpp"
 #include "endian.hpp"
 #include "message.hpp"
 #include "packet.hpp"
@@ -53,10 +52,11 @@ concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t 
 
 class BinarySerializer {
 private:
-  bool use_gpu_ = false;
+  IAllocator &allocator_;
 
 public:
-  void set_use_gpu(bool flag) { use_gpu_ = flag; }
+  BinarySerializer(IAllocator &allocator)
+      : allocator_(allocator) {}
 
   template <Buffer BufferType>
   void serialize(BufferType &buffer, size_t &offset, const ConstTensor &tensor) {
@@ -98,7 +98,7 @@ public:
     buffer.write(offset, header.PROTOCOL_VERSION);
     buffer.write(offset, header.endianess);
     buffer.write(offset, header.type);
-    buffer.write(offset, header.length);
+    buffer.write(offset, header.packet_length);
     buffer.write(offset, header.msg_length);
     buffer.write(offset, header.msg_serial_id);
     buffer.write(offset, header.packet_offset);
@@ -145,7 +145,7 @@ public:
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
     buffer.template read<PacketType>(offset, header.type);
-    buffer.read(offset, header.length);
+    buffer.read(offset, header.packet_length);
     buffer.read(offset, header.msg_length);
     buffer.read(offset, header.msg_serial_id);
     buffer.read(offset, header.packet_offset);
@@ -153,7 +153,7 @@ public:
     buffer.template read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
     if (header.endianess != get_system_endianness()) {
       bswap(header.type);
-      bswap(header.length);
+      bswap(header.packet_length);
       bswap(header.msg_length);
       bswap(header.msg_serial_id);
       bswap(header.packet_offset);
@@ -182,9 +182,7 @@ public:
     for (uint64_t i = 0; i < shape_size; ++i) {
       buffer.template read<uint64_t>(offset, shape[i]);
     }
-    auto &device = use_gpu_ ? getGPU() : getCPU();
-    tensor = make_tensor(PoolAllocator::instance(device), dtype,
-                         std::vector<size_t>(shape.begin(), shape.end()));
+    tensor = make_tensor(allocator_, dtype, std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
       auto dptr = tensor->data_ptr();
       size_t byte_size = tensor->size() * dtype_size;

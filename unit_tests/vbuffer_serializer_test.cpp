@@ -120,7 +120,7 @@ TEST_F(VBufferSerializerTest, SerializerPacketHeader) {
 
   PacketHeader header;
   header.type = PacketType::DATA_FRAGMENT;
-  header.length = 1234;
+  header.packet_length = 1234;
   header.msg_length = 5678;
   header.msg_serial_id = 999;
   header.packet_offset = 10;
@@ -134,7 +134,7 @@ TEST_F(VBufferSerializerTest, SerializerPacketHeader) {
   serializer.deserialize(buffer, read_offset, res_header);
 
   EXPECT_EQ(res_header.type, header.type);
-  EXPECT_EQ(res_header.length, header.length);
+  EXPECT_EQ(res_header.packet_length, header.packet_length);
   EXPECT_EQ(res_header.msg_length, header.msg_length);
   EXPECT_EQ(res_header.msg_serial_id, header.msg_serial_id);
   EXPECT_EQ(res_header.packet_offset, header.packet_offset);
