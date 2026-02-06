@@ -113,7 +113,7 @@ public:
 
   template <Buffer BufferType>
   void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
-    buffer.write(offset, data.payload_type);
+    buffer.write(offset, data.payload.index());  // Write payload type index
     if (std::holds_alternative<std::monostate>(data.payload)) {
       // No additional data to write
     } else if (std::holds_alternative<Job>(data.payload)) {
@@ -248,8 +248,7 @@ public:
     // Determine payload type based on payload_type
     uint64_t payload_type;
     buffer.read(offset, payload_type);
-    data.payload_type = payload_type;
-    switch (data.payload_type) {
+    switch (payload_type) {
       case variant_index<PayloadType, std::monostate>():  // std::monostate
         data.payload = std::monostate{};
         break;

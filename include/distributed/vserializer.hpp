@@ -44,7 +44,8 @@ private:
   IAllocator &allocator_;
 
 public:
-  VSerializer(IAllocator &allocator) : allocator_(allocator) {}
+  VSerializer(IAllocator &allocator)
+      : allocator_(allocator) {}
 
   ~VSerializer() = default;
 
@@ -97,8 +98,7 @@ public:
   }
 
   void serialize(VBuffer &buffer, size_t &offset, MessageData &&data) {
-    buffer.write(offset, data.payload_type);
-
+    buffer.write(offset, data.payload.index());  // Write payload type index
     if (std::holds_alternative<std::monostate>(data.payload)) {
     } else if (std::holds_alternative<Job>(data.payload)) {
       auto &job = std::get<Job>(data.payload);
@@ -219,9 +219,7 @@ public:
   void deserialize(VBuffer &buffer, size_t &offset, MessageData &data) {
     uint64_t payload_type;
     buffer.read(offset, payload_type);
-    data.payload_type = payload_type;
-
-    switch (data.payload_type) {
+    switch (payload_type) {
       case variant_index<PayloadType, std::monostate>():
         data.payload = std::monostate{};
         break;

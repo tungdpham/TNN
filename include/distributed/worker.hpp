@@ -36,12 +36,17 @@ namespace tnn {
 class Worker {
 public:
   explicit Worker(std::unique_ptr<Sequential> model, std::unique_ptr<Communicator> communicator)
-      : model_(std::move(model)), communicator_(std::move(communicator)), should_stop_(true) {}
+      : model_(std::move(model)),
+        communicator_(std::move(communicator)),
+        should_stop_(true) {}
 
   virtual ~Worker() { stop(); }
 
 protected:
-  Worker(bool use_gpu) : use_gpu_(use_gpu), should_stop_(true), is_configured_(false) {}
+  Worker(bool use_gpu)
+      : use_gpu_(use_gpu),
+        should_stop_(true),
+        is_configured_(false) {}
 
 public:
   void start() {
@@ -80,7 +85,6 @@ public:
 
   void set_config(const StageConfig &config) {
     // setup model, optimizer, criterion
-    std::cout << "Received config: " << config.to_json().dump(4) << std::endl;
     LayerConfig model_config = config.model_config;
     this->model_ = Sequential::create_from_config(model_config);
     this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
