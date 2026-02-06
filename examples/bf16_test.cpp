@@ -31,9 +31,9 @@ void test_dense() {
     bf16_params[i]->copy_to(fp32_params[i]);
   }
 
-  Tensor bf16_input = Tensor::create(DType_t::BF16, {batch_size, input_dim}, getCPU());
+  Tensor bf16_input = make_tensor(DType_t::BF16, {batch_size, input_dim}, getCPU());
   bf16_input->fill_random_uniform(0.0f, 1.0f);
-  Tensor fp32_input = Tensor::create(DType_t::FP32, {batch_size, input_dim}, getCPU());
+  Tensor fp32_input = make_tensor(DType_t::FP32, {batch_size, input_dim}, getCPU());
 
   bf16 *input_data = bf16_input->data_as<bf16>();
   fp32 *input_data_fp32 = fp32_input->data_as<float>();
@@ -45,8 +45,8 @@ void test_dense() {
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
   Tensor output_fp32, output_bf16;
-  output_fp32 = Tensor::create(DType_t::FP32, {batch_size, output_dim}, getGPU());
-  output_bf16 = Tensor::create(DType_t::BF16, {batch_size, output_dim}, getGPU());
+  output_fp32 = make_tensor(DType_t::FP32, {batch_size, output_dim}, getGPU());
+  output_bf16 = make_tensor(DType_t::BF16, {batch_size, output_dim}, getGPU());
 
   fp32_dense.forward(input_fp32, output_fp32, 0);
   bf16_dense.forward(input_bf16, output_bf16, 0);
@@ -72,8 +72,8 @@ void test_dense() {
   }
   cout << "Max diff: " << max_diff << endl;
 
-  Tensor target_fp32 = Tensor::create(DType_t::FP32, {batch_size, output_dim});
-  Tensor target_bf16 = Tensor::create(DType_t::BF16, {batch_size, output_dim});
+  Tensor target_fp32 = make_tensor(DType_t::FP32, {batch_size, output_dim});
+  Tensor target_bf16 = make_tensor(DType_t::BF16, {batch_size, output_dim});
   target_fp32->fill(0.0f);
   target_bf16->fill(bf16(0.0f));
 
@@ -84,8 +84,8 @@ void test_dense() {
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
 
-  auto gradient_fp32 = Tensor::create(DType_t::FP32, {batch_size, output_dim});
-  auto gradient_bf16 = Tensor::create(DType_t::BF16, {batch_size, output_dim});
+  auto gradient_fp32 = make_tensor(DType_t::FP32, {batch_size, output_dim});
+  auto gradient_bf16 = make_tensor(DType_t::BF16, {batch_size, output_dim});
 
   criterion->compute_gradient(cpu_output_fp32, target_fp32, gradient_fp32);
   criterion->compute_gradient(cpu_output_bf16, target_bf16, gradient_bf16);
@@ -93,8 +93,8 @@ void test_dense() {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 = Tensor::create(DType_t::BF16, {batch_size, input_dim}, getGPU());
-  Tensor grad_input_fp32 = Tensor::create(DType_t::FP32, {batch_size, input_dim}, getGPU());
+  Tensor grad_input_bf16 = make_tensor(DType_t::BF16, {batch_size, input_dim}, getGPU());
+  Tensor grad_input_fp32 = make_tensor(DType_t::FP32, {batch_size, input_dim}, getGPU());
 
   bf16_dense.backward(gpu_gradient_bf16, grad_input_bf16, 0);
   fp32_dense.backward(gpu_gradient_fp32, grad_input_fp32, 0);
@@ -148,9 +148,9 @@ void test_attention() {
     cpu_fp32_param->copy_to(fp32_params[i]);
   }
 
-  Tensor bf16_input = Tensor::create(DType_t::BF16, {batch_size, seq_len, embed_dim}, getCPU());
+  Tensor bf16_input = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim}, getCPU());
   bf16_input->fill_random_uniform(0.0f, 1.0f);
-  Tensor fp32_input = Tensor::create(DType_t::FP32, {batch_size, seq_len, embed_dim}, getCPU());
+  Tensor fp32_input = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim}, getCPU());
 
   bf16 *input_data = bf16_input->data_as<bf16>();
   fp32 *input_data_fp32 = fp32_input->data_as<float>();
@@ -162,8 +162,8 @@ void test_attention() {
   Tensor input_bf16 = bf16_input->to_device(getGPU());
 
   Tensor output_fp32, output_bf16;
-  output_fp32 = Tensor::create(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
-  output_bf16 = Tensor::create(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
+  output_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
+  output_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
 
   fp32_attention.forward(input_fp32, output_fp32, 0);
   bf16_attention.forward(input_bf16, output_bf16, 0);
@@ -189,8 +189,8 @@ void test_attention() {
   }
   cout << "Max diff: " << max_diff << endl;
 
-  Tensor target_fp32 = Tensor::create(DType_t::FP32, {batch_size, seq_len, embed_dim});
-  Tensor target_bf16 = Tensor::create(DType_t::BF16, {batch_size, seq_len, embed_dim});
+  Tensor target_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim});
+  Tensor target_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim});
   target_fp32->fill(0.0f);
   target_bf16->fill(bf16(0.0f));
 
@@ -201,8 +201,8 @@ void test_attention() {
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
 
-  auto gradient_fp32 = Tensor::create(DType_t::FP32, {batch_size, seq_len, embed_dim});
-  auto gradient_bf16 = Tensor::create(DType_t::BF16, {batch_size, seq_len, embed_dim});
+  auto gradient_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim});
+  auto gradient_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim});
 
   criterion->compute_gradient(cpu_output_fp32, target_fp32, gradient_fp32);
   criterion->compute_gradient(cpu_output_bf16, target_bf16, gradient_bf16);
@@ -210,10 +210,8 @@ void test_attention() {
   auto gpu_gradient_fp32 = gradient_fp32->to_device(getGPU());
   auto gpu_gradient_bf16 = gradient_bf16->to_device(getGPU());
 
-  Tensor grad_input_bf16 =
-      Tensor::create(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
-  Tensor grad_input_fp32 =
-      Tensor::create(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
+  Tensor grad_input_bf16 = make_tensor(DType_t::BF16, {batch_size, seq_len, embed_dim}, getGPU());
+  Tensor grad_input_fp32 = make_tensor(DType_t::FP32, {batch_size, seq_len, embed_dim}, getGPU());
 
   bf16_attention.backward(gpu_gradient_bf16, grad_input_bf16, 0);
   fp32_attention.backward(gpu_gradient_fp32, grad_input_fp32, 0);

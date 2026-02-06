@@ -10,7 +10,6 @@
 #include "nn/layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
 #include "nn/layers_impl/parameterized_layer.hpp"
-#include "tensor/tensor.hpp"
 #ifdef USE_CUDNN
 #include "device/task.hpp"
 #include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
@@ -33,27 +32,24 @@ private:
   std::unique_ptr<DenseLayer> qkv_proj_;
   std::unique_ptr<DenseLayer> out_proj_;
 
-  std::unordered_map<size_t, Tensor> input_cache_;
-  std::unordered_map<size_t, Tensor> attn_out_cache_;
-  std::unordered_map<size_t, Tensor> stats_cache_tensor_;
-
 #ifdef USE_CUDNN
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> flash_attention_forward_task(
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, Tensor &attn_heads,
-      Tensor &stats_tensor, Tensor &workspace, const std::string &flow_id) const;
+      const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
+      const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
+      const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> flash_attention_backward_task(
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
-      const Tensor &q_heads, const Tensor &k_heads, const Tensor &v_heads, const Tensor &attn_heads,
-      const Tensor &grad_attn_heads, const Tensor &stats_tensor, Tensor &grad_q_heads,
-      Tensor &grad_k_heads, Tensor &grad_v_heads, Tensor &workspace,
-      const std::string &flow_id) const;
+      const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
+      const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
+      const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
+      const Tensor &grad_v_heads, const Tensor &workspace, const std::string &flow_id) const;
 
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
+  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
+  void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
 
   std::unordered_map<size_t, cuda::cudnn_flash_attention::feHandle_t *> fe_handle_cache;
 #endif
@@ -65,8 +61,9 @@ private:
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,

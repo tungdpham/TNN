@@ -1,5 +1,6 @@
 create_executable(serialization_benchmark.cpp LIBS tnn_lib)
 create_executable(tcp_communicator_benchmark.cpp LIBS tnn_lib)
+create_executable(roce_communicator_benchmark.cpp LIBS tnn_lib)
 create_executable(gemm_benchmark.cpp LIBS tnn_nn)
 create_executable(conv2d_benchmark.cpp LIBS tnn_nn)
 create_executable(copy_benchmark.cpp LIBS tnn_nn)

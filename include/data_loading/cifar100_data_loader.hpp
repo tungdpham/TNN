@@ -134,12 +134,12 @@ private:
 
     // NHWC format: (Batch, Height, Width, Channels)
     batch_data =
-        Tensor::create<T>({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
-                           cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS});
+        make_tensor<T>({actual_batch_size, cifar100_constants::IMAGE_HEIGHT,
+                        cifar100_constants::IMAGE_WIDTH, cifar100_constants::NUM_CHANNELS});
 
     const size_t num_classes = use_coarse_labels_ ? cifar100_constants::NUM_COARSE_CLASSES
                                                   : cifar100_constants::NUM_CLASSES;
-    batch_labels = Tensor::create<T>({actual_batch_size, num_classes});
+    batch_labels = make_tensor<T>({actual_batch_size, num_classes});
     batch_labels->fill(0.0);
 
     for (size_t i = 0; i < actual_batch_size; ++i) {

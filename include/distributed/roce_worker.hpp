@@ -8,8 +8,6 @@
 
 #include <memory>
 
-#include "device/device.hpp"
-#include "device/device_manager.hpp"
 #include "roce_communicator.hpp"
 #include "worker.hpp"
 

@@ -23,7 +23,7 @@ private:
   std::unordered_map<std::string, std::any> parameters_;
 
 public:
-  Endpoint() = default;
+  Endpoint() : type_(CommunicationType::NONE) {}
 
   explicit Endpoint(CommunicationType comm_type) : type_(comm_type) {}
 
@@ -92,6 +92,8 @@ public:
     }
   }
 
+  operator bool() const { return !is_empty(); }
+
   bool operator==(const Endpoint &other) const {
     if (type_ != other.type_) {
       return false;
@@ -149,8 +151,8 @@ public:
     return endpoint;
   }
 
-  static Endpoint roce(const std::string &host, int port, const std::string &device_name,
-                       int gid_index) {
+  static Endpoint roce(const std::string &host, int port, const std::string &device_name = "",
+                       int gid_index = -1) {
     Endpoint endpoint(CommunicationType::ROCE);
     endpoint.set_parameter("host", host);
     endpoint.set_parameter("port", port);

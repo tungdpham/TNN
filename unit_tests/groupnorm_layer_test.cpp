@@ -45,7 +45,7 @@ protected:
     }
   }
 
-  void verify_output_shape(const Tensor &input, const Tensor &output) {
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output) {
     auto input_shape = input->shape();
     auto output_shape = output->shape();
     EXPECT_EQ(output_shape[0], input_shape[0]);
@@ -54,8 +54,8 @@ protected:
     EXPECT_EQ(output_shape[3], input_shape[3]);
   }
 
-  void compute_group_statistics(const Tensor &input, size_t num_groups, std::vector<float> &means,
-                                std::vector<float> &vars) {
+  void compute_group_statistics(const ConstTensor &input, size_t num_groups,
+                                std::vector<float> &means, std::vector<float> &vars) {
     const float *data = input->data_as<float>();
     auto input_shape = input->shape();
     size_t batch_size = input_shape[0];
@@ -105,10 +105,10 @@ protected:
     }
   }
 
-  void verify_forward_result(const Tensor &input, const Tensor &output, size_t num_groups,
+  void verify_forward_result(const ConstTensor &input, const ConstTensor &output, size_t num_groups,
                              const std::vector<float> &expected_mean,
                              const std::vector<float> &expected_var, float epsilon,
-                             const Tensor gamma = nullptr, const Tensor beta = nullptr,
+                             const ConstTensor gamma = nullptr, const ConstTensor beta = nullptr,
                              float tolerance = 1e-4f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
@@ -160,7 +160,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -168,7 +168,7 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -185,7 +185,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -193,7 +193,7 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -215,7 +215,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 2, 2}, getCPU());
+  Tensor input = make_tensor<float>({2, num_channels, 2, 2}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -223,7 +223,7 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -240,7 +240,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -248,7 +248,7 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
   verify_output_shape(input, output);
 
@@ -265,7 +265,7 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   layer.init();
   layer.set_training(true);
 
-  Tensor input = Tensor::create<float>({2, num_channels, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
@@ -273,13 +273,13 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   Tensor grad_output = output->clone();
   grad_output->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(grad_output, grad_input);
 
   auto input_shape = input->shape();

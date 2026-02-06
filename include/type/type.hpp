@@ -16,6 +16,7 @@ typedef __nv_bfloat16 bf16;
 #endif
 typedef float fp32;
 typedef double fp64;
+typedef unsigned char uchar;
 
 template <typename T>
 struct TypeTraits;
@@ -52,11 +53,30 @@ struct TypeTraits<fp64> {
   using HigherPrecision = fp64;
 };
 
-enum class DType_t : uint32_t { BYTE, FP16, BF16, FP32, FP64, INT32_T, INT64_T, SIZE_T, UNKNOWN };
+enum class DType_t : uint32_t {
+  UINT8_T,
+  BOOL,
+  FP16,
+  BF16,
+  FP32,
+  FP64,
+  INT32_T,
+  INT64_T,
+  SIZE_T,
+  UNKNOWN
+};
 
 template <typename T>
 constexpr DType_t dtype_of() {
   return DType_t::UNKNOWN;
+}
+template <>
+constexpr DType_t dtype_of<uint8_t>() {
+  return DType_t::UINT8_T;
+}
+template <>
+constexpr DType_t dtype_of<bool>() {
+  return DType_t::BOOL;
 }
 template <>
 constexpr DType_t dtype_of<bf16>() {
@@ -106,8 +126,10 @@ inline float dtype_eps(DType_t dtype) {
 
 inline size_t get_dtype_size(DType_t dtype) {
   switch (dtype) {
-    case DType_t::BYTE:
+    case DType_t::UINT8_T:
       return sizeof(uint8_t);
+    case DType_t::BOOL:
+      return sizeof(bool);
     case DType_t::FP16:
       return sizeof(fp16);
     case DType_t::BF16:
@@ -129,8 +151,10 @@ inline size_t get_dtype_size(DType_t dtype) {
 
 inline std::string dtype_to_string(DType_t dtype) {
   switch (dtype) {
-    case DType_t::BYTE:
+    case DType_t::UINT8_T:
       return "byte";
+    case DType_t::BOOL:
+      return "bool";
     case DType_t::FP16:
       return "fp16";
     case DType_t::BF16:

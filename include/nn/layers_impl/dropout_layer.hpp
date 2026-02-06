@@ -24,11 +24,13 @@ private:
   mutable std::mt19937 generator_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dropout_forward(const Tensor &input, Tensor &output, Tensor &mask,
+  std::unique_ptr<Task> compute_dropout_forward(const ConstTensor &input, const Tensor &output,
+                                                const Tensor &mask,
                                                 const std::string &flow_id) const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   explicit DropoutLayer(float dropout_rate, const std::string &name = "dropout");

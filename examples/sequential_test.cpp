@@ -20,8 +20,8 @@ signed main() {
   auto deserialized_config = deserialized_model->get_config();
   cout << deserialized_config.to_json().dump(2) << endl;
 
-  Tensor input = Tensor::create<float>({1, 32, 32, 3});
-  Tensor output = Tensor::create<float>({1});
+  Tensor input = make_tensor<float>({1, 32, 32, 3});
+  Tensor output = make_tensor<float>({1});
   model.set_device(getGPU());
   model.init();
   model.forward(input, output, 0);

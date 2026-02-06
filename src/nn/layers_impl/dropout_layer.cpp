@@ -24,7 +24,7 @@ DropoutLayer::DropoutLayer(float dropout_rate, const std::string &name)
   }
 }
 
-void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (!this->is_training_) {
     output->ensure(input->shape());
     input->copy_to(output);
@@ -33,7 +33,7 @@ void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_i
 
   Tensor &mask = micro_batch_masks_[mb_id];
   if (mask == nullptr)
-    mask = Tensor::create<float>(input->shape(), this->device_);
+    mask = make_tensor<float>(input->shape(), this->device_);
   else {
     mask->ensure(input->shape());
   }
@@ -42,7 +42,8 @@ void DropoutLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_i
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_forward, input, output, mask, "default");
 }
 
-void DropoutLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void DropoutLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                 size_t mb_id) {
   if (!this->is_training_) {
     grad_input->ensure(gradient->shape());
     gradient->copy_to(grad_input);
@@ -54,7 +55,7 @@ void DropoutLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, siz
     throw std::runtime_error("No cached mask found for micro-batch ID in DropoutLayer: " +
                              std::to_string(mb_id));
   }
-  const Tensor &mask = it_mask->second;
+  const ConstTensor &mask = it_mask->second;
 
   grad_input->ensure(gradient->shape());
   gradient->copy_to(grad_input);
@@ -62,8 +63,9 @@ void DropoutLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, siz
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const Tensor &input, Tensor &output,
-                                                            Tensor &mask,
+std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const ConstTensor &input,
+                                                            const Tensor &output,
+                                                            const Tensor &mask,
                                                             const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
@@ -101,7 +103,7 @@ LayerConfig DropoutLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["dropout_rate"] = dropout_rate_;
+  config.set("dropout_rate", dropout_rate_);
   return config;
 }
 

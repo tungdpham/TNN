@@ -88,7 +88,7 @@ size_t BatchNormLayer::get_shape_hash(size_t n, size_t c, size_t h, size_t w) co
  * @param output Tensor in NHWC format
  * @param mb_id Micro-batch identifier for caching
  */
-void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void BatchNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (input->dims() < 4) {
     throw std::invalid_argument("BatchNorm: Input tensor must have at least 4 dimensions got " +
                                 std::to_string(input->dims()) + " dims");
@@ -109,7 +109,8 @@ void BatchNormLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb
   }
 }
 
-void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void BatchNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                   size_t mb_id) {
 #ifdef USE_CUDNN
   if (this->device_->device_type() == DeviceType::GPU) {
     cudnn_backward(gradient, grad_input, mb_id);
@@ -121,7 +122,7 @@ void BatchNormLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, s
 }
 
 #ifdef USE_CUDNN
-void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id) {
+void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   const size_t batch_size = input->dimension(0);
   const size_t height = input->dimension(1);
   const size_t width = input->dimension(2);
@@ -158,17 +159,21 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   round_workspace_size(current_stats);
 
   if (this->is_training_) {
-    Tensor &cached_input = this->get_cached_tensor(mb_id, "input");
+    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
     cached_input = input;
   }
 
-  Tensor &batch_invar = this->get_cached_tensor(mb_id, "batch_invar");
-  Tensor &batch_mean = this->get_cached_tensor(mb_id, "batch_mean");
+  Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
+  Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
+  Tensor &relu_mask = this->get_mutable_tensor(mb_id, "relu_mask");
   if (batch_invar == nullptr) {
     batch_invar = this->get_buffer({num_features_}, io_dtype_);
   }
   if (batch_mean == nullptr) {
     batch_mean = this->get_buffer({num_features_}, io_dtype_);
+  }
+  if (use_relu_ && relu_mask == nullptr) {
+    relu_mask = this->get_buffer(input->shape(), DType_t::UINT8_T);
   }
 
   size_t io_dtype_size = get_dtype_size(io_dtype_);
@@ -178,7 +183,8 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
     Tensor workspace = this->get_buffer({workspace_elems}, io_dtype_);
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_training_task, fe_handle, current_stats, input, output,
                                    gamma_, beta_, running_mean_, running_var_, running_mean_,
-                                   running_var_, batch_mean, batch_invar, workspace, "default");
+                                   running_var_, batch_mean, batch_invar, relu_mask, workspace,
+                                   "default");
   } else {
     size_t workspace_elems = (current_stats.inf_workspace_size + io_dtype_size - 1) / io_dtype_size;
     Tensor workspace = this->get_buffer({workspace_elems}, io_dtype_);
@@ -188,16 +194,18 @@ void BatchNormLayer::cudnn_forward(const Tensor &input, Tensor &output, size_t m
   }
 }
 
-void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
-  Tensor &input = this->get_cached_tensor(mb_id, "input");
+void BatchNormLayer::cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input,
+                                    size_t mb_id) {
+  ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for micro-batch ID in BatchNormLayer: " +
                              std::to_string(mb_id));
   }
 
-  Tensor &batch_mean = this->get_cached_tensor(mb_id, "batch_mean");
-  Tensor &batch_invar = this->get_cached_tensor(mb_id, "batch_invar");
-  if (!batch_mean || !batch_invar) {
+  const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
+  const Tensor &batch_invar = this->get_mutable_tensor(mb_id, "batch_invar");
+  const Tensor &relu_mask = this->get_mutable_tensor(mb_id, "relu_mask");
+  if (!batch_mean || !batch_invar || (use_relu_ && !relu_mask)) {
     throw std::runtime_error(
         "No cached batch statistics found for micro-batch ID in BatchNormLayer: " +
         std::to_string(mb_id));
@@ -218,17 +226,19 @@ void BatchNormLayer::cudnn_backward(const Tensor &gradient, Tensor &grad_input, 
       {(current_stats.bwd_workspace_size + io_dtype_size - 1) / io_dtype_size}, io_dtype_);
   grad_input->ensure(gradient->shape());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, input,
-                                 grad_input, gamma_, gamma_gradients_, beta_gradients_, batch_mean,
-                                 batch_invar, workspace, "default");
+  DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, relu_mask,
+                                 input, grad_input, gamma_, gamma_gradients_, beta_gradients_,
+                                 batch_mean, batch_invar, workspace, "default");
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> BatchNormLayer::forward_training_task(
-    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
-    Tensor &output, const Tensor &gamma, const Tensor &beta, Tensor &prev_running_mean,
-    Tensor &prev_running_var, Tensor &next_running_mean, Tensor &next_running_var,
-    Tensor &batch_mean, Tensor &batch_invar, Tensor &workspace, const std::string &flow_id) const {
+    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
+    const Tensor &output, const ConstTensor &gamma, const ConstTensor &beta,
+    const Tensor &prev_running_mean, const Tensor &prev_running_var,
+    const Tensor &next_running_mean, const Tensor &next_running_var, const Tensor &batch_mean,
+    const Tensor &batch_invar, const Tensor &relu_mask, const Tensor &workspace,
+    const std::string &flow_id) {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -242,7 +252,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
                             input->data(), gamma->data(), beta->data(), output->data(),
                             running_mean_->data(), running_var_->data(), running_mean_->data(),
                             running_var_->data(), batch_mean->data(), batch_invar->data(),
-                            workspace->data());
+                            use_relu_ ? relu_mask->data() : nullptr, workspace->data());
 #endif
   } else {
     throw std::runtime_error("BatchNormLayer forward only implemented for GPU with cuDNN");
@@ -252,9 +262,10 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
-    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &input,
-    Tensor &output, const Tensor &gamma, const Tensor &beta, const Tensor &saved_mean,
-    const Tensor &saved_invar, Tensor &workspace, const std::string &flow_id) const {
+    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
+    const Tensor &output, const ConstTensor &gamma, const ConstTensor &beta,
+    const ConstTensor &saved_mean, const ConstTensor &saved_var, const Tensor &workspace,
+    const std::string &flow_id) {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -266,7 +277,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 #ifdef USE_CUDNN
     return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), saved_mean->data(),
-                            saved_invar->data(), output->data(), workspace->data());
+                            saved_var->data(), output->data(), workspace->data());
 #endif
   } else {
     throw std::runtime_error("BatchNormLayer forward only implemented for GPU with cuDNN");
@@ -276,10 +287,11 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> BatchNormLayer::backward_task(
-    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const Tensor &gradient,
-    const Tensor &input, Tensor &grad_input, const Tensor &gamma, Tensor &gamma_gradients,
-    Tensor &beta_gradients, const Tensor &batch_mean, const Tensor &batch_invar, Tensor &workspace,
-    const std::string &flow_id) const {
+    cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats,
+    const ConstTensor &gradient, const ConstTensor &relu_mask, const ConstTensor &input,
+    const Tensor &grad_input, const ConstTensor &gamma, const Tensor &gamma_gradients,
+    const Tensor &beta_gradients, const ConstTensor &batch_mean, const ConstTensor &batch_invar,
+    const Tensor &workspace, const std::string &flow_id) {
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -290,7 +302,8 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
   if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
     return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_backward, fe_handle, stats,
-                            input->data(), gradient->data(), gamma->data(), beta_->data(),
+                            input->data(), gradient->data(),
+                            use_relu_ ? relu_mask->data() : nullptr, gamma->data(),
                             grad_input->data(), gamma_gradients->data(), beta_gradients->data(),
                             batch_mean->data(), batch_invar->data(), workspace->data());
 #endif
@@ -305,11 +318,11 @@ LayerConfig BatchNormLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["num_features"] = num_features_;
-  config.parameters["epsilon"] = epsilon_;
-  config.parameters["momentum"] = momentum_;
-  config.parameters["affine"] = affine_;
-  config.parameters["use_relu"] = use_relu_;
+  config.set("num_features", num_features_);
+  config.set("epsilon", epsilon_);
+  config.set("momentum", momentum_);
+  config.set("affine", affine_);
+  config.set("use_relu", use_relu_);
   return config;
 }
 
@@ -361,6 +374,9 @@ uint64_t BatchNormLayer::forward_flops(const std::vector<size_t> &input_shape) c
   uint64_t var_flops = 2 * num_elements + mean_flops;
   uint64_t norm_flops = 3 * num_elements;
   uint64_t affine_flops = affine_ ? (2 * num_elements) : 0;
+  if (use_relu_) {
+    affine_flops += num_elements;  // ReLU activation
+  }
   return mean_flops + var_flops + norm_flops + affine_flops;
 }
 
@@ -371,6 +387,9 @@ uint64_t BatchNormLayer::backward_flops(const std::vector<size_t> &input_shape) 
   size_t spatial_size = num_elements / (batch_size * num_features_);
   uint64_t param_grad_flops = affine_ ? (2 * batch_size * spatial_size * num_features_) : 0;
   uint64_t input_grad_flops = 9 * num_elements;
+  if (use_relu_) {
+    input_grad_flops += num_elements;  // ReLU activation
+  }
   return param_grad_flops + input_grad_flops;
 }
 

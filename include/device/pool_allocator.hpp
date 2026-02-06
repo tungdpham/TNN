@@ -4,8 +4,8 @@
 #include <map>
 #include <mutex>
 
-#include "device/allocator.hpp"
 #include "device/dptr.hpp"
+#include "device/iallocator.hpp"
 #ifndef NDEBUG
 #include <iostream>
 #endif

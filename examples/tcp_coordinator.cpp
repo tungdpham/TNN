@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "data_loading/data_loader_factory.hpp"
+#include "distributed/coordinator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
@@ -19,7 +20,6 @@
 #include "nn/layers.hpp"
 #include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
-#include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 
 using namespace tnn;
@@ -77,43 +77,65 @@ int main() {
     cerr << "Failed to create data loaders for model: " << model_name << endl;
     return 1;
   }
+  train_loader->set_seed(123456);
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  auto optimizer = OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 1e-8f);
+  auto optimizer =
+      OptimizerFactory::create_adam(train_config.lr_initial, 0.9f, 0.999f, 10e-4f, 3e-4f, false);
+  auto scheduler =
+      SchedulerFactory::create_step_lr(optimizer.get(),
+                                       5 * train_loader->size() / train_config.batch_size,
+                                       0.6f);
 
   Endpoint coordinator_endpoint = Endpoint::tcp(Env::get<string>("COORDINATOR_HOST", "localhost"),
                                                 Env::get<int>("COORDINATOR_PORT", 9000));
-
+  Endpoint local_worker_endpoint =
+      Endpoint::tcp(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
+                    Env::get<int>("LOCAL_WORKER_PORT", 8000));
+  int local_worker_position = 0;  // default to first
+  std::string position_str = Env::get<std::string>("LOCAL_WORKER_POSITION", "first");
+  if (position_str == "last") {
+    local_worker_position = 1;
+  }
   vector<Endpoint> endpoints = {
       Endpoint::tcp(Env::get<string>("WORKER1_HOST", "localhost"),
                     Env::get<int>("WORKER1_PORT", 8001)),
-
   };
+
+  if (local_worker_position) {
+    endpoints.push_back(local_worker_endpoint);
+  } else {
+    endpoints.insert(endpoints.begin(), local_worker_endpoint);
+  }
 
   cout << "Configured " << endpoints.size() << " remote endpoints:" << endl;
   for (const auto &ep : endpoints) {
     cout << ep.to_json().dump(4) << endl;
   }
 
-  // hard-coded for now
-  auto worker = std::make_unique<TCPWorker>(Endpoint::tcp("localhost", 8000),
-                                            device_type == DeviceType::GPU, 4);
+  cout << "Local worker endpoint: " << local_worker_endpoint.to_json().dump(4) << endl;
 
-  NetworkCoordinator coordinator(std::move(model), std::move(optimizer), std::move(worker),
-                                 coordinator_endpoint, endpoints);
+  // hard-coded for now
+  auto worker =
+      std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU, 4);
 
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePartitioner>(NaivePartitionerConfig({2, 1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
 
-  coordinator.set_partitioner(std::move(partitioner));
+  CoordinatorConfig config{ParallelMode_t::PIPELINE,
+                           std::move(model),
+                           std::move(optimizer),
+                           std::move(scheduler),
+                           std::move(partitioner),
+                           std::move(worker),
+                           coordinator_endpoint,
+                           endpoints};
+
+  NetworkCoordinator coordinator(std::move(config));
+
   coordinator.initialize();
-
-  cout << "Deploying stages to remote endpoints." << endl;
-  for (const auto &ep : endpoints) {
-    cout << "  Worker expected at " << ep.to_json().dump(4) << endl;
-  }
 
   if (!coordinator.deploy_stages()) {
     cerr << "Failed to deploy stages. Make sure workers are running." << endl;
@@ -122,10 +144,7 @@ int main() {
 
   coordinator.start();
 
-  ThreadWrapper thread_wrapper({Env::get<unsigned int>("COORDINATOR_NUM_THREADS", 4)});
-
-  thread_wrapper.execute(
-      [&]() { train_model(coordinator, *train_loader, *val_loader, criterion, train_config); });
+  train_model(coordinator, train_loader, val_loader, criterion, train_config);
 
   coordinator.stop();
 

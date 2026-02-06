@@ -17,7 +17,7 @@ public:
     this->name_ = "GaussianNoise";
   }
 
-  void apply(Tensor &data, Tensor &labels) override {
+  void apply(const Tensor &data, const Tensor &labels) override {
     DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -30,23 +30,22 @@ private:
   float noise_std_;
 
   template <typename T>
-  void apply_impl(Tensor &data, Tensor &labels) {
+  void apply_impl(const Tensor &data, const Tensor &labels) {
     std::uniform_real_distribution<float> prob_dist(0.0f, 1.0f);
     std::normal_distribution<float> noise_dist(0.0f, noise_std_);
 
-    const auto shape = data->shape();
-    if (shape.size() != 4) return;
+    if (data->dims() != 4) return;
 
-    const size_t batch_size = shape[0];
+    const size_t batch_size = data->dimension(0);
+    const size_t spatial_size = data->stride(0);
     T *ptr = data->data_as<T>();
 
     for (size_t b = 0; b < batch_size; ++b) {
       if (prob_dist(this->rng_) < probability_) {
-        for (size_t i = 0; i < data->size() / batch_size; ++i) {
-          size_t idx = b * (data->size() / batch_size) + i;
+        for (size_t i = 0; i < spatial_size; ++i) {
+          size_t idx = b * spatial_size + i;
           float noise = noise_dist(this->rng_);
-          ptr[idx] =
-              std::clamp(ptr[idx] + static_cast<T>(noise), static_cast<T>(0), static_cast<T>(1));
+          ptr[idx] = std::clamp(static_cast<float>(ptr[idx]) + noise, 0.0f, 1.0f);
         }
       }
     }

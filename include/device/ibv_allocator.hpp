@@ -16,9 +16,9 @@
 #include <mutex>
 #include <stdexcept>
 
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
+#include "device/iallocator.hpp"
 #ifndef NDEBUG
 #include <iostream>
 #endif

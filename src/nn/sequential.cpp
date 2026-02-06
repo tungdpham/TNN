@@ -15,9 +15,9 @@
 #include <numeric>
 #include <stdexcept>
 
+#include "nlohmann/json_fwd.hpp"
 #include "nn/layers.hpp"
 #include "profiling/event.hpp"
-#include "tensor/tensor.hpp"
 
 namespace tnn {
 
@@ -37,6 +37,12 @@ void Sequential::compute_max_size(const std::vector<size_t> &input_shape, DType_
 void Sequential::init_impl() {
   for (auto &layer : layers_) {
     layer->init();
+  }
+}
+
+void Sequential::on_set_seed(unsigned long long seed) {
+  for (auto &layer : layers_) {
+    layer->set_seed(seed);
   }
 }
 
@@ -70,14 +76,14 @@ void Sequential::on_set_training(bool training) {
   }
 }
 
-void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void Sequential::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
   auto start = Clock::now();
   compute_max_size(input->shape(), input->data_type());
 
-  Tensor current_input = input;
+  ConstTensor current_input = input;
   Tensor current_output = nullptr;
   for (size_t i = 0; i < layers_.size(); ++i) {
     try {
@@ -103,20 +109,22 @@ void Sequential::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
 }
 
-void Sequential::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Sequential::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                               size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
   auto start = Clock::now();
-  Tensor current_gradient = gradient;
-  Tensor current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
+  ConstTensor current_gradient = gradient;
+  Tensor current_grad_input;
   for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
     try {
       // no need to renew buffer since backward doesn't cache inputs
       auto start = Clock::now();
       if (i > 0) {
+        current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
         layers_[i]->backward(current_gradient, current_grad_input, mb_id);
-        std::swap(current_gradient, current_grad_input);
+        current_gradient = current_grad_input;
       } else {
         layers_[i]->backward(current_gradient, grad_input, mb_id);
       }
@@ -213,28 +221,6 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   std::cout << std::string(100, '-') << "\n";
 }
 
-std::vector<Sequential> Sequential::split(std::vector<Partition> &partitions) const {
-  if (partitions.empty()) {
-    throw std::invalid_argument("Partitions vector is empty");
-  }
-  std::vector<Sequential> stages;
-  stages.reserve(partitions.size());
-  for (const auto &part : partitions) {
-    if (part.start_layer >= layers_.size() || part.end_layer > layers_.size() ||
-        part.start_layer >= part.end_layer) {
-      throw std::out_of_range("Invalid partition range");
-    }
-
-    auto layers = std::vector<std::unique_ptr<Layer>>();
-    for (size_t i = part.start_layer; i < part.end_layer; ++i) {
-      layers.push_back(layers_[i]->clone());
-    }
-    Sequential stage(name_ + "_part_" + std::to_string(stages.size()), std::move(layers));
-    stages.push_back(std::move(stage));
-  }
-  return stages;
-}
-
 const std::vector<Layer *> &Sequential::get_layers() const {
   static std::vector<Layer *> layer_ptrs;
   layer_ptrs.clear();
@@ -283,26 +269,22 @@ LayerConfig Sequential::get_config() const {
   LayerConfig config;
   config.name = name_;
   config.type = TYPE_NAME;
-  std::vector<nlohmann::json> layers_config = nlohmann::json::array();
+  nlohmann::json layers_config = nlohmann::json::array();
   for (const auto &layer : layers_) {
     auto layer_config = layer->get_config();
     layers_config.push_back(layer_config.to_json());
   }
-  config.parameters["layers"] = layers_config;
+  config.set("layers", layers_config);
   return config;
 }
 
 std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &config) {
   std::vector<std::unique_ptr<Layer>> layers;
-  std::cout << "Creating Sequential layer from config: " << config.to_json().dump(2) << std::endl;
-  // Get the layers as nlohmann::json first, then convert to vector
   nlohmann::json layers_json = config.get<nlohmann::json>("layers", nlohmann::json::array());
-  LayerFactory::register_defaults();
-
   if (!layers_json.is_array()) {
-    throw std::runtime_error("Expected 'layers' to be an array in Sequential config");
+    throw std::runtime_error("Sequential layer config 'layers' parameter must be an array");
   }
-
+  LayerFactory::register_defaults();
   for (const auto &layer_json : layers_json) {
     LayerConfig layer_config = LayerConfig::from_json(layer_json);
     auto layer = LayerFactory::create(layer_config);

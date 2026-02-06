@@ -11,74 +11,6 @@
 
 namespace tnn {
 
-template <typename T>
-T LayerConfig::get(const std::string &key, const T &default_value) const {
-  auto it = parameters.find(key);
-  if (it != parameters.end()) {
-    try {
-      return std::any_cast<T>(it->second);
-    } catch (const std::bad_any_cast &) {
-      return default_value;
-    }
-  }
-  return default_value;
-}
-
-template size_t LayerConfig::get<size_t>(const std::string &, const size_t &) const;
-template int LayerConfig::get<int>(const std::string &, const int &) const;
-template float LayerConfig::get<float>(const std::string &, const float &) const;
-template bool LayerConfig::get<bool>(const std::string &, const bool &) const;
-template std::string LayerConfig::get<std::string>(const std::string &, const std::string &) const;
-template nlohmann::json LayerConfig::get<nlohmann::json>(const std::string &,
-                                                         const nlohmann::json &) const;
-
-nlohmann::json LayerConfig::to_json() const {
-  nlohmann::json j;
-  j["name"] = name;
-  j["type"] = type;
-  nlohmann::json param_json;
-  for (const auto &[key, value] : parameters) {
-    if (value.type() == typeid(size_t)) {
-      param_json[key] = std::any_cast<size_t>(value);
-    } else if (value.type() == typeid(float)) {
-      param_json[key] = std::any_cast<float>(value);
-    } else if (value.type() == typeid(bool)) {
-      param_json[key] = std::any_cast<bool>(value);
-    } else if (value.type() == typeid(std::string)) {
-      param_json[key] = std::any_cast<std::string>(value);
-    } else if (value.type() == typeid(nlohmann::json)) {
-      param_json[key] = std::any_cast<nlohmann::json>(value);
-    } else if (value.type() == typeid(std::vector<nlohmann::json>)) {
-      param_json[key] = std::any_cast<std::vector<nlohmann::json>>(value);
-    }
-  }
-  j["parameters"] = param_json;
-  return j;
-}
-
-LayerConfig LayerConfig::from_json(const nlohmann::json &j) {
-  LayerConfig config;
-  config.name = j.value("name", "");
-  config.type = j.value("type", "");
-  nlohmann::json param_json = j.value("parameters", nlohmann::json::object());
-  if (j.contains("parameters")) {
-    for (const auto &[key, value] : param_json.items()) {
-      if (value.is_number_integer()) {
-        config.parameters[key] = value.template get<size_t>();
-      } else if (value.is_number_float()) {
-        config.parameters[key] = value.template get<float>();
-      } else if (value.is_boolean()) {
-        config.parameters[key] = value.template get<bool>();
-      } else if (value.is_string()) {
-        config.parameters[key] = value.template get<std::string>();
-      } else if (value.is_array() || value.is_object()) {
-        config.parameters[key] = value;
-      }
-    }
-  }
-  return config;
-}
-
 Layer::Layer() {
   this->device_ = getCPU();
   this->mem_pool_ = &PoolAllocator::instance(*device_);
@@ -124,9 +56,10 @@ void Layer::init() {
 void Layer::set_seed(unsigned long long seed) {
   use_seed_ = true;
   srand_seed_ = seed;
+  on_set_seed(seed);
 }
 
-void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
+void Layer::forward(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before forward."
               << std::endl;
@@ -144,18 +77,18 @@ void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
     throw std::runtime_error("Layer " + name_ +
                              " output tensor dtype does not match layer io_dtype.");
   }
-  const Tensor *current = &input;
+  ConstTensor current = input;
   Tensor device_input;
   if (input->device() != this->device_) {
     device_input = this->get_buffer(input->shape(), input->data_type());
     input->copy_to(device_input);
-    current = &device_input;
+    current = device_input;
   }
   if (output->device() != this->device_) {
     throw std::runtime_error("Layer " + name_ +
                              " output tensor device does not match layer device.");
   }
-  forward_impl(*current, output, mb_id);
+  forward_impl(current, output, mb_id);
 #ifndef NDEBUG
   this->device_->getFlow("default")->synchronize();
 #endif
@@ -163,7 +96,7 @@ void Layer::forward(const Tensor &input, Tensor &output, size_t mb_id) {
   profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
 }
 
-void Layer::backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void Layer::backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id) {
   if (!initialized_) {
     std::cerr << "Warning: Layer " << name_ << " is not initialized. Call init() before backward."
               << std::endl;
@@ -181,18 +114,18 @@ void Layer::backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
     throw std::runtime_error("Layer " + name_ +
                              " grad_input tensor dtype does not match layer io_dtype.");
   }
-  const Tensor *current_gradient = &gradient;
+  ConstTensor current_gradient = gradient;
   Tensor device_gradient;
   if (gradient->device() != this->device_) {
     device_gradient = this->get_buffer(gradient->shape(), gradient->data_type());
     gradient->copy_to(device_gradient);
-    current_gradient = &device_gradient;
+    current_gradient = device_gradient;
   }
   if (grad_input->device() != this->device_) {
     throw std::runtime_error("Layer " + name_ +
                              " grad_input tensor device does not match layer device.");
   }
-  backward_impl(*current_gradient, grad_input, mb_id);
+  backward_impl(current_gradient, grad_input, mb_id);
 #ifndef NDEBUG
   this->device_->getFlow("default")->synchronize();
 #endif
@@ -281,26 +214,30 @@ void Layer::reset_profiling_info() { profiler_.reset(); }
 std::string Layer::name() const { return name_; }
 
 Tensor Layer::make_param_tensor(std::vector<size_t> shape) {
-  return Tensor::create(param_dtype_, shape, this->device_);
+  return make_tensor(param_dtype_, shape, this->device_);
 }
 
 Tensor Layer::make_io_tensor(std::vector<size_t> shape) {
-  return Tensor::create(io_dtype_, shape, this->device_);
+  return make_tensor(io_dtype_, shape, this->device_);
 }
 
 Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
-  return Tensor::create(compute_dtype_, shape, this->device_);
+  return make_tensor(compute_dtype_, shape, this->device_);
 }
 
-Tensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
+ConstTensor &Layer::get_cached_tensor(size_t mb_id, const std::string &key) {
   return cached_tensors_[{mb_id, key}];
+}
+
+Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
+  return mutable_tensors_[{mb_id, key}];
 }
 
 Tensor Layer::get_buffer(const std::vector<size_t> &shape, DType_t dtype) {
   if (!mem_pool_) {
     throw std::runtime_error("PoolAllocator not set for layer: " + name_);
   }
-  return Tensor::create_pooled(*mem_pool_, dtype, shape);
+  return make_tensor(*mem_pool_, dtype, shape);
 }
 
 void Layer::clear_cache(size_t mb_id) {

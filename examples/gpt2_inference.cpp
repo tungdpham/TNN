@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
-    Tensor model_input = Tensor::create<float>({1, seq_len});
+    Tensor model_input = make_tensor<float>({1, seq_len});
     std::fill(model_input->data_as<float>(), model_input->data_as<float>() + model_input->size(),
               0.0f);
 

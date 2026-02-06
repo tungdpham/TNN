@@ -9,6 +9,9 @@ create_executable(tcp_coordinator.cpp LIBS tnn_lib)
 create_executable(roce_worker.cpp LIBS tnn_lib)
 create_executable(roce_coordinator.cpp LIBS tnn_lib)
 
+create_executable(legacy_tcp_coordinator.cpp LIBS tnn_lib)
+create_executable(legacy_roce_coordinator.cpp LIBS tnn_lib)
+
 # Inspection executables
 create_executable(inspect_openwebtext.cpp LIBS tnn_nn)
 
@@ -16,6 +19,8 @@ create_executable(inspect_openwebtext.cpp LIBS tnn_nn)
 create_executable(trainer.cpp LIBS tnn_nn)
 create_executable(fp16_trainer.cpp LIBS tnn_nn)
 create_executable(bf16_trainer.cpp LIBS tnn_nn)
+
+create_executable(legacy_trainer.cpp LIBS tnn_nn)
 
 # Inference executables
 create_executable(inferencer.cpp LIBS tnn_nn)

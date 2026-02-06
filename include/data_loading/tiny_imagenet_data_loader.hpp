@@ -73,12 +73,11 @@ private:
     const size_t actual_batch_size = std::min(batch_size, num_samples - this->current_index_);
 
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = Tensor::create<T>({actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
-                                    tiny_imagenet_constants::IMAGE_WIDTH,
-                                    tiny_imagenet_constants::NUM_CHANNELS});
+    batch_data = make_tensor<T>({actual_batch_size, tiny_imagenet_constants::IMAGE_HEIGHT,
+                                 tiny_imagenet_constants::IMAGE_WIDTH,
+                                 tiny_imagenet_constants::NUM_CHANNELS});
 
-    batch_labels =
-        Tensor::create<T>({actual_batch_size, tiny_imagenet_constants::NUM_CLASSES, 1, 1});
+    batch_labels = make_tensor<T>({actual_batch_size, tiny_imagenet_constants::NUM_CLASSES, 1, 1});
     batch_labels->fill(0.0);
 
     // for (size_t i = 0; i < actual_batch_size; ++i) {

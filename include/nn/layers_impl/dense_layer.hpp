@@ -31,35 +31,39 @@ private:
   Tensor bias_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_dense_forward(const Tensor &input, const Tensor &weights,
-                                              Tensor &output, size_t batch_size,
+  std::unique_ptr<Task> compute_dense_forward(const ConstTensor &input, const ConstTensor &weights,
+                                              const Tensor &output, size_t batch_size,
                                               size_t input_features, size_t output_features,
                                               const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_weight_gradients(const Tensor &input, const Tensor &gradient,
-                                                 Tensor &weight_grad, size_t batch_size,
+  std::unique_ptr<Task> compute_weight_gradients(const ConstTensor &input,
+                                                 const ConstTensor &gradient,
+                                                 const Tensor &weight_grad, size_t batch_size,
                                                  size_t input_features, size_t output_features,
                                                  const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_input_gradients(const Tensor &gradient, const Tensor &weights,
-                                                Tensor &grad_input, size_t batch_size,
+  std::unique_ptr<Task> compute_input_gradients(const ConstTensor &gradient,
+                                                const ConstTensor &weights,
+                                                const Tensor &grad_input, size_t batch_size,
                                                 size_t input_features, size_t output_features,
                                                 const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_bias_gradients(const Tensor &gradient, Tensor &bias_gradient,
-                                               size_t batch_size, size_t output_features,
+  std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &gradient,
+                                               const Tensor &bias_gradient, size_t batch_size,
+                                               size_t output_features,
                                                const std::string &flow_id) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> add_bias_vector(Tensor &output, const Tensor &bias, size_t batch_size,
-                                        size_t output_features, const std::string &flow_id) const;
+  std::unique_ptr<Task> add_bias_vector(const Tensor &output, const ConstTensor &bias,
+                                        size_t batch_size, size_t output_features,
+                                        const std::string &flow_id) const;
 
 #ifdef USE_CUDNN
-  void cudnn_forward(const Tensor &input, Tensor &output, size_t mb_id);
-  void cudnn_backward(const Tensor &gradient, Tensor &grad_input, size_t mb_id);
+  void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
+  void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
 
   std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> handle_cache;
 #endif
@@ -68,8 +72,9 @@ private:
   size_t get_shape_hash(size_t batch_size) const;
 
   void init_params() override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

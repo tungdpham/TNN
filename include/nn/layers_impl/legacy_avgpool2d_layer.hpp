@@ -31,33 +31,36 @@ private:
   std::unordered_map<size_t, std::vector<size_t>> micro_batch_input_shapes_;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_avg_pool_forward_impl(const Tensor &input_data, Tensor &output_data,
-                                                      size_t batch_size, size_t channels,
-                                                      size_t input_h, size_t input_w,
-                                                      size_t output_h, size_t output_w,
+  std::unique_ptr<Task> compute_avg_pool_forward_impl(const ConstTensor &input_data,
+                                                      const Tensor &output_data, size_t batch_size,
+                                                      size_t channels, size_t input_h,
+                                                      size_t input_w, size_t output_h,
+                                                      size_t output_w,
                                                       const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_avg_pool_forward(const Tensor &input_data, Tensor &output_data,
-                                                 size_t batch_size, size_t channels, size_t input_h,
-                                                 size_t input_w, size_t output_h, size_t output_w,
+  std::unique_ptr<Task> compute_avg_pool_forward(const ConstTensor &input_data,
+                                                 const Tensor &output_data, size_t batch_size,
+                                                 size_t channels, size_t input_h, size_t input_w,
+                                                 size_t output_h, size_t output_w,
                                                  const std::string &flow_id) const;
 
   template <typename Compute_T>
-  std::unique_ptr<Task> compute_avg_pool_backward_impl(const Tensor &gradient_data,
-                                                       Tensor &grad_input_data, size_t batch_size,
-                                                       size_t channels, size_t input_h,
-                                                       size_t input_w, size_t output_h,
-                                                       size_t output_w,
+  std::unique_ptr<Task> compute_avg_pool_backward_impl(const ConstTensor &gradient_data,
+                                                       const Tensor &grad_input_data,
+                                                       size_t batch_size, size_t channels,
+                                                       size_t input_h, size_t input_w,
+                                                       size_t output_h, size_t output_w,
                                                        const std::string &flow_id) const;
 
-  std::unique_ptr<Task> compute_avg_pool_backward(const Tensor &gradient_data,
-                                                  Tensor &grad_input_data, size_t batch_size,
+  std::unique_ptr<Task> compute_avg_pool_backward(const ConstTensor &gradient_data,
+                                                  const Tensor &grad_input_data, size_t batch_size,
                                                   size_t channels, size_t input_h, size_t input_w,
                                                   size_t output_h, size_t output_w,
                                                   const std::string &flow_id) const;
 
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,

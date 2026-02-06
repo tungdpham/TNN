@@ -21,7 +21,10 @@ private:
 public:
   device_storage(csref<Device> device, void *ptr = nullptr, size_t capacity = 0,
                  size_t alignment = DEFAULT_ALIGNMENT)
-      : device_(device), ptr_(ptr), capacity_(capacity), alignment_(alignment) {}
+      : device_(device),
+        ptr_(ptr),
+        capacity_(capacity),
+        alignment_(alignment) {}
 
   ~device_storage() {
     if (ptr_) {
@@ -46,13 +49,18 @@ protected:
 
 public:
   dptr(std::shared_ptr<device_storage> storage = nullptr, size_t offset = 0, size_t capacity = 0)
-      : storage_(storage), offset_(offset), capacity_(capacity) {
-    if (offset_ > capacity_) {
+      : storage_(storage),
+        offset_(offset),
+        capacity_(capacity) {
+    if (storage_ && (offset_ + capacity_ > storage_->capacity())) {
       throw std::out_of_range("Bro what? dptr offset out of range in dptr constructor");
     }
   }
 
-  dptr(std::nullptr_t) : storage_(nullptr), offset_(0), capacity_(0) {}
+  dptr(std::nullptr_t)
+      : storage_(nullptr),
+        offset_(0),
+        capacity_(0) {}
 
   operator bool() const { return storage_ != nullptr && storage_->data() != nullptr; }
 
@@ -93,11 +101,10 @@ public:
   }
 
   dptr span(size_t start_offset, size_t span_size) const {
-    size_t new_offset = offset_ + start_offset;
-    if (new_offset + span_size > capacity_) {
+    if (start_offset + span_size > capacity_) {
       throw std::out_of_range("dptr span size out of range");
     }
-    return dptr(storage_, new_offset, span_size);
+    return dptr(storage_, offset_ + start_offset, span_size);
   }
 
   dptr operator+(size_t offset) const {
@@ -107,26 +114,26 @@ public:
     return dptr(storage_, offset_ + offset, capacity_ - offset);
   }
 
-  void copy_to_host(void *host_ptr, size_t byte_size, size_t src_offset = 0) const {
+  void copy_to_host(void *host_ptr, size_t byte_size) const {
     if (!storage_) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_to_host");
     }
-    if (src_offset + byte_size > capacity_) {
+    if (byte_size > capacity_) {
       throw std::out_of_range("dptr copy_to_host out of range");
     }
-    storage_->device()->copyToHost(
-        host_ptr, static_cast<uint8_t *>(storage_->data()) + offset_ + src_offset, byte_size);
+    storage_->device()->copyToHost(host_ptr, static_cast<uint8_t *>(storage_->data()) + offset_,
+                                   byte_size);
   }
 
-  void copy_from_host(const void *host_ptr, size_t byte_size, size_t dst_offset = 0) {
+  void copy_from_host(const void *host_ptr, size_t byte_size) {
     if (!storage_) {
       throw std::runtime_error("Invalid device storage or device in dptr::copy_from_host");
     }
-    if (dst_offset + byte_size > capacity_) {
+    if (byte_size > capacity_) {
       throw std::out_of_range("dptr copy_from_host out of range");
     }
-    storage_->device()->copyToDevice(
-        static_cast<uint8_t *>(storage_->data()) + offset_ + dst_offset, host_ptr, byte_size);
+    storage_->device()->copyToDevice(static_cast<uint8_t *>(storage_->data()) + offset_, host_ptr,
+                                     byte_size);
   }
 };
 

@@ -34,13 +34,15 @@ private:
   std::string activation_type_;
 
   void init_params() override;
+  void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;
   void on_set_training(bool training) override;
   void on_set_device(const Device &device) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
   void collect_parameters(std::vector<Tensor> &params) override;
   void collect_gradients(std::vector<Tensor> &grads) override;
 

@@ -37,7 +37,7 @@ public:
     this->name_ = "Normalization";
   }
 
-  void apply(Tensor &data, Tensor &labels) override {
+  void apply(const Tensor &data, const Tensor &labels) override {
     DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
@@ -57,14 +57,14 @@ public:
 
 private:
   template <typename T>
-  void apply_impl(Tensor &data, Tensor &labels) {
+  void apply_impl(const Tensor &data, const Tensor &labels) {
     const auto shape = data->shape();
     if (shape.size() != 4) return;
 
     const size_t batch_size = shape[0];
-    const size_t channels = shape[1];
-    const size_t height = shape[2];
-    const size_t width = shape[3];
+    const size_t height = shape[1];
+    const size_t width = shape[2];
+    const size_t channels = shape[3];
 
     if (channels != 3 && channels != 1) {
       throw std::invalid_argument("NormalizationAugmentation: unsupported number of channels");
@@ -74,14 +74,14 @@ private:
 
     // Apply normalization to each image in the batch
     for (size_t b = 0; b < batch_size; ++b) {
-      // Normalize each channel
-      for (size_t c = 0; c < channels; ++c) {
-        T channel_mean = static_cast<T>((channels == 3) ? mean_[c] : mean_[0]);
-        T channel_std = static_cast<T>((channels == 3) ? std_[c] : std_[0]);
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          // Normalize each channel
+          for (size_t c = 0; c < channels; ++c) {
+            T channel_mean = static_cast<T>((channels == 3) ? mean_[c] : mean_[0]);
+            T channel_std = static_cast<T>((channels == 3) ? std_[c] : std_[0]);
 
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            size_t idx = b * channels * height * width + c * height * width + h * width + w;
+            size_t idx = b * height * width * channels + h * width * channels + w * channels + c;
             ptr[idx] = (ptr[idx] - channel_mean) / channel_std;
           }
         }

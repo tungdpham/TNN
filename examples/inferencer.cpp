@@ -1,12 +1,10 @@
 #include <memory>
 
-#include "data_augmentation/augmentation.hpp"
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
-#include "nn/schedulers.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 
@@ -25,8 +23,7 @@ signed main() {
   std::string model_path = Env::get<std::string>("MODEL_PATH", "");
 
   std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
-  DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
-  const auto &device = DeviceManager::getInstance().getDevice(device_type);
+  const auto &device = device_str == "GPU" ? getGPU(0) : getCPU();
 
   string dataset_name = Env::get<std::string>("DATASET_NAME", "");
   if (dataset_name.empty()) {
@@ -48,10 +45,12 @@ signed main() {
     }
     model = load_state<Sequential>(file, device);
     file.close();
+    std::cout << "Loaded model config: " << model->get_config().to_json().dump(2) << std::endl;
+  } else {
+    throw std::runtime_error("MODEL_PATH environment variable is not set!");
   }
 
-  cout << "Inferencing model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU")
-       << endl;
+  cout << "Inferencing model on device: " << device_str << endl;
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
 

@@ -19,7 +19,7 @@ SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::stri
 
 SliceLayer::~SliceLayer() = default;
 
-void SliceLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void SliceLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
   std::vector<size_t> output_shape = compute_output_shape(input->shape());
@@ -28,7 +28,8 @@ void SliceLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id)
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, "default");
 }
 
-void SliceLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void SliceLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                               size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
     throw std::runtime_error("No cached shape found for micro-batch ID in SliceLayer");
@@ -41,7 +42,7 @@ void SliceLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> SliceLayer::slice_forward(const Tensor &input, Tensor &output,
+std::unique_ptr<Task> SliceLayer::slice_forward(const ConstTensor &input, const Tensor &output,
                                                 const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
@@ -73,7 +74,8 @@ std::unique_ptr<Task> SliceLayer::slice_forward(const Tensor &input, Tensor &out
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> SliceLayer::slice_backward(const Tensor &gradient, Tensor &grad_input,
+std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &gradient,
+                                                 const Tensor &grad_input,
                                                  const std::vector<size_t> &original_shape,
                                                  const std::string &flow_id) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
@@ -122,9 +124,9 @@ LayerConfig SliceLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["axis"] = (int)axis_;
-  config.parameters["start"] = (int)start_;
-  config.parameters["length"] = (int)length_;
+  config.set("axis", (int)axis_);
+  config.set("start", (int)start_);
+  config.set("length", (int)length_);
   return config;
 }
 

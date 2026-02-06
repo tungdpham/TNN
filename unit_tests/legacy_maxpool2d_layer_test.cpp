@@ -46,8 +46,9 @@ protected:
   }
 
   // Verify forward pass output shape
-  void verify_output_shape(const Tensor &input, const Tensor &output, size_t pool_h, size_t pool_w,
-                           size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
+  void verify_output_shape(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
+                           size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                           size_t pad_w) {
     auto input_shape = input->shape();
     size_t batch_size = input_shape[0];
     size_t channels = input_shape[1];
@@ -65,8 +66,8 @@ protected:
   }
 
   // Verify backward pass gradient shape
-  void verify_gradient_shape(const Tensor &gradient, const Tensor &grad_input,
-                             const Tensor &original_input) {
+  void verify_gradient_shape(const ConstTensor &gradient, const ConstTensor &grad_input,
+                             const ConstTensor &original_input) {
     auto grad_input_shape = grad_input->shape();
     auto original_input_shape = original_input->shape();
     EXPECT_EQ(grad_input_shape[0], original_input_shape[0]);
@@ -76,8 +77,8 @@ protected:
   }
 
   // Verify backward pass numerical correctness
-  void verify_backward_result(const Tensor &input, const Tensor &grad_output,
-                              const Tensor &grad_input, size_t pool_h, size_t pool_w,
+  void verify_backward_result(const ConstTensor &input, const ConstTensor &grad_output,
+                              const ConstTensor &grad_input, size_t pool_h, size_t pool_w,
                               size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
                               float tolerance = 1e-5f) {
     const float *input_data = input->data_as<float>();
@@ -139,9 +140,9 @@ protected:
   }
 
   // Verify that max values are correctly selected
-  void verify_max_selection(const Tensor &input, const Tensor &output, size_t pool_h, size_t pool_w,
-                            size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w,
-                            float tolerance = 1e-5f) {
+  void verify_max_selection(const ConstTensor &input, const ConstTensor &output, size_t pool_h,
+                            size_t pool_w, size_t stride_h, size_t stride_w, size_t pad_h,
+                            size_t pad_w, float tolerance = 1e-5f) {
     const float *input_data = input->data_as<float>();
     const float *output_data = output->data_as<float>();
 
@@ -193,14 +194,14 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicForwardPass) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -218,14 +219,14 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithStride) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 5, 5}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 5, 5}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 25; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 3, 3, 1, 1, 0, 0);
@@ -237,14 +238,14 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassWithPadding) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 3, 3, 1, 1, 1, 1);
@@ -257,14 +258,14 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiChannel) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -278,14 +279,14 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassMultiBatch) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({2, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -297,14 +298,14 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassNonSquarePooling) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 6, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 6, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 24; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 3, 2, 2, 2, 0, 0);
@@ -315,11 +316,11 @@ TEST_F(LegacyMaxPool2DLayerTest, ForwardPassUniformValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   input->fill(5.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -337,20 +338,20 @@ TEST_F(LegacyMaxPool2DLayerTest, BasicBackwardPass) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
+  Tensor gradient = make_tensor<float>({1, 1, 2, 2}, getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -365,20 +366,20 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassWithPadding) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -390,20 +391,20 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiChannel) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 2, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 2, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -416,20 +417,20 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassMultiBatch) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({2, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({2, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 32; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -442,23 +443,23 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassVariableGradient) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 3, 3}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 3, 3}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 9; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   float *grad_data = gradient->data_as<float>();
   for (size_t i = 0; i < gradient->size(); ++i) {
     grad_data[i] = static_cast<float>(i + 1);
   }
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -470,24 +471,24 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardPassGradientRouting) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>({1, 1, 2, 2}, getCPU());
+  Tensor gradient = make_tensor<float>({1, 1, 2, 2}, getCPU());
   float *grad_data = gradient->data_as<float>();
   grad_data[0] = 1.0f;
   grad_data[1] = 2.0f;
   grad_data[2] = 3.0f;
   grad_data[3] = 4.0f;
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -549,12 +550,12 @@ TEST_F(LegacyMaxPool2DLayerTest, GetConfig) {
 TEST_F(LegacyMaxPool2DLayerTest, CreateFromConfig) {
   LayerConfig config;
   config.name = "test_maxpool_recreate";
-  config.parameters["pool_h"] = size_t(2);
-  config.parameters["pool_w"] = size_t(2);
-  config.parameters["stride_h"] = size_t(2);
-  config.parameters["stride_w"] = size_t(2);
-  config.parameters["pad_h"] = size_t(0);
-  config.parameters["pad_w"] = size_t(0);
+  config.set("pool_h", size_t(2));
+  config.set("pool_w", size_t(2));
+  config.set("stride_h", size_t(2));
+  config.set("stride_w", size_t(2));
+  config.set("pad_h", size_t(0));
+  config.set("pad_w", size_t(0));
 
   auto layer = LegacyMaxPool2DLayer::create_from_config(config);
 
@@ -579,14 +580,14 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseGlobalMaxPooling) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   EXPECT_EQ(output_shape[2], 1);
@@ -599,17 +600,17 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseZeroGradient) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   input->fill(1.0f);
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(0.0f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -625,14 +626,14 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseLargeValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e6f * static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -644,14 +645,14 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseNegativeValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = -static_cast<float>(17 - i);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -669,14 +670,14 @@ TEST_F(LegacyMaxPool2DLayerTest, EdgeCaseMixedSignValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = (i % 2 == 0) ? static_cast<float>(i) : -static_cast<float>(i);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -690,14 +691,14 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilitySmallValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -709,20 +710,20 @@ TEST_F(LegacyMaxPool2DLayerTest, BackwardNumericalStability) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data[i] = 1e-6f * static_cast<float>(i + 1);
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
-  Tensor gradient = Tensor::create<float>(output->shape(), getCPU());
+  Tensor gradient = make_tensor<float>(output->shape(), getCPU());
   gradient->fill(1e-6f);
 
-  Tensor grad_input = Tensor::create<float>(input->shape(), getCPU());
+  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
   layer.backward(gradient, grad_input);
 
   verify_gradient_shape(gradient, grad_input, input);
@@ -733,7 +734,7 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
   layer.set_device(getCPU());
   layer.init();
 
-  Tensor input = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data = input->data_as<float>();
   input_data[0] = -1e10f;
   input_data[5] = 1e10f;
@@ -744,7 +745,7 @@ TEST_F(LegacyMaxPool2DLayerTest, NumericalStabilityExtremeValues) {
   }
 
   std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = Tensor::create<float>(output_shape, getCPU());
+  Tensor output = make_tensor<float>(output_shape, getCPU());
   layer.forward(input, output);
 
   verify_output_shape(input, output, 2, 2, 2, 2, 0, 0);
@@ -757,28 +758,28 @@ TEST_F(LegacyMaxPool2DLayerTest, MultipleForwardBackwardPasses) {
   layer.init();
 
   // First pass
-  Tensor input1 = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input1 = make_tensor<float>({1, 1, 4, 4}, getCPU());
   input1->fill(1.0f);
   std::vector<size_t> output_shape1 = layer.compute_output_shape(input1->shape());
-  Tensor output1 = Tensor::create<float>(output_shape1, getCPU());
+  Tensor output1 = make_tensor<float>(output_shape1, getCPU());
   layer.forward(input1, output1);
-  Tensor gradient1 = Tensor::create<float>(output1->shape(), getCPU());
+  Tensor gradient1 = make_tensor<float>(output1->shape(), getCPU());
   gradient1->fill(1.0f);
-  Tensor grad_input1 = Tensor::create<float>(input1->shape(), getCPU());
+  Tensor grad_input1 = make_tensor<float>(input1->shape(), getCPU());
   layer.backward(gradient1, grad_input1);
 
   // Second pass
-  Tensor input2 = Tensor::create<float>({1, 1, 4, 4}, getCPU());
+  Tensor input2 = make_tensor<float>({1, 1, 4, 4}, getCPU());
   float *input_data2 = input2->data_as<float>();
   for (int i = 0; i < 16; ++i) {
     input_data2[i] = static_cast<float>(i + 1);
   }
   std::vector<size_t> output_shape2 = layer.compute_output_shape(input2->shape());
-  Tensor output2 = Tensor::create<float>(output_shape2, getCPU());
+  Tensor output2 = make_tensor<float>(output_shape2, getCPU());
   layer.forward(input2, output2);
-  Tensor gradient2 = Tensor::create<float>(output2->shape(), getCPU());
+  Tensor gradient2 = make_tensor<float>(output2->shape(), getCPU());
   gradient2->fill(1.0f);
-  Tensor grad_input2 = Tensor::create<float>(input2->shape(), getCPU());
+  Tensor grad_input2 = make_tensor<float>(input2->shape(), getCPU());
   layer.backward(gradient2, grad_input2);
 
   verify_gradient_shape(gradient2, grad_input2, input2);

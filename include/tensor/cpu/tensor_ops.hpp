@@ -9,45 +9,37 @@
 #include <immintrin.h>
 
 #include "ops/cpu/kernels.hpp"
-#include "tensor/tensor.hpp"
 #include "threading/thread_handler.hpp"
 
 namespace tnn {
 namespace cpu {
 /**
- * NOTE: These im2col/col2im implementations are CPU-only and heavily optimized with AVX2.
- * For GPU tensors, use the GPU-aware versions in gpu namespace.
- * All functions in this file expect CPU tensors and will throw if given GPU tensors.
+ * CPU tensor operations that work with raw pointers and dimensions.
+ * These functions handle the actual computation without device checks or shape extraction.
+ * All high-level logic (shape validation, padding calculations, etc.) should be done at the caller
+ * level.
  */
+
+// Specialized optimized implementation for 3x3 kernel with padding=1 and stride=1
 template <typename T>
-void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
-  if (!input->is_on_cpu()) {
-    throw std::runtime_error("im2col_pad_1_stride_1_kernel_3_cpu requires CPU tensor");
-  }
-
-  const auto &shape = input->shape();
-  const size_t in_h = shape[2];
-  const size_t in_w = shape[3];
-  const size_t channels = shape[1];
-  const size_t batch_size = shape[0];
-
-  size_t col_width = in_h * in_w;
+void cpu_im2col_pad_1_stride_1_kernel_3(const T *input_data, T *col_data, size_t batch_size,
+                                        size_t channels, size_t height, size_t width,
+                                        size_t output_h, size_t output_w) {
+  size_t col_width = output_h * output_w;
 
   const __m256 zero = _mm256_setzero_ps();
-
-  const T *input_data = input->data_as<T>();
 
   if constexpr (std::is_same_v<T, float>) {
     parallel_for_2d<size_t>(
         batch_size, channels,
         [&](size_t n, size_t c) {
-          const float *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
+          const float *input_channel_ptr = input_data + (n * channels + c) * height * width;
           const size_t batch_offset = n * col_width;
           const size_t col_stride = batch_size * col_width;
           constexpr size_t simd_width = 8;
 
-          const size_t simd_end_full = (in_w >> 3) << 3;
-          const size_t simd_end_minus2 = ((in_w - 2) >> 3) << 3;
+          const size_t simd_end_full = (width >> 3) << 3;
+          const size_t simd_end_minus2 = ((width - 2) >> 3) << 3;
 
           // kh=0: Process all 3 kw values together (top row)
           {
@@ -61,18 +53,18 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
               _mm256_storeu_ps(col_row_kw1 + i, zero);
               _mm256_storeu_ps(col_row_kw2 + i, zero);
             }
-            for (size_t i = simd_end_full; i < in_w; ++i) {
+            for (size_t i = simd_end_full; i < width; ++i) {
               col_row_kw0[i] = 0.0f;
               col_row_kw1[i] = 0.0f;
               col_row_kw2[i] = 0.0f;
             }
 
             const float *input_ptr = input_channel_ptr;
-            float *col_ptr_kw0 = col_row_kw0 + in_w;
-            float *col_ptr_kw1 = col_row_kw1 + in_w;
-            float *col_ptr_kw2 = col_row_kw2 + in_w;
+            float *col_ptr_kw0 = col_row_kw0 + width;
+            float *col_ptr_kw1 = col_row_kw1 + width;
+            float *col_ptr_kw2 = col_row_kw2 + width;
 
-            for (size_t h = 1; h < in_h; ++h) {
+            for (size_t h = 1; h < height; ++h) {
               col_ptr_kw0[0] = 0.0f;
 
               for (size_t w = 0; w < simd_end_minus2; w += simd_width) {
@@ -84,20 +76,20 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
                 _mm256_storeu_ps(col_ptr_kw2 + w, data1);
               }
 
-              for (size_t w = simd_end_minus2; w < in_w - 1; ++w) {
+              for (size_t w = simd_end_minus2; w < width - 1; ++w) {
                 float val = input_ptr[w];
                 col_ptr_kw0[1 + w] = val;
                 col_ptr_kw1[w] = val;
                 col_ptr_kw2[w] = input_ptr[w + 1];
               }
 
-              col_ptr_kw2[in_w - 1] = 0.0f;
-              col_ptr_kw1[in_w - 1] = input_ptr[in_w - 1];
+              col_ptr_kw2[width - 1] = 0.0f;
+              col_ptr_kw1[width - 1] = input_ptr[width - 1];
 
-              input_ptr += in_w;
-              col_ptr_kw0 += in_w;
-              col_ptr_kw1 += in_w;
-              col_ptr_kw2 += in_w;
+              input_ptr += width;
+              col_ptr_kw0 += width;
+              col_ptr_kw1 += width;
+              col_ptr_kw2 += width;
             }
           }
 
@@ -113,7 +105,7 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
             float *col_ptr_kw1 = col_row_kw1;
             float *col_ptr_kw2 = col_row_kw2;
 
-            for (size_t h = 0; h < in_h; ++h) {
+            for (size_t h = 0; h < height; ++h) {
               col_ptr_kw0[0] = 0.0f;
 
               for (size_t w = 0; w < simd_end_minus2; w += simd_width) {
@@ -125,20 +117,20 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
                 _mm256_storeu_ps(col_ptr_kw2 + w, data1);
               }
 
-              for (size_t w = simd_end_minus2; w < in_w - 1; ++w) {
+              for (size_t w = simd_end_minus2; w < width - 1; ++w) {
                 float val = input_ptr[w];
                 col_ptr_kw0[1 + w] = val;
                 col_ptr_kw1[w] = val;
                 col_ptr_kw2[w] = input_ptr[w + 1];
               }
 
-              col_ptr_kw2[in_w - 1] = 0.0f;
-              col_ptr_kw1[in_w - 1] = input_ptr[in_w - 1];
+              col_ptr_kw2[width - 1] = 0.0f;
+              col_ptr_kw1[width - 1] = input_ptr[width - 1];
 
-              input_ptr += in_w;
-              col_ptr_kw0 += in_w;
-              col_ptr_kw1 += in_w;
-              col_ptr_kw2 += in_w;
+              input_ptr += width;
+              col_ptr_kw0 += width;
+              col_ptr_kw1 += width;
+              col_ptr_kw2 += width;
             }
           }
 
@@ -149,12 +141,12 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
             float *col_row_kw1 = col_data + (col_row_idx_base + 1) * col_stride + batch_offset;
             float *col_row_kw2 = col_data + (col_row_idx_base + 2) * col_stride + batch_offset;
 
-            const float *input_ptr = input_channel_ptr + in_w;
+            const float *input_ptr = input_channel_ptr + width;
             float *col_ptr_kw0 = col_row_kw0;
             float *col_ptr_kw1 = col_row_kw1;
             float *col_ptr_kw2 = col_row_kw2;
 
-            for (size_t h = 0; h < in_h - 1; ++h) {
+            for (size_t h = 0; h < height - 1; ++h) {
               col_ptr_kw0[0] = 0.0f;
 
               for (size_t w = 0; w < simd_end_minus2; w += simd_width) {
@@ -166,21 +158,20 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
                 _mm256_storeu_ps(col_ptr_kw2 + w, data1);
               }
 
-              // Scalar cleanup - FIXED
-              for (size_t w = simd_end_minus2; w < in_w - 1; ++w) {
+              for (size_t w = simd_end_minus2; w < width - 1; ++w) {
                 float val = input_ptr[w];
                 col_ptr_kw0[1 + w] = val;
                 col_ptr_kw1[w] = val;
                 col_ptr_kw2[w] = input_ptr[w + 1];
               }
 
-              col_ptr_kw2[in_w - 1] = 0.0f;
-              col_ptr_kw1[in_w - 1] = input_ptr[in_w - 1];
+              col_ptr_kw2[width - 1] = 0.0f;
+              col_ptr_kw1[width - 1] = input_ptr[width - 1];
 
-              input_ptr += in_w;
-              col_ptr_kw0 += in_w;
-              col_ptr_kw1 += in_w;
-              col_ptr_kw2 += in_w;
+              input_ptr += width;
+              col_ptr_kw0 += width;
+              col_ptr_kw1 += width;
+              col_ptr_kw2 += width;
             }
 
             for (size_t i = 0; i < simd_end_full; i += simd_width) {
@@ -188,7 +179,7 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
               _mm256_storeu_ps(col_ptr_kw1 + i, zero);
               _mm256_storeu_ps(col_ptr_kw2 + i, zero);
             }
-            for (size_t i = simd_end_full; i < in_w; ++i) {
+            for (size_t i = simd_end_full; i < width; ++i) {
               col_ptr_kw0[i] = 0.0f;
               col_ptr_kw1[i] = 0.0f;
               col_ptr_kw2[i] = 0.0f;
@@ -202,31 +193,15 @@ void im2col_pad_1_stride_1_kernel_3(const Tensor &input, T *col_data) {
 }
 
 template <typename T>
-void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_h,
-                   const size_t kernel_w, const size_t stride_h, const size_t stride_w,
-                   const size_t pad_h, const size_t pad_w) {
-  if (!input_tensor->is_on_cpu()) {
-    throw std::runtime_error("im2col_padded_cpu requires CPU tensor");
-  }
-
-  const auto &shape = input_tensor->shape();
-  const size_t in_h = shape[2];
-  const size_t in_w = shape[3];
-  const size_t padded_h = in_h + 2 * pad_h;
-  const size_t padded_w = in_w + 2 * pad_w;
-  const size_t out_h = (padded_h - kernel_h) / stride_h + 1;
-  const size_t out_w = (padded_w - kernel_w) / stride_w + 1;
-  const size_t channels = shape[1];
-  const size_t batch_size = shape[0];
-
-  size_t col_width = out_h * out_w;
-
-  const T *input_data = input_tensor->data_as<T>();
+void cpu_im2col(const T *input_data, T *col_data, size_t batch_size, size_t channels, size_t height,
+                size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
+                size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
+  size_t col_width = output_h * output_w;
 
   parallel_for_2d<size_t>(
       batch_size, channels,
       [&](size_t n, size_t c) {
-        const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
+        const T *input_channel_ptr = input_data + (n * channels + c) * height * width;
         const size_t batch_offset = n * col_width;
         const size_t col_stride = batch_size * col_width;
 
@@ -236,16 +211,17 @@ void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_
             T *col_row_base = col_data + col_row_idx * col_stride + batch_offset;
 
             const size_t h_start = (pad_h > kh) ? ((pad_h - kh + stride_h - 1) / stride_h) : 0;
-            const size_t h_end = std::min(out_h, (in_h + pad_h - kh + stride_h - 1) / stride_h);
+            const size_t h_end =
+                std::min(output_h, (height + pad_h - kh + stride_h - 1) / stride_h);
             const size_t w_start = (pad_w > kw) ? ((pad_w - kw + stride_w - 1) / stride_w) : 0;
-            const size_t w_end = std::min(out_w, (in_w + pad_w - kw + stride_w - 1) / stride_w);
+            const size_t w_end = std::min(output_w, (width + pad_w - kw + stride_w - 1) / stride_w);
 
-            std::fill(col_row_base, col_row_base + h_start * out_w, T(0));
+            std::fill(col_row_base, col_row_base + h_start * output_w, T(0));
 
             for (size_t h = h_start; h < h_end; ++h) {
               const size_t h_in = h * stride_h + kh - pad_h;
-              const T *input_row = input_channel_ptr + h_in * in_w;
-              T *col_ptr = col_row_base + h * out_w;
+              const T *input_row = input_channel_ptr + h_in * width;
+              T *col_ptr = col_row_base + h * output_w;
 
               std::fill(col_ptr, col_ptr + w_start, T(0));
 
@@ -261,78 +237,10 @@ void im2col_padded(const Tensor &input_tensor, T *col_data, const size_t kernel_
                 }
               }
 
-              std::fill(col_ptr + w_end, col_ptr + out_w, T(0));
+              std::fill(col_ptr + w_end, col_ptr + output_w, T(0));
             }
 
-            std::fill(col_row_base + h_end * out_w, col_row_base + out_h * out_w, T(0));
-          }
-        }
-      },
-      SchedulePolicy::Auto);
-}
-
-/**
- * @brief Convert a 4D image tensor to a column buffer for convolution (raw pointer version).
- * @param input_tensor The input tensor to convert.
- * @param col_data Pointer to the output column buffer.
- * @param kernel_h Height of the convolution kernel.
- * @param kernel_w Width of the convolution kernel.
- * @param stride_h Vertical stride of the convolution.
- * @param stride_w Horizontal stride of the convolution.
- * @param pad_h Vertical padding to be applied to the input tensor.
- * @param pad_w Horizontal padding to be applied to the input tensor.
- */
-template <typename T>
-void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
-            size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0) {
-  if (!input_tensor->is_on_cpu()) {
-    throw std::runtime_error("im2col_cpu requires CPU tensor");
-  }
-
-  if (pad_h > 0 || pad_w > 0) {
-    if (pad_h == 1 && pad_w == 1 && stride_h == 1 && stride_w == 1 && kernel_h == 3 &&
-        kernel_w == 3)
-      im2col_pad_1_stride_1_kernel_3(input_tensor, col_data);
-    else
-      im2col_padded(input_tensor, col_data, kernel_h, kernel_w, stride_h, stride_w, pad_h, pad_w);
-    return;
-  }
-
-  const auto &shape = input_tensor->shape();
-  const size_t in_h = shape[2];
-  const size_t in_w = shape[3];
-  const size_t out_h = (in_h - kernel_h) / stride_h + 1;
-  const size_t out_w = (in_w - kernel_w) / stride_w + 1;
-  const size_t channels = shape[1];
-  const size_t batch_size = shape[0];
-
-  size_t col_width = out_h * out_w;
-
-  const T *input_data = input_tensor->data_as<T>();
-
-  parallel_for_2d<size_t>(
-      batch_size, channels,
-      [&](size_t n, size_t c) {
-        const T *input_channel_ptr = input_data + (n * channels + c) * in_h * in_w;
-
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            T *col_row_ptr = col_data + col_row_idx * (batch_size * col_width) + n * col_width;
-
-            for (size_t h = 0; h < out_h; ++h) {
-              const T *input_row_ptr = input_channel_ptr + (h * stride_h + kh) * in_w + kw;
-
-              //  vectorize where possible
-              if (stride_w == 1) {
-                std::copy(input_row_ptr, input_row_ptr + out_w, col_row_ptr);
-                col_row_ptr += out_w;
-              } else {
-                for (size_t w = 0; w < out_w; ++w) {
-                  *col_row_ptr++ = input_row_ptr[w * stride_w];
-                }
-              }
-            }
+            std::fill(col_row_base + h_end * output_w, col_row_base + output_h * output_w, T(0));
           }
         }
       },
@@ -340,13 +248,9 @@ void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t ker
 }
 
 template <typename T>
-static void col2im_padded(const T *col_data, T *result_data, size_t batch_size, size_t channels,
-                          size_t height, size_t width, size_t kernel_h, size_t kernel_w,
-                          size_t stride_h, size_t stride_w, size_t pad_h, size_t pad_w) {
-  const size_t padded_h = height + 2 * pad_h;
-  const size_t padded_w = width + 2 * pad_w;
-  const size_t output_h = (padded_h - kernel_h) / stride_h + 1;
-  const size_t output_w = (padded_w - kernel_w) / stride_w + 1;
+void cpu_col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels,
+                size_t height, size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h,
+                size_t stride_w, size_t pad_h, size_t pad_w, size_t output_h, size_t output_w) {
   const size_t col_width = output_h * output_w;
 
   // Initialize result buffer to zero
@@ -400,276 +304,104 @@ static void col2im_padded(const T *col_data, T *result_data, size_t batch_size, 
       SchedulePolicy::Auto);
 }
 
-/**
- * @brief Convert a column buffer back to the original image tensor (raw pointer version).
- * @param col_data The input column buffer.
- * @param result_data The output tensor buffer.
- * @param batch_size Number of images in the batch.
- * @param channels Number of channels in the images.
- * @param height Height of the original images.
- * @param width Width of the original images.
- * @param kernel_h Height of the convolution kernel.
- * @param kernel_w Width of the convolution kernel.
- * @param stride_h Vertical stride of the convolution.
- * @param stride_w Horizontal stride of the convolution.
- * @param pad_h Vertical padding applied to the original images.
- * @param pad_w Horizontal padding applied to the original images.
- */
 template <typename T>
-static void col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels,
-                   size_t height, size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h,
-                   size_t stride_w, size_t pad_h, size_t pad_w) {
-  if (pad_h > 0 || pad_w > 0) {
-    col2im_padded(col_data, result_data, batch_size, channels, height, width, kernel_h, kernel_w,
-                  stride_h, stride_w, pad_h, pad_w);
-    return;
-  }
+void cpu_pad(const T *input_data, T *result_data, size_t batch_size, size_t channels, size_t height,
+             size_t width, size_t pad_h, size_t pad_w, T value) {
+  const size_t padded_height = height + 2 * pad_h;
+  const size_t padded_width = width + 2 * pad_w;
 
-  size_t output_h = (height - kernel_h) / stride_h + 1;
-  size_t output_w = (width - kernel_w) / stride_w + 1;
-
-  const size_t col_width = output_h * output_w;
-
-  parallel_for_2d<size_t>(
-      batch_size, channels,
-      [&](size_t n, size_t c) {
-        T *result_channel_ptr = result_data + (n * channels + c) * height * width;
-
-        for (size_t kh = 0; kh < kernel_h; ++kh) {
-          for (size_t kw = 0; kw < kernel_w; ++kw) {
-            size_t col_row_idx = (c * kernel_h + kh) * kernel_w + kw;
-            const T *col_row_ptr =
-                col_data + col_row_idx * (batch_size * col_width) + n * col_width;
-
-            for (size_t h = 0; h < output_h; ++h) {
-              T *result_row_ptr = result_channel_ptr + (h * stride_h + kh) * width + kw;
-
-              if (stride_w == 1) {
-                ops::cpu::add(result_row_ptr, col_row_ptr, result_row_ptr, output_w);
-                col_row_ptr += output_w;
-              } else {
-                for (size_t w = 0; w < output_w; ++w) {
-                  result_row_ptr[w * stride_w] += *col_row_ptr++;
-                }
-              }
-            }
-          }
-        }
-      },
-      SchedulePolicy::Static);
-}
-
-template <typename T>
-void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T value = T(0)) {
-  if (!input->is_on_cpu()) {
-    throw std::runtime_error("pad requires CPU tensor");
-  }
-
-  auto input_shape = input->shape();
-  const size_t batch_size_ = input_shape[0];
-  const size_t channels_ = input_shape[1];
-  const size_t height_ = input_shape[2];
-  const size_t width_ = input_shape[3];
-
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
-
-  parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-    const size_t padded_height = height_ + 2 * pad_h;
-    const size_t padded_width = width_ + 2 * pad_w;
+  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     // fill top padding rows
     for (size_t h = 0; h < pad_h; ++h) {
       std::fill(
-          &result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-          &result_data[((n * channels_ + c) * padded_height + h) * padded_width] + padded_width,
+          &result_data[((n * channels + c) * padded_height + h) * padded_width],
+          &result_data[((n * channels + c) * padded_height + h) * padded_width] + padded_width,
           value);
     }
 
     // Copy middle rows with left and right padding
-    for (size_t h = 0; h < height_; ++h) {
+    for (size_t h = 0; h < height; ++h) {
       const size_t new_h = h + pad_h;
       // copy the row over
-      std::copy(&input_data[((n * channels_ + c) * height_ + h) * width_],
-                &input_data[((n * channels_ + c) * height_ + h) * width_] + width_,
-                &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w]);
+      std::copy(&input_data[((n * channels + c) * height + h) * width],
+                &input_data[((n * channels + c) * height + h) * width] + width,
+                &result_data[((n * channels + c) * padded_height + new_h) * padded_width + pad_w]);
 
       // set values on left and right
-      std::fill(&result_data[((n * channels_ + c) * padded_height + new_h) * padded_width],
-                &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w],
+      std::fill(&result_data[((n * channels + c) * padded_height + new_h) * padded_width],
+                &result_data[((n * channels + c) * padded_height + new_h) * padded_width + pad_w],
                 value);
 
       // right side
       std::fill(
-          &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + pad_w +
-                       width_],
-          &result_data[((n * channels_ + c) * padded_height + new_h) * padded_width + padded_width],
+          &result_data[((n * channels + c) * padded_height + new_h) * padded_width + pad_w + width],
+          &result_data[((n * channels + c) * padded_height + new_h) * padded_width + padded_width],
           value);
     }
 
     // fill bottom padding rows
-    for (size_t h = height_ + pad_h; h < padded_height; ++h) {
+    for (size_t h = height + pad_h; h < padded_height; ++h) {
       std::fill(
-          &result_data[((n * channels_ + c) * padded_height + h) * padded_width],
-          &result_data[((n * channels_ + c) * padded_height + h) * padded_width] + padded_width,
+          &result_data[((n * channels + c) * padded_height + h) * padded_width],
+          &result_data[((n * channels + c) * padded_height + h) * padded_width] + padded_width,
           value);
     }
   });
 }
 
 template <typename T>
-void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w) {
-  if (!input->is_on_cpu()) {
-    throw std::runtime_error("unpad requires CPU tensor");
-  }
+void cpu_unpad(const T *input_data, T *result_data, size_t batch_size, size_t channels,
+               size_t height, size_t width, size_t pad_h, size_t pad_w) {
+  const size_t padded_height = height + 2 * pad_h;
+  const size_t padded_width = width + 2 * pad_w;
 
-  auto input_shape = input->shape();
-  const size_t batch_size_ = input_shape[0];
-  const size_t channels_ = input_shape[1];
-  const size_t height_ = input_shape[2];
-  const size_t width_ = input_shape[3];
-
-  if (height_ <= 2 * pad_h || width_ <= 2 * pad_w) {
-    throw std::invalid_argument("Padding size too large for unpadding");
-  }
-
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
-
-  parallel_for_2d(batch_size_, channels_, [&](size_t n, size_t c) {
-    for (size_t h = 0; h < height_ - 2 * pad_h; ++h) {
+  parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
+    for (size_t h = 0; h < height; ++h) {
       const size_t src_h = h + pad_h;
       std::copy(
-          &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w],
-          &input_data[((n * channels_ + c) * height_ + src_h) * width_ + pad_w] +
-              (width_ - 2 * pad_w),
-          &result_data[((n * channels_ + c) * (height_ - 2 * pad_h) + h) * (width_ - 2 * pad_w)]);
+          &input_data[((n * channels + c) * padded_height + src_h) * padded_width + pad_w],
+          &input_data[((n * channels + c) * padded_height + src_h) * padded_width + pad_w] + width,
+          &result_data[((n * channels + c) * height + h) * width]);
     }
   });
 }
 
 template <typename T>
-void crop(const Tensor &input, Tensor &result, const size_t start_h, const size_t start_w,
-          const size_t end_h, const size_t end_w) {
-  if (!input->is_on_cpu()) {
-    throw std::runtime_error("crop requires CPU tensor");
-  }
-
-  auto input_shape = input->shape();
-  if (end_h >= input_shape[2] || end_w >= input_shape[3] || start_h > end_h || start_w > end_w) {
-    throw std::invalid_argument("Invalid crop dimensions");
-  }
-
-  const size_t batch_size = input_shape[0];
-  const size_t channels = input_shape[1];
-  const size_t height_ = input_shape[2];
-  const size_t width_ = input_shape[3];
-
-  const T *input_data = input->data_as<T>();
-  T *result_data = result->data_as<T>();
-  auto result_shape = result->shape();
+void cpu_crop(const T *input_data, T *result_data, size_t batch_size, size_t channels,
+              size_t height, size_t width, size_t start_h, size_t start_w, size_t new_height,
+              size_t new_width) {
   for (size_t n = 0; n < batch_size; ++n) {
     for (size_t c = 0; c < channels; ++c) {
-      for (size_t h = 0; h < result_shape[2]; ++h) {
-        std::copy(&input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w],
-                  &input_data[((n * channels + c) * height_ + (h + start_h)) * width_ + start_w] +
-                      result_shape[3],
-                  &result_data[((n * channels + c) * result_shape[2] + h) * result_shape[3]]);
+      for (size_t h = 0; h < new_height; ++h) {
+        std::copy(&input_data[((n * channels + c) * height + (h + start_h)) * width + start_w],
+                  &input_data[((n * channels + c) * height + (h + start_h)) * width + start_w] +
+                      new_width,
+                  &result_data[((n * channels + c) * new_height + h) * new_width]);
       }
     }
   }
 }
 
-/**
- * @brief Slice the tensor along the batch dimension.
- * @param start_batch Starting batch index (inclusive)
- * @param end_batch Ending batch index (exclusive)
- * @return A new tensor containing the sliced batches
- */
 template <typename T>
-void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t end_batch) {
-  if (!input->is_on_cpu()) {
-    throw std::runtime_error("slice_batch requires CPU tensor");
-  }
-
-  auto input_shape = input->shape();
-  if (end_batch > input_shape[0] || start_batch > end_batch) {
-    throw std::invalid_argument("Invalid batch slice range");
-  }
-
-  std::vector<size_t> result_shape = input_shape;
-  result_shape[0] = end_batch - start_batch;
-  result = Tensor::create(input->data_type(), result_shape, input->device());
-
-  const T *input_data = input->data_as<T>();
-  size_t stride_0 = 1;
-  for (size_t i = 1; i < input_shape.size(); ++i) {
-    stride_0 *= input_shape[i];
-  }
-  T *result_data = result->data_as<T>();
-
-  std::copy(&input_data[start_batch * stride_0], &input_data[end_batch * stride_0], result_data);
-}
-
-template <typename T>
-void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits) {
-  auto input_shape = input->shape();
-  if (num_splits == 0 || num_splits > input_shape[0]) {
-    throw std::invalid_argument(
-        "Invalid number of splits. Batch size: " + std::to_string(input_shape[0]) +
-        ", num_splits: " + std::to_string(num_splits));
-  }
-
-  results.resize(num_splits);
-
-  size_t split_size = input_shape[0] / num_splits;
-
-  for (size_t i = 0; i < num_splits; ++i) {
-    size_t start = i * split_size;
-    size_t end = (i == num_splits - 1) ? input_shape[0] : start + split_size;
-
-    cpu::slice_batch<T>(input, results[i], start, end);
-  }
-}
-
-template <typename T>
-void transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols,
-                  bool multi_threaded = true) {
-  if (multi_threaded) {
-    const size_t block_size = 64;
-    parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
-                    [&](size_t i_block, size_t j_block) {
-                      const size_t start_row = i_block * block_size;
-                      const size_t start_col = j_block * block_size;
-                      const size_t end_row = std::min(start_row + block_size, rows);
-                      const size_t end_col = std::min(start_col + block_size, cols);
-                      for (size_t i = start_row; i < end_row; ++i) {
-                        for (size_t j = start_col; j < end_col; ++j) {
-                          dst[j * rows + i] = src[i * cols + j];
-                        }
+void cpu_transpose_2d(const T *src, T *dst, const size_t rows, const size_t cols) {
+  const size_t block_size = 64;
+  parallel_for_2d((rows + block_size - 1) / block_size, (cols + block_size - 1) / block_size,
+                  [&](size_t i_block, size_t j_block) {
+                    const size_t start_row = i_block * block_size;
+                    const size_t start_col = j_block * block_size;
+                    const size_t end_row = std::min(start_row + block_size, rows);
+                    const size_t end_col = std::min(start_col + block_size, cols);
+                    for (size_t i = start_row; i < end_row; ++i) {
+                      for (size_t j = start_col; j < end_col; ++j) {
+                        dst[j * rows + i] = src[i * cols + j];
                       }
-                    });
-    return;
-  } else {
-    const size_t block_size = 64;
-    for (size_t i_block = 0; i_block < (rows + block_size - 1) / block_size; ++i_block) {
-      for (size_t j_block = 0; j_block < (cols + block_size - 1) / block_size; ++j_block) {
-        const size_t start_row = i_block * block_size;
-        const size_t start_col = j_block * block_size;
-        const size_t end_row = std::min(start_row + block_size, rows);
-        const size_t end_col = std::min(start_col + block_size, cols);
-        for (size_t i = start_row; i < end_row; ++i) {
-          for (size_t j = start_col; j < end_col; ++j) {
-            dst[j * rows + i] = src[i * cols + j];
-          }
-        }
-      }
-    }
-  }
+                    }
+                  });
 }
 
 template <typename T>
-void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
-                  size_t width) {
+void cpu_nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
+                      size_t width) {
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     std::copy(&src[n * channels * height * width + c * height * width],
               &src[n * channels * height * width + c * height * width + height * width],
@@ -678,13 +410,48 @@ void nchw_to_cnhw(const T *src, T *dst, size_t batch_size, size_t channels, size
 }
 
 template <typename T>
-void cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
-                  size_t width) {
+void cpu_cnhw_to_nchw(const T *src, T *dst, size_t batch_size, size_t channels, size_t height,
+                      size_t width) {
   parallel_for_2d(batch_size, channels, [&](size_t n, size_t c) {
     std::copy(&src[c * batch_size * height * width + n * height * width],
               &src[c * batch_size * height * width + n * height * width + height * width],
               &dst[n * channels * height * width + c * height * width]);
   });
+}
+
+/**
+ * @brief Slice the tensor along the batch dimension.
+ * @param input_data Input tensor data pointer
+ * @param result_data Output tensor data pointer
+ * @param batch_size Total batch size
+ * @param start_batch Starting batch index (inclusive)
+ * @param end_batch Ending batch index (exclusive)
+ * @param stride_0 Stride for the batch dimension (product of all dimensions except batch)
+ */
+template <typename T>
+void cpu_slice_batch(const T *input_data, T *result_data, size_t start_batch, size_t end_batch,
+                     size_t stride_0) {
+  std::copy(&input_data[start_batch * stride_0], &input_data[end_batch * stride_0], result_data);
+}
+
+/**
+ * @brief Split the tensor into multiple parts along the batch dimension.
+ * @param input_data Input tensor data pointer
+ * @param results Vector of output data pointers
+ * @param batch_size Total batch size
+ * @param num_splits Number of splits to create
+ * @param stride_0 Stride for the batch dimension (product of all dimensions except batch)
+ */
+template <typename T>
+void cpu_split(const T *input_data, std::vector<T *> &results, size_t batch_size, size_t num_splits,
+               size_t stride_0) {
+  size_t split_size = batch_size / num_splits;
+
+  for (size_t i = 0; i < num_splits; ++i) {
+    size_t start = i * split_size;
+    size_t end = (i == num_splits - 1) ? batch_size : start + split_size;
+    cpu_slice_batch<T>(input_data, results[i], start, end, stride_0);
+  }
 }
 
 }  // namespace cpu

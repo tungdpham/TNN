@@ -1,11 +1,10 @@
-#include <cudnn_graph.h>
-
 #include "nn/layers_impl/cuda/cudnn_batchnorm_ops.hpp"
 
 #ifdef USE_CUDNN
 
 #include <cuda_runtime.h>
 #include <cudnn_frontend.h>
+#include <cudnn_graph.h>
 
 #include <memory>
 #include <stdexcept>
@@ -36,20 +35,21 @@ struct feHandle_t {
   std::shared_ptr<fe::graph::Tensor_attributes> fwd_prev_var;
   std::shared_ptr<fe::graph::Tensor_attributes> fwd_next_mean;
   std::shared_ptr<fe::graph::Tensor_attributes> fwd_next_var;
+  std::shared_ptr<fe::graph::Tensor_attributes> fwd_relu_mask;
 
   std::shared_ptr<fe::graph::Graph> inf_graph;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_x;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_scale;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_bias;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_mean;
-  std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_invar;
+  std::shared_ptr<fe::graph::Tensor_attributes> inf_saved_var;
   std::shared_ptr<fe::graph::Tensor_attributes> inf_y;
 
   std::shared_ptr<fe::graph::Graph> bwd_graph;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dy;
+  std::shared_ptr<fe::graph::Tensor_attributes> bwd_mask;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_x;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_scale;
-  std::shared_ptr<fe::graph::Tensor_attributes> bwd_bias;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_mean;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_invar;
   std::shared_ptr<fe::graph::Tensor_attributes> bwd_dx;
@@ -155,9 +155,18 @@ static void build_fwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   auto next_running_mean = outputs[3];
   auto next_running_var = outputs[4];
 
+  auto mask = Y;
   if (stats.use_relu) {
     Y = graph->pointwise(Y,
                          fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_FWD));
+
+    float lower_clip = 0.0f;
+    auto s_lower_clip = graph->tensor(lower_clip);
+    auto relu_lower_clip_mask_attr = fe::graph::Pointwise_attributes()
+                                         .set_mode(fe::PointwiseMode_t::CMP_GT)
+                                         .set_compute_data_type(compute_type);
+    mask = graph->pointwise(Y, s_lower_clip, relu_lower_clip_mask_attr);
+    mask->set_output(true).set_data_type(fe::DataType_t::BOOLEAN);
   }
 
   Y->set_output(true).set_data_type(io_type);
@@ -188,6 +197,7 @@ static void build_fwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->fwd_prev_var = prev_running_var;
   handle->fwd_next_mean = next_running_mean;
   handle->fwd_next_var = next_running_var;
+  handle->fwd_relu_mask = mask;
 
   stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
 }
@@ -236,6 +246,7 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
                                      .set_data_type(compute_type));
 
   // Y = scale * (X - mean) / sqrt(var + epsilon) + bias
+  // Note: saved_var is the running variance (σ²), so we compute inv_std from it
   auto epsilon_tensor = graph->tensor(static_cast<float>(stats.epsilon));
   auto var_plus_eps =
       graph->pointwise(saved_var, epsilon_tensor,
@@ -275,7 +286,7 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->inf_scale = scale;
   handle->inf_bias = bias;
   handle->inf_saved_mean = saved_mean;
-  handle->inf_saved_invar = saved_var;
+  handle->inf_saved_var = saved_var;
   handle->inf_y = Y;
 
   stats.inf_workspace_size = static_cast<size_t>(workspace_size);
@@ -295,22 +306,35 @@ static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
       .set_intermediate_data_type(compute_type)
       .set_compute_data_type(compute_type);
 
-  auto BN_X = graph->tensor(fe::graph::Tensor_attributes()
-                                .set_name("X")
-                                .set_dim({n, c, h, w})
-                                .set_stride({h * w * c, 1, w * c, c}));
+  auto DY = graph->tensor(fe::graph::Tensor_attributes()
+                              .set_name("DY")
+                              .set_dim({n, c, h, w})
+                              .set_stride({h * w * c, 1, w * c, c}));
+  auto DX_drelu = DY;
+  if (stats.use_relu) {
+    auto mask = graph->tensor(fe::graph::Tensor_attributes()
+                                  .set_name("Mask")
+                                  .set_dim({n, c, h, w})
+                                  .set_stride({h * w * c, 1, w * c, c})
+                                  .set_data_type(fe::DataType_t::BOOLEAN));
+
+    auto mul_options = fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::MUL);
+    DX_drelu = graph->pointwise(DY, mask, mul_options);
+    DX_drelu->set_output(false).set_data_type(io_type);
+
+    handle->bwd_mask = mask;
+  }
+
+  auto X = graph->tensor(fe::graph::Tensor_attributes()
+                             .set_name("X")
+                             .set_dim({n, c, h, w})
+                             .set_stride({h * w * c, 1, w * c, c}));
 
   auto scale = graph->tensor(fe::graph::Tensor_attributes()
                                  .set_name("scale")
                                  .set_dim({1, c, 1, 1})
                                  .set_stride({c, 1, c, c})
                                  .set_data_type(fe::DataType_t::FLOAT));
-
-  auto bias = graph->tensor(fe::graph::Tensor_attributes()
-                                .set_name("bias")
-                                .set_dim({1, c, 1, 1})
-                                .set_stride({c, 1, c, c})
-                                .set_data_type(fe::DataType_t::FLOAT));
 
   auto mean = graph->tensor(fe::graph::Tensor_attributes()
                                 .set_name("mean")
@@ -319,28 +343,14 @@ static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
                                 .set_data_type(fe::DataType_t::FLOAT));
 
   auto invar = graph->tensor(fe::graph::Tensor_attributes()
-                                 .set_name("inv_var")
+                                 .set_name("inv_variance")
                                  .set_dim({1, c, 1, 1})
                                  .set_stride({c, 1, c, c})
                                  .set_data_type(fe::DataType_t::FLOAT));
 
-  auto batchnorm_inference_attributes = fe::graph::Batchnorm_inference_attributes();
-  auto BN_Y =
-      graph->batchnorm_inference(BN_X, mean, invar, scale, bias, batchnorm_inference_attributes);
-
-  auto DY = graph->tensor(fe::graph::Tensor_attributes()
-                              .set_name("DY")
-                              .set_dim({n, c, h, w})
-                              .set_stride({h * w * c, 1, w * c, c}));
-
-  auto relu_backward_attributes =
-      fe::graph::Pointwise_attributes().set_mode(fe::PointwiseMode_t::RELU_BWD);
-  auto DX_drelu = graph->pointwise(DY, BN_Y, relu_backward_attributes);
-  DX_drelu->set_data_type(io_type);
-
   auto DBN_options =
       fe::graph::Batchnorm_backward_attributes().set_saved_mean_and_inv_variance(mean, invar);
-  auto [DX, dscale, dbias] = graph->batchnorm_backward(DX_drelu, BN_X, scale, DBN_options);
+  auto [DX, dscale, dbias] = graph->batchnorm_backward(DX_drelu, X, scale, DBN_options);
   DX->set_output(true);
   dscale->set_output(true).set_data_type(fe::DataType_t::FLOAT);
   dbias->set_output(true).set_data_type(fe::DataType_t::FLOAT);
@@ -359,15 +369,13 @@ static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
 
   handle->bwd_graph = graph;
   handle->bwd_dy = DY;
-  handle->bwd_x = BN_X;
+  handle->bwd_x = X;
   handle->bwd_scale = scale;
-  handle->bwd_bias = bias;
   handle->bwd_mean = mean;
   handle->bwd_invar = invar;
   handle->bwd_dx = DX;
   handle->bwd_dscale = dscale;
   handle->bwd_dbias = dbias;
-
   stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
 }
 
@@ -399,7 +407,7 @@ void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const
                           const void* gamma, const void* beta, void* output,
                           void* prev_running_mean, void* prev_running_var, void* next_running_mean,
                           void* next_running_var, void* batch_mean, void* batch_invar,
-                          void* workspace, cudaStream_t stream) {
+                          void* relu_mask, void* workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_training called with null feHandle");
   }
@@ -418,13 +426,18 @@ void run_forward_training(feHandle_t* handle, const BatchNormStats& stats, const
       {handle->fwd_next_mean, next_running_mean},
       {handle->fwd_next_var, next_running_var}};
 
+  if (stats.use_relu) {
+    variant_pack[handle->fwd_relu_mask] = relu_mask;
+  }
+
   auto status = handle->fwd_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm forward execute");
 }
 
 void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, const void* input,
-                           const void* gamma, const void* beta, void* saved_mean, void* saved_invar,
-                           void* output, void* workspace, cudaStream_t stream) {
+                           const void* gamma, const void* beta, const void* saved_mean,
+                           const void* saved_var, void* output, void* workspace,
+                           cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_forward_inference called with null feHandle");
   }
@@ -432,17 +445,20 @@ void run_forward_inference(feHandle_t* handle, const BatchNormStats& stats, cons
   cudnnSetStream(handle->cudnn_handle, stream);
 
   std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> variant_pack = {
-      {handle->inf_x, const_cast<void*>(input)},   {handle->inf_scale, const_cast<void*>(gamma)},
-      {handle->inf_bias, const_cast<void*>(beta)}, {handle->inf_y, output},
-      {handle->inf_saved_mean, saved_mean},        {handle->inf_saved_invar, saved_invar}};
+      {handle->inf_x, const_cast<void*>(input)},
+      {handle->inf_scale, const_cast<void*>(gamma)},
+      {handle->inf_bias, const_cast<void*>(beta)},
+      {handle->inf_y, output},
+      {handle->inf_saved_mean, const_cast<void*>(saved_mean)},
+      {handle->inf_saved_var, const_cast<void*>(saved_var)}};
 
   auto status = handle->inf_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm inference execute");
 }
 
 void run_backward(feHandle_t* handle, const BatchNormStats& stats, const void* input,
-                  const void* grad_output, const void* gamma, const void* beta, void* grad_input,
-                  void* grad_gamma, void* grad_beta, const void* batch_mean,
+                  const void* grad_output, const void* relu_mask, const void* gamma,
+                  void* grad_input, void* grad_gamma, void* grad_beta, const void* batch_mean,
                   const void* batch_invar, void* workspace, cudaStream_t stream) {
   if (!handle) {
     throw std::runtime_error("run_backward called with null feHandle");
@@ -454,12 +470,15 @@ void run_backward(feHandle_t* handle, const BatchNormStats& stats, const void* i
       {handle->bwd_dy, const_cast<void*>(grad_output)},
       {handle->bwd_x, const_cast<void*>(input)},
       {handle->bwd_scale, const_cast<void*>(gamma)},
-      {handle->bwd_bias, const_cast<void*>(beta)},
       {handle->bwd_mean, const_cast<void*>(batch_mean)},
       {handle->bwd_invar, const_cast<void*>(batch_invar)},
       {handle->bwd_dx, grad_input},
       {handle->bwd_dscale, grad_gamma},
       {handle->bwd_dbias, grad_beta}};
+
+  if (stats.use_relu) {
+    variant_pack[handle->bwd_mask] = const_cast<void*>(relu_mask);
+  }
 
   auto status = handle->bwd_graph->execute(handle->cudnn_handle, variant_pack, workspace);
   ensure_ok(status, "batchnorm backward execute");

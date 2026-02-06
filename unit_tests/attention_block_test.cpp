@@ -24,7 +24,7 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
   size_t L = 10;
 
   // Input shape: [batch, L, embed_dim]
-  Tensor input = Tensor::create<float>({batch_size, L, embed_dim}, getCPU());
+  Tensor input = make_tensor<float>({batch_size, L, embed_dim}, getCPU());
   input->fill_random_uniform(-1.0f, 1.0f);
 
   auto attention = std::make_unique<AttentionBlock>(embed_dim, num_heads, "attn");

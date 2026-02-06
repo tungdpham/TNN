@@ -18,13 +18,6 @@
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-struct Partition {
-  size_t start_layer;
-  size_t end_layer;  // exclusive
-
-  Partition(size_t start, size_t end) : start_layer(start), end_layer(end) {}
-};
-
 class Sequential : public Layer {
 private:
   std::vector<std::unique_ptr<Layer>> layers_;
@@ -34,13 +27,15 @@ private:
 
 protected:
   void init_impl() override;
+  void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;
   void on_set_device(const Device &device) override;
   void on_set_training(bool training) override;
-  void forward_impl(const Tensor &input, Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id = 0) override;
+  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
+  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                     size_t mb_id = 0) override;
 
 public:
   explicit Sequential(const std::string &name = "seq",
@@ -73,8 +68,6 @@ public:
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   void print_summary(const std::vector<size_t> &input_shape) const;
-
-  std::vector<Sequential> split(std::vector<Partition> &partitions) const;
 
   const std::vector<Layer *> &get_layers() const;
 

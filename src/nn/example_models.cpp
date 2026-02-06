@@ -99,8 +99,7 @@ Sequential create_cifar10_resnet9(DType_t io_dtype_ = DType_t::FP32) {
                     // Classification head
                     .avgpool2d(4, 4, 1, 1, 0, 0, "avgpool")  // 4x4 -> 1x1
                     .flatten(1, -1, "flatten")
-                    // .dense(10, true, "output")
-                    .legacy_dense(10, true, "output")
+                    .dense(10, true, "output")
                     .build();
   return Sequential("cifar10_resnet9", std::move(layers));
 }

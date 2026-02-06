@@ -92,9 +92,9 @@ private:
     const size_t channels = cifar10_constants::NUM_CHANNELS;
     const size_t num_classes = cifar10_constants::NUM_CLASSES;
     // NHWC format: (Batch, Height, Width, Channels)
-    batch_data = Tensor::create<T>({actual_batch_size, height, width, channels});
+    batch_data = make_tensor<T>({actual_batch_size, height, width, channels});
 
-    batch_labels = Tensor::create<T>({actual_batch_size, num_classes, 1, 1});
+    batch_labels = make_tensor<T>({actual_batch_size, num_classes, 1, 1});
     batch_labels->fill(0.0);
 
     T *data = batch_data->data_as<T>();
@@ -102,13 +102,16 @@ private:
 
     parallel_for<size_t>(0, actual_batch_size, [&](size_t i) {
       const std::vector<float> &image_data = data_[this->current_index_ + i];
-      size_t data_pixel_idx = i * height * width * channels;
 
-      for (size_t c = 0; c < channels; ++c) {
-        for (size_t h = 0; h < height; ++h) {
-          for (size_t w = 0; w < width; ++w) {
-            size_t pixel_idx = c * height * width + h * width + w;
-            data[data_pixel_idx++] = static_cast<T>(image_data[pixel_idx]);
+      for (size_t h = 0; h < height; ++h) {
+        for (size_t w = 0; w < width; ++w) {
+          for (size_t c = 0; c < channels; ++c) {
+            // Source is CHW
+            size_t src_idx = c * (height * width) + (h * width + w);
+            // Destination is NHWC
+            size_t dst_idx =
+                (i * height * width * channels) + (h * width * channels + w * channels + c);
+            data[dst_idx] = static_cast<T>(image_data[src_idx]);
           }
         }
       }

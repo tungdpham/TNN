@@ -27,10 +27,10 @@ signed main() {
     current_params[i]->copy_to(legacy_params[i]);
   }
 
-  Tensor input = Tensor::create<float>({128, INPUT_FEATURES}, getGPU());
+  Tensor input = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
-  Tensor current_output = Tensor::create<float>({128, OUTPUT_FEATURES}, getGPU());
-  Tensor legacy_output = Tensor::create<float>({128, OUTPUT_FEATURES}, getGPU());
+  Tensor current_output = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
+  Tensor legacy_output = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
   // cold pass
   dense_layer.forward(input, current_output);
 
@@ -93,13 +93,13 @@ signed main() {
 
   // test backward
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
-  Tensor target = Tensor::create<float>({128, OUTPUT_FEATURES}, getGPU());
+  Tensor target = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
   target->fill_random_normal(0.5f, 0.2f);
-  Tensor grad = Tensor::create<float>({128, OUTPUT_FEATURES}, getGPU());
+  Tensor grad = make_tensor<float>({128, OUTPUT_FEATURES}, getGPU());
   criterion->compute_gradient(current_output, target, grad);
 
-  Tensor grad_input_current = Tensor::create<float>({128, INPUT_FEATURES}, getGPU());
-  Tensor grad_input_legacy = Tensor::create<float>({128, INPUT_FEATURES}, getGPU());
+  Tensor grad_input_current = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
+  Tensor grad_input_legacy = make_tensor<float>({128, INPUT_FEATURES}, getGPU());
 
   // cold pass
   dense_layer.backward(grad, grad_input_current);

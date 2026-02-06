@@ -32,7 +32,8 @@ LegacyAvgPool2DLayer::LegacyAvgPool2DLayer(size_t pool_h, size_t pool_w, size_t 
   }
 }
 
-void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, size_t mb_id) {
+void LegacyAvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output,
+                                        size_t mb_id) {
   if (input->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Input tensor must be 4-dimensional (NCHW)");
   }
@@ -54,7 +55,8 @@ void LegacyAvgPool2DLayer::forward_impl(const Tensor &input, Tensor &output, siz
                            output_w, "default");
 }
 
-void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_input, size_t mb_id) {
+void LegacyAvgPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+                                         size_t mb_id) {
   if (gradient->dims() != 4) {
     throw std::invalid_argument("AvgPool2D: Gradient tensor must be 4-dimensional (NCHW)");
   }
@@ -84,7 +86,7 @@ void LegacyAvgPool2DLayer::backward_impl(const Tensor &gradient, Tensor &grad_in
 
 template <typename Compute_T>
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward_impl(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
+    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   if (input_data->data_type() != dtype_of<Compute_T>() ||
@@ -116,7 +118,7 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward_impl(
 }
 
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward(
-    const Tensor &input_data, Tensor &output_data, size_t batch_size, size_t channels,
+    const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_forward_impl, input_data, output_data, batch_size,
@@ -126,8 +128,8 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_forward(
 
 template <typename Compute_T>
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward_impl(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
-    size_t input_h, size_t input_w, size_t output_h, size_t output_w,
+    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
+    size_t channels, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   if (gradient_data->data_type() != dtype_of<Compute_T>() ||
       grad_input_data->data_type() != dtype_of<Compute_T>()) {
@@ -160,8 +162,8 @@ std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward_impl(
 }
 
 std::unique_ptr<Task> LegacyAvgPool2DLayer::compute_avg_pool_backward(
-    const Tensor &gradient_data, Tensor &grad_input_data, size_t batch_size, size_t channels,
-    size_t input_h, size_t input_w, size_t output_h, size_t output_w,
+    const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
+    size_t channels, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
     const std::string &flow_id) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_backward_impl, gradient_data, grad_input_data,
                               batch_size, channels, input_h, input_w, output_h, output_w, flow_id);
@@ -172,12 +174,12 @@ LayerConfig LegacyAvgPool2DLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
   config.type = this->type();
-  config.parameters["pool_h"] = pool_h_;
-  config.parameters["pool_w"] = pool_w_;
-  config.parameters["stride_h"] = stride_h_;
-  config.parameters["stride_w"] = stride_w_;
-  config.parameters["pad_h"] = pad_h_;
-  config.parameters["pad_w"] = pad_w_;
+  config.set("pool_h", pool_h_);
+  config.set("pool_w", pool_w_);
+  config.set("stride_h", stride_h_);
+  config.set("stride_w", stride_w_);
+  config.set("pad_h", pad_h_);
+  config.set("pad_w", pad_w_);
   return config;
 }
 

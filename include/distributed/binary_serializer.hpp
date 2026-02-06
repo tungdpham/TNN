@@ -59,7 +59,7 @@ public:
   void set_use_gpu(bool flag) { use_gpu_ = flag; }
 
   template <Buffer BufferType>
-  void serialize(BufferType &buffer, size_t &offset, const Tensor &tensor) {
+  void serialize(BufferType &buffer, size_t &offset, const ConstTensor &tensor) {
     DType_t dtype = tensor->data_type();
     buffer.template write<uint32_t>(offset, static_cast<uint32_t>(dtype));
     std::vector<size_t> shape = tensor->shape();
@@ -113,29 +113,25 @@ public:
 
   template <Buffer BufferType>
   void serialize(BufferType &buffer, size_t &offset, const MessageData &data) {
-    buffer.write(offset, data.payload_type);
-    if (std::holds_alternative<std::monostate>(data.payload)) {
-      // No additional data to write
-    } else if (std::holds_alternative<Job>(data.payload)) {
-      const auto &job = std::get<Job>(data.payload);
-      buffer.write(offset, static_cast<uint64_t>(job.mb_id));
-      serialize(buffer, offset, job.data);
-    } else if (std::holds_alternative<std::string>(data.payload)) {
-      const auto &str = std::get<std::string>(data.payload);
-      buffer.write(offset, str);
-    } else if (std::holds_alternative<bool>(data.payload)) {
-      const auto &flag = std::get<bool>(data.payload);
-      buffer.write(offset, static_cast<uint8_t>(flag ? 1 : 0));
-    } else if (std::holds_alternative<Profiler>(data.payload)) {
-      const auto &profiler = std::get<Profiler>(data.payload);
-      serialize(buffer, offset, profiler);
-    } else if (std::holds_alternative<StageConfig>(data.payload)) {
-      const auto &stage_config = std::get<StageConfig>(data.payload);
-      std::string json_dump = stage_config.to_json().dump();
-      buffer.write(offset, json_dump);
-    } else {
-      throw std::runtime_error("Unsupported payload type in MessageData");
-    }
+    buffer.write(offset, static_cast<uint64_t>(data.payload.index()));
+    std::visit(
+        [&]<typename T>(const T &v) {
+          if constexpr (std::is_same_v<T, std::monostate>) {
+          } else if constexpr (std::is_same_v<T, Job>) {
+            buffer.write(offset, static_cast<uint64_t>(v.mb_id));
+            serialize(buffer, offset, v.data);
+          } else if constexpr (std::is_same_v<T, std::string>) {
+            buffer.write(offset, v);
+          } else if constexpr (std::is_same_v<T, bool>) {
+            buffer.write(offset, static_cast<uint8_t>(v ? 1 : 0));
+          } else if constexpr (std::is_same_v<T, Profiler>) {
+            serialize(buffer, offset, v);
+          } else if constexpr (std::is_same_v<T, StageConfig>) {
+            std::string json_dump = v.to_json().dump();
+            buffer.write(offset, json_dump);
+          }
+        },
+        data.payload);
   }
 
   template <Buffer BufferType>
@@ -187,10 +183,10 @@ public:
       buffer.template read<uint64_t>(offset, shape[i]);
     }
     auto &device = use_gpu_ ? getGPU() : getCPU();
-    tensor = Tensor::create_pooled(PoolAllocator::instance(device), dtype,
-                                   std::vector<size_t>(shape.begin(), shape.end()));
+    tensor = make_tensor(PoolAllocator::instance(device), dtype,
+                         std::vector<size_t>(shape.begin(), shape.end()));
     if (tensor->size() > 0) {
-      auto &dptr = tensor->data_ptr();
+      auto dptr = tensor->data_ptr();
       size_t byte_size = tensor->size() * dtype_size;
       buffer.read(offset, dptr, byte_size);
     }
@@ -248,8 +244,7 @@ public:
     // Determine payload type based on payload_type
     uint64_t payload_type;
     buffer.read(offset, payload_type);
-    data.payload_type = payload_type;
-    switch (data.payload_type) {
+    switch (payload_type) {
       case variant_index<PayloadType, std::monostate>():  // std::monostate
         data.payload = std::monostate{};
         break;
@@ -274,11 +269,8 @@ public:
         data.payload = std::move(profiler);
       } break;
       case variant_index<PayloadType, StageConfig>(): {  // StageConfig
-        uint64_t json_size;
-        buffer.read(offset, json_size);
         std::string json_str;
-        json_str.resize(json_size);
-        buffer.read(offset, json_str.data(), json_size);
+        buffer.read(offset, json_str);
         StageConfig config = StageConfig::from_json(nlohmann::json::parse(json_str));
         data.payload = std::move(config);
       } break;

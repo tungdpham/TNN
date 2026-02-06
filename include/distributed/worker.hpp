@@ -16,12 +16,14 @@
 #include <string>
 
 #include "communicator.hpp"
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/iallocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
 #include "message.hpp"
+#include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
+#include "nn/schedulers.hpp"
 #include "nn/sequential.hpp"
 #include "profiling/event.hpp"
 #include "profiling/profiler.hpp"
@@ -34,12 +36,17 @@ namespace tnn {
 class Worker {
 public:
   explicit Worker(std::unique_ptr<Sequential> model, std::unique_ptr<Communicator> communicator)
-      : model_(std::move(model)), communicator_(std::move(communicator)), should_stop_(true) {}
+      : model_(std::move(model)),
+        communicator_(std::move(communicator)),
+        should_stop_(true) {}
 
   virtual ~Worker() { stop(); }
 
 protected:
-  Worker(bool use_gpu) : use_gpu_(use_gpu), should_stop_(true), is_configured_(false) {}
+  Worker(bool use_gpu)
+      : use_gpu_(use_gpu),
+        should_stop_(true),
+        is_configured_(false) {}
 
 public:
   void start() {
@@ -80,20 +87,28 @@ public:
     // setup model, optimizer, criterion
     LayerConfig model_config = config.model_config;
     this->model_ = Sequential::create_from_config(model_config);
+    this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
+    this->model_->set_seed(123456);
+    this->model_->init();
+    this->model_->enable_profiling(true);
+    auto parsed_config = this->model_->get_config();
+    std::cout << parsed_config.to_json().dump(4) << std::endl;
+
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
-    this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
-    this->model_->init();
     this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
-    this->model_->enable_profiling(true);
+
+    this->scheduler_ =
+        SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
 
     // setup connections
     coordinator_endpoint_ = config.coordinator_endpoint;
     next_stage_endpoint_ = config.next_stage_endpoint;
     prev_stage_endpoint_ = config.prev_stage_endpoint;
-    this->communicator_->connect(coordinator_endpoint_);
-    this->communicator_->connect(next_stage_endpoint_);
-    this->communicator_->connect(prev_stage_endpoint_);
+
+    if (coordinator_endpoint_) this->communicator_->connect(coordinator_endpoint_);
+    if (next_stage_endpoint_) this->communicator_->connect(next_stage_endpoint_);
+    if (prev_stage_endpoint_) this->communicator_->connect(prev_stage_endpoint_);
 
     is_configured_ = true;
   }
@@ -114,17 +129,15 @@ protected:
       case CommandType::FORWARD_JOB: {
         auto forward_start = std::chrono::system_clock::now();
         const Job &forward_job = message.get<Job>();
-
         IAllocator &out_allocator = communicator_->get_allocator();
         DType_t input_dtype = forward_job.data->data_type();
         auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
-        Tensor output_tensor = Tensor::create_pooled(out_allocator, input_dtype, output_shape);
-
+        Tensor output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
         this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
-        Job output(output_tensor, forward_job.mb_id);
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
+        Job output(output_tensor, forward_job.mb_id);
         message = Message(CommandType::FORWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), next_stage_endpoint_);
       } break;
@@ -132,14 +145,18 @@ protected:
         auto backward_start = std::chrono::system_clock::now();
         const Job &backward_job = message.get<Job>();
         IAllocator &out_allocator = communicator_->get_allocator();
-        Tensor output_tensor =
-            Tensor::create_pooled(out_allocator, backward_job.data->data_type(), {1});
-
+        Tensor output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
         this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
-        Job output(output_tensor, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
+        if (prev_stage_endpoint_ == Endpoint::empty()) {
+          // only send backward complete if there is no previous stage
+          Message complete_msg(CommandType::BACKWARD_COMPLETE);
+          communicator_->send_message(std::move(complete_msg), coordinator_endpoint_);
+          break;
+        }
+        Job output(output_tensor, backward_job.mb_id);
         message = Message(CommandType::BACKWARD_JOB, std::move(output));
         communicator_->send_message(std::move(message), prev_stage_endpoint_);
       } break;
@@ -148,6 +165,9 @@ protected:
         // implicitly clear grads
         this->optimizer_->update();
         this->optimizer_->clear_gradients();
+        if (scheduler_) {
+          this->scheduler_->step();
+        }
         auto update_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, update_start, update_end, "Parameters Update", this->id_});
@@ -155,9 +175,11 @@ protected:
         communicator_->send_message(std::move(response), coordinator_endpoint_);
       } break;
       case CommandType::TRAIN_MODE:
+        std::cout << "Stage " << id_ << " switching to TRAIN mode." << std::endl;
         this->model_->set_training(true);
         break;
       case CommandType::EVAL_MODE:
+        std::cout << "Stage " << id_ << " switching to EVAL mode." << std::endl;
         this->model_->set_training(false);
         break;
       case CommandType::STATUS_REQUEST: {
@@ -206,7 +228,7 @@ protected:
         break;
       }
       case CommandType::LOAD_PARAMS: {
-        // // decode and deserialize parameters
+        // decode and deserialize parameters
         throw std::runtime_error("Not implemented yet");
         break;
       }
@@ -231,6 +253,24 @@ protected:
       }
       case CommandType::HANDSHAKE_ACK: {
         // do nothing;
+        break;
+      }
+      case CommandType::SAVE_TO_FILE: {
+        try {
+          const std::string &filepath = message.get<std::string>();
+          std::ofstream file(filepath, std::ios::binary);
+          if (!file.is_open()) {
+            throw std::runtime_error("Failed to open file: " + filepath);
+          }
+          this->model_->save_state(file);
+          file.close();
+          std::cout << "Model saved to " << filepath << std::endl;
+        } catch (const std::exception &e) {
+          std::cerr << "Failed to save model: " << e.what() << std::endl;
+          std::string error_text = std::string("Failed to save model: ") + e.what();
+          Message error_msg(CommandType::ERROR_REPORT, error_text);
+          communicator_->send_message(std::move(error_msg), coordinator_endpoint_);
+        }
         break;
       }
       case CommandType::SHUTDOWN:
@@ -261,7 +301,8 @@ protected:
   bool use_gpu_;
   std::unique_ptr<Sequential> model_;
   std::unique_ptr<Optimizer> optimizer_;
-  std::shared_ptr<Communicator> communicator_;
+  std::unique_ptr<Scheduler> scheduler_;
+  std::unique_ptr<Communicator> communicator_;
 
   std::string id_;
   Endpoint coordinator_endpoint_;

@@ -2,9 +2,9 @@
 
 #include <unordered_map>
 
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
+#include "device/iallocator.hpp"
 
 namespace tnn {
 
@@ -35,6 +35,8 @@ private:
 
 inline DeviceAllocator& HostAllocator() { return DeviceAllocator::instance(getCPU()); }
 
-inline DeviceAllocator& GPUAllocator() { return DeviceAllocator::instance(getGPU()); }
+inline DeviceAllocator& GPUAllocator(int device_id = 0) {
+  return DeviceAllocator::instance(getGPU(device_id));
+}
 
 }  // namespace tnn

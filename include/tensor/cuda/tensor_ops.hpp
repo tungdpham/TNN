@@ -1,53 +1,51 @@
-/*
- * Copyright (c) 2025 Tung D. Pham
- *
- * This software is licensed under the MIT License. See the LICENSE file in the
- * project root for the full license text.
- */
 #pragma once
 
 #ifdef USE_CUDA
-#include <cstddef>
+#include <cuda_runtime.h>
 
-#include "tensor/tensor.hpp"
+#include <cstddef>
 
 namespace tnn {
 namespace cuda {
+
+// Im2col/Col2im operations
 template <typename T>
-void im2col(const Tensor &input_tensor, T *col_data, size_t kernel_h, size_t kernel_w,
-            size_t stride_h = 1, size_t stride_w = 1, size_t pad_h = 0, size_t pad_w = 0,
-            cudaStream_t stream = 0);
+void cuda_im2col(const T *input, T *col_data, size_t batch_size, size_t channels, size_t height,
+                 size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
+                 size_t pad_h, size_t pad_w, size_t output_h, size_t output_w, cudaStream_t stream);
 
 template <typename T>
-void col2im(const T *col_data, T *result_data, size_t batch_size, size_t channels, size_t height,
-            size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
-            size_t pad_h, size_t pad_w, cudaStream_t stream = 0);
+void cuda_col2im(const T *col_data, T *output, size_t batch_size, size_t channels, size_t height,
+                 size_t width, size_t kernel_h, size_t kernel_w, size_t stride_h, size_t stride_w,
+                 size_t pad_h, size_t pad_w, size_t output_h, size_t output_w, cudaStream_t stream);
+
+// Padding/Unpadding operations
+template <typename T>
+void cuda_pad(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+              size_t width, size_t pad_h, size_t pad_w, T value, cudaStream_t stream);
 
 template <typename T>
-void pad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w, T value = T(0),
-         cudaStream_t stream = 0);
+void cuda_unpad(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+                size_t width, size_t pad_h, size_t pad_w, cudaStream_t stream);
+
+// Crop operation
+template <typename T>
+void cuda_crop(const T *input, T *output, size_t batch_size, size_t channels, size_t height,
+               size_t width, size_t start_h, size_t start_w, size_t new_height, size_t new_width,
+               cudaStream_t stream);
 
 template <typename T>
-void unpad(const Tensor &input, Tensor &result, size_t pad_h, size_t pad_w,
-           cudaStream_t stream = 0);
+void cuda_transpose_2d(const T *input, T *output, size_t rows, size_t cols, cudaStream_t stream);
 
 template <typename T>
-void crop(const Tensor &input, Tensor &result, const size_t start_h, const size_t start_w,
-          const size_t end_h, const size_t end_w, cudaStream_t stream = 0);
+void cuda_nchw_to_cnhw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+                       cudaStream_t stream);
 
 template <typename T>
-void slice_batch(const Tensor &input, Tensor &result, size_t start_batch, size_t end_batch,
-                 cudaStream_t stream = 0);
-
-template <typename T>
-void split(const Tensor &input, std::vector<Tensor> &results, size_t num_splits,
-           cudaStream_t stream = 0);
-
-template <typename T>
-void apply_softmax(Tensor &input, cudaStream_t stream = 0);
+void cuda_cnhw_to_nchw(const T *input, T *output, size_t n, size_t c, size_t h, size_t w,
+                       cudaStream_t stream);
 
 }  // namespace cuda
-
 }  // namespace tnn
 
 #endif

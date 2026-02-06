@@ -20,7 +20,7 @@ using namespace tnn;
 
 #ifdef USE_CUDA
 // Test fixture for CUDA conv2d_nchw operations
-class CUDAConv2dOpsTest : public ::testing::Test {
+class CUDAConv2NCHWOpsTest : public ::testing::Test {
 protected:
   static void SetUpTestSuite() {
     // Initialize devices once for all tests in this suite
@@ -68,7 +68,7 @@ protected:
 
 // ==================== compute_weight_gradients Tests ====================
 
-TEST_F(CUDAConv2dOpsTest, WeightGradientsBasic) {
+TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
   const size_t output_size = 4;
   const size_t kernel_size = 9;
   const size_t out_channels = 2;
@@ -116,7 +116,7 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsBasic) {
   compareArrays(cpu_weight_grad, gpu_weight_grad_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, WeightGradientsMultiOutput) {
+TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
   const size_t output_size = 9;
   const size_t kernel_size = 16;  // 4x4 kernel
   const size_t out_channels = 8;
@@ -163,7 +163,7 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsMultiOutput) {
   compareArrays(cpu_weight_grad, gpu_weight_grad_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, WeightGradientsLargeKernel) {
+TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
   const size_t output_size = 25;
   const size_t kernel_size = 25;  // 5x5 kernel
   const size_t out_channels = 16;
@@ -212,7 +212,7 @@ TEST_F(CUDAConv2dOpsTest, WeightGradientsLargeKernel) {
 
 // ==================== compute_input_gradients Tests ====================
 
-TEST_F(CUDAConv2dOpsTest, InputGradientsBasic) {
+TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
   const size_t output_size = 4;
   const size_t kernel_size = 9;
   const size_t out_channels = 2;
@@ -260,7 +260,7 @@ TEST_F(CUDAConv2dOpsTest, InputGradientsBasic) {
   compareArrays(cpu_col_grad, gpu_col_grad_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, InputGradientsLargeKernel) {
+TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
   const size_t output_size = 16;
   const size_t kernel_size = 25;
   const size_t out_channels = 4;
@@ -310,7 +310,7 @@ TEST_F(CUDAConv2dOpsTest, InputGradientsLargeKernel) {
 
 // ==================== compute_bias_gradients Tests ====================
 
-TEST_F(CUDAConv2dOpsTest, BiasGradientsBasic) {
+TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
   const size_t batch_size = 2;
   const size_t output_h = 3;
   const size_t output_w = 3;
@@ -350,7 +350,7 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsBasic) {
   compareArrays(cpu_bias_grad, gpu_bias_grad_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, BiasGradientsMultiBatch) {
+TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
   const size_t batch_size = 4;
   const size_t output_h = 5;
   const size_t output_w = 5;
@@ -390,7 +390,7 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsMultiBatch) {
   compareArrays(cpu_bias_grad, gpu_bias_grad_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, BiasGradientsLargeChannels) {
+TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
   const size_t batch_size = 8;
   const size_t output_h = 8;
   const size_t output_w = 8;
@@ -432,7 +432,7 @@ TEST_F(CUDAConv2dOpsTest, BiasGradientsLargeChannels) {
 
 // ==================== add_bias_to_output Tests ====================
 
-TEST_F(CUDAConv2dOpsTest, AddBiasBasic) {
+TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
   const size_t batch_size = 1;
   const size_t output_h = 3;
   const size_t output_w = 3;
@@ -473,7 +473,7 @@ TEST_F(CUDAConv2dOpsTest, AddBiasBasic) {
   compareArrays(cpu_output, gpu_output_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, AddBiasMultiBatch) {
+TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
   const size_t batch_size = 4;
   const size_t output_h = 4;
   const size_t output_w = 4;
@@ -514,7 +514,7 @@ TEST_F(CUDAConv2dOpsTest, AddBiasMultiBatch) {
   compareArrays(cpu_output, gpu_output_cpu);
 }
 
-TEST_F(CUDAConv2dOpsTest, AddBiasLargeOutput) {
+TEST_F(CUDAConv2NCHWOpsTest, AddBiasLargeOutput) {
   const size_t batch_size = 8;
   const size_t output_h = 16;
   const size_t output_w = 16;

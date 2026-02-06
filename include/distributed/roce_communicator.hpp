@@ -24,8 +24,8 @@
 #include <vector>
 
 #include "communicator.hpp"
-#include "device/allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/iallocator.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/packet.hpp"
@@ -680,7 +680,7 @@ private:
                 size_t offset = 0;
                 try {
                   serializer_.deserialize(*dest_buf, offset, msg);
-                  enqueue_input_message(std::move(msg));
+                  this->enqueue_input_message(std::move(msg));
                 } catch (const std::exception &e) {
                   std::cerr << "Deserialization error: " << e.what() << "\n";
                 }
