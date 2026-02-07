@@ -24,9 +24,7 @@
 #include <vector>
 
 #include "communicator.hpp"
-#include "device/device_manager.hpp"
 #include "device/iallocator.hpp"
-#include "device/pool_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/packet.hpp"
 #include "distributed/roce_buffer.hpp"
@@ -90,19 +88,20 @@ private:
   std::queue<RoCEBuffer *> free_send_buffers_;
   std::mutex send_buffers_mutex_;
   std::condition_variable send_buffers_cv_;
-  BinarySerializer serializer_;
 
   std::unique_ptr<RoCEBufferPool> buffer_pool_;
 
+  IAllocator &out_allocator_;
+  BinarySerializer serializer_;
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
-  bool use_gpu_;
   std::thread io_thread_;
 
 public:
-  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &allocator)
+  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &out_allocator)
       : Communicator(endpoint),
-        serializer_(allocator),
+        out_allocator_(out_allocator),
+        serializer_(out_allocator),
         acceptor_(io_context_) {
     try {
       device_name_ = endpoint.get_parameter<std::string>("device_name");
@@ -247,9 +246,7 @@ public:
     }
   }
 
-  IAllocator &out_allocator() override {
-    return PoolAllocator::instance(use_gpu_ ? getGPU() : getCPU());
-  }
+  IAllocator &out_allocator() override { return out_allocator_; }
 
 protected:
   bool connect_to_endpoint(const Endpoint &endpoint) override {

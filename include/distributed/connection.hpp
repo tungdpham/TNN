@@ -11,7 +11,6 @@
 
 namespace tnn {
 
-// Simple thread-unsafe queue for write operations
 class WriteQueue {
 public:
   bool try_pop(Packet &packet) {
