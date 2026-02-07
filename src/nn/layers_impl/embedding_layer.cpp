@@ -21,7 +21,9 @@ namespace tnn {
 
 EmbeddingLayer::EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name,
                                size_t padding_idx)
-    : ParameterizedLayer(name), vocab_size_(vocab_size), embed_dim_(embed_dim) {
+    : ParameterizedLayer(name),
+      vocab_size_(vocab_size),
+      embed_dim_(embed_dim) {
   if (padding_idx == static_cast<size_t>(-1)) {
     padding_idx_ = vocab_size_;
   } else {
@@ -44,13 +46,8 @@ void EmbeddingLayer::init_params() {
 
 void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   if (this->is_training_) {
-    auto &cached_input = micro_batch_inputs_[mb_id];
-    if (!cached_input) {
-      cached_input = make_tensor(input->data_type(), input->shape(), this->device_);
-    } else {
-      cached_input->ensure(input->shape());
-    }
-    input->copy_to(cached_input);
+    auto &cached_input = this->get_cached_tensor(mb_id, "input");
+    cached_input = input;
   }
 
   size_t num_tokens = input->size();
@@ -66,13 +63,10 @@ void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
 void EmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                                    size_t mb_id) {
-  auto it = micro_batch_inputs_.find(mb_id);
-  if (it == micro_batch_inputs_.end()) {
-    throw std::runtime_error("EmbeddingLayer::backward: No cached input for mb_id " +
-                             std::to_string(mb_id));
+  const ConstTensor &input = this->get_cached_tensor(mb_id, "input");
+  if (!input) {
+    throw std::runtime_error("Embedding backward called without forward for this micro-batch");
   }
-
-  const ConstTensor &input = it->second;
 
   grad_input->ensure(input->shape());
   grad_input->fill(0);
@@ -185,16 +179,6 @@ LayerConfig EmbeddingLayer::get_config() const {
 
 std::unique_ptr<Layer> EmbeddingLayer::clone() const {
   return std::make_unique<EmbeddingLayer>(vocab_size_, embed_dim_, this->name_, padding_idx_);
-}
-
-size_t EmbeddingLayer::cached_memory_bytes() const {
-  size_t total_bytes = 0;
-  for (const auto &pair : micro_batch_inputs_) {
-    size_t elem_size = get_dtype_size(pair.second->data_type());
-    total_bytes += pair.second->size() * elem_size;
-  }
-  total_bytes += Layer::cached_memory_bytes();
-  return total_bytes;
 }
 
 std::unique_ptr<EmbeddingLayer> EmbeddingLayer::create_from_config(const LayerConfig &config) {

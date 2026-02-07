@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <string>
-#include <unordered_map>
 #include <vector>
 
 #include "nn/layers_impl/parameterized_layer.hpp"
@@ -23,7 +22,6 @@ private:
   size_t padding_idx_;
   Tensor weight_;
   Tensor grad_weight_;
-  std::unordered_map<size_t, Tensor> micro_batch_inputs_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_forward_impl(const ConstTensor &input, const ConstTensor &weight,
@@ -58,9 +56,6 @@ public:
   LayerConfig get_config() const override;
   std::unique_ptr<Layer> clone() const override;
 
-  size_t cached_memory_bytes() const override;
-
-public:
   static std::unique_ptr<EmbeddingLayer> create_from_config(const LayerConfig &config);
 };
 
