@@ -19,7 +19,10 @@
 #endif
 
 namespace tnn {
-CPUContext::CPUContext() : Context() { createFlow("default"); }
+CPUContext::CPUContext()
+    : Context() {
+  createFlow("default");
+}
 
 size_t CPUContext::getTotalMemory() const {
 #ifdef __linux__
@@ -164,7 +167,7 @@ void CPUContext::deallocateAlignedMemory(void *ptr) {
 
 void CPUContext::createFlow(const std::string &flow_id) {
   if (flows_.find(flow_id) == flows_.end()) {
-    flows_[flow_id] = std::make_unique<CPUFlow>(flow_id);
+    flows_[flow_id] = std::make_unique<CPUFlow>();
   }
 }
 
@@ -172,7 +175,7 @@ Flow *CPUContext::getFlow(const std::string &flow_id) {
   if (flows_.find(flow_id) == flows_.end()) {
     std::cerr << "WARN: Creating new CPUFlow with ID: " << flow_id
               << ". Are we using the right flow?" << std::endl;
-    flows_[flow_id] = std::make_unique<CPUFlow>(flow_id);
+    flows_[flow_id] = std::make_unique<CPUFlow>();
   }
   return flows_[flow_id].get();
 }

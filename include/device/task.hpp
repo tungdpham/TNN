@@ -116,7 +116,7 @@ public:
 #endif
 
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&...args) {
+std::unique_ptr<Task> create_cpu_task(const std::string &flow_id, Func &&func, Args &&...args) {
   auto &CPUDevice = getCPU();
   CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice.getFlow(flow_id));
   if (!flow) {
@@ -128,7 +128,7 @@ std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&.
 #ifdef USE_CUDA
 // bundle the function and inject a stream based on the flow_id
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_cuda_task(std::string flow_id, Func &&func, Args &&...args) {
+std::unique_ptr<Task> create_cuda_task(const std::string &flow_id, Func &&func, Args &&...args) {
   auto &GPUDevice = getGPU();
   CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice.getFlow(flow_id));
   if (!flow) {

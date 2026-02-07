@@ -12,7 +12,8 @@
 
 namespace tnn {
 
-CUDAContext::CUDAContext(int id) : Context() {
+CUDAContext::CUDAContext(int id)
+    : Context() {
   // Set the device for this context
   cudaError_t err = cudaSetDevice(id);
   if (err != cudaSuccess) {
@@ -95,7 +96,7 @@ void CUDAContext::deallocateAlignedMemory(void *ptr) { deallocateMemory(ptr); }
 
 void CUDAContext::createFlow(const std::string &flow_id) {
   if (flows_.find(flow_id) == flows_.end()) {
-    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
+    flows_[flow_id] = std::make_unique<CUDAFlow>();
   }
 }
 
@@ -104,7 +105,7 @@ Flow *CUDAContext::getFlow(const std::string &flow_id) {
   if (it == flows_.end()) {
     std::cerr << "WARN: Creating new CUDAFlow with ID: " << flow_id
               << ". Are we using the right flow?" << std::endl;
-    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
+    flows_[flow_id] = std::make_unique<CUDAFlow>();
     return flows_[flow_id].get();
   } else {
     return it->second.get();

@@ -9,15 +9,7 @@
 
 namespace tnn {
 class Flow {
-private:
-  std::string id_;
-
 public:
-  Flow(std::string id) : id_(std::move(id)){};
-  ~Flow(){};
-
-  std::string get_id() const { return id_; }
-
   virtual void synchronize() = 0;
 };
 
@@ -25,9 +17,6 @@ public:
 // in the future
 class CPUFlow : public Flow {
 public:
-  explicit CPUFlow(std::string id = "flow_0") : Flow(std::move(id)) {}
-  ~CPUFlow() = default;
-
   void synchronize() override {
     // No-op for CPU
   }
@@ -41,9 +30,8 @@ private:
   cudaStream_t stream_;
 
 public:
-  explicit CUDAFlow(std::string id = "flow_1") : Flow(std::move(id)) {
+  explicit CUDAFlow() {
     cudaError_t err = cudaStreamCreate(&stream_);
-    // cudaError_t err = cudaStreamCreateWithFlags(&stream_, cudaStreamNonBlocking);
     if (err != cudaSuccess) {
       throw std::runtime_error("Failed to create CUDA stream: " +
                                std::string(cudaGetErrorString(err)));
