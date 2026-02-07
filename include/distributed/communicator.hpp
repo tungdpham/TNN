@@ -11,6 +11,7 @@
 #include <mutex>
 #include <queue>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -50,7 +51,9 @@ public:
   void send_message(Message &&message, const Endpoint &endpoint) {
     if (endpoint.type() == CommunicationType::IN_PROCESS) {
       auto other_communicator = endpoint.get_parameter<Communicator *>("communicator");
-      other_communicator->enqueue_input_message(std::move(message));
+      std::thread([other_communicator, msg = std::move(message)]() mutable {
+        other_communicator->enqueue_input_message(std::move(msg));
+      }).detach();
     } else {
       this->send_impl(std::move(message), endpoint);
     }
