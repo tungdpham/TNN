@@ -17,7 +17,8 @@ namespace tnn {
 // Ensures user don't do some bad memory management.
 class PoolAllocator : public IAllocator {
 public:
-  PoolAllocator(const Device &device) : device_(device) {}
+  PoolAllocator(const Device &device)
+      : device_(device) {}
   ~PoolAllocator() = default;
 
   PoolAllocator(const PoolAllocator &) = delete;
@@ -43,6 +44,9 @@ public:
 
   void clear() {
     std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &pair : free_blocks_) {
+      delete pair.second;
+    }
     free_blocks_.clear();
   }
 
