@@ -29,7 +29,9 @@ private:
   size_t head_dim_;
   bool is_causal_;
 
-  std::unique_ptr<DenseLayer> qkv_proj_;
+  std::unique_ptr<DenseLayer> q_proj_;
+  std::unique_ptr<DenseLayer> k_proj_;
+  std::unique_ptr<DenseLayer> v_proj_;
   std::unique_ptr<DenseLayer> out_proj_;
 
 #ifdef USE_CUDNN

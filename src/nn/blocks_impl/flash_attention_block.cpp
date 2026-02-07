@@ -22,6 +22,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "ops/ops.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -38,7 +39,9 @@ FlashAttentionBlock::FlashAttentionBlock(size_t embed_dim, size_t num_heads, boo
   }
   head_dim_ = embed_dim / num_heads;
 
-  qkv_proj_ = std::make_unique<DenseLayer>(embed_dim, 3 * embed_dim, true, name + "_qkv");
+  q_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_q");
+  k_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_k");
+  v_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_v");
   out_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_out");
 }
 
@@ -54,22 +57,30 @@ FlashAttentionBlock::~FlashAttentionBlock() {
 }
 
 void FlashAttentionBlock::init_params() {
-  qkv_proj_->init();
+  q_proj_->init();
+  k_proj_->init();
+  v_proj_->init();
   out_proj_->init();
 }
 
 void FlashAttentionBlock::on_set_io_dtype(DType_t dtype) {
-  qkv_proj_->set_io_dtype(dtype);
+  q_proj_->set_io_dtype(dtype);
+  k_proj_->set_io_dtype(dtype);
+  v_proj_->set_io_dtype(dtype);
   out_proj_->set_io_dtype(dtype);
 }
 
 void FlashAttentionBlock::on_set_param_dtype(DType_t dtype) {
-  qkv_proj_->set_param_dtype(dtype);
+  q_proj_->set_param_dtype(dtype);
+  k_proj_->set_param_dtype(dtype);
+  v_proj_->set_param_dtype(dtype);
   out_proj_->set_param_dtype(dtype);
 }
 
 void FlashAttentionBlock::on_set_device(const Device &device) {
-  qkv_proj_->set_device(device);
+  q_proj_->set_device(device);
+  k_proj_->set_device(device);
+  v_proj_->set_device(device);
   out_proj_->set_device(device);
 }
 
@@ -165,12 +176,13 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
     cached_input = input;
   }
 
-  Tensor qkv = this->get_buffer({batch_size, seq_len, 3 * embed_dim_}, io_dtype_);
-  qkv_proj_->forward(input, qkv, mb_id);
+  Tensor q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
 
-  Tensor q = qkv->span({0, 0, 0}, {batch_size, seq_len, embed_dim_});
-  Tensor k = qkv->span({0, 0, embed_dim_}, {batch_size, seq_len, embed_dim_});
-  Tensor v = qkv->span({0, 0, 2 * embed_dim_}, {batch_size, seq_len, embed_dim_});
+  q_proj_->forward(input, q, mb_id);
+  k_proj_->forward(input, k, mb_id);
+  v_proj_->forward(input, v, mb_id);
 
   // since cudnn SDPA only support FP16/FP16 IO, we need to convert here
   Tensor q_heads = this->get_buffer({batch_size, num_heads_, seq_len, head_dim_}, DType_t::FP16);
@@ -235,14 +247,14 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, const Tens
   Tensor grad_attn_out = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
   out_proj_->backward(gradient, grad_attn_out, mb_id);
 
-  // Recompute QKV from cached input (trading compute for memory)
-  Tensor qkv = this->get_buffer({batch_size, seq_len, 3 * embed_dim_}, io_dtype_);
-  qkv_proj_->forward(input, qkv, mb_id);
+  // Recompute Q, K, V from cached input (trading compute for memory)
+  Tensor q = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor k = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor v = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
 
-  // Split into Q, K, V using contiguous spans
-  Tensor q = qkv->span({0, 0, 0}, {batch_size, seq_len, embed_dim_});
-  Tensor k = qkv->span({0, 0, embed_dim_}, {batch_size, seq_len, embed_dim_});
-  Tensor v = qkv->span({0, 0, 2 * embed_dim_}, {batch_size, seq_len, embed_dim_});
+  q_proj_->forward(input, q, mb_id);
+  k_proj_->forward(input, k, mb_id);
+  v_proj_->forward(input, v, mb_id);
 
   // Convert to head layout and FP16
   Tensor grad_attn_heads =
@@ -301,19 +313,25 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &gradient, const Tens
                      grad_v->data_as<T>(), batch_size, num_heads_, seq_len, head_dim_);
   });
 
-  // Merge gradients using spans and backprop through single QKV projection
-  Tensor grad_qkv = this->get_buffer({batch_size, seq_len, 3 * embed_dim_}, io_dtype_);
+  // Backprop through separate Q, K, V projections
+  Tensor grad_q_in = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor grad_k_in = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
+  Tensor grad_v_in = this->get_buffer({batch_size, seq_len, embed_dim_}, io_dtype_);
 
-  // Get spans for each component and copy gradients
-  Tensor grad_qkv_q = grad_qkv->span({0, 0, 0}, {batch_size, seq_len, embed_dim_});
-  Tensor grad_qkv_k = grad_qkv->span({0, 0, embed_dim_}, {batch_size, seq_len, embed_dim_});
-  Tensor grad_qkv_v = grad_qkv->span({0, 0, 2 * embed_dim_}, {batch_size, seq_len, embed_dim_});
+  q_proj_->backward(grad_q, grad_q_in, mb_id);
+  k_proj_->backward(grad_k, grad_k_in, mb_id);
+  v_proj_->backward(grad_v, grad_v_in, mb_id);
 
-  grad_q->copy_to(grad_qkv_q);
-  grad_k->copy_to(grad_qkv_k);
-  grad_v->copy_to(grad_qkv_v);
+  // Sum the gradients
+  grad_input->ensure(grad_q_in->shape());
+  size_t size = grad_q_in->size();
 
-  qkv_proj_->backward(grad_qkv, grad_input, mb_id);
+  Tensor temp = this->get_buffer(grad_q_in->shape(), io_dtype_);
+
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::add, grad_q_in->data_ptr(), grad_k_in->data_ptr(),
+                              temp->data_ptr(), size, "default");
+  DISPATCH_ON_DTYPE_TO_METHOD(ops::add, temp->data_ptr(), grad_v_in->data_ptr(),
+                              grad_input->data_ptr(), size, "default");
 }
 #endif
 
@@ -356,15 +374,23 @@ std::vector<size_t> FlashAttentionBlock::compute_output_shape(
 }
 
 void FlashAttentionBlock::collect_parameters(std::vector<Tensor> &params) {
-  auto qkv_params = qkv_proj_->parameters();
-  params.insert(params.end(), qkv_params.begin(), qkv_params.end());
+  auto q_params = q_proj_->parameters();
+  params.insert(params.end(), q_params.begin(), q_params.end());
+  auto k_params = k_proj_->parameters();
+  params.insert(params.end(), k_params.begin(), k_params.end());
+  auto v_params = v_proj_->parameters();
+  params.insert(params.end(), v_params.begin(), v_params.end());
   auto out_params = out_proj_->parameters();
   params.insert(params.end(), out_params.begin(), out_params.end());
 }
 
 void FlashAttentionBlock::collect_gradients(std::vector<Tensor> &grads) {
-  auto qkv_grads = qkv_proj_->gradients();
-  grads.insert(grads.end(), qkv_grads.begin(), qkv_grads.end());
+  auto q_grads = q_proj_->gradients();
+  grads.insert(grads.end(), q_grads.begin(), q_grads.end());
+  auto k_grads = k_proj_->gradients();
+  grads.insert(grads.end(), k_grads.begin(), k_grads.end());
+  auto v_grads = v_proj_->gradients();
+  grads.insert(grads.end(), v_grads.begin(), v_grads.end());
   auto out_grads = out_proj_->gradients();
   grads.insert(grads.end(), out_grads.begin(), out_grads.end());
 }
