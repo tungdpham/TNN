@@ -165,17 +165,17 @@ bool Layer::is_profiling_enabled() const { return enable_profiling_; }
 void Layer::print_profiling_info() const {
   const auto &events = profiler_.get_events();
   std::string header = "Profiling info for Layer: " + name_;
-  std::string format_str = "{:=^70}\n";
+  std::string format_str = "{:=^80}\n";
   std::string output = fmt::format(fmt::runtime(format_str), header);
-  output += fmt::format(fmt::runtime("{:<20}{:<25}{:<25}\n"), "Event", "Duration (ms)", "");
-  output += fmt::format(fmt::runtime("{:-^70}\n"), "");
+  output += fmt::format(fmt::runtime("{:<30}{:<30}{:<20}\n"), "Event", "Duration (ms)", "");
+  output += fmt::format(fmt::runtime("{:-^80}\n"), "");
   for (const auto &event : events) {
     float duration_ms =
         Time::duration_cast<Time::microseconds>(event.end_time - event.start_time).count() /
         1000.0f;
-    output += fmt::format(fmt::runtime("{:<20}{:<25.3f}\n"), event.name, duration_ms);
+    output += fmt::format(fmt::runtime("{:<30}{:<30.3f}\n"), event.name, duration_ms);
   }
-  output += fmt::format(fmt::runtime("{:=^70}"), "");
+  output += fmt::format(fmt::runtime("{:=^80}"), "");
   GlobalLogger::info(output);
 }
 

@@ -334,15 +334,66 @@ Sequential create_tiny_imagenet_vit(DType_t io_dtype_ = DType_t::FP32) {
                            {}, "linear", "encoder_" + std::to_string(i) + "_mlp");
   }
 
-  builder
-      .layernorm(dtype_eps(io_dtype_), true, "ln_final")
-      // .slice(1, 0, 1, "extract_cls")
-      .flatten(1, -1, "flatten_seq")
+  builder.layernorm(dtype_eps(io_dtype_), true, "ln_final")
+      .slice(1, 0, 1, "extract_cls")
+      .flatten(1, -1, "flatten_cls")
       .dense(num_classes, true, "head");
 
   auto layers = builder.build();
 
   return Sequential("tiny_imagenet_vit", std::move(layers));
+}
+
+Sequential create_tiny_imagenet_flash_vit(DType_t io_dtype_ = DType_t::FP32) {
+  constexpr size_t patch_size = 4;
+  constexpr size_t embed_dim = 256;
+  constexpr size_t num_heads = 4;
+  constexpr size_t mlp_ratio = 4;
+  constexpr size_t depth = 4;
+  constexpr size_t num_classes = 200;
+  constexpr size_t num_patches = (64 / patch_size) * (64 / patch_size);
+  constexpr size_t seq_len = num_patches + 1;
+
+  LayerBuilder builder;
+  builder.input({64, 64, 3})
+      .dtype(io_dtype_)
+      .conv2d(embed_dim, patch_size, patch_size, patch_size, patch_size, 0, 0, true, "patch_embed")
+      .flatten(1, 2, "flatten_patches")  // Flatten dims 1-2 (H, W), keep dim 3 (C)
+      .class_token(embed_dim)
+      .positional_embedding(embed_dim, seq_len)
+      .dropout(0.1f);
+
+  for (size_t i = 0; i < depth; ++i) {
+    builder.residual_block(LayerBuilder()
+                               .input({seq_len, embed_dim})
+                               .dtype(io_dtype_)
+                               .layernorm(dtype_eps(io_dtype_), true, "ln_attn")
+                               .flash_attention(embed_dim, num_heads, false, "attn")
+                               .dropout(0.1f)
+                               .build(),
+                           {}, "linear", "encoder_" + std::to_string(i) + "_attn");
+
+    builder.residual_block(LayerBuilder()
+                               .input({seq_len, embed_dim})
+                               .dtype(io_dtype_)
+                               .layernorm(dtype_eps(io_dtype_), true, "ln_mlp")
+                               .dense(embed_dim * mlp_ratio, false, "fc1")
+                               .activation("gelu")
+                               .dropout(0.1f)
+                               .dense(embed_dim, false, "fc2")
+                               .dropout(0.1f)
+                               .build(),
+                           {}, "linear", "encoder_" + std::to_string(i) + "_mlp");
+  }
+
+  builder.layernorm(dtype_eps(io_dtype_), true, "ln_final")
+      .slice(1, 0, 1, "extract_cls")
+      .flatten(1, -1, "flatten_cls")
+      .dense(num_classes, true, "head");
+
+  auto layers = builder.build();
+
+  return Sequential("tiny_imagenet_flash_vit", std::move(layers));
 }
 
 Sequential create_gpt2_small(DType_t io_dtype_ = DType_t::FP32) {
@@ -512,6 +563,7 @@ void ExampleModels::register_defaults() {
   register_model(create_tiny_imagenet_wrn16_8);
   register_model(create_tiny_imagenet_resnet50);
   register_model(create_tiny_imagenet_vit);
+  register_model(create_tiny_imagenet_flash_vit);
 
   // ImageNet
   register_model(create_resnet50_imagenet);
