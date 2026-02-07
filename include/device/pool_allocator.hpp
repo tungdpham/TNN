@@ -82,8 +82,10 @@ private:
 
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
-      free_blocks_.erase(it);
-      return block;
+      if (block->capacity() <= size * 2) {
+        free_blocks_.erase(it);
+        return block;
+      }
     }
 #ifndef NDEBUG
     if (size > 0)
