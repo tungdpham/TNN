@@ -47,7 +47,7 @@ protected:
    */
   void verify_output_values(const ConstTensor &output, float expected_min, float expected_max,
                             const std::string &test_name = "") {
-    Tensor output_cpu = output->to_cpu();
+    Tensor output_cpu = output->to_host();
     const float *output_data = output_cpu->data_as<float>();
     for (size_t i = 0; i < output->size(); ++i) {
       EXPECT_GE(output_data[i], expected_min)
@@ -74,7 +74,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockIdentityShortcut) {
 
   verify_output_shape(output->shape(), {1, 32, 32, 64}, "BasicResidualBlockIdentityShortcut");
 
-  Tensor output_cpu = output->to_cpu();
+  Tensor output_cpu = output->to_host();
   const float *output_data = output_cpu->data_as<float>();
   bool has_nonzero = false;
   for (size_t i = 0; i < output->size(); ++i) {
@@ -102,7 +102,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockProjectionShortcut) {
 
   verify_output_shape(output->shape(), {1, 32, 32, 128}, "BasicResidualBlockProjectionShortcut");
 
-  Tensor output_cpu = output->to_cpu();
+  Tensor output_cpu = output->to_host();
   const float *output_data = output_cpu->data_as<float>();
   bool has_nonzero = false;
   for (size_t i = 0; i < output->size(); ++i) {
@@ -175,7 +175,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockBackward) {
 
   verify_output_shape(grad_input->shape(), input->shape(), "BasicResidualBlockBackward");
 
-  Tensor grad_input_cpu = grad_input->to_cpu();
+  Tensor grad_input_cpu = grad_input->to_host();
   const float *grad_data = grad_input_cpu->data_as<float>();
   bool has_nonzero = false;
   for (size_t i = 0; i < grad_input->size(); ++i) {
@@ -225,7 +225,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockIdentityShortcut) {
 
   verify_output_shape(output->shape(), {1, 32, 32, 256}, "BottleneckResidualBlockIdentityShortcut");
 
-  Tensor output_cpu = output->to_cpu();
+  Tensor output_cpu = output->to_host();
   const float *output_data = output_cpu->data_as<float>();
   bool has_nonzero = false;
   for (size_t i = 0; i < output->size(); ++i) {
@@ -312,7 +312,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockBackward) {
 
   verify_output_shape(grad_input->shape(), input->shape(), "BottleneckResidualBlockBackward");
 
-  Tensor grad_input_cpu = grad_input->to_cpu();
+  Tensor grad_input_cpu = grad_input->to_host();
   const float *grad_data = grad_input_cpu->data_as<float>();
   bool has_nonzero = false;
   for (size_t i = 0; i < grad_input->size(); ++i) {
@@ -499,12 +499,12 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockNumericalStability) {
     for (size_t i = 0; i < input->size(); ++i) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
-    input = input->to_gpu();
+    input = input->to_device(getGPU());
 
     Tensor output = make_tensor<float>({}, getGPU());
     model.forward(input, output);
 
-    Tensor output_cpu = output->to_cpu();
+    Tensor output_cpu = output->to_host();
     const float *output_data = output_cpu->data_as<float>();
     for (size_t i = 0; i < output->size(); ++i) {
       EXPECT_TRUE(std::isfinite(output_data[i]))
@@ -535,12 +535,12 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockNumericalStability) {
     for (size_t i = 0; i < input->size(); ++i) {
       input_data[i] = scale * (static_cast<float>(rand()) / RAND_MAX - 0.5f);
     }
-    input = input->to_gpu();
+    input = input->to_device(getGPU());
 
     Tensor output = make_tensor<float>({}, getGPU());
     model.forward(input, output);
 
-    Tensor output_cpu = output->to_cpu();
+    Tensor output_cpu = output->to_host();
     const float *output_data = output_cpu->data_as<float>();
     for (size_t i = 0; i < output->size(); ++i) {
       EXPECT_TRUE(std::isfinite(output_data[i]))
@@ -567,7 +567,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
-  input = input->to_gpu();
+  input = input->to_device(getGPU());
 
   Tensor output = make_tensor<float>({}, getGPU());
   model.forward(input, output);
@@ -577,7 +577,7 @@ TEST_F(SequentialResidualBlockTest, BasicResidualBlockGradientFiniteness) {
   Tensor grad_input = make_tensor<float>(input->shape(), getGPU());
   model.backward(grad_output, grad_input);
 
-  Tensor grad_input_cpu = grad_input->to_cpu();
+  Tensor grad_input_cpu = grad_input->to_host();
   const float *grad_data = grad_input_cpu->data_as<float>();
   for (size_t i = 0; i < grad_input->size(); ++i) {
     EXPECT_TRUE(std::isfinite(grad_data[i])) << "Gradient contains non-finite value at index " << i;
@@ -605,7 +605,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
   for (size_t i = 0; i < input->size(); ++i) {
     input_data[i] = static_cast<float>(rand()) / RAND_MAX;
   }
-  input = input->to_gpu();
+  input = input->to_device(getGPU());
 
   Tensor output = make_tensor<float>({}, getGPU());
   model.forward(input, output);
@@ -615,7 +615,7 @@ TEST_F(SequentialResidualBlockTest, BottleneckResidualBlockGradientFiniteness) {
   Tensor grad_input = make_tensor<float>(input->shape(), getGPU());
   model.backward(grad_output, grad_input);
 
-  Tensor grad_input_cpu = grad_input->to_cpu();
+  Tensor grad_input_cpu = grad_input->to_host();
   const float *grad_data = grad_input_cpu->data_as<float>();
   for (size_t i = 0; i < grad_input->size(); ++i) {
     EXPECT_TRUE(std::isfinite(grad_data[i])) << "Gradient contains non-finite value at index " << i;
@@ -655,7 +655,7 @@ TEST_F(SequentialResidualBlockTest, ResidualBlockGradientMagnitudes) {
   Tensor grad_input = make_tensor<float>(input->shape(), getGPU());
   model.backward(grad_output, grad_input);
 
-  Tensor grad_input_cpu = grad_input->to_cpu();
+  Tensor grad_input_cpu = grad_input->to_host();
   const float *grad_data = grad_input_cpu->data_as<float>();
   float grad_max = -std::numeric_limits<float>::max();
   size_t nonzero_count = 0;

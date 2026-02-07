@@ -51,8 +51,8 @@ signed main() {
     printf("Flash Attention Forward Pass Time: %.3f ms\n", flash_duration.count());
   }
 
-  auto cpu_full_attn_output = full_attn_output->to_cpu();
-  auto cpu_flash_attn_output = flash_attn_output->to_cpu();
+  auto cpu_full_attn_output = full_attn_output->to_host();
+  auto cpu_flash_attn_output = flash_attn_output->to_host();
   float *full_attn_data = static_cast<float *>(cpu_full_attn_output->data());
   float *flash_attn_data = static_cast<float *>(cpu_flash_attn_output->data());
 

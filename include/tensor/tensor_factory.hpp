@@ -1,5 +1,6 @@
 #pragma once
 
+#include "device/device_allocator.hpp"
 #include "device/iallocator.hpp"
 #include "tensor/tensor.hpp"
 #include "tensor/typed_tensor.hpp"

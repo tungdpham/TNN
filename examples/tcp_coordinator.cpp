@@ -119,7 +119,7 @@ int main() {
   auto worker = std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
   unique_ptr<Partitioner> partitioner =
-      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+      make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1, 2}));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(model),  std::move(optimizer), std::move(scheduler),

@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
     model->forward(model_input, output);
 
     // Transfer output to CPU for sampling
-    Tensor cpu_output = output->to_cpu();
+    Tensor cpu_output = output->to_host();
 
     size_t vocab_size = tokenizer.vocab_size();
     size_t last_step_idx = tokens_to_use - 1;

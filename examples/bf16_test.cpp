@@ -51,8 +51,8 @@ void test_dense() {
   fp32_dense.forward(input_fp32, output_fp32, 0);
   bf16_dense.forward(input_bf16, output_bf16, 0);
 
-  Tensor cpu_output_fp32 = output_fp32->to_cpu();
-  Tensor cpu_output_bf16 = output_bf16->to_cpu();
+  Tensor cpu_output_fp32 = output_fp32->to_host();
+  Tensor cpu_output_bf16 = output_bf16->to_host();
 
   float *output_data_fp32 = cpu_output_fp32->data_as<float>();
   bf16 *output_data_bf16 = cpu_output_bf16->data_as<bf16>();
@@ -99,8 +99,8 @@ void test_dense() {
   bf16_dense.backward(gpu_gradient_bf16, grad_input_bf16, 0);
   fp32_dense.backward(gpu_gradient_fp32, grad_input_fp32, 0);
 
-  Tensor cpu_grad_input_fp32 = grad_input_fp32->to_cpu();
-  Tensor cpu_grad_input_bf16 = grad_input_bf16->to_cpu();
+  Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
+  Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();
   float *grad_input_data_fp32 = cpu_grad_input_fp32->data_as<float>();
   bf16 *grad_input_data_bf16 = cpu_grad_input_bf16->data_as<bf16>();
   max_diff = 0.0;
@@ -138,8 +138,8 @@ void test_attention() {
   auto bf16_params = bf16_attention.parameters();
   auto fp32_params = fp32_attention.parameters();
   for (size_t i = 0; i < bf16_params.size(); ++i) {
-    Tensor cpu_bf16_param = bf16_params[i]->to_cpu();
-    Tensor cpu_fp32_param = fp32_params[i]->to_cpu();
+    Tensor cpu_bf16_param = bf16_params[i]->to_host();
+    Tensor cpu_fp32_param = fp32_params[i]->to_host();
     bf16 *bf16_data = cpu_bf16_param->data_as<bf16>();
     float *fp32_data = cpu_fp32_param->data_as<float>();
     for (size_t j = 0; j < cpu_bf16_param->size(); ++j) {
@@ -168,8 +168,8 @@ void test_attention() {
   fp32_attention.forward(input_fp32, output_fp32, 0);
   bf16_attention.forward(input_bf16, output_bf16, 0);
 
-  Tensor cpu_output_fp32 = output_fp32->to_cpu();
-  Tensor cpu_output_bf16 = output_bf16->to_cpu();
+  Tensor cpu_output_fp32 = output_fp32->to_host();
+  Tensor cpu_output_bf16 = output_bf16->to_host();
 
   float *output_data_fp32 = cpu_output_fp32->data_as<float>();
   bf16 *output_data_bf16 = cpu_output_bf16->data_as<bf16>();
@@ -216,8 +216,8 @@ void test_attention() {
   bf16_attention.backward(gpu_gradient_bf16, grad_input_bf16, 0);
   fp32_attention.backward(gpu_gradient_fp32, grad_input_fp32, 0);
 
-  Tensor cpu_grad_input_fp32 = grad_input_fp32->to_cpu();
-  Tensor cpu_grad_input_bf16 = grad_input_bf16->to_cpu();
+  Tensor cpu_grad_input_fp32 = grad_input_fp32->to_host();
+  Tensor cpu_grad_input_bf16 = grad_input_bf16->to_host();
   float *grad_input_data_fp32 = cpu_grad_input_fp32->data_as<float>();
   bf16 *grad_input_data_bf16 = cpu_grad_input_bf16->data_as<bf16>();
   max_diff = 0.0;

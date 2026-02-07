@@ -6,9 +6,10 @@
 #include <sstream>
 
 #include "device/device.hpp"
-#include "device/device_allocator.hpp"
+#include "device/device_manager.hpp"
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
+#include "device/pool_allocator.hpp"
 #include "device/sref.hpp"
 #include "device/task.hpp"
 #include "ops/ops.hpp"
@@ -315,45 +316,23 @@ public:
 
   DeviceType device_type() const override { return device().device_type(); }
 
-  Tensor to_cpu() const override {
-    if (device_type() == DeviceType::CPU) {
-      return clone();
-    }
-
-    if (device_type() == DeviceType::GPU) {
-      std::vector<size_t> shape_vec(shape_);
-      std::shared_ptr<TypedTensor<T>> cpu_tensor =
-          std::make_shared<TypedTensor<T>>(HostAllocator(), shape_vec);
-      // Copy from GPU to CPU
-      ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_);
-      return cpu_tensor;
-    }
-    throw std::runtime_error("Unsupported device type for to_cpu()");
-  }
-
-  Tensor to_gpu(int gpu_id = 0) const override {
-    if (device_type() == DeviceType::GPU) {
-      return clone();
-    }
-    if (device_type() == DeviceType::CPU) {
-      std::vector<size_t> shape_vec(shape_);
-      auto gpu_tensor = std::make_shared<TypedTensor<T>>(GPUAllocator(), shape_vec);
-
-      ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_);
-      return gpu_tensor;
-    }
-    throw std::runtime_error("Unsupported device type for to_gpu()");
-  }
-
   Tensor to_device(const Device &target_device) const override {
     if (device() == target_device) {
       return clone();
     }
+    auto &allocator = PoolAllocator::instance(target_device);
     if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
-      return to_gpu(target_device.getID());
+      std::vector<size_t> shape_vec(shape_);
+      auto gpu_tensor = std::make_shared<TypedTensor<T>>(allocator, shape_vec);
+      ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_);
+      return gpu_tensor;
     }
     if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
-      return to_cpu();
+      std::vector<size_t> shape_vec(shape_);
+      std::shared_ptr<TypedTensor<T>> cpu_tensor =
+          std::make_shared<TypedTensor<T>>(allocator, shape_vec);
+      ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_);
+      return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_device()");
   }
@@ -556,7 +535,7 @@ public:
   }
 
   double min() const override {
-    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_cpu());
+    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_device(getCPU()));
     T min_val = cpu_tensor->data_.template get<T>()[0];
     for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
       if (cpu_tensor->data_.template get<T>()[i] < min_val) {
@@ -567,7 +546,7 @@ public:
   }
 
   double max() const override {
-    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_cpu());
+    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_device(getCPU()));
     T max_val = cpu_tensor->data_.template get<T>()[0];
     for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
       if (cpu_tensor->data_.template get<T>()[i] > max_val) {
@@ -589,7 +568,7 @@ public:
   }
 
   void print_data() const override {
-    Tensor cpu_tensor = to_cpu();
+    Tensor cpu_tensor = to_device(getCPU());
     size_t total_elements = cpu_tensor->size();
     std::cout << "TypedTensor data (shape " << cpu_tensor->shape_str() << "):\n";
     T *data = cpu_tensor->data_as<T>();
@@ -600,7 +579,7 @@ public:
   }
 
   void head(size_t n = 10) const override {
-    Tensor cpu_tensor = to_cpu();
+    Tensor cpu_tensor = to_device(getCPU());
     size_t total_elements = cpu_tensor->size();
     n = std::min(n, total_elements);
     std::cout << "TypedTensor head (first " << n << " elements of shape " << cpu_tensor->shape_str()

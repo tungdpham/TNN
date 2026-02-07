@@ -17,7 +17,7 @@ void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_nam
 
 template <typename T>
 void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_name = "") {
-  auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(tensor.to_cpu());
+  auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(tensor.to_host());
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
   check_nan_and_inf(data, total_elements, tensor_name);
@@ -53,7 +53,7 @@ inline void print_data_distribution(const ConstTensor &tensor,
     return;
   }
 
-  Tensor cpu_tensor = tensor->to_cpu();
+  Tensor cpu_tensor = tensor->to_host();
   DType_t dtype = cpu_tensor->data_type();
 
   constexpr int min_exp = -32;

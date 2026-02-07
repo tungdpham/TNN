@@ -24,8 +24,8 @@ signed main() {
   auto fp16_params = fp16_dense.parameters();
   auto fp32_params = fp32_dense.parameters();
   for (size_t i = 0; i < fp16_params.size(); ++i) {
-    Tensor cpu_fp16_param = fp16_params[i]->to_cpu();
-    Tensor cpu_fp32_param = fp32_params[i]->to_cpu();
+    Tensor cpu_fp16_param = fp16_params[i]->to_host();
+    Tensor cpu_fp32_param = fp32_params[i]->to_host();
     fp16 *fp16_data = cpu_fp16_param->data_as<fp16>();
     float *fp32_data = cpu_fp32_param->data_as<float>();
     for (size_t j = 0; j < cpu_fp16_param->size(); ++j) {
@@ -54,8 +54,8 @@ signed main() {
   fp32_dense.forward(input_fp32, output_fp32, 0);
   fp16_dense.forward(input_fp16, output_fp16, 0);
 
-  Tensor cpu_output_fp32 = output_fp32->to_cpu();
-  Tensor cpu_output_fp16 = output_fp16->to_cpu();
+  Tensor cpu_output_fp32 = output_fp32->to_host();
+  Tensor cpu_output_fp16 = output_fp16->to_host();
 
   float *output_data_fp32 = cpu_output_fp32->data_as<float>();
   fp16 *output_data_fp16 = cpu_output_fp16->data_as<fp16>();
