@@ -34,20 +34,13 @@ public:
 
   // Note: have to reinit after changing device
   void set_device(const Device &device);
-
   const Device &get_device() const;
-
   void set_io_dtype(DType_t dtype);
-
   DType_t get_io_dtype() const;
-
   void set_param_dtype(DType_t dtype);
-
   // Note: have to call init again after changing param dtype
   DType_t get_param_dtype() const;
-
   void set_compute_dtype(DType_t dtype);
-
   DType_t get_compute_dtype() const;
 
   /**
@@ -56,54 +49,30 @@ public:
    * ! Must be called before forward/backward.
    */
   void init();
-
   void set_seed(unsigned long long seed);
-
   void forward(const ConstTensor &input, const Tensor &output, size_t mb_id = 0);
-
   void backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id = 0);
-
   virtual std::vector<Tensor> parameters();
-
   virtual std::vector<Tensor> gradients();
-
   void save_state(std::ofstream &file);
-
   virtual uint64_t forward_flops(const std::vector<size_t> &input_shape) const = 0;
-
   virtual uint64_t backward_flops(const std::vector<size_t> &input_shape) const = 0;
-
   virtual bool has_parameters() const { return false; }
-
   virtual std::string type() const = 0;
-
   virtual LayerConfig get_config() const = 0;
-
   virtual std::unique_ptr<Layer> clone() const = 0;
-
   void set_training(bool training);
-
   bool is_training() const;
-
   virtual std::vector<size_t> compute_output_shape(
       const std::vector<size_t> &input_shape) const = 0;
-
   void enable_profiling(bool enable);
-
   bool is_profiling_enabled() const;
-
   void print_profiling_info() const;
-
   void set_mem_pool(PoolAllocator *mem_pool);
-
   const PoolAllocator *get_mem_pool() const;
-
   size_t nbytes_params();
-
   virtual size_t cached_memory_bytes() const;
-
   void reset_profiling_info();
-
   std::string name() const;
 
 protected:
@@ -136,15 +105,10 @@ protected:
 
   // helpers
   Tensor make_param_tensor(std::vector<size_t> shape);
-
   Tensor make_io_tensor(std::vector<size_t> shape);
-
   Tensor make_compute_tensor(std::vector<size_t> shape);
-
   ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
-
   Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
-
   Tensor get_buffer(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
 
 private:
