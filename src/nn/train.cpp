@@ -86,11 +86,6 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
 
   PoolAllocator &mem_pool = PoolAllocator::instance(*model_device);
 
-  Tensor device_labels = make_tensor(mem_pool, config.dtype);
-  Tensor loss_gradient = make_tensor(mem_pool, model->get_io_dtype());
-  Tensor predictions = make_tensor(mem_pool, model->get_io_dtype()),
-         backward_output = make_tensor(mem_pool, model->get_io_dtype());
-
   int grad_accum_counter = 0;
 
   cout << "Training batches: " << train_loader->size() << endl;
@@ -98,8 +93,9 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
          (config.max_steps == -1 || num_batches < config.max_steps)) {
     ++num_batches;
     cur_samples += batch_data->dimension(0);
-    device_labels = batch_labels->to_device(model_device);
+    auto device_labels = batch_labels->to_device(model_device);
 
+    Tensor predictions = make_tensor(mem_pool, model->get_io_dtype(), {});
     model->forward(batch_data, predictions);
 
     float loss;
@@ -108,8 +104,12 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     total_loss += loss;
     total_corrects += compute_class_corrects(predictions, device_labels);
 
+    Tensor loss_gradient = make_tensor(mem_pool, model->get_io_dtype(), predictions->shape());
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
+    predictions = nullptr;  // free prediction buffer early
+
+    Tensor backward_output = make_tensor(mem_pool, model->get_io_dtype(), batch_data->shape());
     model->backward(loss_gradient, backward_output);
 
     if (num_batches % config.progress_print_interval == 0) {

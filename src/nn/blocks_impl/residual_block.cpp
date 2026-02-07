@@ -99,19 +99,21 @@ void ResidualBlock::on_set_compute_dtype(DType_t dtype) {
   }
 }
 
+static size_t compute_path_max_size(const std::vector<std::unique_ptr<Layer>> &path,
+                                    const std::vector<size_t> &input_shape, DType_t dtype) {
+  size_t max_size = 0;
+  std::vector<size_t> current_shape = input_shape;
+  for (const auto &layer : path) {
+    current_shape = layer->compute_output_shape(current_shape);
+    size_t layer_size =
+        std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
+    max_size = std::max(max_size, layer_size);
+  }
+  return max_size;
+}
+
 void ResidualBlock::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   input_shape_cache_[mb_id] = input->shape();
-
-  size_t max_size = 0;
-  std::vector<size_t> current_shape = input->shape();
-  max_size = std::max(max_size, input->size());
-  for (auto &layer : main_path_) {
-    auto layer_shape = layer->compute_output_shape(current_shape);
-    size_t layer_size =
-        std::accumulate(layer_shape.begin(), layer_shape.end(), 1, std::multiplies<size_t>());
-    max_size = std::max(max_size, layer_size);
-    current_shape = layer_shape;
-  }
 
   ConstTensor main_output = input;  // main output = f exist ? input : f(input)
   for (auto &layer : main_path_) {
@@ -169,23 +171,15 @@ void ResidualBlock::backward_impl(const ConstTensor &gradient, const Tensor &gra
                              std::to_string(mb_id));
   }
 
-  size_t max_size = 0;
-  std::vector<size_t> current_shape = it_input_shape->second;
-  size_t input_size =
-      std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
-  max_size = std::max(max_size, input_size);
-  for (auto &layer : main_path_) {
-    auto layer_shape = layer->compute_output_shape(current_shape);
-    size_t layer_size =
-        std::accumulate(layer_shape.begin(), layer_shape.end(), 1, std::multiplies<size_t>());
-    max_size = std::max(max_size, layer_size);
-    current_shape = layer_shape;
-  }
+  size_t main_path_max_size =
+      compute_path_max_size(main_path_, it_input_shape->second, gradient->data_type());
+  size_t shortcut_path_max_size =
+      compute_path_max_size(shortcut_path_, it_input_shape->second, gradient->data_type());
 
   // little trick to avoid const correctness issue
   ConstTensor main_grad = grad_to_propagate;
   for (int i = static_cast<int>(main_path_.size()) - 1; i >= 0; --i) {
-    Tensor temp_grad = this->get_buffer({max_size}, gradient->data_type());
+    Tensor temp_grad = this->get_buffer({main_path_max_size}, gradient->data_type());
     main_path_[i]->backward(main_grad, temp_grad, mb_id);
     main_grad = temp_grad;
   }
@@ -193,7 +187,7 @@ void ResidualBlock::backward_impl(const ConstTensor &gradient, const Tensor &gra
   ConstTensor shortcut_grad = grad_to_propagate;  // same here
   if (!shortcut_path_.empty()) {
     for (int i = static_cast<int>(shortcut_path_.size()) - 1; i >= 0; --i) {
-      Tensor temp_grad = this->get_buffer({max_size}, gradient->data_type());
+      Tensor temp_grad = this->get_buffer({shortcut_path_max_size}, gradient->data_type());
       shortcut_path_[i]->backward(shortcut_grad, temp_grad, mb_id);
       shortcut_grad = temp_grad;
     }

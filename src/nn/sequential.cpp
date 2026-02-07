@@ -23,12 +23,12 @@ namespace tnn {
 
 void Sequential::compute_max_size(const std::vector<size_t> &input_shape, DType_t dtype) {
   std::vector<size_t> current_shape = input_shape;
-  size_t current_max = std::accumulate(current_shape.begin(), current_shape.end(),
-                                       get_dtype_size(dtype), std::multiplies<size_t>());
+  size_t current_max =
+      std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
   for (const auto &layer : layers_) {
     current_shape = layer->compute_output_shape(current_shape);
-    size_t activation_size = std::accumulate(current_shape.begin(), current_shape.end(),
-                                             get_dtype_size(dtype), std::multiplies<size_t>());
+    size_t activation_size =
+        std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
     current_max = std::max(current_max, activation_size);
   }
   max_size_ = current_max;
@@ -147,7 +147,8 @@ Sequential::Sequential(const std::string &name, std::vector<std::unique_ptr<Laye
   layers_ = std::move(layers);
 }
 
-Sequential::Sequential() : Layer() {}
+Sequential::Sequential()
+    : Layer() {}
 
 std::vector<Tensor> Sequential::parameters() {
   std::vector<Tensor> all_params;
