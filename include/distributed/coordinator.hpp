@@ -198,6 +198,7 @@ public:
           Tensor device_targets = targets->to_device(predictions->device());
           float loss = 0.0f;
           criterion->compute_loss(predictions, device_targets, loss);
+          loss *= (1.0f / num_microbatches);  // Average loss across microbatches
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
