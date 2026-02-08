@@ -313,8 +313,8 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
     model->enable_profiling(true);
   }
 
-  cout << "Training batches: " << train_loader->size() << endl;
-  cout << "Validation batches: " << val_loader->size() << endl;
+  cout << "Training batches: " << train_loader->size() / config.batch_size << endl;
+  cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
 
   vector<size_t> data_shape = train_loader->get_data_shape();
   data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dimension
