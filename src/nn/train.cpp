@@ -14,6 +14,7 @@
 #include <iostream>
 #include <memory>
 
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
 #include "nn/blocks_impl/sequential.hpp"
@@ -97,12 +98,13 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     auto device_labels = batch_labels->to_device(model_device);
 
     Tensor predictions = make_tensor(mem_pool, model->get_io_dtype(), {});
+
     model->forward(batch_data, predictions);
 
     float loss;
     criterion->compute_loss(predictions, device_labels, loss);
-
     total_loss += loss;
+
     total_corrects += compute_class_corrects(predictions, device_labels);
 
     Tensor loss_gradient = make_tensor(mem_pool, model->get_io_dtype(), predictions->shape());
@@ -116,6 +118,16 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     auto batch_end = chrono::high_resolution_clock::now();
     auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
 
+    if (++grad_accum_counter == config.gradient_accumulation_steps) {
+      grad_accum_counter = 0;
+      optimizer->update();
+      optimizer->clear_gradients();
+      if (scheduler) {
+        scheduler->step();
+      }
+    }
+    model_device->getFlow(defaultFlowHandle)->synchronize();
+
     if (num_batches % config.progress_print_interval == 0) {
       if (model->is_profiling_enabled()) {
         model->print_profiling_info();
@@ -126,14 +138,6 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     }
     if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
       model->reset_profiling_info();
-    }
-    if (++grad_accum_counter == config.gradient_accumulation_steps) {
-      grad_accum_counter = 0;
-      optimizer->update();
-      optimizer->clear_gradients();
-      if (scheduler) {
-        scheduler->step();
-      }
     }
   }
   cout << endl;

@@ -372,8 +372,8 @@ public:
     return std::make_shared<TypedTensor<T>>(allocator_, std::move(span_data), span_sizes);
   }
 
-  std::unique_ptr<Task> fill(double value) override {
-    return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_);
+  std::unique_ptr<Task> fill(double value, flowHandle_t handle) override {
+    return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle);
   }
 
   // Arithmetic operations returning shared_ptr
