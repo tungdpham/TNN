@@ -24,7 +24,7 @@ struct Config {
   int port = 0;
   std::string peer_host = "localhost";
   int peer_port = 0;
-  size_t num_threads = 8;
+  size_t num_threads = 4;
 };
 
 void print_usage(const char *program_name) {
@@ -150,8 +150,9 @@ int main(int argc, char *argv[]) {
 
   auto &allocator = PoolAllocator::instance(getCPU());
 
-  TCPCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), allocator,
-                               TCPCommunicator::Config());
+  TCPCommunicator::Config tcp_config;
+  tcp_config.num_io_threads = cfg.num_threads;
+  TCPCommunicator communicator(Endpoint::tcp(cfg.host, cfg.port), allocator, tcp_config);
 
   communicator.start_server();
 

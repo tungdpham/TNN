@@ -1,7 +1,4 @@
 #include "device/device_manager.hpp"
-#include "nn/activations_impl/base_activation.hpp"
-#include "nn/activations_impl/relu.hpp"
-#include "nn/layers_impl/activation_layer.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/layers_impl/conv2d_layer.hpp"
 #include "nn/layers_impl/maxpool2d_layer.hpp"
