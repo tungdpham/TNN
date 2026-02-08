@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "communicator.hpp"
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
@@ -202,8 +203,9 @@ public:
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
-          Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
-                                        predictions->data_type(), predictions->shape());
+          Tensor gradient =
+              make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
+                          predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
           gradient->mul_scalar(1.0 / num_microbatches);
           this->backward(std::move(gradient), job.mb_id);

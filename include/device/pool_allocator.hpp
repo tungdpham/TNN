@@ -28,7 +28,7 @@ public:
   PoolAllocator(const PoolAllocator &) = delete;
   PoolAllocator &operator=(const PoolAllocator &) = delete;
 
-  static PoolAllocator &instance(const Device &device, flowHandle_t flow = defaultFlowHandle) {
+  static PoolAllocator &instance(const Device &device, flowHandle_t flow) {
     static std::mutex registry_mutex;
     static std::map<std::pair<const Device *, flowHandle_t>, std::unique_ptr<PoolAllocator>>
         instances;

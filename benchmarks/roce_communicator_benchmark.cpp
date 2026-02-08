@@ -163,7 +163,8 @@ int main(int argc, char *argv[]) {
 
   Endpoint local_endpoint = Endpoint::roce(cfg.host, cfg.port, cfg.device, cfg.gid_index);
 
-  RoCECommunicator communicator(local_endpoint, PoolAllocator::instance(getCPU()));
+  RoCECommunicator communicator(local_endpoint,
+                                PoolAllocator::instance(getCPU(), defaultFlowHandle));
 
   communicator.start_server();
 

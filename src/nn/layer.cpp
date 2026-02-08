@@ -13,12 +13,12 @@ namespace tnn {
 
 Layer::Layer() {
   this->device_ = getCPU();
-  this->mem_pool_ = &PoolAllocator::instance(*device_);
+  this->mem_pool_ = &PoolAllocator::instance(*device_, this->flow_handle_);
 }
 
 void Layer::set_device(const Device &device) {
   device_ = device;
-  mem_pool_ = &PoolAllocator::instance(*device_);
+  mem_pool_ = &PoolAllocator::instance(*device_, this->flow_handle_);
   on_set_device(device);
 }
 

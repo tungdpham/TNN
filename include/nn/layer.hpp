@@ -27,6 +27,7 @@ namespace tnn {
 
 using LayerConfig = TConfig;
 
+// Single input/output layer interface. For multi-input/output, use a Block to wrap multiple Layers.
 class Layer {
 public:
   Layer();

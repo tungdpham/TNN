@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
   cout << "Peer port: " << cfg.peer_port << endl;
   cout << "Worker threads: " << cfg.num_threads << endl;
 
-  auto &allocator = PoolAllocator::instance(getCPU());
+  auto &allocator = PoolAllocator::instance(getCPU(), defaultFlowHandle);
 
   TCPCommunicator::Config tcp_config;
   tcp_config.num_io_threads = cfg.num_threads;

@@ -85,7 +85,7 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   int num_batches = 0;
   csref<Device> model_device = model->get_device();
 
-  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device);
+  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device, defaultFlowHandle);
 
   int grad_accum_counter = 0;
 
@@ -334,7 +334,7 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device());
+  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device(), defaultFlowHandle);
   Tensor batch_data = make_tensor(mem_pool, model->get_io_dtype()),
          batch_labels = make_tensor(mem_pool, model->get_io_dtype());
 
