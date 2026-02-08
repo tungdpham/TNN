@@ -6,21 +6,18 @@
  */
 #pragma once
 
+#include <cuda_runtime.h>
+
 #include <cstddef>
 
 namespace tnn {
 namespace cuda {
 namespace accuracy {
 
-// Compute class accuracy
-template <typename T>
-float compute_class_accuracy(const T *predictions, const T *targets, const size_t batch_size,
-                             const size_t num_classes);
-
-// Compute class corrects
 template <typename T>
 int compute_class_corrects(const T *predictions, const T *targets, const size_t batch_size,
-                           const size_t num_classes, float threshold = 0.5f);
+                           const size_t num_classes, float threshold = 0.5f,
+                           cudaStream_t stream = 0);
 
 }  // namespace accuracy
 }  // namespace cuda
