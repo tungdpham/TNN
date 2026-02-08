@@ -8,8 +8,22 @@
 #include <string>
 
 namespace tnn {
+
+struct flowHandle_t {
+  size_t id = 0;
+
+  operator size_t() const { return id; }
+
+  bool operator==(const flowHandle_t &other) const { return id == other.id; }
+};
+
+inline constexpr flowHandle_t defaultFlowHandle{0};
+
 class Flow {
 public:
+  Flow() = default;
+  virtual ~Flow() = default;
+
   virtual void synchronize() = 0;
 };
 
@@ -53,3 +67,11 @@ public:
 
 #endif
 }  // namespace tnn
+
+namespace std {
+template <>
+struct hash<tnn::flowHandle_t> {
+  std::size_t operator()(const tnn::flowHandle_t &key) const { return std::hash<size_t>()(key.id); }
+};
+
+}  // namespace std

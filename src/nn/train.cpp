@@ -16,7 +16,7 @@
 
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"

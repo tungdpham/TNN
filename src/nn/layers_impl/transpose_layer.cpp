@@ -13,12 +13,13 @@
 
 namespace tnn {
 
-TransposeLayer::TransposeLayer(const std::string &name) : StatelessLayer(name) {}
+TransposeLayer::TransposeLayer(const std::string &name)
+    : StatelessLayer(name) {}
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Tensor &output,
                                               size_t B, size_t L, size_t H, size_t D,
-                                              const std::string &flow_id) const {
+                                              flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T>) {
     throw std::runtime_error(
         "TransposeLayer mixed dtype dispatch not implemented (io/compute must match).");
@@ -28,12 +29,12 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
   }
 
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::permute_heads<Compute_T, Compute_T>,
+    return create_cpu_task(handle, cpu::permute_heads<Compute_T, Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::permute_heads<Compute_T, Compute_T>,
+    return create_cuda_task(handle, cuda::permute_heads<Compute_T, Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #endif
@@ -54,7 +55,7 @@ void TransposeLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   output->ensure({B, H, L});
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, "default");
+  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
 }
 
 void TransposeLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -71,7 +72,7 @@ void TransposeLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
 
   grad_input->ensure({B, L, H});
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, gradient, grad_input, B, H, L, D, "default");
+  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, gradient, grad_input, B, H, L, D, this->flow_handle_);
 }
 
 std::vector<size_t> TransposeLayer::compute_output_shape(

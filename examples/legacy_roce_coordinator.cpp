@@ -8,10 +8,10 @@
 #include "distributed/roce_coordinator.hpp"
 #include "distributed/roce_worker.hpp"
 #include "distributed/train.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/layers.hpp"
 #include "nn/legacy/example_models.hpp"
 #include "nn/optimizers.hpp"
-#include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "utils/env.hpp"
 

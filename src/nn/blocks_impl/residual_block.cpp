@@ -54,12 +54,30 @@ ResidualBlock::ResidualBlock(const ResidualBlock &other)
   }
 }
 
-void ResidualBlock::init_params() {
+void ResidualBlock::init_impl() {
   for (auto &layer : main_path_) {
     layer->init();
   }
   for (auto &layer : shortcut_path_) {
     layer->init();
+  }
+}
+
+void ResidualBlock::on_set_device(const Device &device) {
+  for (auto &layer : main_path_) {
+    layer->set_device(device);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_device(device);
+  }
+}
+
+void ResidualBlock::on_set_flow_handle(flowHandle_t handle) {
+  for (auto &layer : main_path_) {
+    layer->set_flow_handle(handle);
+  }
+  for (auto &layer : shortcut_path_) {
+    layer->set_flow_handle(handle);
   }
 }
 
@@ -198,7 +216,8 @@ void ResidualBlock::backward_impl(const ConstTensor &gradient, const Tensor &gra
                               grad_input->data_ptr(), grad_input->size());
 }
 
-void ResidualBlock::collect_parameters(std::vector<Tensor> &params) {
+std::vector<Tensor> ResidualBlock::parameters() {
+  std::vector<Tensor> params;
   for (auto &layer : main_path_) {
     auto layer_params = layer->parameters();
     params.insert(params.end(), layer_params.begin(), layer_params.end());
@@ -208,18 +227,20 @@ void ResidualBlock::collect_parameters(std::vector<Tensor> &params) {
     auto layer_params = layer->parameters();
     params.insert(params.end(), layer_params.begin(), layer_params.end());
   }
+  return params;
 }
 
-void ResidualBlock::collect_gradients(std::vector<Tensor> &grads) {
+std::vector<Tensor> ResidualBlock::gradients() {
+  std::vector<Tensor> grads;
   for (auto &layer : main_path_) {
     auto layer_grads = layer->gradients();
     grads.insert(grads.end(), layer_grads.begin(), layer_grads.end());
   }
-
   for (auto &layer : shortcut_path_) {
     auto layer_grads = layer->gradients();
     grads.insert(grads.end(), layer_grads.begin(), layer_grads.end());
   }
+  return grads;
 }
 
 void ResidualBlock::on_set_training(bool training) {
@@ -229,15 +250,6 @@ void ResidualBlock::on_set_training(bool training) {
   }
   for (auto &layer : shortcut_path_) {
     layer->set_training(training);
-  }
-}
-
-void ResidualBlock::on_set_device(const Device &device) {
-  for (auto &layer : main_path_) {
-    layer->set_device(device);
-  }
-  for (auto &layer : shortcut_path_) {
-    layer->set_device(device);
   }
 }
 

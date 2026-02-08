@@ -18,7 +18,8 @@
 namespace tnn {
 
 ClassTokenLayer::ClassTokenLayer(size_t embed_dim, const std::string &name)
-    : ParameterizedLayer(name), embed_dim_(embed_dim) {}
+    : ParameterizedLayer(name),
+      embed_dim_(embed_dim) {}
 
 void ClassTokenLayer::init_params() {
   class_token_ = make_param_tensor({embed_dim_});
@@ -38,8 +39,7 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, const Tensor &output,
                                                     const ConstTensor &class_token,
                                                     size_t batch_size, size_t seq_len,
-                                                    size_t embed_dim,
-                                                    const std::string &flow_id) const {
+                                                    size_t embed_dim, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -52,13 +52,13 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, co
   }
 
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::class_token_forward<Compute_T>,
-                           input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
-                           output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
+    return create_cpu_task(handle, cpu::class_token_forward<Compute_T>, input->data_as<Compute_T>(),
+                           class_token->data_as<Compute_T>(), output->data_as<Compute_T>(),
+                           batch_size, seq_len, embed_dim);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::class_token_forward<Compute_T>,
+    return create_cuda_task(handle, cuda::class_token_forward<Compute_T>,
                             input->data_as<Compute_T>(), class_token->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), batch_size, seq_len, embed_dim);
   }
@@ -70,10 +70,12 @@ std::unique_ptr<Task> ClassTokenLayer::forward_task(const ConstTensor &input, co
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> ClassTokenLayer::backward_task(
-    const ConstTensor &gradient, const Tensor &grad_input, const Tensor &class_token_gradients,
-    const ConstTensor &class_token, size_t batch_size, size_t seq_len, size_t embed_dim,
-    const std::string &flow_id) const {
+std::unique_ptr<Task> ClassTokenLayer::backward_task(const ConstTensor &gradient,
+                                                     const Tensor &grad_input,
+                                                     const Tensor &class_token_gradients,
+                                                     const ConstTensor &class_token,
+                                                     size_t batch_size, size_t seq_len,
+                                                     size_t embed_dim, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "ClassTokenLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -87,14 +89,14 @@ std::unique_ptr<Task> ClassTokenLayer::backward_task(
   }
 
   if (this->device_->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::class_token_backward<Compute_T>,
+    return create_cpu_task(handle, cpu::class_token_backward<Compute_T>,
                            gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
                            embed_dim);
   }
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::class_token_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::class_token_backward<Compute_T>,
                             gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             class_token_gradients->data_as<Compute_T>(), batch_size, seq_len,
                             embed_dim);
@@ -122,7 +124,7 @@ void ClassTokenLayer::forward_impl(const ConstTensor &input, const Tensor &outpu
   output->ensure({batch_size, seq_len + 1, embed_dim});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(forward_task, input, output, class_token_, batch_size, seq_len,
-                                 embed_dim, "default");
+                                 embed_dim, this->flow_handle_);
 }
 
 void ClassTokenLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -139,7 +141,7 @@ void ClassTokenLayer::backward_impl(const ConstTensor &gradient, const Tensor &g
   grad_input->ensure({batch_size, seq_len, embed_dim});
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, gradient, grad_input, class_token_gradients_,
-                                 class_token_, batch_size, seq_len, embed_dim, "default");
+                                 class_token_, batch_size, seq_len, embed_dim, this->flow_handle_);
 }
 
 uint64_t ClassTokenLayer::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }

@@ -1,4 +1,4 @@
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"

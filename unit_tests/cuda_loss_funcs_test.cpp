@@ -86,7 +86,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
   float cpu_loss, gpu_loss;
 
   auto loss_task =
-      create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
+      create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
                       targets.data(), cpu_loss, batch_size, num_classes, epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -96,7 +96,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLossBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  auto gpu_loss_task = create_cuda_task("default", cuda::loss::compute_crossentropy_loss<float>,
+  auto gpu_loss_task = create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss<float>,
                                         gpu_predictions.get<float>(), gpu_targets.get<float>(),
                                         gpu_loss, batch_size, num_classes, epsilon);
 
@@ -128,7 +128,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
 
   std::vector<float> cpu_gradient(batch_size * num_classes);
 
-  create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient<float>, predictions.data(),
                   targets.data(), cpu_gradient.data(), batch_size, num_classes, epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -139,7 +139,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyGradientBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_crossentropy_gradient<float>,
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_gradient<float>,
                    gpu_predictions.get<float>(), gpu_targets.get<float>(),
                    gpu_gradient.get<float>(), batch_size, num_classes, epsilon);
 
@@ -175,7 +175,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<float>, predictions.data(),
                   targets.data(), cpu_loss, batch_size, num_classes, epsilon);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -185,7 +185,7 @@ TEST_F(CUDALossOpsTest, CrossEntropyLargeBatch) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_crossentropy_loss<float>,
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss<float>,
                    gpu_predictions.get<float>(), gpu_targets.get<float>(), gpu_loss, batch_size,
                    num_classes, epsilon);
 
@@ -206,7 +206,7 @@ TEST_F(CUDALossOpsTest, MSELossBasic) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
                   cpu_loss, batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -216,7 +216,7 @@ TEST_F(CUDALossOpsTest, MSELossBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mse_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f);
@@ -235,7 +235,7 @@ TEST_F(CUDALossOpsTest, MSEGradientBasic) {
   }
 
   std::vector<float> cpu_gradient(batch_size * output_size);
-  create_cpu_task("default", cpu::loss::compute_mse_gradient<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_gradient<float>, predictions.data(),
                   targets.data(), cpu_gradient.data(), batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -246,7 +246,7 @@ TEST_F(CUDALossOpsTest, MSEGradientBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mse_gradient<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_gradient<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_gradient.get<float>(), batch_size, output_size);
 
   std::vector<float> gpu_gradient_cpu(batch_size * output_size);
@@ -270,7 +270,7 @@ TEST_F(CUDALossOpsTest, MSELargeBatch) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_loss<float>, predictions.data(), targets.data(),
                   cpu_loss, batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -280,7 +280,7 @@ TEST_F(CUDALossOpsTest, MSELargeBatch) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mse_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-4f);
@@ -300,7 +300,7 @@ TEST_F(CUDALossOpsTest, MAELossBasic) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
                   cpu_loss, batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -310,7 +310,7 @@ TEST_F(CUDALossOpsTest, MAELossBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mae_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f);
@@ -329,7 +329,7 @@ TEST_F(CUDALossOpsTest, MAEGradientBasic) {
   }
 
   std::vector<float> cpu_gradient(batch_size * output_size);
-  create_cpu_task("default", cpu::loss::compute_mae_gradient<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_gradient<float>, predictions.data(),
                   targets.data(), cpu_gradient.data(), batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -340,7 +340,7 @@ TEST_F(CUDALossOpsTest, MAEGradientBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mae_gradient<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_gradient<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_gradient.get<float>(), batch_size, output_size);
 
   std::vector<float> gpu_gradient_cpu(batch_size * output_size);
@@ -364,7 +364,7 @@ TEST_F(CUDALossOpsTest, MAELargeBatch) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_loss<float>, predictions.data(), targets.data(),
                   cpu_loss, batch_size, output_size);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -374,7 +374,7 @@ TEST_F(CUDALossOpsTest, MAELargeBatch) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_mae_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f);
@@ -395,7 +395,7 @@ TEST_F(CUDALossOpsTest, HuberLossBasic) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_loss<float>, predictions.data(),
                   targets.data(), cpu_loss, batch_size, output_size, delta);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -405,7 +405,7 @@ TEST_F(CUDALossOpsTest, HuberLossBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size, delta);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f);
@@ -425,7 +425,7 @@ TEST_F(CUDALossOpsTest, HuberGradientBasic) {
   }
 
   std::vector<float> cpu_gradient(batch_size * output_size);
-  create_cpu_task("default", cpu::loss::compute_huber_gradient<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_gradient<float>, predictions.data(),
                   targets.data(), cpu_gradient.data(), batch_size, output_size, delta);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -436,7 +436,7 @@ TEST_F(CUDALossOpsTest, HuberGradientBasic) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_huber_gradient<float>,
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_gradient<float>,
                    gpu_predictions.get<float>(), gpu_targets.get<float>(),
                    gpu_gradient.get<float>(), batch_size, output_size, delta);
 
@@ -463,7 +463,7 @@ TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
 
   for (float delta : deltas) {
     float cpu_loss, gpu_loss;
-    create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+    create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_loss<float>, predictions.data(),
                     targets.data(), cpu_loss, batch_size, output_size, delta);
 
     dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -473,7 +473,7 @@ TEST_F(CUDALossOpsTest, HuberLossVaryingDelta) {
                           predictions.size() * sizeof(float));
     getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-    create_cuda_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
+    create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
                      gpu_targets.get<float>(), gpu_loss, batch_size, output_size, delta);
 
     EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f) << "Mismatch for delta = " << delta;
@@ -495,7 +495,7 @@ TEST_F(CUDALossOpsTest, HuberLargeBatch) {
 
   float cpu_loss, gpu_loss;
 
-  create_cpu_task("default", cpu::loss::compute_huber_loss<float>, predictions.data(),
+  create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_loss<float>, predictions.data(),
                   targets.data(), cpu_loss, batch_size, output_size, delta);
 
   dptr gpu_predictions = make_dptr_t<float>(getGPU(), predictions.size());
@@ -505,7 +505,7 @@ TEST_F(CUDALossOpsTest, HuberLargeBatch) {
                         predictions.size() * sizeof(float));
   getGPU().copyToDevice(gpu_targets.get<float>(), targets.data(), targets.size() * sizeof(float));
 
-  create_cuda_task("default", cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
+  create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_loss<float>, gpu_predictions.get<float>(),
                    gpu_targets.get<float>(), gpu_loss, batch_size, output_size, delta);
 
   EXPECT_NEAR(cpu_loss, gpu_loss, 1e-2f);

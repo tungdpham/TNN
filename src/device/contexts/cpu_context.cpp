@@ -6,6 +6,8 @@
 #include <iostream>
 #include <sstream>
 
+#include "device/flow.hpp"
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -21,7 +23,7 @@
 namespace tnn {
 CPUContext::CPUContext()
     : Context() {
-  createFlow("default");
+  createFlow(defaultFlowHandle);
 }
 
 size_t CPUContext::getTotalMemory() const {
@@ -165,19 +167,19 @@ void CPUContext::deallocateAlignedMemory(void *ptr) {
 #endif
 }
 
-void CPUContext::createFlow(const std::string &flow_id) {
-  if (flows_.find(flow_id) == flows_.end()) {
-    flows_[flow_id] = std::make_unique<CPUFlow>();
+void CPUContext::createFlow(flowHandle_t handle) {
+  if (flows_.find(handle) == flows_.end()) {
+    flows_[handle] = std::make_unique<CPUFlow>();
   }
 }
 
-Flow *CPUContext::getFlow(const std::string &flow_id) {
-  if (flows_.find(flow_id) == flows_.end()) {
-    std::cerr << "WARN: Creating new CPUFlow with ID: " << flow_id
+Flow *CPUContext::getFlow(flowHandle_t handle) {
+  if (flows_.find(handle) == flows_.end()) {
+    std::cerr << "WARN: Creating new CPUFlow with ID: " << handle
               << ". Are we using the right flow?" << std::endl;
-    flows_[flow_id] = std::make_unique<CPUFlow>();
+    flows_[handle] = std::make_unique<CPUFlow>();
   }
-  return flows_[flow_id].get();
+  return flows_[handle].get();
 }
 
 }  // namespace tnn

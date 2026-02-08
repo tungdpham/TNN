@@ -5,9 +5,9 @@
 #include <vector>
 
 #include "data_loading/open_webtext_data_loader.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
-#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"

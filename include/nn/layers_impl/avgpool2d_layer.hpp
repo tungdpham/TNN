@@ -35,7 +35,7 @@ private:
                                                       const Tensor &output_data, size_t batch_size,
                                                       size_t height, size_t width, size_t channels,
                                                       size_t output_h, size_t output_w,
-                                                      const std::string &flow_id) const;
+                                                      flowHandle_t handle) const;
 
   template <typename Compute_T>
   std::unique_ptr<Task> compute_avg_pool_backward_impl(const ConstTensor &gradient_data,
@@ -43,7 +43,7 @@ private:
                                                        size_t batch_size, size_t input_h,
                                                        size_t input_w, size_t channels,
                                                        size_t output_h, size_t output_w,
-                                                       const std::string &flow_id) const;
+                                                       flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,

@@ -74,7 +74,7 @@ class Sequential;
 #include "layers_impl/positional_embedding_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 
 namespace tnn {
 

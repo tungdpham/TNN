@@ -42,7 +42,8 @@ public:
 
 class CrossEntropyLoss : public Loss {
 public:
-  explicit CrossEntropyLoss(double epsilon = 1e-15) : epsilon_(epsilon) {}
+  explicit CrossEntropyLoss(double epsilon = 1e-15)
+      : epsilon_(epsilon) {}
 
   std::unique_ptr<Task> compute_loss(const ConstTensor &predictions, const ConstTensor &targets,
                                      float &loss) override {
@@ -91,13 +92,13 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_crossentropy_loss<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_loss<T>,
                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
                              num_classes, static_cast<T>(epsilon_));
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_crossentropy_loss<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_loss<T>,
                               predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
                               num_classes, static_cast<T>(epsilon_));
     }
@@ -116,14 +117,14 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_crossentropy_gradient<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_crossentropy_gradient<T>,
                              predictions->data_as<T>(), targets->data_as<T>(),
                              gradient->data_as<T>(), batch_size, num_classes,
                              static_cast<T>(epsilon_));
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_crossentropy_gradient<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_crossentropy_gradient<T>,
                               predictions->data_as<T>(), targets->data_as<T>(),
                               gradient->data_as<T>(), batch_size, num_classes,
                               static_cast<T>(epsilon_));
@@ -182,15 +183,15 @@ private:
     }
 
     if (logits->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_logsoftmax_crossentropy_loss<T>,
                              logits->data_as<T>(), targets->data_as<T>(), loss, batch_size,
                              num_classes);
     }
 #ifdef USE_CUDA
     else if (logits->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
-                              logits->data_as<T>(), targets->data_as<T>(), loss, batch_size,
-                              num_classes);
+      return create_cuda_task(
+          defaultFlowHandle, cuda::loss::compute_logsoftmax_crossentropy_loss<T>,
+          logits->data_as<T>(), targets->data_as<T>(), loss, batch_size, num_classes);
     }
 #endif
     throw std::runtime_error("Unsupported device type for LogSoftmaxCrossEntropyLoss.");
@@ -207,13 +208,15 @@ private:
     }
 
     if (logits->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
+      return create_cpu_task(defaultFlowHandle,
+                             cpu::loss::compute_logsoftmax_crossentropy_gradient<T>,
                              logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
                              batch_size, num_classes);
     }
 #ifdef USE_CUDA
     else if (logits->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
+      return create_cuda_task(defaultFlowHandle,
+                              cuda::loss::compute_logsoftmax_crossentropy_gradient<T>,
                               logits->data_as<T>(), targets->data_as<T>(), gradient->data_as<T>(),
                               batch_size, num_classes);
     }
@@ -267,13 +270,15 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_mse_loss<T>, predictions->data_as<T>(),
-                             targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_loss<T>,
+                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             output_size);
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_mse_loss<T>, predictions->data_as<T>(),
-                              targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_loss<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MSELoss.");
@@ -290,13 +295,13 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_mse_gradient<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mse_gradient<T>,
                              predictions->data_as<T>(), targets->data_as<T>(),
                              gradient->data_as<T>(), batch_size, output_size);
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_mse_gradient<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mse_gradient<T>,
                               predictions->data_as<T>(), targets->data_as<T>(),
                               gradient->data_as<T>(), batch_size, output_size);
     }
@@ -350,13 +355,15 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_mae_loss<T>, predictions->data_as<T>(),
-                             targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_loss<T>,
+                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             output_size);
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_mae_loss<T>, predictions->data_as<T>(),
-                              targets->data_as<T>(), loss, batch_size, output_size);
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_loss<T>,
+                              predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                              output_size);
     }
 #endif
     throw std::runtime_error("Unsupported device type for MAELoss.");
@@ -373,13 +380,13 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_mae_gradient<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_mae_gradient<T>,
                              predictions->data_as<T>(), targets->data_as<T>(),
                              gradient->data_as<T>(), batch_size, output_size);
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_mae_gradient<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_mae_gradient<T>,
                               predictions->data_as<T>(), targets->data_as<T>(),
                               gradient->data_as<T>(), batch_size, output_size);
     }
@@ -390,7 +397,8 @@ private:
 
 class HuberLoss : public Loss {
 public:
-  explicit HuberLoss(double delta = 1.0) : delta_(delta) {}
+  explicit HuberLoss(double delta = 1.0)
+      : delta_(delta) {}
 
   std::unique_ptr<Task> compute_loss(const ConstTensor &predictions, const ConstTensor &targets,
                                      float &loss) override {
@@ -439,13 +447,13 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_huber_loss<T>, predictions->data_as<T>(),
-                             targets->data_as<T>(), loss, batch_size, output_size,
-                             static_cast<T>(delta_));
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_loss<T>,
+                             predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
+                             output_size, static_cast<T>(delta_));
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_huber_loss<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_loss<T>,
                               predictions->data_as<T>(), targets->data_as<T>(), loss, batch_size,
                               output_size, static_cast<T>(delta_));
     }
@@ -464,14 +472,14 @@ private:
     }
 
     if (predictions->device_type() == DeviceType::CPU) {
-      return create_cpu_task("default", cpu::loss::compute_huber_gradient<T>,
+      return create_cpu_task(defaultFlowHandle, cpu::loss::compute_huber_gradient<T>,
                              predictions->data_as<T>(), targets->data_as<T>(),
                              gradient->data_as<T>(), batch_size, output_size,
                              static_cast<T>(delta_));
     }
 #ifdef USE_CUDA
     else if (predictions->device_type() == DeviceType::GPU) {
-      return create_cuda_task("default", cuda::loss::compute_huber_gradient<T>,
+      return create_cuda_task(defaultFlowHandle, cuda::loss::compute_huber_gradient<T>,
                               predictions->data_as<T>(), targets->data_as<T>(),
                               gradient->data_as<T>(), batch_size, output_size,
                               static_cast<T>(delta_));

@@ -36,7 +36,7 @@ signed main() {
   conv_layer.forward(input, conv2d_output);
   batchnorm_layer.forward(conv2d_output, batchnorm_output);
   maxpool_layer.forward(batchnorm_output, maxpool_output);
-  Flow *flow = getGPU().getFlow("default");
+  Flow *flow = getGPU().getFlow(defaultFlowHandle);
   flow->synchronize();
 
   // warm pass
@@ -47,7 +47,7 @@ signed main() {
     conv_layer.forward(input, conv2d_output);
     batchnorm_layer.forward(conv2d_output, batchnorm_output);
     maxpool_layer.forward(batchnorm_output, maxpool_output);
-    Flow *flow = getGPU().getFlow("default");
+    Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
     auto pass_end = std::chrono::high_resolution_clock::now();

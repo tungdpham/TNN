@@ -1,15 +1,20 @@
 #include "device/device.hpp"
 
 #include "device/context.hpp"
+#include "device/flow.hpp"
 
 namespace tnn {
 Device::Device(DeviceType type, int id, std::unique_ptr<Context> context)
-    : type_(type), id_(id), context_(std::move(context)) {}
+    : type_(type),
+      id_(id),
+      context_(std::move(context)) {}
 
 Device::~Device() = default;
 
 Device::Device(Device &&other) noexcept
-    : type_(other.type_), id_(other.id_), context_(std::move(other.context_)) {}
+    : type_(other.type_),
+      id_(other.id_),
+      context_(std::move(other.context_)) {}
 
 Device &Device::operator=(Device &&other) noexcept {
   if (this != &other) {
@@ -61,8 +66,8 @@ void Device::copyToHost(void *dest, const void *src, size_t size) const {
   context_->copyToHost(dest, src, size);
 }
 
-void Device::createFlow(const std::string &flow_id) const { context_->createFlow(flow_id); }
+void Device::createFlow(flowHandle_t handle) const { context_->createFlow(handle); }
 
-Flow *Device::getFlow(const std::string &flow_id) const { return context_->getFlow(flow_id); }
+Flow *Device::getFlow(flowHandle_t handle) const { return context_->getFlow(handle); }
 
 }  // namespace tnn

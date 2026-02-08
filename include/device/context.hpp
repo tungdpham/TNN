@@ -19,7 +19,7 @@ public:
   virtual void deallocateAlignedMemory(void *ptr) = 0;
   virtual void copyToDevice(void *dest, const void *src, size_t size) = 0;
   virtual void copyToHost(void *dest, const void *src, size_t size) = 0;
-  virtual void createFlow(const std::string &flow_id) = 0;
-  virtual Flow *getFlow(const std::string &flow_id) = 0;
+  virtual void createFlow(flowHandle_t flow_id) = 0;
+  virtual Flow *getFlow(flowHandle_t flow_id) = 0;
 };
 }  // namespace tnn

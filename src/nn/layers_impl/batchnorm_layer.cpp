@@ -184,13 +184,13 @@ void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_training_task, fe_handle, current_stats, input, output,
                                    gamma_, beta_, running_mean_, running_var_, running_mean_,
                                    running_var_, batch_mean, batch_invar, relu_mask, workspace,
-                                   "default");
+                                   this->flow_handle_);
   } else {
     size_t workspace_elems = (current_stats.inf_workspace_size + io_dtype_size - 1) / io_dtype_size;
     Tensor workspace = this->get_buffer({workspace_elems}, io_dtype_);
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_inference_task, fe_handle, current_stats, input, output,
                                    gamma_, beta_, running_mean_, running_var_, workspace,
-                                   "default");
+                                   this->flow_handle_);
   }
 }
 
@@ -228,7 +228,7 @@ void BatchNormLayer::cudnn_backward(const ConstTensor &gradient, const Tensor &g
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(backward_task, fe_handle, current_stats, gradient, relu_mask,
                                  input, grad_input, gamma_, gamma_gradients_, beta_gradients_,
-                                 batch_mean, batch_invar, workspace, "default");
+                                 batch_mean, batch_invar, workspace, this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -238,7 +238,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
     const Tensor &prev_running_mean, const Tensor &prev_running_var,
     const Tensor &next_running_mean, const Tensor &next_running_var, const Tensor &batch_mean,
     const Tensor &batch_invar, const Tensor &relu_mask, const Tensor &workspace,
-    const std::string &flow_id) {
+    flowHandle_t handle) {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -248,7 +248,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_training_task(
 
   if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
-    return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_forward_training, fe_handle, stats,
+    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_training, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), output->data(),
                             running_mean_->data(), running_var_->data(), running_mean_->data(),
                             running_var_->data(), batch_mean->data(), batch_invar->data(),
@@ -265,7 +265,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
     cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
     const Tensor &output, const ConstTensor &gamma, const ConstTensor &beta,
     const ConstTensor &saved_mean, const ConstTensor &saved_var, const Tensor &workspace,
-    const std::string &flow_id) {
+    flowHandle_t handle) {
   if (input->data_type() != dtype_of<IO_T>() || output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -275,7 +275,7 @@ std::unique_ptr<Task> BatchNormLayer::forward_inference_task(
 
   if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
-    return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
+    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_forward_inference, fe_handle, stats,
                             input->data(), gamma->data(), beta->data(), saved_mean->data(),
                             saved_var->data(), output->data(), workspace->data());
 #endif
@@ -291,7 +291,7 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
     const ConstTensor &gradient, const ConstTensor &relu_mask, const ConstTensor &input,
     const Tensor &grad_input, const ConstTensor &gamma, const Tensor &gamma_gradients,
     const Tensor &beta_gradients, const ConstTensor &batch_mean, const ConstTensor &batch_invar,
-    const Tensor &workspace, const std::string &flow_id) {
+    const Tensor &workspace, flowHandle_t handle) {
   if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("BatchNormLayer IO tensor dtype mismatch with dispatch IO_T");
   }
@@ -301,7 +301,7 @@ std::unique_ptr<Task> BatchNormLayer::backward_task(
 
   if (this->device_->device_type() == DeviceType::GPU) {
 #ifdef USE_CUDNN
-    return create_cuda_task(flow_id, cuda::cudnn_batchnorm::run_backward, fe_handle, stats,
+    return create_cuda_task(handle, cuda::cudnn_batchnorm::run_backward, fe_handle, stats,
                             input->data(), gradient->data(),
                             use_relu_ ? relu_mask->data() : nullptr, gamma->data(),
                             grad_input->data(), gamma_gradients->data(), beta_gradients->data(),

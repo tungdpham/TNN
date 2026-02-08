@@ -59,7 +59,7 @@ void LegacyMaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &
   }
 
   compute_max_pool_forward(input, output, batch_size, channels, input_h, input_w, output_h,
-                           output_w, micro_batch_mask_indices_[mb_id], "default");
+                           output_w, micro_batch_mask_indices_[mb_id], this->flow_handle_);
 }
 
 void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -96,14 +96,14 @@ void LegacyMaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tens
   grad_input->fill(0);
 
   compute_max_pool_backward(gradient, grad_input, batch_size, channels, output_h, output_w,
-                            mask_indices, "default");
+                            mask_indices, this->flow_handle_);
 }
 
 template <typename IO_T>
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   if (input_data->data_type() != dtype_of<IO_T>() || output_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
   }
@@ -112,14 +112,14 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
   }
 
   if (input_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::maxpool_nchw::compute_max_pool_forward<IO_T>,
+    return create_cpu_task(handle, cpu::maxpool_nchw::compute_max_pool_forward<IO_T>,
                            input_data->data_as<IO_T>(), output_data->data_as<IO_T>(), batch_size,
                            channels, input_h, input_w, output_h, output_w, pool_h_, pool_w_,
                            stride_h_, stride_w_, pad_h_, pad_w_, mask_indices->data_as<size_t>());
   }
 #ifdef USE_CUDA
   else if (input_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::maxpool_nchw::compute_max_pool_forward<IO_T>,
+    return create_cuda_task(handle, cuda::maxpool_nchw::compute_max_pool_forward<IO_T>,
                             input_data->data_as<IO_T>(), output_data->data_as<IO_T>(), batch_size,
                             channels, input_h, input_w, output_h, output_w, pool_h_, pool_w_,
                             stride_h_, stride_w_, pad_h_, pad_w_, mask_indices->data_as<size_t>());
@@ -134,10 +134,9 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward_impl(
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t channels,
     size_t input_h, size_t input_w, size_t output_h, size_t output_w, const Tensor &mask_indices,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_forward_impl, input_data, output_data, batch_size,
-                              channels, input_h, input_w, output_h, output_w, mask_indices,
-                              flow_id);
+                              channels, input_h, input_w, output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
@@ -145,7 +144,7 @@ template <typename IO_T>
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
     const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
     size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   if (gradient_data->data_type() != dtype_of<IO_T>() ||
       grad_input_data->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyMaxPool2DLayer tensor dtype mismatch with dispatch type");
@@ -155,14 +154,14 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
   }
 
   if (gradient_data->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::maxpool_nchw::compute_max_pool_backward<IO_T>,
+    return create_cpu_task(handle, cpu::maxpool_nchw::compute_max_pool_backward<IO_T>,
                            gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                            batch_size, channels, output_h, output_w,
                            mask_indices->data_as<size_t>());
   }
 #ifdef USE_CUDA
   else if (gradient_data->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::maxpool_nchw::compute_max_pool_backward<IO_T>,
+    return create_cuda_task(handle, cuda::maxpool_nchw::compute_max_pool_backward<IO_T>,
                             gradient_data->data_as<IO_T>(), grad_input_data->data_as<IO_T>(),
                             batch_size, channels, output_h, output_w,
                             mask_indices->data_as<size_t>());
@@ -177,9 +176,9 @@ std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward_impl(
 std::unique_ptr<Task> LegacyMaxPool2DLayer::compute_max_pool_backward(
     const ConstTensor &gradient_data, const Tensor &grad_input_data, size_t batch_size,
     size_t channels, size_t output_h, size_t output_w, const ConstTensor &mask_indices,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_backward_impl, gradient_data, grad_input_data,
-                              batch_size, channels, output_h, output_w, mask_indices, flow_id);
+                              batch_size, channels, output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 

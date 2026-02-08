@@ -24,6 +24,13 @@ void Layer::set_device(const Device &device) {
 
 const Device &Layer::get_device() const { return device_; }
 
+void Layer::set_flow_handle(flowHandle_t handle) {
+  flow_handle_ = handle;
+  on_set_flow_handle(handle);
+}
+
+flowHandle_t Layer::get_flow_handle() const { return flow_handle_; }
+
 void Layer::set_io_dtype(DType_t dtype) {
   io_dtype_ = dtype;
   on_set_io_dtype(dtype);
@@ -90,7 +97,7 @@ void Layer::forward(const ConstTensor &input, const Tensor &output, size_t mb_id
   }
   forward_impl(current, output, mb_id);
 #ifndef NDEBUG
-  this->device_->getFlow("default")->synchronize();
+  this->device_->getFlow(this->flow_handle_)->synchronize();
 #endif
   Clock::time_point end_time = Clock::now();
   profiler_.add_event(Event{EventType::COMPUTE, start_time, end_time, "forward"});
@@ -127,7 +134,7 @@ void Layer::backward(const ConstTensor &gradient, const Tensor &grad_input, size
   }
   backward_impl(current_gradient, grad_input, mb_id);
 #ifndef NDEBUG
-  this->device_->getFlow("default")->synchronize();
+  this->device_->getFlow(this->flow_handle_)->synchronize();
 #endif
   clear_cache(mb_id);
   Clock::time_point end_time = Clock::now();

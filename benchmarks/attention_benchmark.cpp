@@ -36,7 +36,7 @@ signed main() {
   for (int i = 0; i < 10; ++i) {
     auto vanilla_start = std::chrono::high_resolution_clock::now();
     attention_block.forward(input, full_attn_output);
-    attention_block.get_device().getFlow("default")->synchronize();
+    attention_block.get_device().getFlow(defaultFlowHandle)->synchronize();
     auto vanilla_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> vanilla_duration = vanilla_end - vanilla_start;
     printf("Vanilla Attention Forward Pass Time: %.3f ms\n", vanilla_duration.count());
@@ -45,7 +45,7 @@ signed main() {
   for (int i = 0; i < 10; ++i) {
     auto flash_start = std::chrono::high_resolution_clock::now();
     flash_attention_block.forward(input, flash_attn_output);
-    flash_attention_block.get_device().getFlow("default")->synchronize();
+    flash_attention_block.get_device().getFlow(defaultFlowHandle)->synchronize();
     auto flash_end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double, std::milli> flash_duration = flash_end - flash_start;
     printf("Flash Attention Forward Pass Time: %.3f ms\n", flash_duration.count());

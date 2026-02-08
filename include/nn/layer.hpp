@@ -17,6 +17,7 @@
 
 #include "common/config.hpp"
 #include "device/device_manager.hpp"
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "profiling/profiler.hpp"
 #include "tensor/tensor.hpp"
@@ -35,6 +36,8 @@ public:
   // Note: have to reinit after changing device
   void set_device(const Device &device);
   const Device &get_device() const;
+  void set_flow_handle(flowHandle_t handle);
+  flowHandle_t get_flow_handle() const;
   void set_io_dtype(DType_t dtype);
   DType_t get_io_dtype() const;
   void set_param_dtype(DType_t dtype);
@@ -86,6 +89,7 @@ protected:
       cached_tensors_;  // for immutable cache (e.g., inputs)
   Profiler profiler_;
   PoolAllocator *mem_pool_;
+  flowHandle_t flow_handle_;
   csref<Device> device_ = getCPU();
   std::string name_;
   DType_t io_dtype_ = DType_t::FP32;       // data type for input/output tensors
@@ -93,6 +97,7 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   virtual void on_set_device(const Device &device) {}
+  virtual void on_set_flow_handle(flowHandle_t handle) {}
   virtual void on_set_seed(unsigned long long seed) {}
   virtual void on_set_training(bool training) {}
   virtual void on_set_io_dtype(DType_t dtype) {}

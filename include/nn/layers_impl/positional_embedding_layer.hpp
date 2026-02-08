@@ -25,12 +25,12 @@ private:
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> add_positional_embedding(const ConstTensor &input, const Tensor &output,
                                                  const ConstTensor &pos_embedding,
-                                                 const std::string &flow_id) const;
+                                                 flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> accumulate_pos_gradients(const ConstTensor &gradient,
                                                  const Tensor &pos_embedding_gradients,
-                                                 const std::string &flow_id) const;
+                                                 flowHandle_t handle) const;
 
   void init_params() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;

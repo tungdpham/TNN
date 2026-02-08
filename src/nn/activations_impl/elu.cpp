@@ -15,7 +15,8 @@
 #endif
 
 namespace tnn {
-ELU::ELU(float alpha) : alpha_(alpha) {}
+ELU::ELU(float alpha)
+    : alpha_(alpha) {}
 
 std::unique_ptr<Task> ELU::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
@@ -25,7 +26,7 @@ std::unique_ptr<Task> ELU::apply(const ConstTensor &input, const Tensor &output)
     throw std::runtime_error("Input and output must be on the same device for ELU");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
+  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> ELU::compute_gradient(const ConstTensor &input,
@@ -36,8 +37,9 @@ std::unique_ptr<Task> ELU::compute_gradient(const ConstTensor &input,
   if (grad_output->device() != grad_input->device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for ELU");
   }
-  DISPATCH_ON_DTYPE(input->data_type(), T,
-                    return compute_gradient_impl<T>(input, grad_output, grad_input, "default"));
+  DISPATCH_ON_DTYPE(
+      input->data_type(), T,
+      return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }
 
 std::string ELU::name() const { return "elu"; }
@@ -46,7 +48,7 @@ std::unique_ptr<ActivationFunction> ELU::clone() const { return std::make_unique
 
 template <typename Compute_T>
 std::unique_ptr<Task> ELU::apply_impl(const ConstTensor &input, const Tensor &output,
-                                      const std::string &flow_id) const {
+                                      flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("ELU tensor dtype mismatch with dispatch type");
   }
@@ -54,12 +56,12 @@ std::unique_ptr<Task> ELU::apply_impl(const ConstTensor &input, const Tensor &ou
   const size_t size = input->size();
   const Compute_T alpha_typed = static_cast<Compute_T>(alpha_);
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::elu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::elu<Compute_T>, input->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), size, alpha_typed);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::elu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::elu<Compute_T>, input->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), size, alpha_typed);
   }
 #endif
@@ -73,7 +75,7 @@ template <typename Compute_T>
 std::unique_ptr<Task> ELU::compute_gradient_impl(const ConstTensor &input,
                                                  const ConstTensor &grad_output,
                                                  const Tensor &grad_input,
-                                                 const std::string &flow_id) const {
+                                                 flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||
       grad_input->data_type() != dtype_of<Compute_T>()) {
@@ -83,13 +85,13 @@ std::unique_ptr<Task> ELU::compute_gradient_impl(const ConstTensor &input,
   const size_t size = grad_output->size();
   const Compute_T alpha_typed = static_cast<Compute_T>(alpha_);
   if (grad_output->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::elu_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::elu_gradient<Compute_T>, input->data_as<Compute_T>(),
                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            size, alpha_typed);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::elu_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::elu_gradient<Compute_T>, input->data_as<Compute_T>(),
                             grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             size, alpha_typed);
   }

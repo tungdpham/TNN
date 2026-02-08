@@ -33,7 +33,7 @@ private:
                                           const ConstTensor &beta, const Tensor &output,
                                           const Tensor &norm_cache, size_t batch_size,
                                           size_t channels, size_t spatial_size,
-                                          const std::string &flow_id = "default") const;
+                                          flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> run_backward_fused(const ConstTensor &grad_output,
@@ -42,7 +42,7 @@ private:
                                            const Tensor &d_gamma, const Tensor &d_beta,
                                            const Tensor &grad_input, size_t batch_size,
                                            size_t channels, size_t spatial_size,
-                                           const std::string &flow_id = "default") const;
+                                           flowHandle_t handle = defaultFlowHandle) const;
 
   void init_params() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;

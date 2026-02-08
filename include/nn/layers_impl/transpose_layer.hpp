@@ -19,7 +19,7 @@ class TransposeLayer : public StatelessLayer {
 private:
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> permute(const ConstTensor &input, const Tensor &output, size_t B, size_t L,
-                                size_t H, size_t D, const std::string &flow_id) const;
+                                size_t H, size_t D, flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,

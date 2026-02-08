@@ -58,7 +58,7 @@ void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output
   output->ensure(out_shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_forward_impl, input, weight_, output, num_tokens,
-                                 vocab_size_, embed_dim_, padding_idx_, "default");
+                                 vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
 }
 
 void EmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -74,13 +74,13 @@ void EmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
   size_t num_tokens = input->size();
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_backward_impl, input, gradient, grad_weight_, num_tokens,
-                                 vocab_size_, embed_dim_, padding_idx_, "default");
+                                 vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(
     const ConstTensor &input, const ConstTensor &weight, const Tensor &output, size_t num_indices,
-    size_t vocab_size, size_t embed_dim, size_t padding_idx, const std::string &flow_id) const {
+    size_t vocab_size, size_t embed_dim, size_t padding_idx, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "EmbeddingLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -93,14 +93,14 @@ std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(
   }
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::embedding::compute_embedding_forward<Compute_T>,
+    return create_cpu_task(handle, cpu::embedding::compute_embedding_forward<Compute_T>,
                            input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                            padding_idx);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::embedding::compute_embedding_forward<Compute_T>,
+    return create_cuda_task(handle, cuda::embedding::compute_embedding_forward<Compute_T>,
                             input->data_as<Compute_T>(), weight->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                             padding_idx);
@@ -118,7 +118,7 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &i
                                                             const Tensor &grad_weight,
                                                             size_t num_indices, size_t vocab_size,
                                                             size_t embed_dim, size_t padding_idx,
-                                                            const std::string &flow_id) const {
+                                                            flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "EmbeddingLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -131,14 +131,14 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &i
   }
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::embedding::compute_embedding_backward<Compute_T>,
+    return create_cpu_task(handle, cpu::embedding::compute_embedding_backward<Compute_T>,
                            input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
                            grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                            padding_idx);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::embedding::compute_embedding_backward<Compute_T>,
+    return create_cuda_task(handle, cuda::embedding::compute_embedding_backward<Compute_T>,
                             input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
                             grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
                             padding_idx);

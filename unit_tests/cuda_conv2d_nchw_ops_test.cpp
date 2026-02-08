@@ -104,7 +104,7 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsBasic) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_weight_grad_gpu", cuda::conv2d_nchw::compute_weight_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
                        gpu_col.get<float>(), gpu_gradient.get<float>(),
                        gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
@@ -151,7 +151,7 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsMultiOutput) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_weight_grad_gpu", cuda::conv2d_nchw::compute_weight_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
                        gpu_col.get<float>(), gpu_gradient.get<float>(),
                        gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
@@ -198,7 +198,7 @@ TEST_F(CUDAConv2NCHWOpsTest, WeightGradientsLargeKernel) {
                         zero_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_weight_grad_gpu", cuda::conv2d_nchw::compute_weight_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_weight_gradients<float>,
                        gpu_col.get<float>(), gpu_gradient.get<float>(),
                        gpu_weight_grad.get<float>(), output_size, kernel_size, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_weight_gradients task failed";
@@ -248,7 +248,7 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsBasic) {
                         zero_col_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_input_grad_gpu", cuda::conv2d_nchw::compute_input_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_input_gradients<float>,
                        gpu_gradient.get<float>(), gpu_weight.get<float>(),
                        gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_input_gradients task failed";
@@ -296,7 +296,7 @@ TEST_F(CUDAConv2NCHWOpsTest, InputGradientsLargeKernel) {
                         zero_col_grad.size() * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_input_grad_gpu", cuda::conv2d_nchw::compute_input_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_input_gradients<float>,
                        gpu_gradient.get<float>(), gpu_weight.get<float>(),
                        gpu_col_grad.get<float>(), output_size, kernel_size, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_input_gradients task failed";
@@ -338,7 +338,7 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsBasic) {
                         out_channels * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_bias_grad_gpu", cuda::conv2d_nchw::compute_bias_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
                        gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
                        output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
@@ -378,7 +378,7 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsMultiBatch) {
                         out_channels * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_bias_grad_gpu", cuda::conv2d_nchw::compute_bias_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
                        gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
                        output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
@@ -418,7 +418,7 @@ TEST_F(CUDAConv2NCHWOpsTest, BiasGradientsLargeChannels) {
                         out_channels * sizeof(float));
 
   auto gpu_task =
-      create_cuda_task("test_bias_grad_gpu", cuda::conv2d_nchw::compute_bias_gradients<float>,
+      create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::compute_bias_gradients<float>,
                        gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_h,
                        output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU compute_bias_gradients task failed";
@@ -461,9 +461,9 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasBasic) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(
-      "test_add_bias_gpu", cuda::conv2d_nchw::add_bias_to_output<float>, gpu_output.get<float>(),
-      gpu_bias.get<float>(), batch_size, output_h, output_w, out_channels);
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+                                   gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
+                                   output_h, output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
 
   std::vector<float> gpu_output_cpu(output_data.size());
@@ -502,9 +502,9 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasMultiBatch) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(
-      "test_add_bias_gpu", cuda::conv2d_nchw::add_bias_to_output<float>, gpu_output.get<float>(),
-      gpu_bias.get<float>(), batch_size, output_h, output_w, out_channels);
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+                                   gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
+                                   output_h, output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
 
   std::vector<float> gpu_output_cpu(output_data.size());
@@ -543,9 +543,9 @@ TEST_F(CUDAConv2NCHWOpsTest, AddBiasLargeOutput) {
                         output_data.size() * sizeof(float));
   getGPU().copyToDevice(gpu_bias.get<float>(), bias_data.data(), bias_data.size() * sizeof(float));
 
-  auto gpu_task = create_cuda_task(
-      "test_add_bias_gpu", cuda::conv2d_nchw::add_bias_to_output<float>, gpu_output.get<float>(),
-      gpu_bias.get<float>(), batch_size, output_h, output_w, out_channels);
+  auto gpu_task = create_cuda_task(defaultFlowHandle, cuda::conv2d_nchw::add_bias_to_output<float>,
+                                   gpu_output.get<float>(), gpu_bias.get<float>(), batch_size,
+                                   output_h, output_w, out_channels);
   ASSERT_FALSE(gpu_task->sync()) << "GPU add_bias_to_output task failed";
 
   std::vector<float> gpu_output_cpu(output_data.size());

@@ -222,7 +222,7 @@ model.optimizer()->set_learning_rate(new_lr);
 ## Complete Example
 
 ```cpp
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/loss.hpp"
 
