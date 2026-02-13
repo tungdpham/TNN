@@ -27,13 +27,13 @@ private:
   std::unique_ptr<Task> compute_forward_impl(const ConstTensor &input, const ConstTensor &weight,
                                              const Tensor &output, size_t num_indices,
                                              size_t vocab_size, size_t embed_dim,
-                                             size_t padding_idx, const std::string &flow_id) const;
+                                             size_t padding_idx, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_backward_impl(const ConstTensor &input, const ConstTensor &gradient,
                                               const Tensor &grad_weight, size_t num_indices,
                                               size_t vocab_size, size_t embed_dim,
-                                              size_t padding_idx, const std::string &flow_id) const;
+                                              size_t padding_idx, flowHandle_t handle) const;
 
   void init_params() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;

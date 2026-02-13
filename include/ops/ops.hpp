@@ -16,7 +16,7 @@ namespace ops {
 
 template <typename T>
 std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("add: All device pointers must be on the same device");
   }
@@ -24,11 +24,11 @@ std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::add<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::add<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_add<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_add<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -38,7 +38,7 @@ std::unique_ptr<Task> add(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub: All device pointers must be on the same device");
   }
@@ -47,11 +47,11 @@ std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::sub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_sub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_sub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -61,7 +61,7 @@ std::unique_ptr<Task> sub(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("mul: All device pointers must be on the same device");
   }
@@ -70,11 +70,11 @@ std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::mul<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::mul<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_mul<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_mul<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -84,7 +84,7 @@ std::unique_ptr<Task> mul(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("div: All device pointers must be on the same device");
   }
@@ -93,11 +93,11 @@ std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::div<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::div<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_div<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_div<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -107,7 +107,7 @@ std::unique_ptr<Task> div(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
-                            const std::string &flow_id = "default") {
+                            flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fmadd: All device pointers must be on the same device");
   }
@@ -116,11 +116,11 @@ std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::fmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::fmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_fmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -130,7 +130,7 @@ std::unique_ptr<Task> fmadd(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
-                            const std::string &flow_id = "default") {
+                            flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fmsub: All device pointers must be on the same device");
   }
@@ -139,11 +139,11 @@ std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::fmsub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::fmsub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fmsub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_fmsub<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -153,7 +153,7 @@ std::unique_ptr<Task> fmsub(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
-                             const std::string &flow_id = "default") {
+                             flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("fnmadd: All device pointers must be on the same device");
   }
@@ -162,12 +162,11 @@ std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_fnmadd<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -177,7 +176,7 @@ std::unique_ptr<Task> fnmadd(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("add_scalar: All device pointers must be on the same device");
   }
@@ -186,12 +185,11 @@ std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::add_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::add_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_add_scalar<T>, a.get<T>(), scalar, c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_add_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -201,7 +199,7 @@ std::unique_ptr<Task> add_scalar(const dptr a, T scalar, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub_scalar: All device pointers must be on the same device");
   }
@@ -210,12 +208,11 @@ std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sub_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::sub_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_sub_scalar<T>, a.get<T>(), scalar, c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_sub_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -225,7 +222,7 @@ std::unique_ptr<Task> sub_scalar(const dptr a, T scalar, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("mul_scalar: All device pointers must be on the same device");
   }
@@ -234,12 +231,11 @@ std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::mul_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::mul_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_mul_scalar<T>, a.get<T>(), scalar, c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_mul_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -249,7 +245,7 @@ std::unique_ptr<Task> mul_scalar(const dptr a, T scalar, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("div_scalar: All device pointers must be on the same device");
   }
@@ -258,12 +254,11 @@ std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::div_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::div_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_div_scalar<T>, a.get<T>(), scalar, c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_div_scalar<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -273,16 +268,16 @@ std::unique_ptr<Task> div_scalar(const dptr a, T scalar, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   const auto &device = c.getDevice();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::set_scalar<T>, c.get<T>(), scalar, size);
+    return create_cpu_task(handle, cpu::set_scalar<T>, c.get<T>(), scalar, size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_set_scalar<T>, c.get<T>(), scalar, size);
+    return create_cuda_task(handle, cuda::cuda_set_scalar<T>, c.get<T>(), scalar, size);
   }
 #endif
   else {
@@ -292,7 +287,7 @@ std::unique_ptr<Task> set_scalar(dptr c, T scalar, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
-                           const std::string &flow_id = "default") {
+                           flowHandle_t handle = defaultFlowHandle) {
   if (x.getDevice() != y.getDevice()) {
     throw std::runtime_error("axpy: All device pointers must be on the same device");
   }
@@ -301,11 +296,11 @@ std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::axpy<T>, alpha, x.get<T>(), y.get<T>(), size);
+    return create_cpu_task(handle, cpu::axpy<T>, alpha, x.get<T>(), y.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_axpy<T>, alpha, x.get<T>(), y.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_axpy<T>, alpha, x.get<T>(), y.get<T>(), size);
   }
 #endif
   else {
@@ -315,7 +310,7 @@ std::unique_ptr<Task> axpy(T alpha, const dptr x, dptr y, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
-                           const std::string &flow_id = "default") {
+                           flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sqrt: All device pointers must be on the same device");
   }
@@ -324,11 +319,11 @@ std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sqrt<T>, a.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::sqrt<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_sqrt<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_sqrt<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -338,7 +333,7 @@ std::unique_ptr<Task> sqrt(const dptr a, dptr c, size_t size,
 
 template <typename T>
 inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
-                                   const std::string &flow_id = "default") {
+                                   flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("rsqrt: All device pointers must be on the same device");
   }
@@ -347,11 +342,11 @@ inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::rsqrt<T>, a.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::rsqrt<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_rsqrt<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_rsqrt<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -361,7 +356,7 @@ inline std::unique_ptr<Task> rsqrt(const dptr a, dptr c, size_t size,
 
 template <typename T>
 inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("rcp: All device pointers must be on the same device");
   }
@@ -370,11 +365,11 @@ inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::rcp<T>, a.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::rcp<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_rcp<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_rcp<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -384,7 +379,7 @@ inline std::unique_ptr<Task> rcp(const dptr a, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("abs: All device pointers must be on the same device");
   }
@@ -393,11 +388,11 @@ std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::abs<T>, a.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::abs<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_abs<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_abs<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -407,7 +402,7 @@ std::unique_ptr<Task> abs(const dptr a, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("min: All device pointers must be on the same device");
   }
@@ -416,11 +411,11 @@ std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::min<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::min<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_min<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_min<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -430,7 +425,7 @@ std::unique_ptr<Task> min(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
-                          const std::string &flow_id = "default") {
+                          flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("max: All device pointers must be on the same device");
   }
@@ -439,11 +434,11 @@ std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::max<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::max<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_max<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_max<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -453,7 +448,7 @@ std::unique_ptr<Task> max(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
-                                 const std::string &flow_id = "default") {
+                                 flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("scalar_max: All device pointers must be on the same device");
   }
@@ -462,12 +457,11 @@ std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::scalar_max<T>, a.get<T>(), scalar, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::scalar_max<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_scalar_max<T>, a.get<T>(), scalar, c.get<T>(),
-                            size);
+    return create_cuda_task(handle, cuda::cuda_scalar_max<T>, a.get<T>(), scalar, c.get<T>(), size);
   }
 #endif
   else {
@@ -477,7 +471,7 @@ std::unique_ptr<Task> scalar_max(const dptr a, T scalar, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t size,
-                            const std::string &flow_id = "default") {
+                            flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("clamp: All device pointers must be on the same device");
   }
@@ -486,11 +480,11 @@ std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t s
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(),
+    return create_cuda_task(handle, cuda::cuda_clamp<T>, a.get<T>(), min_val, max_val, c.get<T>(),
                             size);
   }
 #endif
@@ -501,7 +495,7 @@ std::unique_ptr<Task> clamp(const dptr a, T min_val, T max_val, dptr c, size_t s
 
 template <typename T>
 std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
-                            const std::string &flow_id = "default") {
+                            flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("equal: All device pointers must be on the same device");
   }
@@ -510,11 +504,11 @@ std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::equal<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::equal<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_equal<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_equal<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -524,7 +518,7 @@ std::unique_ptr<Task> equal(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
-                              const std::string &flow_id = "default") {
+                              flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice() || a.getDevice() != c.getDevice()) {
     throw std::runtime_error("greater: All device pointers must be on the same device");
   }
@@ -533,11 +527,11 @@ std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::greater<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::greater<T>, a.get<T>(), b.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_greater<T>, a.get<T>(), b.get<T>(), c.get<T>(),
+    return create_cuda_task(handle, cuda::cuda_greater<T>, a.get<T>(), b.get<T>(), c.get<T>(),
                             size);
   }
 #endif
@@ -548,7 +542,7 @@ std::unique_ptr<Task> greater(const dptr a, const dptr b, dptr c, size_t size,
 
 template <typename T>
 std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
-                           const std::string &flow_id = "default") {
+                           flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("copy: All device pointers must be on the same device");
   }
@@ -561,11 +555,11 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::copy<T>, a.get<T>(), c.get<T>(), size);
+    return create_cpu_task(handle, cpu::copy<T>, a.get<T>(), c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_copy<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_copy<T>, a.get<T>(), c.get<T>(), size);
   }
 #endif
   else {
@@ -576,12 +570,12 @@ std::unique_ptr<Task> copy(const dptr a, dptr c, size_t size,
 // Special copy for copying cross devices (resort to same device/host copy if applicable)
 template <typename T>
 std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
-                              const std::string &flow_id = "default") {
+                              flowHandle_t handle = defaultFlowHandle) {
   const auto &a_device = a.getDevice();
   const auto &c_device = c.getDevice();
   if (a_device == c_device) {
     // same device copy
-    return copy<T>(a, c, size, flow_id);
+    return copy<T>(a, c, size, handle);
   }
   auto a_device_type = a_device.device_type();
   auto c_device_type = c_device.device_type();
@@ -589,14 +583,14 @@ std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
   if (a_device_type == DeviceType::CPU && c_device_type == DeviceType::GPU) {
     // host to device copy
 #ifdef USE_CUDA
-    return create_cuda_task(flow_id, cuda::cuda_h2d_copy<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_h2d_copy<T>, a.get<T>(), c.get<T>(), size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for CPU to GPU copy");
 #endif
   } else if (a_device_type == DeviceType::GPU && c_device_type == DeviceType::CPU) {
     // device to host copy
 #ifdef USE_CUDA
-    return create_cuda_task(flow_id, cuda::cuda_d2h_copy<T>, a.get<T>(), c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_d2h_copy<T>, a.get<T>(), c.get<T>(), size);
 #else
     throw std::runtime_error("cd_copy: CUDA not enabled for GPU to CPU copy");
 #endif
@@ -606,16 +600,16 @@ std::unique_ptr<Task> cd_copy(const dptr a, dptr c, size_t size,
 }
 
 template <typename T>
-std::unique_ptr<Task> zero(dptr c, size_t size, const std::string &flow_id = "default") {
+std::unique_ptr<Task> zero(dptr c, size_t size, flowHandle_t handle = defaultFlowHandle) {
   const auto &device = c.getDevice();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::zero<T>, c.get<T>(), size);
+    return create_cpu_task(handle, cpu::zero<T>, c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_zero<T>, c.get<T>(), size);
+    return create_cuda_task(handle, cuda::cuda_zero<T>, c.get<T>(), size);
   }
 #endif
   else {
@@ -701,7 +695,7 @@ T sum_squared_diff(const dptr a, T mean, size_t size) {
 
 template <typename T>
 std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, dptr c, size_t size,
-                                     const std::string &flow_id = "default") {
+                                     flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("sub_mul_scalar: All device pointers must be on the same device");
   }
@@ -710,12 +704,12 @@ std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, d
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sub_mul_scalar<T>, a.get<T>(), sub_scalar, mul_scalar,
+    return create_cpu_task(handle, cpu::sub_mul_scalar<T>, a.get<T>(), sub_scalar, mul_scalar,
                            c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_sub_mul_scalar<T>, a.get<T>(), sub_scalar,
+    return create_cuda_task(handle, cuda::cuda_sub_mul_scalar<T>, a.get<T>(), sub_scalar,
                             mul_scalar, c.get<T>(), size);
   }
 #endif
@@ -726,7 +720,7 @@ std::unique_ptr<Task> sub_mul_scalar(const dptr a, T sub_scalar, T mul_scalar, d
 
 template <typename T>
 std::unique_ptr<Task> mul_add_scalar(const dptr a, T mul_scalar, T add_scalar, dptr c, size_t size,
-                                     const std::string &flow_id = "default") {
+                                     flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != c.getDevice()) {
     throw std::runtime_error("mul_add_scalar: All device pointers must be on the same device");
   }
@@ -735,12 +729,12 @@ std::unique_ptr<Task> mul_add_scalar(const dptr a, T mul_scalar, T add_scalar, d
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::mul_add_scalar<T>, a.get<T>(), mul_scalar, add_scalar,
+    return create_cpu_task(handle, cpu::mul_add_scalar<T>, a.get<T>(), mul_scalar, add_scalar,
                            c.get<T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_mul_add_scalar<T>, a.get<T>(), mul_scalar,
+    return create_cuda_task(handle, cuda::cuda_mul_add_scalar<T>, a.get<T>(), mul_scalar,
                             add_scalar, c.get<T>(), size);
   }
 #endif
@@ -752,18 +746,18 @@ std::unique_ptr<Task> mul_add_scalar(const dptr a, T mul_scalar, T add_scalar, d
 template <typename T>
 std::unique_ptr<Task> fill_random_uniform(dptr data, size_t size, T min_val, T max_val,
                                           unsigned long long seed,
-                                          const std::string &flow_id = "default") {
+                                          flowHandle_t handle = defaultFlowHandle) {
   const auto &device = data.getDevice();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::fill_random_uniform<T>, data.get<T>(), size, min_val,
+    return create_cpu_task(handle, cpu::fill_random_uniform<T>, data.get<T>(), size, min_val,
                            max_val, seed);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fill_random_uniform<T>, data.get<T>(), size,
-                            min_val, max_val, seed);
+    return create_cuda_task(handle, cuda::cuda_fill_random_uniform<T>, data.get<T>(), size, min_val,
+                            max_val, seed);
   }
 #endif
   else {
@@ -774,17 +768,17 @@ std::unique_ptr<Task> fill_random_uniform(dptr data, size_t size, T min_val, T m
 template <typename T>
 std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stddev,
                                          unsigned long long seed,
-                                         const std::string &flow_id = "default") {
+                                         flowHandle_t handle = defaultFlowHandle) {
   const auto &device = data.getDevice();
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::fill_random_normal<T>, data.get<T>(), size, mean, stddev,
+    return create_cpu_task(handle, cpu::fill_random_normal<T>, data.get<T>(), size, mean, stddev,
                            seed);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_fill_random_normal<T>, data.get<T>(), size, mean,
+    return create_cuda_task(handle, cuda::cuda_fill_random_normal<T>, data.get<T>(), size, mean,
                             stddev, seed);
   }
 #endif
@@ -795,7 +789,7 @@ std::unique_ptr<Task> fill_random_normal(dptr data, size_t size, T mean, T stdde
 
 template <typename A_T, typename B_T>
 std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
-                           const std::string &flow_id = "default") {
+                           flowHandle_t handle = defaultFlowHandle) {
   if (a.getDevice() != b.getDevice()) {
     throw std::runtime_error("cast: All device pointers must be on the same device");
   }
@@ -804,11 +798,11 @@ std::unique_ptr<Task> cast(const dptr a, dptr b, size_t size,
   auto device_type = device.device_type();
 
   if (device_type == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
+    return create_cpu_task(handle, cpu::cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
   }
 #ifdef USE_CUDA
   else if (device_type == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::cuda_cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
+    return create_cuda_task(handle, cuda::cuda_cast<A_T, B_T>, a.get<A_T>(), b.get<B_T>(), size);
   }
 #endif
   else {

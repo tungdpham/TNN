@@ -5,7 +5,7 @@
  * project root for the full license text.
  */
 
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 
 #include <fmt/core.h>
 
@@ -16,6 +16,7 @@
 #include <stdexcept>
 
 #include "nlohmann/json_fwd.hpp"
+#include "nn/block.hpp"
 #include "nn/layers.hpp"
 #include "profiling/event.hpp"
 
@@ -104,7 +105,7 @@ void Sequential::forward_impl(const ConstTensor &input, const Tensor &output, si
                                layers_[i]->name() + "): " + e.what());
     }
   }
-  this->device_->getFlow("default")->synchronize();
+  this->device_->getFlow(this->flow_handle_)->synchronize();
   auto end = Clock::now();
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
 }
@@ -136,19 +137,18 @@ void Sequential::backward_impl(const ConstTensor &gradient, const Tensor &grad_i
                                layers_[i]->type() + "): " + e.what());
     }
   }
-  this->device_->getFlow("default")->synchronize();
+  this->device_->getFlow(this->flow_handle_)->synchronize();
   auto end = Clock::now();
   this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential backward"});
 }
 
 Sequential::Sequential(const std::string &name, std::vector<std::unique_ptr<Layer>> layers)
-    : Layer() {
-  this->name_ = name;
+    : Block(name) {
   layers_ = std::move(layers);
 }
 
 Sequential::Sequential()
-    : Layer() {}
+    : Block() {}
 
 std::vector<Tensor> Sequential::parameters() {
   std::vector<Tensor> all_params;

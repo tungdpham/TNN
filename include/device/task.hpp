@@ -116,23 +116,23 @@ public:
 #endif
 
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_cpu_task(std::string flow_id, Func &&func, Args &&...args) {
+std::unique_ptr<Task> create_cpu_task(flowHandle_t handle, Func &&func, Args &&...args) {
   auto &CPUDevice = getCPU();
-  CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice.getFlow(flow_id));
+  CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice.getFlow(handle));
   if (!flow) {
-    throw std::runtime_error("Failed to get CPU flow with ID: " + flow_id);
+    throw std::runtime_error("Failed to get CPU flow with ID: " + std::to_string(handle.id));
   }
   return std::make_unique<CPUTask>(flow, std::forward<Func>(func), std::forward<Args>(args)...);
 }
 
 #ifdef USE_CUDA
-// bundle the function and inject a stream based on the flow_id
+// bundle the function and inject a stream based on the handle
 template <typename Func, typename... Args>
-std::unique_ptr<Task> create_cuda_task(std::string flow_id, Func &&func, Args &&...args) {
+std::unique_ptr<Task> create_cuda_task(flowHandle_t handle, Func &&func, Args &&...args) {
   auto &GPUDevice = getGPU();
-  CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice.getFlow(flow_id));
+  CUDAFlow *flow = dynamic_cast<CUDAFlow *>(GPUDevice.getFlow(handle));
   if (!flow) {
-    throw std::runtime_error("Failed to get CUDA flow with ID: " + flow_id);
+    throw std::runtime_error("Failed to get CUDA flow with ID: " + std::to_string(handle.id));
   }
   return std::make_unique<CUDATask>(flow, std::forward<Func>(func), std::forward<Args>(args)...);
 }

@@ -5,6 +5,7 @@
 #include <string>
 
 #include "context.hpp"
+#include "device/flow.hpp"
 #include "device_type.hpp"
 
 namespace tnn {
@@ -35,8 +36,8 @@ public:
   void deallocateAlignedMemory(void *ptr) const;
   void copyToDevice(void *dest, const void *src, size_t size) const;
   void copyToHost(void *dest, const void *src, size_t size) const;
-  void createFlow(const std::string &flow_id) const;
-  Flow *getFlow(const std::string &flow_id) const;
+  void createFlow(flowHandle_t handle) const;
+  Flow *getFlow(flowHandle_t handle) const;
   Context *context() const { return context_.get(); }
 
 private:

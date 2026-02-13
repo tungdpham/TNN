@@ -59,7 +59,7 @@ public:
   explicit TCPCommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
                            TCPCommunicator::Config config)
       : Communicator(endpoint),
-        int_allocator_(PoolAllocator::instance(getCPU())),
+        int_allocator_(PoolAllocator::instance(getCPU(), defaultFlowHandle)),
         out_allocator_(out_allocator),
         serializer_(out_allocator),
         config_(config),

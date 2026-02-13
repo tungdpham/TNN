@@ -12,6 +12,7 @@
 
 #include "device/device.hpp"
 #include "device/dptr.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #include "device/task.hpp"
 #include "type/type.hpp"
@@ -107,7 +108,7 @@ public:
   virtual void mul_scalar(double scalar) = 0;
   virtual void div_scalar(double scalar) = 0;
 
-  virtual std::unique_ptr<Task> fill(double value) = 0;
+  virtual std::unique_ptr<Task> fill(double value, flowHandle_t handle = defaultFlowHandle) = 0;
   virtual void fill_random_uniform(double range) = 0;
   virtual void fill_random_uniform(double min_val, double max_val) = 0;
   virtual void fill_random_uniform(double min_val, double max_val, unsigned long long seed) = 0;

@@ -175,7 +175,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_forward_task(
     cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &input,
     const Tensor &output, const ConstTensor &weights, const ConstTensor &bias,
     const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-    size_t output_w, const std::string &flow_id) const {
+    size_t output_w, flowHandle_t handle) const {
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
   }
@@ -183,7 +183,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_forward_task(
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_forward, fe_handle, stats, input->data(),
+  return create_cuda_task(handle, cuda::cudnn_conv2d::run_forward, fe_handle, stats, input->data(),
                           weights->data(), bias_ != nullptr ? bias_->data() : nullptr,
                           output->data(), workspace->data());
 }
@@ -193,7 +193,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_data_task(
     cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &gradient,
     const ConstTensor &weights, const Tensor &grad_input, const Tensor &workspace,
     size_t batch_size, size_t input_h, size_t input_w, size_t output_h, size_t output_w,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
   }
@@ -201,7 +201,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_data_task(
     throw std::runtime_error("Conv2DLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_backward_data, fe_handle, stats,
+  return create_cuda_task(handle, cuda::cudnn_conv2d::run_backward_data, fe_handle, stats,
                           gradient->data(), weights->data(), grad_input->data(), workspace->data());
 }
 
@@ -210,7 +210,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
     cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &input,
     const ConstTensor &gradient, const Tensor &weight_gradients, const Tensor &bias_gradients,
     const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-    size_t output_w, const std::string &flow_id) const {
+    size_t output_w, flowHandle_t handle) const {
   if (!std::is_same_v<IO_T, Param_T>) {
     throw std::runtime_error("Conv2DLayer IO_T and Param_T must be the same type");
   }
@@ -218,7 +218,7 @@ std::unique_ptr<Task> Conv2DLayer::conv2d_backward_weights_and_bias_task(
     throw std::runtime_error("Conv2DLayer input/gradient dtype mismatch with dispatch IO_T");
   }
 
-  return create_cuda_task(flow_id, cuda::cudnn_conv2d::run_backward_weights_and_bias, fe_handle,
+  return create_cuda_task(handle, cuda::cudnn_conv2d::run_backward_weights_and_bias, fe_handle,
                           stats, input->data(), gradient->data(), weight_gradients->data(),
                           use_bias_ ? bias_gradients->data() : nullptr, workspace->data());
 }
@@ -271,7 +271,7 @@ void Conv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, 
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_forward_task, fe_handle, current_stats, input, output,
                                  weights_, bias_, cudnn_workspace, batch_size, input_h, input_w,
-                                 output_h, output_w, "default");
+                                 output_h, output_w, this->flow_handle_);
 }
 
 void Conv2DLayer::cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input,
@@ -306,11 +306,11 @@ void Conv2DLayer::cudnn_backward(const ConstTensor &gradient, const Tensor &grad
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
                                  input, gradient, weight_gradients_, bias_gradients_,
                                  cudnn_workspace, batch_size, input_h, input_w, output_h, output_w,
-                                 "default");
+                                 this->flow_handle_);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_data_task, fe_handle, current_stats, gradient,
                                  weights_, grad_input, cudnn_workspace, batch_size, input_h,
-                                 input_w, output_h, output_w, "default");
+                                 input_w, output_h, output_w, this->flow_handle_);
 }
 #endif
 

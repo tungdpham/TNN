@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "nn/activations_impl/base_activation.hpp"
+#include "nn/block.hpp"
 #include "nn/layer.hpp"
-#include "nn/layers_impl/parameterized_layer.hpp"
 
 namespace tnn {
 
@@ -24,7 +24,7 @@ namespace tnn {
  * Supports both identity shortcuts (when input/output dimensions match)
  * and projection shortcuts (1x1 conv when dimensions differ).
  */
-class ResidualBlock : public ParameterizedLayer {
+class ResidualBlock : public Block {
 private:
   std::vector<std::unique_ptr<Layer>> main_path_;
   std::vector<std::unique_ptr<Layer>> shortcut_path_;
@@ -33,18 +33,17 @@ private:
   std::unordered_map<size_t, std::vector<size_t>> input_shape_cache_;
   std::string activation_type_;
 
-  void init_params() override;
+  void on_set_device(const Device &device) override;
+  void on_set_flow_handle(flowHandle_t handle) override;
   void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;
   void on_set_training(bool training) override;
-  void on_set_device(const Device &device) override;
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
                      size_t mb_id = 0) override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   /**
@@ -77,5 +76,8 @@ public:
   const std::vector<std::unique_ptr<Layer>> &get_shortcut_path() const;
 
   size_t cached_memory_bytes() const override;
+
+  std::vector<Tensor> parameters() override;
+  std::vector<Tensor> gradients() override;
 };
 }  // namespace tnn

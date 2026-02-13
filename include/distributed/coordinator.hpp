@@ -15,15 +15,16 @@
 #include <vector>
 
 #include "communicator.hpp"
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/worker.hpp"
 #include "logging/logger.hpp"
 #include "nn/accuracy.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
-#include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "partitioner/partitioner.hpp"
 #include "profiling/event.hpp"
@@ -202,8 +203,9 @@ public:
           total_corrects += compute_class_corrects(predictions, device_targets);
 
           total_loss += loss;
-          Tensor gradient = make_tensor(PoolAllocator::instance(predictions->device()),
-                                        predictions->data_type(), predictions->shape());
+          Tensor gradient =
+              make_tensor(PoolAllocator::instance(predictions->device(), defaultFlowHandle),
+                          predictions->data_type(), predictions->shape());
           criterion->compute_gradient(predictions, device_targets, gradient);
           gradient->mul_scalar(1.0 / num_microbatches);
           this->backward(std::move(gradient), job.mb_id);

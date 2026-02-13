@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 
 namespace tnn {
 

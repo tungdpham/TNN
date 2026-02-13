@@ -79,7 +79,7 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, mean, inv_std, gamma_, beta_, output,
-                                 norm, batch_size, channels, spatial_size, "default");
+                                 norm, batch_size, channels, spatial_size, this->flow_handle_);
 
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
@@ -105,7 +105,7 @@ void GroupNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, normalized, inv_std, gamma_,
                                  gamma_gradients_, beta_gradients_, grad_input, batch_size,
-                                 channels, spatial_size, "default");
+                                 channels, spatial_size, this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -113,7 +113,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
     const ConstTensor &input, const Tensor &group_mean, const Tensor &group_inv_std,
     const ConstTensor &gamma, const ConstTensor &beta, const Tensor &output,
     const Tensor &norm_cache, size_t batch_size, size_t channels, size_t spatial_size,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -126,7 +126,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
   }
 #ifdef USE_CUDA
   if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task("default", cuda::groupnorm::run_forward_fused<Compute_T>,
+    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_forward_fused<Compute_T>,
                             input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                             group_inv_std->data_as<Compute_T>(),
                             affine_ ? gamma->data_as<Compute_T>() : nullptr,
@@ -136,7 +136,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
   } else
 #endif
   {
-    return create_cpu_task("default", cpu::groupnorm::run_forward_fused<Compute_T>,
+    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_forward_fused<Compute_T>,
                            input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                            group_inv_std->data_as<Compute_T>(),
                            affine_ ? gamma->data_as<Compute_T>() : nullptr,
@@ -150,7 +150,7 @@ template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
     const ConstTensor &grad_output, const ConstTensor &norm_input, const ConstTensor &inv_std,
     const ConstTensor &gamma, const Tensor &d_gamma, const Tensor &d_beta, const Tensor &grad_input,
-    size_t batch_size, size_t channels, size_t spatial_size, const std::string &flow_id) const {
+    size_t batch_size, size_t channels, size_t spatial_size, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "GroupNormLayer mixed dtype dispatch not implemented (io/param/compute must match).");
@@ -163,7 +163,7 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   }
 #ifdef USE_CUDA
   if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task("default", cuda::groupnorm::run_backward_fused<Compute_T>,
+    return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_backward_fused<Compute_T>,
                             grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
                             inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
                             d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
@@ -172,11 +172,12 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
   } else
 #endif
   {
-    return create_cpu_task(
-        "default", cpu::groupnorm::run_backward_fused<Compute_T>, grad_output->data_as<Compute_T>(),
-        norm_input->data_as<Compute_T>(), inv_std->data_as<Compute_T>(),
-        gamma->data_as<Compute_T>(), d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
-        grad_input->data_as<Compute_T>(), batch_size, channels, spatial_size, num_groups_, affine_);
+    return create_cpu_task(this->flow_handle_, cpu::groupnorm::run_backward_fused<Compute_T>,
+                           grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
+                           inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
+                           d_gamma->data_as<Compute_T>(), d_beta->data_as<Compute_T>(),
+                           grad_input->data_as<Compute_T>(), batch_size, channels, spatial_size,
+                           num_groups_, affine_);
   }
 }
 

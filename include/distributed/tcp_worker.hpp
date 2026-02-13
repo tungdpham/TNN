@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "device/device_manager.hpp"
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "distributed/endpoint.hpp"
 #include "tcp_communicator.hpp"
@@ -37,7 +38,7 @@ public:
                      TCPCommunicator::Config config = TCPCommunicator::Config())
       : Worker(use_gpu) {
     const auto &device = use_gpu ? getGPU() : getCPU();
-    auto &allocator = PoolAllocator::instance(device);
+    auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
     auto communicator = std::make_unique<TCPCommunicator>(endpoint, allocator, config);
 
     communicator->start_server();

@@ -35,7 +35,7 @@ private:
   std::unique_ptr<Task> layer_norm_forward(const ConstTensor &input, const Tensor &output,
                                            const ConstTensor &gamma, const ConstTensor &beta,
                                            size_t batch_size, size_t channels,
-                                           const std::string &flow_id = "default") const;
+                                           flowHandle_t handle = defaultFlowHandle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> layer_norm_backward(const ConstTensor &gradient, const ConstTensor &input,
@@ -43,7 +43,7 @@ private:
                                             const Tensor &gamma_gradients,
                                             const Tensor &beta_gradients, size_t batch_size,
                                             size_t channels,
-                                            const std::string &flow_id = "default") const;
+                                            flowHandle_t handle = defaultFlowHandle) const;
 
 #ifdef USE_CUDNN
   template <typename IO_T, typename Param_T, typename Compute_T>
@@ -53,7 +53,7 @@ private:
                                                  const ConstTensor &beta, const Tensor &mean,
                                                  const Tensor &inv_variance,
                                                  const Tensor &workspace, size_t batch_size,
-                                                 size_t channels, const std::string &flow_id) const;
+                                                 size_t channels, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> cudnn_layer_norm_backward(
@@ -61,7 +61,7 @@ private:
       const ConstTensor &gradient, const ConstTensor &input, const ConstTensor &gamma,
       const Tensor &grad_input, const Tensor &gamma_gradients, const Tensor &beta_gradients,
       const ConstTensor &mean, const ConstTensor &inv_variance, const Tensor &workspace,
-      size_t batch_size, size_t channels, const std::string &flow_id) const;
+      size_t batch_size, size_t channels, flowHandle_t handle) const;
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
   void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);

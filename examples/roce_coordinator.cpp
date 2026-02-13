@@ -9,10 +9,10 @@
 #include "distributed/coordinator.hpp"
 #include "distributed/roce_worker.hpp"
 #include "distributed/train.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/optimizers.hpp"
-#include "nn/sequential.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "utils/env.hpp"
 
@@ -151,7 +151,7 @@ int main(int argc, char *argv[]) {
   Endpoint local_worker_endpoint =
       Endpoint::roce(Env::get<std::string>("LOCAL_WORKER_HOST", "localhost"),
                      Env::get<int>("LOCAL_WORKER_PORT", 8000), cfg.device_name, cfg.gid_index);
-  int worker_position = Env::get<std::string>("LOCAL_WORKER_POSITION", "first") == "first" ? 0 : 1;
+  int worker_position = Env::get<std::string>("LOCAL_WORKER_POSITION", "last") == "first" ? 0 : 1;
 
   std::vector<Endpoint> endpoints = {
       Endpoint::roce(Env::get<std::string>("WORKER1_HOST", "10.10.0.2"),
@@ -168,7 +168,7 @@ int main(int argc, char *argv[]) {
       std::make_unique<RoCEWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
   // initialize a partitioner with weights 2:1
-  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({2, 1}));
+  auto partitioner = std::make_unique<NaivePipelinePartitioner>(NaivePartitionerConfig({1, 2}));
 
   CoordinatorConfig config{
       ParallelMode_t::PIPELINE, std::move(model),        std::move(optimizer), std::move(scheduler),

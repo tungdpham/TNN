@@ -14,11 +14,12 @@
 #include <string>
 #include <vector>
 
+#include "nn/block.hpp"
 #include "nn/layer.hpp"
 #include "tensor/tensor.hpp"
 
 namespace tnn {
-class Sequential : public Layer {
+class Sequential : public Block {
 private:
   std::vector<std::unique_ptr<Layer>> layers_;
   size_t max_size_ = 0;
@@ -27,11 +28,12 @@ private:
 
 protected:
   void init_impl() override;
+  void on_set_device(const Device &device) override;
+  void on_set_flow_handle(flowHandle_t handle) override {}
   void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
   void on_set_compute_dtype(DType_t dtype) override;
-  void on_set_device(const Device &device) override;
   void on_set_training(bool training) override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,

@@ -3,10 +3,10 @@
 #include "data_augmentation/augmentation.hpp"
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
 #include "nn/layers.hpp"
 #include "nn/schedulers.hpp"
-#include "nn/sequential.hpp"
 #include "nn/train.hpp"
 #include "utils/env.hpp"
 

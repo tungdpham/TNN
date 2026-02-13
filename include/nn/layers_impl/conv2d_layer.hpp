@@ -45,21 +45,21 @@ private:
                                             const ConstTensor &bias, const Tensor &workspace,
                                             size_t batch_size, size_t input_h, size_t input_w,
                                             size_t output_h, size_t output_w,
-                                            const std::string &flow_id) const;
+                                            flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_weights_and_bias_task(
       cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &input,
       const ConstTensor &gradient, const Tensor &weight_gradients, const Tensor &bias_gradients,
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-      size_t output_w, const std::string &flow_id) const;
+      size_t output_w, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_data_task(
       cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
       const ConstTensor &gradient, const ConstTensor &weights, const Tensor &grad_input,
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
-      size_t output_w, const std::string &flow_id) const;
+      size_t output_w, flowHandle_t handle) const;
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
   void cudnn_backward(const ConstTensor &current_gradient, const Tensor &grad_input, size_t mb_id);

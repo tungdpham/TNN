@@ -24,13 +24,12 @@ public:
 private:
   template <typename Compute_T>
   std::unique_ptr<Task> apply_impl(const ConstTensor &input, const Tensor &output,
-                                   const std::string &flow_id) const;
+                                   flowHandle_t handle) const;
 
   template <typename Compute_T>
   std::unique_ptr<Task> compute_gradient_impl(const ConstTensor &input,
                                               const ConstTensor &grad_output,
-                                              const Tensor &grad_input,
-                                              const std::string &flow_id) const;
+                                              const Tensor &grad_input, flowHandle_t handle) const;
 };
 
 }  // namespace tnn

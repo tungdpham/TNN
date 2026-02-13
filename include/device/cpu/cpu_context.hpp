@@ -8,7 +8,7 @@
 
 namespace tnn {
 class CPUContext : public Context {
-  std::unordered_map<std::string, std::unique_ptr<Flow>> flows_;
+  std::unordered_map<flowHandle_t, std::unique_ptr<CPUFlow>> flows_;
 
 public:
   explicit CPUContext();
@@ -21,7 +21,7 @@ public:
   void deallocateAlignedMemory(void *ptr) override;
   void copyToDevice(void *dest, const void *src, size_t size) override;
   void copyToHost(void *dest, const void *src, size_t size) override;
-  void createFlow(const std::string &flow_id) override;
-  Flow *getFlow(const std::string &flow_id) override;
+  void createFlow(flowHandle_t handle) override;
+  Flow *getFlow(flowHandle_t handle) override;
 };
 }  // namespace tnn

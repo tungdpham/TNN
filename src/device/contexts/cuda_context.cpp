@@ -12,14 +12,15 @@
 
 namespace tnn {
 
-CUDAContext::CUDAContext(int id) : Context() {
+CUDAContext::CUDAContext(int id)
+    : Context() {
   // Set the device for this context
   cudaError_t err = cudaSetDevice(id);
   if (err != cudaSuccess) {
     throw std::runtime_error("Failed to set CUDA device " + std::to_string(id) + ": " +
                              cudaGetErrorString(err));
   }
-  createFlow("default");
+  createFlow(defaultFlowHandle);
 #ifdef USE_CUDNN
   cudnnCreate(&cudnn_handle_);
 #endif
@@ -93,19 +94,19 @@ void *CUDAContext::allocateAlignedMemory(size_t size, size_t alignment) {
 
 void CUDAContext::deallocateAlignedMemory(void *ptr) { deallocateMemory(ptr); }
 
-void CUDAContext::createFlow(const std::string &flow_id) {
-  if (flows_.find(flow_id) == flows_.end()) {
-    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
+void CUDAContext::createFlow(flowHandle_t handle) {
+  if (flows_.find(handle) == flows_.end()) {
+    flows_[handle] = std::make_unique<CUDAFlow>();
   }
 }
 
-Flow *CUDAContext::getFlow(const std::string &flow_id) {
-  auto it = flows_.find(flow_id);
+Flow *CUDAContext::getFlow(flowHandle_t handle) {
+  auto it = flows_.find(handle);
   if (it == flows_.end()) {
-    std::cerr << "WARN: Creating new CUDAFlow with ID: " << flow_id
+    std::cerr << "WARN: Creating new CUDAFlow with ID: " << handle
               << ". Are we using the right flow?" << std::endl;
-    flows_[flow_id] = std::make_unique<CUDAFlow>(flow_id);
-    return flows_[flow_id].get();
+    flows_[handle] = std::make_unique<CUDAFlow>();
+    return flows_[handle].get();
   } else {
     return it->second.get();
   }

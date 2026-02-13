@@ -28,12 +28,12 @@ void gemm(const dptr &A, const dptr &B, const dptr &C, const size_t M, const siz
       throw std::runtime_error(
           "gemm mixed dtype dispatch not implemented for CPU (io/param/compute must match).");
     }
-    create_cpu_task("default", cpu::gemm<IO_T>, A.get<IO_T>(), B.get<Param_T>(), C.get<IO_T>(), M,
-                    N, K, trans_A, trans_B, alpha, beta, lda, ldb, ldc);
+    create_cpu_task(defaultFlowHandle, cpu::gemm<IO_T>, A.get<IO_T>(), B.get<Param_T>(),
+                    C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda, ldb, ldc);
   }
 #ifdef USE_CUDA
   else if (A.device_type() == DeviceType::GPU) {
-    create_cuda_task("default", cuda::gemm_ex<IO_T, Param_T, Compute_T>, A.get<IO_T>(),
+    create_cuda_task(defaultFlowHandle, cuda::gemm_ex<IO_T, Param_T, Compute_T>, A.get<IO_T>(),
                      B.get<Param_T>(), C.get<IO_T>(), M, N, K, trans_A, trans_B, alpha, beta, lda,
                      ldb, ldc);
   }

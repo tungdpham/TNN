@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cudnn_graph.h>
+
+#include "device/flow.hpp"
 #ifdef USE_CUDA
 
 #include <cstddef>
 #include <memory>
-#include <string>
 #include <unordered_map>
 
 #include "device/context.hpp"
@@ -16,7 +18,7 @@
 namespace tnn {
 class CUDAContext : public Context {
 private:
-  std::unordered_map<std::string, std::unique_ptr<Flow>> flows_;
+  std::unordered_map<flowHandle_t, std::unique_ptr<CUDAFlow>> flows_;
 #ifdef USE_CUDNN
   cudnnHandle_t cudnn_handle_;
 #endif
@@ -36,8 +38,8 @@ public:
   void deallocateAlignedMemory(void *ptr) override;
   void copyToDevice(void *dest, const void *src, size_t size) override;
   void copyToHost(void *dest, const void *src, size_t size) override;
-  void createFlow(const std::string &flow_id) override;
-  Flow *getFlow(const std::string &flow_id) override;
+  void createFlow(flowHandle_t handle) override;
+  Flow *getFlow(flowHandle_t handle) override;
 };
 }  // namespace tnn
 

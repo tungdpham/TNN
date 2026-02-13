@@ -14,9 +14,10 @@
 #include <iostream>
 #include <memory>
 
+#include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
-#include "nn/sequential.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "threading/thread_wrapper.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"
@@ -84,24 +85,26 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   int num_batches = 0;
   csref<Device> model_device = model->get_device();
 
-  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device);
+  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device, defaultFlowHandle);
 
   int grad_accum_counter = 0;
 
   cout << "Training batches: " << train_loader->size() << endl;
   while (train_loader->get_batch(config.batch_size, batch_data, batch_labels) &&
          (config.max_steps == -1 || num_batches < config.max_steps)) {
+    auto batch_start = chrono::high_resolution_clock::now();
     ++num_batches;
     cur_samples += batch_data->dimension(0);
     auto device_labels = batch_labels->to_device(model_device);
 
     Tensor predictions = make_tensor(mem_pool, model->get_io_dtype(), {});
+
     model->forward(batch_data, predictions);
 
     float loss;
     criterion->compute_loss(predictions, device_labels, loss);
-
     total_loss += loss;
+
     total_corrects += compute_class_corrects(predictions, device_labels);
 
     Tensor loss_gradient = make_tensor(mem_pool, model->get_io_dtype(), predictions->shape());
@@ -112,17 +115,9 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     Tensor backward_output = make_tensor(mem_pool, model->get_io_dtype(), batch_data->shape());
     model->backward(loss_gradient, backward_output);
 
-    if (num_batches % config.progress_print_interval == 0) {
-      if (model->is_profiling_enabled()) {
-        model->print_profiling_info();
-      }
-      cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
-           << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
-           << "%" << endl;
-    }
-    if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-      model->reset_profiling_info();
-    }
+    auto batch_end = chrono::high_resolution_clock::now();
+    auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
+
     if (++grad_accum_counter == config.gradient_accumulation_steps) {
       grad_accum_counter = 0;
       optimizer->update();
@@ -130,6 +125,19 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
       if (scheduler) {
         scheduler->step();
       }
+    }
+    model_device->getFlow(defaultFlowHandle)->synchronize();
+
+    if (num_batches % config.progress_print_interval == 0) {
+      if (model->is_profiling_enabled()) {
+        model->print_profiling_info();
+      }
+      cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
+           << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
+           << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
+    }
+    if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
+      model->reset_profiling_info();
     }
   }
   cout << endl;
@@ -232,12 +240,11 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
   auto start_time = chrono::high_resolution_clock::now();
 
   thread_wrapper.execute([&]() -> void {
-    auto time_since_last_print = chrono::high_resolution_clock::now();
-
     for (int steps = 0; steps < config.max_steps; ++steps) {
       if (!train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
         break;
       }
+      auto batch_start = chrono::high_resolution_clock::now();
       device_labels = batch_labels->to_device(model_device);
       model->forward(batch_data, predictions);
       float loss;
@@ -249,6 +256,8 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
       model->backward(loss_gradient, backward_output);
 
+      auto batch_end = chrono::high_resolution_clock::now();
+      auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
       if (++grad_accum_counter == config.gradient_accumulation_steps) {
         grad_accum_counter = 0;
         optimizer->update();
@@ -259,18 +268,12 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
       }
 
       if (steps % config.progress_print_interval == 0) {
-        auto new_time = chrono::high_resolution_clock::now();
-        auto duration_since_last_print =
-            chrono::duration_cast<chrono::milliseconds>(new_time - time_since_last_print);
-        time_since_last_print = new_time;
-        cout << "Time for last " << config.progress_print_interval
-             << " steps: " << duration_since_last_print.count() << "ms" << endl;
         if (model->is_profiling_enabled()) {
           model->print_profiling_info();
         }
         cout << "Batch ID: " << steps << ", Batch's Loss: " << fixed << setprecision(4) << loss
              << ", Batch's Accuracy: " << setprecision(2) << (corrects * 100.0 / config.batch_size)
-             << "%" << endl;
+             << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
       }
       if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
         model->reset_profiling_info();
@@ -313,8 +316,8 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
     model->enable_profiling(true);
   }
 
-  cout << "Training batches: " << train_loader->size() << endl;
-  cout << "Validation batches: " << val_loader->size() << endl;
+  cout << "Training batches: " << train_loader->size() / config.batch_size << endl;
+  cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
 
   vector<size_t> data_shape = train_loader->get_data_shape();
   data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dimension
@@ -331,7 +334,7 @@ void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &trai
 
 Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device());
+  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device(), defaultFlowHandle);
   Tensor batch_data = make_tensor(mem_pool, model->get_io_dtype()),
          batch_labels = make_tensor(mem_pool, model->get_io_dtype());
 

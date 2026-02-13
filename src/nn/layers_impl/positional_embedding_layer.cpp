@@ -14,7 +14,9 @@ namespace tnn {
 
 PositionalEmbeddingLayer::PositionalEmbeddingLayer(size_t embed_dim, size_t seq_len,
                                                    const std::string &name)
-    : ParameterizedLayer(name), embed_dim_(embed_dim), seq_len_(seq_len) {}
+    : ParameterizedLayer(name),
+      embed_dim_(embed_dim),
+      seq_len_(seq_len) {}
 
 void PositionalEmbeddingLayer::init_params() {
   pos_embedding_ = make_param_tensor({seq_len_, embed_dim_});
@@ -54,7 +56,7 @@ void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, const Tens
   output->ensure(shape);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(add_positional_embedding, input, output, pos_embedding_,
-                                 "default");
+                                 this->flow_handle_);
 }
 
 void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -83,13 +85,13 @@ void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, const 
   gradient->copy_to(grad_input);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(accumulate_pos_gradients, gradient, pos_embedding_gradients_,
-                                 "default");
+                                 this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
     const ConstTensor &input, const Tensor &output, const ConstTensor &pos_embedding,
-    const std::string &flow_id) const {
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
@@ -114,7 +116,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
   if (this->device_->device_type() == DeviceType::CPU) {
     // For CPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cpu_task(flow_id, ops::cpu::add<Compute_T>,
+      create_cpu_task(handle, ops::cpu::add<Compute_T>,
                       input->data_as<Compute_T>() + i * sample_size,
                       pos_embedding->data_as<Compute_T>(),
                       output->data_as<Compute_T>() + i * sample_size, sample_size);
@@ -125,7 +127,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
   else if (this->device_->device_type() == DeviceType::GPU) {
     // For GPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cuda_task(flow_id, ops::cuda::cuda_add<Compute_T>,
+      create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
                        input->data_as<Compute_T>() + i * sample_size,
                        pos_embedding->data_as<Compute_T>(),
                        output->data_as<Compute_T>() + i * sample_size, sample_size);
@@ -140,8 +142,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
-    const ConstTensor &gradient, const Tensor &pos_embedding_gradients,
-    const std::string &flow_id) const {
+    const ConstTensor &gradient, const Tensor &pos_embedding_gradients, flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
@@ -164,7 +165,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
 
   if (this->device_->device_type() == DeviceType::CPU) {
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cpu_task(flow_id, ops::cpu::add<Compute_T>,
+      create_cpu_task(handle, ops::cpu::add<Compute_T>,
                       pos_embedding_gradients->data_as<Compute_T>(),
                       gradient->data_as<Compute_T>() + i * sample_size,
                       pos_embedding_gradients->data_as<Compute_T>(), sample_size);
@@ -174,7 +175,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
 #ifdef USE_CUDA
   else if (this->device_->device_type() == DeviceType::GPU) {
     for (size_t i = 0; i < batch_size; ++i) {
-      create_cuda_task(flow_id, ops::cuda::cuda_add<Compute_T>,
+      create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
                        pos_embedding_gradients->data_as<Compute_T>(),
                        gradient->data_as<Compute_T>() + i * sample_size,
                        pos_embedding_gradients->data_as<Compute_T>(), sample_size);

@@ -24,7 +24,7 @@ std::unique_ptr<Task> Sigmoid::apply(const ConstTensor &input, const Tensor &out
     throw std::runtime_error("Input and output must be on the same device for Sigmoid");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
+  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> Sigmoid::compute_gradient(const ConstTensor &input,
@@ -35,8 +35,9 @@ std::unique_ptr<Task> Sigmoid::compute_gradient(const ConstTensor &input,
   if (grad_output->device() != grad_input->device()) {
     throw std::runtime_error("Input and upstream gradient must be on the same device for Sigmoid");
   }
-  DISPATCH_ON_DTYPE(input->data_type(), T,
-                    return compute_gradient_impl<T>(input, grad_output, grad_input, "default"));
+  DISPATCH_ON_DTYPE(
+      input->data_type(), T,
+      return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }
 
 std::string Sigmoid::name() const { return "sigmoid"; }
@@ -47,19 +48,19 @@ std::unique_ptr<ActivationFunction> Sigmoid::clone() const {
 
 template <typename Compute_T>
 std::unique_ptr<Task> Sigmoid::apply_impl(const ConstTensor &input, const Tensor &output,
-                                          const std::string &flow_id) const {
+                                          flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("Sigmoid tensor dtype mismatch with dispatch type");
   }
 
   const size_t size = input->size();
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sigmoid<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::sigmoid<Compute_T>, input->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::sigmoid<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::sigmoid<Compute_T>, input->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), size);
   }
 #endif
@@ -73,7 +74,7 @@ template <typename Compute_T>
 std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const ConstTensor &input,
                                                      const ConstTensor &grad_output,
                                                      const Tensor &grad_input,
-                                                     const std::string &flow_id) const {
+                                                     flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||
       grad_input->data_type() != dtype_of<Compute_T>()) {
@@ -82,13 +83,13 @@ std::unique_ptr<Task> Sigmoid::compute_gradient_impl(const ConstTensor &input,
 
   const size_t size = grad_output->size();
   if (grad_output->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::sigmoid_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::sigmoid_gradient<Compute_T>, input->data_as<Compute_T>(),
                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            size);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::sigmoid_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::sigmoid_gradient<Compute_T>, input->data_as<Compute_T>(),
                             grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             size);
   }

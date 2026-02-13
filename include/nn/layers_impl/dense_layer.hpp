@@ -34,32 +34,31 @@ private:
   std::unique_ptr<Task> compute_dense_forward(const ConstTensor &input, const ConstTensor &weights,
                                               const Tensor &output, size_t batch_size,
                                               size_t input_features, size_t output_features,
-                                              const std::string &flow_id) const;
+                                              flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_weight_gradients(const ConstTensor &input,
                                                  const ConstTensor &gradient,
                                                  const Tensor &weight_grad, size_t batch_size,
                                                  size_t input_features, size_t output_features,
-                                                 const std::string &flow_id) const;
+                                                 flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_input_gradients(const ConstTensor &gradient,
                                                 const ConstTensor &weights,
                                                 const Tensor &grad_input, size_t batch_size,
                                                 size_t input_features, size_t output_features,
-                                                const std::string &flow_id) const;
+                                                flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &gradient,
                                                const Tensor &bias_gradient, size_t batch_size,
-                                               size_t output_features,
-                                               const std::string &flow_id) const;
+                                               size_t output_features, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> add_bias_vector(const Tensor &output, const ConstTensor &bias,
                                         size_t batch_size, size_t output_features,
-                                        const std::string &flow_id) const;
+                                        flowHandle_t handle) const;
 
 #ifdef USE_CUDNN
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);

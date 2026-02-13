@@ -54,7 +54,7 @@ private:
       const Tensor &prev_running_mean, const Tensor &prev_running_var,
       const Tensor &next_running_mean, const Tensor &next_running_var, const Tensor &batch_mean,
       const Tensor &batch_invar, const Tensor &relu_mask, const Tensor &workspace,
-      const std::string &flow_id);
+      flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_inference_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
@@ -63,7 +63,7 @@ private:
                                                const ConstTensor &beta,
                                                const ConstTensor &saved_mean,
                                                const ConstTensor &saved_var,
-                                               const Tensor &workspace, const std::string &flow_id);
+                                               const Tensor &workspace, flowHandle_t handle);
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
@@ -72,7 +72,7 @@ private:
                                       const Tensor &grad_input, const ConstTensor &gamma,
                                       const Tensor &gamma_gradients, const Tensor &beta_gradients,
                                       const ConstTensor &batch_mean, const ConstTensor &batch_var,
-                                      const Tensor &workspace, const std::string &flow_id);
+                                      const Tensor &workspace, flowHandle_t handle);
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
   void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);

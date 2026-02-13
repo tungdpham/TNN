@@ -26,7 +26,8 @@ using OptimizerConfig = TConfig;
 
 class Optimizer {
 public:
-  explicit Optimizer(float learning_rate) : learning_rate_(learning_rate) {}
+  explicit Optimizer(float learning_rate)
+      : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
   void attach(std::vector<Tensor> params, const std::vector<Tensor> grads) {
@@ -68,7 +69,8 @@ protected:
 class SGD : public Optimizer {
 public:
   SGD(float learning_rate = 0.01f, float momentum = 0.0f)
-      : Optimizer(learning_rate), momentum_(momentum) {}
+      : Optimizer(learning_rate),
+        momentum_(momentum) {}
 
   void update() override {
     auto &params = this->parameters_;
@@ -117,22 +119,22 @@ private:
 
     if (param->device_type() == DeviceType::CPU) {
       if (momentum_ > 0.0f) {
-        create_cpu_task("default", cpu::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd_momentum<T>, param->data_as<T>(),
                         grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
                         momentum_);
       } else {
-        create_cpu_task("default", cpu::sgd::update_sgd<T>, param->data_as<T>(), grad->data_as<T>(),
-                        size, this->learning_rate_);
+        create_cpu_task(defaultFlowHandle, cpu::sgd::update_sgd<T>, param->data_as<T>(),
+                        grad->data_as<T>(), size, this->learning_rate_);
       }
     }
 #ifdef USE_CUDA
     else if (param->device_type() == DeviceType::GPU) {
       if (momentum_ > 0.0f) {
-        create_cuda_task("default", cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
+        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd_momentum<T>, param->data_as<T>(),
                          grad->data_as<T>(), velocity->data_as<T>(), size, this->learning_rate_,
                          momentum_);
       } else {
-        create_cuda_task("default", cuda::sgd::update_sgd<T>, param->data_as<T>(),
+        create_cuda_task(defaultFlowHandle, cuda::sgd::update_sgd<T>, param->data_as<T>(),
                          grad->data_as<T>(), size, this->learning_rate_);
       }
     }
@@ -222,14 +224,14 @@ private:
                    float bias_correction1, float bias_correction2) {
     const size_t size = param->size();
     if (param->device_type() == DeviceType::CPU) {
-      create_cpu_task("default", cpu::adam::update_adam<T>, param->data_as<T>(), grad->data_as<T>(),
-                      m->data_as<T>(), v->data_as<T>(), size, this->learning_rate_, beta1_, beta2_,
-                      epsilon_, bias_correction1, bias_correction2, weight_decay_,
-                      decouple_weight_decay_);
+      create_cpu_task(defaultFlowHandle, cpu::adam::update_adam<T>, param->data_as<T>(),
+                      grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
+                      this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
+                      bias_correction2, weight_decay_, decouple_weight_decay_);
     }
 #ifdef USE_CUDA
     else if (param->device_type() == DeviceType::GPU) {
-      create_cuda_task("default", cuda::adam::update_adam<T>, param->data_as<T>(),
+      create_cuda_task(defaultFlowHandle, cuda::adam::update_adam<T>, param->data_as<T>(),
                        grad->data_as<T>(), m->data_as<T>(), v->data_as<T>(), size,
                        this->learning_rate_, beta1_, beta2_, epsilon_, bias_correction1,
                        bias_correction2, weight_decay_, decouple_weight_decay_);

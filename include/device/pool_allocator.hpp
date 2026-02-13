@@ -5,6 +5,7 @@
 #include <mutex>
 
 #include "device/dptr.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #ifndef NDEBUG
 #include <iostream>
@@ -15,22 +16,26 @@ namespace tnn {
 // Allocates a device pointer that contains a storage block that can be shared and automatically
 // reclaimed by allocator by installing a custom deleter in device_storage's shared_ptr.
 // Ensures user don't do some bad memory management.
+// Bounded to a specific device and flow, so that we can reuse memory across different tensors on
+// the same device and flow, but not across different devices or flows.
 class PoolAllocator : public IAllocator {
 public:
-  PoolAllocator(const Device &device)
-      : device_(device) {}
+  PoolAllocator(const Device &device, flowHandle_t flow = defaultFlowHandle)
+      : device_(device),
+        flow_(flow) {}
   ~PoolAllocator() = default;
 
   PoolAllocator(const PoolAllocator &) = delete;
   PoolAllocator &operator=(const PoolAllocator &) = delete;
 
-  static PoolAllocator &instance(const Device &device) {
+  static PoolAllocator &instance(const Device &device, flowHandle_t flow) {
     static std::mutex registry_mutex;
-    static std::map<const Device *, std::unique_ptr<PoolAllocator>> instances;
+    static std::map<std::pair<const Device *, flowHandle_t>, std::unique_ptr<PoolAllocator>>
+        instances;
     std::lock_guard<std::mutex> lock(registry_mutex);
-    auto &pool = instances[&device];
+    auto &pool = instances[{&device, flow}];
     if (!pool) {
-      pool = std::make_unique<PoolAllocator>(device);
+      pool = std::make_unique<PoolAllocator>(device, flow);
     }
     return *pool;
   }
@@ -69,6 +74,7 @@ public:
 private:
   std::multimap<size_t, device_storage *> free_blocks_;
   const Device &device_;
+  flowHandle_t flow_;
   mutable std::mutex mutex_;
 
   device_storage *allocate_storage(size_t size) {
@@ -82,8 +88,10 @@ private:
 
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
-      free_blocks_.erase(it);
-      return block;
+      if (block->capacity() <= size * 2) {
+        free_blocks_.erase(it);
+        return block;
+      }
     }
 #ifndef NDEBUG
     if (size > 0)

@@ -12,8 +12,8 @@
 #include <vector>
 
 #include "device/device_manager.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/layers.hpp"
-#include "nn/sequential.hpp"
 #include "tensor/tensor.hpp"
 
 using namespace tnn;

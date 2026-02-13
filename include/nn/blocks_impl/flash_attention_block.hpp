@@ -6,10 +6,10 @@
  */
 #pragma once
 
+#include "nn/block.hpp"
 #include "nn/blocks_impl/common/flash_attention.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/dense_layer.hpp"
-#include "nn/layers_impl/parameterized_layer.hpp"
 #ifdef USE_CUDNN
 #include "device/task.hpp"
 #include "nn/blocks_impl/cuda/cudnn_flash_attention_ops.hpp"
@@ -22,7 +22,7 @@
 
 namespace tnn {
 
-class FlashAttentionBlock : public ParameterizedLayer {
+class FlashAttentionBlock : public Block {
 private:
   size_t embed_dim_;
   size_t num_heads_;
@@ -40,7 +40,7 @@ private:
       cuda::cudnn_flash_attention::feHandle_t *fe_handle, AttentionStats &stats,
       const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
       const Tensor &attn_heads, const Tensor &stats_tensor, const Tensor &workspace,
-      const std::string &flow_id) const;
+      flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> flash_attention_backward_task(
@@ -48,7 +48,7 @@ private:
       const ConstTensor &q_heads, const ConstTensor &k_heads, const ConstTensor &v_heads,
       const ConstTensor &attn_heads, const ConstTensor &grad_attn_heads,
       const ConstTensor &stats_tensor, const Tensor &grad_q_heads, const Tensor &grad_k_heads,
-      const Tensor &grad_v_heads, const Tensor &workspace, const std::string &flow_id) const;
+      const Tensor &grad_v_heads, const Tensor &workspace, flowHandle_t handle) const;
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
   void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
@@ -58,10 +58,14 @@ private:
   std::unordered_map<size_t, AttentionStats> stats_cache;
   size_t get_shape_hash(size_t b, size_t h, size_t s, size_t d) const;
 
-  void init_params() override;
+  void init_impl() override;
   void on_set_device(const Device &device) override;
+  void on_set_flow_handle(flowHandle_t handle) override;
+  void on_set_seed(unsigned long long seed) override;
   void on_set_io_dtype(DType_t dtype) override;
   void on_set_param_dtype(DType_t dtype) override;
+  void on_set_compute_dtype(DType_t dtype) override;
+  void on_set_training(bool training) override;
   // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
@@ -82,10 +86,8 @@ public:
   std::unique_ptr<Layer> clone() const override;
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<FlashAttentionBlock> create_from_config(const LayerConfig &config);
-
-protected:
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
+  std::vector<Tensor> parameters() override;
+  std::vector<Tensor> gradients() override;
 };
 
 }  // namespace tnn

@@ -8,6 +8,7 @@
 #include "device/device.hpp"
 #include "device/device_manager.hpp"
 #include "device/dptr.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #include "device/pool_allocator.hpp"
 #include "device/sref.hpp"
@@ -320,7 +321,7 @@ public:
     if (device() == target_device) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(target_device);
+    auto &allocator = PoolAllocator::instance(target_device, defaultFlowHandle);
     if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
       std::vector<size_t> shape_vec(shape_);
       auto gpu_tensor = std::make_shared<TypedTensor<T>>(allocator, shape_vec);
@@ -372,8 +373,8 @@ public:
     return std::make_shared<TypedTensor<T>>(allocator_, std::move(span_data), span_sizes);
   }
 
-  std::unique_ptr<Task> fill(double value) override {
-    return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_);
+  std::unique_ptr<Task> fill(double value, flowHandle_t handle) override {
+    return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle);
   }
 
   // Arithmetic operations returning shared_ptr

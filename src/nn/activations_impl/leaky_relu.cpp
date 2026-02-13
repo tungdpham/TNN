@@ -15,7 +15,8 @@
 #endif
 
 namespace tnn {
-LeakyReLU::LeakyReLU(float negative_slope) : negative_slope_(negative_slope) {}
+LeakyReLU::LeakyReLU(float negative_slope)
+    : negative_slope_(negative_slope) {}
 
 std::unique_ptr<Task> LeakyReLU::apply(const ConstTensor &input, const Tensor &output) const {
   if (input->shape() != output->shape()) {
@@ -25,7 +26,7 @@ std::unique_ptr<Task> LeakyReLU::apply(const ConstTensor &input, const Tensor &o
     throw std::runtime_error("Input and output must be on the same device for LeakyReLU");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
+  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> LeakyReLU::compute_gradient(const ConstTensor &input,
@@ -37,8 +38,9 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient(const ConstTensor &input,
     throw std::runtime_error(
         "Input and upstream gradient must be on the same device for LeakyReLU");
   }
-  DISPATCH_ON_DTYPE(input->data_type(), T,
-                    return compute_gradient_impl<T>(input, grad_output, grad_input, "default"));
+  DISPATCH_ON_DTYPE(
+      input->data_type(), T,
+      return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }
 
 std::string LeakyReLU::name() const { return "leaky_relu"; }
@@ -49,7 +51,7 @@ std::unique_ptr<ActivationFunction> LeakyReLU::clone() const {
 
 template <typename Compute_T>
 std::unique_ptr<Task> LeakyReLU::apply_impl(const ConstTensor &input, const Tensor &output,
-                                            const std::string &flow_id) const {
+                                            flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("LeakyReLU tensor dtype mismatch with dispatch type");
   }
@@ -57,12 +59,12 @@ std::unique_ptr<Task> LeakyReLU::apply_impl(const ConstTensor &input, const Tens
   const size_t size = input->size();
   const Compute_T slope_typed = static_cast<Compute_T>(negative_slope_);
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::leaky_relu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::leaky_relu<Compute_T>, input->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), size, slope_typed);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::leaky_relu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::leaky_relu<Compute_T>, input->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), size, slope_typed);
   }
 #endif
@@ -76,7 +78,7 @@ template <typename Compute_T>
 std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const ConstTensor &input,
                                                        const ConstTensor &grad_output,
                                                        const Tensor &grad_input,
-                                                       const std::string &flow_id) const {
+                                                       flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||
       grad_input->data_type() != dtype_of<Compute_T>()) {
@@ -86,13 +88,13 @@ std::unique_ptr<Task> LeakyReLU::compute_gradient_impl(const ConstTensor &input,
   const size_t size = grad_output->size();
   const Compute_T slope_typed = static_cast<Compute_T>(negative_slope_);
   if (grad_output->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::leaky_relu_gradient<Compute_T>,
-                           input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
-                           grad_input->data_as<Compute_T>(), size, slope_typed);
+    return create_cpu_task(handle, cpu::leaky_relu_gradient<Compute_T>, input->data_as<Compute_T>(),
+                           grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                           size, slope_typed);
   }
 #ifdef USE_CUDA
   else if (grad_output->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::leaky_relu_gradient<Compute_T>,
+    return create_cuda_task(handle, cuda::leaky_relu_gradient<Compute_T>,
                             input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
                             grad_input->data_as<Compute_T>(), size, slope_typed);
   }

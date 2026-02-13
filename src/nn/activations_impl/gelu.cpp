@@ -24,7 +24,7 @@ std::unique_ptr<Task> GELU::apply(const ConstTensor &input, const Tensor &output
     throw std::runtime_error("Input and output must be on the same device for GELU");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, "default"));
+  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> GELU::compute_gradient(const ConstTensor &input,
@@ -36,25 +36,26 @@ std::unique_ptr<Task> GELU::compute_gradient(const ConstTensor &input,
     throw std::runtime_error("Tensors must be on the same device for GELU");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T,
-                    return compute_gradient_impl<T>(input, grad_output, grad_input, "default"));
+  DISPATCH_ON_DTYPE(
+      input->data_type(), T,
+      return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }
 
 template <typename Compute_T>
 std::unique_ptr<Task> GELU::apply_impl(const ConstTensor &input, const Tensor &output,
-                                       const std::string &flow_id) const {
+                                       flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() || output->data_type() != dtype_of<Compute_T>()) {
     throw std::runtime_error("GELU tensor dtype mismatch with dispatch type");
   }
 
   const size_t size = input->size();
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::gelu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::gelu<Compute_T>, input->data_as<Compute_T>(),
                            output->data_as<Compute_T>(), size);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::gelu<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::gelu<Compute_T>, input->data_as<Compute_T>(),
                             output->data_as<Compute_T>(), size);
   }
 #endif
@@ -68,7 +69,7 @@ template <typename Compute_T>
 std::unique_ptr<Task> GELU::compute_gradient_impl(const ConstTensor &input,
                                                   const ConstTensor &grad_output,
                                                   const Tensor &grad_input,
-                                                  const std::string &flow_id) const {
+                                                  flowHandle_t handle) const {
   if (input->data_type() != dtype_of<Compute_T>() ||
       grad_output->data_type() != dtype_of<Compute_T>() ||
       grad_input->data_type() != dtype_of<Compute_T>()) {
@@ -77,13 +78,13 @@ std::unique_ptr<Task> GELU::compute_gradient_impl(const ConstTensor &input,
 
   const size_t size = input->size();
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(flow_id, cpu::gelu_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cpu_task(handle, cpu::gelu_gradient<Compute_T>, input->data_as<Compute_T>(),
                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            size);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
-    return create_cuda_task(flow_id, cuda::gelu_gradient<Compute_T>, input->data_as<Compute_T>(),
+    return create_cuda_task(handle, cuda::gelu_gradient<Compute_T>, input->data_as<Compute_T>(),
                             grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             size);
   }

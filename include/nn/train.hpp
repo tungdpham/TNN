@@ -9,10 +9,10 @@
 #include "data_loading/data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
-#include "nn/sequential.hpp"
 #include "type/type.hpp"
 
 #ifdef USE_TBB

@@ -9,8 +9,8 @@
 
 #include <fcntl.h>
 
+#include "nn/blocks_impl/sequential.hpp"
 #include "nn/layers.hpp"
-#include "nn/sequential.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
