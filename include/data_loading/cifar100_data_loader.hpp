@@ -172,7 +172,9 @@ private:
 
 public:
   CIFAR100DataLoader(bool use_coarse_labels = false, DType_t dtype = DType_t::FP32)
-      : ImageDataLoader(), use_coarse_labels_(use_coarse_labels), dtype_(dtype) {
+      : ImageDataLoader(),
+        use_coarse_labels_(use_coarse_labels),
+        dtype_(dtype) {
     data_.reserve(50000);
     fine_labels_.reserve(50000);
     coarse_labels_.reserve(50000);
@@ -200,14 +202,14 @@ public:
    * Load CIFAR-100 data from multiple binary files
    */
   bool load_multiple_files(const std::vector<std::string> &filenames) {
-    DISPATCH_ON_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
+    DISPATCH_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
   }
 
   /**
    * Get a specific batch size
    */
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   /**

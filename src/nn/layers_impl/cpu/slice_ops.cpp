@@ -6,6 +6,7 @@
  */
 #include "nn/layers_impl/cpu/slice_ops.hpp"
 
+#include <algorithm>
 #include <cstring>
 #include <numeric>
 
@@ -46,11 +47,11 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
 }
 
 template <typename T>
-void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
+void slice_backward(const T *grad_output, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length) {
   size_t total_elements =
       std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-  std::memset(grad_input, 0, total_elements * sizeof(T));
+  std::fill(grad_input, grad_input + total_elements, T(0));
 
   size_t outer_size = 1;
   for (size_t i = 0; i < axis; ++i) {
@@ -67,7 +68,7 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
   size_t src_stride_bytes = length * inner_size * sizeof(T);
   size_t dst_stride_bytes = axis_size * inner_size * sizeof(T);
 
-  const char *src_byte_ptr = reinterpret_cast<const char *>(gradient);
+  const char *src_byte_ptr = reinterpret_cast<const char *>(grad_output);
   char *dst_byte_ptr = reinterpret_cast<char *>(grad_input);
 
   dst_byte_ptr += start * inner_size * sizeof(T);
@@ -84,7 +85,7 @@ void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> 
                                  const std::vector<size_t> &input_shape, size_t axis,  \
                                  size_t start, size_t length);                         \
                                                                                        \
-  template void slice_backward<T>(const T *gradient, T *grad_input,                    \
+  template void slice_backward<T>(const T *grad_output, T *grad_input,                 \
                                   const std::vector<size_t> &input_shape, size_t axis, \
                                   size_t start, size_t length);
 INSTANTIATE_SLICE(fp16)

@@ -1,15 +1,15 @@
 #pragma once
 
-#include <cudnn_graph.h>
-
-#include "device/flow.hpp"
 #ifdef USE_CUDA
+
+#include <cudnn_graph.h>
 
 #include <cstddef>
 #include <memory>
 #include <unordered_map>
 
 #include "device/context.hpp"
+#include "device/flow.hpp"
 
 #ifdef USE_CUDNN
 #include <cudnn.h>
@@ -19,16 +19,10 @@ namespace tnn {
 class CUDAContext : public Context {
 private:
   std::unordered_map<flowHandle_t, std::unique_ptr<CUDAFlow>> flows_;
-#ifdef USE_CUDNN
-  cudnnHandle_t cudnn_handle_;
-#endif
 
 public:
   explicit CUDAContext(int id);
-#ifdef USE_CUDNN
-  ~CUDAContext();
-  cudnnHandle_t getCudnnHandle() const { return cudnn_handle_; }
-#endif
+  static cudnnHandle_t getCudnnHandle();
 
   size_t getTotalMemory() const override;
   size_t getAvailableMemory() const override;

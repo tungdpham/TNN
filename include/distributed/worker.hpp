@@ -17,12 +17,16 @@
 
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
+#include "device/flow.hpp"
 #include "device/iallocator.hpp"
 #include "distributed/command_type.hpp"
 #include "job.hpp"
 #include "message.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph.hpp"
+#include "nn/graph_builder.hpp"
 #include "nn/layers.hpp"
+#include "nn/op_node.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
 #include "profiling/event.hpp"
@@ -36,9 +40,16 @@ namespace tnn {
 class Worker {
 public:
   explicit Worker(std::unique_ptr<Sequential> model, std::unique_ptr<Communicator> communicator)
-      : model_(std::move(model)),
-        communicator_(std::move(communicator)),
-        should_stop_(true) {}
+      : communicator_(std::move(communicator)),
+        should_stop_(true) {
+    GraphBuilder builder;
+    auto &node = builder.add_layer(std::move(model));
+    model_ = &node;
+    // Assume GPU for distributed worker for now
+    auto &allocator = PoolAllocator::instance(
+        DeviceManager::getInstance().getDevice(DeviceType::GPU), defaultFlowHandle);
+    graph_ = std::make_unique<Graph>(builder.compile(allocator));
+  }
 
   virtual ~Worker() { stop(); }
 
@@ -86,17 +97,21 @@ public:
   void set_config(const StageConfig &config) {
     // setup model, optimizer, criterion
     LayerConfig model_config = config.model_config;
-    this->model_ = Sequential::create_from_config(model_config);
-    this->model_->set_device(use_gpu_ ? getGPU() : getCPU());
+    auto &device = use_gpu_ ? getGPU() : getHost();
+    auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+    // this->graph_ = std::make_unique<Graph>();
+    GraphBuilder builder;
+    auto &node = builder.add_layer(Sequential::create_from_config(model_config));
+    this->model_ = &node;
     this->model_->set_seed(123456);
-    this->model_->init();
-    this->model_->enable_profiling(true);
+    this->graph_ = std::make_unique<Graph>(builder.compile(allocator));
+
     auto parsed_config = this->model_->get_config();
     std::cout << parsed_config.to_json().dump(4) << std::endl;
 
     OptimizerConfig optimizer_config = config.optimizer_config;
     this->optimizer_ = OptimizerFactory::create_from_config(optimizer_config);
-    this->optimizer_->attach(this->model_->parameters(), this->model_->gradients());
+    this->optimizer_->attach(this->graph_->context());
 
     this->scheduler_ =
         SchedulerFactory::create_from_config(config.scheduler_config, this->optimizer_.get());
@@ -131,9 +146,10 @@ protected:
         const Job &forward_job = message.get<Job>();
         IAllocator &out_allocator = communicator_->out_allocator();
         DType_t input_dtype = forward_job.data->data_type();
-        auto output_shape = this->model_->compute_output_shape(forward_job.data->shape());
+        auto output_shapes = this->model_->output_shapes({forward_job.data->shape()});
+        auto output_shape = output_shapes[0];
         Tensor output_tensor = make_tensor(out_allocator, input_dtype, output_shape);
-        this->model_->forward(forward_job.data, output_tensor, forward_job.mb_id);
+        this->model_->forward({forward_job.data}, {output_tensor}, forward_job.mb_id);
         auto forward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, forward_start, forward_end, "Forward Pass", this->id_});
@@ -146,7 +162,7 @@ protected:
         const Job &backward_job = message.get<Job>();
         IAllocator &out_allocator = communicator_->out_allocator();
         Tensor output_tensor = make_tensor(out_allocator, backward_job.data->data_type(), {1});
-        this->model_->backward(backward_job.data, output_tensor, backward_job.mb_id);
+        this->model_->backward({backward_job.data}, {output_tensor}, backward_job.mb_id);
         auto backward_end = std::chrono::system_clock::now();
         GlobalProfiler::add_event(
             {EventType::COMPUTE, backward_start, backward_end, "Backward Pass", this->id_});
@@ -164,7 +180,7 @@ protected:
         auto update_start = std::chrono::system_clock::now();
         // implicitly clear grads
         this->optimizer_->update();
-        this->optimizer_->clear_gradients();
+        this->optimizer_->zero_grads();
         if (scheduler_) {
           this->scheduler_->step();
         }
@@ -205,7 +221,6 @@ protected:
       }
       case CommandType::PRINT_PROFILING:
         if (model_) {
-          model_->print_profiling_info();
           Message outgoing_message(CommandType::PROFILING_PRINTED);
           communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
         } else {
@@ -214,7 +229,6 @@ protected:
         break;
       case CommandType::CLEAR_PROFILING:
         if (model_) {
-          model_->reset_profiling_info();
           Message outgoing_message(CommandType::PROFILING_CLEARED);
           communicator_->send_message(std::move(outgoing_message), coordinator_endpoint_);
         } else {
@@ -299,7 +313,8 @@ protected:
   }
 
   bool use_gpu_;
-  std::unique_ptr<Sequential> model_;
+  std::unique_ptr<Graph> graph_;
+  OpNode *model_;
   std::unique_ptr<Optimizer> optimizer_;
   std::unique_ptr<Scheduler> scheduler_;
   std::unique_ptr<Communicator> communicator_;

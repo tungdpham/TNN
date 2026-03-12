@@ -36,8 +36,9 @@ public:
   RoCECoordinator(CoordinatorConfig config)
       : Coordinator(std::move(config)) {
     // Initialize RoCE communicator for the coordinator
-    auto &allocator = PoolAllocator::instance(getCPU(), defaultFlowHandle);
-    auto communicator = std::make_unique<RoCECommunicator>(this->coordinator_endpoint_, allocator);
+    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+    auto communicator = std::make_unique<RoCECommunicator>(this->coordinator_endpoint_, allocator,
+                                                           RoCECommunicator::Config{});
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

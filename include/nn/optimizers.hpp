@@ -14,6 +14,7 @@
 
 #include "common/config.hpp"
 #include "device/task.hpp"
+#include "nn/graph_context.hpp"
 #include "optimizers_impl/cpu/adam_kernels.hpp"
 #include "optimizers_impl/cpu/sgd_kernels.hpp"
 #include "optimizers_impl/cuda/adam_kernels.hpp"
@@ -30,7 +31,10 @@ public:
       : learning_rate_(learning_rate) {}
   virtual ~Optimizer() = default;
 
-  void attach(std::vector<Tensor> params, const std::vector<Tensor> grads) {
+  void attach(GraphContext &context) {
+    context_ = &context;
+    auto params = context.parameters();
+    auto grads = context.gradients();
     if (params.size() != grads.size()) {
       throw std::invalid_argument("Parameters and gradients size mismatch in optimizer attach" +
                                   std::to_string(params.size()) + " vs " +
@@ -45,11 +49,7 @@ public:
 
   virtual void update() = 0;
 
-  void clear_gradients() {
-    for (auto &grad : gradients_) {
-      grad->fill(0.0);
-    }
-  }
+  void zero_grads() { context_->zero_grads(); }
 
   void set_learning_rate(float lr) { learning_rate_ = lr; }
   float get_learning_rate() const { return learning_rate_; }
@@ -60,6 +60,7 @@ public:
 
 protected:
   float learning_rate_;
+  GraphContext *context_;
   std::vector<Tensor> parameters_;
   std::vector<Tensor> gradients_;
 
@@ -77,8 +78,8 @@ public:
     auto &grads = this->gradients_;
 
     for (size_t i = 0; i < params.size(); ++i) {
-      DISPATCH_ON_DTYPE(params[i]->data_type(), T,
-                        update_impl<T>(params[i], grads[i], velocities_[i]));
+      DISPATCH_DTYPE(params[i]->data_type(), T,
+                     update_impl<T>(params[i], grads[i], velocities_[i]));
     }
   }
 
@@ -168,7 +169,7 @@ public:
     const float bias_correction2 = 1.0f - std::pow(beta2_, static_cast<float>(t_));
 
     for (size_t i = 0; i < params.size(); ++i) {
-      DISPATCH_ON_DTYPE(
+      DISPATCH_DTYPE(
           params[i]->data_type(), T,
           update_impl<T>(params[i], grads[i], m_[i], v_[i], bias_correction1, bias_correction2));
     }

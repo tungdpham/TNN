@@ -45,17 +45,9 @@ private:
                                                    size_t batch_size, size_t seq_len,
                                                    flowHandle_t handle);
 
-  void init_impl() override;
-  void on_set_device(const Device &device) override;
-  void on_set_flow_handle(flowHandle_t handle) override;
-  void on_set_seed(unsigned long long seed) override;
-  void on_set_io_dtype(DType_t dtype) override;
-  void on_set_param_dtype(DType_t dtype) override;
-  void on_set_compute_dtype(DType_t dtype) override;
-  void on_set_training(bool training) override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  std::vector<Layer *> layers() override {
+    return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
+  }
 
 public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
@@ -63,16 +55,19 @@ public:
 
   static constexpr const char *TYPE_NAME = "attention_block";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
-  LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  static std::unique_ptr<AttentionBlock> create_from_config(const LayerConfig &config);
 
-  std::vector<Tensor> parameters() override;
-  std::vector<Tensor> gradients() override;
+  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+               size_t mb_id = 0) override;
+  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                size_t mb_id = 0) override;
+
+  LayerConfig get_config() const override;
+  Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  static std::unique_ptr<AttentionBlock> create_from_config(const LayerConfig &config);
 };
 
 }  // namespace tnn

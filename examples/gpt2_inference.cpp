@@ -5,10 +5,11 @@
 #include <vector>
 
 #include "data_loading/open_webtext_data_loader.hpp"
-#include "nn/blocks_impl/sequential.hpp"
 #include "nn/example_models.hpp"
-#include "nn/layers.hpp"
+#include "nn/graph_builder.hpp"
+#include "nn/graph_executor.hpp"
 #include "tensor/tensor.hpp"
+#include "tensor/tensor_factory.hpp"
 #include "tokenizer/tokenizer.hpp"
 #include "utils/env.hpp"
 
@@ -34,24 +35,11 @@ int main(int argc, char **argv) {
   cout << "Using device: " << (device_type == DeviceType::GPU ? "GPU" : "CPU") << endl;
 
   // Create model using ExampleModels or load from file
-  const Device &device = device_type == DeviceType::GPU ? getGPU() : getCPU();
-  std::unique_ptr<Sequential> model;
-  // Try to load from file, otherwise create from ExampleModels
-  try {
-    std::ifstream file(model_path, std::ios::binary);
-    if (!file.is_open()) {
-      throw std::runtime_error("Failed to open model file");
-    }
-    model = load_state<Sequential>(file, device);
-    file.close();
-  } catch (const std::exception &e) {
-    cerr << "Could not load from file, trying ExampleModels: " << e.what() << endl;
-    Sequential temp_model = ExampleModels::create("gpt2");
-    temp_model.set_device(device);
-    temp_model.init();
-    model = std::make_unique<Sequential>(std::move(temp_model));
-  }
-  model->set_training(false);
+  const Device &device = device_type == DeviceType::GPU ? getGPU() : getHost();
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+
+  GraphBuilder builder;
+  Graph graph = load_or_create_model("gpt2", model_path, allocator);
 
   size_t seq_len = 512;
 
@@ -77,6 +65,8 @@ int main(int argc, char **argv) {
   cout << "\n[PROMPT]: " << tokenizer.decode(current_tokens) << endl;
   cout << "\n[GENERATED]: " << flush;
 
+  GraphExecutor executor(graph, allocator);
+
   size_t num_to_generate = 50;
   for (size_t i = 0; i < num_to_generate; ++i) {
     Tensor model_input = make_tensor<float>({1, seq_len});
@@ -90,8 +80,15 @@ int main(int argc, char **argv) {
       model_input->at<float>({0, j}) = static_cast<float>(current_tokens[start_token_idx + j]);
     }
 
-    Tensor output;
-    model->forward(model_input, output);
+    Tensor output = make_tensor<float>();
+    const InputPack inputs{
+        {"input", model_input},
+    };
+    OutputPack outputs{
+        {"output", output},
+    };
+
+    executor.forward(inputs, outputs);
 
     // Transfer output to CPU for sampling
     Tensor cpu_output = output->to_host();

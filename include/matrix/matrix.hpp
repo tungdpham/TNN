@@ -39,22 +39,33 @@ private:
   }
 
 public:
-  Matrix(sref<const Device> device) : rows_(0), cols_(0), device_(device), data_(nullptr) {}
+  Matrix(sref<const Device> device)
+      : rows_(0),
+        cols_(0),
+        device_(device),
+        data_(nullptr) {}
 
-  Matrix(size_t rows, size_t cols, sref<const Device> device = getCPU())
-      : rows_(rows), cols_(cols), device_(device) {
+  Matrix(size_t rows, size_t cols, sref<const Device> device = getHost())
+      : rows_(rows),
+        cols_(cols),
+        device_(device) {
     allocate_aligned(rows_ * cols_);
   }
 
-  Matrix(size_t rows, size_t cols, const dptr &data, const sref<const Device> device = getCPU())
-      : rows_(rows), cols_(cols), device_(device) {
+  Matrix(size_t rows, size_t cols, const dptr &data, const sref<const Device> device = getHost())
+      : rows_(rows),
+        cols_(cols),
+        device_(device) {
     allocate_aligned(rows_ * cols_);
     if (data.get<T>() != nullptr) {
       ops::copy<T>(data, data_, rows_ * cols_);
     }
   }
 
-  Matrix(const Matrix<T> &other) : rows_(other.rows_), cols_(other.cols_), device_(other.device_) {
+  Matrix(const Matrix<T> &other)
+      : rows_(other.rows_),
+        cols_(other.cols_),
+        device_(other.device_) {
     allocate_aligned(rows_ * cols_);
     ops::copy<T>(other.data_, data_, rows_ * cols_);
   }

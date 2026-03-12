@@ -11,7 +11,8 @@ namespace tnn {
 
 ActivationLayer::ActivationLayer(std::unique_ptr<ActivationFunction> activation,
                                  const std::string &name)
-    : StatelessLayer(name), activation_(std::move(activation)) {
+    : StatelessLayer(name),
+      activation_(std::move(activation)) {
   if (!activation_) {
     throw std::invalid_argument("Function function cannot be null");
   }
@@ -27,14 +28,14 @@ void ActivationLayer::forward_impl(const ConstTensor &input, const Tensor &outpu
   activation_->apply(input, output);
 }
 
-void ActivationLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void ActivationLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                     size_t mb_id) {
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
     throw std::runtime_error("No cached input found for backward pass in ActivationLayer");
   }
   grad_input->ensure(input->shape());
-  activation_->compute_gradient(input, gradient, grad_input);
+  activation_->compute_gradient(input, grad_output, grad_input);
 }
 
 LayerConfig ActivationLayer::get_config() const {
@@ -45,27 +46,9 @@ LayerConfig ActivationLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> ActivationLayer::clone() const {
-  return std::make_unique<ActivationLayer>(activation_->clone(), this->name_);
-}
-
 std::vector<size_t> ActivationLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   return input_shape;
-}
-
-uint64_t ActivationLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-
-  return 2 * num_elements;
-}
-
-uint64_t ActivationLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-
-  return 2 * num_elements;
 }
 
 std::unique_ptr<ActivationLayer> ActivationLayer::create_from_config(const LayerConfig &config) {

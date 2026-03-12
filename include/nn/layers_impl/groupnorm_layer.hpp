@@ -44,12 +44,31 @@ private:
                                            size_t channels, size_t spatial_size,
                                            flowHandle_t handle = defaultFlowHandle) const;
 
-  void init_params() override;
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    if (affine_) {
+      auto gamma_desc = ParamDescriptor{
+          param_dtype_,
+          {num_channels_},
+          &gamma_,
+          &gamma_gradients_,
+      };
+      descriptors.push_back(gamma_desc);
+      auto beta_desc = ParamDescriptor{
+          param_dtype_,
+          {num_channels_},
+          &beta_,
+          &beta_gradients_,
+      };
+      descriptors.push_back(beta_desc);
+    }
+    return descriptors;
+  }
+
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   GroupNormLayer(size_t num_groups, size_t num_channels, float epsilon = 1e-5f, bool affine = true,
@@ -57,12 +76,8 @@ public:
 
   static constexpr const char *TYPE_NAME = "groupnorm";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
   static std::unique_ptr<GroupNormLayer> create_from_config(const LayerConfig &config);

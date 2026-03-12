@@ -125,45 +125,51 @@ std::string TConfig::type_name_from_any(const std::any &value) {
   return "unknown";
 }
 
+template <typename T>
+static void assign_value(nlohmann::json &j, const std::any &value) {
+  T val = std::any_cast<T>(value);
+  j["value"] = val;
+}
+
 nlohmann::json TConfig::value_to_json(const std::any &value) {
   nlohmann::json result;
   std::string type_name = type_name_from_any(value);
   result["type"] = type_name;
 
   if (value.type() == typeid(int)) {
-    result["value"] = std::any_cast<int>(value);
+    assign_value<int>(result, value);
   } else if (value.type() == typeid(long)) {
-    result["value"] = std::any_cast<long>(value);
+    assign_value<long>(result, value);
   } else if (value.type() == typeid(long long)) {
-    result["value"] = std::any_cast<long long>(value);
+    assign_value<long long>(result, value);
   } else if (value.type() == typeid(unsigned int)) {
-    result["value"] = std::any_cast<unsigned int>(value);
+    assign_value<unsigned int>(result, value);
   } else if (value.type() == typeid(unsigned long)) {
-    result["value"] = std::any_cast<unsigned long>(value);
+    assign_value<unsigned long>(result, value);
   } else if (value.type() == typeid(unsigned long long)) {
-    result["value"] = std::any_cast<unsigned long long>(value);
+    assign_value<unsigned long long>(result, value);
   } else if (value.type() == typeid(size_t)) {
-    result["value"] = std::any_cast<size_t>(value);
+    assign_value<size_t>(result, value);
   } else if (value.type() == typeid(float)) {
-    result["value"] = std::any_cast<float>(value);
+    assign_value<float>(result, value);
   } else if (value.type() == typeid(double)) {
-    result["value"] = std::any_cast<double>(value);
+    assign_value<double>(result, value);
   } else if (value.type() == typeid(bool)) {
-    result["value"] = std::any_cast<bool>(value);
+    assign_value<bool>(result, value);
   } else if (value.type() == typeid(std::string)) {
-    result["value"] = std::any_cast<std::string>(value);
+    assign_value<std::string>(result, value);
   } else if (value.type() == typeid(nlohmann::json)) {
-    result["value"] = std::any_cast<nlohmann::json>(value);
+    assign_value<nlohmann::json>(result, value);
   } else if (value.type() == typeid(std::vector<size_t>)) {
-    result["value"] = std::any_cast<std::vector<size_t>>(value);
+    assign_value<std::vector<size_t>>(result, value);
   } else if (value.type() == typeid(std::vector<int>)) {
-    result["value"] = std::any_cast<std::vector<int>>(value);
+    assign_value<std::vector<int>>(result, value);
   } else if (value.type() == typeid(std::vector<float>)) {
-    result["value"] = std::any_cast<std::vector<float>>(value);
+    assign_value<std::vector<float>>(result, value);
   } else if (value.type() == typeid(std::vector<double>)) {
-    result["value"] = std::any_cast<std::vector<double>>(value);
+    assign_value<std::vector<double>>(result, value);
   } else if (value.type() == typeid(std::vector<std::string>)) {
-    result["value"] = std::any_cast<std::vector<std::string>>(value);
+    assign_value<std::vector<std::string>>(result, value);
   }
 
   return result;

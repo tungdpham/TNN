@@ -53,7 +53,7 @@ def build_pipeline(rank, world_size):
         stage2_rref = rpc.remote("worker1", RemoteStage2, args=("cuda:0",))
 
         # Xây pipeline: stage1 local, stage2 remote
-        model = nn.Sequential(stage1, stage2_rref)
+        model = nn.Sequential(stage2_rref, stage1)
 
         pipe = Pipe(model, chunks=4, checkpoint="never")
         return pipe

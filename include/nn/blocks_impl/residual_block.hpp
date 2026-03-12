@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include <cstddef>
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
@@ -30,20 +31,19 @@ private:
   std::vector<std::unique_ptr<Layer>> shortcut_path_;
   std::unique_ptr<ActivationFunction> final_activation_;
   std::unordered_map<size_t, Tensor> pre_activation_cache_;
-  std::unordered_map<size_t, std::vector<size_t>> input_shape_cache_;
+  std::unordered_map<size_t, Vec<Vec<size_t>>> input_shape_cache_;
   std::string activation_type_;
 
-  void on_set_device(const Device &device) override;
-  void on_set_flow_handle(flowHandle_t handle) override;
-  void on_set_seed(unsigned long long seed) override;
-  void on_set_io_dtype(DType_t dtype) override;
-  void on_set_param_dtype(DType_t dtype) override;
-  void on_set_compute_dtype(DType_t dtype) override;
-  void on_set_training(bool training) override;
-  void init_impl() override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  std::vector<Layer *> layers() override {
+    std::vector<Layer *> layers;
+    for (auto &layer : main_path_) {
+      layers.push_back(layer.get());
+    }
+    for (auto &layer : shortcut_path_) {
+      layers.push_back(layer.get());
+    }
+    return layers;
+  }
 
 public:
   /**
@@ -62,22 +62,17 @@ public:
 
   static constexpr const char *TYPE_NAME = "residual_block";
 
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-  std::string type() const override { return TYPE_NAME; }
+  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+               size_t mb_id = 0) override;
+  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                size_t mb_id = 0) override;
 
+  Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
   static std::unique_ptr<ResidualBlock> create_from_config(const LayerConfig &config);
-
-  std::unique_ptr<Layer> clone() const override;
-
-  const std::vector<std::unique_ptr<Layer>> &get_main_path() const;
-  const std::vector<std::unique_ptr<Layer>> &get_shortcut_path() const;
-
-  size_t cached_memory_bytes() const override;
-
-  std::vector<Tensor> parameters() override;
-  std::vector<Tensor> gradients() override;
 };
 }  // namespace tnn

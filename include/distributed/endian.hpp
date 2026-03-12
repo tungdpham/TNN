@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+namespace tnn {
 enum Endianness : uint8_t { LITTLE = 0, BIG = 1 };
 
 inline Endianness get_system_endianness() {
@@ -11,6 +12,8 @@ inline Endianness get_system_endianness() {
   } u = {0x01020304};
   return (u.c[0] == 1) ? Endianness::BIG : Endianness::LITTLE;
 }
+
+inline static Endianness sys_endianness = get_system_endianness();
 
 template <typename T>
 void bswap(T &value) {
@@ -27,3 +30,5 @@ void bswap(T &value) {
                   "bswap is only supported for 2, 4, or 8 byte types");
   }
 }
+
+}  // namespace tnn

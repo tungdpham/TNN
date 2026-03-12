@@ -20,8 +20,6 @@ SliceLayer::SliceLayer(size_t axis, size_t start, size_t length, const std::stri
       start_(start),
       length_(length) {}
 
-SliceLayer::~SliceLayer() = default;
-
 void SliceLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
 
@@ -31,7 +29,7 @@ void SliceLayer::forward_impl(const ConstTensor &input, const Tensor &output, si
   DISPATCH_ON_3_DTYPES_TO_METHOD(slice_forward, input, output, this->flow_handle_);
 }
 
-void SliceLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void SliceLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
@@ -41,7 +39,7 @@ void SliceLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_i
 
   grad_input->ensure(original_shape);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, gradient, grad_input, original_shape,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(slice_backward, grad_output, grad_input, original_shape,
                                  this->flow_handle_);
 }
 
@@ -78,7 +76,7 @@ std::unique_ptr<Task> SliceLayer::slice_forward(const ConstTensor &input, const 
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &gradient,
+std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &grad_output,
                                                  const Tensor &grad_input,
                                                  const std::vector<size_t> &original_shape,
                                                  flowHandle_t handle) const {
@@ -86,24 +84,24 @@ std::unique_ptr<Task> SliceLayer::slice_backward(const ConstTensor &gradient,
     throw std::runtime_error(
         "SliceLayer mixed dtype dispatch not implemented (io/compute must match).");
   }
-  if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
+  if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("SliceLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (gradient->device_type() == DeviceType::CPU) {
+  if (grad_output->device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::slice::slice_backward<Compute_T>,
-                           gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                           grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                            original_shape, axis_, start_, length_);
   }
 #ifdef USE_CUDA
-  else if (gradient->device_type() == DeviceType::GPU) {
+  else if (grad_output->device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, cuda::slice::slice_backward<Compute_T>,
-                            gradient->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
                             original_shape, axis_, start_, length_);
   }
 #endif
   else {
-    if (gradient->device_type() == DeviceType::GPU) {
+    if (grad_output->device_type() == DeviceType::GPU) {
       throw std::runtime_error("SliceLayer: GPU execution requires building with USE_CUDA");
     }
     throw std::runtime_error("SliceLayer: Unsupported device type");
@@ -134,19 +132,11 @@ LayerConfig SliceLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> SliceLayer::clone() const {
-  return std::make_unique<SliceLayer>(axis_, start_, length_, this->name_);
-}
-
 std::unique_ptr<SliceLayer> SliceLayer::create_from_config(const LayerConfig &config) {
   size_t axis = (size_t)config.get<int>("axis", 0);
   size_t start = (size_t)config.get<int>("start", 0);
   size_t length = (size_t)config.get<int>("length", 1);
   return std::make_unique<SliceLayer>(axis, start, length, config.name);
 }
-
-uint64_t SliceLayer::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }
-
-uint64_t SliceLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
 }  // namespace tnn

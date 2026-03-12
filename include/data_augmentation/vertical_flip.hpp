@@ -11,12 +11,13 @@ namespace tnn {
  */
 class VerticalFlipAugmentation : public Augmentation {
 public:
-  explicit VerticalFlipAugmentation(float probability = 0.5f) : probability_(probability) {
+  explicit VerticalFlipAugmentation(float probability = 0.5f)
+      : probability_(probability) {
     this->name_ = "VerticalFlip";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

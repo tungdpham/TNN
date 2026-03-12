@@ -50,14 +50,14 @@ void AvgPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   output->ensure({batch_size, output_h, output_w, channels});
 
-  DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_forward_impl, input, output, batch_size, input_h,
-                              input_w, channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(compute_avg_pool_forward_impl, input, output, batch_size, input_h, input_w,
+                    channels, output_h, output_w, this->flow_handle_);
 }
 
-void AvgPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void AvgPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
-  if (gradient->dims() != 4) {
-    throw std::runtime_error("AvgPool2DLayer: gradient must be 4D (NHWC format)");
+  if (grad_output->dims() != 4) {
+    throw std::runtime_error("AvgPool2DLayer: grad_output must be 4D (NHWC format)");
   }
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
 
@@ -70,15 +70,15 @@ void AvgPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
   const size_t input_h = input_shape[1];
   const size_t input_w = input_shape[2];
   const size_t channels = input_shape[3];
-  const auto &grad_shape = gradient->shape();
+  const auto &grad_shape = grad_output->shape();
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
 
   grad_input->ensure({batch_size, input_h, input_w, channels});
   grad_input->fill(0);
 
-  DISPATCH_ON_DTYPE_TO_METHOD(compute_avg_pool_backward_impl, gradient, grad_input, batch_size,
-                              input_h, input_w, channels, output_h, output_w, this->flow_handle_);
+  DISPATCH_IO_DTYPE(compute_avg_pool_backward_impl, grad_output, grad_input, batch_size, input_h,
+                    input_w, channels, output_h, output_w, this->flow_handle_);
 }
 
 template <typename IO_T>
@@ -148,11 +148,6 @@ LayerConfig AvgPool2DLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> AvgPool2DLayer::clone() const {
-  return std::make_unique<AvgPool2DLayer>(pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_,
-                                          this->name_);
-}
-
 std::vector<size_t> AvgPool2DLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   if (input_shape.size() != 4) {
@@ -181,35 +176,6 @@ std::unique_ptr<AvgPool2DLayer> AvgPool2DLayer::create_from_config(const LayerCo
 
   return std::make_unique<AvgPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                           config.name);
-}
-
-uint64_t AvgPool2DLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  assert(input_shape.size() == 4 && "Input shape must be 4D");
-  size_t batch_size = input_shape[0];
-  size_t input_h = input_shape[1];
-  size_t input_w = input_shape[2];
-  size_t channels = input_shape[3];
-
-  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
-
-  uint64_t flops_per_output = pool_h_ * pool_w_ + 1;
-  uint64_t total_outputs = batch_size * output_h * output_w * channels;
-
-  return flops_per_output * total_outputs;
-}
-
-uint64_t AvgPool2DLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  assert(input_shape.size() == 4 && "Input shape must be 4D");
-  size_t batch_size = input_shape[0];
-  size_t input_h = input_shape[1];
-  size_t input_w = input_shape[2];
-  size_t channels = input_shape[3];
-
-  uint64_t flops_per_element = 2;
-  uint64_t total_inputs = batch_size * input_h * input_w * channels;
-
-  return flops_per_element * total_inputs;
 }
 
 }  // namespace tnn

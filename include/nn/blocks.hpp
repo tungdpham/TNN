@@ -4,14 +4,14 @@
 #include <vector>
 
 #include "blocks_impl/residual_block.hpp"
-#include "nn/layer.hpp"
+#include "nn/siso_layer.hpp"
 
 namespace tnn {
 
-inline std::unique_ptr<ResidualBlock> residual_block(std::vector<std::unique_ptr<Layer>> main_path,
-                                                     std::vector<std::unique_ptr<Layer>> shortcut,
-                                                     const std::string &activation_name = "relu",
-                                                     const std::string &name = "") {
+inline std::unique_ptr<ResidualBlock> residual_block(
+    std::vector<std::unique_ptr<SISOLayer>> main_path,
+    std::vector<std::unique_ptr<SISOLayer>> shortcut, const std::string &activation_name = "relu",
+    const std::string &name = "") {
   return std::make_unique<ResidualBlock>(
       std::move(main_path), std::move(shortcut), activation_name,
       name.empty() ? "residual_block_" + std::to_string(main_path.size()) : name);

@@ -1,8 +1,7 @@
-#include <memory>
-
 #include "data_loading/data_loader_factory.hpp"
 #include "device/device_manager.hpp"
 #include "nn/example_models.hpp"
+#include "nn/graph_builder.hpp"
 #include "nn/layers.hpp"
 #include "nn/loss.hpp"
 #include "nn/train.hpp"
@@ -19,11 +18,9 @@ signed main() {
   train_config.print_config();
 
   // Prioritize loading existing model, else create from available ones
-  std::string model_name = Env::get<std::string>("MODEL_NAME", "cifar10_resnet9");
-  std::string model_path = Env::get<std::string>("MODEL_PATH", "");
-
-  std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
-  const auto &device = device_str == "GPU" ? getGPU(0) : getCPU();
+  const auto &device = train_config.device_type == DeviceType::GPU ? getGPU(0) : getHost();
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
+  GraphBuilder builder;
 
   string dataset_name = Env::get<std::string>("DATASET_NAME", "");
   if (dataset_name.empty()) {
@@ -32,30 +29,16 @@ signed main() {
   string dataset_path = Env::get<std::string>("DATASET_PATH", "data");
   auto [train_loader, val_loader] = DataLoaderFactory::create(dataset_name, dataset_path);
   if (!train_loader || !val_loader) {
-    cerr << "Failed to create data loaders for model: " << model_name << endl;
+    cerr << "Failed to create data loaders for model: " << train_config.model_name << endl;
     return 1;
   }
 
-  std::unique_ptr<Sequential> model;
-  if (!model_path.empty()) {
-    cout << "Loading model from: " << model_path << endl;
-    std::ifstream file(model_path, std::ios::binary);
-    if (!file.is_open()) {
-      throw std::runtime_error("Failed to open model file");
-    }
-    model = load_state<Sequential>(file, device);
-    file.close();
-    std::cout << "Loaded model config: " << model->get_config().to_json().dump(2) << std::endl;
-  } else {
-    throw std::runtime_error("MODEL_PATH environment variable is not set!");
-  }
-
-  cout << "Inferencing model on device: " << device_str << endl;
+  Graph graph = load_or_create_model(train_config.model_name, train_config.model_path, allocator);
 
   auto criterion = LossFactory::create_logsoftmax_crossentropy();
 
   try {
-    auto res = validate_model(model, val_loader, criterion, train_config);
+    auto res = validate_model(graph, val_loader, criterion, train_config);
     std::cout << "Validation Loss: " << res.avg_loss << ", Accuracy: " << res.avg_accuracy * 100.0
               << "%" << std::endl;
   } catch (const std::exception &e) {

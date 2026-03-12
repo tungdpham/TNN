@@ -101,7 +101,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardBasic) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
@@ -148,7 +148,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardMultiChannel) {
     input_data[i] = static_cast<float>((i % 100) + 1) * 0.1f;
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
@@ -195,7 +195,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardLargePool) {
     input_data[i] = static_cast<float>((i * 7) % 100) * 0.1f;
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
@@ -244,7 +244,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolForwardNonSquare) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> cpu_output(batch_size * channels * output_h * output_w);
@@ -293,7 +293,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardBasic) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
@@ -366,7 +366,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardMultiChannel) {
     input_data[i] = static_cast<float>((i % 100) + 1) * 0.1f;
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
@@ -442,7 +442,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardLargePool) {
     input_data[i] = static_cast<float>((i * 7) % 100) * 0.1f;
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);
@@ -518,7 +518,7 @@ TEST_F(CUDAMaxPoolOpsTest, MaxPoolBackwardNonSquare) {
     input_data[i] = static_cast<float>(i + 1);
   }
 
-  const Device &cpu_device = getCPU();
+  const Device &cpu_device = getHost();
   const size_t mask_size = batch_size * channels * output_h * output_w;
 
   std::vector<float> forward_output(batch_size * channels * output_h * output_w);

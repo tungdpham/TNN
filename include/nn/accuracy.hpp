@@ -33,9 +33,9 @@ inline int compute_class_corrects(const ConstTensor &predictions, const ConstTen
   const size_t batch_size = predictions->shape()[0];
   const size_t num_classes = predictions->shape()[1];
 
-  DISPATCH_ON_DTYPE(predictions->data_type(), T,
-                    return detail::compute_class_corrects_impl<T>(predictions, targets, batch_size,
-                                                                  num_classes, threshold));
+  DISPATCH_DTYPE(predictions->data_type(), T,
+                 return detail::compute_class_corrects_impl<T>(predictions, targets, batch_size,
+                                                               num_classes, threshold));
 }
 
 }  // namespace tnn

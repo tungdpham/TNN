@@ -33,12 +33,13 @@ public:
    */
   NormalizationAugmentation(const std::array<float, 3> &mean = {0.485f, 0.456f, 0.406f},
                             const std::array<float, 3> &std = {0.229f, 0.224f, 0.225f})
-      : mean_(mean), std_(std) {
+      : mean_(mean),
+        std_(std) {
     this->name_ = "Normalization";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

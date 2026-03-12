@@ -12,7 +12,7 @@ namespace adam {
 // m_hat = m / (1 - beta1^t)
 // v_hat = v / (1 - beta2^t)
 // params -= lr * m_hat / (sqrt(v_hat) + epsilon)
-// Optional weight decay: params -= lr * weight_decay * params (AdamW) or add to gradient (Adam)
+// Optional weight decay: params -= lr * weight_decay * params (AdamW) or add to grad_output (Adam)
 template <typename T>
 void update_adam(T *params_data, const T *grads_data, T *m_data, T *v_data, const size_t size,
                  const float learning_rate, const float beta1, const float beta2,

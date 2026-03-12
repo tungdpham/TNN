@@ -32,7 +32,7 @@ public:
   NetworkCoordinator(CoordinatorConfig config,
                      TCPCommunicator::Config tcp_config = TCPCommunicator::Config())
       : Coordinator(std::move(config)) {
-    auto &allocator = PoolAllocator::instance(getCPU(), defaultFlowHandle);
+    auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
     // Initialize TCP communicator for the coordinator
     auto communicator =
         std::make_unique<TCPCommunicator>(this->coordinator_endpoint_, allocator, tcp_config);

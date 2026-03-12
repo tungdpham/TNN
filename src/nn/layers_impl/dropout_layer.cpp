@@ -35,7 +35,7 @@ void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, 
 
   Tensor &mask = micro_batch_masks_[mb_id];
   if (mask == nullptr)
-    mask = make_tensor<float>(input->shape(), this->device_);
+    mask = make_tensor<float>(input->shape(), this->device());
   else {
     mask->ensure(input->shape());
   }
@@ -44,11 +44,11 @@ void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, 
   DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_forward, input, output, mask, this->flow_handle_);
 }
 
-void DropoutLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void DropoutLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                  size_t mb_id) {
   if (!this->is_training_) {
-    grad_input->ensure(gradient->shape());
-    gradient->copy_to(grad_input);
+    grad_input->ensure(grad_output->shape());
+    grad_output->copy_to(grad_input);
     return;
   }
 
@@ -59,8 +59,8 @@ void DropoutLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad
   }
   const ConstTensor &mask = it_mask->second;
 
-  grad_input->ensure(gradient->shape());
-  gradient->copy_to(grad_input);
+  grad_input->ensure(grad_output->shape());
+  grad_output->copy_to(grad_input);
   grad_input->mul(mask);
 }
 
@@ -109,10 +109,6 @@ LayerConfig DropoutLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> DropoutLayer::clone() const {
-  return std::make_unique<DropoutLayer>(dropout_rate_, this->name_);
-}
-
 std::vector<size_t> DropoutLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   return input_shape;
@@ -121,33 +117,6 @@ std::vector<size_t> DropoutLayer::compute_output_shape(
 std::unique_ptr<DropoutLayer> DropoutLayer::create_from_config(const LayerConfig &config) {
   float dropout_rate = config.get<float>("dropout_rate");
   return std::make_unique<DropoutLayer>(dropout_rate, config.name);
-}
-
-uint64_t DropoutLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  if (!this->is_training_) {
-    return 0;
-  }
-
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-
-  uint64_t rng_flops = num_elements;
-  uint64_t mask_flops = num_elements;
-  uint64_t scale_flops =
-      static_cast<uint64_t>((1.0 - static_cast<double>(dropout_rate_)) * num_elements);
-
-  return rng_flops + mask_flops + scale_flops;
-}
-
-uint64_t DropoutLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  if (!this->is_training_) {
-    return 0;
-  }
-
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-
-  return num_elements;
 }
 
 }  // namespace tnn

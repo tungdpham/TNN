@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -17,8 +18,9 @@
 #include "device/flow.hpp"
 #include "device/pool_allocator.hpp"
 #include "nn/accuracy.hpp"
-#include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph_executor.hpp"
 #include "threading/thread_wrapper.hpp"
+#include "type/type.hpp"
 #include "utils/env.hpp"
 #include "utils/memory.hpp"
 
@@ -67,15 +69,74 @@ void TrainingConfig::load_from_env() {
   num_microbatches = Env::get<size_t>("NUM_MICROBATCHES", 2);
   string device_type_str = Env::get<string>("DEVICE_TYPE", "CPU");
   device_type = (device_type_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+  model_name = Env::get<string>("MODEL_NAME", model_name);
+  model_path = Env::get<string>("MODEL_PATH", model_path);
+  dataset_name = Env::get<string>("DATASET_NAME", dataset_name);
+  dataset_path = Env::get<string>("DATASET_PATH", dataset_path);
+  string io_dtype_str = Env::get<string>("IO_DTYPE", dtype_to_string(io_dtype));
+  io_dtype = string_to_dtype(io_dtype_str);
+  string param_dtype_str = Env::get<string>("PARAM_DTYPE", dtype_to_string(param_dtype));
+  param_dtype = string_to_dtype(param_dtype_str);
+  string compute_dtype_str = Env::get<string>("COMPUTE_DTYPE", dtype_to_string(compute_dtype));
+  compute_dtype = string_to_dtype(compute_dtype_str);
 }
 
-static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
+void TrainingConfig::load_from_json(const string &config_path) {
+  ifstream file(config_path);
+  if (!file.is_open()) {
+    throw runtime_error("Failed to open config file: " + config_path);
+  }
+
+  nlohmann::json config;
+  file >> config;
+  file.close();
+
+  epochs = config.value("epochs", epochs);
+  batch_size = config.value("batch_size", batch_size);
+  max_steps = config.value("max_steps", max_steps);
+  lr_initial = config.value("lr_initial", lr_initial);
+  gradient_accumulation_steps =
+      config.value("gradient_accumulation_steps", gradient_accumulation_steps);
+  progress_print_interval = config.value("progress_print_interval", progress_print_interval);
+  num_threads = config.value("num_threads", num_threads);
+  string profiler_type_str = config.value("profiler_type", "NONE");
+  if (profiler_type_str == "NORMAL") {
+    profiler_type = ProfilerType::NORMAL;
+  } else if (profiler_type_str == "CUMULATIVE") {
+    profiler_type = ProfilerType::CUMULATIVE;
+  } else {
+    profiler_type = ProfilerType::NONE;
+  }
+  print_layer_profiling = config.value("print_layer_profiling", print_layer_profiling);
+  print_layer_memory_usage = config.value("print_layer_memory_usage", print_layer_memory_usage);
+  num_microbatches = config.value("num_microbatches", num_microbatches);
+  if (config.contains("device_type")) {
+    string device_str = config["device_type"];
+    device_type = (device_str == "CPU") ? DeviceType::CPU : DeviceType::GPU;
+  }
+  model_name = config.value("model_name", model_name);
+  model_path = config.value("model_path", model_path);
+  dataset_name = config.value("dataset_name", dataset_name);
+  dataset_path = config.value("dataset_path", dataset_path);
+  string io_dtype_str = config.value("io_dtype", dtype_to_string(io_dtype));
+  io_dtype = string_to_dtype(io_dtype_str);
+  string param_dtype_str = config.value("param_dtype", dtype_to_string(param_dtype));
+  param_dtype = string_to_dtype(param_dtype_str);
+  string compute_dtype_str = config.value("compute_dtype", dtype_to_string(compute_dtype));
+  compute_dtype = string_to_dtype(compute_dtype_str);
+}
+
+static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                           unique_ptr<Optimizer> &optimizer, const unique_ptr<Loss> &criterion,
                           unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   auto train_start = chrono::high_resolution_clock::now();
-  Tensor batch_data = make_tensor(config.dtype), batch_labels = make_tensor(config.dtype);
+  Tensor batch_data, batch_labels;
+  const Device &model_device = graph.device();
+  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, mem_pool);
+
   cout << "Starting training epoch..." << endl;
-  model->set_training(true);
+  graph.set_training(true);
   train_loader->shuffle();
   train_loader->reset();
 
@@ -83,10 +144,6 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   double total_corrects = 0.0;
   size_t cur_samples = 0;
   int num_batches = 0;
-  csref<Device> model_device = model->get_device();
-
-  PoolAllocator &mem_pool = PoolAllocator::instance(*model_device, defaultFlowHandle);
-
   int grad_accum_counter = 0;
 
   cout << "Training batches: " << train_loader->size() << endl;
@@ -97,9 +154,16 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     cur_samples += batch_data->dimension(0);
     auto device_labels = batch_labels->to_device(model_device);
 
-    Tensor predictions = make_tensor(mem_pool, model->get_io_dtype(), {});
+    Tensor predictions = make_tensor(mem_pool, batch_data->data_type(), {});
 
-    model->forward(batch_data, predictions);
+    const InputPack inputs{
+        {"input", batch_data},
+    };
+    OutputPack outputs{
+        {"output", predictions},
+    };
+
+    executor.forward(inputs, outputs);
 
     float loss;
     criterion->compute_loss(predictions, device_labels, loss);
@@ -107,13 +171,20 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
 
     total_corrects += compute_class_corrects(predictions, device_labels);
 
-    Tensor loss_gradient = make_tensor(mem_pool, model->get_io_dtype(), predictions->shape());
+    Tensor loss_gradient = make_tensor(mem_pool, batch_data->data_type(), predictions->shape());
     criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
     predictions = nullptr;  // free prediction buffer early
 
-    Tensor backward_output = make_tensor(mem_pool, model->get_io_dtype(), batch_data->shape());
-    model->backward(loss_gradient, backward_output);
+    Tensor backward_output = make_tensor(mem_pool, batch_data->data_type(), batch_data->shape());
+
+    const InputPack grad_inputs{
+        {"output", loss_gradient},
+    };
+    OutputPack grad_outputs{
+        {"input", backward_output},
+    };
+    executor.backward(grad_inputs, grad_outputs);
 
     auto batch_end = chrono::high_resolution_clock::now();
     auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
@@ -121,23 +192,17 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
     if (++grad_accum_counter == config.gradient_accumulation_steps) {
       grad_accum_counter = 0;
       optimizer->update();
-      optimizer->clear_gradients();
+      optimizer->zero_grads();
       if (scheduler) {
         scheduler->step();
       }
     }
-    model_device->getFlow(defaultFlowHandle)->synchronize();
+    model_device.getFlow(defaultFlowHandle)->synchronize();
 
     if (num_batches % config.progress_print_interval == 0) {
-      if (model->is_profiling_enabled()) {
-        model->print_profiling_info();
-      }
       cout << "Batch ID: " << num_batches << ", Batch's Loss: " << fixed << setprecision(4) << loss
            << ", Cumulative Accuracy: " << setprecision(2) << (total_corrects * 100.0 / cur_samples)
            << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
-    }
-    if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-      model->reset_profiling_info();
     }
   }
   cout << endl;
@@ -151,7 +216,7 @@ static Result train_epoch(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoad
   return {avg_train_loss, avg_train_accuracy};
 }
 
-static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
+static void train_val(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                       unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
                       const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
                       const TrainingConfig &config) {
@@ -165,10 +230,10 @@ static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
 
       // train phrase
       auto [avg_train_loss, avg_train_accuracy] =
-          train_epoch(model, train_loader, optimizer, criterion, scheduler, config);
+          train_epoch(graph, train_loader, optimizer, criterion, scheduler, config);
 
       // validation phrase
-      auto [avg_val_loss, avg_val_accuracy] = validate_model(model, val_loader, criterion, config);
+      auto [avg_val_loss, avg_val_accuracy] = validate_model(graph, val_loader, criterion, config);
 
       if (avg_val_accuracy > best_val_accuracy) {
         best_val_accuracy = avg_val_accuracy;
@@ -176,12 +241,12 @@ static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
              << best_val_accuracy * 100.0 << "%" << endl;
         try {
           filesystem::create_directories("model_snapshots");
-          string filepath = "model_snapshots/" + model->name();
+          string filepath = "model_snapshots/" + graph.name();
           ofstream file(filepath, ios::binary);
           if (!file.is_open()) {
             throw runtime_error("Failed to open file: " + filepath);
           }
-          model->save_state(file);
+          graph.save_state(file);
           file.close();
           cout << "Model saved to " << filepath << endl;
         } catch (const exception &e) {
@@ -197,10 +262,6 @@ static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
            << ", Accuracy: " << setprecision(2) << avg_val_accuracy * 100.0 << "%" << endl;
       cout << string(60, '=') << endl;
 
-      if (model->is_profiling_enabled()) {
-        model->reset_profiling_info();
-      }
-
       if ((epoch + 1) % 5 == 0) {
         thread_wrapper.clean_buffers();
       }
@@ -210,31 +271,26 @@ static void train_val(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
   });
 }
 
-static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
+static void train_step(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                        const unique_ptr<Optimizer> &optimizer, const unique_ptr<Loss> &criterion,
                        const unique_ptr<Scheduler> &scheduler, const TrainingConfig &config) {
   ThreadWrapper thread_wrapper({config.num_threads});
 
   Tensor batch_data, batch_labels;
   cout << "Starting training epoch..." << endl;
-  model->set_training(true);
+  graph.set_training(true);
   train_loader->shuffle();
   train_loader->reset();
 
-  csref<Device> model_device = model->get_device();
-  Tensor loss_gradient = make_tensor(model->get_io_dtype(), {1}, model_device);
-  Tensor device_labels = make_tensor(model->get_io_dtype(), {1}, model_device);
-  Tensor predictions = make_tensor(model->get_io_dtype(), {1}, model_device);
-  Tensor backward_output = make_tensor(model->get_io_dtype(), {1}, model_device);
+  const Device &model_device = graph.device();
+  PoolAllocator &mem_pool = PoolAllocator::instance(model_device, defaultFlowHandle);
+  GraphExecutor executor(graph, mem_pool);
+  Tensor loss_gradient = make_tensor(config.io_dtype, {1}, model_device);
+  Tensor device_labels = make_tensor(config.io_dtype, {1}, model_device);
+  Tensor predictions = make_tensor(config.io_dtype, {1}, model_device);
+  Tensor backward_output = make_tensor(config.io_dtype, {1}, model_device);
 
   int grad_accum_counter = 0;
-
-  // cold pass
-  train_loader->get_batch(config.batch_size, batch_data, batch_labels);
-  std::cout << "Input batch shape: " << batch_data->shape_str() << std::endl;
-
-  device_labels = batch_labels->to_device(model_device);
-  model->forward(batch_data, predictions);
 
   train_loader->reset();
   auto start_time = chrono::high_resolution_clock::now();
@@ -246,7 +302,13 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
       }
       auto batch_start = chrono::high_resolution_clock::now();
       device_labels = batch_labels->to_device(model_device);
-      model->forward(batch_data, predictions);
+      const InputPack inputs{
+          {"input", batch_data},
+      };
+      OutputPack outputs{
+          {"output", predictions},
+      };
+      executor.forward(inputs, outputs);
       float loss;
       criterion->compute_loss(predictions, device_labels, loss);
 
@@ -254,29 +316,29 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
 
       criterion->compute_gradient(predictions, device_labels, loss_gradient);
 
-      model->backward(loss_gradient, backward_output);
+      const InputPack grad_outputs{
+          {"output", loss_gradient},
+      };
+      OutputPack grad_inputs{
+          {"input", backward_output},
+      };
+      executor.backward(grad_outputs, grad_inputs);
 
       auto batch_end = chrono::high_resolution_clock::now();
       auto batch_duration = chrono::duration_cast<chrono::milliseconds>(batch_end - batch_start);
       if (++grad_accum_counter == config.gradient_accumulation_steps) {
         grad_accum_counter = 0;
         optimizer->update();
-        optimizer->clear_gradients();
+        optimizer->zero_grads();
         if (scheduler) {
           scheduler->step();
         }
       }
 
       if (steps % config.progress_print_interval == 0) {
-        if (model->is_profiling_enabled()) {
-          model->print_profiling_info();
-        }
         cout << "Batch ID: " << steps << ", Batch's Loss: " << fixed << setprecision(4) << loss
              << ", Batch's Accuracy: " << setprecision(2) << (corrects * 100.0 / config.batch_size)
              << "%" << ", Batch Time: " << batch_duration.count() << "ms" << endl;
-      }
-      if (model->is_profiling_enabled() && config.profiler_type == ProfilerType::NORMAL) {
-        model->reset_profiling_info();
       }
     }
 
@@ -288,12 +350,12 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
     // save model
     try {
       filesystem::create_directories("model_snapshots");
-      string filepath = "model_snapshots/" + model->name();
+      string filepath = "model_snapshots/" + graph.name();
       ofstream file(filepath, ios::binary);
       if (!file.is_open()) {
         throw runtime_error("Failed to open file: " + filepath);
       }
-      model->save_state(file);
+      graph.save_state(file);
       file.close();
       cout << "Model saved to " << filepath << endl;
     } catch (const exception &e) {
@@ -302,56 +364,54 @@ static void train_step(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader>
   });
 }
 
-void train_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &train_loader,
+void train_model(Graph &graph, unique_ptr<BaseDataLoader> &train_loader,
                  unique_ptr<BaseDataLoader> &val_loader, unique_ptr<Optimizer> &optimizer,
                  const unique_ptr<Loss> &criterion, unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config) {
-  optimizer->attach(model->parameters(), model->gradients());
-  Tensor batch_data, batch_labels;
-
-  if (config.profiler_type == ProfilerType::NONE) {
-    model->enable_profiling(false);
-  } else if (config.profiler_type == ProfilerType::NORMAL ||
-             config.profiler_type == ProfilerType::CUMULATIVE) {
-    model->enable_profiling(true);
-  }
+  optimizer->attach(graph.context());
 
   cout << "Training batches: " << train_loader->size() / config.batch_size << endl;
   cout << "Validation batches: " << val_loader->size() / config.batch_size << endl;
 
   vector<size_t> data_shape = train_loader->get_data_shape();
   data_shape.insert(data_shape.begin(), config.batch_size);  // add batch dimension
-  model->print_summary(data_shape);
 
   bool is_val = config.max_steps == -1;
 
   if (is_val) {
-    train_val(model, train_loader, val_loader, optimizer, criterion, scheduler, config);
+    train_val(graph, train_loader, val_loader, optimizer, criterion, scheduler, config);
   } else {
-    train_step(model, train_loader, optimizer, criterion, scheduler, config);
+    train_step(graph, train_loader, optimizer, criterion, scheduler, config);
   }
 }
 
-Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> &val_loader,
+Result validate_model(Graph &graph, unique_ptr<BaseDataLoader> &val_loader,
                       const unique_ptr<Loss> &criterion, const TrainingConfig &config) {
-  PoolAllocator &mem_pool = PoolAllocator::instance(model->get_device(), defaultFlowHandle);
-  Tensor batch_data = make_tensor(mem_pool, model->get_io_dtype()),
-         batch_labels = make_tensor(mem_pool, model->get_io_dtype());
+  PoolAllocator &mem_pool = PoolAllocator::instance(graph.device(), defaultFlowHandle);
+  GraphExecutor executor(graph, mem_pool);
+  Tensor batch_data, batch_labels;
 
-  model->set_training(false);
+  graph.set_training(false);
   val_loader->reset();
 
   cout << "Starting validation..." << endl;
   double val_loss = 0.0;
   double val_corrects = 0.0;
   int val_batches = 0;
-  csref<Device> model_device = model->get_device();
+  csref<Device> model_device = graph.device();
 
-  Tensor device_batch_labels = make_tensor(model->get_io_dtype(), {}, model_device);
-  Tensor predictions = make_tensor(model->get_io_dtype(), {}, model_device);
+  Tensor device_batch_labels;
 
   while (val_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
-    model->forward(batch_data, predictions);
+    Tensor device_input = batch_data->to_device(model_device);
+    const InputPack inputs{
+        {"input", device_input},
+    };
+    Tensor predictions = make_tensor<float>(mem_pool, {});
+    OutputPack outputs{
+        {"output", predictions},
+    };
+    executor.forward(inputs, outputs);
 
     device_batch_labels = batch_labels->to_device(model_device);
     float loss;
@@ -361,8 +421,8 @@ Result validate_model(unique_ptr<Sequential> &model, unique_ptr<BaseDataLoader> 
     ++val_batches;
   }
 
-  const double avg_val_loss = val_loss / val_batches;
-  const double avg_val_accuracy = val_corrects / val_loader->size();
+  double avg_val_loss = val_loss / val_batches;
+  double avg_val_accuracy = val_corrects / val_loader->size();
 
   return {avg_val_loss, avg_val_accuracy};
 }

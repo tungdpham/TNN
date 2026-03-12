@@ -10,12 +10,13 @@ namespace tnn {
 class BrightnessAugmentation : public Augmentation {
 public:
   BrightnessAugmentation(float probability = 0.5f, float brightness_range = 0.2f)
-      : probability_(probability), brightness_range_(brightness_range) {
+      : probability_(probability),
+        brightness_range_(brightness_range) {
     this->name_ = "Brightness";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

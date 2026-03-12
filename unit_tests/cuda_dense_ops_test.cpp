@@ -223,7 +223,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsBasic) {
       defaultFlowHandle, cuda::legacy_dense::compute_weight_gradients_ex<float, float, float>,
       gpu_input.get<float>(), gpu_gradient.get<float>(), gpu_weight_grad.get<float>(), batch_size,
       input_features, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU weight gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU weight grad_output task failed";
 
   std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
@@ -269,7 +269,7 @@ TEST_F(CUDADenseOpsTest, WeightGradientsLarge) {
       defaultFlowHandle, cuda::legacy_dense::compute_weight_gradients_ex<float, float, float>,
       gpu_input.get<float>(), gpu_gradient.get<float>(), gpu_weight_grad.get<float>(), batch_size,
       input_features, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU weight gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU weight grad_output task failed";
 
   std::vector<float> gpu_weight_grad_cpu(input_features * output_features);
   getGPU().copyToHost(gpu_weight_grad_cpu.data(), gpu_weight_grad.get<float>(),
@@ -315,7 +315,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsBasic) {
       defaultFlowHandle, cuda::legacy_dense::compute_input_gradients_ex<float, float, float>,
       gpu_gradient.get<float>(), gpu_weight.get<float>(), gpu_grad_input.get<float>(), batch_size,
       input_features, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU input gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU input grad_output task failed";
 
   std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
@@ -361,7 +361,7 @@ TEST_F(CUDADenseOpsTest, InputGradientsLarge) {
       defaultFlowHandle, cuda::legacy_dense::compute_input_gradients_ex<float, float, float>,
       gpu_gradient.get<float>(), gpu_weight.get<float>(), gpu_grad_input.get<float>(), batch_size,
       input_features, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU input gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU input grad_output task failed";
 
   std::vector<float> gpu_grad_input_cpu(batch_size * input_features);
   getGPU().copyToHost(gpu_grad_input_cpu.data(), gpu_grad_input.get<float>(),
@@ -396,7 +396,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsBasic) {
   auto gpu_task = create_cuda_task(
       defaultFlowHandle, cuda::legacy_dense::compute_bias_gradients_ex<float, float, float>,
       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU bias gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU bias grad_output task failed";
 
   std::vector<float> gpu_bias_grad_cpu(output_features);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),
@@ -431,7 +431,7 @@ TEST_F(CUDADenseOpsTest, BiasGradientsLargeBatch) {
   auto gpu_task = create_cuda_task(
       defaultFlowHandle, cuda::legacy_dense::compute_bias_gradients_ex<float, float, float>,
       gpu_gradient.get<float>(), gpu_bias_grad.get<float>(), batch_size, output_features);
-  ASSERT_FALSE(gpu_task->sync()) << "GPU bias gradient task failed";
+  ASSERT_FALSE(gpu_task->sync()) << "GPU bias grad_output task failed";
 
   std::vector<float> gpu_bias_grad_cpu(output_features);
   getGPU().copyToHost(gpu_bias_grad_cpu.data(), gpu_bias_grad.get<float>(),

@@ -6,6 +6,7 @@
  */
 #include "nn/layers_impl/cpu/embedding_ops.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 #include "type/type.hpp"
@@ -27,7 +28,7 @@ void compute_embedding_forward(const T *input_data, const T *weight_data, T *out
     T *out_row = output_data + i * embed_dim;
 
     if (padding_idx < vocab_size && idx == padding_idx) {
-      std::memset(out_row, 0, embed_dim * sizeof(T));
+      std::fill(out_row, out_row + embed_dim, T(0));
       continue;
     }
 

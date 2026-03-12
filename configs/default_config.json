@@ -1,0 +1,21 @@
+{
+  "epochs": 10,
+  "batch_size": 128,
+  "max_steps": -1,
+  "lr_initial": 0.001,
+  "gradient_accumulation_steps": 1,
+  "progress_print_interval": 100,
+  "num_threads": 8,
+  "profiler_type": "NONE",
+  "print_layer_profiling": false,
+  "print_layer_memory_usage": false,
+  "num_microbatches": 2,
+  "device_type": "GPU",
+  "model_name": "cifar10_resnet9",
+  "model_path": "",
+  "dataset_name": "cifar10",
+  "dataset_path": "data/cifar-10-batches-bin",
+  "io_dtype": "FP32",
+  "param_dtype": "FP32",
+  "compute_dtype": "FP32"
+}

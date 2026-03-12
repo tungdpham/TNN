@@ -37,7 +37,7 @@ public:
   explicit TCPWorker(Endpoint endpoint, bool use_gpu,
                      TCPCommunicator::Config config = TCPCommunicator::Config())
       : Worker(use_gpu) {
-    const auto &device = use_gpu ? getGPU() : getCPU();
+    const auto &device = use_gpu ? getGPU() : getHost();
     auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
     auto communicator = std::make_unique<TCPCommunicator>(endpoint, allocator, config);
 

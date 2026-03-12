@@ -6,9 +6,9 @@
 #include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
 #include "distributed/binary_serializer.hpp"
+#include "distributed/ibuffer.hpp"
 #include "distributed/job.hpp"
 #include "distributed/message.hpp"
-#include "distributed/tbuffer.hpp"
 #include "distributed/vbuffer.hpp"
 #include "distributed/vserializer.hpp"
 #include "tensor/tensor.hpp"
@@ -27,10 +27,10 @@ signed main() {
   job.data = tensor->clone();
   Message message(CommandType::FORWARD_JOB, std::move(job));
 
-  auto &device_allocator = DeviceAllocator::instance(getCPU());
+  auto &device_allocator = DeviceAllocator::instance(getHost());
 
   BinarySerializer bserializer(device_allocator);
-  TBuffer tbuffer(device_allocator, data_size * sizeof(float) + 1024);  // extra space for metadata
+  IBuffer tbuffer(device_allocator, data_size * sizeof(float) + 1024);  // extra space for metadata
 
   std::vector<float> raw_data(data_size, 1.2345f);
   Tensor temp = make_tensor<float>({data_size});

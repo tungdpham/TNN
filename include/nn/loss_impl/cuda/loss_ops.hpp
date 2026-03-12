@@ -22,7 +22,7 @@ void compute_crossentropy_loss(const T *predictions, const T *targets, float &lo
                                cudaStream_t stream);
 
 template <typename T>
-void compute_crossentropy_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_crossentropy_gradient(const T *predictions, const T *targets, T *grad_output,
                                    const size_t batch_size, const size_t num_classes, T epsilon,
                                    cudaStream_t stream);
 
@@ -33,7 +33,7 @@ void compute_logsoftmax_crossentropy_loss(const T *logits, const T *targets, flo
                                           cudaStream_t stream = 0);
 
 template <typename T>
-void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *gradient,
+void compute_logsoftmax_crossentropy_gradient(const T *logits, const T *targets, T *grad_output,
                                               const size_t batch_size, const size_t num_classes,
                                               cudaStream_t stream = 0);
 
@@ -43,7 +43,7 @@ void compute_mse_loss(const T *predictions, const T *targets, float &loss, const
                       const size_t output_size, cudaStream_t stream);
 
 template <typename T>
-void compute_mse_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_mse_gradient(const T *predictions, const T *targets, T *grad_output,
                           const size_t batch_size, const size_t output_size, cudaStream_t stream);
 
 // MAE Loss
@@ -52,7 +52,7 @@ void compute_mae_loss(const T *predictions, const T *targets, float &loss, const
                       const size_t output_size, cudaStream_t stream);
 
 template <typename T>
-void compute_mae_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_mae_gradient(const T *predictions, const T *targets, T *grad_output,
                           const size_t batch_size, const size_t output_size, cudaStream_t stream);
 
 // Huber Loss
@@ -62,7 +62,7 @@ void compute_huber_loss(const T *predictions, const T *targets, float &loss,
                         cudaStream_t stream);
 
 template <typename T>
-void compute_huber_gradient(const T *predictions, const T *targets, T *gradient,
+void compute_huber_gradient(const T *predictions, const T *targets, T *grad_output,
                             const size_t batch_size, const size_t output_size, T delta,
                             cudaStream_t stream);
 

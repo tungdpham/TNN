@@ -22,8 +22,8 @@ struct BatchNormStats {
   size_t inf_workspace_size = 0;
 };
 
-inline void init_batchnorm_stats(BatchNormStats &stats, size_t batch_size, size_t channels,
-                                 size_t height, size_t width, double epsilon, double momentum,
+inline void init_batchnorm_stats(BatchNormStats &stats, size_t batch_size, size_t height,
+                                 size_t width, size_t channels, double epsilon, double momentum,
                                  bool use_relu) {
   stats.batch_size = batch_size;
   stats.channels = channels;

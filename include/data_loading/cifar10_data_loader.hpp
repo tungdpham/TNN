@@ -129,7 +129,9 @@ private:
   }
 
 public:
-  CIFAR10DataLoader(DType_t dtype = DType_t::FP32) : ImageDataLoader(), dtype_(dtype) {
+  CIFAR10DataLoader(DType_t dtype = DType_t::FP32)
+      : ImageDataLoader(),
+        dtype_(dtype) {
     data_.reserve(50000);
     labels_.reserve(50000);
   }
@@ -160,7 +162,7 @@ public:
    * @return true if successful, false otherwise
    */
   bool load_multiple_files(const std::vector<std::string> &filenames) {
-    DISPATCH_ON_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
+    DISPATCH_DTYPE(dtype_, T, return load_multiple_files_impl<T>(filenames));
   }
 
   /**
@@ -168,7 +170,7 @@ public:
    * batches)
    */
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   /**

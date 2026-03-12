@@ -27,28 +27,36 @@ private:
                                      size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> backward_task(const ConstTensor &gradient, const Tensor &grad_input,
+  std::unique_ptr<Task> backward_task(const ConstTensor &grad_output, const Tensor &grad_input,
                                       const Tensor &class_token_gradients,
                                       const ConstTensor &class_token, size_t batch_size,
                                       size_t seq_len, size_t embed_dim, flowHandle_t handle) const;
 
-  void init_params() override;
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    auto token_desc = ParamDescriptor{
+        param_dtype_,
+        {1, embed_dim_},
+        &class_token_,
+        &class_token_gradients_,
+    };
+    descriptors.push_back(token_desc);
+    return descriptors;
+  }
+
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   explicit ClassTokenLayer(size_t embed_dim, const std::string &name = "class_token");
 
   static constexpr const char *TYPE_NAME = "class_token";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
+
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
 public:

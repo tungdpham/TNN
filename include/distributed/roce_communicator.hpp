@@ -6,14 +6,18 @@
  */
 #pragma once
 
+#include <fcntl.h>
 #include <infiniband/verbs.h>
 #include <netinet/in.h>
 
-#include <any>
 #include <asio.hpp>
+#include <asio/awaitable.hpp>
+#include <asio/co_spawn.hpp>
+#include <asio/detached.hpp>
+#include <asio/posix/stream_descriptor.hpp>
+#include <asio/use_awaitable.hpp>
 #include <atomic>
 #include <cerrno>
-#include <condition_variable>
 #include <cstring>
 #include <iostream>
 #include <memory>
@@ -24,126 +28,101 @@
 #include <vector>
 
 #include "communicator.hpp"
+#include "device/device_manager.hpp"
 #include "device/iallocator.hpp"
+#include "device/ibv_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
+#include "distributed/channels.hpp"
+#include "distributed/endian.hpp"
+#include "distributed/ibuffer.hpp"
 #include "distributed/packet.hpp"
 #include "distributed/roce_buffer.hpp"
-#include "distributed/roce_buffer_pool.hpp"
 #include "endpoint.hpp"
 
 namespace tnn {
 
-constexpr int ROCE_BUFFER_SIZE = 4 * 1024 * 1024;  // 4MB
 constexpr int ROCE_SQ_DEPTH = 32;
 constexpr int ROCE_RQ_DEPTH = 32;
+constexpr size_t ROCE_BUFFER_SIZE = 1 * 1024 * 1024;
 
-struct RoCEConnectionInfo {
+struct RoCEChannelInfo {
   uint16_t lid;
   uint32_t qpn;
   uint32_t psn;
   union ibv_gid gid;
+
+  static constexpr size_t size() {
+    return sizeof(Endianness) + sizeof(lid) + sizeof(qpn) + sizeof(psn) + sizeof(gid);
+  }
 };
 
 class RoCECommunicator : public Communicator {
 private:
-  struct Connection {
-    ibv_qp *qp = nullptr;
-    Endpoint endpoint;
-    uint32_t psn = 0;
-    std::vector<std::unique_ptr<RoCEBuffer>> recv_buffers;
-
-    std::mutex mutex;
-    std::unordered_map<uint64_t, PooledRoCEBuffer> pending_sends;
-    std::unordered_map<uint64_t, PooledRoCEBuffer> pending_receives;
-    std::any attached_context;
-
-    ~Connection() {
-      if (qp) {
-        ibv_destroy_qp(qp);
-        qp = nullptr;
-      }
-    }
-  };
-
   std::string device_name_;
   int port_;
   int gid_index_;
   int ib_port_ = 1;
 
-  ibv_context *context_ = nullptr;
-  ibv_pd *pd_ = nullptr;
-  ibv_cq *cq_ = nullptr;
-
-  std::thread poll_thread_;
-  std::atomic<bool> is_running_{false};
-  std::atomic<uint64_t> msg_serial_id_counter_{0};
-
-  std::unordered_map<Endpoint, std::shared_ptr<Connection>> connections_;
-  std::unordered_map<uint32_t, std::shared_ptr<Connection>>
-      qp_map_;  // Map QPN to Connection* for polling
-  std::mutex connections_mutex_;
-
-  // Send buffer pool
-  std::vector<std::unique_ptr<RoCEBuffer>> send_buffers_;
-  std::queue<RoCEBuffer *> free_send_buffers_;
-  std::mutex send_buffers_mutex_;
-  std::condition_variable send_buffers_cv_;
-
-  std::unique_ptr<RoCEBufferPool> buffer_pool_;
-
+  std::unique_ptr<IbvAllocator> ibv_allocator_;
   IAllocator &out_allocator_;
   BinarySerializer serializer_;
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
+  asio::posix::stream_descriptor desc_;
   std::thread io_thread_;
 
+  ibv_context *context_ = nullptr;
+  ibv_pd *pd_ = nullptr;
+  ibv_cq *cq_ = nullptr;
+  ibv_comp_channel *comp_channel_ = nullptr;
+
+  std::atomic<bool> is_running_{false};
+  std::atomic<uint64_t> msg_serial_id_counter_{0};
+
+  std::unordered_map<Endpoint, std::shared_ptr<RoCEChannel>> channels_;
+  std::unordered_map<uint32_t, std::shared_ptr<RoCEChannel>> qp_map_;
+  std::mutex channels_mutex_;
+
 public:
-  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &out_allocator)
+  struct Config {
+    uint64_t master_slab_size = 128 * 1024 * 1024;
+  };
+
+  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
+                            RoCECommunicator::Config config)
       : Communicator(endpoint),
         out_allocator_(out_allocator),
         serializer_(out_allocator),
-        acceptor_(io_context_) {
-    try {
-      device_name_ = endpoint.get_parameter<std::string>("device_name");
-      port_ = endpoint.get_parameter<int>("port");
-      gid_index_ = endpoint.get_parameter<int>("gid_index");
-    } catch (...) {
-      // Fallback or rethrow?
-      throw;
-    }
-
+        acceptor_(io_context_),
+        desc_(io_context_) {
+    device_name_ = endpoint.get_parameter<std::string>("device_name");
+    port_ = endpoint.get_parameter<int>("port");
+    gid_index_ = endpoint.get_parameter<int>("gid_index");
     init_rdma();
     print_gid_table();
-    buffer_pool_ = std::make_unique<RoCEBufferPool>(pd_);
-    init_send_buffers();
-
+    ibv_allocator_ = std::make_unique<IbvAllocator>(getHost(), pd_, config.master_slab_size);
     is_running_ = true;
-    poll_thread_ = std::thread(&RoCECommunicator::poll_cq, this);
+    asio::co_spawn(io_context_, [this]() { return cq_event_loop(); }, asio::detached);
   }
 
   ~RoCECommunicator() override { stop(); }
 
   void stop() {
     is_running_ = false;
-    if (poll_thread_.joinable()) {
-      poll_thread_.join();
-    }
-
+    desc_.cancel();
     io_context_.stop();
     if (io_thread_.joinable()) {
       io_thread_.join();
     }
 
     {
-      std::lock_guard<std::mutex> lock(connections_mutex_);
-      connections_.clear();
+      std::lock_guard<std::mutex> lock(channels_mutex_);
+      channels_.clear();
       qp_map_.clear();
     }
 
-    send_buffers_.clear();
-    buffer_pool_.reset();
-
     if (cq_) ibv_destroy_cq(cq_);
+    if (comp_channel_) ibv_destroy_comp_channel(comp_channel_);
     if (pd_) ibv_dealloc_pd(pd_);
     if (context_) ibv_close_device(context_);
   }
@@ -154,86 +133,66 @@ public:
     acceptor_.set_option(asio::ip::tcp::acceptor::reuse_address(true));
     acceptor_.bind(endpoint);
     acceptor_.listen();
-
-    accept_connections();
+    asio::co_spawn(io_context_, [this]() { return accept_loop(); }, asio::detached);
     io_thread_ = std::thread([this]() { io_context_.run(); });
   }
 
   void send_impl(Message &&message, const Endpoint &endpoint) override {
     size_t msg_size = message.size();
-    PooledRoCEBuffer data_buffer = buffer_pool_->get_buffer(msg_size);
+    auto data_buffer = std::make_shared<RoCEBuffer>(*ibv_allocator_, msg_size);
     size_t offset = 0;
     serializer_.serialize(*data_buffer, offset, message);
-
     uint64_t msg_id = msg_serial_id_counter_.fetch_add(1);
-
-    std::shared_ptr<Connection> conn;
+    std::shared_ptr<RoCEChannel> channel;
     {
-      std::lock_guard<std::mutex> lock(connections_mutex_);
-      auto it = connections_.find(endpoint);
-      if (it != connections_.end()) {
-        conn = it->second;
+      std::lock_guard<std::mutex> lock(channels_mutex_);
+      auto it = channels_.find(endpoint);
+      if (it != channels_.end()) {
+        channel = it->second;
       }
     }
-
-    if (!conn) {
-      std::cerr << "Connection not found for endpoint: " << endpoint.id() << std::endl;
+    if (!channel) {
+      std::cerr << "RoCEChannel not found for endpoint: " << endpoint.id() << std::endl;
       return;
     }
-
     struct ibv_qp_attr attr;
     struct ibv_qp_init_attr init_attr;
-    if (ibv_query_qp(conn->qp, &attr, IBV_QP_STATE, &init_attr) == 0) {
+    if (ibv_query_qp(channel->qp, &attr, IBV_QP_STATE, &init_attr) == 0) {
       if (attr.qp_state != IBV_QPS_RTS) {
         std::cerr << "QP for " << endpoint.id() << " not in RTS state (state: " << attr.qp_state
                   << "), dropping message\n";
         return;
       }
     }
-
-    // Store pending send
     {
-      std::lock_guard<std::mutex> conn_lock(conn->mutex);
-      conn->pending_sends[msg_id] = data_buffer;
+      std::lock_guard<std::mutex> conn_lock(channel->mutex);
+      channel->pending_sends[msg_id] = data_buffer;
     }
-
-    RoCEBuffer *send_buf = nullptr;
-    {
-      std::unique_lock<std::mutex> lock(send_buffers_mutex_);
-      send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
-      send_buf = free_send_buffers_.front();
-      free_send_buffers_.pop();
-    }
-
+    auto *send_buf = new RoCEBuffer(*ibv_allocator_, PacketHeader::size());
     PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->size(), 0, 1);
     header.msg_serial_id = msg_id;
-
     size_t header_offset = 0;
-    send_buf->resize(sizeof(PacketHeader));
     serializer_.serialize(*send_buf, header_offset, header);
-
     struct ibv_sge sge;
-    sge.addr = (uint64_t)send_buf->get();
+    sge.addr = (uint64_t)send_buf->data();
     sge.length = sizeof(PacketHeader);
     sge.lkey = send_buf->get_lkey();
-
     struct ibv_send_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
     wr.wr_id = (uint64_t)send_buf;
-    wr.opcode = IBV_WR_SEND;  // Standard Send for handshake
+    wr.opcode = IBV_WR_SEND;
     wr.sg_list = &sge;
     wr.num_sge = 1;
     wr.send_flags = IBV_SEND_SIGNALED;
 
-    if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
-      std::cerr << "Failed to post send MSG_PREPARE to " << endpoint.id() << std::endl;
+    if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
+      std::cerr << "Failed to send MSG_PREPARE\n";
+      delete send_buf;
       {
-        std::lock_guard<std::mutex> conn_lock(conn->mutex);
-        conn->pending_sends.erase(msg_id);
+        std::lock_guard<std::mutex> conn_lock(channel->mutex);
+        channel->pending_sends.erase(msg_id);
       }
-      std::lock_guard<std::mutex> lock(send_buffers_mutex_);
-      free_send_buffers_.push(send_buf);
-      send_buffers_cv_.notify_one();
+      return;
     }
   }
 
@@ -253,61 +212,45 @@ protected:
     try {
       std::string host = endpoint.get_parameter<std::string>("host");
       int tcp_port = endpoint.get_parameter<int>("port");
-
       asio::ip::tcp::socket socket(io_context_);
       asio::ip::tcp::resolver resolver(io_context_);
       asio::connect(socket, resolver.resolve(host, std::to_string(tcp_port)));
-
-      // Handshake: Send our endpoint information as JSON
       nlohmann::json local_endpoint_json = endpoint.to_json();
       std::string local_endpoint_str = local_endpoint_json.dump();
       uint32_t endpoint_len = local_endpoint_str.length();
       asio::write(socket, asio::buffer(&endpoint_len, sizeof(endpoint_len)));
       asio::write(socket, asio::buffer(local_endpoint_str));
-
-      auto conn = std::make_shared<Connection>();
-      conn->endpoint = endpoint;
-      conn->qp = create_qp();
-
-      RoCEConnectionInfo my_info = get_local_info(conn->qp);
-      std::vector<uint8_t> my_info_buf;
+      auto channel = std::make_shared<RoCEChannel>();
+      channel->endpoint = endpoint;
+      channel->qp = create_qp();
+      RoCEChannelInfo my_info = get_local_info(channel->qp);
+      IBuffer my_info_buf(out_allocator_, RoCEChannelInfo::size());
       serialize_info(my_info, my_info_buf);
-      asio::write(socket, asio::buffer(my_info_buf));
-
-      std::vector<uint8_t> peer_info_buf(26);
-      asio::read(socket, asio::buffer(peer_info_buf));
-      RoCEConnectionInfo peer_info = deserialize_info(peer_info_buf);
-
-      modify_qp_to_rts(conn->qp, peer_info, my_info.psn);
-
-      // Initialize receive buffers for this connection
+      asio::write(socket, asio::buffer(my_info_buf.data(), my_info_buf.size()));
+      IBuffer peer_info_buf(out_allocator_, RoCEChannelInfo::size());
+      asio::read(socket, asio::buffer(peer_info_buf.data(), peer_info_buf.size()));
+      RoCEChannelInfo peer_info = deserialize_info(peer_info_buf);
+      modify_qp_to_rts(channel->qp, peer_info, my_info.psn);
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
+        auto buf = std::make_unique<RoCEBuffer>(*ibv_allocator_, ROCE_BUFFER_SIZE);
         buf->resize(ROCE_BUFFER_SIZE);
-        post_recv_buffer(conn->qp, buf.get());
-        conn->recv_buffers.push_back(std::move(buf));
+        post_recv_buffer(channel->qp, buf.get());
+        channel->recv_buffers.push_back(std::move(buf));
       }
-
-      // Send ACK to indicate receive buffers are ready
       uint8_t ack = 1;
       asio::write(socket, asio::buffer(&ack, 1));
-
-      // Wait for remote ACK
       uint8_t remote_ack = 0;
       asio::read(socket, asio::buffer(&remote_ack, 1));
-
       if (remote_ack != 1) {
         throw std::runtime_error("Invalid ACK from remote peer");
       }
-
       {
-        std::lock_guard<std::mutex> lock(connections_mutex_);
-        qp_map_[conn->qp->qp_num] = conn;
-        connections_[endpoint] = conn;
+        std::lock_guard<std::mutex> lock(channels_mutex_);
+        qp_map_[channel->qp->qp_num] = channel;
+        channels_[endpoint] = channel;
       }
-
-      std::cout << "Successfully established outgoing connection to " << endpoint.id()
-                << " (QP: " << conn->qp->qp_num << ")\n";
+      std::cout << "Successfully established outgoing channel to " << endpoint.id()
+                << " (QP: " << channel->qp->qp_num << ")\n";
       return true;
     } catch (const std::exception &e) {
       std::cerr << "Connect error: " << e.what() << std::endl;
@@ -316,47 +259,35 @@ protected:
   }
 
   bool disconnect_from_endpoint(const Endpoint &endpoint) override {
-    std::lock_guard<std::mutex> lock(connections_mutex_);
-    auto it = connections_.find(endpoint);
-    if (it != connections_.end()) {
+    std::lock_guard<std::mutex> lock(channels_mutex_);
+    auto it = channels_.find(endpoint);
+    if (it != channels_.end()) {
       qp_map_.erase(it->second->qp->qp_num);
-      connections_.erase(it);
+      channels_.erase(it);
       return true;
     }
     return false;
   }
 
 private:
-  void serialize_info(const RoCEConnectionInfo &info, std::vector<uint8_t> &buf) {
-    buf.reserve(26);
-    // lid (16)
-    buf.push_back((info.lid >> 8) & 0xFF);
-    buf.push_back(info.lid & 0xFF);
-    // qpn (32)
-    buf.push_back((info.qpn >> 24) & 0xFF);
-    buf.push_back((info.qpn >> 16) & 0xFF);
-    buf.push_back((info.qpn >> 8) & 0xFF);
-    buf.push_back(info.qpn & 0xFF);
-    // psn (32)
-    buf.push_back((info.psn >> 24) & 0xFF);
-    buf.push_back((info.psn >> 16) & 0xFF);
-    buf.push_back((info.psn >> 8) & 0xFF);
-    buf.push_back(info.psn & 0xFF);
-    // gid (16 bytes)
-    const uint8_t *gid_ptr = info.gid.raw;
-    for (int i = 0; i < 16; ++i) buf.push_back(gid_ptr[i]);
+  void serialize_info(const RoCEChannelInfo &info, IBuffer &buffer) {
+    size_t offset = 0;
+    buffer.write(offset, tnn::sys_endianness);
+    buffer.write(offset, info.lid);
+    buffer.write(offset, info.qpn);
+    buffer.write(offset, info.psn);
+    buffer.write(offset, info.gid.raw, 16);
   }
 
-  RoCEConnectionInfo deserialize_info(const std::vector<uint8_t> &buf) {
-    RoCEConnectionInfo info;
-    int idx = 0;
-    info.lid = (buf[idx] << 8) | buf[idx + 1];
-    idx += 2;
-    info.qpn = (buf[idx] << 24) | (buf[idx + 1] << 16) | (buf[idx + 2] << 8) | buf[idx + 3];
-    idx += 4;
-    info.psn = (buf[idx] << 24) | (buf[idx + 1] << 16) | (buf[idx + 2] << 8) | buf[idx + 3];
-    idx += 4;
-    std::memcpy(info.gid.raw, &buf[idx], 16);
+  RoCEChannelInfo deserialize_info(const IBuffer &buffer) {
+    Endianness endianness;
+    size_t offset = 0;
+    buffer.read(offset, endianness);
+    RoCEChannelInfo info;
+    buffer.read(offset, info.lid);
+    buffer.read(offset, info.qpn);
+    buffer.read(offset, info.psn);
+    buffer.read(offset, info.gid.raw, 16);
     return info;
   }
 
@@ -374,7 +305,6 @@ private:
 
           std::cout << "  GID Index " << i << ": ";
           auto old_flags = std::cout.flags();
-          std::cout << std::hex;
           for (int b = 0; b < 16; ++b) std::cout << (int)gid.raw[b] << (b < 15 ? ":" : "");
           std::cout.flags(old_flags);
           std::cout << "\n";
@@ -404,13 +334,16 @@ private:
     context_ = ibv_open_device(ib_dev);
     ibv_free_device_list(dev_list);
     if (!context_) throw std::runtime_error("Failed to open device");
-
     pd_ = ibv_alloc_pd(context_);
     if (!pd_) throw std::runtime_error("Failed to alloc PD");
-
-    cq_ = ibv_create_cq(context_, ROCE_SQ_DEPTH + ROCE_RQ_DEPTH, nullptr, nullptr, 0);
+    comp_channel_ = ibv_create_comp_channel(context_);
+    if (!comp_channel_) throw std::runtime_error("Failed to create completion channel");
+    cq_ = ibv_create_cq(context_, ROCE_SQ_DEPTH + ROCE_RQ_DEPTH, nullptr, comp_channel_, 0);
     if (!cq_) throw std::runtime_error("Failed to create CQ");
-
+    int flags = fcntl(comp_channel_->fd, F_GETFL);
+    fcntl(comp_channel_->fd, F_SETFL, flags | O_NONBLOCK);
+    desc_.assign(comp_channel_->fd);
+    ibv_req_notify_cq(cq_, 0);
     if (gid_index_ == -1) {
       struct ibv_port_attr port_attr;
       int best_gid_index = -1;
@@ -428,9 +361,6 @@ private:
               }
             }
             if (empty) continue;
-
-            // check for IPv4 mapped address ::ffff:x.x.x.x
-            // this usually indicates RoCE v2 with IPv4
             bool is_ipv4 = true;
             for (int b = 0; b < 10; ++b) {
               if (gid.raw[b] != 0) {
@@ -443,14 +373,12 @@ private:
               found_ipv4 = true;
               break;
             }
-
             if (best_gid_index == -1) {
               best_gid_index = i;
             }
           }
         }
       }
-
       gid_index_ = best_gid_index;
       if (gid_index_ != -1) {
         std::cout << "[RoCE] Auto-selected GID Index: " << gid_index_
@@ -459,15 +387,6 @@ private:
         throw std::runtime_error(
             "Auto-selection of GID Index failed: No valid GID found on device " + device_name_);
       }
-    }
-  }
-
-  void init_send_buffers() {
-    for (int i = 0; i < ROCE_SQ_DEPTH; ++i) {
-      auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
-      buf->resize(ROCE_BUFFER_SIZE);
-      free_send_buffers_.push(buf.get());
-      send_buffers_.push_back(std::move(buf));
     }
   }
 
@@ -481,37 +400,30 @@ private:
     init_attr.cap.max_send_sge = 2;
     init_attr.cap.max_recv_sge = 1;
     init_attr.qp_type = IBV_QPT_RC;
-
     ibv_qp *qp = ibv_create_qp(pd_, &init_attr);
     if (!qp) throw std::runtime_error("Failed to create QP");
     return qp;
   }
 
-  RoCEConnectionInfo get_local_info(ibv_qp *qp) {
-    RoCEConnectionInfo info;
+  RoCEChannelInfo get_local_info(ibv_qp *qp) {
+    RoCEChannelInfo info;
     info.qpn = qp->qp_num;
     info.psn = lrand48() & 0xffffff;
-
     struct ibv_port_attr attr;
     ibv_query_port(context_, ib_port_, &attr);
     info.lid = attr.lid;
-
     ibv_query_gid(context_, ib_port_, gid_index_, &info.gid);
     return info;
   }
 
-  void modify_qp_to_rts(ibv_qp *qp, const RoCEConnectionInfo &peer_info, uint32_t local_psn) {
+  void modify_qp_to_rts(ibv_qp *qp, const RoCEChannelInfo &peer_info, uint32_t local_psn) {
     struct ibv_qp_attr attr;
     int flags;
     int ret;
-
-    // check port attributes to determine MTU
     struct ibv_port_attr port_attr;
     if ((ret = ibv_query_port(context_, ib_port_, &port_attr)) != 0) {
       throw std::runtime_error("Failed to query port: " + std::string(std::strerror(ret)));
     }
-
-    // INIT
     std::memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_INIT;
     attr.pkey_index = 0;
@@ -523,13 +435,9 @@ private:
                 << ")\n";
       throw std::runtime_error("Failed to modify QP to INIT");
     }
-
-    // RTR
     std::memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_RTR;
-
     attr.path_mtu = (port_attr.active_mtu < IBV_MTU_1024) ? port_attr.active_mtu : IBV_MTU_1024;
-
     attr.dest_qp_num = peer_info.qpn;
     attr.rq_psn = peer_info.psn;
     attr.max_dest_rd_atomic = 1;
@@ -552,7 +460,6 @@ private:
       std::cerr << "  MTU (Active/Path): " << port_attr.active_mtu << "/" << attr.path_mtu << "\n";
       std::cerr << "  Remote GID: ";
       auto old_flags = std::cerr.flags();
-      std::cerr << std::hex;
       for (int i = 0; i < 16; ++i) std::cerr << (int)peer_info.gid.raw[i] << ":";
       std::cerr.flags(old_flags);
       std::cerr << "\n";
@@ -560,7 +467,6 @@ private:
       union ibv_gid local_gid;
       if (ibv_query_gid(context_, ib_port_, gid_index_, &local_gid) == 0) {
         std::cerr << "  Local GID (Index " << gid_index_ << "): ";
-        std::cerr << std::hex;
         for (int i = 0; i < 16; ++i) std::cerr << (int)local_gid.raw[i] << ":";
         std::cerr.flags(old_flags);
         std::cerr << "\n";
@@ -587,13 +493,12 @@ private:
       throw std::runtime_error("Failed to modify QP to RTR");
     }
 
-    // RTS
     std::memset(&attr, 0, sizeof(attr));
     attr.qp_state = IBV_QPS_RTS;
     attr.timeout = 20;
     attr.retry_cnt = 7;
     attr.rnr_retry = 7;
-    attr.sq_psn = local_psn;  // My PSN
+    attr.sq_psn = local_psn;
     attr.max_rd_atomic = 1;
     flags = IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN |
             IBV_QP_MAX_QP_RD_ATOMIC;
@@ -605,7 +510,7 @@ private:
 
   void post_recv_buffer(ibv_qp *qp, RoCEBuffer *buf) {
     struct ibv_sge sge;
-    sge.addr = (uint64_t)buf->get();
+    sge.addr = (uint64_t)buf->data();
     sge.length = ROCE_BUFFER_SIZE;
     sge.lkey = buf->get_lkey();
 
@@ -620,28 +525,50 @@ private:
     }
   }
 
-  void poll_cq() {
+  asio::awaitable<void> cq_event_loop() {
+    while (is_running_) {
+      try {
+        co_await desc_.async_wait(asio::posix::stream_descriptor::wait_read, asio::use_awaitable);
+
+        if (!is_running_) break;
+
+        struct ibv_cq *ev_cq;
+        void *ev_ctx;
+
+        if (ibv_get_cq_event(comp_channel_, &ev_cq, &ev_ctx) == 0) {
+          ibv_ack_cq_events(ev_cq, 1);
+
+          if (ibv_req_notify_cq(ev_cq, 0)) {
+            std::cerr << "Failed to request notify CQ" << std::endl;
+          }
+
+          process_completions();
+        }
+      } catch (const std::exception &e) {
+        if (!is_running_) break;
+        std::cerr << "Error in CQ event loop: " << e.what() << std::endl;
+      }
+    }
+  }
+
+  void process_completions() {
     struct WriteContext {
       uint64_t msg_serial_id;
     };
     struct ibv_wc wc[16];
-    while (is_running_) {
-      int n = ibv_poll_cq(cq_, 16, wc);
-      if (n < 0) {
-        std::cerr << "Poll CQ failed" << std::endl;
-        break;
-      }
+    int n;
+    while ((n = ibv_poll_cq(cq_, 16, wc)) > 0) {
       for (int i = 0; i < n; ++i) {
         if (wc[i].status != IBV_WC_SUCCESS) {
           std::cerr << "WC Error: " << ibv_wc_status_str(wc[i].status) << " for QP " << wc[i].qp_num
                     << " Opcode: " << wc[i].opcode << std::endl;
           {
-            std::lock_guard<std::mutex> lock(connections_mutex_);
+            std::lock_guard<std::mutex> lock(channels_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
             if (it != qp_map_.end()) {
               auto conn_endpoint = it->second->endpoint;
               qp_map_.erase(it);
-              connections_.erase(conn_endpoint);
+              channels_.erase(conn_endpoint);
             }
           }
           if (wc[i].opcode == IBV_WC_RDMA_WRITE && (wc[i].wr_id & 1)) {
@@ -652,25 +579,25 @@ private:
         }
 
         if (wc[i].opcode & IBV_WC_RECV) {
-          std::shared_ptr<Connection> conn;
+          std::shared_ptr<RoCEChannel> channel;
           {
-            std::lock_guard<std::mutex> lock(connections_mutex_);
+            std::lock_guard<std::mutex> lock(channels_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
-            if (it != qp_map_.end()) conn = it->second;
+            if (it != qp_map_.end()) channel = it->second;
           }
 
           auto *buf = (RoCEBuffer *)wc[i].wr_id;
 
-          if (conn) {
+          if (channel) {
             if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
               uint32_t imm = ntohl(wc[i].imm_data);
-              PooledRoCEBuffer dest_buf;
+              std::shared_ptr<RoCEBuffer> dest_buf;
               {
-                std::lock_guard<std::mutex> lock(conn->mutex);
-                auto it = conn->pending_receives.find(imm);
-                if (it != conn->pending_receives.end()) {
+                std::lock_guard<std::mutex> lock(channel->mutex);
+                auto it = channel->pending_receives.find(imm);
+                if (it != channel->pending_receives.end()) {
                   dest_buf = it->second;
-                  conn->pending_receives.erase(it);
+                  channel->pending_receives.erase(it);
                 }
               }
 
@@ -685,7 +612,7 @@ private:
                 }
               }
 
-              post_recv_buffer(conn->qp, buf);
+              post_recv_buffer(channel->qp, buf);
 
             } else {
               PacketHeader header;
@@ -693,35 +620,28 @@ private:
               serializer_.deserialize(*buf, offset, header);
 
               if (header.type == PacketType::MSG_PREPARE) {
-                auto dest_buf = buffer_pool_->get_buffer(header.msg_length);
+                auto dest_buf = std::make_shared<RoCEBuffer>(*ibv_allocator_, header.msg_length);
                 dest_buf->resize(header.msg_length);
 
                 {
-                  std::lock_guard<std::mutex> lock(conn->mutex);
-                  conn->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
+                  std::lock_guard<std::mutex> lock(channel->mutex);
+                  channel->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
                 }
 
-                RoCEBuffer *send_buf = nullptr;
-                {
-                  std::unique_lock<std::mutex> lock(send_buffers_mutex_);
-                  send_buffers_cv_.wait(lock, [this] { return !free_send_buffers_.empty(); });
-                  send_buf = free_send_buffers_.front();
-                  free_send_buffers_.pop();
-                }
+                auto *send_buf = new RoCEBuffer(*ibv_allocator_, sizeof(PacketHeader) + 12);
 
                 PacketHeader ready_header(PacketType::MSG_READY_TO_WRITE, 12, 0, 0, 1);
                 ready_header.msg_serial_id = header.msg_serial_id;
 
                 size_t ready_offset = 0;
-                send_buf->resize(sizeof(PacketHeader) + 12);
                 serializer_.serialize(*send_buf, ready_offset, ready_header);
-                uint64_t addr = (uint64_t)dest_buf->get();
-                uint32_t rkey = dest_buf->get_mr()->rkey;
+                uint64_t addr = (uint64_t)dest_buf->data();
+                uint32_t rkey = dest_buf->get_rkey();
                 send_buf->write(ready_offset, addr);
                 send_buf->write(ready_offset, rkey);
 
                 struct ibv_sge sge;
-                sge.addr = (uint64_t)send_buf->get();
+                sge.addr = (uint64_t)send_buf->data();
                 sge.length = sizeof(PacketHeader) + 12;
                 sge.lkey = send_buf->get_lkey();
 
@@ -733,12 +653,11 @@ private:
                 wr.num_sge = 1;
                 wr.send_flags = IBV_SEND_SIGNALED;
 
-                if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
+                if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
                   std::cerr << "Failed to send MSG_READY\n";
-                  std::lock_guard<std::mutex> lock(send_buffers_mutex_);
-                  free_send_buffers_.push(send_buf);
-                  send_buffers_cv_.notify_one();
-                  // Should also cleanup pending_receives
+                  delete send_buf;
+                  std::lock_guard<std::mutex> lock(channel->mutex);
+                  channel->pending_receives.erase(header.msg_serial_id & 0xFFFFFFFF);
                 }
 
               } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
@@ -747,18 +666,18 @@ private:
                 buf->read(offset, remote_addr);
                 buf->read(offset, rkey);
 
-                PooledRoCEBuffer source_buf;
+                std::shared_ptr<RoCEBuffer> source_buf;
                 {
-                  std::lock_guard<std::mutex> lock(conn->mutex);
-                  auto it = conn->pending_sends.find(header.msg_serial_id);
-                  if (it != conn->pending_sends.end()) source_buf = it->second;
+                  std::lock_guard<std::mutex> lock(channel->mutex);
+                  auto it = channel->pending_sends.find(header.msg_serial_id);
+                  if (it != channel->pending_sends.end()) source_buf = it->second;
                 }
 
                 if (source_buf) {
                   struct ibv_sge sge;
-                  sge.addr = (uint64_t)source_buf->get();
+                  sge.addr = (uint64_t)source_buf->data();
                   sge.length = source_buf->size();
-                  sge.lkey = source_buf->get_mr()->lkey;
+                  sge.lkey = source_buf->get_lkey();
 
                   WriteContext *ctx = new WriteContext{header.msg_serial_id};
 
@@ -773,14 +692,14 @@ private:
                   wr.wr.rdma.remote_addr = remote_addr;
                   wr.wr.rdma.rkey = rkey;
 
-                  if (ibv_post_send(conn->qp, &wr, &bad_wr)) {
+                  if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
                     std::cerr << "Failed to post RDMA write\n";
                     delete ctx;
                   }
                 }
               }
 
-              post_recv_buffer(conn->qp, buf);
+              post_recv_buffer(channel->qp, buf);
             }
           } else {
             std::cerr << "Received packet from unknown QP: " << wc[i].qp_num << std::endl;
@@ -789,151 +708,87 @@ private:
         } else if (wc[i].opcode == IBV_WC_SEND || wc[i].opcode == IBV_WC_RDMA_WRITE) {
           if (wc[i].wr_id & 1) {
             WriteContext *ctx = (WriteContext *)(wc[i].wr_id & ~1);
-            std::shared_ptr<Connection> conn;
+            std::shared_ptr<RoCEChannel> channel;
             {
-              std::lock_guard<std::mutex> lock(connections_mutex_);
+              std::lock_guard<std::mutex> lock(channels_mutex_);
               auto it = qp_map_.find(wc[i].qp_num);
-              if (it != qp_map_.end()) conn = it->second;
+              if (it != qp_map_.end()) channel = it->second;
             }
 
-            if (conn) {
-              std::lock_guard<std::mutex> lock(conn->mutex);
-              conn->pending_sends.erase(ctx->msg_serial_id);
+            if (channel) {
+              std::lock_guard<std::mutex> lock(channel->mutex);
+              channel->pending_sends.erase(ctx->msg_serial_id);
             }
             delete ctx;
           } else {
             auto *buf = (RoCEBuffer *)wc[i].wr_id;
-            std::lock_guard<std::mutex> lock(send_buffers_mutex_);
-            free_send_buffers_.push(buf);
-            send_buffers_cv_.notify_one();
+            delete buf;
           }
         }
       }
     }
   }
 
-  void accept_connections() {
-    auto socket = std::make_shared<asio::ip::tcp::socket>(io_context_);
-    acceptor_.async_accept(*socket, [this, socket](const asio::error_code &error) {
-      if (!error) {
-        handle_new_connection(socket);
+  asio::awaitable<void> accept_loop() {
+    while (is_running_.load(std::memory_order_acquire)) {
+      try {
+        auto socket = std::make_shared<asio::ip::tcp::socket>(co_await asio::this_coro::executor);
+        co_await acceptor_.async_accept(*socket, asio::use_awaitable);
+        asio::co_spawn(
+            socket->get_executor(), [this, socket]() { return handle_new_channel(socket); },
+            asio::detached);
+      } catch (const std::exception &e) {
+        if (!is_running_.load(std::memory_order_acquire)) co_return;
+        std::cerr << "Accept error: " << e.what() << std::endl;
       }
-      if (is_running_) {
-        accept_connections();
-      }
-    });
+    }
   }
 
-  void handle_new_connection(std::shared_ptr<asio::ip::tcp::socket> socket) {
-    std::cout << "Handling new connection: \n";
+  asio::awaitable<void> handle_new_channel(std::shared_ptr<asio::ip::tcp::socket> socket) {
+    try {
+      uint32_t endpoint_len;
+      co_await asio::async_read(*socket, asio::buffer(&endpoint_len, sizeof(uint32_t)),
+                                asio::use_awaitable);
+      std::string peer_endpoint_buf(endpoint_len, '\0');
+      co_await asio::async_read(*socket, asio::buffer(peer_endpoint_buf.data(), endpoint_len),
+                                asio::use_awaitable);
+      nlohmann::json peer_endpoint_json = nlohmann::json::parse(peer_endpoint_buf);
+      Endpoint peer_endpoint = Endpoint::from_json(peer_endpoint_json);
+      auto channel = std::make_shared<RoCEChannel>();
+      channel->endpoint = peer_endpoint;
+      channel->qp = create_qp();
+      RoCEChannelInfo my_info = get_local_info(channel->qp);
+      uint32_t my_psn = my_info.psn;
 
-    auto id_len_buf = std::make_shared<uint32_t>();
-    asio::async_read(
-        *socket, asio::buffer(id_len_buf.get(), sizeof(uint32_t)),
-        [this, socket, id_len_buf](const asio::error_code &ec, size_t) {
-          if (ec) return;
-          size_t endpoint_len = *id_len_buf;
-          auto peer_endpoint_buf = std::make_shared<std::string>(endpoint_len, '\0');
-          asio::async_read(
-              *socket, asio::buffer(&(*peer_endpoint_buf)[0], endpoint_len),
-              [this, socket, peer_endpoint_buf](const asio::error_code &ec, size_t) {
-                if (ec) return;
-
-                // Deserialize the peer's endpoint from JSON
-                Endpoint peer_endpoint;
-                try {
-                  nlohmann::json peer_endpoint_json = nlohmann::json::parse(*peer_endpoint_buf);
-                  peer_endpoint = Endpoint::from_json(peer_endpoint_json);
-                  std::cout << "Incoming connection from: " << peer_endpoint.id() << std::endl;
-                } catch (const std::exception &e) {
-                  std::cerr << "Failed to parse peer endpoint: " << e.what() << std::endl;
-                  return;
-                }
-
-                auto conn = std::make_shared<Connection>();
-                conn->endpoint = peer_endpoint;
-                try {
-                  conn->qp = create_qp();
-                } catch (...) {
-                  std::cerr << "Error while trying to create qp" << std::endl;
-                  return;
-                }
-
-                RoCEConnectionInfo my_info = get_local_info(conn->qp);
-                uint32_t my_psn = my_info.psn;
-                auto my_info_buf = std::make_shared<std::vector<uint8_t>>();
-                serialize_info(my_info, *my_info_buf);
-
-                asio::async_write(
-                    *socket, asio::buffer(*my_info_buf),
-                    [this, socket, conn, my_psn](const asio::error_code &ec, size_t) {
-                      if (ec) {
-                        std::cerr << "Error during async_write: " << ec.message() << std::endl;
-                        return;
-                      }
-                      auto peer_info_buf = std::make_shared<std::vector<uint8_t>>(26);
-                      asio::async_read(
-                          *socket, asio::buffer(*peer_info_buf),
-                          [this, socket, conn, peer_info_buf, my_psn](const asio::error_code &ec,
-                                                                      size_t) {
-                            if (ec) {
-                              std::cerr << "Error during async_read: " << ec.message() << std::endl;
-                              return;
-                            }
-                            try {
-                              RoCEConnectionInfo peer_info = deserialize_info(*peer_info_buf);
-                              modify_qp_to_rts(conn->qp, peer_info, my_psn);
-
-                              for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-                                auto buf = std::make_unique<RoCEBuffer>(pd_, ROCE_BUFFER_SIZE);
-                                buf->resize(ROCE_BUFFER_SIZE);
-                                post_recv_buffer(conn->qp, buf.get());
-                                conn->recv_buffers.push_back(std::move(buf));
-                              }
-
-                              // Wait for remote ACK that their receive buffers are ready
-                              auto remote_ack_buf = std::make_shared<uint8_t>(0);
-                              asio::async_read(
-                                  *socket, asio::buffer(remote_ack_buf.get(), 1),
-                                  [this, socket, conn, remote_ack_buf](const asio::error_code &ec,
-                                                                       size_t) {
-                                    if (ec) {
-                                      std::cerr << "Error reading ACK: " << ec.message()
-                                                << std::endl;
-                                      return;
-                                    }
-
-                                    // Send our ACK that we're ready
-                                    auto ack_buf = std::make_shared<uint8_t>(1);
-                                    asio::async_write(
-                                        *socket, asio::buffer(ack_buf.get(), 1),
-                                        [this, conn, ack_buf](const asio::error_code &ec, size_t) {
-                                          if (ec) {
-                                            std::cerr << "Error sending ACK: " << ec.message()
-                                                      << std::endl;
-                                            return;
-                                          }
-
-                                          {
-                                            std::lock_guard<std::mutex> lock(connections_mutex_);
-                                            qp_map_[conn->qp->qp_num] = conn;
-                                            connections_[conn->endpoint] = conn;
-                                          }
-
-                                          std::cout << "Successfully established incoming "
-                                                       "connection from "
-                                                    << conn->endpoint.id()
-                                                    << " (QP: " << conn->qp->qp_num << ")\n";
-                                        });
-                                  });
-
-                            } catch (const std::exception &e) {
-                              std::cerr << "Handshake error: " << e.what() << std::endl;
-                            }
-                          });
-                    });
-              });
-        });
+      IBuffer my_info_buf(out_allocator_, 26);
+      serialize_info(my_info, my_info_buf);
+      co_await asio::async_write(*socket, asio::buffer(my_info_buf.data(), my_info_buf.size()),
+                                 asio::use_awaitable);
+      IBuffer peer_info_buf(out_allocator_, 26);
+      co_await asio::async_read(*socket, asio::buffer(peer_info_buf.data(), peer_info_buf.size()),
+                                asio::use_awaitable);
+      RoCEChannelInfo peer_info = deserialize_info(peer_info_buf);
+      modify_qp_to_rts(channel->qp, peer_info, my_psn);
+      for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
+        auto buf = std::make_unique<RoCEBuffer>(*ibv_allocator_, ROCE_BUFFER_SIZE);
+        buf->resize(ROCE_BUFFER_SIZE);
+        post_recv_buffer(channel->qp, buf.get());
+        channel->recv_buffers.push_back(std::move(buf));
+      }
+      uint8_t remote_ack = 0;
+      co_await asio::async_read(*socket, asio::buffer(&remote_ack, 1), asio::use_awaitable);
+      uint8_t ack = 1;
+      co_await asio::async_write(*socket, asio::buffer(&ack, 1), asio::use_awaitable);
+      {
+        std::lock_guard<std::mutex> lock(channels_mutex_);
+        qp_map_[channel->qp->qp_num] = channel;
+        channels_[channel->endpoint] = channel;
+      }
+      std::cout << "Successfully established incoming channel from " << channel->endpoint.id()
+                << " (QP: " << channel->qp->qp_num << ")\n";
+    } catch (const std::exception &e) {
+      std::cerr << "Handshake error: " << e.what() << std::endl;
+    }
   }
 };
 

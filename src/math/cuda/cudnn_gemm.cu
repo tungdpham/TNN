@@ -140,11 +140,11 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
       .set_intermediate_data_type(compute_type)
       .set_compute_data_type(compute_type);
 
-  auto gradient = graph->tensor(fe::graph::Tensor_attributes()
-                                    .set_name("Gradient")
-                                    .set_dim({batch, m, n})
-                                    .set_stride({m * n, n, 1})
-                                    .set_data_type(io_type));
+  auto grad_output = graph->tensor(fe::graph::Tensor_attributes()
+                                       .set_name("Gradient")
+                                       .set_dim({batch, m, n})
+                                       .set_stride({m * n, n, 1})
+                                       .set_data_type(io_type));
 
   auto weight = graph->tensor(fe::graph::Tensor_attributes()
                                   .set_name("Weight")
@@ -165,7 +165,7 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
 
   auto matmul_attributes =
       fe::graph::Matmul_attributes().set_name("DGRAD_GEMM").set_compute_data_type(compute_type);
-  auto grad_input = graph->matmul(gradient, weight_cast, matmul_attributes);
+  auto grad_input = graph->matmul(grad_output, weight_cast, matmul_attributes);
   grad_input->set_output(true).set_data_type(io_type);
 
   ensure_ok(graph->validate(), "dgrad_gemm validate");
@@ -178,7 +178,7 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
   ensure_ok(graph->get_workspace_size(workspace_size), "dgrad_gemm workspace");
 
   handle->dgrad_graph = graph;
-  handle->dgrad_gradient = gradient;
+  handle->dgrad_gradient = grad_output;
   handle->dgrad_weight = weight;
   handle->dgrad_grad_input = grad_input;
   stats.dgrad_workspace_size = static_cast<size_t>(workspace_size);
@@ -201,11 +201,11 @@ static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
       .set_dynamic_shape_enabled(true)
       .set_kernel_cache(handle->kernel_cache);
 
-  auto gradient = graph->tensor(fe::graph::Tensor_attributes()
-                                    .set_name("Gradient")
-                                    .set_dim({batch, n, m})
-                                    .set_stride({m * n, 1, n})
-                                    .set_data_type(io_type));
+  auto grad_output = graph->tensor(fe::graph::Tensor_attributes()
+                                       .set_name("Gradient")
+                                       .set_dim({batch, n, m})
+                                       .set_stride({m * n, 1, n})
+                                       .set_data_type(io_type));
 
   auto input = graph->tensor(fe::graph::Tensor_attributes()
                                  .set_name("Input")
@@ -221,10 +221,10 @@ static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
 
   auto matmul_attributes =
       fe::graph::Matmul_attributes().set_name("WGRAD_GEMM").set_compute_data_type(compute_type);
-  auto new_grad_weight = graph->matmul(gradient, input, matmul_attributes);
+  auto new_grad_weight = graph->matmul(grad_output, input, matmul_attributes);
   new_grad_weight->set_data_type(param_type);
 
-  // Accumulate with previous gradient (beta=1.0 behavior)
+  // Accumulate with previous grad_output (beta=1.0 behavior)
   auto add_attributes = fe::graph::Pointwise_attributes()
                             .set_name("AccumulateGrad")
                             .set_mode(fe::PointwiseMode_t::ADD)
@@ -242,7 +242,7 @@ static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
   ensure_ok(graph->get_workspace_size(workspace_size), "wgrad_gemm workspace");
 
   handle->wgrad_graph = graph;
-  handle->wgrad_gradient = gradient;
+  handle->wgrad_gradient = grad_output;
   handle->wgrad_input = input;
   handle->wgrad_prev_grad_weight = prev_grad_weight;
   handle->wgrad_grad_weight = grad_weight;

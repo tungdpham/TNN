@@ -277,7 +277,7 @@ static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
                               .set_dim({n, k, p, q})
                               .set_stride({p * q * k, 1, q * k, k}));
 
-  // Bias gradient is the sum of DY over N, H, and W dimensions
+  // Bias grad_output is the sum of DY over N, H, and W dimensions
   auto reduction_options = fe::graph::Reduction_attributes().set_mode(fe::ReductionMode_t::ADD);
 
   auto DB = graph->reduction(DY, reduction_options);
@@ -390,7 +390,7 @@ void run_backward_weights_and_bias(feHandle_t* handle, const ConvolutionStats& s
   auto status = handle->wgrad_graph->execute(handle->cudnn_handle, variant_pack, workspace_data);
   ensure_ok(status, "conv_wgrad execute");
 
-  // Compute bias gradient separately if needed
+  // Compute bias grad_output separately if needed
   if (stats.use_bias && bias_grad_data && handle->bgrad_graph) {
     std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void*> bgrad_variant_pack = {
         {handle->bgrad_dy, const_cast<void*>(gradient_data)}, {handle->bgrad_db, bias_grad_data}};

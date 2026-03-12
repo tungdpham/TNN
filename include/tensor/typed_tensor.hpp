@@ -20,14 +20,13 @@
 namespace tnn {
 /**
  * @brief A tensor class dedicated for ML and DL applications.
- * @tparam T Data type (e.g., float, double, int)
  * Data layout is assumed to be row-major (C-style) by default.
  * Generic N-dimensional tensor with various functions. How layers interpret
  * the dimensions is up to the layer's implementation.
  */
-template <typename T = float>
 class TypedTensor : public ITensor {
 protected:
+  DType_t dtype_;
   sref<IAllocator> allocator_;
   size_t data_size_;
   dptr data_;
@@ -52,14 +51,15 @@ protected:
   }
 
   dptr allocate_data(size_t size) {
-    dptr data = allocator_->allocate(size * sizeof(T));
+    dptr data = allocator_->allocate(size * get_dtype_size(dtype_));
     return data;
   }
 
 public:
   // Constructors and Destructor
-  TypedTensor(IAllocator &allocator)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype)
+      : dtype_(dtype),
+        allocator_(allocator),
         data_size_(0) {
     for (size_t i = 0; i < shape_.size(); ++i) {
       shape_[i] = 0;
@@ -67,46 +67,53 @@ public:
     data_ = allocate_data(0);
   }
 
-  TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype, std::initializer_list<size_t> shape_list)
+      : dtype_(dtype),
+        allocator_(allocator),
         shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
   }
 
-  TypedTensor(IAllocator &allocator, std::initializer_list<size_t> shape_list, const dptr &data)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype, std::initializer_list<size_t> shape_list,
+              const dptr &data)
+      : dtype_(dtype),
+        allocator_(allocator),
         shape_(shape_list) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
-    if (data.get<T>() != nullptr) {
-      ops::cd_copy<T>(data, data_, data_size_);
+    if (data.get<void>() != nullptr) {
+      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
     }
   }
 
-  TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape)
+      : dtype_(dtype),
+        allocator_(allocator),
         shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
   }
 
-  TypedTensor(IAllocator &allocator, const std::vector<size_t> &shape, const dptr &data)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape,
+              const dptr &data)
+      : dtype_(dtype),
+        allocator_(allocator),
         shape_(shape) {
     data_size_ =
         std::accumulate(shape_.begin(), shape_.end(), size_t(1), std::multiplies<size_t>());
     data_ = allocate_data(data_size_);
-    if (data.get<T>() != nullptr) {
-      ops::cd_copy<T>(data, data_, data_size_);
+    if (data.get<void>() != nullptr) {
+      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data, data_, data_size_));
     }
   }
 
-  TypedTensor(IAllocator &allocator, dptr &&data, const std::vector<size_t> &shape)
-      : allocator_(allocator),
+  TypedTensor(IAllocator &allocator, DType_t dtype, const std::vector<size_t> &shape, dptr &&data)
+      : dtype_(dtype),
+        allocator_(allocator),
         data_(std::move(data)),
         shape_(shape) {
     data_size_ =
@@ -116,46 +123,37 @@ public:
   ~TypedTensor() = default;
 
   TypedTensor(const TypedTensor &other)
-      : allocator_(other.allocator_),
+      : dtype_(other.dtype_),
+        allocator_(other.allocator_),
         data_size_(other.data_size_),
         shape_(other.shape_) {
     if (data_size_ > 0) {
       data_ = allocate_data(data_size_);
-      ops::copy<T>(other.data_, data_, data_size_);
+      DISPATCH_DTYPE(dtype_, T, ops::copy<T>(other.data_, data_, data_size_));
     }
   }
 
   TypedTensor(TypedTensor &&other) noexcept
-      : allocator_(other.allocator_),
+      : dtype_(other.dtype_),
+        allocator_(other.allocator_),
         data_size_(other.data_size_),
         shape_(std::move(other.shape_)) {
     data_ = std::move(other.data_);
     other.data_size_ = 0;
   }
 
-  T &operator()(std::initializer_list<size_t> indices) {
-    assert(device().device_type() == DeviceType::CPU &&
-           "Operator() is only available for CPU tensors");
-    return data_.get<T>()[compute_index(indices)];
-  }
-
-  const T &operator()(std::initializer_list<size_t> indices) const {
-    assert(device().device_type() == DeviceType::CPU &&
-           "Operator() is only available for CPU tensors");
-    return data_.get<T>()[compute_index(indices)];
-  }
-
-  void *data() override { return static_cast<void *>(data_.get<T>()); }
-  const void *data() const override { return static_cast<const void *>(data_.get<T>()); }
+  void *data() override { return data_.get<void>(); }
+  const void *data() const override { return data_.get<void>(); }
 
   dptr data_ptr() override { return data_; }
   const dptr data_ptr() const override { return data_; }
 
   // Operators
-  TypedTensor<T> &operator=(const TypedTensor<T> &other) = delete;
+  TypedTensor &operator=(const TypedTensor &other) = delete;
 
-  TypedTensor<T> &operator=(TypedTensor<T> &&other) noexcept {
+  TypedTensor &operator=(TypedTensor &&other) noexcept {
     if (this != &other) {
+      dtype_ = other.dtype_;
       allocator_ = other.allocator_;
       shape_ = std::move(other.shape_);
       data_ = std::move(other.data_);
@@ -165,122 +163,7 @@ public:
     return *this;
   }
 
-  bool same_shape(const TypedTensor<T> &other) const { return shape_ == other.shape_; }
-
-  TypedTensor<T> operator+(const TypedTensor<T> &other) const {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for addition");
-    }
-
-    TypedTensor<T> result(allocator_, shape_);
-    ops::add<T>(data_, other.data_, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator-(const TypedTensor<T> &other) const {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for subtraction");
-    }
-
-    TypedTensor<T> result(allocator_, shape_);
-    ops::sub<T>(data_, other.data_, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator*(const TypedTensor<T> &other) const {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for element-wise multiplication");
-    }
-
-    TypedTensor<T> result(allocator_, shape_);
-    ops::mul<T>(data_, other.data_, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator/(const TypedTensor<T> &other) const {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for element-wise division");
-    }
-
-    TypedTensor<T> result(allocator_, shape_);
-    ops::div<T>(data_, other.data_, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator+(T scalar) const {
-    TypedTensor<T> result(allocator_, shape_);
-    ops::add_scalar<T>(data_, scalar, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator-(T scalar) const {
-    TypedTensor<T> result(allocator_, shape_);
-    ops::sub_scalar(data_, scalar, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator*(T scalar) const {
-    TypedTensor<T> result(allocator_, shape_);
-    ops::mul_scalar(data_, scalar, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> operator/(T scalar) const {
-    if (scalar == T(0)) {
-      throw std::invalid_argument("Division by zero");
-    }
-
-    TypedTensor<T> result(allocator_, shape_);
-    ops::div_scalar(data_, scalar, result.data_, data_size_);
-    return result;
-  }
-
-  TypedTensor<T> &operator+=(const TypedTensor<T> &other) {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for addition");
-    }
-    ops::add<T>(data_, other.data_, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator-=(const TypedTensor<T> &other) {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for subtraction");
-    }
-    ops::sub<T>(data_, other.data_, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator*=(const TypedTensor<T> &other) {
-    if (!same_shape(other)) {
-      throw std::invalid_argument("TypedTensor shapes must match for element-wise multiplication");
-    }
-    ops::mul<T>(data_, other.data_, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator+=(T scalar) {
-    ops::add_scalar<T>(data_, scalar, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator-=(T scalar) {
-    ops::sub_scalar<T>(data_, scalar, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator*=(T scalar) {
-    ops::mul_scalar<T>(data_, scalar, data_, data_size_);
-    return *this;
-  }
-
-  TypedTensor<T> &operator/=(T scalar) {
-    if (scalar == T(0)) {
-      throw std::invalid_argument("Division by zero");
-    }
-    ops::div_scalar(data_, scalar, data_, data_size_);
-    return *this;
-  }
+  bool same_shape(const TypedTensor &other) const { return shape_ == other.shape_; }
 
   const std::vector<size_t> &shape() const override { return shape_; }
 
@@ -305,10 +188,10 @@ public:
 
   size_t size() const override { return data_size_; }
 
-  size_t capacity() const override { return data_.capacity() / sizeof(T); }
+  size_t capacity() const override { return data_.capacity() / get_dtype_size(dtype_); }
 
   bool is_aligned(size_t alignment = 32) const override {
-    return (reinterpret_cast<uintptr_t>(data_.get<T>()) % alignment) == 0;
+    return (reinterpret_cast<uintptr_t>(data_.get<void>()) % alignment) == 0;
   }
 
   IAllocator &allocator() const override { return allocator_; }
@@ -317,29 +200,29 @@ public:
 
   DeviceType device_type() const override { return device().device_type(); }
 
-  Tensor to_device(const Device &target_device) const override {
-    if (device() == target_device) {
+  Tensor to_device(const Device &tardevice) const override {
+    if (device() == tardevice) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(target_device, defaultFlowHandle);
-    if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
+    auto &allocator = PoolAllocator::instance(tardevice, defaultFlowHandle);
+    if (device_type() == DeviceType::CPU && tardevice.device_type() == DeviceType::GPU) {
       std::vector<size_t> shape_vec(shape_);
-      auto gpu_tensor = std::make_shared<TypedTensor<T>>(allocator, shape_vec);
-      ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_);
+      auto gpu_tensor = std::make_shared<TypedTensor>(allocator, dtype_, shape_vec);
+      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
       return gpu_tensor;
     }
-    if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
+    if (device_type() == DeviceType::GPU && tardevice.device_type() == DeviceType::CPU) {
       std::vector<size_t> shape_vec(shape_);
-      std::shared_ptr<TypedTensor<T>> cpu_tensor =
-          std::make_shared<TypedTensor<T>>(allocator, shape_vec);
-      ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_);
+      std::shared_ptr<TypedTensor> cpu_tensor =
+          std::make_shared<TypedTensor>(allocator, dtype_, shape_vec);
+      DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, cpu_tensor->data_, data_size_));
       return cpu_tensor;
     }
     throw std::runtime_error("Unsupported device type for to_device()");
   }
 
   Tensor clone() const override {
-    return std::make_shared<TypedTensor<T>>(allocator_, shape_, data_);
+    return std::make_shared<TypedTensor>(allocator_, dtype_, shape_, data_);
   }
 
   Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const override {
@@ -369,107 +252,130 @@ public:
       offset += start_offset[i] * compute_stride(i);
       span_size *= span_sizes[i];
     }
-    dptr span_data = data_.span(offset * sizeof(T), span_size * sizeof(T));
-    return std::make_shared<TypedTensor<T>>(allocator_, std::move(span_data), span_sizes);
+    size_t dtype_size = get_dtype_size(dtype_);
+    dptr span_data = data_.span(offset * dtype_size, span_size * dtype_size);
+    return std::make_shared<TypedTensor>(allocator_, dtype_, span_sizes, std::move(span_data));
   }
 
   std::unique_ptr<Task> fill(double value, flowHandle_t handle) override {
-    return ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle);
+    std::unique_ptr<Task> result;
+    DISPATCH_DTYPE(dtype_, T,
+                   result = ops::set_scalar<T>(data_, static_cast<T>(value), data_size_, handle));
+    return result;
   }
 
   // Arithmetic operations returning shared_ptr
   void add(const ConstTensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor addition");
     }
     if (!same_shape(*other_typed)) {
       throw std::invalid_argument("Tensor shapes must match for addition");
     }
-    ops::add<T>(data_, other_typed->data_, data_, data_size_);
+    if (dtype_ != other_typed->dtype_) {
+      throw std::runtime_error("DType mismatch in tensor addition");
+    }
+    DISPATCH_DTYPE(dtype_, T, ops::add<T>(data_, other_typed->data_, data_, data_size_));
   }
 
   void sub(const ConstTensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor subtraction");
     }
     if (!same_shape(*other_typed)) {
       throw std::invalid_argument("Tensor shapes must match for subtraction");
     }
-    ops::sub<T>(data_, other_typed->data_, data_, data_size_);
+    if (dtype_ != other_typed->dtype_) {
+      throw std::runtime_error("DType mismatch in tensor subtraction");
+    }
+    DISPATCH_DTYPE(dtype_, T, ops::sub<T>(data_, other_typed->data_, data_, data_size_));
   }
 
   void mul(const ConstTensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor multiplication");
     }
     if (!same_shape(*other_typed)) {
       throw std::invalid_argument("Tensor shapes must match for element-wise multiplication");
     }
-    ops::mul<T>(data_, other_typed->data_, data_, data_size_);
+    if (dtype_ != other_typed->dtype_) {
+      throw std::runtime_error("DType mismatch in tensor multiplication");
+    }
+    DISPATCH_DTYPE(dtype_, T, ops::mul<T>(data_, other_typed->data_, data_, data_size_));
   }
 
   void div(const ConstTensor &other) override {
-    auto other_typed = std::dynamic_pointer_cast<const TypedTensor<T>>(other);
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor>(other);
     if (!other_typed) {
       throw std::runtime_error("Type mismatch in tensor division");
     }
     if (!same_shape(*other_typed)) {
       throw std::invalid_argument("Tensor shapes must match for element-wise division");
     }
-    ops::div<T>(data_, other_typed->data_, data_, data_size_);
+    if (dtype_ != other_typed->dtype_) {
+      throw std::runtime_error("DType mismatch in tensor division");
+    }
+    DISPATCH_DTYPE(dtype_, T, ops::div<T>(data_, other_typed->data_, data_, data_size_));
   }
 
   void add_scalar(double scalar) override {
-    ops::add_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_);
+    DISPATCH_DTYPE(dtype_, T, ops::add_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void sub_scalar(double scalar) override {
-    ops::sub_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_);
+    DISPATCH_DTYPE(dtype_, T, ops::sub_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void mul_scalar(double scalar) override {
-    ops::mul_scalar(data_, static_cast<T>(scalar), data_, data_size_);
+    DISPATCH_DTYPE(dtype_, T, ops::mul_scalar(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void div_scalar(double scalar) override {
     if (scalar == 0.0) {
       throw std::invalid_argument("Division by zero");
     }
-    ops::div_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_);
+    DISPATCH_DTYPE(dtype_, T, ops::div_scalar<T>(data_, static_cast<T>(scalar), data_, data_size_));
   }
 
   void fill_random_uniform(double range) override {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data_.get<T>()));
-    ops::fill_random_uniform(data_, data_size_, T(0), static_cast<T>(range), seed);
+        reinterpret_cast<uintptr_t>(data_.get<void>()));
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::fill_random_uniform(data_, data_size_, T(0), static_cast<T>(range), seed));
   }
 
   void fill_random_uniform(double min_val, double max_val) override {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data_.get<T>()));
-    ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val), static_cast<T>(max_val),
-                             seed);
+        reinterpret_cast<uintptr_t>(data_.get<void>()));
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
+                                            static_cast<T>(max_val), seed));
   }
 
   void fill_random_uniform(double min_val, double max_val, unsigned long long seed) override {
-    ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val), static_cast<T>(max_val),
-                             seed);
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::fill_random_uniform(data_, data_size_, static_cast<T>(min_val),
+                                            static_cast<T>(max_val), seed));
   }
 
   void fill_random_normal(double mean, double stddev) override {
     unsigned long long seed = static_cast<unsigned long long>(
         std::chrono::high_resolution_clock::now().time_since_epoch().count() ^
-        reinterpret_cast<uintptr_t>(data_.get<T>()));
-    ops::fill_random_normal(data_, data_size_, static_cast<T>(mean), static_cast<T>(stddev), seed);
+        reinterpret_cast<uintptr_t>(data_.get<void>()));
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
+                                           static_cast<T>(stddev), seed));
   }
 
   void fill_random_normal(double mean, double stddev, unsigned long long seed) override {
-    ops::fill_random_normal(data_, data_size_, static_cast<T>(mean), static_cast<T>(stddev), seed);
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::fill_random_normal(data_, data_size_, static_cast<T>(mean),
+                                           static_cast<T>(stddev), seed));
   }
 
   /**
@@ -480,11 +386,14 @@ public:
     if (target == nullptr || target->size() < size()) {
       throw std::invalid_argument("Target tensor is null or smaller than source in tensor copy");
     }
-    auto target_typed = std::dynamic_pointer_cast<TypedTensor<T>>(target);
+    auto target_typed = std::dynamic_pointer_cast<TypedTensor>(target);
     if (!target_typed) {
       throw std::runtime_error("Type mismatch in tensor copy");
     }
-    ops::cd_copy<T>(data_, target_typed->data_, data_size_);
+    if (dtype_ != target_typed->dtype_) {
+      throw std::runtime_error("DType mismatch in tensor copy");
+    }
+    DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, target_typed->data_, data_size_));
   }
 
   void resize(const std::vector<size_t> &new_shape) override {
@@ -508,14 +417,14 @@ public:
   void ensure(const std::vector<size_t> &new_shape) override {
     size_t new_size =
         std::accumulate(new_shape.begin(), new_shape.end(), size_t(1), std::multiplies<size_t>());
-    if (new_size * sizeof(T) > data_.capacity()) {
+    if (new_size * get_dtype_size(dtype_) > data_.capacity()) {
       data_ = allocate_data(new_size);
     }
     data_size_ = new_size;
     shape_ = new_shape;
   }
 
-  void copy_batch(TypedTensor<T> &other, size_t src_batch_idx, size_t dest_batch_idx) {
+  void copy_batch(TypedTensor &other, size_t src_batch_idx, size_t dest_batch_idx) {
     size_t batch_size = shape_[0];
     if (dest_batch_idx >= batch_size || src_batch_idx >= other.shape_[0]) {
       throw std::invalid_argument("Invalid batch index for copy");
@@ -527,68 +436,94 @@ public:
           "to same device first.");
     }
 
+    if (dtype_ != other.dtype_) {
+      throw std::runtime_error("DType mismatch in copy_batch");
+    }
+
     size_t batch_stride = compute_stride(0);
     size_t src_offset = src_batch_idx * other.compute_stride(0);
     size_t dest_offset = dest_batch_idx * batch_stride;
+    size_t dtype_size = get_dtype_size(dtype_);
 
-    ops::copy<T>(other.data_ + src_offset * sizeof(T), data_ + dest_offset * sizeof(T),
-                 batch_stride);
+    DISPATCH_DTYPE(dtype_, T,
+                   ops::copy<T>(other.data_ + src_offset * dtype_size,
+                                data_ + dest_offset * dtype_size, batch_stride));
   }
 
   double min() const override {
-    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_device(getCPU()));
-    T min_val = cpu_tensor->data_.template get<T>()[0];
-    for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
-      if (cpu_tensor->data_.template get<T>()[i] < min_val) {
-        min_val = cpu_tensor->data_.template get<T>()[i];
+    double result = 0.0;
+    DISPATCH_DTYPE(dtype_, T, {
+      auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor>(to_device(getHost()));
+      T min_val = cpu_tensor->data_.template get<T>()[0];
+      for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
+        if (cpu_tensor->data_.template get<T>()[i] < min_val) {
+          min_val = cpu_tensor->data_.template get<T>()[i];
+        }
       }
-    }
-    return static_cast<double>(min_val);
+      result = static_cast<double>(min_val);
+    });
+    return result;
   }
 
   double max() const override {
-    auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(to_device(getCPU()));
-    T max_val = cpu_tensor->data_.template get<T>()[0];
-    for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
-      if (cpu_tensor->data_.template get<T>()[i] > max_val) {
-        max_val = cpu_tensor->data_.template get<T>()[i];
+    double result = 0.0;
+    DISPATCH_DTYPE(dtype_, T, {
+      auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor>(to_device(getHost()));
+      T max_val = cpu_tensor->data_.template get<T>()[0];
+      for (size_t i = 1; i < cpu_tensor->data_size_; ++i) {
+        if (cpu_tensor->data_.template get<T>()[i] > max_val) {
+          max_val = cpu_tensor->data_.template get<T>()[i];
+        }
       }
-    }
-    return static_cast<double>(max_val);
+      result = static_cast<double>(max_val);
+    });
+    return result;
   }
 
   double mean() const override {
-    T sum = ops::sum<T>(data_, data_size_);
-    return static_cast<double>(sum / static_cast<T>((double)data_size_));
+    double result = 0.0;
+    DISPATCH_DTYPE(dtype_, T, {
+      T sum = ops::sum<T>(data_, data_size_);
+      result = static_cast<double>(sum / static_cast<T>((double)data_size_));
+    });
+    return result;
   }
 
   double variance() const override {
-    T m = static_cast<T>(mean());
-    T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
-    return static_cast<double>(sum_sq_diff / static_cast<T>((double)data_size_));
+    double result = 0.0;
+    DISPATCH_DTYPE(dtype_, T, {
+      T m = static_cast<T>(mean());
+      T sum_sq_diff = ops::sum_squared_diff<T>(data_, m, data_size_);
+      result = static_cast<double>(sum_sq_diff / static_cast<T>((double)data_size_));
+    });
+    return result;
   }
 
   void print_data() const override {
-    Tensor cpu_tensor = to_device(getCPU());
+    Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
     std::cout << "TypedTensor data (shape " << cpu_tensor->shape_str() << "):\n";
-    T *data = cpu_tensor->data_as<T>();
-    for (size_t i = 0; i < total_elements; ++i) {
-      std::cout << static_cast<float>(data[i]) << " ";
-    }
+    DISPATCH_DTYPE(dtype_, T, {
+      T *data = cpu_tensor->data_as<T>();
+      for (size_t i = 0; i < total_elements; ++i) {
+        std::cout << static_cast<float>(data[i]) << " ";
+      }
+    });
     std::cout << std::endl;
   }
 
   void head(size_t n = 10) const override {
-    Tensor cpu_tensor = to_device(getCPU());
+    Tensor cpu_tensor = to_device(getHost());
     size_t total_elements = cpu_tensor->size();
     n = std::min(n, total_elements);
     std::cout << "TypedTensor head (first " << n << " elements of shape " << cpu_tensor->shape_str()
               << "):\n";
-    T *data = cpu_tensor->data_as<T>();
-    for (size_t i = 0; i < n; ++i) {
-      std::cout << static_cast<float>(data[i]) << " ";
-    }
+    DISPATCH_DTYPE(dtype_, T, {
+      T *data = cpu_tensor->data_as<T>();
+      for (size_t i = 0; i < n; ++i) {
+        std::cout << static_cast<float>(data[i]) << " ";
+      }
+    });
     std::cout << std::endl;
   }
 
@@ -604,33 +539,18 @@ public:
     out.write(reinterpret_cast<const char *>(&dims), sizeof(size_t));
     out.write(reinterpret_cast<const char *>(shape_.data()), shape_.size() * sizeof(size_t));
 
-    if (device_type() == DeviceType::CPU) {
-      out.write(reinterpret_cast<const char *>(data_.get<T>()), data_size_ * sizeof(T));
-    } else {
-      std::vector<T> host_buffer(data_size_);
-      device().copyToHost(host_buffer.data(), data_.get<T>(), data_size_ * sizeof(T));
-      out.write(reinterpret_cast<const char *>(host_buffer.data()), data_size_ * sizeof(T));
-    }
+    DISPATCH_DTYPE(dtype_, T, {
+      if (device_type() == DeviceType::CPU) {
+        out.write(reinterpret_cast<const char *>(data_.get<T>()), data_size_ * sizeof(T));
+      } else {
+        std::vector<T> host_buffer(data_size_);
+        device().copyToHost(host_buffer.data(), data_.get<T>(), data_size_ * sizeof(T));
+        out.write(reinterpret_cast<const char *>(host_buffer.data()), data_size_ * sizeof(T));
+      }
+    });
   }
 
-  DType_t data_type() const override {
-    if (std::is_same<T, float>::value) {
-      return DType_t::FP32;
-    } else if (std::is_same<T, double>::value) {
-      return DType_t::FP64;
-    } else if (std::is_same<T, fp16>::value) {
-      return DType_t::FP16;
-    } else if (std::is_same<T, bf16>::value) {
-      return DType_t::BF16;
-    } else if (std::is_same<T, int32_t>::value) {
-      return DType_t::INT32_T;
-    } else if (std::is_same<T, int64_t>::value) {
-      return DType_t::INT64_T;
-    } else if (std::is_same<T, size_t>::value) {
-      return DType_t::SIZE_T;
-    } else {
-      throw std::runtime_error("Unsupported data type for TypedTensor");
-    }
-  }
+  DType_t &data_type() override { return dtype_; }
+  const DType_t &data_type() const override { return dtype_; }
 };
 }  // namespace tnn

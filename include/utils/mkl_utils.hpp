@@ -118,10 +118,10 @@ inline void conv_forward_gemm(const T *weights, const T *im2col_data, T *output,
 }
 
 /**
- * @brief Optimized GEMM for weight gradient computation
+ * @brief Optimized GEMM for weight grad_output computation
  * Computes weight_grad += output_grad * im2col_data^T
  *
- * @param output_grad Output gradient [out_channels x output_size]
+ * @param output_grad Output grad_output [out_channels x output_size]
  * @param im2col_data Im2col matrix [kernel_size x output_size]
  * @param weight_grad Weight gradients [out_channels x kernel_size]
  * @param out_channels Number of output channels
@@ -141,12 +141,12 @@ inline void conv_weight_grad_gemm(const T *output_grad, const T *im2col_data, T 
 }
 
 /**
- * @brief Optimized GEMM for input gradient computation
+ * @brief Optimized GEMM for input grad_output computation
  * Computes col_grad = weights^T * output_grad
  *
  * @param weights Weight matrix [out_channels x kernel_size]
- * @param output_grad Output gradient [out_channels x output_size]
- * @param col_grad Column gradient [kernel_size x output_size]
+ * @param output_grad Output grad_output [out_channels x output_size]
+ * @param col_grad Column grad_output [kernel_size x output_size]
  * @param out_channels Number of output channels
  * @param kernel_size Size of convolution kernel
  * @param output_size Size of output spatial dimensions

@@ -28,25 +28,22 @@ private:
                                       flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> slice_backward(const ConstTensor &gradient, const Tensor &grad_input,
+  std::unique_ptr<Task> slice_backward(const ConstTensor &grad_output, const Tensor &grad_input,
                                        const std::vector<size_t> &original_shape,
                                        flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
   static constexpr const char *TYPE_NAME = "slice";
 
   SliceLayer(size_t axis, size_t start, size_t length, const std::string &name = "slice");
-  ~SliceLayer() override;
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
+
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 
   static std::unique_ptr<SliceLayer> create_from_config(const LayerConfig &config);

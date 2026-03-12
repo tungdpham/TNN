@@ -34,7 +34,7 @@ std::unique_ptr<Task> Linear::compute_gradient(const ConstTensor &input,
                                                const Tensor &grad_input) const {
   if (grad_input->shape() != grad_output->shape()) {
     throw std::invalid_argument(
-        "Upstream gradient must have the same "
+        "Upstream grad_output must have the same "
         "shape as pre-activation values");
   }
   grad_output->copy_to(grad_input);

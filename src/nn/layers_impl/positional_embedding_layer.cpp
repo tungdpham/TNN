@@ -18,10 +18,7 @@ PositionalEmbeddingLayer::PositionalEmbeddingLayer(size_t embed_dim, size_t seq_
       embed_dim_(embed_dim),
       seq_len_(seq_len) {}
 
-void PositionalEmbeddingLayer::init_params() {
-  pos_embedding_ = make_param_tensor({seq_len_, embed_dim_});
-  pos_embedding_gradients_ = make_param_tensor({seq_len_, embed_dim_});
-
+void PositionalEmbeddingLayer::init_impl() {
   float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
@@ -29,6 +26,7 @@ void PositionalEmbeddingLayer::init_params() {
   } else {
     pos_embedding_->fill_random_uniform(-bound, bound);
   }
+
   pos_embedding_gradients_->fill(0.0f);
 }
 
@@ -59,9 +57,9 @@ void PositionalEmbeddingLayer::forward_impl(const ConstTensor &input, const Tens
                                  this->flow_handle_);
 }
 
-void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
-                                             size_t mb_id) {
-  const auto &shape = gradient->shape();
+void PositionalEmbeddingLayer::backward_impl(const ConstTensor &grad_output,
+                                             const Tensor &grad_input, size_t mb_id) {
+  const auto &shape = grad_output->shape();
   if (shape.size() < 2) {
     throw std::runtime_error("PositionalEmbeddingLayer: Gradient tensor must be at least 2D");
   }
@@ -82,9 +80,9 @@ void PositionalEmbeddingLayer::backward_impl(const ConstTensor &gradient, const 
 
   grad_input->ensure(shape);
 
-  gradient->copy_to(grad_input);
+  grad_output->copy_to(grad_input);
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(accumulate_pos_gradients, gradient, pos_embedding_gradients_,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(accumulate_pos_gradients, grad_output, pos_embedding_gradients_,
                                  this->flow_handle_);
 }
 
@@ -113,7 +111,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
     batch_size *= shape[i];
   }
 
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     // For CPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
@@ -124,7 +122,7 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
     return nullptr;
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     // For GPU, we need to manually loop over batches and add
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
@@ -142,14 +140,16 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::add_positional_embedding(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
-    const ConstTensor &gradient, const Tensor &pos_embedding_gradients, flowHandle_t handle) const {
+    const ConstTensor &grad_output, const Tensor &pos_embedding_gradients,
+    flowHandle_t handle) const {
   if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
     throw std::runtime_error(
         "PositionalEmbeddingLayer mixed dtype dispatch not implemented "
         "(io/param/compute must match).");
   }
-  if (gradient->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("PositionalEmbeddingLayer gradient dtype mismatch with dispatch IO_T");
+  if (grad_output->data_type() != dtype_of<IO_T>()) {
+    throw std::runtime_error(
+        "PositionalEmbeddingLayer grad_output dtype mismatch with dispatch IO_T");
   }
   if (pos_embedding_gradients->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
@@ -158,26 +158,26 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
 
   size_t sample_size = seq_len_ * embed_dim_;
   size_t batch_size = 1;
-  const auto &shape = gradient->shape();
+  const auto &shape = grad_output->shape();
   for (size_t i = 0; i + 2 < shape.size(); ++i) {
     batch_size *= shape[i];
   }
 
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cpu_task(handle, ops::cpu::add<Compute_T>,
                       pos_embedding_gradients->data_as<Compute_T>(),
-                      gradient->data_as<Compute_T>() + i * sample_size,
+                      grad_output->data_as<Compute_T>() + i * sample_size,
                       pos_embedding_gradients->data_as<Compute_T>(), sample_size);
     }
     return nullptr;
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     for (size_t i = 0; i < batch_size; ++i) {
       create_cuda_task(handle, ops::cuda::cuda_add<Compute_T>,
                        pos_embedding_gradients->data_as<Compute_T>(),
-                       gradient->data_as<Compute_T>() + i * sample_size,
+                       grad_output->data_as<Compute_T>() + i * sample_size,
                        pos_embedding_gradients->data_as<Compute_T>(), sample_size);
     }
     return nullptr;
@@ -186,14 +186,6 @@ std::unique_ptr<Task> PositionalEmbeddingLayer::accumulate_pos_gradients(
   else {
     throw std::runtime_error("Unsupported device type for accumulate_pos_gradients");
   }
-}
-
-uint64_t PositionalEmbeddingLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  return 0;
-}
-
-uint64_t PositionalEmbeddingLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  return 0;
 }
 
 LayerConfig PositionalEmbeddingLayer::get_config() const {
@@ -205,21 +197,9 @@ LayerConfig PositionalEmbeddingLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> PositionalEmbeddingLayer::clone() const {
-  return std::make_unique<PositionalEmbeddingLayer>(embed_dim_, seq_len_, this->name_);
-}
-
 std::vector<size_t> PositionalEmbeddingLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   return input_shape;
-}
-
-void PositionalEmbeddingLayer::collect_parameters(std::vector<Tensor> &params) {
-  params.push_back(pos_embedding_);
-}
-
-void PositionalEmbeddingLayer::collect_gradients(std::vector<Tensor> &grads) {
-  grads.push_back(pos_embedding_gradients_);
 }
 
 std::unique_ptr<PositionalEmbeddingLayer> PositionalEmbeddingLayer::create_from_config(

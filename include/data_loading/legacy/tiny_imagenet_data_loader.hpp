@@ -331,7 +331,9 @@ private:
   }
 
 public:
-  TinyImageNetDataLoader(DType_t dtype = DType_t::FP32) : ImageDataLoader(), dtype_(dtype) {
+  TinyImageNetDataLoader(DType_t dtype = DType_t::FP32)
+      : ImageDataLoader(),
+        dtype_(dtype) {
     data_.reserve(100000 * tiny_imagenet_constants::IMAGE_SIZE);  // Reserve for training set
     labels_.reserve(100000);
   }
@@ -382,7 +384,7 @@ public:
    * Get a specific batch size (supports both pre-computed and on-demand batches)
    */
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   /**

@@ -1,6 +1,8 @@
+#include <cmath>
 #include <iomanip>
 
 #include "tensor.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 
@@ -16,8 +18,8 @@ void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_nam
 }
 
 template <typename T>
-void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_name = "") {
-  auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(tensor.to_host());
+void check_nan_and_inf(const TypedTensor &tensor, const std::string &tensor_name = "") {
+  auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor>(tensor.to_host());
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
   check_nan_and_inf(data, total_elements, tensor_name);
@@ -25,24 +27,8 @@ void check_nan_and_inf(const TypedTensor<T> &tensor, const std::string &tensor_n
 
 inline void check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
   DType_t dtype = tensor->data_type();
-  switch (dtype) {
-    case DType_t::FP32: {
-      auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<float>>(tensor);
-      check_nan_and_inf<float>(*typed_tensor, tensor_name);
-      break;
-    }
-    case DType_t::FP64: {
-      auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<double>>(tensor);
-      check_nan_and_inf<double>(*typed_tensor, tensor_name);
-      break;
-    }
-    case DType_t::FP16: {
-      throw std::runtime_error("check_nan_and_inf not implemented for FP16 tensors");
-      break;
-    }
-    default:
-      throw std::runtime_error("Unsupported data type for check_nan_and_inf");
-  }
+  DISPATCH_DTYPE(
+      dtype, T, check_nan_and_inf<T>(*std::dynamic_pointer_cast<TypedTensor>(tensor), tensor_name));
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
@@ -66,7 +52,7 @@ inline void print_data_distribution(const ConstTensor &tensor,
   std::vector<size_t> buckets(num_buckets + 2, 0);
 
   auto process_data = [&]<typename T>() {
-    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor<T>>(cpu_tensor);
+    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor>(cpu_tensor);
     if (!typed_tensor) {
       throw std::runtime_error("Failed to cast tensor in print_data_distribution");
     }

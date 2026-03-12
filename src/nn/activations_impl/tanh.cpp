@@ -24,18 +24,18 @@ std::unique_ptr<Task> Tanh::apply(const ConstTensor &input, const Tensor &output
     throw std::runtime_error("Input and output must be on the same device for Tanh");
   }
 
-  DISPATCH_ON_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
+  DISPATCH_DTYPE(input->data_type(), T, return apply_impl<T>(input, output, defaultFlowHandle));
 }
 
 std::unique_ptr<Task> Tanh::compute_gradient(const ConstTensor &input,
                                              const ConstTensor &grad_output,
                                              const Tensor &grad_input) const {
   assert(grad_output->shape() == grad_input->shape() &&
-         "Shapes must match for in-place gradient computation");
+         "Shapes must match for in-place grad_output computation");
   if (grad_output->device() != grad_input->device()) {
-    throw std::runtime_error("Input and upstream gradient must be on the same device for Tanh");
+    throw std::runtime_error("Input and upstream grad_output must be on the same device for Tanh");
   }
-  DISPATCH_ON_DTYPE(
+  DISPATCH_DTYPE(
       input->data_type(), T,
       return compute_gradient_impl<T>(input, grad_output, grad_input, defaultFlowHandle));
 }

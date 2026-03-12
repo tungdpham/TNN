@@ -10,6 +10,7 @@
 #include <memory>
 #include <vector>
 
+#include "common/blob.hpp"
 #include "device/device.hpp"
 #include "device/dptr.hpp"
 #include "device/flow.hpp"
@@ -29,7 +30,8 @@ public:
   virtual ~ITensor() = default;
 
   // basic properties
-  virtual DType_t data_type() const = 0;
+  virtual DType_t &data_type() = 0;
+  virtual const DType_t &data_type() const = 0;
   virtual size_t size() const = 0;
   virtual size_t capacity() const = 0;
   virtual const std::vector<size_t> &shape() const = 0;
@@ -96,8 +98,8 @@ public:
   virtual void resize(const std::vector<size_t> &new_shape) = 0;
   virtual void ensure(const std::vector<size_t> &new_shape) = 0;
   virtual void copy_to(const Tensor &target) const = 0;
-  virtual Tensor to_device(const Device &target_device) const = 0;
-  Tensor to_host() const { return to_device(getCPU()); }
+  virtual Tensor to_device(const Device &tardevice) const = 0;
+  Tensor to_host() const { return to_device(getHost()); }
 
   virtual void add(const ConstTensor &other) = 0;
   virtual void sub(const ConstTensor &other) = 0;
@@ -114,6 +116,14 @@ public:
   virtual void fill_random_uniform(double min_val, double max_val, unsigned long long seed) = 0;
   virtual void fill_random_normal(double mean, double stddev) = 0;
   virtual void fill_random_normal(double mean, double stddev, unsigned long long seed) = 0;
+
+  template <typename Archiver>
+  void archive(Archiver &archive) {
+    DType_t &dtype = data_type();
+    std::vector<size_t> shape_vec = shape();
+    dptr data = this->data_ptr().span(0, size() * get_dtype_size(dtype));
+    archive & dtype &blob(shape_vec.data(), shape_vec.size()) & data;
+  }
 
 private:
   virtual size_t compute_index(std::initializer_list<size_t> indices) const = 0;

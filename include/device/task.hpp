@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
 #pragma once
 
 #include <atomic>
@@ -117,7 +123,7 @@ public:
 
 template <typename Func, typename... Args>
 std::unique_ptr<Task> create_cpu_task(flowHandle_t handle, Func &&func, Args &&...args) {
-  auto &CPUDevice = getCPU();
+  auto &CPUDevice = getHost();
   CPUFlow *flow = dynamic_cast<CPUFlow *>(CPUDevice.getFlow(handle));
   if (!flow) {
     throw std::runtime_error("Failed to get CPU flow with ID: " + std::to_string(handle.id));

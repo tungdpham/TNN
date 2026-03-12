@@ -13,12 +13,13 @@ namespace tnn {
 class GaussianNoiseAugmentation : public Augmentation {
 public:
   GaussianNoiseAugmentation(float probability = 0.3f, float noise_std = 0.05f)
-      : probability_(probability), noise_std_(noise_std) {
+      : probability_(probability),
+        noise_std_(noise_std) {
     this->name_ = "GaussianNoise";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

@@ -38,20 +38,20 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_weight_gradients(const ConstTensor &input,
-                                                 const ConstTensor &gradient,
+                                                 const ConstTensor &grad_output,
                                                  const Tensor &weight_grad, size_t batch_size,
                                                  size_t input_features, size_t output_features,
                                                  flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_input_gradients(const ConstTensor &gradient,
+  std::unique_ptr<Task> compute_input_gradients(const ConstTensor &grad_output,
                                                 const ConstTensor &weights,
                                                 const Tensor &grad_input, size_t batch_size,
                                                 size_t input_features, size_t output_features,
                                                 flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &gradient,
+  std::unique_ptr<Task> compute_bias_gradients(const ConstTensor &grad_output,
                                                const Tensor &bias_gradient, size_t batch_size,
                                                size_t output_features, flowHandle_t handle) const;
 
@@ -61,21 +61,39 @@ private:
                                         flowHandle_t handle) const;
 
 #ifdef USE_CUDNN
+  void build_graph(const Vec<size_t> &input_shape) const;
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
+  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
 
-  std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> handle_cache;
+  mutable std::unordered_map<size_t, cuda::cudnn_gemm::feHandle_t *> fe_handle_cache;
 #endif
-  std::unordered_map<size_t, GemmStats> stats_cache;
+  mutable std::unordered_map<size_t, GemmStats> stats_cache;
 
-  size_t get_shape_hash(size_t batch_size) const;
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    auto weight_desc = ParamDescriptor{
+        param_dtype_,
+        {output_features_, input_features_},
+        &weights_,
+        &weight_gradients_,
+    };
+    descriptors.push_back(weight_desc);
+    if (use_bias_) {
+      auto bias_desc = ParamDescriptor{
+          param_dtype_,
+          {output_features_},
+          &bias_,
+          &bias_gradients_,
+      };
+      descriptors.push_back(bias_desc);
+    }
+    return descriptors;
+  }
 
-  void init_params() override;
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   DenseLayer(size_t input_features, size_t output_features, bool use_bias = true,
@@ -85,13 +103,12 @@ public:
 
   static constexpr const char *TYPE_NAME = "dense";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
   static std::unique_ptr<DenseLayer> create_from_config(const LayerConfig &config);
 };

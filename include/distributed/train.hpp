@@ -12,6 +12,7 @@
 #include "nn/train.hpp"
 #include "tensor/tensor_ops.hpp"
 #include "threading/thread_wrapper.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
 
@@ -33,9 +34,11 @@ inline Result train_semi_async_epoch(Coordinator &coordinator,
   while (train_loader->get_batch(config.batch_size, batch_data, batch_labels)) {
     // Split batch into micro-batches
     std::vector<Tensor> micro_batch_inputs;
-    DISPATCH_AUTO_T(ops::split, batch_data, micro_batch_inputs, config.num_microbatches);
+    DISPATCH_DTYPE(batch_data->data_type(), T,
+                   ops::split<T>(batch_data, micro_batch_inputs, config.num_microbatches));
     std::vector<Tensor> micro_batch_labels;
-    DISPATCH_AUTO_T(ops::split, batch_labels, micro_batch_labels, config.num_microbatches);
+    DISPATCH_DTYPE(batch_labels->data_type(), T,
+                   ops::split<T>(batch_labels, micro_batch_labels, config.num_microbatches));
 
     auto process_start = std::chrono::high_resolution_clock::now();
     // Perform forward, compute loss, and backward asynchronously.
@@ -105,8 +108,7 @@ inline Result validate_semi_async_epoch(Coordinator &coordinator,
   return {total_val_loss / val_batches, (total_val_correct / val_loader->size()) * 100.0f};
 }
 
-inline void train_model(Coordinator &coordinator,
-                        std::unique_ptr<BaseDataLoader> &train_loader,
+inline void train_model(Coordinator &coordinator, std::unique_ptr<BaseDataLoader> &train_loader,
                         std::unique_ptr<BaseDataLoader> &val_loader,
                         const std::unique_ptr<Loss> &criterion,
                         TrainingConfig config = TrainingConfig()) {
