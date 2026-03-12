@@ -45,6 +45,7 @@ class ResidualBlock;
 class SliceLayer;
 class TransposeLayer;
 class Sequential;
+class MSequential;
 
 }  // namespace tnn
 
@@ -73,6 +74,7 @@ class Sequential;
 #include "layers_impl/positional_embedding_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
+#include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
 
 namespace tnn {
@@ -144,6 +146,7 @@ public:
     register_layer_type<AttentionBlock>();
     register_layer_type<FlashAttentionBlock>();
     register_layer_type<Sequential>();
+    register_layer_type<MSequential>();
   }
 
   static std::vector<std::string> available_types() {
