@@ -136,7 +136,8 @@ static void build_fwd_graph(feHandle_t* handle, LayerNormStats& stats) {
 
   ensure_ok(graph->validate(), "layernorm_fwd validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "layernorm_fwd build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "layernorm_fwd create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "layernorm_fwd create plans");
   ensure_ok(graph->check_support(), "layernorm_fwd check support");
   ensure_ok(graph->build_plans(), "layernorm_fwd build plans");
 
@@ -210,7 +211,8 @@ static void build_bwd_graph(feHandle_t* handle, LayerNormStats& stats) {
 
   ensure_ok(graph->validate(), "layernorm_bwd validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "layernorm_bwd build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "layernorm_bwd create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "layernorm_bwd create plans");
   ensure_ok(graph->check_support(), "layernorm_bwd check support");
   ensure_ok(graph->build_plans(), "layernorm_bwd build plans");
 

@@ -111,7 +111,8 @@ static void build_fwd_graph(feHandle_t* handle, GemmStats& stats) {
 
   ensure_ok(graph->validate(), "fwd_gemm validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "fwd_gemm build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "fwd_gemm create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "fwd_gemm create plans");
   ensure_ok(graph->check_support(), "fwd_gemm check support");
   ensure_ok(graph->build_plans(), "fwd_gemm build plans");
 
@@ -170,7 +171,8 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
 
   ensure_ok(graph->validate(), "dgrad_gemm validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "dgrad_gemm build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "dgrad_gemm create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "dgrad_gemm create plans");
   ensure_ok(graph->check_support(), "dgrad_gemm check support");
   ensure_ok(graph->build_plans(), "dgrad_gemm build plans");
 

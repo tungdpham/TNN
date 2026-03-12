@@ -127,7 +127,8 @@ static void build_fwd_graph(feHandle_t* handle, ConvolutionStats& stats) {
 
   ensure_ok(graph->validate(), "conv_fprop validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_fprop build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_fprop create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "conv_fprop create plans");
   ensure_ok(graph->check_support(), "conv_fprop check support");
   ensure_ok(graph->build_plans(), "conv_fprop build plans");
 
@@ -186,7 +187,8 @@ static void build_dgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
 
   ensure_ok(graph->validate(), "conv_dgrad validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_dgrad build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_dgrad create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "conv_dgrad create plans");
   ensure_ok(graph->check_support(), "conv_dgrad check support");
   ensure_ok(graph->build_plans(), "conv_dgrad build plans");
 
@@ -244,7 +246,8 @@ static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
 
   ensure_ok(graph->validate(), "conv_wgrad validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "conv_wgrad build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "conv_wgrad create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "conv_wgrad create plans");
   ensure_ok(graph->check_support(), "conv_wgrad check support");
   ensure_ok(graph->build_plans(), "conv_wgrad build plans");
 
@@ -289,7 +292,8 @@ static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
 
   ensure_ok(graph->validate(), "bias_grad validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "bias_grad build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "bias_grad create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "bias_grad create plans");
   ensure_ok(graph->check_support(), "bias_grad check support");
   ensure_ok(graph->build_plans(), "bias_grad build plans");
 
