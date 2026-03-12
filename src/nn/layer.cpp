@@ -142,8 +142,7 @@ Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
 }
 
 Tensor Layer::get_act(const std::vector<size_t> &shape) {
-  auto &allocator = PoolAllocator::instance(device(), flow_handle_);
-  return make_tensor(allocator, io_dtype_, shape);
+  return make_tensor(*allocator_, io_dtype_, shape);
 }
 
 void Layer::clear_cache(size_t mb_id) {

@@ -12,6 +12,7 @@
 #include <fmt/ranges.h>
 
 #include <cstddef>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
@@ -136,9 +137,12 @@ size_t Sequential::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   const auto &input_shape = input_shapes[0];
   size_t total_ws = 0;
   Vec<size_t> current_shape = input_shape;
+  size_t io_dtype_size = get_dtype_size(io_dtype_);
   // total = all inputs + all layers' fwd workspace
   for (const auto &layer : layers_) {
     total_ws += layer->fwd_workspace({{current_shape}});
+    total_ws += std::accumulate(current_shape.begin(), current_shape.end(), io_dtype_size,
+                                std::multiplies<size_t>());
     current_shape = layer->output_shapes({current_shape})[0];
   }
   return total_ws;
