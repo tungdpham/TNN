@@ -289,6 +289,8 @@ size_t ResidualBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const 
   Vec<size_t> main_shape = input_shape;
   for (const auto &layer : main_path_) {
     total_ws += layer->fwd_workspace({{main_shape}});
+    total_ws += std::accumulate(main_shape.begin(), main_shape.end(), dtype_size,
+                                std::multiplies<size_t>());
     main_shape = layer->output_shapes({main_shape})[0];
   }
 
@@ -296,6 +298,8 @@ size_t ResidualBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const 
   Vec<size_t> shortcut_shape = input_shape;
   for (const auto &layer : shortcut_path_) {
     total_ws += layer->fwd_workspace({{shortcut_shape}});
+    total_ws += std::accumulate(shortcut_shape.begin(), shortcut_shape.end(), dtype_size,
+                                std::multiplies<size_t>());
     shortcut_shape = layer->output_shapes({shortcut_shape})[0];
   }
 

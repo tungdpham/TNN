@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <stdexcept>
 
 #include "device/dptr.hpp"
@@ -30,13 +31,14 @@ inline size_t align_up(size_t size, size_t alignment) {
 inline size_t align_down(size_t size, size_t alignment) { return size & ~(alignment - 1); }
 
 // Double-ended List Allocator. Thread-safe, efficient workspace allocator that flips for
-// input/output allocation patterns.
+// input/output allocation patterns, with fallback to coalescing free-lists.
 class DELAllocator : public IAllocator, public std::enable_shared_from_this<DELAllocator> {
 private:
   DELAllocator(const Device &device, flowHandle_t flow)
       : device_(device),
         flow_(flow),
         slab_ptr_(nullptr),
+        capacity_(0),
         left_offset_(0),
         right_offset_(0),
         side_(0) {}
@@ -62,27 +64,46 @@ public:
     if (size == 0) return dptr(nullptr);
     std::lock_guard<std::mutex> lock(mutex_);
 
+    size_t aligned_size = align_up(size, DEFAULT_ALIGNMENT);
+    bool fallback = false;
+    size_t offset = 0;
+
     if (side_ == 0) {
-      left_offset_ = align_up(left_offset_, DEFAULT_ALIGNMENT);
-      size = align_up(size, DEFAULT_ALIGNMENT);
-      if (left_offset_ + size > right_offset_) {
-        throw std::runtime_error("DELAllocator: Out of memory");
+      if (left_offset_ + aligned_size <= right_offset_) {
+        offset = left_offset_;
+        left_offset_ += aligned_size;
+      } else {
+        fallback = true;
       }
-      size_t offset = left_offset_;
-      left_offset_ += size;
-      side_ = 1 - side_;  // flip
-      return create_dptr(offset, size);
     } else {
-      size = align_up(size, DEFAULT_ALIGNMENT);
-      right_offset_ = align_down(right_offset_, DEFAULT_ALIGNMENT);
-      if (right_offset_ < left_offset_ + size) {
-        throw std::runtime_error("DELAllocator: Out of memory");
+      if (right_offset_ >= left_offset_ + aligned_size) {
+        right_offset_ -= aligned_size;
+        offset = right_offset_;
       }
-      right_offset_ -= size;
-      size_t offset = right_offset_;
-      side_ = 1 - side_;  // flip
-      return create_dptr(offset, size);
     }
+
+    if (!fallback) {
+      side_ = 1 - side_;  // flip
+      return create_dptr(offset, aligned_size);
+    }
+
+    auto it = free_by_size_.lower_bound(aligned_size);
+    if (it != free_by_size_.end()) {
+      size_t block_size = it->first;
+      size_t block_offset = *it->second.begin();
+
+      remove_block(block_offset, block_size);
+
+      size_t remainder = block_size - aligned_size;
+      if (remainder > 0) {
+        add_block(block_offset + aligned_size, remainder);
+      }
+
+      side_ = 1 - side_;  // keep flipping behavior consistent
+      return create_dptr(block_offset, aligned_size);
+    }
+
+    throw std::runtime_error("DELAllocator: Out of memory");
   }
 
   void flip() {
@@ -94,6 +115,8 @@ public:
     std::lock_guard<std::mutex> lock(mutex_);
     left_offset_ = 0;
     right_offset_ = capacity_;
+    free_by_offset_.clear();
+    free_by_size_.clear();
   }
 
   void reserve(size_t size) override {
@@ -138,13 +161,30 @@ private:
   size_t capacity_;
   size_t left_offset_;
   size_t right_offset_;
-  std::map<size_t, size_t> allocated_blocks_;  // offset -> size
+
+  std::map<size_t, size_t> free_by_offset_;          // offset -> size
+  std::map<size_t, std::set<size_t>> free_by_size_;  // size -> set of offsets
+
   int side_;
+
+  void add_block(size_t offset, size_t size) {
+    free_by_offset_[offset] = size;
+    free_by_size_[size].insert(offset);
+  }
+
+  void remove_block(size_t offset, size_t size) {
+    free_by_offset_.erase(offset);
+    auto it = free_by_size_.find(size);
+    if (it != free_by_size_.end()) {
+      it->second.erase(offset);
+      if (it->second.empty()) {
+        free_by_size_.erase(it);
+      }
+    }
+  }
 
   dptr create_dptr(size_t offset, size_t size) {
     void *slice_ptr = static_cast<uint8_t *>(slab_ptr_) + offset;
-
-    allocated_blocks_.insert({offset, size});
 
     std::weak_ptr<DELAllocator> self_weak = shared_from_this();
 
@@ -162,27 +202,31 @@ private:
 
   void reclaim(size_t offset, size_t size) {
     std::lock_guard<std::mutex> lock(mutex_);
-    auto it = allocated_blocks_.find(offset);
-    if (it != allocated_blocks_.end()) {
-      allocated_blocks_.erase(it);
+
+    auto next_it = free_by_offset_.upper_bound(offset);
+    if (next_it != free_by_offset_.end() && offset + size == next_it->first) {
+      size += next_it->second;
+      remove_block(next_it->first, next_it->second);
     }
-    // shift left or right offset based on which side this block is on
-    if (offset < left_offset_) {
-      auto it = allocated_blocks_.lower_bound(left_offset_);
-      if (it != allocated_blocks_.begin()) {
-        --it;
-        left_offset_ = it->first + it->second;
-      } else {
-        left_offset_ = 0;
+
+    auto prev_it = free_by_offset_.upper_bound(offset);
+    if (prev_it != free_by_offset_.begin()) {
+      --prev_it;
+      if (prev_it->first + prev_it->second == offset) {
+        offset = prev_it->first;
+        size += prev_it->second;
+        remove_block(prev_it->first, prev_it->second);
       }
+    }
+
+    if (offset + size == left_offset_) {
+      left_offset_ = offset;
+    } else if (offset == right_offset_) {
+      right_offset_ += size;
     } else {
-      auto it = allocated_blocks_.lower_bound(right_offset_);
-      if (it != allocated_blocks_.end()) {
-        right_offset_ = it->first;
-      } else {
-        right_offset_ = capacity_;
-      }
+      add_block(offset, size);
     }
   }
 };
+
 }  // namespace tnn

@@ -177,7 +177,8 @@ static void build_fwd_graph(feHandle_t* handle, BatchNormStats& stats) {
 
   ensure_ok(graph->validate(), "batchnorm forward validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle), "batchnorm forward build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "batchnorm forward create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "batchnorm forward create plans");
   ensure_ok(graph->check_support(), "batchnorm forward check support");
   ensure_ok(
       graph->build_plans(handle->cudnn_handle, fe::BuildPlanPolicy_t::HEURISTICS_CHOICE, false),
@@ -272,7 +273,8 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
   ensure_ok(graph->validate(), "batchnorm inference validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle),
             "batchnorm inference build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "batchnorm inference create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "batchnorm inference create plans");
   ensure_ok(graph->check_support(), "batchnorm inference check support");
   ensure_ok(
       graph->build_plans(handle->cudnn_handle, fe::BuildPlanPolicy_t::HEURISTICS_CHOICE, false),
@@ -358,7 +360,8 @@ static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   ensure_ok(graph->validate(), "batchnorm backward validate");
   ensure_ok(graph->build_operation_graph(handle->cudnn_handle),
             "batchnorm backward build op graph");
-  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "batchnorm backward create plans");
+  ensure_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+            "batchnorm backward create plans");
   ensure_ok(graph->check_support(), "batchnorm backward check support");
   ensure_ok(
       graph->build_plans(handle->cudnn_handle, fe::BuildPlanPolicy_t::HEURISTICS_CHOICE, false),

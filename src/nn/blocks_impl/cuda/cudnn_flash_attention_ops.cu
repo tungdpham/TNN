@@ -128,7 +128,8 @@ static void build_fwd_graph(feHandle_t* handle, AttentionStats& stats) {
 
   ensure_fe_ok(graph->validate(), "sdpa validate");
   ensure_fe_ok(graph->build_operation_graph(handle->cudnn_handle), "sdpa build op graph");
-  ensure_fe_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "sdpa create plans");
+  ensure_fe_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+               "sdpa create plans");
   ensure_fe_ok(graph->check_support(), "sdpa check support");
   ensure_fe_ok(graph->build_plans(), "sdpa build plans");
 
@@ -212,7 +213,8 @@ static void build_bwd_graph(feHandle_t* handle, AttentionStats& stats) {
 
   ensure_fe_ok(graph->validate(), "sdpa_backward validate");
   ensure_fe_ok(graph->build_operation_graph(handle->cudnn_handle), "sdpa_backward build op graph");
-  ensure_fe_ok(graph->create_execution_plans({fe::HeurMode_t::A}), "sdpa_backward create plans");
+  ensure_fe_ok(graph->create_execution_plans({fe::HeurMode_t::A, fe::HeurMode_t::B}),
+               "sdpa_backward create plans");
   ensure_fe_ok(graph->check_support(), "sdpa_backward check support");
   ensure_fe_ok(graph->build_plans(), "sdpa_backward build plans");
 
