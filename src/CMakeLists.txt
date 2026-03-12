@@ -32,7 +32,7 @@ if(ENABLE_CUDA)
     target_link_libraries(tnn_cuda PUBLIC tnn_type)
     target_link_libraries(tnn_cuda PUBLIC CUDA::cudart CUDA::cublas)
     if(ENABLE_CUDNN)
-        target_link_libraries(tnn_cuda PUBLIC CUDA::cudnn cudnn_frontend)
+        target_link_libraries(tnn_cuda PUBLIC CUDA::cudnn cudnn_frontend CUDA::nvrtc CUDA::cuda_driver)
     endif()
 endif()
 
@@ -43,8 +43,9 @@ file(GLOB_RECURSE TNN_DEVICE_SOURCES
 add_library(tnn_device STATIC ${TNN_DEVICE_SOURCES})
 target_include_directories(tnn_device PUBLIC 
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
+    <INSTALL_INTERFACE:include>
 )
+target_link_libraries(tnn_device PUBLIC spdlog::spdlog)
 if(ENABLE_CUDA)
     target_link_libraries(tnn_device PUBLIC CUDA::cudart CUDA::cublas)
 endif()
@@ -228,7 +229,7 @@ if(ENABLE_CUDA)
     )
     target_link_libraries(tnn_math PUBLIC CUDA::cudart CUDA::cublas)
     if(ENABLE_CUDNN)
-        target_link_libraries(tnn_math PUBLIC CUDA::cudnn cudnn_frontend)
+        target_link_libraries(tnn_math PUBLIC CUDA::cudnn cudnn_frontend CUDA::nvrtc CUDA::cuda_driver)
     endif()
 endif()
 
@@ -249,6 +250,9 @@ target_link_libraries(tnn_nn PUBLIC
 )
 if(ENABLE_CUDA)
     target_link_libraries(tnn_nn PUBLIC CUDA::cudart CUDA::cublas)
+    if(ENABLE_CUDNN)
+        target_link_libraries(tnn_nn PUBLIC CUDA::nvrtc CUDA::cuda_driver)
+    endif()
 endif()
 
 # Profiling module
@@ -292,7 +296,7 @@ target_link_libraries(tnn_distributed PUBLIC tnn_nn tnn_partitioner tnn_logging 
 target_link_libraries(tnn_distributed PUBLIC nlohmann_json::nlohmann_json ${IBVERBS_LIBRARIES})
 target_compile_definitions(tnn_distributed PUBLIC ASIO_STANDALONE)
 
-# Main TNN library - Single SHARED library bundling all static modules
+# Main TNN lib
 set(TNN_MODULES tnn_type tnn_device tnn_threading tnn_ops tnn_logging tnn_matrix tnn_tensor tnn_data_augmentation tnn_data_loading tnn_nn tnn_utils tnn_math tnn_distributed tnn_profiling tnn_partitioner)
 if(ENABLE_CUDA)
     list(APPEND TNN_MODULES tnn_cuda)
@@ -308,7 +312,6 @@ set_target_properties(tnn_lib PROPERTIES
     SOVERSION 1
 )
 
-# Configure symbol visibility for cleaner API
 set_target_properties(tnn_lib PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     VISIBILITY_INLINES_HIDDEN ON

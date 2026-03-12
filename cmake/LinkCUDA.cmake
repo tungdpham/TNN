@@ -16,6 +16,8 @@ function(link_cuda visibility target_name)
         # Optionally link cuDNN if enabled
         if(ENABLE_CUDNN)
             target_link_libraries(${target_name} ${visibility} CUDA::cudnn)
+            # Link NVRTC and CUDA Driver API for cuDNN frontend experimental features
+            target_link_libraries(${target_name} ${visibility} CUDA::nvrtc CUDA::cuda_driver)
             target_compile_definitions(${target_name} ${visibility} USE_CUDNN)
         endif()
     endif()

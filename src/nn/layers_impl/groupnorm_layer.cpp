@@ -28,24 +28,12 @@ GroupNormLayer::GroupNormLayer(size_t num_groups, size_t num_channels, float eps
   }
 }
 
-void GroupNormLayer::init_params() {
-  if (this->initialized_) {
-    return;
-  }
+void GroupNormLayer::init_impl() {
+  gamma_->fill(1.0f);
+  beta_->fill(0.0f);
 
-  gamma_gradients_ = make_param_tensor({num_channels_, 1, 1, 1});
-  beta_gradients_ = make_param_tensor({num_channels_, 1, 1, 1});
-  gamma_gradients_->fill(0);
-  beta_gradients_->fill(0);
-
-  if (affine_) {
-    gamma_ = make_param_tensor({num_channels_, 1, 1, 1});
-    beta_ = make_param_tensor({num_channels_, 1, 1, 1});
-    gamma_->fill(1);
-    beta_->fill(0);
-  }
-
-  this->initialized_ = true;
+  gamma_gradients_->fill(0.0f);
+  beta_gradients_->fill(0.0f);
 }
 
 void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
@@ -87,7 +75,7 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
   }
 }
 
-void GroupNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void GroupNormLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   Tensor &normalized = this->get_mutable_tensor(mb_id, "norm");
   Tensor &inv_std = this->get_mutable_tensor(mb_id, "inv_std");
@@ -103,7 +91,7 @@ void GroupNormLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
 
   grad_input->ensure(input->shape());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, gradient, normalized, inv_std, gamma_,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(run_backward_fused, grad_output, normalized, inv_std, gamma_,
                                  gamma_gradients_, beta_gradients_, grad_input, batch_size,
                                  channels, spatial_size, this->flow_handle_);
 }
@@ -125,7 +113,7 @@ std::unique_ptr<Task> GroupNormLayer::run_forward_fused(
     throw std::runtime_error("GroupNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA
-  if (this->device_->device_type() == DeviceType::GPU) {
+  if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_forward_fused<Compute_T>,
                             input->data_as<Compute_T>(), group_mean->data_as<Compute_T>(),
                             group_inv_std->data_as<Compute_T>(),
@@ -162,7 +150,7 @@ std::unique_ptr<Task> GroupNormLayer::run_backward_fused(
     throw std::runtime_error("GroupNormLayer gamma dtype mismatch with dispatch Param_T");
   }
 #ifdef USE_CUDA
-  if (this->device_->device_type() == DeviceType::GPU) {
+  if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(this->flow_handle_, cuda::groupnorm::run_backward_fused<Compute_T>,
                             grad_output->data_as<Compute_T>(), norm_input->data_as<Compute_T>(),
                             inv_std->data_as<Compute_T>(), gamma->data_as<Compute_T>(),
@@ -192,28 +180,9 @@ LayerConfig GroupNormLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> GroupNormLayer::clone() const {
-  return std::make_unique<GroupNormLayer>(num_groups_, num_channels_, epsilon_, affine_,
-                                          this->name_);
-}
-
 std::vector<size_t> GroupNormLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   return input_shape;
-}
-
-void GroupNormLayer::collect_parameters(std::vector<Tensor> &params) {
-  if (affine_) {
-    params.push_back(gamma_);
-    params.push_back(beta_);
-  }
-}
-
-void GroupNormLayer::collect_gradients(std::vector<Tensor> &grads) {
-  if (affine_) {
-    grads.push_back(gamma_gradients_);
-    grads.push_back(beta_gradients_);
-  }
 }
 
 std::unique_ptr<GroupNormLayer> GroupNormLayer::create_from_config(const LayerConfig &config) {
@@ -223,45 +192,6 @@ std::unique_ptr<GroupNormLayer> GroupNormLayer::create_from_config(const LayerCo
   bool affine = config.get<bool>("affine");
 
   return std::make_unique<GroupNormLayer>(num_groups, num_channels, epsilon, affine, config.name);
-}
-
-uint64_t GroupNormLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-  size_t batch_size = input_shape[0];
-  size_t channels_per_group = num_channels_ / num_groups_;
-  size_t spatial_size = num_elements / (batch_size * num_channels_);
-
-  // Mean computation per group
-  uint64_t mean_flops = batch_size * num_groups_ * channels_per_group * spatial_size;
-
-  // Variance computation per group
-  uint64_t var_flops = 2 * num_elements + mean_flops;
-
-  // Normalization
-  uint64_t norm_flops = 3 * num_elements;
-
-  // Affine transformation
-  uint64_t affine_flops = affine_ ? (2 * num_elements) : 0;
-
-  return mean_flops + var_flops + norm_flops + affine_flops;
-}
-
-uint64_t GroupNormLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  size_t num_elements =
-      std::accumulate(input_shape.begin(), input_shape.end(), 1, std::multiplies<size_t>());
-  size_t batch_size = input_shape[0];
-  size_t channels_per_group = num_channels_ / num_groups_;
-  size_t spatial_size = num_elements / (batch_size * num_channels_);
-
-  // Parameter gradients
-  uint64_t param_grad_flops =
-      affine_ ? (2 * batch_size * num_groups_ * channels_per_group * spatial_size) : 0;
-
-  // Input gradients
-  uint64_t input_grad_flops = 9 * num_elements;
-
-  return param_grad_flops + input_grad_flops;
 }
 
 }  // namespace tnn

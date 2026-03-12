@@ -123,7 +123,9 @@ private:
   }
 
 public:
-  MNISTDataLoader(DType_t dtype = DType_t::FP32) : ImageDataLoader(), dtype_(dtype) {
+  MNISTDataLoader(DType_t dtype = DType_t::FP32)
+      : ImageDataLoader(),
+        dtype_(dtype) {
     data_.reserve(60000);
     labels_.reserve(60000);
   }
@@ -136,11 +138,11 @@ public:
    * @return true if successful, false otherwise
    */
   bool load_data(const std::string &source) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return load_data_impl<T>(source));
+    DISPATCH_DTYPE(dtype_, T, return load_data_impl<T>(source));
   }
 
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   /**

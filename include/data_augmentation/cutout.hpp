@@ -12,12 +12,13 @@ namespace tnn {
 class CutoutAugmentation : public Augmentation {
 public:
   CutoutAugmentation(float probability = 0.5f, int cutout_size = 8)
-      : probability_(probability), cutout_size_(cutout_size) {
+      : probability_(probability),
+        cutout_size_(cutout_size) {
     this->name_ = "Cutout";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

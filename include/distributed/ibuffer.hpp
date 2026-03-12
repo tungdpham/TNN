@@ -20,13 +20,14 @@
 
 namespace tnn {
 
-class TBuffer {
-private:
+class IBuffer {
+protected:
   dptr data_;
   size_t size_;
   // Endianess of the data in the buffer, does not apply to write. Read functions will swap bytes if
   // needed.
-  Endianness endianess_ = get_system_endianness();  // 0 for little-endian and 1 for big-endian
+  mutable Endianness endianess_ =
+      get_system_endianness();  // 0 for little-endian and 1 for big-endian
 
   static constexpr size_t MAX_ARRAY_SIZE = static_cast<size_t>(-1) - 8;
 
@@ -37,34 +38,34 @@ private:
   }
 
 public:
-  TBuffer()
+  IBuffer()
       : data_(nullptr),
         size_(0) {}
 
-  TBuffer(IAllocator &allocator, size_t capacity)
+  IBuffer(IAllocator &allocator, size_t capacity)
       : data_(allocator.allocate(capacity)),
         size_(0) {}
 
-  TBuffer(dptr &&data)
+  IBuffer(dptr &&data)
       : data_(std::move(data)),
         size_(0) {}
 
-  TBuffer(const TBuffer &other)
+  IBuffer(const IBuffer &other)
       : data_(other.data_),
         size_(other.size_) {}
 
-  TBuffer(TBuffer &&other) noexcept
+  IBuffer(IBuffer &&other) noexcept
       : data_(std::move(other.data_)),
         size_(other.size_) {
     other.data_ = nullptr;
     other.size_ = 0;
   }
 
-  ~TBuffer() = default;
+  ~IBuffer() = default;
 
-  TBuffer &operator=(const TBuffer &other) = delete;
+  IBuffer &operator=(const IBuffer &other) = delete;
 
-  TBuffer &operator=(TBuffer &&other) noexcept {
+  IBuffer &operator=(IBuffer &&other) noexcept {
     if (this != &other) {
       data_ = std::move(other.data_);
       size_ = other.size_;
@@ -73,7 +74,7 @@ public:
     return *this;
   }
 
-  void set_endianess(Endianness endianess) { endianess_ = endianess; }
+  void set_endianess(Endianness endianess) const { endianess_ = endianess; }
 
   Endianness get_endianess() const { return endianess_; }
 
@@ -202,7 +203,7 @@ public:
 
   void resize(size_t new_size) {
     if (new_size > data_.capacity()) {
-      throw std::runtime_error("TBuffer: resize exceeds buffer capacity");
+      throw std::runtime_error("IBuffer: resize exceeds buffer capacity");
     }
     size_ = new_size;
   }
@@ -210,7 +211,7 @@ public:
 private:
   void ensure_capacity(size_t required_capacity) {
     if (required_capacity > data_.capacity()) {
-      throw std::runtime_error("TBuffer: write exceeds buffer capacity");
+      throw std::runtime_error("IBuffer: write exceeds buffer capacity");
     }
   }
 };

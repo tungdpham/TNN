@@ -13,6 +13,8 @@
 #include <vector>
 
 #include "device/device_manager.hpp"
+#include "device/pool_allocator.hpp"
+#include "nn/graph_builder.hpp"
 #include "tensor/tensor.hpp"
 
 using namespace tnn;
@@ -155,21 +157,26 @@ protected:
 TEST_F(GroupNormLayerTest, BasicForwardPass) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn");
-  layer.set_device(getCPU());
-  layer.init();
-  layer.set_training(true);
+  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
+  auto layer_layer =
+      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn");
+  auto &node = builder.add_layer(std::move(layer_layer));
+
+  Graph graph = builder.compile(allocator);
+  node.set_training(true);
+
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10);
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getCPU());
-  layer.forward(input, output);
+  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Tensor output = make_tensor<float>(output_shape, getHost());
+  node.forward({input}, {output});
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -180,27 +187,32 @@ TEST_F(GroupNormLayerTest, BasicForwardPass) {
 TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
-  layer.set_device(getCPU());
-  layer.init();
-  layer.set_training(true);
+  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
+  auto layer_layer =
+      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, true, "test_gn_affine");
+  auto &node = builder.add_layer(std::move(layer_layer));
+
+  Graph graph = builder.compile(allocator);
+  node.set_training(true);
+
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getCPU());
-  layer.forward(input, output);
+  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Tensor output = make_tensor<float>(output_shape, getHost());
+  node.forward({input}, {output});
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
   compute_group_statistics(input, num_groups, expected_mean, expected_var);
 
-  std::vector<Tensor> params = layer.parameters();
+  std::vector<Tensor> params = node.parameters();
   ASSERT_EQ(params.size(), 2);
 
   verify_forward_result(input, output, num_groups, expected_mean, expected_var, 1e-5f, params[0],
@@ -210,21 +222,26 @@ TEST_F(GroupNormLayerTest, ForwardPassWithAffine) {
 TEST_F(GroupNormLayerTest, SingleGroup) {
   size_t num_groups = 1;
   size_t num_channels = 4;
-  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_single");
-  layer.set_device(getCPU());
-  layer.init();
-  layer.set_training(true);
+  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  Tensor input = make_tensor<float>({2, num_channels, 2, 2}, getCPU());
+  auto layer_layer =
+      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn_single");
+  auto &node = builder.add_layer(std::move(layer_layer));
+
+  Graph graph = builder.compile(allocator);
+  node.set_training(true);
+
+  Tensor input = make_tensor<float>({2, num_channels, 2, 2}, getHost());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getCPU());
-  layer.forward(input, output);
+  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Tensor output = make_tensor<float>(output_shape, getHost());
+  node.forward({input}, {output});
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -235,21 +252,26 @@ TEST_F(GroupNormLayerTest, SingleGroup) {
 TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
   size_t num_groups = 4;
   size_t num_channels = 4;
-  GroupNormLayer layer(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
-  layer.set_device(getCPU());
-  layer.init();
-  layer.set_training(true);
+  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
+  auto layer_layer =
+      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, false, "test_gn_instance");
+  auto &node = builder.add_layer(std::move(layer_layer));
+
+  Graph graph = builder.compile(allocator);
+  node.set_training(true);
+
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>((i * 3) % 7) + 0.5f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getCPU());
-  layer.forward(input, output);
+  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Tensor output = make_tensor<float>(output_shape, getHost());
+  node.forward({input}, {output});
   verify_output_shape(input, output);
 
   std::vector<float> expected_mean, expected_var;
@@ -260,27 +282,32 @@ TEST_F(GroupNormLayerTest, ChannelsEqualsGroups) {
 TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
   size_t num_groups = 2;
   size_t num_channels = 4;
-  GroupNormLayer layer(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
-  layer.set_device(getCPU());
-  layer.init();
-  layer.set_training(true);
+  auto &allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getCPU());
+  auto layer_layer =
+      std::make_unique<GroupNormLayer>(num_groups, num_channels, 1e-5f, true, "test_gn_backward");
+  auto &node = builder.add_layer(std::move(layer_layer));
+
+  Graph graph = builder.compile(allocator);
+  node.set_training(true);
+
+  Tensor input = make_tensor<float>({2, num_channels, 3, 3}, getHost());
 
   float *data = input->data_as<float>();
   for (size_t i = 0; i < input->size(); ++i) {
     data[i] = static_cast<float>(i % 10) + 1.0f;
   }
 
-  std::vector<size_t> output_shape = layer.compute_output_shape(input->shape());
-  Tensor output = make_tensor<float>(output_shape, getCPU());
-  layer.forward(input, output);
+  std::vector<size_t> output_shape = node.output_shapes({input->shape()})[0];
+  Tensor output = make_tensor<float>(output_shape, getHost());
+  node.forward({input}, {output});
 
   Tensor grad_output = output->clone();
   grad_output->fill(1.0f);
 
-  Tensor grad_input = make_tensor<float>(input->shape(), getCPU());
-  layer.backward(grad_output, grad_input);
+  Tensor grad_input = make_tensor<float>(input->shape(), getHost());
+  node.backward({grad_output}, {grad_input});
 
   auto input_shape = input->shape();
   auto grad_input_shape = grad_input->shape();
@@ -301,7 +328,9 @@ TEST_F(GroupNormLayerTest, BackwardPassGradientFlow) {
 }
 
 TEST_F(GroupNormLayerTest, InvalidConfiguration) {
-  EXPECT_THROW({ GroupNormLayer layer(3, 5, 1e-5f, true, "invalid"); }, std::invalid_argument);
+  EXPECT_THROW(
+      { auto layer_layer = std::make_unique<GroupNormLayer>(3, 5, 1e-5f, true, "invalid"); },
+      std::invalid_argument);
 }
 
 TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
@@ -319,24 +348,6 @@ TEST_F(GroupNormLayerTest, ConfigurationRoundTrip) {
   auto restored = GroupNormLayer::create_from_config(config);
   EXPECT_NE(restored, nullptr);
   EXPECT_EQ(restored->type(), "groupnorm");
-}
-
-TEST_F(GroupNormLayerTest, CloneLayer) {
-  size_t num_groups = 2;
-  size_t num_channels = 4;
-  GroupNormLayer original(num_groups, num_channels, 1e-5f, true, "test_clone");
-
-  auto cloned = original.clone();
-  EXPECT_NE(cloned, nullptr);
-  EXPECT_EQ(cloned->type(), "groupnorm");
-
-  LayerConfig original_config = original.get_config();
-  LayerConfig cloned_config = cloned->get_config();
-
-  EXPECT_EQ(cloned_config.get<size_t>("num_groups"), original_config.get<size_t>("num_groups"));
-  EXPECT_EQ(cloned_config.get<size_t>("num_channels"), original_config.get<size_t>("num_channels"));
-  EXPECT_FLOAT_EQ(cloned_config.get<float>("epsilon"), original_config.get<float>("epsilon"));
-  EXPECT_EQ(cloned_config.get<bool>("affine"), original_config.get<bool>("affine"));
 }
 
 int main(int argc, char **argv) {

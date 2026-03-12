@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
 #pragma once
 
 #include <cstddef>
@@ -9,7 +15,7 @@
 
 namespace tnn {
 
-constexpr size_t DEFAULT_ALIGNMENT = 64;
+constexpr size_t DEFAULT_ALIGNMENT = 256;
 
 struct device_storage {
 private:
@@ -19,20 +25,11 @@ private:
   size_t alignment_;
 
 public:
-  device_storage(csref<Device> device, void *ptr = nullptr, size_t capacity = 0,
-                 size_t alignment = DEFAULT_ALIGNMENT)
+  device_storage(csref<Device> device, void *ptr, size_t capacity, size_t alignment)
       : device_(device),
         ptr_(ptr),
         capacity_(capacity),
         alignment_(alignment) {}
-
-  ~device_storage() {
-    if (ptr_) {
-      device_->deallocateAlignedMemory(static_cast<void *>(ptr_));
-    }
-    ptr_ = nullptr;
-    capacity_ = 0;
-  }
 
   csref<Device> device() const { return device_; }
   void *data() const { return ptr_; }
@@ -100,18 +97,18 @@ public:
         static_cast<const void *>(static_cast<const uint8_t *>(storage_->data()) + offset_));
   }
 
-  dptr span(size_t start_offset, size_t span_size) {
-    if (start_offset + span_size > capacity_) {
+  dptr span(size_t offset, size_t span_size) {
+    if (offset + span_size > capacity_) {
       throw std::out_of_range("dptr span size out of range");
     }
-    return dptr(storage_, offset_ + start_offset, span_size);
+    return dptr(storage_, offset_ + offset, span_size);
   }
 
-  const dptr span(size_t start_offset, size_t span_size) const {
-    if (start_offset + span_size > capacity_) {
+  const dptr span(size_t offset, size_t span_size) const {
+    if (offset + span_size > capacity_) {
       throw std::out_of_range("dptr span size out of range");
     }
-    return dptr(storage_, offset_ + start_offset, span_size);
+    return dptr(storage_, offset_ + offset, span_size);
   }
 
   dptr operator+(size_t offset) const {
@@ -153,7 +150,11 @@ inline dptr make_dptr(csref<Device> device, size_t byte_size,
   if (!ptr) {
     throw std::runtime_error("Bad Alloc");
   }
-  auto storage = std::make_shared<device_storage>(device, ptr, byte_size, alignment);
+  auto storage = std::shared_ptr<device_storage>(
+      new device_storage(device, ptr, byte_size, alignment), [device](device_storage *s) {
+        device->deallocateAlignedMemory(s->data());
+        delete s;
+      });
   return dptr(storage, 0, byte_size);
 }
 

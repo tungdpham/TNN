@@ -51,7 +51,9 @@ private:
 public:
   OpenWebTextDataLoader(size_t context_length, DType_t dtype = DType_t::FP32,
                         int padding_token_id = -1)
-      : dtype_(dtype), context_length_(context_length), padding_token_id_(padding_token_id) {}
+      : dtype_(dtype),
+        context_length_(context_length),
+        padding_token_id_(padding_token_id) {}
 
   ~OpenWebTextDataLoader() {
     if (mapped_data_ != MAP_FAILED && mapped_data_ != nullptr) {
@@ -100,7 +102,7 @@ public:
   }
 
   bool get_batch(size_t batch_size, Tensor &batch_data, Tensor &batch_labels) override {
-    DISPATCH_ON_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
+    DISPATCH_DTYPE(dtype_, T, return get_batch_impl<T>(batch_size, batch_data, batch_labels));
   }
 
   void reset() override { this->current_index_ = 0; }

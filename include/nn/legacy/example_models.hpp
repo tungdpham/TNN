@@ -7,6 +7,8 @@
 #pragma once
 
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph_builder.hpp"
+#include "nn/layers.hpp"
 
 namespace tnn {
 namespace legacy {
@@ -40,6 +42,41 @@ public:
 
   static void register_defaults();
 };
+
+inline Graph load_or_create_model(const std::string &model_name, const std::string &model_path,
+                                  IAllocator &allocator) {
+  GraphBuilder builder;
+  std::unique_ptr<Sequential> model;
+  if (!model_path.empty()) {
+    std::cout << "Loading model from: " << model_path << std::endl;
+    std::ifstream file(model_path, std::ios::binary);
+    if (!file.is_open()) {
+      throw std::runtime_error("Failed to open model file");
+    }
+    auto model = load_config<Sequential>(file);
+    load_params(file, *model);
+    builder.add_layer(std::move(model));
+    Graph graph = builder.compile(allocator);
+    file.close();
+    return graph;
+  } else {
+    try {
+      auto model = std::make_unique<Sequential>(ExampleModels::create(model_name));
+      builder.add_layer(std::move(model));
+      Graph graph = builder.compile(allocator);
+      std::cout << "Created model: " << model_name << std::endl;
+      return graph;
+    } catch (const std::exception &e) {
+      std::cerr << "Error creating model: " << e.what() << std::endl;
+      std::cout << "Available models are: ";
+      for (const auto &name : ExampleModels::available_models()) {
+        std::cout << name << "\n";
+      }
+      std::cout << std::endl;
+      throw std::runtime_error("Failed to create model");
+    }
+  }
+}
 
 }  // namespace legacy
 }  // namespace tnn

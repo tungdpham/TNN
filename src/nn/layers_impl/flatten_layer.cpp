@@ -11,7 +11,9 @@
 namespace tnn {
 
 FlattenLayer::FlattenLayer(int start_dim, int end_dim, const std::string &name)
-    : StatelessLayer(name), start_dim_(start_dim), end_dim_(end_dim) {}
+    : StatelessLayer(name),
+      start_dim_(start_dim),
+      end_dim_(end_dim) {}
 
 void FlattenLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
   micro_batch_original_shapes_[mb_id] = input->shape();
@@ -22,7 +24,7 @@ void FlattenLayer::forward_impl(const ConstTensor &input, const Tensor &output, 
   input->copy_to(output);
 }
 
-void FlattenLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void FlattenLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                  size_t mb_id) {
   auto it = micro_batch_original_shapes_.find(mb_id);
   if (it == micro_batch_original_shapes_.end()) {
@@ -32,11 +34,11 @@ void FlattenLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad
   const std::vector<size_t> &original_shape = it->second;
   size_t expected_size =
       std::accumulate(original_shape.begin(), original_shape.end(), 1, std::multiplies<size_t>());
-  if (gradient->size() != expected_size) {
+  if (grad_output->size() != expected_size) {
     throw std::runtime_error("Gradient size does not match original input size in FlattenLayer");
   }
   grad_input->ensure(original_shape);
-  gradient->copy_to(grad_input);
+  grad_output->copy_to(grad_input);
 }
 
 LayerConfig FlattenLayer::get_config() const {
@@ -46,10 +48,6 @@ LayerConfig FlattenLayer::get_config() const {
   config.set("start_dim", start_dim_);
   config.set("end_dim", end_dim_);
   return config;
-}
-
-std::unique_ptr<Layer> FlattenLayer::clone() const {
-  return std::make_unique<FlattenLayer>(this->start_dim_, this->end_dim_, this->name_);
 }
 
 std::vector<size_t> FlattenLayer::compute_output_shape(
@@ -91,9 +89,5 @@ std::unique_ptr<FlattenLayer> FlattenLayer::create_from_config(const LayerConfig
   int end_dim = config.get<int>("end_dim", -1);
   return std::make_unique<FlattenLayer>(start_dim, end_dim, config.name);
 }
-
-uint64_t FlattenLayer::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }
-
-uint64_t FlattenLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
 
 }  // namespace tnn

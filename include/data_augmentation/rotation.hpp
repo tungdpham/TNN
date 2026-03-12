@@ -14,12 +14,13 @@ namespace tnn {
 class RotationAugmentation : public Augmentation {
 public:
   RotationAugmentation(float probability = 0.5f, float max_angle_degrees = 15.0f)
-      : probability_(probability), max_angle_degrees_(max_angle_degrees) {
+      : probability_(probability),
+        max_angle_degrees_(max_angle_degrees) {
     this->name_ = "Rotation";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

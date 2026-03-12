@@ -12,12 +12,13 @@ namespace tnn {
 class RandomCropAugmentation : public Augmentation {
 public:
   RandomCropAugmentation(float probability = 0.5f, int padding = 4)
-      : probability_(probability), padding_(padding) {
+      : probability_(probability),
+        padding_(padding) {
     this->name_ = "RandomCrop";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

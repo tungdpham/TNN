@@ -47,7 +47,7 @@ static void reference_slice_forward(const std::vector<T> &input, std::vector<T> 
 }
 
 template <typename T>
-static void reference_slice_backward(const std::vector<T> &gradient, std::vector<T> &grad_input,
+static void reference_slice_backward(const std::vector<T> &grad_output, std::vector<T> &grad_input,
                                      const std::vector<size_t> &input_shape, size_t axis,
                                      size_t start, size_t length) {
   size_t outer_size = 1;
@@ -68,7 +68,7 @@ static void reference_slice_backward(const std::vector<T> &gradient, std::vector
       for (size_t i = 0; i < inner_size; ++i) {
         size_t grad_idx = o * length * inner_size + l * inner_size + i;
         size_t input_idx = o * axis_size * inner_size + (start + l) * inner_size + i;
-        grad_input[input_idx] = gradient[grad_idx];
+        grad_input[input_idx] = grad_output[grad_idx];
       }
     }
   }
@@ -112,16 +112,17 @@ TEST(SliceOpsTest, CpuForwardBackwardMatchesReference) {
           << "axis=" << c.axis << " start=" << c.start << " length=" << c.length << " idx=" << i;
     }
 
-    std::vector<T> gradient(expected_out.size());
-    for (size_t i = 0; i < gradient.size(); ++i) {
-      gradient[i] = static_cast<T>(100 + i);
+    std::vector<T> grad_output(expected_out.size());
+    for (size_t i = 0; i < grad_output.size(); ++i) {
+      grad_output[i] = static_cast<T>(100 + i);
     }
 
     std::vector<T> expected_grad_input;
-    reference_slice_backward(gradient, expected_grad_input, input_shape, c.axis, c.start, c.length);
+    reference_slice_backward(grad_output, expected_grad_input, input_shape, c.axis, c.start,
+                             c.length);
 
     std::vector<T> actual_grad_input(product(input_shape), T(-1));
-    tnn::cpu::slice::slice_backward<T>(gradient.data(), actual_grad_input.data(), input_shape,
+    tnn::cpu::slice::slice_backward<T>(grad_output.data(), actual_grad_input.data(), input_shape,
                                        c.axis, c.start, c.length);
 
     ASSERT_EQ(actual_grad_input.size(), expected_grad_input.size());
@@ -167,19 +168,19 @@ TEST(SliceOpsTest, CudaForwardBackwardMatchesReference) {
     EXPECT_EQ(actual_out[i], expected_out[i]) << "idx=" << i;
   }
 
-  std::vector<T> gradient(expected_out.size());
-  for (size_t i = 0; i < gradient.size(); ++i) {
-    gradient[i] = static_cast<T>(100 + i);
+  std::vector<T> grad_output(expected_out.size());
+  for (size_t i = 0; i < grad_output.size(); ++i) {
+    grad_output[i] = static_cast<T>(100 + i);
   }
   std::vector<T> expected_grad_input;
-  reference_slice_backward(gradient, expected_grad_input, input_shape, axis, start, length);
+  reference_slice_backward(grad_output, expected_grad_input, input_shape, axis, start, length);
 
   T *d_grad = nullptr;
   T *d_grad_in = nullptr;
-  cudaMalloc(&d_grad, gradient.size() * sizeof(T));
+  cudaMalloc(&d_grad, grad_output.size() * sizeof(T));
   cudaMalloc(&d_grad_in, input.size() * sizeof(T));
 
-  cudaMemcpy(d_grad, gradient.data(), gradient.size() * sizeof(T), cudaMemcpyHostToDevice);
+  cudaMemcpy(d_grad, grad_output.data(), grad_output.size() * sizeof(T), cudaMemcpyHostToDevice);
   cudaMemset(d_grad_in, 0, input.size() * sizeof(T));
 
   tnn::cuda::slice::slice_backward<T>(d_grad, d_grad_in, input_shape, axis, start, length, 0);

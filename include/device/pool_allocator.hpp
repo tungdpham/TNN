@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2025 Tung D. Pham
+ *
+ * This software is licensed under the MIT License. See the LICENSE file in the
+ * project root for the full license text.
+ */
 #pragma once
 
 #include <cstddef>
@@ -23,7 +29,7 @@ public:
   PoolAllocator(const Device &device, flowHandle_t flow = defaultFlowHandle)
       : device_(device),
         flow_(flow) {}
-  ~PoolAllocator() = default;
+  ~PoolAllocator() { clear(); }
 
   PoolAllocator(const PoolAllocator &) = delete;
   PoolAllocator &operator=(const PoolAllocator &) = delete;
@@ -44,15 +50,25 @@ public:
     device_storage *ptr = allocate_storage(size);
     auto storage =
         std::shared_ptr<device_storage>(ptr, [this](device_storage *ptr) { this->reclaim(ptr); });
-    return dptr(storage, 0, storage->capacity());
+    return dptr(storage, 0, size);
   }
 
-  void clear() {
+  void clear() override {
     std::lock_guard<std::mutex> lock(mutex_);
-    for (auto &pair : free_blocks_) {
-      delete pair.second;
+    for (auto &[size, storage] : free_blocks_) {
+      if (storage) {
+        device_.deallocateAlignedMemory(storage->data());
+        delete storage;
+      }
     }
     free_blocks_.clear();
+  }
+
+  void reserve(size_t size) override {
+    // pre-allocate a block of memory to be used in future allocate() calls
+    device_storage *ptr = allocate_storage(size);
+    std::lock_guard<std::mutex> lock(mutex_);
+    free_blocks_.emplace(ptr->capacity(), ptr);  // add to free blocks for future reuse
   }
 
   size_t size() const {
@@ -69,7 +85,7 @@ public:
     return total;
   }
 
-  const Device &device() const { return device_; }
+  const Device &device() const override { return device_; }
 
 private:
   std::multimap<size_t, device_storage *> free_blocks_;
@@ -79,13 +95,10 @@ private:
 
   device_storage *allocate_storage(size_t size) {
     if (size == 0) {
-      return new device_storage(device_);
+      return new device_storage(device_, nullptr, 0, DEFAULT_ALIGNMENT);
     }
-
     std::lock_guard<std::mutex> lock(mutex_);
-
     auto it = free_blocks_.lower_bound(size);
-
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
       if (block->capacity() <= size * 2) {
@@ -94,10 +107,8 @@ private:
       }
     }
 #ifndef NDEBUG
-    if (size > 0)
-      std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
+    std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
 #endif
-
     void *ptr = device_.allocateAlignedMemory(size, DEFAULT_ALIGNMENT);
     return new device_storage(device_, ptr, size, DEFAULT_ALIGNMENT);
   }

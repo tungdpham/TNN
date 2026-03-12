@@ -31,8 +31,8 @@ struct ConvolutionStats {
   size_t bgrad_workspace_size = 0;
 };
 
-inline void init_convolution_stats(ConvolutionStats &stats, size_t batch_size, size_t in_channels,
-                                   size_t input_h, size_t input_w, size_t out_channels,
+inline void init_convolution_stats(ConvolutionStats &stats, size_t batch_size, size_t input_h,
+                                   size_t input_w, size_t in_channels, size_t out_channels,
                                    size_t kernel_h, size_t kernel_w, size_t stride_h,
                                    size_t stride_w, size_t pad_h, size_t pad_w, bool use_bias) {
   stats.batch_size = batch_size;

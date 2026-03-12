@@ -5,6 +5,7 @@
  * project root for the full license text.
  */
 
+#include "nn/layers_impl/common/conv2d.hpp"
 #ifdef USE_CUDNN
 #include <cudnn.h>
 
@@ -41,11 +42,8 @@ cudnnDataType_t get_cudnn_data_type<double>() {
   return CUDNN_DATA_DOUBLE;
 }
 
-ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle, size_t batch_size,
-                                                 size_t in_channels, size_t input_h, size_t input_w,
-                                                 size_t out_channels, size_t kernel_h,
-                                                 size_t kernel_w, size_t stride_h, size_t stride_w,
-                                                 size_t pad_h, size_t pad_w,
+ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle,
+                                                 ConvolutionStats& stats,
                                                  size_t workspace_limit_bytes) {
   std::cout << "Initalizing cudnn conv2d handle" << std::endl;
   ConvolutionHandle* handle = new ConvolutionHandle();
@@ -59,27 +57,27 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle, si
   CHECK_CUDNN(cudnnCreateTensorDescriptor(&handle->bias_descriptor));
   CHECK_CUDNN(cudnnCreateActivationDescriptor(&handle->activation_descriptor));
 
-  size_t output_h = (input_h + 2 * pad_h - kernel_h) / stride_h + 1;
-  size_t output_w = (input_w + 2 * pad_w - kernel_w) / stride_w + 1;
+  size_t output_h = (stats.input_h + 2 * stats.pad_h - stats.kernel_h) / stats.stride_h + 1;
+  size_t output_w = (stats.input_w + 2 * stats.pad_w - stats.kernel_w) / stats.stride_w + 1;
 
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, in_channels, input_h,
-                                         input_w));
+                                         CUDNN_DATA_FLOAT, stats.batch_size, stats.in_channels,
+                                         stats.input_h, stats.input_w));
 
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, out_channels, output_h,
-                                         output_w));
+                                         CUDNN_DATA_FLOAT, stats.batch_size, stats.out_channels,
+                                         output_h, output_w));
 
   CHECK_CUDNN(cudnnSetFilter4dDescriptor(handle->filter_descriptor, CUDNN_DATA_FLOAT,
-                                         CUDNN_TENSOR_NCHW, out_channels, in_channels, kernel_h,
-                                         kernel_w));
+                                         CUDNN_TENSOR_NCHW, stats.out_channels, stats.in_channels,
+                                         stats.kernel_h, stats.kernel_w));
 
-  CHECK_CUDNN(cudnnSetConvolution2dDescriptor(handle->convolution_descriptor, pad_h, pad_w,
-                                              stride_h, stride_w, 1, 1, CUDNN_CROSS_CORRELATION,
-                                              CUDNN_DATA_FLOAT));
+  CHECK_CUDNN(cudnnSetConvolution2dDescriptor(handle->convolution_descriptor, stats.pad_h,
+                                              stats.pad_w, stats.stride_h, stats.stride_w, 1, 1,
+                                              CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT));
 
   CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->bias_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, 1, out_channels, 1, 1));
+                                         CUDNN_DATA_FLOAT, 1, stats.out_channels, 1, 1));
 
   int requested_algo_count = 10;
   int returned_algo_count;
@@ -97,7 +95,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle, si
     if (fwd_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || fwd_perf[i].memory <= workspace_limit_bytes)) {
       handle->fwd_algo = fwd_perf[i].algo;
-      handle->fwd_workspace_size = fwd_perf[i].memory;
+      stats.fwd_workspace_size = fwd_perf[i].memory;
       found_fwd = true;
 
       break;
@@ -117,7 +115,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle, si
     if (bwd_data_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || bwd_data_perf[i].memory <= workspace_limit_bytes)) {
       handle->bwd_data_algo = bwd_data_perf[i].algo;
-      handle->bwd_data_workspace_size = bwd_data_perf[i].memory;
+      stats.dgrad_workspace_size = bwd_data_perf[i].memory;
       found_bwd_data = true;
 
       break;
@@ -137,7 +135,7 @@ ConvolutionHandle* initialize_convolution_handle(cudnnHandle_t shared_handle, si
     if (bwd_filter_perf[i].status == CUDNN_STATUS_SUCCESS &&
         (workspace_limit_bytes == 0 || bwd_filter_perf[i].memory <= workspace_limit_bytes)) {
       handle->bwd_filter_algo = bwd_filter_perf[i].algo;
-      handle->bwd_filter_workspace_size = bwd_filter_perf[i].memory;
+      stats.wgrad_workspace_size = bwd_filter_perf[i].memory;
       found_bwd_filter = true;
 
       break;
@@ -231,41 +229,6 @@ void backward_bias(ConvolutionHandle* handle, const void* gradient_data, void* b
   CHECK_CUDNN(cudnnConvolutionBackwardBias(handle->cudnn_handle, &alpha, handle->output_descriptor,
                                            gradient_data, &beta, handle->bias_descriptor,
                                            bias_grad_data));
-}
-
-void update_batch_size(ConvolutionHandle* handle, size_t batch_size, size_t in_channels,
-                       size_t input_h, size_t input_w, size_t out_channels, size_t output_h,
-                       size_t output_w) {
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->input_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, in_channels, input_h,
-                                         input_w));
-
-  CHECK_CUDNN(cudnnSetTensor4dDescriptor(handle->output_descriptor, CUDNN_TENSOR_NCHW,
-                                         CUDNN_DATA_FLOAT, batch_size, out_channels, output_h,
-                                         output_w));
-
-  CHECK_CUDNN(cudnnGetConvolutionForwardWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->filter_descriptor,
-      handle->convolution_descriptor, handle->output_descriptor, handle->fwd_algo,
-      &handle->fwd_workspace_size));
-
-  CHECK_CUDNN(cudnnGetConvolutionBackwardDataWorkspaceSize(
-      handle->cudnn_handle, handle->filter_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->input_descriptor, handle->bwd_data_algo,
-      &handle->bwd_data_workspace_size));
-
-  CHECK_CUDNN(cudnnGetConvolutionBackwardFilterWorkspaceSize(
-      handle->cudnn_handle, handle->input_descriptor, handle->output_descriptor,
-      handle->convolution_descriptor, handle->filter_descriptor, handle->bwd_filter_algo,
-      &handle->bwd_filter_workspace_size));
-}
-
-WorkspaceSizes get_workspace_sizes(ConvolutionHandle* handle, size_t batch_size) {
-  WorkspaceSizes sizes;
-  sizes.fwd_size = handle->fwd_workspace_size;
-  sizes.bwd_data_size = handle->bwd_data_workspace_size;
-  sizes.bwd_filter_size = handle->bwd_filter_workspace_size;
-  return sizes;
 }
 
 #define INSTANTIATE_CUDNN_CONV2D(T)                                                            \

@@ -8,22 +8,27 @@ namespace tnn {
 struct fp16 {
   uint16_t data;
 
-  fp16() : data(0) {}
-  explicit fp16(uint16_t d) : data(d) {}
+  fp16()
+      : data(0) {}
+  explicit fp16(uint16_t d)
+      : data(d) {}
 
   // Constructors from other types
-  fp16(float f) : data(float_to_fp16(f)) {}
-  fp16(double d) : data(float_to_fp16(static_cast<float>(d))) {}
-  fp16(int i) : data(float_to_fp16(static_cast<float>(i))) {}
-  fp16(size_t s) : data(float_to_fp16(static_cast<float>(s))) {}
+  fp16(float f)
+      : data(float_to_fp16(f)) {}
+  explicit fp16(double d)
+      : data(float_to_fp16(static_cast<float>(d))) {}
+  explicit fp16(int i)
+      : data(float_to_fp16(static_cast<float>(i))) {}
+  explicit fp16(size_t s)
+      : data(float_to_fp16(static_cast<float>(s))) {}
 
   // Conversion operators
-  // Non-explicit conversions to float/double so fp16 works with math functions like exp()
+  // Non-explicit conversion to float so fp16 works with math functions like exp()
   operator float() const { return fp16_to_float(data); }
-  operator double() const { return static_cast<double>(fp16_to_float(data)); }
 
   // Conversion to uint16_t for raw bit access (e.g., serialization, endian conversion)
-  operator uint16_t() const { return data; }
+  explicit operator uint16_t() const { return data; }
 
   // Explicit conversion to size_t for indexing operations (e.g., embedding layers)
   explicit operator size_t() const { return static_cast<size_t>(fp16_to_float(data)); }

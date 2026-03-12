@@ -12,6 +12,7 @@
 #include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "nn/block.hpp"
@@ -22,72 +23,40 @@ namespace tnn {
 class Sequential : public Block {
 private:
   std::vector<std::unique_ptr<Layer>> layers_;
-  size_t max_size_ = 0;
+  std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  void compute_max_size(const std::vector<size_t> &input_shape, DType_t dtype);
+  Vec<size_t> fwd_workspace_sizes(const std::vector<size_t> &shape);
+  Vec<size_t> bwd_workspace_sizes(const std::vector<size_t> &shape);
 
 protected:
-  void init_impl() override;
-  void on_set_device(const Device &device) override;
-  void on_set_flow_handle(flowHandle_t handle) override {}
-  void on_set_seed(unsigned long long seed) override;
-  void on_set_io_dtype(DType_t dtype) override;
-  void on_set_param_dtype(DType_t dtype) override;
-  void on_set_compute_dtype(DType_t dtype) override;
-  void on_set_training(bool training) override;
-  void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
-                     size_t mb_id = 0) override;
+  std::vector<Layer *> layers() override {
+    std::vector<Layer *> layers;
+    for (auto &layer : layers_) {
+      layers.push_back(layer.get());
+    }
+    return layers;
+  }
 
 public:
-  explicit Sequential(const std::string &name = "seq",
-                      std::vector<std::unique_ptr<Layer>> layers = {});
-
-  Sequential();
+  explicit Sequential(std::vector<std::unique_ptr<Layer>> layers = {},
+                      const std::string &name = "sequential");
 
   static constexpr const char *TYPE_NAME = "sequential";
 
-  Sequential(const Sequential &) = delete;
-  Sequential &operator=(const Sequential &) = delete;
-
-  Sequential(Sequential &&) = default;
-  Sequential &operator=(Sequential &&) = default;
-
-  /**
-   * @brief Returns a vector of pointers to all params in the model
-   */
-  std::vector<Tensor> parameters() override;
-
-  /**
-   * @brief Returns a vector of pointers to all gradients in the model
-   */
-  std::vector<Tensor> gradients() override;
-
-  /**
-   * @brief Returns the output shape for given input shape
-   * @param input_shape The shape of the input tensor as a vector of sizes.
-   */
-  std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-
-  void print_summary(const std::vector<size_t> &input_shape) const;
-
-  const std::vector<Layer *> &get_layers() const;
-
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
-  bool has_parameters() const override;
-
   std::string type() const override { return TYPE_NAME; }
 
+  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) override;
+  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                size_t mb_id) override;
+
+  Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  void print_summary(const std::vector<size_t> &input_shape) const;
+  std::vector<Layer *> get_layers();
   LayerConfig get_config() const override;
-
   static std::unique_ptr<Sequential> create_from_config(const LayerConfig &config);
-
-  std::unique_ptr<Layer> clone() const override;
-
-  size_t cached_memory_bytes() const override;
 };
 
 }  // namespace tnn

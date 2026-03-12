@@ -28,12 +28,12 @@ std::unique_ptr<Task> TransposeLayer::permute(const ConstTensor &input, const Te
     throw std::runtime_error("TransposeLayer IO tensor dtype mismatch with dispatch IO_T");
   }
 
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::permute_heads<Compute_T, Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, cuda::permute_heads<Compute_T, Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(), B, L, H, D);
   }
@@ -58,21 +58,21 @@ void TransposeLayer::forward_impl(const ConstTensor &input, const Tensor &output
   DISPATCH_ON_3_DTYPES_TO_METHOD(permute, input, output, B, L, H, D, this->flow_handle_);
 }
 
-void TransposeLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void TransposeLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   // Gradient is (B, H, L). We want (B, L, H).
-  if (gradient->dims() != 3) {
+  if (grad_output->dims() != 3) {
     throw std::runtime_error("TransposeLayer: Gradient must be 3D");
   }
-  size_t B = gradient->dimension(0);
+  size_t B = grad_output->dimension(0);
   // Gradient output shape was {B, H, L}, so dim(1) is H, dim(2) is L
-  size_t H = gradient->dimension(1);
-  size_t L = gradient->dimension(2);
+  size_t H = grad_output->dimension(1);
+  size_t L = grad_output->dimension(2);
   size_t D = 1;
 
   grad_input->ensure({B, L, H});
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, gradient, grad_input, B, H, L, D, this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(permute, grad_output, grad_input, B, H, L, D, this->flow_handle_);
 }
 
 std::vector<size_t> TransposeLayer::compute_output_shape(
@@ -87,10 +87,6 @@ LayerConfig TransposeLayer::get_config() const {
   config.name = this->name_;
   config.type = this->type();
   return config;
-}
-
-std::unique_ptr<Layer> TransposeLayer::clone() const {
-  return std::make_unique<TransposeLayer>(this->name_);
 }
 
 std::unique_ptr<TransposeLayer> TransposeLayer::create_from_config(const LayerConfig &config) {

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "nn/layer.hpp"
+#include "nn/layers.hpp"
 
 namespace tnn {
 
@@ -8,14 +9,18 @@ struct SeqPartition {
   size_t start_offset;
   size_t length;
 
-  SeqPartition(size_t start, size_t length) : start_offset(start), length(length) {}
+  SeqPartition(size_t start, size_t length)
+      : start_offset(start),
+        length(length) {}
 };
 
 struct InputPartition {
   size_t start_offset;
   size_t length;  // exclusive
 
-  InputPartition(size_t start, size_t length) : start_offset(start), length(length) {}
+  InputPartition(size_t start, size_t length)
+      : start_offset(start),
+        length(length) {}
 };
 
 inline std::vector<std::vector<std::unique_ptr<Layer>>> split(
@@ -32,8 +37,10 @@ inline std::vector<std::vector<std::unique_ptr<Layer>>> split(
     }
 
     auto partition_layers = std::vector<std::unique_ptr<Layer>>();
+    LayerFactory::register_defaults();
     for (size_t i = part.start_offset; i < part.start_offset + part.length; ++i) {
-      partition_layers.push_back(layers[i]->clone());
+      auto layer_config = layers[i]->get_config();
+      partition_layers.push_back(LayerFactory::create(layer_config));
     }
     stages.push_back(std::move(partition_layers));
   }
@@ -42,7 +49,8 @@ inline std::vector<std::vector<std::unique_ptr<Layer>>> split(
 
 class Partitioner {
 public:
-  Partitioner(size_t num_partitions = 1) : num_partitions_(num_partitions){};
+  Partitioner(size_t num_partitions = 1)
+      : num_partitions_(num_partitions){};
   virtual ~Partitioner() = default;
 
   // splits the sequential model into partitions corresponding to each stage

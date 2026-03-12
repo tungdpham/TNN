@@ -1,14 +1,13 @@
-#include "device/cuda/cuda_context.hpp"
-
-#include "device/flow.hpp"
-
+#include <cudnn_graph.h>
 #ifdef USE_CUDA
-
 #include <cuda_runtime.h>
 
 #include <iostream>
 #include <stdexcept>
 #include <string>
+
+#include "device/cuda/cuda_context.hpp"
+#include "device/flow.hpp"
 
 namespace tnn {
 
@@ -21,13 +20,18 @@ CUDAContext::CUDAContext(int id)
                              cudaGetErrorString(err));
   }
   createFlow(defaultFlowHandle);
-#ifdef USE_CUDNN
-  cudnnCreate(&cudnn_handle_);
-#endif
 }
 
 #ifdef USE_CUDNN
-CUDAContext::~CUDAContext() { cudnnDestroy(cudnn_handle_); }
+cudnnHandle_t CUDAContext::getCudnnHandle() {
+  cudnnHandle_t cudnn_handle = nullptr;
+  cudnnStatus_t err = cudnnCreate(&cudnn_handle);
+  if (err != CUDNN_STATUS_SUCCESS) {
+    throw std::runtime_error("Failed to create CUDNN handle: " +
+                             std::string(cudnnGetErrorString(err)));
+  }
+  return cudnn_handle;
+}
 #endif
 
 size_t CUDAContext::getTotalMemory() const {

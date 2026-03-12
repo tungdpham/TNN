@@ -35,20 +35,23 @@ constexpr uint64_t variant_index() {
 namespace tnn {
 
 template <typename T>
-concept Buffer = requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, dptr &dev_ptr,
-                          const dptr &cdev_ptr, std::string &str, uint64_t &val) {
-  t.write(offset, val);
-  t.write(offset, ptr, len);
-  t.write(offset, cdev_ptr, len);
-  t.write(offset, static_cast<const std::string &>(str));
+concept Buffer =
+    requires(T t, const T ct, size_t &offset, uint8_t *ptr, size_t len, dptr &dev_ptr,
+             const dptr &cdev_ptr, std::string &str, uint64_t &val, Endianness endianess) {
+      t.write(offset, val);
+      t.write(offset, ptr, len);
+      t.write(offset, cdev_ptr, len);
+      t.write(offset, static_cast<const std::string &>(str));
 
-  ct.read(offset, val);
-  ct.read(offset, ptr, len);
-  ct.read(offset, dev_ptr, len);
-  ct.read(offset, str);
+      ct.read(offset, val);
+      ct.read(offset, ptr, len);
+      ct.read(offset, dev_ptr, len);
+      ct.read(offset, str);
 
-  { ct.size() } -> std::convertible_to<size_t>;
-};
+      ct.set_endianess(endianess);
+
+      { ct.size() } -> std::convertible_to<size_t>;
+    };
 
 class BinarySerializer {
 private:
@@ -144,6 +147,7 @@ public:
   void deserialize(const BufferType &buffer, size_t &offset, PacketHeader &header) {
     buffer.read(offset, header.PROTOCOL_VERSION);
     buffer.read(offset, header.endianess);
+    buffer.set_endianess(header.endianess);
     buffer.template read<PacketType>(offset, header.type);
     buffer.read(offset, header.packet_length);
     buffer.read(offset, header.msg_length);
@@ -151,14 +155,6 @@ public:
     buffer.read(offset, header.packet_offset);
     buffer.read(offset, header.total_packets);
     buffer.template read<uint8_t>(offset, reinterpret_cast<uint8_t &>(header.compression_type));
-    if (header.endianess != get_system_endianness()) {
-      bswap(header.type);
-      bswap(header.packet_length);
-      bswap(header.msg_length);
-      bswap(header.msg_serial_id);
-      bswap(header.packet_offset);
-      bswap(header.total_packets);
-    }
   }
 
   template <Buffer BufferType>

@@ -36,7 +36,6 @@ private:
                                                       size_t height, size_t width, size_t channels,
                                                       size_t output_h, size_t output_w,
                                                       flowHandle_t handle) const;
-
   template <typename Compute_T>
   std::unique_ptr<Task> compute_avg_pool_backward_impl(const ConstTensor &gradient_data,
                                                        const Tensor &grad_input_data,
@@ -46,7 +45,7 @@ private:
                                                        flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
@@ -55,15 +54,9 @@ public:
   AvgPool2DLayer(size_t pool_h, size_t pool_w, size_t stride_h = 1, size_t stride_w = 1,
                  size_t pad_h = 0, size_t pad_w = 0, const std::string &name = "avgpool2d");
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-
   static std::unique_ptr<AvgPool2DLayer> create_from_config(const LayerConfig &config);
 };
 

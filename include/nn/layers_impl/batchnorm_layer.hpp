@@ -42,11 +42,12 @@ private:
   Tensor dummy_mean_gradients_;
   Tensor dummy_var_gradients_;
 
-  std::unordered_map<size_t, BatchNormStats> stats_cache;
-  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
+  mutable std::unordered_map<size_t, BatchNormStats> stats_cache;
 
 #ifdef USE_CUDNN
-  std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
+  void build_graph(const Vec<size_t> &input_shape) const;
+
+  mutable std::unordered_map<size_t, cuda::cudnn_batchnorm::feHandle_t *> fe_handle_cache;
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> forward_training_task(
       cuda::cudnn_batchnorm::feHandle_t *fe_handle, BatchNormStats &stats, const ConstTensor &input,
@@ -67,7 +68,7 @@ private:
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> backward_task(cuda::cudnn_batchnorm::feHandle_t *fe_handle,
-                                      BatchNormStats &stats, const ConstTensor &gradient,
+                                      BatchNormStats &stats, const ConstTensor &grad_output,
                                       const ConstTensor &relu_mask, const ConstTensor &input,
                                       const Tensor &grad_input, const ConstTensor &gamma,
                                       const Tensor &gamma_gradients, const Tensor &beta_gradients,
@@ -75,14 +76,45 @@ private:
                                       const Tensor &workspace, flowHandle_t handle);
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
-  void cudnn_backward(const ConstTensor &gradient, const Tensor &grad_input, size_t mb_id);
+  void cudnn_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
 #endif
 
-  void init_params() override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    auto gamma_desc = ParamDescriptor{
+        param_dtype_,
+        {num_features_},
+        &gamma_,
+        &gamma_gradients_,
+    };
+    descriptors.push_back(gamma_desc);
+    auto beta_desc = ParamDescriptor{
+        param_dtype_,
+        {num_features_},
+        &beta_,
+        &beta_gradients_,
+    };
+    descriptors.push_back(beta_desc);
+    auto running_mean_desc = ParamDescriptor{
+        param_dtype_,
+        {num_features_},
+        &running_mean_,
+        &dummy_mean_gradients_,
+    };
+    descriptors.push_back(running_mean_desc);
+    auto running_var_desc = ParamDescriptor{
+        param_dtype_,
+        {num_features_},
+        &running_var_,
+        &dummy_var_gradients_,
+    };
+    descriptors.push_back(running_var_desc);
+    return descriptors;
+  }
+
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
@@ -93,13 +125,13 @@ public:
 
   static constexpr const char *TYPE_NAME = "batchnorm";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
-
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   static std::unique_ptr<BatchNormLayer> create_from_config(const LayerConfig &config);
-  std::unique_ptr<Layer> clone() const override;
+
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
 };
 

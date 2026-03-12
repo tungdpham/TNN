@@ -222,10 +222,8 @@ std::unique_ptr<Task> slice_batch(const ConstTensor &input, const Tensor &result
   const size_t copy_size = (end_batch - start_batch) * batch_stride;
 
   if (input->device_type() == DeviceType::CPU) {
-    return create_cpu_task(handle, [=]() {
-      std::copy(&input_data[start_batch * batch_stride], &input_data[end_batch * batch_stride],
-                result_data);
-    });
+    return create_cpu_task(handle, ops::cpu::copy<T>, &input_data[start_batch * batch_stride],
+                           result_data, copy_size);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {

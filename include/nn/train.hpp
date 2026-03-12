@@ -6,10 +6,12 @@
  */
 #pragma once
 
+#include <nlohmann/json.hpp>
+
 #include "data_loading/data_loader.hpp"
 #include "data_loading/regression_data_loader.hpp"
 #include "device/device_type.hpp"
-#include "nn/blocks_impl/sequential.hpp"
+#include "nn/graph.hpp"
 #include "nn/loss.hpp"
 #include "nn/optimizers.hpp"
 #include "nn/schedulers.hpp"
@@ -42,7 +44,6 @@ constexpr int64_t DEFAULT_NUM_THREADS = 8;  // Typical number of P-Cores on lapt
 
 struct TrainingConfig {
   // Trainer params
-  DType_t dtype = DType_t::FP32;
   int epochs = 10;
   size_t batch_size = 32;
   int64_t max_steps = -1;  // -1 for no limit, otherwise max number of batches per epoch
@@ -53,13 +54,22 @@ struct TrainingConfig {
   ProfilerType profiler_type = ProfilerType::NONE;
   bool print_layer_profiling = false;
   bool print_layer_memory_usage = false;
+  std::string model_name =
+      "cifar10_resnet9";          // If set, will try to load this model from example models
+  std::string model_path = "";    // If set, will try to load model from this path before training
+  std::string dataset_name = "";  // e.g., "cifar10", "mnist", "open-web-text", etc.
+  std::string dataset_path = "data";
   DeviceType device_type = DeviceType::CPU;
+  DType_t io_dtype = DType_t::FP32;
+  DType_t param_dtype = DType_t::FP32;
+  DType_t compute_dtype = DType_t::FP32;
 
   // Distributed params
   size_t num_microbatches = 2;
 
   void print_config() const;
   void load_from_env();
+  void load_from_json(const std::string &config_path);
 };
 
 struct Result {
@@ -67,11 +77,10 @@ struct Result {
   double avg_accuracy = -1.0f;
 };
 
-Result validate_model(std::unique_ptr<Sequential> &model,
-                      std::unique_ptr<BaseDataLoader> &val_loader,
+Result validate_model(Graph &graph, std::unique_ptr<BaseDataLoader> &val_loader,
                       const std::unique_ptr<Loss> &criterion, const TrainingConfig &config);
 
-void train_model(std::unique_ptr<Sequential> &model, std::unique_ptr<BaseDataLoader> &train_loader,
+void train_model(Graph &graph, std::unique_ptr<BaseDataLoader> &train_loader,
                  std::unique_ptr<BaseDataLoader> &val_loader, std::unique_ptr<Optimizer> &optimizer,
                  const std::unique_ptr<Loss> &criterion, std::unique_ptr<Scheduler> &scheduler,
                  const TrainingConfig &config = TrainingConfig());

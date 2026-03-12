@@ -52,6 +52,12 @@ struct PacketHeader {
            sizeof(uint32_t) +        // total_packets
            sizeof(CompressionType);  // compression_type
   }
+
+  template <typename Archiver>
+  void archive(Archiver &archiver) {
+    archiver & PROTOCOL_VERSION & type & endianess & packet_length & msg_length & msg_serial_id &
+        packet_offset & total_packets & compression_type;
+  }
 };
 
 struct Packet {

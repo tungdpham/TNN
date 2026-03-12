@@ -15,8 +15,6 @@
 #include "distributed/tcp_coordinator.hpp"
 #include "distributed/tcp_worker.hpp"
 #include "distributed/train.hpp"
-#include "nn/blocks_impl/sequential.hpp"
-#include "nn/layers.hpp"
 #include "nn/legacy/example_models.hpp"
 #include "partitioner/naive_partitioner.hpp"
 #include "utils/env.hpp"
@@ -39,7 +37,7 @@ int main() {
   std::string device_str = Env::get<std::string>("DEVICE_TYPE", "CPU");
   DeviceType device_type = (device_str == "GPU") ? DeviceType::GPU : DeviceType::CPU;
   const auto &device = DeviceManager::getInstance().getDevice(device_type);
-
+  auto &allocator = PoolAllocator::instance(device, defaultFlowHandle);
   string dataset_name = Env::get<std::string>("DATASET_NAME", "");
   if (dataset_name.empty()) {
     throw std::runtime_error("DATASET_NAME environment variable is not set!");
@@ -51,32 +49,7 @@ int main() {
     return 1;
   }
 
-  std::unique_ptr<Sequential> model;
-  if (!model_path.empty()) {
-    cout << "Loading model from: " << model_path << endl;
-    std::ifstream file(model_path, std::ios::binary);
-    if (!file.is_open()) {
-      throw std::runtime_error("Failed to open model file");
-    }
-    model = load_state<Sequential>(file, device);
-    file.close();
-  } else {
-    cout << "Creating model: " << model_name << endl;
-    try {
-      Sequential temp_model = legacy::ExampleModels::create(model_name);
-      model = std::make_unique<Sequential>(std::move(temp_model));
-    } catch (const std::exception &e) {
-      cerr << "Error creating model: " << e.what() << endl;
-      cout << "Available models are: ";
-      for (const auto &name : legacy::ExampleModels::available_models()) {
-        cout << name << "\n";
-      }
-      cout << endl;
-      return 1;
-    }
-    model->set_device(device);
-    model->init();
-  }
+  Graph graph = legacy::load_or_create_model(model_name, model_path, allocator);
 
   cout << "Training model on device: " << (device_type == DeviceType::CPU ? "CPU" : "GPU") << endl;
 
@@ -124,7 +97,7 @@ int main() {
   auto worker = std::make_unique<TCPWorker>(local_worker_endpoint, device_type == DeviceType::GPU);
 
   CoordinatorConfig config{
-      ParallelMode_t::PIPELINE, std::move(model),  std::move(optimizer), std::move(scheduler),
+      ParallelMode_t::PIPELINE, std::move(graph),  std::move(optimizer), std::move(scheduler),
       std::move(partitioner),   std::move(worker), coordinator_endpoint, endpoints};
 
   NetworkCoordinator coordinator(std::move(config));

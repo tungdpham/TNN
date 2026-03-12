@@ -1,28 +1,29 @@
 # Sequential Model Usage Guide
 
-This guide covers how to use the `Sequential` class and `SequentialBuilder` to build and train neural network models.
+This guide covers how to use the `Sequential` class and `LayerBuilder` to build and train neural network models.
 
 ## Table of Contents
 - [Basic Sequential Class Usage](#basic-sequential-class-usage)
-- [SequentialBuilder for Automatic Shape Inference](#sequentialbuilder-for-automatic-shape-inference)
+- [LayerBuilder for Automatic Shape Inference](#layerbuilder-for-automatic-shape-inference)
 - [Training Configuration](#training-configuration)
 - [Model Training](#model-training)
 - [Model Persistence](#model-persistence)
 - [Performance Monitoring](#performance-monitoring-optional)
 
 
-## SequentialBuilder for Automatic Shape Inference
-The sequential builder provides an intuitive way to define your model. 
+## LayerBuilder for Automatic Shape Inference
+The layer builder provides an intuitive way to define your model. 
 
 ### Basic Usage Pattern
 ```cpp
-auto model = SequentialBuilder<float>("model_name")
-    .input({channels, height, width})  // Set input shape first
+auto layers = LayerBuilder({channels, height, width})  // Set input shape first
     .conv2d(out_channels, kernel_h, kernel_w, ...)  // Auto-infers input channels
     .maxpool2d(pool_h, pool_w, ...)
     .flatten()
     .dense(output_features, ...)  // Auto-infers input features
-    .build(); // Returns the constructed model 
+    .build(); // Returns a vector<unique_ptr<Layer>>
+
+auto model = Sequential(std::move(layers), "model_name");
 
 model.initialize(); // Initialize parameters for all layers
 ```
@@ -54,9 +55,9 @@ size_t num_layers = model.size();
 
 ### Layer Methods
 
-#### Input Layer (Required First)
+#### Input Shape (Constructor)
 ```cpp
-.input({1, 28, 28})  // Shape without batch dimension: [channels, height, width]
+LayerBuilder({1, 28, 28})  // Shape without batch dimension: [channels, height, width]
 ```
 **Parameters:**
 - `shape`: Input dimensions excluding batch size
@@ -227,8 +228,7 @@ model.optimizer()->set_learning_rate(new_lr);
 #include "nn/loss.hpp"
 
 // Build model with automatic shape inference
-auto model = SequentialBuilder<float>("mnist_classifier")
-    .input({1, 28, 28})                                 // 1 channel, 28x28 image
+auto layers = LayerBuilder({1, 28, 28})                                 // 1 channel, 28x28 image
     .conv2d(32, 5, 5, 1, 1, 0, 0, true, "conv2d_1")     // 32 filters, 5x5 kernel, 1x1 stride, 0x0 padding
     .activation("relu", "relu_1")                       // ReLU activation, manual name
     .maxpool2d(2, 2, 2, 2, 0, 0)                        // 2x2 pool, 2x2 stride, 0x0 padding
@@ -239,7 +239,9 @@ auto model = SequentialBuilder<float>("mnist_classifier")
     .dense(128, "relu")                                 // 128 output features with relu activation
     .dropout(0.5)                                       // 50% dropout 
     .dense(10)                                // 10 output features, linear activation
-    .build();                                           // returns a sequential class.
+    .build();                                           // returns a vector of layers.
+
+auto model = Sequential(std::move(layers), "mnist_classifier");
 
 // Configure training
 auto optimizer = std::make_unique<Adam<float>>(0.001f, 0.9f, 0.999f, 1e-8f);

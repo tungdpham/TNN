@@ -97,7 +97,7 @@ __global__ void layer_norm_backward_kernel(const T* grad_output, const T* input,
   const T var = sq_sum / static_cast<T>(channels);
   const T inv_std = T(1) / static_cast<T>(sqrt(static_cast<double>(var + epsilon)));
 
-  // For input gradient
+  // For input grad_output
   T sum_dl_dnorm = T(0);
   T sum_dl_dnorm_x_hat = T(0);
 

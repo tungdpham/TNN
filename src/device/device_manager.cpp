@@ -140,7 +140,7 @@ const Device &getGPU(size_t gpu_index) {
   throw std::runtime_error("Requested GPU index not found");
 }
 
-const Device &getCPU() {
+const Device &getHost() {
   DeviceManager &manager = DeviceManager::getInstance();
   for (std::string id : manager.getAvailableDeviceIDs()) {
     const Device &device = manager.getDevice(id);

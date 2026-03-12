@@ -10,6 +10,7 @@
 
 #include "device/dptr.hpp"
 #include "device/iallocator.hpp"
+#include "distributed/endian.hpp"
 
 namespace tnn {
 // the buffer of all time. almost like linked list of buffers
@@ -19,6 +20,7 @@ private:
   IAllocator &allocator_;
   std::deque<dptr> buffers_;  // inline buffer list
   size_t size_ = 0;
+  mutable Endianness endianess_ = get_system_endianness();
 
   void ensure(size_t required_size) {
     if (capacity() < required_size) {
@@ -59,6 +61,9 @@ public:
   }
 
   void reset() { size_ = 0; }
+
+  void set_endianess(Endianness endianess) const { endianess_ = endianess; }
+  Endianness get_endianess() const { return endianess_; }
 
   void clear() {
     buffers_.clear();
@@ -171,6 +176,9 @@ public:
     }
     ptr.copy_to_host(&value, sizeof(T));
     offset += sizeof(T);
+    if (endianess_ != get_system_endianness()) {
+      bswap(value);
+    }
   }
 
   template <typename T>
@@ -185,6 +193,11 @@ public:
     }
     ptr.copy_to_host(arr, byte_size);
     offset += byte_size;
+    if (endianess_ != get_system_endianness()) {
+      for (size_t i = 0; i < length; ++i) {
+        bswap(arr[i]);
+      }
+    }
   }
 
   inline void read(size_t &offset, std::string &str) const {

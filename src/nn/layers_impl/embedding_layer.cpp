@@ -31,17 +31,24 @@ EmbeddingLayer::EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::s
   }
 }
 
-void EmbeddingLayer::init_params() {
-  // weight shape: [vocab_size, embed_dim]
-  weight_ = make_param_tensor({vocab_size_, embed_dim_});
-  grad_weight_ = make_param_tensor({vocab_size_, embed_dim_});
+void EmbeddingLayer::init_impl() {
+  float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(embed_dim_)));
 
   if (this->use_seed_) {
-    weight_->fill_random_normal(0.0, 0.02, this->srand_seed_);
+    weight_->fill_random_uniform(-bound, bound, this->srand_seed_);
   } else {
-    weight_->fill_random_normal(0.0, 0.02);
+    weight_->fill_random_uniform(-bound, bound);
   }
-  grad_weight_->fill(0);
+
+  // Set padding idx to zeros if valid
+  if (padding_idx_ < vocab_size_) {
+    // Zero out the padding index row
+    for (size_t i = 0; i < embed_dim_; ++i) {
+      DISPATCH_DTYPE(weight_->data_type(), T, weight_->at<T>({padding_idx_, i}) = 0.0f);
+    }
+  }
+
+  weight_gradients_->fill(0.0f);
 }
 
 void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
@@ -61,7 +68,7 @@ void EmbeddingLayer::forward_impl(const ConstTensor &input, const Tensor &output
                                  vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
 }
 
-void EmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void EmbeddingLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   const ConstTensor &input = this->get_cached_tensor(mb_id, "input");
   if (!input) {
@@ -73,8 +80,9 @@ void EmbeddingLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
 
   size_t num_tokens = input->size();
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_backward_impl, input, gradient, grad_weight_, num_tokens,
-                                 vocab_size_, embed_dim_, padding_idx_, this->flow_handle_);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_backward_impl, input, grad_output, weight_gradients_,
+                                 num_tokens, vocab_size_, embed_dim_, padding_idx_,
+                                 this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -114,8 +122,8 @@ std::unique_ptr<Task> EmbeddingLayer::compute_forward_impl(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &input,
-                                                            const ConstTensor &gradient,
-                                                            const Tensor &grad_weight,
+                                                            const ConstTensor &grad_output,
+                                                            const Tensor &weight_gradients,
                                                             size_t num_indices, size_t vocab_size,
                                                             size_t embed_dim, size_t padding_idx,
                                                             flowHandle_t handle) const {
@@ -123,37 +131,32 @@ std::unique_ptr<Task> EmbeddingLayer::compute_backward_impl(const ConstTensor &i
     throw std::runtime_error(
         "EmbeddingLayer mixed dtype dispatch not implemented (io/param/compute must match).");
   }
-  if (input->data_type() != dtype_of<IO_T>() || gradient->data_type() != dtype_of<IO_T>()) {
+  if (input->data_type() != dtype_of<IO_T>() || grad_output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("EmbeddingLayer IO tensor dtype mismatch with dispatch IO_T");
   }
-  if (grad_weight->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("EmbeddingLayer weight gradient dtype mismatch with dispatch Param_T");
+  if (weight_gradients->data_type() != dtype_of<Param_T>()) {
+    throw std::runtime_error(
+        "EmbeddingLayer weight grad_output dtype mismatch with dispatch Param_T");
   }
 
   if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::embedding::compute_embedding_backward<Compute_T>,
-                           input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
-                           grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                           padding_idx);
+                           input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
+                           weight_gradients->data_as<Compute_T>(), num_indices, vocab_size,
+                           embed_dim, padding_idx);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, cuda::embedding::compute_embedding_backward<Compute_T>,
-                            input->data_as<Compute_T>(), gradient->data_as<Compute_T>(),
-                            grad_weight->data_as<Compute_T>(), num_indices, vocab_size, embed_dim,
-                            padding_idx);
+                            input->data_as<Compute_T>(), grad_output->data_as<Compute_T>(),
+                            weight_gradients->data_as<Compute_T>(), num_indices, vocab_size,
+                            embed_dim, padding_idx);
   }
 #endif
   else {
     throw std::runtime_error("Unsupported device type for embedding backward");
   }
   return nullptr;
-}
-
-void EmbeddingLayer::collect_parameters(std::vector<Tensor> &params) { params.push_back(weight_); }
-
-void EmbeddingLayer::collect_gradients(std::vector<Tensor> &grads) {
-  grads.push_back(grad_weight_);
 }
 
 std::vector<size_t> EmbeddingLayer::compute_output_shape(
@@ -163,10 +166,6 @@ std::vector<size_t> EmbeddingLayer::compute_output_shape(
   return out;
 }
 
-uint64_t EmbeddingLayer::forward_flops(const std::vector<size_t> &input_shape) const { return 0; }
-
-uint64_t EmbeddingLayer::backward_flops(const std::vector<size_t> &input_shape) const { return 0; }
-
 LayerConfig EmbeddingLayer::get_config() const {
   LayerConfig config;
   config.name = this->name_;
@@ -175,10 +174,6 @@ LayerConfig EmbeddingLayer::get_config() const {
   config.set("embed_dim", embed_dim_);
   config.set("padding_idx", padding_idx_);
   return config;
-}
-
-std::unique_ptr<Layer> EmbeddingLayer::clone() const {
-  return std::make_unique<EmbeddingLayer>(vocab_size_, embed_dim_, this->name_, padding_idx_);
 }
 
 std::unique_ptr<EmbeddingLayer> EmbeddingLayer::create_from_config(const LayerConfig &config) {

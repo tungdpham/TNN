@@ -23,7 +23,7 @@ private:
   int end_dim_;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
@@ -31,15 +31,9 @@ public:
 
   static constexpr const char *TYPE_NAME = "flatten";
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-
-public:
   static std::unique_ptr<FlattenLayer> create_from_config(const LayerConfig &config);
 };
 

@@ -21,7 +21,7 @@ private:
   size_t embed_dim_;
   size_t padding_idx_;
   Tensor weight_;
-  Tensor grad_weight_;
+  Tensor weight_gradients_;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> compute_forward_impl(const ConstTensor &input, const ConstTensor &weight,
@@ -30,17 +30,28 @@ private:
                                              size_t padding_idx, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
-  std::unique_ptr<Task> compute_backward_impl(const ConstTensor &input, const ConstTensor &gradient,
+  std::unique_ptr<Task> compute_backward_impl(const ConstTensor &input,
+                                              const ConstTensor &grad_output,
                                               const Tensor &grad_weight, size_t num_indices,
                                               size_t vocab_size, size_t embed_dim,
                                               size_t padding_idx, flowHandle_t handle) const;
 
-  void init_params() override;
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    auto weight_desc = ParamDescriptor{
+        param_dtype_,
+        {vocab_size_, embed_dim_},
+        &weight_,
+        &weight_gradients_,
+    };
+    descriptors.push_back(weight_desc);
+    return descriptors;
+  }
+
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
 
 public:
   EmbeddingLayer(size_t vocab_size, size_t embed_dim, const std::string &name = "embedding",
@@ -49,12 +60,9 @@ public:
   static constexpr const char *TYPE_NAME = "embedding";
 
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
 
   static std::unique_ptr<EmbeddingLayer> create_from_config(const LayerConfig &config);
 };

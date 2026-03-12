@@ -22,7 +22,7 @@ private:
                                 size_t H, size_t D, flowHandle_t handle) const;
 
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
@@ -32,10 +32,8 @@ public:
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
+
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override { return 0; }
 
   static std::unique_ptr<TransposeLayer> create_from_config(const LayerConfig &config);
 };

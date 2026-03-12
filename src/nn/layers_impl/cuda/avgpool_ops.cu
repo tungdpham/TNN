@@ -73,7 +73,7 @@ __global__ void avgpool_backward_kernel(const T* grad_output, T* grad_input, siz
   size_t oh = (idx / (channels * output_w)) % output_h;
   size_t b = idx / (channels * output_w * output_h);
 
-  // Get gradient value
+  // Get grad_output value
   float grad = static_cast<float>(grad_output[idx]);
 
   // Calculate input window bounds
@@ -88,7 +88,7 @@ __global__ void avgpool_backward_kernel(const T* grad_output, T* grad_input, siz
   int count = (h_end - h_start) * (w_end - w_start);
   if (count == 0) return;
 
-  // Distribute gradient evenly
+  // Distribute grad_output evenly
   float grad_per_element = grad / count;
   for (int h = h_start; h < h_end; ++h) {
     for (int w = w_start; w < w_end; ++w) {

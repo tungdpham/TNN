@@ -57,7 +57,7 @@ void slice_forward(const T* input, T* output, const std::vector<size_t>& input_s
 }
 
 template <typename T>
-__global__ void slice_backward_kernel(const T* gradient, T* grad_input, size_t outer_size,
+__global__ void slice_backward_kernel(const T* grad_output, T* grad_input, size_t outer_size,
                                       size_t inner_size, size_t axis_size, size_t start,
                                       size_t length, size_t total_elements) {
   size_t idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -69,11 +69,11 @@ __global__ void slice_backward_kernel(const T* gradient, T* grad_input, size_t o
   size_t o = tmp / length;
 
   size_t output_idx = o * axis_size * inner_size + (start + l) * inner_size + i;
-  grad_input[output_idx] = gradient[idx];
+  grad_input[output_idx] = grad_output[idx];
 }
 
 template <typename T>
-void slice_backward(const T* gradient, T* grad_input, const std::vector<size_t>& input_shape,
+void slice_backward(const T* grad_output, T* grad_input, const std::vector<size_t>& input_shape,
                     size_t axis, size_t start, size_t length, cudaStream_t stream) {
   size_t full_size = 1;
   for (size_t s : input_shape) full_size *= s;
@@ -99,7 +99,7 @@ void slice_backward(const T* gradient, T* grad_input, const std::vector<size_t>&
   int blocks = (total_elements + threads - 1) / threads;
 
   slice_backward_kernel<T><<<blocks, threads, 0, stream>>>(
-      gradient, grad_input, outer_size, inner_size, axis_size, start, length, total_elements);
+      grad_output, grad_input, outer_size, inner_size, axis_size, start, length, total_elements);
 }
 
 #define INSTANTIATE_SLICE(T)                                                           \
@@ -107,7 +107,7 @@ void slice_backward(const T* gradient, T* grad_input, const std::vector<size_t>&
                                  const std::vector<size_t>& input_shape, size_t axis,  \
                                  size_t start, size_t length, cudaStream_t stream);    \
                                                                                        \
-  template void slice_backward<T>(const T* gradient, T* grad_input,                    \
+  template void slice_backward<T>(const T* grad_output, T* grad_input,                 \
                                   const std::vector<size_t>& input_shape, size_t axis, \
                                   size_t start, size_t length, cudaStream_t stream);
 INSTANTIATE_SLICE(fp16)

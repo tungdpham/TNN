@@ -52,7 +52,7 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   Tensor &mask_indices = micro_batch_mask_indices_[mb_id];
   if (mask_indices == nullptr)
-    mask_indices = make_tensor<int>({batch_size, output_h, output_w, channels}, this->device_);
+    mask_indices = make_tensor<int>({batch_size, output_h, output_w, channels}, this->device());
   else {
     mask_indices->ensure({batch_size, output_h, output_w, channels});
   }
@@ -61,7 +61,7 @@ void MaxPool2DLayer::forward_impl(const ConstTensor &input, const Tensor &output
                            output_w, micro_batch_mask_indices_[mb_id], this->flow_handle_);
 }
 
-void MaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void MaxPool2DLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                    size_t mb_id) {
   auto it_mask = micro_batch_mask_indices_.find(mb_id);
   auto it_shape = micro_batch_input_shapes_.find(mb_id);
@@ -80,9 +80,9 @@ void MaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
   const size_t input_h = input_shape[1];
   const size_t input_w = input_shape[2];
   const size_t channels = input_shape[3];
-  const auto &grad_shape = gradient->shape();
+  const auto &grad_shape = grad_output->shape();
   if (grad_shape.size() != 4) {
-    throw std::runtime_error("MaxPool2DLayer: gradient must be 4D (NHWC format)");
+    throw std::runtime_error("MaxPool2DLayer: grad_output must be 4D (NHWC format)");
   }
   const size_t output_h = grad_shape[1];
   const size_t output_w = grad_shape[2];
@@ -91,7 +91,7 @@ void MaxPool2DLayer::backward_impl(const ConstTensor &gradient, const Tensor &gr
 
   grad_input->fill(0);
 
-  compute_max_pool_backward(gradient, grad_input, batch_size, channels, output_h, output_w,
+  compute_max_pool_backward(grad_output, grad_input, batch_size, channels, output_h, output_w,
                             mask_indices, this->flow_handle_);
 }
 
@@ -128,8 +128,8 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_forward(
     const ConstTensor &input_data, const Tensor &output_data, size_t batch_size, size_t height,
     size_t width, size_t channels, size_t output_h, size_t output_w, const Tensor &mask_indices,
     flowHandle_t handle) const {
-  DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_forward_impl, input_data, output_data, batch_size,
-                              height, width, channels, output_h, output_w, mask_indices, handle);
+  DISPATCH_IO_DTYPE(compute_max_pool_forward_impl, input_data, output_data, batch_size, height,
+                    width, channels, output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
@@ -167,8 +167,8 @@ std::unique_ptr<Task> MaxPool2DLayer::compute_max_pool_backward(const ConstTenso
                                                                 size_t output_h, size_t output_w,
                                                                 const ConstTensor &mask_indices,
                                                                 flowHandle_t handle) const {
-  DISPATCH_ON_DTYPE_TO_METHOD(compute_max_pool_backward_impl, gradient_data, grad_input_data,
-                              batch_size, channels, output_h, output_w, mask_indices, handle);
+  DISPATCH_IO_DTYPE(compute_max_pool_backward_impl, gradient_data, grad_input_data, batch_size,
+                    channels, output_h, output_w, mask_indices, handle);
   return nullptr;
 }
 
@@ -183,11 +183,6 @@ LayerConfig MaxPool2DLayer::get_config() const {
   config.set("pad_h", pad_h_);
   config.set("pad_w", pad_w_);
   return config;
-}
-
-std::unique_ptr<Layer> MaxPool2DLayer::clone() const {
-  return std::make_unique<MaxPool2DLayer>(pool_h_, pool_w_, stride_h_, stride_w_, pad_h_, pad_w_,
-                                          this->name_);
 }
 
 std::vector<size_t> MaxPool2DLayer::compute_output_shape(
@@ -214,35 +209,6 @@ std::unique_ptr<MaxPool2DLayer> MaxPool2DLayer::create_from_config(const LayerCo
 
   return std::make_unique<MaxPool2DLayer>(pool_h, pool_w, stride_h, stride_w, pad_h, pad_w,
                                           config.name);
-}
-
-uint64_t MaxPool2DLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  assert(input_shape.size() == 4 && "Input shape must be 4D");
-  size_t batch_size = input_shape[0];
-  size_t input_h = input_shape[1];
-  size_t input_w = input_shape[2];
-  size_t channels = input_shape[3];
-
-  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
-
-  uint64_t comparisons_per_output = pool_h_ * pool_w_;
-  uint64_t total_outputs = batch_size * output_h * output_w * channels;
-
-  return comparisons_per_output * total_outputs;
-}
-
-uint64_t MaxPool2DLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  assert(input_shape.size() == 4 && "Input shape must be 4D");
-  size_t batch_size = input_shape[0];
-  size_t input_h = input_shape[1];
-  size_t input_w = input_shape[2];
-  size_t channels = input_shape[3];
-
-  size_t output_h = (input_h + 2 * pad_h_ - pool_h_) / stride_h_ + 1;
-  size_t output_w = (input_w + 2 * pad_w_ - pool_w_) / stride_w_ + 1;
-
-  return batch_size * output_h * output_w * channels;
 }
 
 }  // namespace tnn

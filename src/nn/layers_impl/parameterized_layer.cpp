@@ -6,20 +6,4 @@
  */
 #include "nn/layers_impl/parameterized_layer.hpp"
 
-namespace tnn {
-
-void ParameterizedLayer::init_impl() { init_params(); }
-
-std::vector<Tensor> ParameterizedLayer::parameters() {
-  std::vector<Tensor> params;
-  collect_parameters(params);
-  return params;
-}
-
-std::vector<Tensor> ParameterizedLayer::gradients() {
-  std::vector<Tensor> grads;
-  collect_gradients(grads);
-  return grads;
-}
-
-}  // namespace tnn
+namespace tnn {}  // namespace tnn

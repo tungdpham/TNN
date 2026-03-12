@@ -39,4 +39,15 @@ void benchmark(const std::string &name, Func &&func, int bench_runs = 5) {
   std::cout << name << " average time: " << avg << " ms" << std::endl;
 }
 
+inline size_t get_shape_hash(const std::vector<size_t> &shape) {
+  size_t seed = 0;
+  auto hash_combine = [&](size_t v) {
+    seed ^= std::hash<size_t>{}(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  };
+  for (size_t i = 0; i < shape.size(); ++i) {
+    hash_combine(shape[i]);
+  }
+  return seed;
+}
+
 }  // namespace tnn

@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "nn/layer.hpp"
 #include "nn/layers_impl/common/conv2d.hpp"
 #include "parameterized_layer.hpp"
 #include "tensor/tensor.hpp"
@@ -20,6 +21,7 @@
 
 namespace tnn {
 
+// [N, H, W, C] input
 class Conv2DLayer : public ParameterizedLayer {
 private:
   size_t in_channels_;
@@ -38,6 +40,8 @@ private:
   Tensor bias_gradients_;
 
 #ifdef USE_CUDNN
+  void build_graph(const Vec<size_t> &input_shape) const;
+
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_forward_task(cuda::cudnn_conv2d::feHandle_t *fe_handle,
                                             ConvolutionStats &stats, const ConstTensor &input,
@@ -50,30 +54,51 @@ private:
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_weights_and_bias_task(
       cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats, const ConstTensor &input,
-      const ConstTensor &gradient, const Tensor &weight_gradients, const Tensor &bias_gradients,
+      const ConstTensor &grad_output, const Tensor &weight_gradients, const Tensor &bias_gradients,
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
       size_t output_w, flowHandle_t handle) const;
 
   template <typename IO_T, typename Param_T, typename Compute_T>
   std::unique_ptr<Task> conv2d_backward_data_task(
       cuda::cudnn_conv2d::feHandle_t *fe_handle, ConvolutionStats &stats,
-      const ConstTensor &gradient, const ConstTensor &weights, const Tensor &grad_input,
+      const ConstTensor &grad_output, const ConstTensor &weights, const Tensor &grad_input,
       const Tensor &workspace, size_t batch_size, size_t input_h, size_t input_w, size_t output_h,
       size_t output_w, flowHandle_t handle) const;
 
   void cudnn_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
   void cudnn_backward(const ConstTensor &current_gradient, const Tensor &grad_input, size_t mb_id);
 
-  std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
+  mutable std::unordered_map<size_t, cuda::cudnn_conv2d::feHandle_t *> fe_handle_cache;
+  mutable std::unordered_map<size_t, ConvolutionStats> stats_cache;
 #endif
-  std::unordered_map<size_t, ConvolutionStats> stats_cache;
-  size_t get_shape_hash(size_t n, size_t c, size_t h, size_t w) const;
 
-  void init_params() override;
-  void collect_parameters(std::vector<Tensor> &params) override;
-  void collect_gradients(std::vector<Tensor> &grads) override;
+  void def_forward(const ConstTensor &input, const Tensor &output, size_t mb_id);
+  void def_backward(const ConstTensor &grad_output, const Tensor &grad_input, size_t mb_id);
+
+  std::vector<ParamDescriptor> param_descriptors() override {
+    std::vector<ParamDescriptor> descriptors;
+    auto weight_desc = ParamDescriptor{
+        param_dtype_,
+        {out_channels_, kernel_h_, kernel_w_, in_channels_},
+        &weights_,
+        &weight_gradients_,
+    };
+    descriptors.push_back(weight_desc);
+    if (use_bias_) {
+      auto bias_desc = ParamDescriptor{
+          param_dtype_,
+          {out_channels_},
+          &bias_,
+          &bias_gradients_,
+      };
+      descriptors.push_back(bias_desc);
+    }
+    return descriptors;
+  }
+
+  void init_impl() override;
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
-  void backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+  void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
 
 public:
@@ -85,13 +110,12 @@ public:
 
   ~Conv2DLayer();
 
-  uint64_t forward_flops(const std::vector<size_t> &input_shape) const override;
-  uint64_t backward_flops(const std::vector<size_t> &input_shape) const override;
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;
-  std::unique_ptr<Layer> clone() const override;
-
   std::vector<size_t> compute_output_shape(const std::vector<size_t> &input_shape) const override;
+  size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
 
   static std::unique_ptr<Conv2DLayer> create_from_config(const LayerConfig &config);
 };

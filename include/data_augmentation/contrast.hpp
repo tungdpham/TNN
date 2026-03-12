@@ -13,12 +13,13 @@ namespace tnn {
 class ContrastAugmentation : public Augmentation {
 public:
   ContrastAugmentation(float probability = 0.5f, float contrast_range = 0.2f)
-      : probability_(probability), contrast_range_(contrast_range) {
+      : probability_(probability),
+        contrast_range_(contrast_range) {
     this->name_ = "Contrast";
   }
 
   void apply(const Tensor &data, const Tensor &labels) override {
-    DISPATCH_ON_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
+    DISPATCH_DTYPE(data->data_type(), T, apply_impl<T>(data, labels));
   }
 
   std::unique_ptr<Augmentation> clone() const override {

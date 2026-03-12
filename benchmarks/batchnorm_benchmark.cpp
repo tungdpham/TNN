@@ -3,6 +3,8 @@
 
 #include "device/device_manager.hpp"
 #include "nn/activations_impl/relu.hpp"
+#include "nn/graph.hpp"
+#include "nn/graph_builder.hpp"
 #include "nn/layers_impl/activation_layer.hpp"
 #include "nn/layers_impl/batchnorm_layer.hpp"
 #include "nn/layers_impl/legacy_batchnorm_layer.hpp"
@@ -18,31 +20,34 @@ constexpr size_t WIDTH = 128;
 constexpr float EPSILON = 2e-2f;
 
 signed main() {
-  // fuse relu
-  BatchNormLayer batchnorm_layer(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
-  batchnorm_layer.set_device(getGPU());
-  batchnorm_layer.init();
+  auto &allocator = PoolAllocator::instance(getGPU(), defaultFlowHandle);
+  GraphBuilder builder;
 
-  LegacyBatchNormLayer legacy_batchnorm_layer(NUM_FEATURES, 1e-5f, 0.1f, true,
-                                              "legacy_batchnorm_test");
-  ActivationLayer relu_layer(std::make_unique<ReLU>(), "relu_activation");
-  legacy_batchnorm_layer.set_device(getGPU());
-  legacy_batchnorm_layer.init();
-  relu_layer.set_device(getGPU());
-  relu_layer.init();
+  // fuse relu
+  auto bn_layer =
+      make_unique<BatchNormLayer>(NUM_FEATURES, 1e-5f, 0.1f, true, true, "batchnorm_test");
+  auto &bn_node = builder.add_layer(std::move(bn_layer));
+
+  auto legacy_batchnorm_layer =
+      make_unique<LegacyBatchNormLayer>(NUM_FEATURES, 1e-5f, 0.1f, true, "legacy_batchnorm_test");
+  auto relu_layer = make_unique<ActivationLayer>(std::make_unique<ReLU>(), "relu_activation");
+  auto &legacy_bn_node = builder.add_layer(std::move(legacy_batchnorm_layer));
+  auto &relu_node = builder.add_layer(std::move(relu_layer));
+  builder.output(bn_node, builder.input());
+  Graph graph = builder.compile(allocator);
 
   Tensor input = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
   input->fill_random_normal(0.5f, 0.2f, 676767);
   Tensor output = make_tensor<float>({BATCH_SIZE, HEIGHT, WIDTH, NUM_FEATURES}, getGPU());
 
   // cold pass
-  batchnorm_layer.forward(input, output);
+  bn_node.forward({input}, {output});
 
   int passes = 10;
   auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    batchnorm_layer.forward(input, output);
+    bn_node.forward({input}, {output});
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
 
@@ -66,14 +71,14 @@ signed main() {
   // legacy batchnorm benchmark
 
   // cold pass
-  legacy_batchnorm_layer.forward(legacy_input, legacy_output);
-  relu_layer.forward(legacy_output, legacy_relu_output);
+  legacy_bn_node.forward({legacy_input}, {legacy_output});
+  relu_node.forward({legacy_output}, {legacy_relu_output});
 
   start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < passes; ++i) {
     auto pass_start = std::chrono::high_resolution_clock::now();
-    legacy_batchnorm_layer.forward(legacy_input, legacy_output);
-    relu_layer.forward(legacy_output, legacy_relu_output);
+    legacy_bn_node.forward({legacy_input}, {legacy_output});
+    relu_node.forward({legacy_output}, {legacy_relu_output});
     Flow *flow = getGPU().getFlow(defaultFlowHandle);
     flow->synchronize();
     auto pass_end = std::chrono::high_resolution_clock::now();
@@ -87,8 +92,8 @@ signed main() {
   std::cout << "Legacy BatchNorm Average time per forward pass: " << duration.count() / passes
             << " ms" << std::endl;
 
-  auto cpu_current_output = output->to_device(getCPU());
-  auto cpu_legacy_output = legacy_relu_output->to_device(getCPU());
+  auto cpu_current_output = output->to_device(getHost());
+  auto cpu_legacy_output = legacy_relu_output->to_device(getHost());
 
   float *current_data = cpu_current_output->data_as<float>();
   float *legacy_data = cpu_legacy_output->data_as<float>();

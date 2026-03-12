@@ -8,8 +8,10 @@
 #include "nn/blocks_impl/sequential.hpp"
 
 #include <fmt/core.h>
+#include <fmt/format.h>
+#include <fmt/ranges.h>
 
-#include <algorithm>
+#include <cstddef>
 #include <iomanip>
 #include <iostream>
 #include <numeric>
@@ -18,167 +20,174 @@
 #include "nlohmann/json_fwd.hpp"
 #include "nn/block.hpp"
 #include "nn/layers.hpp"
-#include "profiling/event.hpp"
+#include "type/type.hpp"
 
 namespace tnn {
-
-void Sequential::compute_max_size(const std::vector<size_t> &input_shape, DType_t dtype) {
-  std::vector<size_t> current_shape = input_shape;
-  size_t current_max =
-      std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
-  for (const auto &layer : layers_) {
-    current_shape = layer->compute_output_shape(current_shape);
-    size_t activation_size =
-        std::accumulate(current_shape.begin(), current_shape.end(), 1, std::multiplies<size_t>());
-    current_max = std::max(current_max, activation_size);
+Vec<size_t> Sequential::fwd_workspace_sizes(const std::vector<size_t> &shape) {
+  Vec<size_t> workspace_sizes;
+  Vec<size_t> current_shape = shape;
+  for (size_t i = 0; i < layers_.size(); ++i) {
+    current_shape = layers_[i]->output_shapes({current_shape})[0];
+    size_t ws = layers_[i]->fwd_workspace({{current_shape}});
+    workspace_sizes.push_back(ws);
   }
-  max_size_ = current_max;
+  return workspace_sizes;
 }
 
-void Sequential::init_impl() {
-  for (auto &layer : layers_) {
-    layer->init();
+Vec<size_t> Sequential::bwd_workspace_sizes(const std::vector<size_t> &shape) {
+  Vec<size_t> workspace_sizes;
+  Vec<size_t> current_shape = shape;
+  for (size_t i = 0; i < layers_.size(); ++i) {
+    current_shape = layers_[i]->output_shapes({current_shape})[0];
+    size_t ws = layers_[i]->bwd_workspace({{current_shape}});
+    workspace_sizes.push_back(ws);
   }
+  return workspace_sizes;
 }
 
-void Sequential::on_set_seed(unsigned long long seed) {
-  for (auto &layer : layers_) {
-    layer->set_seed(seed);
-  }
-}
-
-void Sequential::on_set_io_dtype(DType_t dtype) {
-  for (auto &layer : layers_) {
-    layer->set_io_dtype(dtype);
-  }
-}
-
-void Sequential::on_set_param_dtype(DType_t dtype) {
-  for (auto &layer : layers_) {
-    layer->set_param_dtype(dtype);
-  }
-}
-
-void Sequential::on_set_compute_dtype(DType_t dtype) {
-  for (auto &layer : layers_) {
-    layer->set_compute_dtype(dtype);
-  }
-}
-
-void Sequential::on_set_device(const Device &device) {
-  for (auto &layer : layers_) {
-    layer->set_device(device);
-  }
-}
-
-void Sequential::on_set_training(bool training) {
-  for (auto &layer : layers_) {
-    layer->set_training(training);
-  }
-}
-
-void Sequential::forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id) {
+void Sequential::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
-  auto start = Clock::now();
-  compute_max_size(input->shape(), input->data_type());
-
-  ConstTensor current_input = input;
-  Tensor current_output = nullptr;
-  for (size_t i = 0; i < layers_.size(); ++i) {
-    try {
-      auto start = Clock::now();
-      if (i < layers_.size() - 1) {
-        current_output = this->get_buffer(layers_[i]->compute_output_shape(current_input->shape()),
-                                          input->data_type());
-      } else {
-        current_output = output;
-      }
-      layers_[i]->forward(current_input, current_output, mb_id);
-      current_input = current_output;
-      auto end = Clock::now();
-      this->profiler_.add_event(
-          Event{EventType::COMPUTE, start, end, layers_[i]->name() + " forward"});
-    } catch (const std::exception &e) {
-      throw std::runtime_error("Error while forward in layer " + std::to_string(i) + " (" +
-                               layers_[i]->name() + "): " + e.what());
-    }
+  Vec<Vec<size_t>> input_shapes(inputs.size());
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    input_shapes[i] = inputs[i]->shape();
   }
-  this->device_->getFlow(this->flow_handle_)->synchronize();
-  auto end = Clock::now();
-  this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential forward"});
+  Vec<Vec<Vec<size_t>>> out_shapes(layers_.size());
+  out_shapes[0] = layers_[0]->output_shapes(input_shapes);
+  for (size_t i = 1; i < layers_.size(); ++i) {
+    out_shapes[i] = layers_[i]->output_shapes(out_shapes[i - 1]);
+  }
+  input_shapes_cache_[mb_id] = input_shapes;
+  Vec<ConstTensor> current_inputs = inputs;
+  for (size_t i = 0; i < layers_.size(); ++i) {
+    Vec<Tensor> current_outputs;
+    if (i == layers_.size() - 1) {
+      current_outputs = outputs;
+    } else {
+      current_outputs.resize(out_shapes[i].size());
+      for (size_t j = 0; j < out_shapes[i].size(); ++j) {
+        if (is_training_) {
+          current_outputs[j] = this->get_act(out_shapes[i][j]);
+        } else {
+          current_outputs[j] = this->get_workspace(out_shapes[i][j], io_dtype_);
+        }
+      }
+    }
+    layers_[i]->forward(current_inputs, current_outputs, mb_id);
+    current_inputs = Vec<ConstTensor>(current_outputs.begin(), current_outputs.end());
+  }
+  this->device().getFlow(this->flow_handle_)->synchronize();
 }
 
-void Sequential::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
-                               size_t mb_id) {
+void Sequential::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                          size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }
-  auto start = Clock::now();
-  ConstTensor current_gradient = gradient;
-  Tensor current_grad_input;
-  for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
-    try {
-      // no need to renew buffer since backward doesn't cache inputs
-      auto start = Clock::now();
-      if (i > 0) {
-        current_grad_input = this->get_buffer({max_size_}, gradient->data_type());
-        layers_[i]->backward(current_gradient, current_grad_input, mb_id);
-        current_gradient = current_grad_input;
-      } else {
-        layers_[i]->backward(current_gradient, grad_input, mb_id);
-      }
-      auto end = Clock::now();
-      this->profiler_.add_event(
-          Event{EventType::COMPUTE, start, end, layers_[i]->name() + " backward"});
-    } catch (const std::exception &e) {
-      throw std::runtime_error("Error in backward pass of layer " + std::to_string(i) + " (" +
-                               layers_[i]->type() + "): " + e.what());
-    }
+  auto it_in_shapes = input_shapes_cache_.find(mb_id);
+  if (it_in_shapes == input_shapes_cache_.end()) {
+    throw std::runtime_error("No cached input shape found for micro-batch ID: " +
+                             std::to_string(mb_id));
   }
-  this->device_->getFlow(this->flow_handle_)->synchronize();
-  auto end = Clock::now();
-  this->profiler_.add_event(Event{EventType::COMPUTE, start, end, "Sequential backward"});
+  Vec<Vec<size_t>> input_shape = it_in_shapes->second;
+  Vec<Vec<Vec<size_t>>> out_shapes(layers_.size());
+  out_shapes[0] = layers_[0]->output_shapes(input_shape);
+  for (size_t i = 1; i < layers_.size(); ++i) {
+    out_shapes[i] = layers_[i]->output_shapes(out_shapes[i - 1]);
+  }
+  Vec<ConstTensor> current_gradients = grad_outputs;
+  for (int i = static_cast<int>(layers_.size()) - 1; i >= 0; --i) {
+    Vec<Tensor> current_grad_input;
+    if (i == 0) {
+      current_grad_input = grad_inputs;
+    } else {
+      current_grad_input.resize(out_shapes[i - 1].size());
+      for (size_t j = 0; j < out_shapes[i - 1].size(); ++j) {
+        current_grad_input[j] = this->get_workspace(out_shapes[i - 1][j], io_dtype_);
+      }
+    }
+    layers_[i]->backward(current_gradients, current_grad_input, mb_id);
+    current_gradients = Vec<ConstTensor>(current_grad_input.begin(), current_grad_input.end());
+  }
+  this->device().getFlow(this->flow_handle_)->synchronize();
 }
 
-Sequential::Sequential(const std::string &name, std::vector<std::unique_ptr<Layer>> layers)
+Sequential::Sequential(std::vector<std::unique_ptr<Layer>> layers, const std::string &name)
     : Block(name) {
   layers_ = std::move(layers);
 }
 
-Sequential::Sequential()
-    : Block() {}
-
-std::vector<Tensor> Sequential::parameters() {
-  std::vector<Tensor> all_params;
-  for (auto &layer : layers_) {
-    auto layer_params = layer->parameters();
-    all_params.insert(all_params.end(), layer_params.begin(), layer_params.end());
-  }
-  return all_params;
-}
-
-std::vector<Tensor> Sequential::gradients() {
-  std::vector<Tensor> all_grads;
-  for (auto &layer : layers_) {
-    auto layer_grads = layer->gradients();
-    all_grads.insert(all_grads.end(), layer_grads.begin(), layer_grads.end());
-  }
-  return all_grads;
-}
-
-std::vector<size_t> Sequential::compute_output_shape(const std::vector<size_t> &input_shape) const {
+Vec<Vec<size_t>> Sequential::output_shapes(const Vec<Vec<size_t>> &input_shapes) const {
   if (layers_.empty()) {
-    return input_shape;
+    return input_shapes;
   }
 
-  std::vector<size_t> current_shape = input_shape;
+  Vec<Vec<size_t>> current_shapes = input_shapes;
   for (const auto &layer : layers_) {
-    current_shape = layer->compute_output_shape(current_shape);
+    current_shapes = layer->output_shapes(current_shapes);
   }
 
-  return current_shape;
+  return current_shapes;
+}
+
+size_t Sequential::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
+  if (layers_.empty()) return 0;
+  const auto &input_shape = input_shapes[0];
+  size_t total_ws = 0;
+  Vec<size_t> current_shape = input_shape;
+  // total = all inputs + all layers' fwd workspace
+  for (const auto &layer : layers_) {
+    total_ws += layer->fwd_workspace({{current_shape}});
+    current_shape = layer->output_shapes({current_shape})[0];
+  }
+  return total_ws;
+}
+
+size_t Sequential::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
+  if (layers_.empty()) return 0;
+  const auto &input_shape = input_shapes[0];
+  size_t dtype_size = get_dtype_size(io_dtype_);
+
+  Vec<size_t> out_bytes;
+  Vec<size_t> sub_ws;
+  Vec<size_t> cur = input_shape;
+  for (const auto &layer : layers_) {
+    Vec<size_t> out = layer->output_shapes({cur})[0];
+    size_t bytes = std::accumulate(out.begin(), out.end(), dtype_size, std::multiplies<size_t>());
+    out_bytes.push_back(bytes);
+    sub_ws.push_back(layer->inf_workspace({{cur}}));
+    cur = out;
+  }
+
+  size_t m_b = 0;
+  for (size_t i = 0; i < out_bytes.size() - 1; ++i) {
+    m_b = std::max(m_b, out_bytes[i] + out_bytes[i + 1] + sub_ws[i]);
+  }
+  return m_b;
+}
+
+size_t Sequential::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
+  if (layers_.empty()) return 0;
+  const auto &input_shape = input_shapes[0];
+  size_t dtype_size = get_dtype_size(io_dtype_);
+
+  Vec<size_t> out_bytes;
+  Vec<size_t> sub_ws;
+  Vec<size_t> cur = input_shape;
+  for (const auto &layer : layers_) {
+    Vec<size_t> out = layer->output_shapes({cur})[0];
+    size_t bytes = std::accumulate(out.begin(), out.end(), dtype_size, std::multiplies<size_t>());
+    out_bytes.push_back(bytes);
+    sub_ws.push_back(layer->bwd_workspace({{cur}}));
+    cur = out;
+  }
+
+  size_t m_b = 0;
+  for (size_t i = 0; i < out_bytes.size() - 1; ++i) {
+    m_b = std::max(m_b, out_bytes[i] + out_bytes[i + 1] + sub_ws[i]);
+  }
+  return m_b;
 }
 
 void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
@@ -201,8 +210,7 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
   std::cout << "Model Summary: " << name_ << "\n";
   std::cout << std::string(100, '=') << "\n";
   std::cout << std::left << std::setw(20) << "Layer (Type)" << std::setw(20) << "Input Shape"
-            << std::setw(20) << "Output Shape" << std::setw(20) << "Forward Flops" << std::setw(20)
-            << "Backward Flops" << "\n";
+            << std::setw(20) << "Output Shape" << "\n";
 
   std::vector<size_t> current_shape = input_shape;
   for (size_t i = 0; i < layers_.size(); ++i) {
@@ -212,59 +220,14 @@ void Sequential::print_summary(const std::vector<size_t> &input_shape) const {
 
     std::cout << std::setw(20) << format_shape(current_shape);
 
-    auto output_shape = layer->compute_output_shape(current_shape);
-    std::cout << std::setw(20) << format_shape(output_shape);
-
-    std::cout << std::setw(20) << layer->forward_flops(current_shape) << std::setw(20)
-              << layer->backward_flops(current_shape) << "\n";
-    current_shape = layer->compute_output_shape(current_shape);
+    auto output_shape = layer->output_shapes({current_shape})[0];
+    std::cout << std::setw(20) << format_shape(output_shape) << "\n";
+    current_shape = layer->output_shapes({current_shape})[0];
   }
   std::cout << std::string(100, '-') << "\n";
 }
 
-const std::vector<Layer *> &Sequential::get_layers() const {
-  static std::vector<Layer *> layer_ptrs;
-  layer_ptrs.clear();
-  for (const auto &layer : layers_) {
-    layer_ptrs.push_back(layer.get());
-  }
-  return layer_ptrs;
-}
-
-uint64_t Sequential::forward_flops(const std::vector<size_t> &input_shape) const {
-  if (layers_.empty()) {
-    return 0;
-  }
-  uint64_t total_flops = 0;
-  std::vector<size_t> current_shape = input_shape;
-  for (const auto &layer : layers_) {
-    total_flops += layer->forward_flops(current_shape);
-    current_shape = layer->compute_output_shape(current_shape);
-  }
-  return total_flops;
-}
-
-uint64_t Sequential::backward_flops(const std::vector<size_t> &input_shape) const {
-  if (layers_.empty()) {
-    return 0;
-  }
-  uint64_t total_flops = 0;
-  std::vector<size_t> current_shape = input_shape;
-  for (const auto &layer : layers_) {
-    total_flops += layer->backward_flops(current_shape);
-    current_shape = layer->compute_output_shape(current_shape);
-  }
-  return total_flops;
-}
-
-bool Sequential::has_parameters() const {
-  for (const auto &layer : layers_) {
-    if (layer->has_parameters()) {
-      return true;
-    }
-  }
-  return false;
-}
+std::vector<Layer *> Sequential::get_layers() { return this->layers(); }
 
 LayerConfig Sequential::get_config() const {
   LayerConfig config;
@@ -291,24 +254,7 @@ std::unique_ptr<Sequential> Sequential::create_from_config(const LayerConfig &co
     auto layer = LayerFactory::create(layer_config);
     layers.push_back(std::move(layer));
   }
-  return std::make_unique<Sequential>(config.name, std::move(layers));
-}
-
-std::unique_ptr<Layer> Sequential::clone() const {
-  auto cloned_layers = std::vector<std::unique_ptr<Layer>>();
-  for (const auto &layer : layers_) {
-    cloned_layers.push_back(layer->clone());
-  }
-  auto cloned = std::make_unique<Sequential>(name_, std::move(cloned_layers));
-  return cloned;
-}
-
-size_t Sequential::cached_memory_bytes() const {
-  size_t total = 0;
-  for (const auto &layer : layers_) {
-    total += layer->cached_memory_bytes();
-  }
-  return total;
+  return std::make_unique<Sequential>(std::move(layers), config.name);
 }
 
 }  // namespace tnn

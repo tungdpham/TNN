@@ -20,7 +20,7 @@ void slice_forward(const T *input, T *output, const std::vector<size_t> &input_s
                    size_t start, size_t length, cudaStream_t stream);
 
 template <typename T>
-void slice_backward(const T *gradient, T *grad_input, const std::vector<size_t> &input_shape,
+void slice_backward(const T *grad_output, T *grad_input, const std::vector<size_t> &input_shape,
                     size_t axis, size_t start, size_t length, cudaStream_t stream);
 
 }  // namespace slice

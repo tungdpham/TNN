@@ -15,9 +15,7 @@ set(TEST_FILES
     cuda_loss_funcs_test.cpp
     cuda_batchnorm_ops_test.cpp
     layer_device_agnosticity_test.cpp
-    layer_buffer_reuse_test.cpp
     residual_block_test.cpp
-    sequential_residual_block_test.cpp
     tiny_imagenet_loader_test.cpp
     legacy_dense_layer_test.cpp
     legacy_maxpool2d_layer_test.cpp
@@ -28,6 +26,9 @@ set(TEST_FILES
     attention_block_test.cpp
     partitioner_test.cpp
     vbuffer_serializer_test.cpp
+    archiver_test.cpp
+    bf16_test.cpp
+    fp16_test.cpp
 )
 
 foreach(test_file IN LISTS TEST_FILES)

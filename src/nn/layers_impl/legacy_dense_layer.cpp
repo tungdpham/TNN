@@ -28,17 +28,8 @@ LegacyDenseLayer::LegacyDenseLayer(size_t input_features, size_t output_features
       output_features_(output_features),
       use_bias_(use_bias) {}
 
-void LegacyDenseLayer::init_params() {
-  weights_ = make_param_tensor({output_features_, input_features_});
-  weight_gradients_ = make_param_tensor({output_features_, input_features_});
-  weight_gradients_->fill(0);
-  if (use_bias_) {
-    bias_ = make_param_tensor({output_features_});
-    bias_gradients_ = make_param_tensor({output_features_});
-    bias_gradients_->fill(0);
-  }
-
-  double bound = 1.0 / std::sqrt(static_cast<double>(input_features_));
+void LegacyDenseLayer::init_impl() {
+  float bound = static_cast<float>(1.0 / std::sqrt(static_cast<double>(input_features_)));
 
   if (this->use_seed_) {
     weights_->fill_random_uniform(-bound, bound, this->srand_seed_);
@@ -52,6 +43,11 @@ void LegacyDenseLayer::init_params() {
     } else {
       bias_->fill_random_uniform(-bound, bound);
     }
+  }
+
+  weight_gradients_->fill(0.0f);
+  if (use_bias_) {
+    bias_gradients_->fill(0.0f);
   }
 }
 
@@ -87,9 +83,9 @@ void LegacyDenseLayer::forward_impl(const ConstTensor &input, const Tensor &outp
   }
 }
 
-void LegacyDenseLayer::backward_impl(const ConstTensor &gradient, const Tensor &grad_input,
+void LegacyDenseLayer::backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                                      size_t mb_id) {
-  if (gradient->shape().back() != output_features_) {
+  if (grad_output->shape().back() != output_features_) {
     throw std::invalid_argument("Gradient feature size mismatch in LegacyDenseLayer");
   }
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");
@@ -104,15 +100,15 @@ void LegacyDenseLayer::backward_impl(const ConstTensor &gradient, const Tensor &
 
   grad_input->ensure(input->shape());
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients, input, gradient, weight_gradients_,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_weight_gradients, input, grad_output, weight_gradients_,
                                  batch_size, input_features_, output_features_, this->flow_handle_);
 
   if (use_bias_) {
-    DISPATCH_ON_3_DTYPES_TO_METHOD(compute_bias_gradients, gradient, bias_gradients_, batch_size,
+    DISPATCH_ON_3_DTYPES_TO_METHOD(compute_bias_gradients, grad_output, bias_gradients_, batch_size,
                                    output_features_, this->flow_handle_);
   }
 
-  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_input_gradients, gradient, weights_, grad_input,
+  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_input_gradients, grad_output, weights_, grad_input,
                                  batch_size, input_features_, output_features_, this->flow_handle_);
 }
 
@@ -127,7 +123,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
     throw std::runtime_error("LegacyDenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
 
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -139,7 +135,7 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(handle,
                             cuda::legacy_dense::compute_dense_forward_ex<IO_T, Param_T, Compute_T>,
                             input->data_as<IO_T>(), weights->data_as<Param_T>(),
@@ -154,31 +150,31 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_dense_forward(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
-    const ConstTensor &input, const ConstTensor &gradient, const Tensor &weight_grad,
+    const ConstTensor &input, const ConstTensor &grad_output, const Tensor &weight_grad,
     size_t batch_size, size_t input_features, size_t output_features, flowHandle_t handle) const {
-  if (input->data_type() != dtype_of<IO_T>() || gradient->data_type() != dtype_of<IO_T>()) {
+  if (input->data_type() != dtype_of<IO_T>() || grad_output->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
   if (weight_grad->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error(
-        "LegacyDenseLayer weight gradient dtype mismatch with dispatch Param_T");
+        "LegacyDenseLayer weight grad_output dtype mismatch with dispatch Param_T");
   }
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
           "(io/param/compute must match).");
     }
     return create_cpu_task(handle, cpu::legacy_dense::compute_weight_gradients<IO_T>,
-                           input->data_as<IO_T>(), gradient->data_as<IO_T>(),
+                           input->data_as<IO_T>(), grad_output->data_as<IO_T>(),
                            weight_grad->data_as<IO_T>(), batch_size, input_features,
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(
         handle, cuda::legacy_dense::compute_weight_gradients_ex<IO_T, Param_T, Compute_T>,
-        input->data_as<IO_T>(), gradient->data_as<IO_T>(), weight_grad->data_as<Param_T>(),
+        input->data_as<IO_T>(), grad_output->data_as<IO_T>(), weight_grad->data_as<Param_T>(),
         batch_size, input_features, output_features);
   }
 #endif
@@ -190,30 +186,30 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_weight_gradients(
 
 template <typename IO_T, typename Param_T, typename Compute_T>
 std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
-    const ConstTensor &gradient, const ConstTensor &weights, const Tensor &grad_input,
+    const ConstTensor &grad_output, const ConstTensor &weights, const Tensor &grad_input,
     size_t batch_size, size_t input_features, size_t output_features, flowHandle_t handle) const {
-  if (gradient->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
+  if (grad_output->data_type() != dtype_of<IO_T>() || grad_input->data_type() != dtype_of<IO_T>()) {
     throw std::runtime_error("LegacyDenseLayer IO tensor dtype mismatch with dispatch IO_T");
   }
   if (weights->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyDenseLayer weight tensor dtype mismatch with dispatch Param_T");
   }
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
           "(io/param/compute must match).");
     }
     return create_cpu_task(handle, cpu::legacy_dense::compute_input_gradients<IO_T>,
-                           gradient->data_as<IO_T>(), weights->data_as<IO_T>(),
+                           grad_output->data_as<IO_T>(), weights->data_as<IO_T>(),
                            grad_input->data_as<IO_T>(), batch_size, input_features,
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(
         handle, cuda::legacy_dense::compute_input_gradients_ex<IO_T, Param_T, Compute_T>,
-        gradient->data_as<IO_T>(), weights->data_as<Param_T>(), grad_input->data_as<IO_T>(),
+        grad_output->data_as<IO_T>(), weights->data_as<Param_T>(), grad_input->data_as<IO_T>(),
         batch_size, input_features, output_features);
   }
 #endif
@@ -224,32 +220,34 @@ std::unique_ptr<Task> LegacyDenseLayer::compute_input_gradients(
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
-std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const ConstTensor &gradient,
+std::unique_ptr<Task> LegacyDenseLayer::compute_bias_gradients(const ConstTensor &grad_output,
                                                                const Tensor &bias_gradient,
                                                                size_t batch_size,
                                                                size_t output_features,
                                                                flowHandle_t handle) const {
-  if (gradient->data_type() != dtype_of<IO_T>()) {
-    throw std::runtime_error("LegacyDenseLayer gradient dtype mismatch with dispatch IO_T");
+  if (grad_output->data_type() != dtype_of<IO_T>()) {
+    throw std::runtime_error("LegacyDenseLayer grad_output dtype mismatch with dispatch IO_T");
   }
   if (bias_gradient->data_type() != dtype_of<Param_T>()) {
-    throw std::runtime_error("LegacyDenseLayer bias gradient dtype mismatch with dispatch Param_T");
+    throw std::runtime_error(
+        "LegacyDenseLayer bias grad_output dtype mismatch with dispatch Param_T");
   }
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
           "(io/param/compute must match).");
     }
     return create_cpu_task(handle, cpu::legacy_dense::compute_bias_gradients<IO_T>,
-                           gradient->data_as<IO_T>(), bias_gradient->data_as<IO_T>(), batch_size,
+                           grad_output->data_as<IO_T>(), bias_gradient->data_as<IO_T>(), batch_size,
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
-    return create_cuda_task(
-        handle, cuda::legacy_dense::compute_bias_gradients_ex<IO_T, Param_T, Compute_T>,
-        gradient->data_as<IO_T>(), bias_gradient->data_as<Param_T>(), batch_size, output_features);
+  else if (this->device().device_type() == DeviceType::GPU) {
+    return create_cuda_task(handle,
+                            cuda::legacy_dense::compute_bias_gradients_ex<IO_T, Param_T, Compute_T>,
+                            grad_output->data_as<IO_T>(), bias_gradient->data_as<Param_T>(),
+                            batch_size, output_features);
   }
 #endif
   else {
@@ -269,7 +267,7 @@ std::unique_ptr<Task> LegacyDenseLayer::add_bias_vector(const Tensor &output,
   if (bias->data_type() != dtype_of<Param_T>()) {
     throw std::runtime_error("LegacyDenseLayer bias dtype mismatch with dispatch Param_T");
   }
-  if (this->device_->device_type() == DeviceType::CPU) {
+  if (this->device().device_type() == DeviceType::CPU) {
     if constexpr (!std::is_same_v<IO_T, Compute_T> || !std::is_same_v<Param_T, Compute_T>) {
       throw std::runtime_error(
           "LegacyDenseLayer mixed dtype dispatch not implemented for CPU "
@@ -280,7 +278,7 @@ std::unique_ptr<Task> LegacyDenseLayer::add_bias_vector(const Tensor &output,
                            output_features);
   }
 #ifdef USE_CUDA
-  else if (this->device_->device_type() == DeviceType::GPU) {
+  else if (this->device().device_type() == DeviceType::GPU) {
     return create_cuda_task(
         handle, cuda::legacy_dense::add_bias_vector_ex<IO_T, Param_T, Compute_T>,
         output->data_as<IO_T>(), bias->data_as<Param_T>(), batch_size, output_features);
@@ -302,11 +300,6 @@ LayerConfig LegacyDenseLayer::get_config() const {
   return config;
 }
 
-std::unique_ptr<Layer> LegacyDenseLayer::clone() const {
-  return std::make_unique<LegacyDenseLayer>(input_features_, output_features_, use_bias_,
-                                            this->name_);
-}
-
 std::vector<size_t> LegacyDenseLayer::compute_output_shape(
     const std::vector<size_t> &input_shape) const {
   if (input_shape.empty()) {
@@ -317,41 +310,12 @@ std::vector<size_t> LegacyDenseLayer::compute_output_shape(
   return out_shape;
 }
 
-void LegacyDenseLayer::collect_parameters(std::vector<Tensor> &params) {
-  params.push_back(weights_);
-  if (use_bias_) {
-    params.push_back(bias_);
-  }
-}
-
-void LegacyDenseLayer::collect_gradients(std::vector<Tensor> &grads) {
-  grads.push_back(weight_gradients_);
-  if (use_bias_) {
-    grads.push_back(bias_gradients_);
-  }
-}
-
 std::unique_ptr<LegacyDenseLayer> LegacyDenseLayer::create_from_config(const LayerConfig &config) {
   size_t input_features = config.get<size_t>("input_features");
   size_t output_features = config.get<size_t>("output_features");
   bool use_bias = config.get<bool>("use_bias");
 
   return std::make_unique<LegacyDenseLayer>(input_features, output_features, use_bias, config.name);
-}
-
-uint64_t LegacyDenseLayer::forward_flops(const std::vector<size_t> &input_shape) const {
-  size_t batch_size = input_shape[0];
-  uint64_t gemm_flops = 2ULL * batch_size * input_features_ * output_features_;
-  uint64_t bias_flops = use_bias_ ? (batch_size * output_features_) : 0;
-  return gemm_flops + bias_flops;
-}
-
-uint64_t LegacyDenseLayer::backward_flops(const std::vector<size_t> &input_shape) const {
-  size_t batch_size = input_shape[0];
-  uint64_t weight_grad_flops = 2ULL * input_features_ * batch_size * output_features_;
-  uint64_t bias_grad_flops = use_bias_ ? (batch_size * output_features_) : 0;
-  uint64_t input_grad_flops = 2ULL * batch_size * output_features_ * input_features_;
-  return weight_grad_flops + bias_grad_flops + input_grad_flops;
 }
 
 }  // namespace tnn
