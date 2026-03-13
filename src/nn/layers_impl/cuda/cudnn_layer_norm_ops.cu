@@ -151,7 +151,8 @@ static void build_fwd_graph(feHandle_t* handle, LayerNormStats& stats) {
   handle->fwd_y = Y;
   handle->fwd_mean = Mean;
   handle->fwd_inv_variance = InvVariance;
-  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.fwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_bwd_graph(feHandle_t* handle, LayerNormStats& stats) {
@@ -228,7 +229,8 @@ static void build_bwd_graph(feHandle_t* handle, LayerNormStats& stats) {
   handle->bwd_dx = DX;
   handle->bwd_dscale = DScale;
   handle->bwd_dbias = DBias;
-  stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.bwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void rebuild_all_graphs(feHandle_t* handle, LayerNormStats& stats) {

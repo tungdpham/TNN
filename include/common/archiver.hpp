@@ -5,7 +5,6 @@
 #include <type_traits>
 
 #include "common/blob.hpp"
-#include "device/dptr.hpp"
 
 namespace tnn {
 
@@ -31,43 +30,28 @@ concept IsBlob = is_blob<std::remove_cvref_t<T>>::value;
 template <typename T>
 concept always_false = false;
 
-// Derived archiver class should implement archive_impl(const T* data, size_t count)
-// Optionally implement archive_dptr_impl(dptr& data) for dptr type if supported.
+// Derived class should implement archive_impl(const T* data, size_t count, const Device& device)
 template <typename Derived>
 class IArchiver {
 public:
-  template <typename T>
-  Derived& operator&(T& data) {
-    process(data);
-    return static_cast<Derived&>(*this);
-  }
-
-  template <typename T>
-  Derived& operator&(const T& data) {
-    process(data);
-    return static_cast<Derived&>(*this);
-  }
-
-  template <typename T>
-  Derived& operator&(T&& data) {
-    process(data);
+  template <typename... Args>
+  Derived& operator()(Args&&... args) {
+    (process(args), ...);
     return static_cast<Derived&>(*this);
   }
 
 private:
   template <typename T>
-  void process(T& data) {
+  inline void process(T& data) {
     auto& self = static_cast<Derived&>(*this);
     using RawT = std::remove_cv_t<T>;
     if constexpr (Archivable<RawT, Derived>) {
       data.archive(self);
     } else if constexpr (TriviallyArchivable<RawT>) {
-      self.archive_impl(&data, 1);
+      self.archive_impl(&data, 1, getHost());
     } else if constexpr (IsBlob<RawT>) {
-      self.archive_impl(&data.count, 1);
-      self.archive_impl(data.ptr, data.count);
-    } else if constexpr (std::is_same_v<RawT, dptr>) {
-      self.archive_dptr_impl(data);
+      self.archive_impl(&data.count, 1, getHost());
+      self.archive_impl(data.ptr, data.count, data.device);
     } else {
       static_assert(always_false<RawT>, "Type is not archivable");
     }
@@ -81,13 +65,8 @@ private:
 
 public:
   template <typename T>
-  void archive_impl(const T* data, size_t count) {
+  void archive_impl(const T* data, size_t count, const Device& device) {
     size_ += sizeof(T) * count;
-  }
-
-  void archive_dptr_impl(dptr& data) {
-    size_ += sizeof(uint64_t);  // for storing the size
-    size_ += data.capacity();
   }
 
   size_t size() const { return size_; }
@@ -103,16 +82,9 @@ public:
       : buffer_(buffer) {}
 
   template <typename T>
-  void archive_impl(const T* data, size_t count) {
-    std::memcpy(buffer_ + offset_, data, sizeof(T) * count);
+  void archive_impl(const T* data, size_t count, const Device& device) {
+    device.copyToHost(buffer_ + offset_, data, sizeof(T) * count);
     offset_ += sizeof(T) * count;
-  }
-
-  void archive_dptr_impl(dptr& data) {
-    uint64_t byte_size = data.capacity();
-    archive_impl(&byte_size, 1);
-    data.copy_to_host(buffer_ + offset_, byte_size);
-    offset_ += data.capacity();
   }
 
   size_t bytes_written() const { return offset_; }
@@ -128,16 +100,9 @@ public:
       : buffer_(buffer) {}
 
   template <typename T>
-  void archive_impl(T* data, size_t count) {
-    std::memcpy(data, buffer_ + offset_, sizeof(T) * count);
+  void archive_impl(T* data, size_t count, const Device& device) {
+    device.copyToDevice(data, buffer_ + offset_, sizeof(T) * count);
     offset_ += sizeof(T) * count;
-  }
-
-  void archive_dptr_impl(dptr& data) {
-    uint64_t byte_size;
-    archive_impl(&byte_size, 1);
-    data.copy_from_host(buffer_ + offset_, byte_size);
-    offset_ += byte_size;
   }
 
   size_t bytes_read() const { return offset_; }

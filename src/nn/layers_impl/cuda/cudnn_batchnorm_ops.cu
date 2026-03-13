@@ -200,7 +200,8 @@ static void build_fwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->fwd_next_var = next_running_var;
   handle->fwd_relu_mask = mask;
 
-  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.fwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
@@ -291,7 +292,8 @@ static void build_inf_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->inf_saved_var = saved_var;
   handle->inf_y = Y;
 
-  stats.inf_workspace_size = static_cast<size_t>(workspace_size);
+  stats.inf_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
@@ -379,7 +381,8 @@ static void build_bwd_graph(feHandle_t* handle, BatchNormStats& stats) {
   handle->bwd_dx = DX;
   handle->bwd_dscale = dscale;
   handle->bwd_dbias = dbias;
-  stats.bwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.bwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void rebuild_graphs(feHandle_t* handle, BatchNormStats& stats) {

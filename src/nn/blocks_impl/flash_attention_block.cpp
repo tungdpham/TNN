@@ -365,7 +365,8 @@ size_t FlashAttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
     proj_ws = q_proj_->fwd_workspace({{batch_size, seq_len, embed_dim_}});
   }
 
-  return qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  size_t total = qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 size_t FlashAttentionBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
@@ -405,7 +406,8 @@ size_t FlashAttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) 
     proj_ws = q_proj_->bwd_workspace({{batch_size, seq_len, embed_dim_}});
   }
 
-  return qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  size_t total = qkv_bytes + qkv_heads_bytes + attn_heads_bytes + cudnn_ws_bytes + proj_ws;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 std::unique_ptr<FlashAttentionBlock> FlashAttentionBlock::create_from_config(

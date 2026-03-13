@@ -123,7 +123,8 @@ static void build_fwd_graph(feHandle_t* handle, GemmStats& stats) {
   handle->fwd_input = input;
   handle->fwd_weight = weight;
   handle->fwd_output = output;
-  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.fwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
@@ -183,7 +184,8 @@ static void build_dgrad_graph(feHandle_t* handle, GemmStats& stats) {
   handle->dgrad_gradient = grad_output;
   handle->dgrad_weight = weight;
   handle->dgrad_grad_input = grad_input;
-  stats.dgrad_workspace_size = static_cast<size_t>(workspace_size);
+  stats.dgrad_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
@@ -248,7 +250,8 @@ static void build_wgrad_graph(feHandle_t* handle, GemmStats& stats) {
   handle->wgrad_input = input;
   handle->wgrad_prev_grad_weight = prev_grad_weight;
   handle->wgrad_grad_weight = grad_weight;
-  stats.wgrad_workspace_size = static_cast<size_t>(workspace_size);
+  stats.wgrad_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void rebuild_all_graphs(feHandle_t* handle, GemmStats& stats) {

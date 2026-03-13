@@ -122,7 +122,7 @@ public:
     DType_t &dtype = data_type();
     std::vector<size_t> shape_vec = shape();
     dptr data = this->data_ptr().span(0, size() * get_dtype_size(dtype));
-    archive & dtype &blob(shape_vec.data(), shape_vec.size()) & data;
+    archive(dtype, make_blob(shape_vec.data(), shape_vec.size(), device()), data);
   }
 
 private:

@@ -140,7 +140,8 @@ static void build_fwd_graph(feHandle_t* handle, ConvolutionStats& stats) {
   handle->fwd_w = W;
   handle->fwd_b = B;
   handle->fwd_y = Y;
-  stats.fwd_workspace_size = static_cast<size_t>(workspace_size);
+  stats.fwd_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_dgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
@@ -199,7 +200,8 @@ static void build_dgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   handle->dgrad_dy = DY;
   handle->dgrad_w = W;
   handle->dgrad_dx = DX;
-  stats.dgrad_workspace_size = static_cast<size_t>(workspace_size);
+  stats.dgrad_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
@@ -258,7 +260,8 @@ static void build_wgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   handle->wgrad_x = X;
   handle->wgrad_dy = DY;
   handle->wgrad_dw = DW;
-  stats.wgrad_workspace_size = static_cast<size_t>(workspace_size);
+  stats.wgrad_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
@@ -303,7 +306,8 @@ static void build_bgrad_graph(feHandle_t* handle, ConvolutionStats& stats) {
   handle->bgrad_graph = graph;
   handle->bgrad_dy = DY;
   handle->bgrad_db = DB;
-  stats.bgrad_workspace_size = static_cast<size_t>(workspace_size);
+  stats.bgrad_workspace_size =
+      (static_cast<size_t>(workspace_size) + 255) & ~static_cast<size_t>(255);
 }
 
 static void rebuild_all_graphs(feHandle_t* handle, ConvolutionStats& stats) {

@@ -154,7 +154,7 @@ static Result train_epoch(Graph &graph, unique_ptr<BaseDataLoader> &train_loader
     cur_samples += batch_data->dimension(0);
     auto device_labels = batch_labels->to_device(model_device);
 
-    Tensor predictions = make_tensor(mem_pool, batch_data->data_type(), {});
+    Tensor predictions = make_tensor(mem_pool, batch_data->data_type());
 
     const InputPack inputs{
         {"input", batch_data},

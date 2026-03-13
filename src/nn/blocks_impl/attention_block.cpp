@@ -347,7 +347,8 @@ size_t AttentionBlock::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
     proj_input_shape_bytes = q_proj_->fwd_workspace({{proj_input}});
   }
 
-  return outer_bytes + inner_bytes + proj_input_shape_bytes;
+  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 size_t AttentionBlock::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
@@ -380,7 +381,8 @@ size_t AttentionBlock::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const
     proj_input_shape_bytes = out_proj_->bwd_workspace({{proj_input}});
   }
 
-  return outer_bytes + inner_bytes + proj_input_shape_bytes;
+  size_t total = outer_bytes + inner_bytes + proj_input_shape_bytes;
+  return (total + 255) & ~static_cast<size_t>(255);
 }
 
 std::unique_ptr<AttentionBlock> AttentionBlock::create_from_config(const LayerConfig &config) {

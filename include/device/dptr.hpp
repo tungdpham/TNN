@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
+#include "common/blob.hpp"
 #include "device/device.hpp"
 #include "device/device_type.hpp"
 #include "device/sref.hpp"
@@ -138,6 +139,11 @@ public:
     }
     storage_->device()->copyToDevice(static_cast<uint8_t *>(storage_->data()) + offset_, host_ptr,
                                      byte_size);
+  }
+
+  template <typename Archiver>
+  void archive(Archiver &archiver) {
+    archiver(make_blob(get<unsigned char>(), capacity(), storage_->device()));
   }
 };
 
