@@ -64,15 +64,14 @@ protected:
     if (expected.device_type() == DeviceType::CPU) {
       std::memcpy(expected_host.data(), expected.get<size_t>(), size * sizeof(size_t));
     } else {
-      expected.getDevice().copyToHost(expected_host.data(), expected.get<size_t>(),
-                                      size * sizeof(size_t));
+      expected.device().copyToHost(expected_host.data(), expected.get<size_t>(),
+                                   size * sizeof(size_t));
     }
 
     if (actual.device_type() == DeviceType::CPU) {
       std::memcpy(actual_host.data(), actual.get<size_t>(), size * sizeof(size_t));
     } else {
-      actual.getDevice().copyToHost(actual_host.data(), actual.get<size_t>(),
-                                    size * sizeof(size_t));
+      actual.device().copyToHost(actual_host.data(), actual.get<size_t>(), size * sizeof(size_t));
     }
 
     for (size_t i = 0; i < size; ++i) {

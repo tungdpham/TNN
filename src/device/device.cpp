@@ -1,5 +1,6 @@
 #include "device/device.hpp"
 
+#include "common/endian.hpp"
 #include "device/context.hpp"
 #include "device/flow.hpp"
 
@@ -65,6 +66,8 @@ void Device::copyToDevice(void *dest, const void *src, size_t size) const {
 void Device::copyToHost(void *dest, const void *src, size_t size) const {
   context_->copyToHost(dest, src, size);
 }
+
+Endianness Device::get_endianness() const { return context_->get_endianness(); }
 
 void Device::createFlow(flowHandle_t handle) const { context_->createFlow(handle); }
 

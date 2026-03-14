@@ -3,6 +3,7 @@
 #ifdef USE_CUDA
 #include <cuda_runtime.h>
 
+#include <iostream>
 #include <stdexcept>
 #include <string>
 
@@ -13,6 +14,7 @@ inline void checkCudaError(cudaError_t result, const char *func, const char *fil
     std::string errorMessage = "CUDA Error: " + std::string(cudaGetErrorString(result)) + " at " +
                                std::string(file) + ":" + std::to_string(line) + " in function " +
                                std::string(func);
+    std::cerr << errorMessage << std::endl;
     throw std::runtime_error(errorMessage);
   }
 }

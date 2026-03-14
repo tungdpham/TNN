@@ -25,18 +25,18 @@
 #include <queue>
 #include <thread>
 #include <unordered_map>
-#include <vector>
 
+#include "common/archiver.hpp"
+#include "common/blob.hpp"
+#include "common/endian.hpp"
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
 #include "device/iallocator.hpp"
 #include "device/ibv_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
-#include "distributed/channels.hpp"
-#include "distributed/endian.hpp"
-#include "distributed/ibuffer.hpp"
+#include "distributed/channel.hpp"
+#include "distributed/io.hpp"
 #include "distributed/packet.hpp"
-#include "distributed/roce_buffer.hpp"
 #include "endpoint.hpp"
 
 namespace tnn {
@@ -56,6 +56,22 @@ struct RoCEChannelInfo {
   }
 };
 
+template <typename Archiver>
+void archive(Archiver &archiver, const RoCEChannelInfo &info) {
+  archiver(info.lid);
+  archiver(info.qpn);
+  archiver(info.psn);
+  archiver(make_blob(info.gid.raw, 16));
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, RoCEChannelInfo &info) {
+  archiver(info.lid);
+  archiver(info.qpn);
+  archiver(info.psn);
+  archiver(make_blob(info.gid.raw, 16));
+}
+
 class RoCECommunicator : public Communicator {
 private:
   std::string device_name_;
@@ -64,8 +80,7 @@ private:
   int ib_port_ = 1;
 
   std::unique_ptr<IbvAllocator> ibv_allocator_;
-  IAllocator &out_allocator_;
-  BinarySerializer serializer_;
+  std::unique_ptr<BinarySerializer> serializer_;
   asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
   asio::posix::stream_descriptor desc_;
@@ -88,11 +103,8 @@ public:
     uint64_t master_slab_size = 128 * 1024 * 1024;
   };
 
-  explicit RoCECommunicator(const Endpoint &endpoint, IAllocator &out_allocator,
-                            RoCECommunicator::Config config)
+  explicit RoCECommunicator(const Endpoint &endpoint, RoCECommunicator::Config config)
       : Communicator(endpoint),
-        out_allocator_(out_allocator),
-        serializer_(out_allocator),
         acceptor_(io_context_),
         desc_(io_context_) {
     device_name_ = endpoint.get_parameter<std::string>("device_name");
@@ -101,6 +113,7 @@ public:
     init_rdma();
     print_gid_table();
     ibv_allocator_ = std::make_unique<IbvAllocator>(getHost(), pd_, config.master_slab_size);
+    serializer_ = std::make_unique<BinarySerializer>(*ibv_allocator_);
     is_running_ = true;
     asio::co_spawn(io_context_, [this]() { return cq_event_loop(); }, asio::detached);
   }
@@ -109,6 +122,11 @@ public:
 
   void stop() {
     is_running_ = false;
+    std::error_code ec;
+    auto err = acceptor_.close(ec);
+    if (err) {
+      std::cerr << "Error closing acceptor: " << ec.message() << std::endl;
+    }
     desc_.cancel();
     io_context_.stop();
     if (io_thread_.joinable()) {
@@ -117,6 +135,9 @@ public:
 
     {
       std::lock_guard<std::mutex> lock(channels_mutex_);
+      for (auto &pair : channels_) {
+        pair.second->close();
+      }
       channels_.clear();
       qp_map_.clear();
     }
@@ -138,10 +159,12 @@ public:
   }
 
   void send_impl(Message &&message, const Endpoint &endpoint) override {
-    size_t msg_size = message.size();
-    auto data_buffer = std::make_shared<RoCEBuffer>(*ibv_allocator_, msg_size);
-    size_t offset = 0;
-    serializer_.serialize(*data_buffer, offset, message);
+    Sizer sizer;
+    sizer(message);
+    size_t msg_size = sizer.size();
+    dptr *data_buffer = new dptr(ibv_allocator_->allocate(msg_size));
+    Writer data_writer(*data_buffer);
+    data_writer(message);
     uint64_t msg_id = msg_serial_id_counter_.fetch_add(1);
     std::shared_ptr<RoCEChannel> channel;
     {
@@ -165,18 +188,28 @@ public:
       }
     }
     {
-      std::lock_guard<std::mutex> conn_lock(channel->mutex);
+      std::unique_lock<std::mutex> conn_lock(channel->mutex);
+      channel->inflight_cv.wait(conn_lock,
+                                [&] { return channel->is_closed || channel->inflight_count < 16; });
+      if (channel->is_closed) {
+        delete data_buffer;
+        return;
+      }
+      channel->inflight_count++;
       channel->pending_sends[msg_id] = data_buffer;
     }
-    auto *send_buf = new RoCEBuffer(*ibv_allocator_, PacketHeader::size());
-    PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->size(), 0, 1);
+    PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->capacity(), 0, 1);
+    sizer.reset();
+    sizer(header);
+    size_t header_size = sizer.size();
+    dptr *send_buf = new dptr(ibv_allocator_->allocate(header_size));
     header.msg_serial_id = msg_id;
-    size_t header_offset = 0;
-    serializer_.serialize(*send_buf, header_offset, header);
+    Writer header_writer(*send_buf);
+    header_writer(header);
     struct ibv_sge sge;
-    sge.addr = (uint64_t)send_buf->data();
+    sge.addr = (uint64_t)send_buf->get();
     sge.length = sizeof(PacketHeader);
-    sge.lkey = send_buf->get_lkey();
+    sge.lkey = ibv_allocator_->get_mr_info(*send_buf).lkey;
     struct ibv_send_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
     wr.wr_id = (uint64_t)send_buf;
@@ -205,11 +238,12 @@ public:
     }
   }
 
-  IAllocator &out_allocator() override { return out_allocator_; }
+  IAllocator &out_allocator() override { return *ibv_allocator_; }
 
 protected:
   bool connect_to_endpoint(const Endpoint &endpoint) override {
     try {
+      // Establish TCP connection for initial handshake and RoCE channel setup
       std::string host = endpoint.get_parameter<std::string>("host");
       int tcp_port = endpoint.get_parameter<int>("port");
       asio::ip::tcp::socket socket(io_context_);
@@ -223,19 +257,25 @@ protected:
       auto channel = std::make_shared<RoCEChannel>();
       channel->endpoint = endpoint;
       channel->qp = create_qp();
+
+      // Send RoCE channel info
       RoCEChannelInfo my_info = get_local_info(channel->qp);
-      IBuffer my_info_buf(out_allocator_, RoCEChannelInfo::size());
-      serialize_info(my_info, my_info_buf);
-      asio::write(socket, asio::buffer(my_info_buf.data(), my_info_buf.size()));
-      IBuffer peer_info_buf(out_allocator_, RoCEChannelInfo::size());
-      asio::read(socket, asio::buffer(peer_info_buf.data(), peer_info_buf.size()));
-      RoCEChannelInfo peer_info = deserialize_info(peer_info_buf);
+      dptr my_info_buf = ibv_allocator_->allocate(RoCEChannelInfo::size());
+      Writer writer(my_info_buf);
+      writer(my_info);
+      asio::write(socket, asio::buffer(my_info_buf.get(), RoCEChannelInfo::size()));
+
+      // Read peer's RoCE channel info and transition QP to RTS
+      dptr peer_info_buf = ibv_allocator_->allocate(RoCEChannelInfo::size());
+      asio::read(socket, asio::buffer(peer_info_buf.get(), RoCEChannelInfo::size()));
+      Reader reader(peer_info_buf);
+      RoCEChannelInfo peer_info;
+      reader(peer_info);
       modify_qp_to_rts(channel->qp, peer_info, my_info.psn);
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = std::make_unique<RoCEBuffer>(*ibv_allocator_, ROCE_BUFFER_SIZE);
-        buf->resize(ROCE_BUFFER_SIZE);
-        post_recv_buffer(channel->qp, buf.get());
-        channel->recv_buffers.push_back(std::move(buf));
+        dptr *buf = new dptr(ibv_allocator_->allocate(ROCE_BUFFER_SIZE));
+        post_recv_buffer(channel->qp, buf);
+        channel->recv_buffers.push_back(buf);
       }
       uint8_t ack = 1;
       asio::write(socket, asio::buffer(&ack, 1));
@@ -262,6 +302,7 @@ protected:
     std::lock_guard<std::mutex> lock(channels_mutex_);
     auto it = channels_.find(endpoint);
     if (it != channels_.end()) {
+      it->second->close();
       qp_map_.erase(it->second->qp->qp_num);
       channels_.erase(it);
       return true;
@@ -270,27 +311,6 @@ protected:
   }
 
 private:
-  void serialize_info(const RoCEChannelInfo &info, IBuffer &buffer) {
-    size_t offset = 0;
-    buffer.write(offset, tnn::sys_endianness);
-    buffer.write(offset, info.lid);
-    buffer.write(offset, info.qpn);
-    buffer.write(offset, info.psn);
-    buffer.write(offset, info.gid.raw, 16);
-  }
-
-  RoCEChannelInfo deserialize_info(const IBuffer &buffer) {
-    Endianness endianness;
-    size_t offset = 0;
-    buffer.read(offset, endianness);
-    RoCEChannelInfo info;
-    buffer.read(offset, info.lid);
-    buffer.read(offset, info.qpn);
-    buffer.read(offset, info.psn);
-    buffer.read(offset, info.gid.raw, 16);
-    return info;
-  }
-
   void print_gid_table() {
     struct ibv_port_attr port_attr;
     if (ibv_query_port(context_, ib_port_, &port_attr) == 0) {
@@ -508,11 +528,11 @@ private:
     }
   }
 
-  void post_recv_buffer(ibv_qp *qp, RoCEBuffer *buf) {
+  void post_recv_buffer(ibv_qp *qp, dptr *buf) {
     struct ibv_sge sge;
-    sge.addr = (uint64_t)buf->data();
+    sge.addr = (uint64_t)buf->get();
     sge.length = ROCE_BUFFER_SIZE;
-    sge.lkey = buf->get_lkey();
+    sge.lkey = ibv_allocator_->get_mr_info(*buf).lkey;
 
     struct ibv_recv_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
@@ -566,7 +586,9 @@ private:
             std::lock_guard<std::mutex> lock(channels_mutex_);
             auto it = qp_map_.find(wc[i].qp_num);
             if (it != qp_map_.end()) {
-              auto conn_endpoint = it->second->endpoint;
+              auto err_channel = it->second;
+              auto conn_endpoint = err_channel->endpoint;
+              err_channel->close();
               qp_map_.erase(it);
               channels_.erase(conn_endpoint);
             }
@@ -574,6 +596,11 @@ private:
           if (wc[i].opcode == IBV_WC_RDMA_WRITE && (wc[i].wr_id & 1)) {
             WriteContext *ctx = (WriteContext *)(wc[i].wr_id & ~1);
             delete ctx;
+          } else {
+            if (!(wc[i].opcode & IBV_WC_RECV)) {
+              auto *buf = (dptr *)wc[i].wr_id;
+              delete buf;
+            }
           }
           continue;
         }
@@ -586,64 +613,66 @@ private:
             if (it != qp_map_.end()) channel = it->second;
           }
 
-          auto *buf = (RoCEBuffer *)wc[i].wr_id;
+          auto *buf = (dptr *)wc[i].wr_id;
 
           if (channel) {
             if (wc[i].opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
               uint32_t imm = ntohl(wc[i].imm_data);
-              std::shared_ptr<RoCEBuffer> dest_buf;
+              dptr *dest_buf;
               {
                 std::lock_guard<std::mutex> lock(channel->mutex);
                 auto it = channel->pending_receives.find(imm);
                 if (it != channel->pending_receives.end()) {
                   dest_buf = it->second;
                   channel->pending_receives.erase(it);
+                } else {
+                  std::cerr << "No pending receive found for imm ID: " << imm << std::endl;
+                  dest_buf = nullptr;
                 }
               }
 
               if (dest_buf) {
                 Message msg;
-                size_t offset = 0;
                 try {
-                  serializer_.deserialize(*dest_buf, offset, msg);
+                  Reader reader(*dest_buf);
+                  serializer_->deserialize(reader, msg);
                   this->enqueue_input_message(std::move(msg));
                 } catch (const std::exception &e) {
                   std::cerr << "Deserialization error: " << e.what() << "\n";
                 }
+                delete dest_buf;
               }
 
               post_recv_buffer(channel->qp, buf);
 
             } else {
               PacketHeader header;
-              size_t offset = 0;
-              serializer_.deserialize(*buf, offset, header);
+              Reader reader(*buf);
+              reader(header);
 
               if (header.type == PacketType::MSG_PREPARE) {
-                auto dest_buf = std::make_shared<RoCEBuffer>(*ibv_allocator_, header.msg_length);
-                dest_buf->resize(header.msg_length);
+                dptr *dest_buf = new dptr(ibv_allocator_->allocate(header.msg_length));
 
                 {
                   std::lock_guard<std::mutex> lock(channel->mutex);
                   channel->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
                 }
 
-                auto *send_buf = new RoCEBuffer(*ibv_allocator_, sizeof(PacketHeader) + 12);
+                auto *send_buf = new dptr(ibv_allocator_->allocate(sizeof(PacketHeader) + 12));
 
                 PacketHeader ready_header(PacketType::MSG_READY_TO_WRITE, 12, 0, 0, 1);
                 ready_header.msg_serial_id = header.msg_serial_id;
 
-                size_t ready_offset = 0;
-                serializer_.serialize(*send_buf, ready_offset, ready_header);
-                uint64_t addr = (uint64_t)dest_buf->data();
-                uint32_t rkey = dest_buf->get_rkey();
-                send_buf->write(ready_offset, addr);
-                send_buf->write(ready_offset, rkey);
+                Writer writer(*send_buf);
+                writer(ready_header);
+                uint64_t addr = (uint64_t)dest_buf->get();
+                uint32_t rkey = ibv_allocator_->get_mr_info(*dest_buf).rkey;
+                writer(addr, rkey);
 
                 struct ibv_sge sge;
-                sge.addr = (uint64_t)send_buf->data();
+                sge.addr = (uint64_t)send_buf->get();
                 sge.length = sizeof(PacketHeader) + 12;
-                sge.lkey = send_buf->get_lkey();
+                sge.lkey = ibv_allocator_->get_mr_info(*send_buf).lkey;
 
                 struct ibv_send_wr wr, *bad_wr = nullptr;
                 std::memset(&wr, 0, sizeof(wr));
@@ -663,21 +692,27 @@ private:
               } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
                 uint64_t remote_addr;
                 uint32_t rkey;
-                buf->read(offset, remote_addr);
-                buf->read(offset, rkey);
+                Reader reader(*buf);
+                reader(remote_addr, rkey);
 
-                std::shared_ptr<RoCEBuffer> source_buf;
+                dptr *source_buf;
                 {
                   std::lock_guard<std::mutex> lock(channel->mutex);
                   auto it = channel->pending_sends.find(header.msg_serial_id);
-                  if (it != channel->pending_sends.end()) source_buf = it->second;
+                  if (it != channel->pending_sends.end()) {
+                    source_buf = it->second;
+                  } else {
+                    std::cerr << "No pending send found for MSG_READY with serial ID: "
+                              << header.msg_serial_id << std::endl;
+                    source_buf = nullptr;
+                  }
                 }
 
                 if (source_buf) {
                   struct ibv_sge sge;
-                  sge.addr = (uint64_t)source_buf->data();
-                  sge.length = source_buf->size();
-                  sge.lkey = source_buf->get_lkey();
+                  sge.addr = (uint64_t)source_buf->get();
+                  sge.length = source_buf->capacity();
+                  sge.lkey = ibv_allocator_->get_mr_info(*source_buf).lkey;
 
                   WriteContext *ctx = new WriteContext{header.msg_serial_id};
 
@@ -717,11 +752,17 @@ private:
 
             if (channel) {
               std::lock_guard<std::mutex> lock(channel->mutex);
-              channel->pending_sends.erase(ctx->msg_serial_id);
+              auto send_it = channel->pending_sends.find(ctx->msg_serial_id);
+              if (send_it != channel->pending_sends.end()) {
+                delete send_it->second;
+                channel->pending_sends.erase(send_it);
+              }
+              channel->inflight_count--;
+              channel->inflight_cv.notify_one();
             }
             delete ctx;
           } else {
-            auto *buf = (RoCEBuffer *)wc[i].wr_id;
+            auto *buf = (dptr *)wc[i].wr_id;
             delete buf;
           }
         }
@@ -760,19 +801,21 @@ private:
       RoCEChannelInfo my_info = get_local_info(channel->qp);
       uint32_t my_psn = my_info.psn;
 
-      IBuffer my_info_buf(out_allocator_, 26);
-      serialize_info(my_info, my_info_buf);
-      co_await asio::async_write(*socket, asio::buffer(my_info_buf.data(), my_info_buf.size()),
+      dptr my_info_buf = ibv_allocator_->allocate(RoCEChannelInfo::size());
+      Writer writer(my_info_buf);
+      writer(my_info);
+      co_await asio::async_write(*socket, asio::buffer(my_info_buf.get(), RoCEChannelInfo::size()),
                                  asio::use_awaitable);
-      IBuffer peer_info_buf(out_allocator_, 26);
-      co_await asio::async_read(*socket, asio::buffer(peer_info_buf.data(), peer_info_buf.size()),
+      dptr peer_info_buf = ibv_allocator_->allocate(RoCEChannelInfo::size());
+      co_await asio::async_read(*socket, asio::buffer(peer_info_buf.get(), RoCEChannelInfo::size()),
                                 asio::use_awaitable);
-      RoCEChannelInfo peer_info = deserialize_info(peer_info_buf);
+      Reader reader(peer_info_buf);
+      RoCEChannelInfo peer_info;
+      reader(peer_info);
       modify_qp_to_rts(channel->qp, peer_info, my_psn);
       for (int i = 0; i < ROCE_RQ_DEPTH; ++i) {
-        auto buf = std::make_unique<RoCEBuffer>(*ibv_allocator_, ROCE_BUFFER_SIZE);
-        buf->resize(ROCE_BUFFER_SIZE);
-        post_recv_buffer(channel->qp, buf.get());
+        dptr *buf = new dptr(ibv_allocator_->allocate(ROCE_BUFFER_SIZE));
+        post_recv_buffer(channel->qp, buf);
         channel->recv_buffers.push_back(std::move(buf));
       }
       uint8_t remote_ack = 0;

@@ -196,7 +196,7 @@ public:
 
   IAllocator &allocator() const override { return allocator_; }
 
-  const Device &device() const override { return data_.getDevice(); }
+  const Device &device() const override { return data_.device(); }
 
   DeviceType device_type() const override { return device().device_type(); }
 

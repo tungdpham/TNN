@@ -182,4 +182,10 @@ Flow *CPUContext::getFlow(flowHandle_t handle) {
   return flows_[handle].get();
 }
 
+Endianness CPUContext::get_endianness() const {
+  uint16_t num = 0x1;
+  char *numPtr = reinterpret_cast<char *>(&num);
+  return (numPtr[0] == 1) ? Endianness::LITTLE : Endianness::BIG;
+}
+
 }  // namespace tnn

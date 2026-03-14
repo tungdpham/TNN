@@ -8,58 +8,17 @@
 
 #include <arpa/inet.h>
 
-#include <cstdint>
 #include <cstring>
 #include <string>
-#include <variant>
 
 #include "command_type.hpp"
+#include "common/variant.hpp"
 #include "distributed/stage_config.hpp"
 #include "job.hpp"
 #include "profiling/profiler.hpp"
-#include "type/type.hpp"
 
 namespace tnn {
-using PayloadType = std::variant<std::monostate, Job, std::string, bool, Profiler, StageConfig>;
-
-struct SizeVisitor {
-  uint64_t operator()(const std::monostate &) const { return 0; }
-  uint64_t operator()(const Job &job) const {
-    uint64_t size = 0;
-    size += sizeof(uint64_t);                             // mb_id
-    size += sizeof(uint32_t);                             // dtype (serialized as uint32_t)
-    size += sizeof(uint64_t);                             // shape size (uint64_t in serialization)
-    size += job.data->shape().size() * sizeof(uint64_t);  // each dimension (uint64_t)
-    size += job.data->size() * get_dtype_size(job.data->data_type());  // tensor data
-    return size;
-  }
-  uint64_t operator()(const std::string &str) const {
-    return sizeof(uint64_t) + str.size();  // string length + data
-  }
-  uint64_t operator()(const bool &) const {
-    return sizeof(uint8_t);  // bool serialized as uint8_t
-  }
-  uint64_t operator()(const Profiler &profiler) const {
-    uint64_t size = 0;
-    size += sizeof(int64_t);  // profiler_start_time_
-    auto events = profiler.get_events();
-    size += sizeof(int64_t);  // number of events
-    for (const auto &event : events) {
-      size += sizeof(int64_t);      // start_time_
-      size += sizeof(int64_t);      // end_time_
-      size += sizeof(uint8_t);      // event.type
-      size += sizeof(uint64_t);     // name length
-      size += event.name.size();    // name data
-      size += sizeof(uint64_t);     // source length
-      size += event.source.size();  // source data
-    }
-    return size;
-  }
-  uint64_t operator()(const StageConfig &stage_config) const {
-    auto json_str = stage_config.to_json().dump();
-    return sizeof(uint64_t) + json_str.size();  // JSON string size
-  }
-};
+using PayloadType = Variant<std::monostate, Job, std::string, bool, Profiler, StageConfig>;
 
 struct MessageHeader {
   CommandType command_type;  // Type of command
@@ -72,11 +31,17 @@ struct MessageHeader {
 
   MessageHeader(const MessageHeader &other)
       : command_type(other.command_type) {}
-
-  const uint64_t size() const {
-    return sizeof(uint16_t);  // command_type (serialized as uint16_t)
-  }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const MessageHeader &header) {
+  archiver(header.command_type);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, MessageHeader &header) {
+  archiver(header.command_type);
+}
 
 struct MessageData {
   PayloadType payload;
@@ -99,12 +64,12 @@ struct MessageData {
     }
     return *this;
   }
-
-  const uint64_t size() const {
-    return sizeof(uint64_t) +                   // payload type index
-           std::visit(SizeVisitor{}, payload);  // payload size
-  }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const MessageData &message_data) {
+  archiver(message_data.payload);
+}
 
 struct Message {
 private:
@@ -150,25 +115,28 @@ public:
 
   template <typename PayloadType>
   bool has_type() const {
-    return std::holds_alternative<PayloadType>(data_.payload);
+    return data_.payload.holds<PayloadType>();
   }
 
   template <typename PayloadType>
   PayloadType &get() {
-    return std::get<PayloadType>(data_.payload);
+    return data_.payload.get<PayloadType>();
   }
 
   template <typename PayloadType>
   const PayloadType &get() const {
-    return std::get<PayloadType>(data_.payload);
+    return data_.payload.get<PayloadType>();
   }
 
   template <typename PayloadType>
   void set(const PayloadType &new_payload) {
     data_.payload = new_payload;
   }
-
-  const uint64_t size() const { return header_.size() + data_.size(); }
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const Message &message) {
+  archiver(message.header(), message.data());
+}
 
 }  // namespace tnn

@@ -107,7 +107,7 @@ private:
       }
     }
 #ifndef NDEBUG
-    std::cout << "PoolAllocator: Allocating new tensor of size " << size << " bytes.\n";
+    std::cout << "PoolAllocator: Allocating new buffer of size " << size << " bytes.\n";
 #endif
     void *ptr = device_.allocateAlignedMemory(size, DEFAULT_ALIGNMENT);
     return new device_storage(device_, ptr, size, DEFAULT_ALIGNMENT);

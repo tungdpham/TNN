@@ -19,7 +19,7 @@ public:
 
   Endpoint endpoint() const { return endpoint_; }
 
-  std::vector<Packet> slice(IBuffer &&buffer) {
+  std::vector<Packet> slice(dptr &&buffer) {
     std::unique_lock<std::mutex> lock(mutex_);
     return slicer_->slice(std::move(buffer));
   }

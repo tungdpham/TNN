@@ -117,17 +117,20 @@ public:
   virtual void fill_random_normal(double mean, double stddev) = 0;
   virtual void fill_random_normal(double mean, double stddev, unsigned long long seed) = 0;
 
-  template <typename Archiver>
-  void archive(Archiver &archive) {
-    DType_t &dtype = data_type();
-    std::vector<size_t> shape_vec = shape();
-    dptr data = this->data_ptr().span(0, size() * get_dtype_size(dtype));
-    archive(dtype, make_blob(shape_vec.data(), shape_vec.size(), device()), data);
-  }
-
 private:
   virtual size_t compute_index(std::initializer_list<size_t> indices) const = 0;
 };
+
+template <typename Archiver>
+void archive(Archiver &archive, const Tensor &tensor) {
+  DType_t &dtype = tensor->data_type();
+  std::vector<size_t> shape_vec = tensor->shape();
+  archive(dtype);
+  archive(shape_vec);
+  dptr data_ptr = tensor->data_ptr();
+  archive(make_blob(data_ptr.get<unsigned char>(), tensor->size() * get_dtype_size(dtype),
+                    tensor->device()));
+}
 
 inline Tensor operator+(const ConstTensor &lhs, const ConstTensor &rhs) {
   Tensor result = lhs->clone();

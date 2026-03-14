@@ -14,20 +14,20 @@
 namespace tnn {
 
 /**
- * @brief Unified configuration class with type-preserving JSON serialization.
+ * @brief Unified configuration class with JSON serialization.
  *
  * This class stores configuration parameters with their exact types and provides
- * lossless round-trip serialization to/from JSON. Type information is explicitly
- * stored in the JSON format to preserve precision for numeric types.
+ * serialization to/from JSON. Values are stored directly in JSON format without
+ * explicit type tags.
  *
  * JSON Format Example:
  * {
  *   "name": "MyConfig",
  *   "type": "layer",
  *   "parameters": {
- *     "learning_rate": {"type": "double", "value": 0.001},
- *     "size": {"type": "size_t", "value": 256},
- *     "momentum": {"type": "float", "value": 0.9}
+ *     "learning_rate": 0.001,
+ *     "size": 256,
+ *     "momentum": 0.9
  *   }
  * }
  */
@@ -74,13 +74,13 @@ public:
   void clear_parameters();
 
   /**
-   * @brief Serialize to JSON with type information.
-   * @return JSON object with type-tagged parameters.
+   * @brief Serialize to JSON.
+   * @return JSON object with parameters stored as direct values.
    */
   nlohmann::json to_json() const;
 
   /**
-   * @brief Deserialize from JSON with type information.
+   * @brief Deserialize from JSON.
    * @param j JSON object to deserialize from.
    * @return TConfig object.
    */
@@ -101,5 +101,23 @@ private:
   static nlohmann::json value_to_json(const std::any &value);
   static std::any json_to_value(const nlohmann::json &type_value_pair);
 };
+
+template <typename Archiver>
+void archive(Archiver &archiver, const TConfig &config) {
+  const std::string json_str = config.to_json().dump();
+  archiver(json_str);
+}
+
+template <typename Archiver>
+void archive(Archiver &archiver, TConfig &config) {
+  std::string json_str;
+  archiver(json_str);
+  if (!json_str.empty()) {
+    nlohmann::json j = nlohmann::json::parse(json_str);
+    config = TConfig::from_json(j);
+  } else {
+    config = TConfig();  // Reset to default if empty JSON is provided
+  }
+}
 
 }  // namespace tnn

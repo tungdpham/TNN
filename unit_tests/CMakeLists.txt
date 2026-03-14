@@ -25,7 +25,6 @@ set(TEST_FILES
     groupnorm_layer_test.cpp
     attention_block_test.cpp
     partitioner_test.cpp
-    vbuffer_serializer_test.cpp
     archiver_test.cpp
     bf16_test.cpp
     fp16_test.cpp

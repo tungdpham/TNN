@@ -7,8 +7,10 @@
 
 #include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/iallocator.hpp"
+#include "distributed/binary_serializer.hpp"
+#include "distributed/io.hpp"
 #include "distributed/packet.hpp"
-#include "ops/ops.hpp"
 #include "tensor/tensor_factory.hpp"
 #include "type/type.hpp"
 
@@ -17,9 +19,18 @@ using namespace tnn;
 class ArchiverTest : public ::testing::Test {
 public:
   static void SetUpTestSuite() { initializeDefaultDevices(); }
+
+  size_t packet_header_size =
+      sizeof(PacketHeader::PROTOCOL_VERSION) + sizeof(PacketHeader::type) +
+      sizeof(PacketHeader::endianess) + sizeof(PacketHeader::packet_length) +
+      sizeof(PacketHeader::msg_length) + sizeof(PacketHeader::msg_serial_id) +
+      sizeof(PacketHeader::packet_offset) + sizeof(PacketHeader::total_packets) +
+      sizeof(PacketHeader::compression_type);
+
+  IAllocator& allocator_ = DeviceAllocator::instance(getHost());
 };
 
-TEST_F(ArchiverTest, TestSizeArchiver) {
+TEST_F(ArchiverTest, TestHeaderSizer) {
   PacketHeader header;
   header.PROTOCOL_VERSION = 1;
   header.type = PacketType::MSG_PREPARE;
@@ -30,13 +41,13 @@ TEST_F(ArchiverTest, TestSizeArchiver) {
   header.packet_offset = 0;
   header.total_packets = 4;
   header.compression_type = CompressionType::ZSTD;
-  SizeArchiver size_archiver;
-  size_archiver(header);
-  EXPECT_EQ(size_archiver.size(), PacketHeader::size());
+  Sizer sizer;
+  sizer(header);
+  EXPECT_EQ(sizer.size(), packet_header_size);
 }
 
-TEST_F(ArchiverTest, TestOutArchiver) {
-  char buffer[1024];
+TEST_F(ArchiverTest, TestHeaderWriter) {
+  dptr buffer = allocator_.allocate(packet_header_size);
   PacketHeader header;
   header.PROTOCOL_VERSION = 1;
   header.type = PacketType::MSG_PREPARE;
@@ -47,29 +58,27 @@ TEST_F(ArchiverTest, TestOutArchiver) {
   header.packet_offset = 0;
   header.total_packets = 4;
   header.compression_type = CompressionType::ZSTD;
-  OutArchiver out_archiver(buffer, sizeof(buffer));
-  out_archiver(header);
-  EXPECT_EQ(out_archiver.bytes_written(), PacketHeader::size());
+  Writer writer(buffer);
+  writer(header);
+  EXPECT_EQ(writer.bytes_written(), packet_header_size);
 }
 
 TEST_F(ArchiverTest, TestBlobArchiver) {
-  constexpr size_t header_size = sizeof(uint64_t);  // 8 bytes for data size
-  constexpr size_t blob_size = 4 * 1024 * 1024;     // 4 MB
-  constexpr size_t byte_size =
-      blob_size * sizeof(int) + header_size;  // Total size of the buffer needed
+  constexpr size_t blob_size = 4 * 1024 * 1024;          // 4 MB
+  constexpr size_t byte_size = blob_size * sizeof(int);  // Total size of the buffer needed
   auto data = std::make_unique<int[]>(blob_size);
-  auto buffer = std::make_unique<char[]>(byte_size);
+  dptr buffer = allocator_.allocate(byte_size);
   auto blob_data = make_blob(data.get(), blob_size);
-  SizeArchiver size_archiver;
-  size_archiver(blob_data);
-  EXPECT_EQ(size_archiver.size(), byte_size);
-  OutArchiver out_archiver(buffer.get(), byte_size);
-  out_archiver(blob_data);
-  EXPECT_EQ(out_archiver.bytes_written(), byte_size);
+  Sizer sizer;
+  sizer(blob_data);
+  EXPECT_EQ(sizer.size(), byte_size);
+  Writer writer(buffer);
+  writer(blob_data);
+  EXPECT_EQ(writer.bytes_written(), byte_size);
 }
 
-TEST_F(ArchiverTest, TestInArchiver) {
-  char buffer[1024];
+TEST_F(ArchiverTest, TestHeaderArchiver) {
+  dptr buffer = allocator_.allocate(packet_header_size);
   PacketHeader header;
   header.PROTOCOL_VERSION = 1;
   header.type = PacketType::MSG_PREPARE;
@@ -81,16 +90,16 @@ TEST_F(ArchiverTest, TestInArchiver) {
   header.total_packets = 4;
   header.compression_type = CompressionType::ZSTD;
 
-  // First, write the header to the buffer using OutArchiver
-  OutArchiver out_archiver(buffer, sizeof(buffer));
-  out_archiver(header);
+  // First, write the header to the buffer using Writer
+  Writer writer(buffer);
+  writer(header);
 
-  // Now read it back using InArchiver
+  // Now read it back using Reader
   PacketHeader read_header;
-  InArchiver in_archiver(buffer, sizeof(buffer));
+  Reader in_archiver(buffer);
   in_archiver(read_header);
 
-  EXPECT_EQ(in_archiver.bytes_read(), PacketHeader::size());
+  EXPECT_EQ(in_archiver.bytes_read(), packet_header_size);
   EXPECT_EQ(read_header.PROTOCOL_VERSION, header.PROTOCOL_VERSION);
   EXPECT_EQ(read_header.type, header.type);
   EXPECT_EQ(read_header.endianess, header.endianess);
@@ -102,57 +111,116 @@ TEST_F(ArchiverTest, TestInArchiver) {
   EXPECT_EQ(read_header.compression_type, header.compression_type);
 }
 
-TEST_F(ArchiverTest, TestDptrArchiver) {
-  constexpr size_t byte_size = 4 * 1024 * 1024;     // 4 MB
-  constexpr size_t header_size = sizeof(uint64_t);  // 8 bytes for the header
-  constexpr size_t total_size = byte_size + header_size;
-  auto &allocator = DeviceAllocator::instance(getHost());
-  dptr data = allocator.allocate(byte_size);
-  ops::set_scalar<float>(data, 0.5, byte_size / 4);
-  SizeArchiver size_archiver;
-  size_archiver(data);
-  EXPECT_EQ(size_archiver.size(), total_size);  // 8 bytes for the size header
-  auto buffer = std::make_unique<char[]>(total_size);
-  OutArchiver out_archiver(buffer.get(), total_size);
-  out_archiver(data);
-  EXPECT_EQ(out_archiver.bytes_written(), total_size);  // 8 bytes for the size header
-  InArchiver in_archiver(buffer.get(), total_size);
-  dptr read_data = allocator.allocate(total_size);
-  in_archiver(read_data);
-  EXPECT_EQ(in_archiver.bytes_read(), total_size);  // 8 bytes for the size header
-  EXPECT_EQ(read_data.capacity(), data.capacity());
-  // Verify data correctness
-  float *ptr = read_data.get<float>();
-  for (size_t i = 0; i < byte_size / sizeof(float); i++) {
-    EXPECT_EQ(ptr[i], 0.5f);
-  }
+TEST_F(ArchiverTest, TestStringArchiver) {
+  std::string original_str = "Hello World!";
+  Sizer sizer;
+  sizer(original_str);
+  size_t expected_size = sizeof(uint64_t) + original_str.size();
+  dptr buffer = allocator_.allocate(expected_size);
+  Writer writer(buffer);
+  writer(original_str);
+
+  Reader reader(buffer);
+  std::string deserialized_str;
+  BinarySerializer bserializer(allocator_);
+  bserializer.deserialize(reader, deserialized_str);
+
+  EXPECT_EQ(deserialized_str, original_str);
+}
+
+TEST_F(ArchiverTest, TestBoolArchiver) {
+  bool original_flag = true;
+  Sizer sizer;
+  sizer(original_flag);
+  size_t expected_size = sizeof(bool);
+  dptr buffer = allocator_.allocate(expected_size);
+  Writer writer(buffer);
+  writer(original_flag);
+
+  Reader reader(buffer);
+  bool deserialized_flag;
+  BinarySerializer bserializer(allocator_);
+  bserializer.deserialize(reader, deserialized_flag);
+
+  EXPECT_EQ(deserialized_flag, original_flag);
 }
 
 TEST_F(ArchiverTest, TestTensorArchiver) {
-  constexpr size_t N = 4;
-  constexpr size_t S = 1024;
-  constexpr size_t E = 768;
-  constexpr size_t total_elements = N * S * E;
+  Tensor tensor = make_tensor(DType_t::FP32, {64, 512, 768});
 
-  Tensor tensor = make_tensor<float>({N, S, E}, getHost());
+  tensor->fill_random_normal(0.0f, 1.0f);
 
-  SizeArchiver size_archiver;
-  size_archiver(*tensor);
-  EXPECT_EQ(size_archiver.size(),
-            sizeof(DType_t) + sizeof(uint64_t) + sizeof(uint64_t) * 3 + sizeof(uint64_t) +
-                total_elements *
-                    sizeof(float));  // dtype + shape size + shape data + data size + tensor data
+  Sizer sizer;
+  sizer(tensor);
+  size_t expected_size = sizer.size();
+  dptr buffer = allocator_.allocate(expected_size);
+  EXPECT_EQ(tensor->size(), tensor->capacity());
+  EXPECT_EQ(sizer.size(), sizeof(DType_t) + sizeof(uint64_t) +
+                              sizeof(uint64_t) * tensor->shape().size() +
+                              tensor->size() * sizeof(float));
+  Writer writer(buffer);
+  writer(tensor);
 
-  auto buffer = std::make_unique<char[]>(size_archiver.size());
-  OutArchiver out_archiver(buffer.get(), size_archiver.size());
-  out_archiver(*tensor);
-  EXPECT_EQ(out_archiver.bytes_written(), size_archiver.size());
+  Reader reader(buffer);
+  Tensor deserialized_tensor;
+  BinarySerializer bserializer(allocator_);
+  bserializer.deserialize(reader, deserialized_tensor);
 
-  InArchiver in_archiver(buffer.get(), size_archiver.size());
-  Tensor read_tensor;
-  in_archiver(*read_tensor);
-  EXPECT_EQ(in_archiver.bytes_read(), size_archiver.size());
+  EXPECT_EQ(deserialized_tensor->shape(), tensor->shape());
+  EXPECT_EQ(deserialized_tensor->data_type(), tensor->data_type());
+  EXPECT_EQ(deserialized_tensor->device(), tensor->device());
+  EXPECT_EQ(deserialized_tensor->size(), tensor->size());
+  float* tensor_data = tensor->data_as<float>();
+  float* deserialized_tensor_data = deserialized_tensor->data_as<float>();
+  for (size_t i = 0; i < tensor->size(); ++i) {
+    EXPECT_FLOAT_EQ(deserialized_tensor_data[i], tensor_data[i]);
+  }
+}
 
-  EXPECT_EQ(read_tensor->data_type(), dtype_of<float>());
-  EXPECT_EQ(read_tensor->shape(), std::vector<size_t>({N, S, E}));
+TEST_F(ArchiverTest, TestJobArchiver) {
+  Job job;
+  job.mb_id = 123;
+  job.data = make_tensor(DType_t::FP32, {128, 256});
+  job.data->fill_random_normal(0.0f, 1.0f);
+  Sizer sizer;
+  sizer(job);
+  size_t expected_size = sizer.size();
+  dptr buffer = allocator_.allocate(expected_size);
+  Writer writer(buffer);
+  writer(job);
+
+  Reader reader(buffer);
+  Job deserialized_job;
+  BinarySerializer bserializer(allocator_);
+  bserializer.deserialize(reader, deserialized_job);
+
+  EXPECT_EQ(deserialized_job.mb_id, job.mb_id);
+  EXPECT_EQ(deserialized_job.data->shape(), job.data->shape());
+  EXPECT_EQ(deserialized_job.data->data_type(), job.data->data_type());
+  EXPECT_EQ(deserialized_job.data->device(), job.data->device());
+  EXPECT_EQ(deserialized_job.data->size(), job.data->size());
+  float* job_data = job.data->data_as<float>();
+  float* deserialized_job_data = deserialized_job.data->data_as<float>();
+  for (size_t i = 0; i < job.data->size(); ++i) {
+    EXPECT_FLOAT_EQ(deserialized_job_data[i], job_data[i]);
+  }
+}
+
+TEST_F(ArchiverTest, TestMessageDataArchiver) {
+  MessageData data;
+  data.payload = std::string("Test Message");
+  Sizer sizer;
+  sizer(data);
+  size_t expected_size = sizer.size();
+  dptr buffer = allocator_.allocate(expected_size);
+  Writer writer(buffer);
+  writer(data);
+
+  Reader reader(buffer);
+  MessageData deserialized_data;
+  BinarySerializer bserializer(allocator_);
+  bserializer.deserialize(reader, deserialized_data);
+
+  EXPECT_TRUE(deserialized_data.payload.holds<std::string>());
+  EXPECT_EQ(deserialized_data.payload.get<std::string>(), "Test Message");
 }

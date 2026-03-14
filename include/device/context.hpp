@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <cstdlib>
 
+#include "common/endian.hpp"
 #include "flow.hpp"
 
 namespace tnn {
@@ -26,6 +27,7 @@ public:
   virtual void copyToDevice(void *dest, const void *src, size_t size) = 0;
   virtual void copyToHost(void *dest, const void *src, size_t size) = 0;
   virtual void createFlow(flowHandle_t flow_id) = 0;
+  virtual Endianness get_endianness() const = 0;
   virtual Flow *getFlow(flowHandle_t flow_id) = 0;
 };
 }  // namespace tnn

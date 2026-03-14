@@ -22,6 +22,7 @@ public:
   void copyToDevice(void *dest, const void *src, size_t size) override;
   void copyToHost(void *dest, const void *src, size_t size) override;
   void createFlow(flowHandle_t handle) override;
+  Endianness get_endianness() const override;
   Flow *getFlow(flowHandle_t handle) override;
 };
 }  // namespace tnn

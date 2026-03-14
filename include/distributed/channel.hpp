@@ -11,7 +11,6 @@
 #include "asio/io_context.hpp"
 #include "distributed/packet.hpp"
 #include "distributed/peer_context.hpp"
-#include "distributed/roce_buffer.hpp"
 
 namespace tnn {
 
@@ -47,6 +46,7 @@ public:
   virtual void close() = 0;
 
   PeerContext context() {
+    std::lock_guard<std::mutex> lock(context_mutex_);
     if (!context_) {
       std::cerr << "Err: No peer context set for this channel" << std::endl;
       return nullptr;
@@ -54,7 +54,10 @@ public:
     return context_;
   }
 
-  void set_context(PeerContext context) { context_ = context; }
+  void set_context(PeerContext context) {
+    std::lock_guard<std::mutex> lock(context_mutex_);
+    context_ = context;
+  }
 
   void enqueue_write(Packet &&packet) { write_queue_.enqueue(std::move(packet)); }
 
@@ -84,6 +87,7 @@ public:
 
 private:
   PeerContext context_;
+  std::mutex context_mutex_;
   WriteQueue write_queue_;
   bool is_writing_ = false;
   std::mutex write_mutex_;
@@ -97,11 +101,17 @@ private:
 class TCPChannel : public Channel {
 public:
   TCPChannel(asio::io_context &io_context)
-      : socket(io_context) {}
+      : socket(io_context),
+        is_closed_(false) {}
 
   ~TCPChannel() override = default;
 
   void close() override {
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      is_closed_ = true;
+    }
+    inflight_cv_.notify_all();
     std::error_code ec;
     auto err = socket.close(ec);
     if (err) {
@@ -111,6 +121,11 @@ public:
   }
 
   asio::ip::tcp::socket socket;
+
+private:
+  bool is_closed_;
+  std::mutex mutex_;
+  std::condition_variable inflight_cv_;
 };
 
 class RoCEChannel : public Channel {
@@ -118,13 +133,20 @@ public:
   ibv_qp *qp = nullptr;
   Endpoint endpoint;
   uint32_t psn = 0;
-  std::vector<std::unique_ptr<RoCEBuffer>> recv_buffers;
+  std::vector<dptr *> recv_buffers;
 
   std::mutex mutex;
-  std::unordered_map<uint64_t, std::shared_ptr<RoCEBuffer>> pending_sends;
-  std::unordered_map<uint32_t, std::shared_ptr<RoCEBuffer>> pending_receives;
+  std::unordered_map<uint64_t, dptr *> pending_sends;
+  std::unordered_map<uint32_t, dptr *> pending_receives;
+  int inflight_count = 0;
+  bool is_closed = false;
+  std::condition_variable inflight_cv;
 
   ~RoCEChannel() {
+    for (auto buf : recv_buffers) delete buf;
+    for (auto p : pending_sends) delete p.second;
+    for (auto p : pending_receives) delete p.second;
+
     if (qp) {
       ibv_destroy_qp(qp);
       qp = nullptr;
@@ -132,6 +154,11 @@ public:
   }
 
   void close() override {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      is_closed = true;
+    }
+    inflight_cv.notify_all();
     std::lock_guard<std::mutex> lock(mutex);
     pending_sends.clear();
     pending_receives.clear();
