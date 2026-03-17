@@ -70,6 +70,11 @@ protected:
     return layers;
   }
 
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                    size_t mb_id) override;
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id) override;
+
 public:
   /**
    * Construct MSequential block
@@ -84,10 +89,6 @@ public:
   static constexpr const char *TYPE_NAME = "msequential";
 
   std::string type() const override { return TYPE_NAME; }
-
-  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) override;
-  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                size_t mb_id) override;
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
 

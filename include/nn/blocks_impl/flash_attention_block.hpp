@@ -62,6 +62,12 @@ private:
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
+  // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                    size_t mb_id = 0) override;
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id = 0) override;
+
 public:
   FlashAttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
                       const std::string &name = "flash_attention_block");
@@ -69,12 +75,6 @@ public:
   ~FlashAttentionBlock();
 
   static constexpr const char *TYPE_NAME = "flash_attention_block";
-
-  // Expects input: [batch_size, seq_len, embed_dim], output: [batch_size, seq_len, embed_dim]
-  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-               size_t mb_id = 0) override;
-  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                size_t mb_id = 0) override;
 
   std::string type() const override { return TYPE_NAME; }
   LayerConfig get_config() const override;

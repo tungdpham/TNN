@@ -46,7 +46,8 @@ Vec<size_t> Sequential::bwd_workspace_sizes(const std::vector<size_t> &shape) {
   return workspace_sizes;
 }
 
-void Sequential::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs, size_t mb_id) {
+void Sequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                              size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot forward through empty sequential model");
   }
@@ -81,8 +82,8 @@ void Sequential::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outp
   this->device().getFlow(this->flow_handle_)->synchronize();
 }
 
-void Sequential::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                          size_t mb_id) {
+void Sequential::backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                               size_t mb_id) {
   if (layers_.empty()) {
     throw std::runtime_error("Cannot backward through empty sequential model");
   }

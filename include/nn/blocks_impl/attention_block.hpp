@@ -49,6 +49,11 @@ private:
     return {q_proj_.get(), k_proj_.get(), v_proj_.get(), out_proj_.get()};
   }
 
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                    size_t mb_id = 0) override;
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id = 0) override;
+
 public:
   AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causal = true,
                  const std::string &name = "attention_block");
@@ -56,11 +61,6 @@ public:
   static constexpr const char *TYPE_NAME = "attention_block";
 
   std::string type() const override { return TYPE_NAME; }
-
-  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-               size_t mb_id = 0) override;
-  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                size_t mb_id = 0) override;
 
   LayerConfig get_config() const override;
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;

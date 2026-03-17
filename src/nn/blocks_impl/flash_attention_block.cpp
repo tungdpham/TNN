@@ -56,8 +56,8 @@ FlashAttentionBlock::~FlashAttentionBlock() {
 #endif
 }
 
-void FlashAttentionBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                                  size_t mb_id) {
+void FlashAttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                                       size_t mb_id) {
   const ConstTensor &input = inputs[0];
   const Tensor &output = outputs[0];
 
@@ -307,8 +307,8 @@ void FlashAttentionBlock::cudnn_backward(const ConstTensor &grad_output, const T
 }
 #endif
 
-void FlashAttentionBlock::backward(const Vec<ConstTensor> &grad_outputs,
-                                   const Vec<Tensor> &grad_inputs, size_t mb_id) {
+void FlashAttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                        const Vec<Tensor> &grad_inputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
   const Tensor &grad_input = grad_inputs[0];
 #ifdef USE_CUDNN

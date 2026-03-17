@@ -45,6 +45,11 @@ private:
     return layers;
   }
 
+  void forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                    size_t mb_id = 0) override;
+  void backward_impl(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
+                     size_t mb_id = 0) override;
+
 public:
   /**
    * @brief Constructs a residual block
@@ -61,11 +66,6 @@ public:
   ResidualBlock(const ResidualBlock &other);
 
   static constexpr const char *TYPE_NAME = "residual_block";
-
-  void forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-               size_t mb_id = 0) override;
-  void backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                size_t mb_id = 0) override;
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

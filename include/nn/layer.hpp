@@ -35,10 +35,10 @@ public:
   virtual ~Layer() = default;
 
   void init();
-  virtual void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
-                       size_t mb_id = 0) = 0;
-  virtual void backward(const std::vector<ConstTensor> &gradients,
-                        const std::vector<Tensor> &grad_inputs, size_t mb_id = 0) = 0;
+  void forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
+               size_t mb_id = 0);
+  void backward(const std::vector<ConstTensor> &grad_outputs,
+                const std::vector<Tensor> &grad_inputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
   Layer &set_allocator(IAllocator &allocator);
@@ -83,6 +83,10 @@ protected:
   virtual void on_set_io_dtype(DType_t dtype) {}
   virtual void on_set_param_dtype(DType_t dtype) {}
   virtual void on_set_compute_dtype(DType_t dtype) {}
+  virtual void forward_impl(const std::vector<ConstTensor> &inputs,
+                            const std::vector<Tensor> &outputs, size_t mb_id) = 0;
+  virtual void backward_impl(const std::vector<ConstTensor> &grad_outputs,
+                             const std::vector<Tensor> &grad_inputs, size_t mb_id) = 0;
 
 protected:
   bool initialized_ = false;

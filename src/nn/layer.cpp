@@ -23,6 +23,36 @@ void Layer::init() {
   initialized_ = true;
 }
 
+void Layer::forward(const std::vector<ConstTensor> &inputs, const std::vector<Tensor> &outputs,
+                    size_t mb_id) {
+  if (!initialized_) {
+    throw std::runtime_error("Layer must be initialized before calling forward");
+  }
+  std::vector<ConstTensor> current_inputs;
+  for (auto &input : inputs) {
+    if (input->device() == this->device())
+      current_inputs.push_back(input);
+    else
+      current_inputs.push_back(input->to_device(this->device()));
+  }
+  forward_impl(current_inputs, outputs, mb_id);
+}
+
+void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
+                     const std::vector<Tensor> &grad_inputs, size_t mb_id) {
+  if (!initialized_) {
+    throw std::runtime_error("Layer must be initialized before calling backward");
+  }
+  std::vector<ConstTensor> current_grad_outputs;
+  for (auto &grad : grad_outputs) {
+    if (grad->device() == this->device())
+      current_grad_outputs.push_back(grad);
+    else
+      current_grad_outputs.push_back(grad->to_device(this->device()));
+  }
+  backward_impl(current_grad_outputs, grad_inputs, mb_id);
+}
+
 Layer &Layer::set_allocator(IAllocator &allocator) {
   allocator_ = &allocator;
   on_set_allocator(allocator);

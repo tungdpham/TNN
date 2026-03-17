@@ -86,8 +86,8 @@ std::vector<size_t> MSequential::compute_execution_order(
   return order;
 }
 
-void MSequential::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                          size_t mb_id) {
+void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                               size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot forward through empty MSequential model");
   }
@@ -143,8 +143,8 @@ void MSequential::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &out
   this->device().getFlow(this->flow_handle_)->synchronize();
 }
 
-void MSequential::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                           size_t mb_id) {
+void MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                const Vec<Tensor> &grad_inputs, size_t mb_id) {
   if (sequences_.empty()) {
     throw std::runtime_error("Cannot backward through empty MSequential model");
   }

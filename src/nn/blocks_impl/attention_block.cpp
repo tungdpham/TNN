@@ -39,8 +39,8 @@ AttentionBlock::AttentionBlock(size_t embed_dim, size_t num_heads, bool is_causa
   out_proj_ = std::make_unique<DenseLayer>(embed_dim, embed_dim, true, name + "_out");
 }
 
-void AttentionBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                             size_t mb_id) {
+void AttentionBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                                  size_t mb_id) {
   const ConstTensor &input = inputs[0];
   const Tensor &output = outputs[0];
   const auto &input_shape = input->shape();
@@ -70,8 +70,8 @@ void AttentionBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &
   out_proj_->forward({attn_out}, {output}, mb_id);
 }
 
-void AttentionBlock::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                              size_t mb_id) {
+void AttentionBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                   const Vec<Tensor> &grad_inputs, size_t mb_id) {
   const ConstTensor &grad_output = grad_outputs[0];
   const Tensor &grad_input = grad_inputs[0];
   ConstTensor &input = this->get_cached_tensor(mb_id, "input");

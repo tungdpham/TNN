@@ -49,8 +49,8 @@ static size_t compute_path_max_size(const std::vector<std::unique_ptr<Layer>> &p
   return max_size;
 }
 
-void ResidualBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
-                            size_t mb_id) {
+void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
+                                 size_t mb_id) {
   // Cache input shapes
   Vec<Vec<size_t>> input_shapes(inputs.size());
   for (size_t i = 0; i < inputs.size(); ++i) {
@@ -135,8 +135,8 @@ void ResidualBlock::forward(const Vec<ConstTensor> &inputs, const Vec<Tensor> &o
   }
 }
 
-void ResidualBlock::backward(const Vec<ConstTensor> &grad_outputs, const Vec<Tensor> &grad_inputs,
-                             size_t mb_id) {
+void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
+                                  const Vec<Tensor> &grad_inputs, size_t mb_id) {
   auto it_input_shapes = input_shape_cache_.find(mb_id);
   if (it_input_shapes == input_shape_cache_.end()) {
     throw std::runtime_error("No cached input shapes found for micro-batch ID: " +
