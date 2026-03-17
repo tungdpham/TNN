@@ -74,7 +74,11 @@ public:
     }
     inflight_cv.notify_all();
     std::lock_guard<std::mutex> lock(mutex);
+
+    for (auto &p : pending_sends) delete p.second;
     pending_sends.clear();
+
+    for (auto &p : pending_receives) delete p.second;
     pending_receives.clear();
   }
 

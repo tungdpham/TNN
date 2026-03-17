@@ -34,7 +34,6 @@ public:
       : device_(device),
         pd_(pd),
         slab_size_(slab_size),
-        allocated_(0),
         using_host_memory_(true) {
     if (!pd_) {
       throw std::invalid_argument("Protection Domain cannot be null");
@@ -59,6 +58,9 @@ public:
           " (errno=" + std::to_string(err) + ")");
     }
 
+    free_blocks_by_size_.emplace(slab_size_, 0);
+    free_blocks_by_offset_.emplace(0, slab_size_);
+
 #ifndef NDEBUG
     std::cout << "IbvAllocator: Registered host pinned memory slab of " << slab_size_
               << " bytes at " << slab_ptr_ << " with lkey=" << slab_mr_->lkey << "\n";
@@ -82,7 +84,8 @@ public:
       slab_ptr_ = nullptr;
     }
 
-    free_blocks_.clear();
+    free_blocks_by_size_.clear();
+    free_blocks_by_offset_.clear();
   }
 
   IbvAllocator(const IbvAllocator &) = delete;
@@ -104,32 +107,39 @@ public:
       return dptr(nullptr);
     }
 
+    // Align size to DEFAULT_ALIGNMENT
+    size_t align = DEFAULT_ALIGNMENT;
+    size = (size + align - 1) / align * align;
+
     std::lock_guard<std::mutex> lock(mutex_);
 
-    auto it = free_blocks_.lower_bound(size);
+    auto it = free_blocks_by_size_.lower_bound(size);
 
-    if (it != free_blocks_.end()) {
-      size_t offset = it->second;
+    if (it != free_blocks_by_size_.end()) {
       size_t block_size = it->first;
-      free_blocks_.erase(it);
-      return create_dptr(offset, block_size);
+      size_t offset = it->second;
+      free_blocks_by_size_.erase(it);
+      free_blocks_by_offset_.erase(offset);
+
+      if (block_size > size) {
+        size_t remaining_size = block_size - size;
+        size_t remaining_offset = offset + size;
+        free_blocks_by_offset_[remaining_offset] = remaining_size;
+        free_blocks_by_size_.emplace(remaining_size, remaining_offset);
+      }
+
+      return create_dptr(offset, size);
     }
 
-    if (allocated_ + size > slab_size_) {
-      throw std::runtime_error("IbvAllocator: Out of memory in master slab");
-    }
-
-    size_t offset = allocated_;
-    allocated_ += size;
-
-    return create_dptr(offset, size);
+    throw std::runtime_error("IbvAllocator: Out of memory in master slab");
   }
 
   void clear() override {
     std::lock_guard<std::mutex> lock(mutex_);
-    free_blocks_.clear();
-    free_blocks_.emplace(slab_size_, 0);
-    allocated_ = 0;
+    free_blocks_by_size_.clear();
+    free_blocks_by_offset_.clear();
+    free_blocks_by_size_.emplace(slab_size_, 0);
+    free_blocks_by_offset_.emplace(0, slab_size_);
   }
 
   void reserve(size_t size) override {
@@ -138,18 +148,18 @@ public:
 
   size_t size() const {
     std::lock_guard<std::mutex> lock(mutex_);
-    return free_blocks_.size();
+    return free_blocks_by_size_.size();
   }
 
   size_t allocated_bytes() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return allocated_;
+    // slab_size_ is constant, cached_bytes() handles locking internally
+    return slab_size_ - cached_bytes();
   }
 
   size_t cached_bytes() const {
     std::lock_guard<std::mutex> lock(mutex_);
     size_t total = 0;
-    for (const auto &pair : free_blocks_) {
+    for (const auto &pair : free_blocks_by_size_) {
       total += pair.first;
     }
     return total;
@@ -183,13 +193,13 @@ public:
   }
 
 private:
-  std::multimap<size_t, size_t> free_blocks_;  // size -> offset
+  std::multimap<size_t, size_t> free_blocks_by_size_;  // size -> offset
+  std::map<size_t, size_t> free_blocks_by_offset_;     // offset -> size
   const Device &device_;
   ibv_pd *pd_;
   ibv_mr *slab_mr_;
   void *slab_ptr_;
   size_t slab_size_;
-  size_t allocated_;
   bool using_host_memory_;
   mutable std::mutex mutex_;
 
@@ -211,9 +221,41 @@ private:
     return dptr(storage, 0, size);
   }
 
+  void remove_from_size_map(size_t size, size_t offset) {
+    auto range = free_blocks_by_size_.equal_range(size);
+    for (auto it = range.first; it != range.second; ++it) {
+      if (it->second == offset) {
+        free_blocks_by_size_.erase(it);
+        break;
+      }
+    }
+  }
+
   void reclaim(size_t offset, size_t size) {
     std::lock_guard<std::mutex> lock(mutex_);
-    free_blocks_.emplace(size, offset);
+
+    auto it = free_blocks_by_offset_.upper_bound(offset);
+
+    // coalesce with next block
+    if (it != free_blocks_by_offset_.end() && offset + size == it->first) {
+      size += it->second;
+      remove_from_size_map(it->second, it->first);
+      it = free_blocks_by_offset_.erase(it);
+    }
+
+    // coalesce with previous block
+    if (it != free_blocks_by_offset_.begin()) {
+      auto prev = std::prev(it);
+      if (prev->first + prev->second == offset) {
+        offset = prev->first;
+        size += prev->second;
+        remove_from_size_map(prev->second, prev->first);
+        free_blocks_by_offset_.erase(prev);
+      }
+    }
+
+    free_blocks_by_offset_[offset] = size;
+    free_blocks_by_size_.emplace(size, offset);
   }
 
   struct slab_storage_info {

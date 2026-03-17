@@ -43,12 +43,12 @@ class RoCECommunicator : public Communicator {
 private:
   std::string device_name_;
   int port_;
+  asio::io_context io_context_;
   RoCEDevice device_;
   RoCECQ cq_obj_;
   IbvAllocator ibv_allocator_;
   BinarySerializer serializer_;
 
-  asio::io_context io_context_;
   asio::ip::tcp::acceptor acceptor_;
   std::thread io_thread_;
 
@@ -61,7 +61,7 @@ private:
 
 public:
   struct Config {
-    uint64_t master_slab_size = 128 * 1024 * 1024;
+    uint64_t master_slab_size = 256 * 1024 * 1024;
   };
 
   RoCECommunicator(const std::string &host, int port, const std::string &device_name, int gid_index,
@@ -139,10 +139,19 @@ public:
         channel = it->second;
       }
     }
-    if (!channel) {
-      std::cerr << "RoCEChannel not found for endpoint: " << endpoint.id() << std::endl;
-      return;
+
+    if (!channel || channel->is_closed) {
+      if (!connect_to_endpoint(endpoint)) {
+        std::cerr << "RoCEChannel connection failed for endpoint: " << endpoint.id() << std::endl;
+        delete data_buffer;
+        return;
+      }
+      {
+        std::lock_guard<std::mutex> lock(channels_mutex_);
+        channel = channels_[endpoint];
+      }
     }
+
     struct ibv_qp_attr attr;
     struct ibv_qp_init_attr init_attr;
     if (ibv_query_qp(channel->qp, &attr, IBV_QP_STATE, &init_attr) == 0) {
@@ -177,7 +186,7 @@ public:
     sge.lkey = ibv_allocator_.get_mr_info(*send_buf).lkey;
     struct ibv_send_wr wr, *bad_wr = nullptr;
     std::memset(&wr, 0, sizeof(wr));
-    wr.wr_id = (uint64_t)send_buf;
+    wr.wr_id = (uint64_t)send_buf | 2;
     wr.opcode = IBV_WR_SEND;
     wr.sg_list = &sge;
     wr.num_sge = 1;
@@ -296,9 +305,15 @@ private:
     struct WriteContext {
       uint64_t msg_serial_id;
     };
+
+    uint64_t tag = wc->wr_id & 0x3;
+    uint64_t ptr = wc->wr_id & ~0x3ULL;
+
     if (wc->status != IBV_WC_SUCCESS) {
-      std::cerr << "WC Error: " << ibv_wc_status_str(wc->status) << " for QP " << wc->qp_num
-                << " Opcode: " << wc->opcode << std::endl;
+      if (wc->status != IBV_WC_WR_FLUSH_ERR) {
+        std::cerr << "WC Error: " << ibv_wc_status_str(wc->status) << " for QP " << wc->qp_num
+                  << " Opcode: " << wc->opcode << std::endl;
+      }
       {
         std::lock_guard<std::mutex> lock(channels_mutex_);
         auto it = qp_map_.find(wc->qp_num);
@@ -310,14 +325,10 @@ private:
           channels_.erase(conn_endpoint);
         }
       }
-      if (wc->opcode == IBV_WC_RDMA_WRITE && (wc->wr_id & 1)) {
-        WriteContext *ctx = (WriteContext *)(wc->wr_id & ~1);
-        delete ctx;
-      } else {
-        if (!(wc->opcode & IBV_WC_RECV)) {
-          auto *buf = (dptr *)wc->wr_id;
-          delete buf;
-        }
+      if (tag == 1) {
+        delete (WriteContext *)ptr;
+      } else if (tag == 2) {
+        delete (dptr *)ptr;
       }
       return;
     }
@@ -330,7 +341,7 @@ private:
         if (it != qp_map_.end()) channel = it->second;
       }
 
-      auto *buf = (dptr *)wc->wr_id;
+      auto *buf = (dptr *)(wc->wr_id & ~3ULL);
 
       if (channel) {
         if (wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
@@ -393,7 +404,7 @@ private:
 
             struct ibv_send_wr wr, *bad_wr = nullptr;
             std::memset(&wr, 0, sizeof(wr));
-            wr.wr_id = (uint64_t)send_buf;
+            wr.wr_id = (uint64_t)send_buf | 2;
             wr.opcode = IBV_WR_SEND;
             wr.sg_list = &sge;
             wr.num_sge = 1;
@@ -409,7 +420,6 @@ private:
           } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
             uint64_t remote_addr;
             uint32_t rkey;
-            Reader reader(*buf);
             reader(remote_addr, rkey);
 
             dptr *source_buf;
@@ -458,8 +468,8 @@ private:
       }
 
     } else if (wc->opcode == IBV_WC_SEND || wc->opcode == IBV_WC_RDMA_WRITE) {
-      if (wc->wr_id & 1) {
-        WriteContext *ctx = (WriteContext *)(wc->wr_id & ~1);
+      if (tag == 1) {  // RDMA_WRITE completion
+        WriteContext *ctx = (WriteContext *)ptr;
         std::shared_ptr<RoCEChannel> channel;
         {
           std::lock_guard<std::mutex> lock(channels_mutex_);
@@ -478,9 +488,8 @@ private:
           channel->inflight_cv.notify_one();
         }
         delete ctx;
-      } else {
-        auto *buf = (dptr *)wc->wr_id;
-        delete buf;
+      } else if (tag == 2) {  // SEND completion
+        delete (dptr *)ptr;
       }
     }
   }
