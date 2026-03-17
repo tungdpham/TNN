@@ -51,6 +51,7 @@ void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
       current_grad_outputs.push_back(grad->to_device(this->device()));
   }
   backward_impl(current_grad_outputs, grad_inputs, mb_id);
+  clear_cache(mb_id);
 }
 
 Layer &Layer::set_allocator(IAllocator &allocator) {

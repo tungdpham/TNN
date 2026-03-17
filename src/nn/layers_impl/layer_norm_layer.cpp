@@ -207,14 +207,12 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   size_t shape_key = get_shape_hash({batch_size, channels});
 
   cuda::cudnn_layer_norm::feHandle_t *fe_handle = nullptr;
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
 
   fe_handle = fe_handle_cache.at(shape_key);
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
   size_t workspace_size = current_stats.fwd_workspace_size;
-  size_t workspace_elements = (workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Cache mean and inv_variance for backward pass (like batch norm)
   Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");
@@ -257,10 +255,8 @@ void LayerNormLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor
   cuda::cudnn_layer_norm::feHandle_t *fe_handle = fe_handle_cache.at(shape_key);
   LayerNormStats &current_stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
   size_t workspace_size = current_stats.bwd_workspace_size;
-  size_t workspace_elements = (workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({workspace_size}, DType_t::BYTE);
 
   // Retrieve cached mean and inv_variance from forward pass (like batch norm)
   const Tensor &batch_mean = this->get_mutable_tensor(mb_id, "batch_mean");

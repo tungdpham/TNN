@@ -303,7 +303,7 @@ void Conv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, 
   ConvolutionStats &current_stats = stats_cache.at(shape_key);
 
   size_t ws_bytes = current_stats.fwd_workspace_size;
-  Tensor cudnn_workspace = this->get_workspace({ws_bytes}, DType_t::INT64_T);
+  Tensor cudnn_workspace = this->get_workspace({ws_bytes}, DType_t::BYTE);
 
   if (this->is_training_) {
     ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
@@ -337,13 +337,11 @@ void Conv2DLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &g
   cuda::cudnn_conv2d::feHandle_t *fe_handle = fe_handle_cache.at(shape_key);
   ConvolutionStats &current_stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
   size_t max_workspace_size =
-      std::max({current_stats.fwd_workspace_size, current_stats.wgrad_workspace_size,
-                current_stats.dgrad_workspace_size, current_stats.bgrad_workspace_size});
+      std::max({current_stats.wgrad_workspace_size, current_stats.dgrad_workspace_size,
+                current_stats.bgrad_workspace_size});
 
-  size_t workspace_elements = (max_workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({max_workspace_size}, DType_t::BYTE);
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_backward_weights_and_bias_task, fe_handle, current_stats,
                                  input, grad_output, weight_gradients_, bias_gradients_,
