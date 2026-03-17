@@ -35,7 +35,8 @@ public:
   RoCECoordinator(CoordinatorConfig config)
       : Coordinator(std::move(config)) {
     auto communicator =
-        std::make_unique<RoCECommunicator>(this->coordinator_endpoint_, RoCECommunicator::Config{});
+        RoCECommunicator::create(this->coordinator_endpoint_, RoCECommunicator::Config{});
+
     communicator->start_server();
     this->comm_ = std::move(communicator);
     this->add_message_callback();

@@ -31,8 +31,7 @@ public:
    */
   explicit RoCEWorker(Endpoint worker_endpoint, bool use_gpu)
       : Worker(use_gpu) {
-    auto communicator =
-        std::make_unique<RoCECommunicator>(worker_endpoint, RoCECommunicator::Config{});
+    auto communicator = RoCECommunicator::create(worker_endpoint, RoCECommunicator::Config{});
 
     communicator->start_server();
 

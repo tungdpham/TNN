@@ -146,7 +146,7 @@ TEST_F(ArchiverTest, TestBoolArchiver) {
 }
 
 TEST_F(ArchiverTest, TestTensorArchiver) {
-  Tensor tensor = make_tensor(DType_t::FP32, {64, 512, 768});
+  Tensor tensor = make_tensor(DType_t::FP32, {32, 512, 768});
 
   tensor->fill_random_normal(0.0f, 1.0f);
 
@@ -180,7 +180,7 @@ TEST_F(ArchiverTest, TestTensorArchiver) {
 TEST_F(ArchiverTest, TestJobArchiver) {
   Job job;
   job.mb_id = 123;
-  job.data = make_tensor(DType_t::FP32, {128, 256});
+  job.data = make_tensor(DType_t::FP32, {64, 256});
   job.data->fill_random_normal(0.0f, 1.0f);
   Sizer sizer;
   sizer(job);

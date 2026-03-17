@@ -14,20 +14,20 @@
 namespace tnn {
 
 /**
- * @brief Unified configuration class with JSON serialization.
+ * @brief Unified configuration class with type-preserving JSON serialization.
  *
  * This class stores configuration parameters with their exact types and provides
- * serialization to/from JSON. Values are stored directly in JSON format without
- * explicit type tags.
+ * lossless round-trip serialization to/from JSON. Type information is explicitly
+ * stored in the JSON format to preserve precision for numeric types.
  *
  * JSON Format Example:
  * {
  *   "name": "MyConfig",
  *   "type": "layer",
  *   "parameters": {
- *     "learning_rate": 0.001,
- *     "size": 256,
- *     "momentum": 0.9
+ *     "learning_rate": {"type": "double", "value": 0.001},
+ *     "size": {"type": "size_t", "value": 256},
+ *     "momentum": {"type": "float", "value": 0.9}
  *   }
  * }
  */
@@ -74,13 +74,13 @@ public:
   void clear_parameters();
 
   /**
-   * @brief Serialize to JSON.
-   * @return JSON object with parameters stored as direct values.
+   * @brief Serialize to JSON with type information.
+   * @return JSON object with type-tagged parameters.
    */
   nlohmann::json to_json() const;
 
   /**
-   * @brief Deserialize from JSON.
+   * @brief Deserialize from JSON with type information.
    * @param j JSON object to deserialize from.
    * @return TConfig object.
    */

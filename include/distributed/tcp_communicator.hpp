@@ -26,7 +26,6 @@
 
 #include "asio/buffer.hpp"
 #include "asio/error.hpp"
-#include "channel.hpp"
 #include "common/archiver.hpp"
 #include "communicator.hpp"
 #include "device/device_manager.hpp"
@@ -35,6 +34,7 @@
 #include "distributed/binary_serializer.hpp"
 #include "distributed/endpoint.hpp"
 #include "distributed/io.hpp"
+#include "distributed/tcp_channel.hpp"
 #include "io_context_pool.hpp"
 #include "message.hpp"
 #include "packet.hpp"

@@ -52,6 +52,7 @@ bool parse_arguments(int argc, char *argv[], Config &cfg) {
   static struct option long_options[] = {{"host", required_argument, 0, 'H'},
                                          {"port", required_argument, 0, 'p'},
                                          {"device", required_argument, 0, 'd'},
+                                         {"gid-index", required_argument, 0, 'i'},
                                          {"peer-host", required_argument, 0, 'P'},
                                          {"peer-port", required_argument, 0, 'r'},
                                          {"num-threads", required_argument, 0, 'n'},
@@ -163,12 +164,13 @@ int main(int argc, char *argv[]) {
 
   Endpoint local_endpoint = Endpoint::roce(cfg.host, cfg.port, cfg.device, cfg.gid_index);
 
-  RoCECommunicator communicator(local_endpoint, RoCECommunicator::Config{});
+  std::unique_ptr<RoCECommunicator> communicator =
+      RoCECommunicator::create(local_endpoint, RoCECommunicator::Config{});
 
-  communicator.start_server();
+  communicator->start_server();
 
   Endpoint peer_endpoint = Endpoint::roce(cfg.peer_host, cfg.peer_port);
-  while (!communicator.connect(peer_endpoint)) {
+  while (!communicator->connect(peer_endpoint)) {
     cerr << "Retrying connection to peer..." << endl;
     sleep(1);
   }
@@ -182,7 +184,7 @@ int main(int argc, char *argv[]) {
     job.mb_id = 0;
     job.data = std::move(tensor);
     Message message(CommandType::FORWARD_JOB, std::move(job));
-    communicator.send_message(std::move(message), peer_endpoint);
+    communicator->send_message(std::move(message), peer_endpoint);
   }
 
   auto start_time = std::chrono::high_resolution_clock::now();
@@ -190,7 +192,7 @@ int main(int argc, char *argv[]) {
   std::atomic<int> num_messages_received(0);
   condition_variable message_available_cv_;
   mutex message_available_mutex_;
-  communicator.set_callback([&]() {
+  communicator->set_callback([&]() {
     std::unique_lock<std::mutex> lock(message_available_mutex_);
     message_available_cv_.notify_one();
   });
@@ -198,19 +200,19 @@ int main(int argc, char *argv[]) {
     while (current_time - start_time < std::chrono::seconds(10)) {
       std::unique_lock<std::mutex> lock(message_available_mutex_);
       message_available_cv_.wait_until(lock, start_time + std::chrono::seconds(10),
-                                       [&]() { return communicator.has_input_message(); });
+                                       [&]() { return communicator->has_input_message(); });
 
       if (std::chrono::high_resolution_clock::now() - start_time >= std::chrono::seconds(10)) {
         break;
       }
 
-      while (communicator.has_input_message()) {
-        auto message = communicator.dequeue_input_message();
+      while (communicator->has_input_message()) {
+        auto message = communicator->dequeue_input_message();
         if (message.header().command_type != CommandType::FORWARD_JOB) {
           continue;
         }
         num_messages_received++;
-        communicator.send_message(std::move(message), peer_endpoint);
+        communicator->send_message(std::move(message), peer_endpoint);
       }
 
       current_time = std::chrono::high_resolution_clock::now();
@@ -225,6 +227,6 @@ int main(int argc, char *argv[]) {
   std::cout << "Total bytes received: " << total_kb * 1024 << " bytes" << std::endl;
   std::cout << "Total time taken: " << total_duration.count() << " seconds" << std::endl;
   std::cout << "Bandwidth: " << bandwidth_mbps << " MB/s" << std::endl;
-  communicator.stop();
+  communicator->stop();
   return 0;
 }
