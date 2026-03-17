@@ -3,8 +3,9 @@
 #include <cstdint>
 #include <cstdlib>
 
-#include "device/device_allocator.hpp"
 #include "device/device_manager.hpp"
+#include "device/flow.hpp"
+#include "device/pool_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/job.hpp"
 #include "distributed/message.hpp"
@@ -18,12 +19,13 @@ constexpr size_t data_size = 256 * 512 * 16 * 16;
 
 signed main() {
   Tensor tensor = make_tensor<float>({data_size});
+  tensor->fill_random_normal(0.0, 0.5);
   Job job;
   job.mb_id = microbatch_id;
   job.data = tensor->clone();
   Message message(CommandType::FORWARD_JOB, std::move(job));
 
-  auto &device_allocator = DeviceAllocator::instance(getHost());
+  auto &device_allocator = PoolAllocator::instance(getHost(), defaultFlowHandle);
 
   BinarySerializer bserializer(device_allocator);
   dptr buffer = device_allocator.allocate(data_size * sizeof(float) + 1024);

@@ -18,7 +18,8 @@ struct ThreadingConfig {
 class ThreadWrapper {
 public:
   explicit ThreadWrapper(const ThreadingConfig &config)
-      : config_(config), arena_(config.num_threads) {}
+      : config_(config),
+        arena_(config.num_threads) {}
 
   template <typename Function, typename... Args>
   void execute(Function &&f, Args &&...args) {

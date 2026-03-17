@@ -3,6 +3,7 @@
 #include <sys/types.h>
 
 #include <chrono>
+#include <cstdint>
 #include <string>
 
 namespace tnn {
@@ -47,8 +48,9 @@ void archive(Archiver &archiver, const Event &event) {
 // Deserialization (non-const version for Reader)
 template <typename Archiver>
 void archive(Archiver &archiver, Event &event) {
-  int64_t start_time_count, end_time_count;
-  uint8_t type_value;
+  int64_t start_time_count = event.start_time.time_since_epoch().count();
+  int64_t end_time_count = event.end_time.time_since_epoch().count();
+  uint8_t type_value = static_cast<uint8_t>(event.type);
   archiver(start_time_count);
   archiver(end_time_count);
   archiver(type_value);

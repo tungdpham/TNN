@@ -200,18 +200,18 @@ public:
 
   DeviceType device_type() const override { return device().device_type(); }
 
-  Tensor to_device(const Device &tardevice) const override {
-    if (device() == tardevice) {
+  Tensor to_device(const Device &target_device) const override {
+    if (device() == target_device) {
       return clone();
     }
-    auto &allocator = PoolAllocator::instance(tardevice, defaultFlowHandle);
-    if (device_type() == DeviceType::CPU && tardevice.device_type() == DeviceType::GPU) {
+    auto &allocator = PoolAllocator::instance(target_device, defaultFlowHandle);
+    if (device_type() == DeviceType::CPU && target_device.device_type() == DeviceType::GPU) {
       std::vector<size_t> shape_vec(shape_);
       auto gpu_tensor = std::make_shared<TypedTensor>(allocator, dtype_, shape_vec);
       DISPATCH_DTYPE(dtype_, T, ops::cd_copy<T>(data_, gpu_tensor->data_, data_size_));
       return gpu_tensor;
     }
-    if (device_type() == DeviceType::GPU && tardevice.device_type() == DeviceType::CPU) {
+    if (device_type() == DeviceType::GPU && target_device.device_type() == DeviceType::CPU) {
       std::vector<size_t> shape_vec(shape_);
       std::shared_ptr<TypedTensor> cpu_tensor =
           std::make_shared<TypedTensor>(allocator, dtype_, shape_vec);

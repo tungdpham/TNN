@@ -154,9 +154,9 @@ void ResidualBlock::backward_impl(const Vec<ConstTensor> &grad_outputs,
         throw std::runtime_error("No cached pre-activation output found for micro-batch ID: " +
                                  std::to_string(mb_id));
       }
-      Tensor dpre_act = this->make_io_tensor(pre_act->shape());
-      final_activation_->compute_gradient(pre_act, grad_outputs[i], dpre_act);
-      grads_to_propagate[i] = dpre_act;
+      Tensor grad_pre_act = this->get_workspace(pre_act->shape());
+      final_activation_->compute_gradient(pre_act, grad_outputs[i], grad_pre_act);
+      grads_to_propagate[i] = grad_pre_act;
     } else {
       grads_to_propagate[i] = grad_outputs[i];
     }
