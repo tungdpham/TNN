@@ -101,7 +101,7 @@ private:
     auto it = free_blocks_.lower_bound(size);
     if (it != free_blocks_.end()) {
       device_storage *block = it->second;
-      if (block->capacity() <= size * 2) {
+      if (block->capacity() <= size * 4) {
         free_blocks_.erase(it);
         return block;
       }
