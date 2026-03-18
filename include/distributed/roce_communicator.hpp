@@ -31,13 +31,10 @@
 #include "device/ibv_allocator.hpp"
 #include "distributed/binary_serializer.hpp"
 #include "distributed/io.hpp"
-#include "distributed/packet.hpp"
 #include "distributed/roce_channel.hpp"
 #include "endpoint.hpp"
 
 namespace tnn {
-
-constexpr size_t ROCE_BUFFER_SIZE = 1 * 1024 * 1024;
 
 class RoCECommunicator : public Communicator {
 private:
@@ -161,46 +158,8 @@ public:
         return;
       }
     }
-    {
-      std::unique_lock<std::mutex> conn_lock(channel->mutex);
-      channel->inflight_cv.wait(conn_lock,
-                                [&] { return channel->is_closed || channel->inflight_count < 16; });
-      if (channel->is_closed) {
-        delete data_buffer;
-        return;
-      }
-      channel->inflight_count++;
-      channel->pending_sends[msg_id] = data_buffer;
-    }
-    PacketHeader header(PacketType::MSG_PREPARE, 0, data_buffer->capacity(), 0, 1);
-    sizer.reset();
-    sizer(header);
-    size_t header_size = sizer.size();
-    dptr *send_buf = new dptr(ibv_allocator_.allocate(header_size));
-    header.msg_serial_id = msg_id;
-    Writer header_writer(*send_buf);
-    header_writer(header);
-    struct ibv_sge sge;
-    sge.addr = (uint64_t)send_buf->get();
-    sge.length = sizeof(PacketHeader);
-    sge.lkey = ibv_allocator_.get_mr_info(*send_buf).lkey;
-    struct ibv_send_wr wr, *bad_wr = nullptr;
-    std::memset(&wr, 0, sizeof(wr));
-    wr.wr_id = (uint64_t)send_buf | 2;
-    wr.opcode = IBV_WR_SEND;
-    wr.sg_list = &sge;
-    wr.num_sge = 1;
-    wr.send_flags = IBV_SEND_SIGNALED;
 
-    if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
-      std::cerr << "Failed to send MSG_PREPARE\n";
-      delete send_buf;
-      {
-        std::lock_guard<std::mutex> conn_lock(channel->mutex);
-        channel->pending_sends.erase(msg_id);
-      }
-      return;
-    }
+    channel->enqueue_send(msg_id, data_buffer);
   }
 
   void flush_output_messages() override {
@@ -228,7 +187,7 @@ protected:
       uint32_t endpoint_len = local_endpoint_str.length();
       asio::write(socket, asio::buffer(&endpoint_len, sizeof(endpoint_len)));
       asio::write(socket, asio::buffer(local_endpoint_str));
-      auto channel = std::make_shared<RoCEChannel>(device_, cq_obj_);
+      auto channel = std::make_shared<RoCEChannel>(device_, cq_obj_, ibv_allocator_);
       channel->endpoint = endpoint;
 
       // Send RoCE channel info
@@ -302,195 +261,63 @@ private:
   }
 
   void process_wc(ibv_wc *wc) {
-    struct WriteContext {
-      uint64_t msg_serial_id;
-    };
-
-    uint64_t tag = wc->wr_id & 0x3;
-    uint64_t ptr = wc->wr_id & ~0x3ULL;
-
     if (wc->status != IBV_WC_SUCCESS) {
       if (wc->status != IBV_WC_WR_FLUSH_ERR) {
         std::cerr << "WC Error: " << ibv_wc_status_str(wc->status) << " for QP " << wc->qp_num
                   << " Opcode: " << wc->opcode << std::endl;
       }
+
+      // Cleanup broken channel
       {
         std::lock_guard<std::mutex> lock(channels_mutex_);
         auto it = qp_map_.find(wc->qp_num);
         if (it != qp_map_.end()) {
           auto err_channel = it->second;
-          auto conn_endpoint = err_channel->endpoint;
           err_channel->close();
+          channels_.erase(err_channel->endpoint);
           qp_map_.erase(it);
-          channels_.erase(conn_endpoint);
         }
       }
-      if (tag == 1) {
+
+      // Cleanup stray memory tags
+      uint64_t tag = wc->wr_id & 0x3;
+      uint64_t ptr = wc->wr_id & ~0x3ULL;
+      if (tag == 1)
         delete (WriteContext *)ptr;
-      } else if (tag == 2) {
+      else if (tag == 2)
         delete (dptr *)ptr;
-      }
+      return;
+    }
+
+    std::shared_ptr<RoCEChannel> channel;
+    {
+      std::lock_guard<std::mutex> lock(channels_mutex_);
+      auto it = qp_map_.find(wc->qp_num);
+      if (it != qp_map_.end()) channel = it->second;
+    }
+
+    if (!channel) {
+      std::cerr << "Received packet from unknown QP: " << wc->qp_num << std::endl;
       return;
     }
 
     if (wc->opcode & IBV_WC_RECV) {
-      std::shared_ptr<RoCEChannel> channel;
-      {
-        std::lock_guard<std::mutex> lock(channels_mutex_);
-        auto it = qp_map_.find(wc->qp_num);
-        if (it != qp_map_.end()) channel = it->second;
-      }
-
       auto *buf = (dptr *)(wc->wr_id & ~3ULL);
 
-      if (channel) {
-        if (wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
-          uint32_t imm = ntohl(wc->imm_data);
-          dptr *dest_buf;
-          {
-            std::lock_guard<std::mutex> lock(channel->mutex);
-            auto it = channel->pending_receives.find(imm);
-            if (it != channel->pending_receives.end()) {
-              dest_buf = it->second;
-              channel->pending_receives.erase(it);
-            } else {
-              std::cerr << "No pending receive found for imm ID: " << imm << std::endl;
-              dest_buf = nullptr;
-            }
-          }
-
-          if (dest_buf) {
-            Message msg;
-            try {
-              Reader reader(*dest_buf);
-              serializer_.deserialize(reader, msg);
-              this->enqueue_input_message(std::move(msg));
-            } catch (const std::exception &e) {
-              std::cerr << "Deserialization error: " << e.what() << "\n";
-            }
-            delete dest_buf;
-          }
-
-          post_recv_buffer(channel->qp, buf);
-
-        } else {
-          PacketHeader header;
-          Reader reader(*buf);
-          reader(header);
-
-          if (header.type == PacketType::MSG_PREPARE) {
-            dptr *dest_buf = new dptr(ibv_allocator_.allocate(header.msg_length));
-
-            {
-              std::lock_guard<std::mutex> lock(channel->mutex);
-              channel->pending_receives[header.msg_serial_id & 0xFFFFFFFF] = dest_buf;
-            }
-
-            auto *send_buf = new dptr(ibv_allocator_.allocate(sizeof(PacketHeader) + 12));
-
-            PacketHeader ready_header(PacketType::MSG_READY_TO_WRITE, 12, 0, 0, 1);
-            ready_header.msg_serial_id = header.msg_serial_id;
-
-            Writer writer(*send_buf);
-            writer(ready_header);
-            uint64_t addr = (uint64_t)dest_buf->get();
-            uint32_t rkey = ibv_allocator_.get_mr_info(*dest_buf).rkey;
-            writer(addr, rkey);
-
-            struct ibv_sge sge;
-            sge.addr = (uint64_t)send_buf->get();
-            sge.length = sizeof(PacketHeader) + 12;
-            sge.lkey = ibv_allocator_.get_mr_info(*send_buf).lkey;
-
-            struct ibv_send_wr wr, *bad_wr = nullptr;
-            std::memset(&wr, 0, sizeof(wr));
-            wr.wr_id = (uint64_t)send_buf | 2;
-            wr.opcode = IBV_WR_SEND;
-            wr.sg_list = &sge;
-            wr.num_sge = 1;
-            wr.send_flags = IBV_SEND_SIGNALED;
-
-            if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
-              std::cerr << "Failed to send MSG_READY\n";
-              delete send_buf;
-              std::lock_guard<std::mutex> lock(channel->mutex);
-              channel->pending_receives.erase(header.msg_serial_id & 0xFFFFFFFF);
-            }
-
-          } else if (header.type == PacketType::MSG_READY_TO_WRITE) {
-            uint64_t remote_addr;
-            uint32_t rkey;
-            reader(remote_addr, rkey);
-
-            dptr *source_buf;
-            {
-              std::lock_guard<std::mutex> lock(channel->mutex);
-              auto it = channel->pending_sends.find(header.msg_serial_id);
-              if (it != channel->pending_sends.end()) {
-                source_buf = it->second;
-              } else {
-                std::cerr << "No pending send found for MSG_READY with serial ID: "
-                          << header.msg_serial_id << std::endl;
-                source_buf = nullptr;
-              }
-            }
-
-            if (source_buf) {
-              struct ibv_sge sge;
-              sge.addr = (uint64_t)source_buf->get();
-              sge.length = source_buf->capacity();
-              sge.lkey = ibv_allocator_.get_mr_info(*source_buf).lkey;
-
-              WriteContext *ctx = new WriteContext{header.msg_serial_id};
-
-              struct ibv_send_wr wr, *bad_wr = nullptr;
-              std::memset(&wr, 0, sizeof(wr));
-              wr.wr_id = (uint64_t)ctx | 1;
-              wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
-              wr.sg_list = &sge;
-              wr.num_sge = 1;
-              wr.send_flags = IBV_SEND_SIGNALED;
-              wr.imm_data = htonl((uint32_t)(header.msg_serial_id & 0xFFFFFFFF));
-              wr.wr.rdma.remote_addr = remote_addr;
-              wr.wr.rdma.rkey = rkey;
-
-              if (ibv_post_send(channel->qp, &wr, &bad_wr)) {
-                std::cerr << "Failed to post RDMA write\n";
-                delete ctx;
-              }
-            }
-          }
-
-          post_recv_buffer(channel->qp, buf);
+      channel->handle_recv_wc(wc, buf, [this](dptr *complete_buf) {
+        Message msg;
+        try {
+          Reader reader(*complete_buf);
+          serializer_.deserialize(reader, msg);
+          this->enqueue_input_message(std::move(msg));
+        } catch (const std::exception &e) {
+          std::cerr << "Deserialization error: " << e.what() << "\n";
         }
-      } else {
-        std::cerr << "Received packet from unknown QP: " << wc->qp_num << std::endl;
-      }
+        delete complete_buf;
+      });
 
     } else if (wc->opcode == IBV_WC_SEND || wc->opcode == IBV_WC_RDMA_WRITE) {
-      if (tag == 1) {  // RDMA_WRITE completion
-        WriteContext *ctx = (WriteContext *)ptr;
-        std::shared_ptr<RoCEChannel> channel;
-        {
-          std::lock_guard<std::mutex> lock(channels_mutex_);
-          auto it = qp_map_.find(wc->qp_num);
-          if (it != qp_map_.end()) channel = it->second;
-        }
-
-        if (channel) {
-          std::lock_guard<std::mutex> lock(channel->mutex);
-          auto send_it = channel->pending_sends.find(ctx->msg_serial_id);
-          if (send_it != channel->pending_sends.end()) {
-            delete send_it->second;
-            channel->pending_sends.erase(send_it);
-          }
-          channel->inflight_count--;
-          channel->inflight_cv.notify_one();
-        }
-        delete ctx;
-      } else if (tag == 2) {  // SEND completion
-        delete (dptr *)ptr;
-      }
+      channel->handle_send_wc(wc);
     }
   }
 
@@ -520,7 +347,7 @@ private:
                                 asio::use_awaitable);
       nlohmann::json peer_endpoint_json = nlohmann::json::parse(peer_endpoint_buf);
       Endpoint peer_endpoint = Endpoint::from_json(peer_endpoint_json);
-      auto channel = std::make_shared<RoCEChannel>(device_, cq_obj_);
+      auto channel = std::make_shared<RoCEChannel>(device_, cq_obj_, ibv_allocator_);
       channel->endpoint = peer_endpoint;
       RoCEChannelInfo my_info = channel->get_local_info();
 

@@ -441,7 +441,7 @@ private:
     return packets;
   }
 
-  asio::awaitable<void> write_packets(std::unique_ptr<Channel::WriteHandle> write_handle,
+  asio::awaitable<void> write_packets(std::unique_ptr<WriteHandle> write_handle,
                                       std::shared_ptr<TCPChannel> channel) {
     if (!write_handle) co_return;
 
