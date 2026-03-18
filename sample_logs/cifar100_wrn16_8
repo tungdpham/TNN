@@ -1,0 +1,376 @@
+
+                                                    "stride_w": {
+                                                        "type": "unsigned long",
+                                                        "value": 1
+                                                    },
+                                                    "use_bias": {
+                                                        "type": "bool",
+                                                        "value": true
+                                                    }
+                                                },
+                                                "type": "conv2d"
+                                            }
+                                        ]
+                                    },
+                                    "shortcut_path": {
+                                        "type": "json",
+                                        "value": []
+                                    }
+                                },
+                                "type": "residual_block"
+                            }
+                        ]
+                    }
+                },
+                "type": "sequential"
+            }
+        },
+        "name": {
+            "type": "string",
+            "value": "stage_0"
+        },
+        "outputs": {
+            "type": "vector<string>",
+            "value": []
+        },
+        "uid": {
+            "type": "string",
+            "value": "op_0"
+        }
+    },
+    "type": "op_node"
+}
+Optimizer attached to 77 parameters and 77 gradients.
+Successfully established incoming channel from 10.10.0.2:9000 (QP: 236)
+Successfully established incoming channel from 10.10.0.2:9000 (QP: 237)
+Successfully established incoming channel from 10.10.0.2:8000 (QP: 238)
+Successfully established incoming channel from 10.10.0.2:9000 (QP: Successfully established outgoing channel to 234)
+10.10.0.2:9000 (QP: 235)
+Successfully established outgoing channel to 10.10.0.1:8001 (QP: 239)
+Epoch 1/10 ===
+Stage  switching to TRAIN mode.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 786432 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 1048576 bytes.
+PoolAllocator: Allocating new buffer of size 18176 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 71936 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 29440 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 786432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 1048576 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 786432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 1048576 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 786432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 1048576 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 33554432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 16777216 bytes.
+PoolAllocator: Allocating new buffer of size 4194304 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 2097152 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 25600 bytes.
+PoolAllocator: Allocating new buffer of size 4 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 17826048 bytes.
+PoolAllocator: Allocating new buffer of size 17826048 bytes.
+PoolAllocator: Allocating new buffer of size 35782912 bytes.
+PoolAllocator: Allocating new buffer of size 40633088 bytes.
+PoolAllocator: Allocating new buffer of size 56230144 bytes.
+PoolAllocator: Allocating new buffer of size 143616 bytes.
+PoolAllocator: Allocating new buffer of size 77136896 bytes.
+PoolAllocator: Allocating new buffer of size 573696 bytes.
+PoolAllocator: Allocating new buffer of size 786432 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+PoolAllocator: Allocating new buffer of size 8388608 bytes.
+Batch 10 Loss: 4.54876, Cummulative Accuracy: 1.60156%, Processing Time: 101200 us
+Batch 20 Loss: 4.37933, Cummulative Accuracy: 2.30469%, Processing Time: 103376 us
+Batch 30 Loss: 4.27806, Cummulative Accuracy: 2.76042%, Processing Time: 101958 us
+Batch 40 Loss: 4.2694, Cummulative Accuracy: 3.10547%, Processing Time: 107398 us
+Batch 50 Loss: 4.26621, Cummulative Accuracy: 3.19531%, Processing Time: 101894 us
+Batch 60 Loss: 4.20897, Cummulative Accuracy: 3.46354%, Processing Time: 102279 us
+Batch 70 Loss: 4.1547, Cummulative Accuracy: 3.68304%, Processing Time: 102604 us
+Batch 80 Loss: 4.16586, Cummulative Accuracy: 3.8623%, Processing Time: 102364 us
+Batch 90 Loss: 4.18737, Cummulative Accuracy: 3.97569%, Processing Time: 101357 us
+Batch 100 Loss: 4.08914, Cummulative Accuracy: 4.15234%, Processing Time: 101036 us
+Batch 110 Loss: 4.05915, Cummulative Accuracy: 4.37145%, Processing Time: 101648 us
+Batch 120 Loss: 4.06223, Cummulative Accuracy: 4.54427%, Processing Time: 101608 us
+Batch 130 Loss: 4.04445, Cummulative Accuracy: 4.71154%, Processing Time: 101948 us
+Batch 140 Loss: 4.07356, Cummulative Accuracy: 4.83538%, Processing Time: 107021 us
+Batch 150 Loss: 3.92962, Cummulative Accuracy: 5.03646%, Processing Time: 101128 us
+Batch 160 Loss: 3.98874, Cummulative Accuracy: 5.18799%, Processing Time: 103424 us
+Batch 170 Loss: 3.95268, Cummulative Accuracy: 5.38373%, Processing Time: 102634 us
+Batch 180 Loss: 3.94338, Cummulative Accuracy: 5.50998%, Processing Time: 101501 us
+Batch 190 Loss: 3.91164, Cummulative Accuracy: 5.70518%, Processing Time: 102875 us
+PoolAllocator: Allocating new buffer of size 245760 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 33280 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 245760 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 245760 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 245760 bytes.
+PoolAllocator: Allocating new buffer of size 1310720 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 8000 bytes.
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 5242880 bytes.
+PoolAllocator: Allocating new buffer of size 7865856 bytes.
+PoolAllocator: Allocating new buffer of size 12845312 bytes.
+PoolAllocator: Allocating new buffer of size 245760 bytes.
+
+Epoch completed in 36098 milliseconds
+Stage  switching to EVAL mode.
+PoolAllocator: Allocating new buffer of size 134217728 bytes.
+PoolAllocator: Allocating new buffer of size 134217728 bytes.
+PoolAllocator: Allocating new buffer of size 134217728 bytes.
+PoolAllocator: Allocating new buffer of size 134217728 bytes.
+Validation completed.
+Average Validation Loss: 3.93456, Average Validation Accuracy: 8.25%
+Epoch 2/10 ===
+Stage  switching to TRAIN mode.
+Batch 10 Loss: 4.00502, Cummulative Accuracy: 8.04688%, Processing Time: 100878 us
+Batch 20 Loss: 4.01188, Cummulative Accuracy: 8.18359%, Processing Time: 102237 us
+Batch 30 Loss: 3.74975, Cummulative Accuracy: 8.35938%, Processing Time: 102506 us
+Batch 40 Loss: 3.93315, Cummulative Accuracy: 8.4668%, Processing Time: 101717 us
+Batch 50 Loss: 3.90443, Cummulative Accuracy: 8.89844%, Processing Time: 101984 us
+Batch 60 Loss: 3.79753, Cummulative Accuracy: 9.00391%, Processing Time: 101192 us
+Batch 70 Loss: 3.78373, Cummulative Accuracy: 9.06808%, Processing Time: 103945 us
+Batch 80 Loss: 3.73881, Cummulative Accuracy: 9.2627%, Processing Time: 100759 us
+Batch 90 Loss: 3.79419, Cummulative Accuracy: 9.53125%, Processing Time: 101722 us
+Batch 100 Loss: 3.78185, Cummulative Accuracy: 9.61719%, Processing Time: 101451 us
+Batch 110 Loss: 3.75847, Cummulative Accuracy: 9.71236%, Processing Time: 101437 us
+Batch 120 Loss: 3.71015, Cummulative Accuracy: 9.80469%, Processing Time: 100926 us
+Batch 130 Loss: 3.81122, Cummulative Accuracy: 9.94892%, Processing Time: 101625 us
+Batch 140 Loss: 3.712, Cummulative Accuracy: 10.0753%, Processing Time: 101475 us
+Batch 150 Loss: 3.71984, Cummulative Accuracy: 10.1823%, Processing Time: 101479 us
+Batch 160 Loss: 3.68547, Cummulative Accuracy: 10.2856%, Processing Time: 102469 us
+Batch 170 Loss: 3.66479, Cummulative Accuracy: 10.3791%, Processing Time: 102369 us
+Batch 180 Loss: 3.70388, Cummulative Accuracy: 10.5143%, Processing Time: 101532 us
+Batch 190 Loss: 3.72148, Cummulative Accuracy: 10.6147%, Processing Time: 101466 us
+PoolAllocator: Allocating new buffer of size 2621440 bytes.
+
+Epoch completed in 25453 milliseconds
+Stage  switching to EVAL mode.
+Validation completed.
+Average Validation Loss: 3.66608, Average Validation Accuracy: 13.02%
+Epoch 3/10 ===
+Stage  switching to TRAIN mode.
+Batch 10 Loss: 3.58195, Cummulative Accuracy: 13.9453%, Processing Time: 102067 us
+Batch 20 Loss: 3.61265, Cummulative Accuracy: 13.2031%, Processing Time: 101807 us
+Batch 30 Loss: 3.6327, Cummulative Accuracy: 13.3464%, Processing Time: 101767 us
+Batch 40 Loss: 3.51499, Cummulative Accuracy: 13.7109%, Processing Time: 101962 us
+Batch 50 Loss: 3.74241, Cummulative Accuracy: 13.625%, Processing Time: 103640 us
+Batch 60 Loss: 3.7149, Cummulative Accuracy: 13.6654%, Processing Time: 101793 us
+Batch 70 Loss: 3.72164, Cummulative Accuracy: 13.6886%, Processing Time: 101389 us
+Batch 80 Loss: 3.65772, Cummulative Accuracy: 13.8379%, Processing Time: 103002 us
+Batch 90 Loss: 3.6048, Cummulative Accuracy: 13.8976%, Processing Time: 102022 us
+Batch 100 Loss: 3.72918, Cummulative Accuracy: 13.8984%, Processing Time: 102050 us
+Batch 110 Loss: 3.59691, Cummulative Accuracy: 13.7891%, Processing Time: 102562 us
+Batch 120 Loss: 3.53585, Cummulative Accuracy: 13.8021%, Processing Time: 102263 us
+Batch 130 Loss: 3.56866, Cummulative Accuracy: 13.8672%, Processing Time: 101329 us
+Batch 140 Loss: 3.49355, Cummulative Accuracy: 13.9481%, Processing Time: 102082 us
+Batch 150 Loss: 3.6009, Cummulative Accuracy: 14.0104%, Processing Time: 101765 us
+Batch 160 Loss: 3.5305, Cummulative Accuracy: 14.0674%, Processing Time: 107156 us
+Batch 170 Loss: 3.54835, Cummulative Accuracy: 14.1613%, Processing Time: 101430 us
+Batch 180 Loss: 3.60028, Cummulative Accuracy: 14.1667%, Processing Time: 101151 us
+Batch 190 Loss: 3.44833, Cummulative Accuracy: 14.2516%, Processing Time: 101736 us
+
+Epoch completed in 25748 milliseconds
+Stage  switching to EVAL mode.
+Validation completed.
+Average Validation Loss: 3.52458, Average Validation Accuracy: 15.7%
+Epoch 4/10 ===
+Stage  switching to TRAIN mode.
+Batch 10 Loss: 3.48454, Cummulative Accuracy: 16.4844%, Processing Time: 108004 us
+Batch 20 Loss: 3.47405, Cummulative Accuracy: 16.2305%, Processing Time: 106508 us
+Batch 30 Loss: 3.50762, Cummulative Accuracy: 16.7969%, Processing Time: 107666 us
+Batch 40 Loss: 3.36952, Cummulative Accuracy: 17.0312%, Processing Time: 107097 us
+Batch 50 Loss: 3.44863, Cummulative Accuracy: 17.25%, Processing Time: 102824 us
+Batch 60 Loss: 3.36796, Cummulative Accuracy: 17.0638%, Processing Time: 107346 us
+Batch 70 Loss: 3.20885, Cummulative Accuracy: 17.2154%, Processing Time: 103274 us
+Batch 80 Loss: 3.41717, Cummulative Accuracy: 17.1924%, Processing Time: 105003 us
+Batch 90 Loss: 3.15705, Cummulative Accuracy: 17.4132%, Processing Time: 109553 us
+Batch 100 Loss: 3.41805, Cummulative Accuracy: 17.5273%, Processing Time: 107395 us
+Batch 110 Loss: 3.50615, Cummulative Accuracy: 17.706%, Processing Time: 108668 us
+Batch 120 Loss: 3.45772, Cummulative Accuracy: 17.8255%, Processing Time: 102291 us
+Batch 130 Loss: 3.23863, Cummulative Accuracy: 17.9056%, Processing Time: 103133 us
+Batch 140 Loss: 3.36783, Cummulative Accuracy: 18.0915%, Processing Time: 102624 us
+^ABatch 150 Loss: 3.40517, Cummulative Accuracy: 18.0833%, Processing Time: 102108 us
+Batch 160 Loss: 3.22948, Cummulative Accuracy: 18.1763%, Processing Time: 107276 us
+Batch 170 Loss: 3.38457, Cummulative Accuracy: 18.2973%, Processing Time: 108921 us
+Batch 180 Loss: 3.19304, Cummulative Accuracy: 18.3225%, Processing Time: 108841 us
+Batch 190 Loss: 3.20154, Cummulative Accuracy: 18.3635%, Processing Time: 107853 us
+
+Epoch completed in 26375 milliseconds
+Stage  switching to EVAL mode.
+Validation completed.
+Average Validation Loss: 3.27067, Average Validation Accuracy: 19.95%
+Epoch 5/10 ===
+Stage  switching to TRAIN mode.
+Batch 10 Loss: 3.2978, Cummulative Accuracy: 19.2188%, Processing Time: 101700 us
+Batch 20 Loss: 3.22212, Cummulative Accuracy: 19.8633%, Processing Time: 107404 us
+Batch 30 Loss: 3.27497, Cummulative Accuracy: 20.0911%, Processing Time: 110518 us
