@@ -63,9 +63,10 @@ inline Graph load_or_create_model(const std::string &model_name, const std::stri
     try {
       auto model = std::make_unique<Sequential>(ExampleModels::create(model_name));
       std::string model_name = model->name();
-      IONode &input_node = builder.input("input");
+      IONode &input_node = builder.io("input");
+      IONode &output_node = builder.io("output");
       OpNode &op_node = builder.add_layer(std::move(model));
-      builder.output(op_node, input_node, "output");
+      builder.add_edge({&input_node}, {&output_node}, op_node);
       Graph graph = builder.compile(allocator);
       graph.set_name(model_name);
       std::cout << "Created model: " << model_name << std::endl;

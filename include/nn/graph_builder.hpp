@@ -27,100 +27,96 @@ public:
 
   OpNode& add_layer(std::unique_ptr<Layer> siso_layer) {
     std::string uid = "op_" + std::to_string(node_count_++);
-    OpNode new_node(uid, ctx_desc_, std::move(siso_layer));
+    auto param_descriptors = siso_layer->param_descriptors();
+    for (const auto& desc : param_descriptors) {
+      ctx_desc_.register_desc(desc);
+    }
+    OpNode new_node(uid, std::move(siso_layer));
     auto& node = add_op_node(std::move(new_node));
     return node;
   }
 
-  IONode& input(std::string uid = "input") {
+  IONode& io(std::string uid = "input") {
     auto node = IONode(uid);
     auto& input_node = add_io_node(std::move(node));
     return input_node;
   }
 
-  // in reality, only the specific layer knows how many outputs it has, but for simplicity we assume
-  // it's always 1-1
-  IONode& output(OpNode& op_node, IONode& input, std::string uid = "") {
-    uid = uid.empty() ? "io_" + std::to_string(node_count_++) : uid;
-    auto new_node = IONode(uid);
-    auto& output = add_io_node(std::move(new_node));
-    add_out(op_node, output);
-    add_in(op_node, input);
-    return output;
+  void add_edge(std::vector<const IONode*> producers, std::vector<const IONode*> consumers,
+                OpNode& op_node) {
+    Edge edge(std::move(producers), std::move(consumers), op_node);
+    edges_.push_back(std::move(edge));
   }
 
   void sort() {
-    execution_sequence_.clear();
-    if (op_nodes_.empty()) return;
+    if (edges_.empty()) return;
 
-    std::unordered_map<OpNode*, int> in_degree;
-    for (auto& op_pair : op_nodes_) {
-      OpNode& op = op_pair.second;
-      in_degree[&op] = 0;
-      for (IONode* in_tensor : op.inputs()) {
-        in_degree[&op] += in_tensor->producers().size();
+    // Kahn's algorithm for topological sorting.
+    // An edge A must precede edge B if any of A's consumers appear in B's producers.
+    size_t n = edges_.size();
+
+    // Map each IONode to the edge index whose consumers contain it
+    std::unordered_map<const IONode*, size_t> produced_by;
+    for (size_t i = 0; i < n; ++i) {
+      for (const IONode* node : edges_[i].consumers()) {
+        produced_by[node] = i;
       }
     }
 
-    std::deque<OpNode*> queue;
-    for (auto& op_pair : op_nodes_) {
-      OpNode& op = op_pair.second;
-      if (in_degree[&op] == 0) {
-        queue.push_back(&op);
-      }
-    }
-
-    while (!queue.empty()) {
-      OpNode* curr = queue.front();
-      queue.pop_front();
-      execution_sequence_.push_back(curr);
-
-      for (IONode* out_tensor : curr->outputs()) {
-        for (OpNode* consumer : out_tensor->consumers()) {
-          in_degree[consumer]--;
-          if (in_degree[consumer] == 0) {
-            queue.push_back(consumer);
-          }
+    // Build adjacency list (A -> B means B depends on A) and in-degree counts
+    std::vector<std::vector<size_t>> adj(n);
+    std::vector<size_t> in_degree(n, 0);
+    for (size_t i = 0; i < n; ++i) {
+      for (const IONode* node : edges_[i].producers()) {
+        auto it = produced_by.find(node);
+        if (it != produced_by.end()) {
+          size_t src = it->second;
+          adj[src].push_back(i);
+          ++in_degree[i];
         }
       }
     }
 
-    if (execution_sequence_.size() != op_nodes_.size()) {
-      throw std::runtime_error("Graph contains a cycle");
+    // Seed queue with edges that have no unresolved inputs
+    std::deque<size_t> queue;
+    for (size_t i = 0; i < n; ++i) {
+      if (in_degree[i] == 0) queue.push_back(i);
     }
+
+    std::vector<Edge> sorted;
+    sorted.reserve(n);
+    while (!queue.empty()) {
+      size_t idx = queue.front();
+      queue.pop_front();
+      sorted.push_back(std::move(edges_[idx]));
+      for (size_t dep : adj[idx]) {
+        if (--in_degree[dep] == 0) queue.push_back(dep);
+      }
+    }
+
+    if (sorted.size() != n) {
+      throw std::runtime_error("Cycle detected in graph: topological sort failed");
+    }
+
+    edges_ = std::move(sorted);
   }
 
   std::unordered_map<std::string, IONode>& io_nodes() { return io_nodes_; }
   std::unordered_map<std::string, OpNode>& op_nodes() { return op_nodes_; }
-  std::vector<OpNode*>& execution_sequence() {
-    if (execution_sequence_.empty()) {
-      sort();
-    }
-    return execution_sequence_;
-  }
+  std::vector<Edge>& edges() { return edges_; }
 
   Graph compile(IAllocator& allocator) {
     sort();
     return Graph(allocator, ctx_desc_, std::move(op_nodes_), std::move(io_nodes_),
-                 std::move(execution_sequence_));
+                 std::move(edges_));
   }
 
 private:
   GraphContextDescriptor ctx_desc_;
   std::unordered_map<std::string, IONode> io_nodes_;
   std::unordered_map<std::string, OpNode> op_nodes_;
-  std::vector<OpNode*> execution_sequence_;
+  std::vector<Edge> edges_;
   size_t node_count_ = 0;
-
-  void add_in(OpNode& op_node, IONode& input) {
-    op_node.add_input(&input);
-    input.add_consumer(&op_node);
-  }
-
-  void add_out(OpNode& op_node, IONode& output) {
-    op_node.add_output(&output);
-    output.add_producer(&op_node);
-  }
 
   OpNode& add_op_node(OpNode&& op_node) {
     auto [iter, inserted] = op_nodes_.emplace(op_node.uid(), std::move(op_node));

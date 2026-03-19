@@ -59,13 +59,15 @@ signed main(int argc, char* argv[]) {
 
   LayerFactory::register_defaults();
   vector<Layer*> layers = model_uptr->get_layers();
-  IONode& input_node = builder.input();
+  IONode& input_node = builder.io("input");
   IONode* current_input = &input_node;
   for (size_t i = 0; i < layers.size(); ++i) {
     auto layer_config = layers[i]->get_config();
     std::unique_ptr<Layer> layer = LayerFactory::create(layer_config.type, layer_config);
     auto& op_node = builder.add_layer(std::move(layer));
-    current_input = &builder.output(op_node, *current_input);
+    IONode& layer_output = builder.io("layer_output_" + std::to_string(i));
+    builder.add_edge({current_input}, {&layer_output}, op_node);
+    current_input = &layer_output;
   }
   auto& output_node = *current_input;
 
