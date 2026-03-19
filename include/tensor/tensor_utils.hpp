@@ -7,6 +7,7 @@
 namespace tnn {
 
 template <typename T>
+  requires std::is_floating_point_v<T>
 void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_name = "") {
   for (size_t i = 0; i < size; ++i) {
     if (std::isnan(data[i]) || std::isinf(data[i])) {
@@ -22,7 +23,14 @@ void check_nan_and_inf(const TypedTensor &tensor, const std::string &tensor_name
   auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor>(tensor.to_host());
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
-  check_nan_and_inf(data, total_elements, tensor_name);
+  if constexpr (std::is_floating_point_v<T>) {
+    check_nan_and_inf(data, total_elements, tensor_name);
+  } else {
+    std::cerr << "Either type is not floating point or non-standard type, skipping NaN/Inf check "
+                 "for tensor "
+              << tensor_name << std::endl;
+    return;
+  }
 }
 
 inline void check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {

@@ -42,7 +42,7 @@ TEST(AttentionBlockTest, ForwardPassCPU) {
 }
 
 TEST(AttentionBlockTest, BuilderTest) {
-  LayerBuilder builder({10, 64});
+  LayerBuilder builder({{10, 64}});
   builder.attention(64, 4);
 
   auto layers = builder.build();

@@ -2,7 +2,6 @@
 
 #include <vector>
 
-#include "device/iallocator.hpp"
 #include "nn/io_node.hpp"
 #include "nn/layer.hpp"
 #include "nn/node.hpp"
@@ -16,10 +15,7 @@ public:
       : INode(uid),
         layer_(std::move(layer)) {}
 
-  void init(IAllocator &allocator) {
-    layer_->set_allocator(allocator);
-    layer_->init();
-  }
+  void init() { layer_->init(); }
 
   std::vector<ParamDescriptor> param_descriptors() const { return layer_->param_descriptors(); }
 

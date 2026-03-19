@@ -26,7 +26,7 @@ public:
         edges_(std::move(edges)) {
     for (auto& op_pair : op_nodes_) {
       OpNode& op_node = op_pair.second;
-      op_node.init(allocator);
+      op_node.init();
     }
   }
 
@@ -144,6 +144,9 @@ public:
     for (const auto& op_j : op_json) {
       NodeConfig op_cfg = NodeConfig::from_json(op_j);
       OpNode node = OpNode::create_from_config(op_cfg);
+      for (const auto& param_desc : node.param_descriptors()) {
+        ctx_desc.register_desc(param_desc);
+      }
       op_nodes.emplace(node.uid(), std::move(node));
     }
 

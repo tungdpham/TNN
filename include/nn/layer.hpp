@@ -12,7 +12,7 @@
 #include <cstring>
 
 #include "common/config.hpp"
-#include "device/iallocator.hpp"
+#include "device/del_allocator.hpp"
 #include "tensor/tensor.hpp"
 #include "type/type.hpp"
 
@@ -31,6 +31,8 @@ struct ParamDescriptor {
 class Layer {
 public:
   Layer() = default;
+  Layer(const std::string &name)
+      : name_(name) {}
 
   virtual ~Layer() = default;
 
@@ -41,8 +43,8 @@ public:
                 const std::vector<Tensor> &grad_inputs, size_t mb_id = 0);
 
   // Note: have to call init again after changing param dtype
-  Layer &set_allocator(IAllocator &allocator);
-  IAllocator *get_allocator() const;
+  Layer &set_allocator(DELAllocator &allocator);
+  DELAllocator *get_allocator() const;
   Layer &set_flow_handle(flowHandle_t handle);
   flowHandle_t get_flow_handle() const;
   Layer &set_seed(unsigned long long seed);
@@ -56,6 +58,7 @@ public:
   bool is_training() const;
 
   virtual Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const = 0;
+  virtual size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
   virtual size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
   virtual size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
   virtual size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const { return 0; }
@@ -76,7 +79,7 @@ public:
 
 protected:
   virtual void init_impl() {}
-  virtual void on_set_allocator(IAllocator &allocator) {}
+  virtual void on_set_allocator(DELAllocator &allocator) {}
   virtual void on_set_flow_handle(flowHandle_t handle) {}
   virtual void on_set_seed(unsigned long long seed) {}
   virtual void on_set_training(bool training) {}
@@ -90,7 +93,7 @@ protected:
 
 protected:
   bool initialized_ = false;
-  IAllocator *allocator_ = nullptr;
+  DELAllocator *allocator_ = nullptr;
   bool is_training_ = true;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
@@ -108,8 +111,8 @@ protected:
   Tensor make_compute_tensor(std::vector<size_t> shape);
   ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
   Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
-  Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   Tensor get_act(const std::vector<size_t> &shape);
+  Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   void clear_cache(size_t mb_id);
 };
 

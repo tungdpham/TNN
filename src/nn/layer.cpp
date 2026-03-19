@@ -7,10 +7,7 @@
 
 #include "nn/layer.hpp"
 
-#include <numeric>
-
 #include "device/flow.hpp"
-#include "device/pool_allocator.hpp"
 #include "type/type.hpp"
 
 namespace tnn {
@@ -54,13 +51,13 @@ void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
   clear_cache(mb_id);
 }
 
-Layer &Layer::set_allocator(IAllocator &allocator) {
+Layer &Layer::set_allocator(DELAllocator &allocator) {
   allocator_ = &allocator;
   on_set_allocator(allocator);
   return *this;
 }
 
-IAllocator *Layer::get_allocator() const { return allocator_; }
+DELAllocator *Layer::get_allocator() const { return allocator_; }
 
 Layer &Layer::set_flow_handle(flowHandle_t handle) {
   flow_handle_ = handle;
@@ -157,18 +154,24 @@ Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
   return mutable_tensors_[{mb_id, key}];
 }
 
+Tensor Layer::get_act(const std::vector<size_t> &shape) {
+  if (!allocator_) {
+    throw std::runtime_error("Allocator is not set");
+  }
+  if (is_training_) {
+    allocator_->set_side(0);
+  }
+  return make_tensor(*allocator_, io_dtype_, shape);
+}
+
 Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  auto byte_size = std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<size_t>()) *
-                   get_dtype_size(dtype);
-  dptr buffer = allocator_->allocate(byte_size);
-  return make_tensor(*allocator_, dtype, shape, std::move(buffer));
-}
-
-Tensor Layer::get_act(const std::vector<size_t> &shape) {
-  return make_tensor(*allocator_, io_dtype_, shape);
+  if (is_training_) {
+    allocator_->set_side(1);
+  }
+  return make_tensor(*allocator_, dtype, shape);
 }
 
 void Layer::clear_cache(size_t mb_id) {

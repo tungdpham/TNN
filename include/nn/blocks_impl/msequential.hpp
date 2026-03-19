@@ -48,21 +48,17 @@ private:
   mutable std::vector<size_t> execution_order_;
   mutable bool execution_order_cached_ = false;
 
-  // Cache input shapes for backward pass
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  // Compute optimal execution order using Algorithm 2
   std::vector<size_t> compute_execution_order(const Vec<Vec<size_t>> &input_shapes) const;
 
-  // Helper to compute individual sequence memory requirements
-  SequenceMemInfo compute_sequence_memory(size_t seq_idx, const Vec<size_t> &input_shape) const;
+  SequenceMemInfo compute_sequence_memory(size_t seq_idx, const Vec<size_t> &input_shapes) const;
 
 protected:
   std::vector<Layer *> layers() override {
     std::vector<Layer *> layers;
     for (auto &seq : sequences_) {
-      auto seq_layers = seq->get_layers();
-      layers.insert(layers.end(), seq_layers.begin(), seq_layers.end());
+      layers.push_back(seq.get());
     }
     if (join_layer_) {
       layers.push_back(join_layer_.get());

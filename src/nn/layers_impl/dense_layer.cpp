@@ -145,11 +145,7 @@ void DenseLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, s
   cuda::cudnn_gemm::feHandle_t *handle = fe_handle_cache[shape_key];
   GemmStats &stats = stats_cache[shape_key];
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
-  size_t max_workspace_size =
-      std::max({stats.fwd_workspace_size, stats.dgrad_workspace_size, stats.wgrad_workspace_size});
-  size_t workspace_elements = (max_workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace({stats.fwd_workspace_size}, DType_t::BYTE);
 
   create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_forward, handle, stats, input->data(),
                    weights_->data(), output->data(), cudnn_workspace->data());
@@ -180,11 +176,8 @@ void DenseLayer::cudnn_backward(const ConstTensor &grad_output, const Tensor &gr
 
   GemmStats &stats = stats_cache.at(shape_key);
 
-  size_t io_dtype_size = get_dtype_size(io_dtype_);
-  size_t max_workspace_size =
-      std::max({stats.fwd_workspace_size, stats.dgrad_workspace_size, stats.wgrad_workspace_size});
-  size_t workspace_elements = (max_workspace_size + io_dtype_size - 1) / io_dtype_size;
-  Tensor cudnn_workspace = this->get_workspace({workspace_elements});
+  Tensor cudnn_workspace = this->get_workspace(
+      {std::max(stats.dgrad_workspace_size, stats.wgrad_workspace_size)}, DType_t::BYTE);
 
   // Compute weight gradients
   create_cuda_task(this->flow_handle_, cuda::cudnn_gemm::run_wgrad, handle, stats, input->data(),

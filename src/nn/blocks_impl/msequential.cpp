@@ -39,15 +39,18 @@ MSequential::MSequential(std::vector<std::unique_ptr<Sequential>> sequences,
 }
 
 MSequential::SequenceMemInfo MSequential::compute_sequence_memory(
-    size_t seq_idx, const Vec<size_t> &input_shape) const {
+    size_t seq_idx, const Vec<size_t> &input_shapes) const {
   const auto &seq = sequences_[seq_idx];
   size_t dtype_size = get_dtype_size(io_dtype_);
 
-  size_t cycling_cost = seq->inf_workspace({{input_shape}});
+  size_t cycling_cost = seq->inf_workspace({input_shapes});
 
-  Vec<size_t> output_shape = seq->output_shapes({{input_shape}})[0];
-  size_t output_size = std::accumulate(output_shape.begin(), output_shape.end(), dtype_size,
-                                       std::multiplies<size_t>());
+  Vec<Vec<size_t>> output_shape = seq->output_shapes({input_shapes});
+  size_t output_size = 0;
+  for (const auto &shape : output_shape) {
+    output_size +=
+        std::accumulate(shape.begin(), shape.end(), dtype_size, std::multiplies<size_t>());
+  }
 
   SequenceMemInfo info;
   info.cycling_cost = cycling_cost;
@@ -86,6 +89,13 @@ std::vector<size_t> MSequential::compute_execution_order(
   return order;
 }
 
+/**
+ * @brief Forward pass for the MSequential block
+ *
+ * @param inputs M input tensor corresponding to each sequence's input
+ * @param outputs Output tensors from the join layer
+ * @param mb_id Micro-batch ID
+ */
 void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor> &outputs,
                                size_t mb_id) {
   if (sequences_.empty()) {
@@ -108,34 +118,36 @@ void MSequential::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tensor>
     execution_order_cached_ = true;
   }
 
-  std::vector<Tensor> sequence_outputs(sequences_.size());
-  std::vector<Vec<size_t>> output_shapes(sequences_.size());
+  Vec<Vec<Tensor>> sequence_outputs(sequences_.size());
+  Vec<Vec<Vec<size_t>>> output_shapes(sequences_.size());
 
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    output_shapes[i] = sequences_[i]->output_shapes({{input_shapes[i]}})[0];
+    output_shapes[i] = sequences_[i]->output_shapes({{input_shapes[i]}});
   }
 
   for (size_t order_idx = 0; order_idx < execution_order_.size(); ++order_idx) {
     size_t seq_idx = execution_order_[order_idx];
     const auto &seq = sequences_[seq_idx];
 
-    Vec<Tensor> seq_output(1);
-    if (is_training_) {
-      seq_output[0] = this->get_act(output_shapes[seq_idx]);
-    } else {
-      seq_output[0] = this->get_workspace(output_shapes[seq_idx], io_dtype_);
+    ConstTensor input = inputs[seq_idx];
+
+    Vec<Tensor> seq_output(output_shapes[seq_idx].size());
+    for (size_t j = 0; j < output_shapes[seq_idx].size(); ++j) {
+      seq_output[j] = this->get_workspace(output_shapes[seq_idx][j], io_dtype_);
+      if (is_training_) {
+        allocator_->flip();
+      }
     }
 
-    Vec<ConstTensor> seq_input = {inputs[seq_idx]};
-    seq->forward(seq_input, seq_output, mb_id);
+    seq->forward({input}, seq_output, mb_id);
 
-    sequence_outputs[seq_idx] = seq_output[0];
+    sequence_outputs[seq_idx] = seq_output;
   }
 
   Vec<ConstTensor> join_inputs;
   join_inputs.reserve(sequence_outputs.size());
   for (auto &out : sequence_outputs) {
-    join_inputs.push_back(out);
+    join_inputs.insert(join_inputs.end(), out.begin(), out.end());
   }
 
   join_layer_->forward(join_inputs, outputs, mb_id);
@@ -156,30 +168,29 @@ void MSequential::backward_impl(const Vec<ConstTensor> &grad_outputs,
   }
   const Vec<Vec<size_t>> &input_shapes = it_in_shapes->second;
 
-  std::vector<Vec<size_t>> output_shapes(sequences_.size());
+  Vec<Vec<Vec<size_t>>> output_shapes(sequences_.size());
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    output_shapes[i] = sequences_[i]->output_shapes({{input_shapes[i]}})[0];
+    output_shapes[i] = sequences_[i]->output_shapes({input_shapes[i]});
   }
 
-  std::vector<Tensor> seq_grad_outputs(sequences_.size());
+  Vec<Vec<Tensor>> seq_grad_outputs(sequences_.size());
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_grad_outputs[i] = this->get_workspace(output_shapes[i], io_dtype_);
+    seq_grad_outputs[i].resize(output_shapes[i].size());
+    for (size_t j = 0; j < output_shapes[i].size(); ++j) {
+      seq_grad_outputs[i][j] = this->get_workspace(output_shapes[i][j], io_dtype_);
+    }
   }
 
-  Vec<ConstTensor> join_grad_in = grad_outputs;
-  Vec<Tensor> join_grad_out;
-  join_grad_out.reserve(sequences_.size());
-  for (auto &grad : seq_grad_outputs) {
-    join_grad_out.push_back(grad);
+  Vec<Tensor> current_grad;
+  for (size_t i = 0; i < sequences_.size(); ++i) {
+    current_grad.insert(current_grad.end(), seq_grad_outputs[i].begin(), seq_grad_outputs[i].end());
   }
 
-  join_layer_->backward(join_grad_in, join_grad_out, mb_id);
+  join_layer_->backward(grad_outputs, current_grad, mb_id);
 
   for (int i = static_cast<int>(sequences_.size()) - 1; i >= 0; --i) {
-    Vec<ConstTensor> seq_grad_in = {seq_grad_outputs[i]};
-    Vec<Tensor> seq_grad_out = {grad_inputs[i]};
-
-    sequences_[i]->backward(seq_grad_in, seq_grad_out, mb_id);
+    Vec<ConstTensor> path_grad_outputs(seq_grad_outputs[i].begin(), seq_grad_outputs[i].end());
+    sequences_[i]->backward(path_grad_outputs, {grad_inputs[i]}, mb_id);
   }
 
   this->device().getFlow(this->flow_handle_)->synchronize();
@@ -207,17 +218,22 @@ size_t MSequential::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 
   size_t total_ws = 0;
 
+  size_t total_seq_ws = 0;
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    size_t seq_ws = sequences_[i]->fwd_workspace({{input_shapes[i]}});
-    total_ws += seq_ws;
+    size_t seq_ws = sequences_[i]->fwd_workspace({input_shapes[i]});
+    total_seq_ws = std::max(total_seq_ws, seq_ws);
   }
+  total_ws = std::max(total_ws, total_seq_ws);
 
   Vec<Vec<size_t>> seq_output_shapes;
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_output_shapes.push_back(sequences_[i]->output_shapes({{input_shapes[i]}})[0]);
+    auto seq_outs = sequences_[i]->output_shapes({{input_shapes[i]}});
+    seq_output_shapes.push_back(seq_outs[0]);
   }
 
-  total_ws += join_layer_->fwd_workspace(seq_output_shapes);
+  size_t total_join_ws = join_layer_->fwd_workspace(seq_output_shapes);
+
+  total_ws = std::max(total_ws, total_join_ws);
 
   return total_ws;
 }
@@ -234,17 +250,15 @@ size_t MSequential::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 
   for (size_t order_idx = 0; order_idx < order.size(); ++order_idx) {
     size_t seq_idx = order[order_idx];
-
     SequenceMemInfo info = compute_sequence_memory(seq_idx, input_shapes[seq_idx]);
-
     k = std::max(k, info.cycling_cost + accumulated);
-
     accumulated += info.output_size;
   }
 
   Vec<Vec<size_t>> seq_output_shapes;
   for (size_t i = 0; i < sequences_.size(); ++i) {
-    seq_output_shapes.push_back(sequences_[i]->output_shapes({{input_shapes[i]}})[0]);
+    auto seq_outs = sequences_[i]->output_shapes({{input_shapes[i]}});
+    seq_output_shapes.push_back(seq_outs[0]);
   }
 
   size_t join_ws = join_layer_->inf_workspace(seq_output_shapes);

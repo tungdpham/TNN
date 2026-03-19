@@ -15,13 +15,17 @@ using namespace std;
  */
 class PartitionerTest : public ::testing::Test {
 protected:
-  static void SetUpTestSuite() { initializeDefaultDevices(); }
+  static void SetUpTestSuite() {
+    { initializeDefaultDevices(); }
+  }
 
-  void SetUp() override {}
+  void SetUp() override {
+    {}
+  }
 };
 
 TEST_F(PartitionerTest, NaivePipelineModelPartition) {
-  auto layers = LayerBuilder({224, 224, 3})
+  auto layers = LayerBuilder({{224, 224, 3}})
                     .conv2d(64, 3, 3, 1, 1, 0, 0)
                     .batchnorm(1e-5, 0.1f, true, SBool::TRUE)
                     .maxpool2d(2, 2, 2, 2, 0, 0)
@@ -43,7 +47,7 @@ TEST_F(PartitionerTest, NaivePipelineModelPartition) {
                     .dense(1000)
                     .build();
 
-  NaivePartitionerConfig config{{4, 3, 2}};
+  NaivePartitionerConfig config{{{4, 3, 2}}};
   NaivePipelinePartitioner partitioner(config);
 
   size_t num_partitions = 3;
@@ -65,11 +69,11 @@ TEST_F(PartitionerTest, NaivePipelineModelPartition) {
 }
 
 TEST_F(PartitionerTest, NaivePipelineInputPartition) {
-  NaivePartitionerConfig config{{1, 1}};
+  NaivePartitionerConfig config{{{1, 1}}};
   NaivePipelinePartitioner partitioner(config);
 
-  auto input = make_tensor(DType_t::FP32, {32, 224, 224, 3});
-  auto labels = make_tensor(DType_t::FP32, {32, 1000});
+  auto input = make_tensor(DType_t::FP32, {{32, 224, 224, 3}});
+  auto labels = make_tensor(DType_t::FP32, {{32, 1000}});
 
   auto input_partitions = partitioner.partition_input(input, labels);
 
@@ -79,14 +83,14 @@ TEST_F(PartitionerTest, NaivePipelineInputPartition) {
 }
 
 TEST_F(PartitionerTest, NaiveDataModelPartition) {
-  auto layers = LayerBuilder({224, 224, 3})
+  auto layers = LayerBuilder({{224, 224, 3}})
                     .conv2d(64, 3, 3, 1, 1)
                     .batchnorm()
                     .maxpool2d(2, 2, 2, 2, 0, 0)
                     .dense(1000)
                     .build();
 
-  NaivePartitionerConfig config{{1, 1, 1}};
+  NaivePartitionerConfig config{{{1, 1, 1}}};
   NaiveDataPartitioner partitioner(config);
 
   vector<Layer *> layer_ptrs;
@@ -102,11 +106,11 @@ TEST_F(PartitionerTest, NaiveDataModelPartition) {
 }
 
 TEST_F(PartitionerTest, NaiveDataInputPartition) {
-  NaivePartitionerConfig config{{2, 3, 1}};
+  NaivePartitionerConfig config{{{2, 3, 1}}};
   NaiveDataPartitioner partitioner(config);
 
-  auto input = make_tensor(DType_t::FP32, {60, 224, 224, 3});
-  auto labels = make_tensor(DType_t::FP32, {60, 1000});
+  auto input = make_tensor(DType_t::FP32, {{60, 224, 224, 3}});
+  auto labels = make_tensor(DType_t::FP32, {{60, 1000}});
 
   auto input_partitions = partitioner.partition_input(input, labels);
 
@@ -125,11 +129,11 @@ TEST_F(PartitionerTest, NaiveDataInputPartition) {
 }
 
 TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
-  NaivePartitionerConfig config{{1, 1, 1}};
+  NaivePartitionerConfig config{{{1, 1, 1}}};
   NaiveDataPartitioner partitioner(config);
 
-  auto input = make_tensor(DType_t::FP32, {10, 224, 224, 3});
-  auto labels = make_tensor(DType_t::FP32, {10, 1000});
+  auto input = make_tensor(DType_t::FP32, {{10, 224, 224, 3}});
+  auto labels = make_tensor(DType_t::FP32, {{10, 1000}});
 
   auto input_partitions = partitioner.partition_input(input, labels);
 
@@ -143,7 +147,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 }
 
 // TEST_F(PartitionerTest, WeightedPartitionerModelPartition) {
-//   auto layers = LayerBuilder({32, 32, 3})
+//   auto layers = LayerBuilder({{32, 32, 3}})
 //                                               .conv2d(16, 3, 3, 1, 1)
 //                                               .batchnorm()
 //                                               .maxpool2d(2, 2, 2, 2, 0, 0)
@@ -155,7 +159,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //                                               .dense(10)
 //                                               .build();
 
-//   WeightedPartitionerConfig config{{2, 1}, {64, 32, 32, 3}};
+//   WeightedPartitionerConfig config{{{2, 1}, {64, 32, 32, 3}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
 //   vector<Layer *> layer_ptrs;
@@ -177,7 +181,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 // }
 
 // TEST_F(PartitionerTest, WeightedPartitionerEqualWeights) {
-//   auto layers = LayerBuilder({28, 28, 1})
+//   auto layers = LayerBuilder({{28, 28, 1}})
 //                                               .conv2d(8, 3, 3, 1, 1)
 //                                               .conv2d(16, 3, 3, 1, 1)
 //                                               .conv2d(32, 3, 3, 1, 1)
@@ -185,7 +189,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //                                               .dense(10)
 //                                               .build();
 
-//   WeightedPartitionerConfig config{{1, 1, 1}, {64, 28, 28, 1}};
+//   WeightedPartitionerConfig config{{{1, 1, 1}, {64, 28, 28, 1}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
 //   vector<Layer *> layer_ptrs;
@@ -205,7 +209,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 // }
 
 // TEST_F(PartitionerTest, WeightedPartitionerManyWorkers) {
-//   auto layers = LayerBuilder({32, 32, 3})
+//   auto layers = LayerBuilder({{32, 32, 3}})
 //                                               .conv2d(16, 3, 3, 1, 1)
 //                                               .conv2d(16, 3, 3, 1, 1)
 //                                               .conv2d(32, 3, 3, 1, 1)
@@ -215,7 +219,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 //                                               .dense(10)
 //                                               .build();
 
-//   WeightedPartitionerConfig config{{4, 2, 2, 1}, {64, 32, 32, 3}};
+//   WeightedPartitionerConfig config{{{4, 2, 2, 1}, {64, 32, 32, 3}}};
 //   WeightedPipelinePartitioner partitioner(config);
 
 //   vector<Layer *> layer_ptrs;
@@ -237,7 +241,7 @@ TEST_F(PartitionerTest, NaiveDataInputPartitionUneven) {
 // }
 
 TEST_F(PartitionerTest, NaivePipelineEqualProportions) {
-  auto layers = LayerBuilder({28, 28, 1})
+  auto layers = LayerBuilder({{28, 28, 1}})
                     .conv2d(16, 3, 3, 1, 1)
                     .conv2d(16, 3, 3, 1, 1)
                     .conv2d(16, 3, 3, 1, 1)
@@ -245,7 +249,7 @@ TEST_F(PartitionerTest, NaivePipelineEqualProportions) {
                     .dense(10)
                     .build();
 
-  NaivePartitionerConfig config{{1, 1}};
+  NaivePartitionerConfig config{{{1, 1}}};
   NaivePipelinePartitioner partitioner(config);
 
   vector<Layer *> layer_ptrs;
@@ -265,9 +269,9 @@ TEST_F(PartitionerTest, NaivePipelineEqualProportions) {
 }
 
 TEST_F(PartitionerTest, NaivePipelineSinglePartition) {
-  auto layers = LayerBuilder({28, 28, 1}).conv2d(16, 3, 3, 1, 1).flatten().dense(10).build();
+  auto layers = LayerBuilder({{28, 28, 1}}).conv2d(16, 3, 3, 1, 1).flatten().dense(10).build();
 
-  NaivePartitionerConfig config{{1}};
+  NaivePartitionerConfig config{{{1}}};
   NaivePipelinePartitioner partitioner(config);
 
   vector<Layer *> layer_ptrs;
@@ -283,11 +287,11 @@ TEST_F(PartitionerTest, NaivePipelineSinglePartition) {
 }
 
 TEST_F(PartitionerTest, NaiveDataSinglePartition) {
-  NaivePartitionerConfig config{{1}};
+  NaivePartitionerConfig config{{{1}}};
   NaiveDataPartitioner partitioner(config);
 
-  auto input = make_tensor(DType_t::FP32, {64, 224, 224, 3});
-  auto labels = make_tensor(DType_t::FP32, {64, 1000});
+  auto input = make_tensor(DType_t::FP32, {{64, 224, 224, 3}});
+  auto labels = make_tensor(DType_t::FP32, {{64, 1000}});
 
   auto input_partitions = partitioner.partition_input(input, labels);
 

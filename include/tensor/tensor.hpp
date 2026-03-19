@@ -47,6 +47,7 @@ public:
   virtual bool is_aligned(size_t alignment = 32) const = 0;
 
   virtual Tensor clone() const = 0;
+  virtual void share_from(const ConstTensor &other) = 0;
   virtual void head(size_t n = 10) const = 0;
   virtual void print_data() const = 0;
   virtual void save(std::ofstream &out) const = 0;

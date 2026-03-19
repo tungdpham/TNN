@@ -305,11 +305,6 @@ void Conv2DLayer::cudnn_forward(const ConstTensor &input, const Tensor &output, 
   size_t ws_bytes = current_stats.fwd_workspace_size;
   Tensor cudnn_workspace = this->get_workspace({ws_bytes}, DType_t::BYTE);
 
-  if (this->is_training_) {
-    ConstTensor &cached_input = this->get_cached_tensor(mb_id, "input");
-    cached_input = input;
-  }
-
   DISPATCH_ON_3_DTYPES_TO_METHOD(conv2d_forward_task, fe_handle, current_stats, input, output,
                                  weights_, bias_, cudnn_workspace, batch_size, input_h, input_w,
                                  output_h, output_w, this->flow_handle_);
@@ -403,6 +398,7 @@ size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
+
   return stats.fwd_workspace_size;
 #else
   return 0;
@@ -412,7 +408,10 @@ size_t Conv2DLayer::fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
 size_t Conv2DLayer::inf_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   auto &shape = input_shapes[0];
 #ifdef USE_CUDNN
-  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) return 0;
+  if (!allocator_ || allocator_->device().device_type() != DeviceType::GPU) {
+    std::cerr << "Conv2DLayer::inf_workspace: No GPU allocator available, returning 0\n";
+    return 0;
+  }
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
@@ -428,7 +427,8 @@ size_t Conv2DLayer::bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const {
   build_graph(shape);
   const size_t shape_key = get_shape_hash(shape);
   const ConvolutionStats &stats = stats_cache.at(shape_key);
-  return stats.wgrad_workspace_size + stats.dgrad_workspace_size + stats.bgrad_workspace_size;
+  return std::max(
+      {stats.wgrad_workspace_size, stats.dgrad_workspace_size, stats.bgrad_workspace_size});
 #else
   return 0;
 #endif

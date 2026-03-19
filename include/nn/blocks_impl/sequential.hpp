@@ -25,9 +25,6 @@ private:
   std::vector<std::unique_ptr<Layer>> layers_;
   std::unordered_map<size_t, Vec<Vec<size_t>>> input_shapes_cache_;
 
-  Vec<size_t> fwd_workspace_sizes(const std::vector<size_t> &shape);
-  Vec<size_t> bwd_workspace_sizes(const std::vector<size_t> &shape);
-
 protected:
   std::vector<Layer *> layers() override {
     std::vector<Layer *> layers;
@@ -51,6 +48,7 @@ public:
   std::string type() const override { return TYPE_NAME; }
 
   Vec<Vec<size_t>> output_shapes(const Vec<Vec<size_t>> &input_shapes) const override;
+  size_t fwd_cache_bytes(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t fwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t inf_workspace(const Vec<Vec<size_t>> &input_shapes) const override;
   size_t bwd_workspace(const Vec<Vec<size_t>> &input_shapes) const override;

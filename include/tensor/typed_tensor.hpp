@@ -225,6 +225,18 @@ public:
     return std::make_shared<TypedTensor>(allocator_, dtype_, shape_, data_);
   }
 
+  void share_from(const ConstTensor &other) override {
+    auto other_typed = std::dynamic_pointer_cast<const TypedTensor>(other);
+    if (!other_typed) {
+      throw std::runtime_error("Type mismatch in share_from");
+    }
+    dtype_ = other_typed->dtype_;
+    allocator_ = other_typed->allocator_;
+    shape_ = other_typed->shape_;
+    data_size_ = other_typed->data_size_;
+    data_ = other_typed->data_;
+  }
+
   Tensor span(std::vector<size_t> start_offset, std::vector<size_t> span_sizes) const override {
     if (start_offset.size() != shape_.size() || span_sizes.size() != shape_.size()) {
       throw std::invalid_argument("Span offsets and sizes must match tensor dimensions");

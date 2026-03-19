@@ -10,9 +10,7 @@
 #include <string>
 
 #include "activations.hpp"
-#include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/layer.hpp"
-#include "nn/layers_impl/legacy_dense_layer.hpp"
 
 namespace tnn {
 inline std::unique_ptr<ActivationFunction> create_activation(const std::string &name) {
@@ -26,6 +24,7 @@ class LegacyMaxPool2DLayer;
 class LegacyAvgPool2DLayer;
 class LegacyBatchNormLayer;
 
+class IdentityLayer;
 class DenseLayer;
 class ActivationLayer;
 class Conv2DLayer;
@@ -53,7 +52,6 @@ class MSequential;
 #include "blocks_impl/attention_block.hpp"
 #include "blocks_impl/flash_attention_block.hpp"
 #include "blocks_impl/residual_block.hpp"
-#include "layer.hpp"
 #include "layers_impl/activation_layer.hpp"
 #include "layers_impl/avgpool2d_layer.hpp"
 #include "layers_impl/batchnorm_layer.hpp"
@@ -74,8 +72,14 @@ class MSequential;
 #include "layers_impl/positional_embedding_layer.hpp"
 #include "layers_impl/slice_layer.hpp"
 #include "layers_impl/transpose_layer.hpp"
+#include "nn/blocks_impl/flash_attention_block.hpp"
 #include "nn/blocks_impl/msequential.hpp"
 #include "nn/blocks_impl/sequential.hpp"
+#include "nn/layers_impl/identity_layer.hpp"
+#include "nn/layers_impl/legacy_conv2d_layer.hpp"
+#include "nn/layers_impl/legacy_dense_layer.hpp"
+#include "nn/layers_impl/mbroadcast_layer.hpp"
+#include "nn/layers_impl/n_ary_layer.hpp"
 
 namespace tnn {
 
@@ -119,6 +123,7 @@ public:
   }
 
   static void register_defaults() {
+    register_layer_type<IdentityLayer>();
     register_layer_type<DenseLayer>();
     register_layer_type<ActivationLayer>();
     register_layer_type<Conv2DLayer>();
@@ -147,6 +152,9 @@ public:
     register_layer_type<FlashAttentionBlock>();
     register_layer_type<Sequential>();
     register_layer_type<MSequential>();
+    register_layer_type<MBroadcastLayer>();
+    register_layer_type<AddLayer>();
+    register_layer_type<SubLayer>();
   }
 
   static std::vector<std::string> available_types() {
