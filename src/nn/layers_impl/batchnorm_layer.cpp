@@ -149,8 +149,12 @@ void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
     if (batch_mean == nullptr) {
       batch_mean = this->make_io_tensor({num_features_});
     }
-    if (use_relu_ && relu_mask == nullptr) {
-      relu_mask = this->get_tensor(input->shape(), DType_t::UINT8_T);
+    if (use_relu_) {
+      if (relu_mask == nullptr) {
+        relu_mask = make_tensor(DType_t::BYTE, input->shape(), this->device());
+      } else {
+        relu_mask->ensure(input->shape());
+      }
     }
     Tensor workspace = this->get_workspace({current_stats.fwd_workspace_size}, DType_t::BYTE);
     DISPATCH_ON_3_DTYPES_TO_METHOD(forward_training_task, fe_handle, current_stats, input, output,

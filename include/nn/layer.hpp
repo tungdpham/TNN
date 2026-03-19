@@ -109,7 +109,6 @@ protected:
   ConstTensor &get_cached_tensor(size_t mb_id, const std::string &key);
   Tensor &get_mutable_tensor(size_t mb_id, const std::string &key);
   Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
-  Tensor get_tensor(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   Tensor get_act(const std::vector<size_t> &shape);
   void clear_cache(size_t mb_id);
 };

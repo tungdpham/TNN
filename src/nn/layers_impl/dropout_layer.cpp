@@ -11,6 +11,7 @@
 
 #include "device/task.hpp"
 #include "nn/layers_impl/cpu/dropout_ops.hpp"
+#include "type/type.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/dropout_ops.hpp"
 #endif
@@ -35,7 +36,7 @@ void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, 
 
   Tensor &mask = micro_batch_masks_[mb_id];
   if (mask == nullptr)
-    mask = make_tensor<float>(input->shape(), this->device());
+    mask = make_tensor(DType_t::BOOL, input->shape(), this->device());
   else {
     mask->ensure(input->shape());
   }
@@ -60,8 +61,8 @@ void DropoutLayer::backward_impl(const ConstTensor &grad_output, const Tensor &g
   const ConstTensor &mask = it_mask->second;
 
   grad_input->ensure(grad_output->shape());
-  grad_output->copy_to(grad_input);
-  grad_input->mul(mask);
+  DISPATCH_ON_3_DTYPES_TO_METHOD(compute_dropout_backward, grad_output, grad_input, mask,
+                                 this->flow_handle_);
 }
 
 template <typename IO_T, typename Param_T, typename Compute_T>
@@ -84,19 +85,53 @@ std::unique_ptr<Task> DropoutLayer::compute_dropout_forward(const ConstTensor &i
   if (input->device_type() == DeviceType::CPU) {
     return create_cpu_task(handle, cpu::dropout::compute_dropout_forward<Compute_T>,
                            input->data_as<Compute_T>(), output->data_as<Compute_T>(),
-                           mask->data_as<Compute_T>(), batch_size, channels, spatial_size,
+                           mask->data_as<bool>(), batch_size, channels, spatial_size,
                            dropout_rate_);
   }
 #ifdef USE_CUDA
   else if (input->device_type() == DeviceType::GPU) {
     return create_cuda_task(handle, cuda::dropout::compute_dropout_forward<Compute_T>,
                             input->data_as<Compute_T>(), output->data_as<Compute_T>(),
-                            mask->data_as<Compute_T>(), batch_size, channels, spatial_size,
+                            mask->data_as<bool>(), batch_size, channels, spatial_size,
                             dropout_rate_);
   }
 #endif
   else {
     throw std::runtime_error("Unsupported device type for compute_dropout_forward");
+  }
+  return nullptr;
+}
+
+template <typename IO_T, typename Param_T, typename Compute_T>
+std::unique_ptr<Task> DropoutLayer::compute_dropout_backward(const ConstTensor &grad_output,
+                                                             const Tensor &grad_input,
+                                                             const ConstTensor &mask,
+                                                             flowHandle_t handle) const {
+  if constexpr (!std::is_same_v<IO_T, Compute_T>) {
+    throw std::runtime_error(
+        "DropoutLayer mixed dtype dispatch not implemented (io/compute must match).");
+  }
+
+  size_t batch_size = grad_output->dimension(0);
+  size_t channels = grad_output->dimension(1);
+  size_t spatial_size = grad_output->stride(1);
+
+  Compute_T scale = Compute_T(1) / (Compute_T(1) - static_cast<Compute_T>(dropout_rate_));
+
+  if (grad_output->device_type() == DeviceType::CPU) {
+    return create_cpu_task(handle, cpu::dropout::compute_dropout_backward<Compute_T>,
+                           grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                           mask->data_as<bool>(), batch_size, channels, spatial_size, scale);
+  }
+#ifdef USE_CUDA
+  else if (grad_output->device_type() == DeviceType::GPU) {
+    return create_cuda_task(handle, cuda::dropout::compute_dropout_backward<Compute_T>,
+                            grad_output->data_as<Compute_T>(), grad_input->data_as<Compute_T>(),
+                            mask->data_as<bool>(), batch_size, channels, spatial_size, scale);
+  }
+#endif
+  else {
+    throw std::runtime_error("Unsupported device type for compute_dropout_backward");
   }
   return nullptr;
 }

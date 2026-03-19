@@ -157,11 +157,6 @@ Tensor &Layer::get_mutable_tensor(size_t mb_id, const std::string &key) {
   return mutable_tensors_[{mb_id, key}];
 }
 
-Tensor Layer::get_tensor(const std::vector<size_t> &shape, DType_t dtype) {
-  auto &allocator = PoolAllocator::instance(device(), flow_handle_);
-  return make_tensor(allocator, dtype, shape);
-}
-
 Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");

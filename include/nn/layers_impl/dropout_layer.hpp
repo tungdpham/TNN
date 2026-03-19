@@ -27,6 +27,11 @@ private:
   std::unique_ptr<Task> compute_dropout_forward(const ConstTensor &input, const Tensor &output,
                                                 const Tensor &mask, flowHandle_t handle) const;
 
+  template <typename IO_T, typename Param_T, typename Compute_T>
+  std::unique_ptr<Task> compute_dropout_backward(const ConstTensor &grad_output,
+                                                 const Tensor &grad_input, const ConstTensor &mask,
+                                                 flowHandle_t handle) const;
+
   void forward_impl(const ConstTensor &input, const Tensor &output, size_t mb_id = 0) override;
   void backward_impl(const ConstTensor &grad_output, const Tensor &grad_input,
                      size_t mb_id = 0) override;
