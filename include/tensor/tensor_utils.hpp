@@ -11,16 +11,15 @@ template <typename T>
 void check_nan_and_inf(const T *data, size_t size, const std::string &tensor_name = "") {
   for (size_t i = 0; i < size; ++i) {
     if (std::isnan(data[i]) || std::isinf(data[i])) {
-      std::cerr << "TypedTensor " << tensor_name << " contains NaN or Inf at index " << i
-                << std::endl;
+      std::cerr << "Tensor " << tensor_name << " contains NaN or Inf at index " << i << std::endl;
       return;
     }
   }
 }
 
 template <typename T>
-void check_nan_and_inf(const TypedTensor &tensor, const std::string &tensor_name = "") {
-  auto cpu_tensor = std::dynamic_pointer_cast<TypedTensor>(tensor.to_host());
+void check_nan_and_inf(const Tensor &tensor, const std::string &tensor_name = "") {
+  auto cpu_tensor = std::dynamic_pointer_cast<Tensor>(tensor.to_host());
   size_t total_elements = cpu_tensor->size();
   T *data = cpu_tensor->data_ptr().template get<T>();
   if constexpr (std::is_floating_point_v<T>) {
@@ -35,8 +34,8 @@ void check_nan_and_inf(const TypedTensor &tensor, const std::string &tensor_name
 
 inline void check_nan_and_inf(const ConstTensor &tensor, const std::string &tensor_name = "") {
   DType_t dtype = tensor->data_type();
-  DISPATCH_DTYPE(
-      dtype, T, check_nan_and_inf<T>(*std::dynamic_pointer_cast<TypedTensor>(tensor), tensor_name));
+  DISPATCH_DTYPE(dtype, T,
+                 check_nan_and_inf<T>(*std::dynamic_pointer_cast<Tensor>(tensor), tensor_name));
 }
 
 // Prints data density at ranges (2^-32, 2^-31, ..., 2^31, 2^32)
@@ -60,7 +59,7 @@ inline void print_data_distribution(const ConstTensor &tensor,
   std::vector<size_t> buckets(num_buckets + 2, 0);
 
   auto process_data = [&]<typename T>() {
-    auto typed_tensor = std::dynamic_pointer_cast<TypedTensor>(cpu_tensor);
+    auto typed_tensor = std::dynamic_pointer_cast<Tensor>(cpu_tensor);
     if (!typed_tensor) {
       throw std::runtime_error("Failed to cast tensor in print_data_distribution");
     }
