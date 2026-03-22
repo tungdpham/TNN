@@ -114,6 +114,7 @@ protected:
   bool initialized_ = false;
   DELAllocatorV2 *allocator_ = nullptr;
   bool is_training_ = true;
+  bool is_fwd_ = false;
   bool use_seed_ = false;
   unsigned long long srand_seed_ = 0;
   std::map<std::pair<size_t, std::string>, ConstTensor> immutable_cache_;
@@ -125,10 +126,9 @@ protected:
   DType_t compute_dtype_ = DType_t::FP32;  // data type for internal computations
 
   // helpers
-  Tensor make_io_tensor(std::vector<size_t> shape);
-  Tensor make_compute_tensor(std::vector<size_t> shape);
   ConstTensor &get_immutable_cache(size_t mb_id, const std::string &key);
   Tensor &get_mutable_cache(size_t mb_id, const std::string &key);
+  Tensor get_tensor(const std::vector<size_t> &shape, DType_t dtype);
   Tensor get_cache_tensor(const std::vector<size_t> &shape = {}, DType_t dtype = DType_t::FP32);
   Tensor get_workspace(const std::vector<size_t> &shape, DType_t dtype = DType_t::FP32);
   void clear_cache(size_t mb_id);

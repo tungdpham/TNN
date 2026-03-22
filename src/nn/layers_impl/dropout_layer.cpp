@@ -35,7 +35,7 @@ void DropoutLayer::forward_impl(const ConstTensor &input, const Tensor &output, 
 
   Tensor &mask = this->get_mutable_cache(mb_id, "mask");
   if (mask == nullptr)
-    mask = get_cache_tensor(input->shape(), DType_t::BOOL);
+    mask = this->get_tensor(input->shape(), DType_t::BOOL);
   else {
     mask->ensure(input->shape());
   }

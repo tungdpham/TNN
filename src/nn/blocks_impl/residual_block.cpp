@@ -97,7 +97,7 @@ void ResidualBlock::forward_impl(const Vec<ConstTensor> &inputs, const Vec<Tenso
       std::string pre_act_key = "pre_activation_" + std::to_string(i);
       Tensor &pre_act = this->get_mutable_cache(mb_id, pre_act_key);
       if (!pre_act)
-        pre_act = this->get_cache_tensor(main_outputs[i]->shape(), io_dtype_);
+        pre_act = this->get_tensor(main_outputs[i]->shape(), io_dtype_);
       else
         pre_act->ensure(main_outputs[i]->shape());
       DISPATCH_IO_DTYPE(ops::add, main_outputs[i]->data_ptr(), shortcut_outputs[i]->data_ptr(),

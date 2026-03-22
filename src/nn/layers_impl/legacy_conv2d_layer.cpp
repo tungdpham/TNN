@@ -158,13 +158,13 @@ void LegacyConv2DLayer::def_forward(const ConstTensor &input, const Tensor &outp
   // Ensure per-microbatch col buffer is allocated
   Tensor &col_buffer = micro_batch_col_buffers_[mb_id];
   if (col_buffer == nullptr) {
-    col_buffer = make_io_tensor({col_matrix_size});
+    col_buffer = get_tensor({col_matrix_size}, io_dtype_);
   } else {
     col_buffer->ensure({col_matrix_size});
   }
 
   size_t output_buffer_size = out_channels_ * output_size;
-  Tensor temp_output_buffer = make_io_tensor({output_buffer_size});
+  Tensor temp_output_buffer = get_tensor({output_buffer_size}, io_dtype_);
 
   DISPATCH_IO_DTYPE(ops::im2col, input, col_buffer, kernel_h_, kernel_w_, stride_h_, stride_w_,
                     pad_h_, pad_w_, this->flow_handle_);
@@ -212,8 +212,8 @@ void LegacyConv2DLayer::def_backward(const ConstTensor &grad_output, const Tenso
   size_t col_grad_matrix_size = kernel_size * output_size;
 
   size_t gradient_buffer_size = out_channels_ * output_size;
-  Tensor temp_gradient_buffer = make_io_tensor({gradient_buffer_size});
-  Tensor temp_col_grad_matrix_buffer = make_io_tensor({col_grad_matrix_size});
+  Tensor temp_gradient_buffer = get_tensor({gradient_buffer_size}, io_dtype_);
+  Tensor temp_col_grad_matrix_buffer = get_tensor({col_grad_matrix_size}, io_dtype_);
 
   DISPATCH_IO_DTYPE(ops::nchw_to_cnhw, grad_output, temp_gradient_buffer, batch_size, out_channels_,
                     output_h, output_w, this->flow_handle_);

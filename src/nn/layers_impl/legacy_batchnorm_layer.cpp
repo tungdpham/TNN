@@ -13,6 +13,7 @@
 #include "device/task.hpp"
 #include "nn/layer.hpp"
 #include "nn/layers_impl/cpu/batchnorm_nchw_ops.hpp"
+#include "type/type.hpp"
 #ifdef USE_CUDA
 #include "nn/layers_impl/cuda/batchnorm_nchw_ops.hpp"
 #endif
@@ -76,17 +77,17 @@ void LegacyBatchNormLayer::def_forward(const ConstTensor &input, const Tensor &o
   Tensor &batch_mean = this->get_mutable_cache(mb_id, "mean");
 
   if (!norm)
-    norm = make_tensor<float>(input->shape(), this->device());
+    norm = this->get_tensor(input->shape(), DType_t::FP32);
   else
     norm->ensure(input->shape());
 
   if (!batch_inv_std)
-    batch_inv_std = make_tensor<float>({num_features_}, this->device());
+    batch_inv_std = this->get_tensor({num_features_}, DType_t::FP32);
   else
     batch_inv_std->ensure({num_features_});
 
   if (!batch_mean)
-    batch_mean = make_tensor<float>({num_features_}, this->device());
+    batch_mean = this->get_tensor({num_features_}, DType_t::FP32);
   else
     batch_mean->ensure({num_features_});
 

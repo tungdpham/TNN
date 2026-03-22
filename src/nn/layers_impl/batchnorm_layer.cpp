@@ -144,14 +144,14 @@ void BatchNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
     Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
     Tensor &relu_mask = this->get_mutable_cache(mb_id, "relu_mask");
     if (batch_invar == nullptr) {
-      batch_invar = this->get_cache_tensor({num_features_}, io_dtype_);
+      batch_invar = this->get_tensor({num_features_}, io_dtype_);
     }
     if (batch_mean == nullptr) {
-      batch_mean = this->get_cache_tensor({num_features_}, io_dtype_);
+      batch_mean = this->get_tensor({num_features_}, io_dtype_);
     }
     if (use_relu_) {
       if (relu_mask == nullptr) {
-        relu_mask = this->get_cache_tensor(input->shape(), DType_t::BOOL);
+        relu_mask = this->get_tensor(input->shape(), DType_t::BOOL);
       } else {
         relu_mask->ensure(input->shape());
       }

@@ -219,10 +219,10 @@ void LayerNormLayer::cudnn_forward(const ConstTensor &input, const Tensor &outpu
   Tensor &batch_mean = this->get_mutable_cache(mb_id, "batch_mean");
   Tensor &batch_invar = this->get_mutable_cache(mb_id, "batch_invar");
   if (batch_mean == nullptr) {
-    batch_mean = this->get_workspace({batch_size}, compute_dtype_);
+    batch_mean = this->get_tensor({batch_size}, compute_dtype_);
   }
   if (batch_invar == nullptr) {
-    batch_invar = this->get_workspace({batch_size}, compute_dtype_);
+    batch_invar = this->get_tensor({batch_size}, compute_dtype_);
   }
 
   if (this->is_training_) {

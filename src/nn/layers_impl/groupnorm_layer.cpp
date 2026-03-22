@@ -53,17 +53,17 @@ void GroupNormLayer::forward_impl(const ConstTensor &input, const Tensor &output
 
   Tensor &norm = this->get_mutable_cache(mb_id, "norm");
   if (norm == nullptr) {
-    norm = make_io_tensor(input->shape());
+    norm = get_tensor(input->shape(), io_dtype_);
   }
 
   Tensor &mean = this->get_mutable_cache(mb_id, "mean");
   if (mean == nullptr) {
-    mean = make_io_tensor({batch_size * num_groups_});
+    mean = get_tensor({batch_size * num_groups_}, io_dtype_);
   }
 
   Tensor &inv_std = this->get_mutable_cache(mb_id, "inv_std");
   if (inv_std == nullptr) {
-    inv_std = make_io_tensor({batch_size * num_groups_});
+    inv_std = get_tensor({batch_size * num_groups_}, io_dtype_);
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(run_forward_fused, input, mean, inv_std, gamma_, beta_, output,

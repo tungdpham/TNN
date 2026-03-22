@@ -25,6 +25,7 @@ void Layer::forward(const std::vector<ConstTensor> &inputs, const std::vector<Te
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling forward");
   }
+  is_fwd_ = true;
   std::vector<ConstTensor> current_inputs;
   for (auto &input : inputs) {
     if (input->device() == this->device())
@@ -40,6 +41,7 @@ void Layer::backward(const std::vector<ConstTensor> &grad_outputs,
   if (!initialized_) {
     throw std::runtime_error("Layer must be initialized before calling backward");
   }
+  is_fwd_ = false;
   std::vector<ConstTensor> current_grad_outputs;
   for (auto &grad : grad_outputs) {
     if (grad->device() == this->device())
@@ -138,12 +140,11 @@ std::vector<Tensor> Layer::gradients() {
   return grads;
 }
 
-Tensor Layer::make_io_tensor(std::vector<size_t> shape) {
-  return make_tensor(io_dtype_, shape, device());
-}
-
-Tensor Layer::make_compute_tensor(std::vector<size_t> shape) {
-  return make_tensor(compute_dtype_, shape, device());
+Tensor Layer::get_tensor(const std::vector<size_t> &shape, DType_t dtype) {
+  if (!allocator_) {
+    throw std::runtime_error("Allocator is not set");
+  }
+  return make_tensor(dtype, shape, device());
 }
 
 ConstTensor &Layer::get_immutable_cache(size_t mb_id, const std::string &key) {
@@ -158,7 +159,7 @@ Tensor Layer::get_cache_tensor(const std::vector<size_t> &shape, DType_t dtype) 
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  if (is_training_) {
+  if (is_training_ && is_fwd_) {
     allocator_->set_side(0);
   }
   return make_tensor(*allocator_, dtype, shape);
@@ -168,7 +169,7 @@ Tensor Layer::get_workspace(const std::vector<size_t> &shape, DType_t dtype) {
   if (!allocator_) {
     throw std::runtime_error("Allocator is not set");
   }
-  if (is_training_) {
+  if (is_training_ && is_fwd_) {
     allocator_->set_side(1);
   }
   return make_tensor(*allocator_, dtype, shape);
@@ -178,13 +179,6 @@ void Layer::clear_cache(size_t mb_id) {
   for (auto it = immutable_cache_.begin(); it != immutable_cache_.end();) {
     if (it->first.first == mb_id) {
       it = immutable_cache_.erase(it);
-    } else {
-      ++it;
-    }
-  }
-  for (auto it = mutable_cache_.begin(); it != mutable_cache_.end();) {
-    if (it->first.first == mb_id) {
-      it = mutable_cache_.erase(it);
     } else {
       ++it;
     }

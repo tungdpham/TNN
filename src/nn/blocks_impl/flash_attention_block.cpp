@@ -179,7 +179,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
   // Allocate stats tensor (b, h, s, 1) in float
   Tensor &stats_tensor = this->get_mutable_cache(mb_id, "stats_tensor");
   if (stats_tensor == nullptr) {
-    stats_tensor = this->get_workspace({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
+    stats_tensor = this->get_tensor({batch_size, num_heads_, seq_len, 1}, DType_t::FP32);
   }
 
   DISPATCH_ON_3_DTYPES_TO_METHOD(flash_attention_forward_task, fe_handle, stats, q_heads, k_heads,
@@ -187,7 +187,7 @@ void FlashAttentionBlock::cudnn_forward(const ConstTensor &input, const Tensor &
 
   Tensor &attn_out = this->get_mutable_cache(mb_id, "attn_out");
   if (attn_out == nullptr) {
-    attn_out = this->get_workspace({batch_size, seq_len, embed_dim_}, io_dtype_);
+    attn_out = this->get_tensor({batch_size, seq_len, embed_dim_}, io_dtype_);
   }
 
   DISPATCH_DTYPE(io_dtype_, T, {
